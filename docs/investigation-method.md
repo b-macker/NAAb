@@ -384,6 +384,26 @@ checked. For anything security- or safety-adjacent, "I claimed a protection is
 missing" and "I claimed a protection is present" carry very different costs and
 deserve different burdens of proof.
 
+### Fail-closed is not the same as correct — read the remedy text
+
+A check with a wrong comparison still refuses bad input. It also refuses good
+input, and what the operator does about that is part of the check's security
+behaviour.
+
+The package manager pinned every package that had a dependency to the WRONG
+tarball (a member variable clobbered by recursion), so every legitimate upgrade
+of such a package was reported as "this could indicate a supply chain attack".
+Judged on its verdicts alone the gate looked conservative: nothing bad got
+through. But the error message's own remedy was **delete naab.lock** — which
+drops the integrity pin for every package in the project. The defect's escape
+hatch was the control it was supposed to enforce.
+
+So when a gate misfires, do not stop at "it fails closed". Ask what a user does
+the third time it fires on correct input, and read the message it prints while
+failing: remediation advice is behaviour, not documentation. A gate that trains
+its operator to disable it has a worse expected outcome than one that is
+occasionally permissive.
+
 ### Expect to be wrong at each level
 
 When narrowing a list by investigation, treat every intermediate count as

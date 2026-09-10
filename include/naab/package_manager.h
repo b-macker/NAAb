@@ -77,10 +77,18 @@ private:
     PackageLock lock_;
     std::string last_error_;
     std::string last_download_hash_;  // SHA-256 of last downloaded tarball
+    // Set when a download was rejected for an integrity mismatch. Such a
+    // failure must not be retried under a different tag: the ref resolved,
+    // its bytes are simply not the locked ones.
+    bool last_integrity_mismatch_ = false;
 
     // GitHub operations
+    // expected_integrity: "sha256:..." from the lockfile, or "" for a first
+    // install. When non-empty the downloaded tarball is compared against it
+    // BEFORE extraction -- unverified bytes never reach naab_modules/.
     bool downloadFromGitHub(const std::string& owner, const std::string& repo,
-                            const std::string& ref, const std::string& dest_dir);
+                            const std::string& ref, const std::string& dest_dir,
+                            const std::string& expected_integrity);
     std::string getLatestRelease(const std::string& owner, const std::string& repo);
     std::vector<std::string> listTags(const std::string& owner, const std::string& repo);
 

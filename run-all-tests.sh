@@ -1395,6 +1395,24 @@ else
     echo "  test_audit_hmac_required.sh: not found, skipping"
 fi
 
+# --- Package Integrity Pin and its Ordering (F38) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Package Integrity Tests (pin provenance, verify-before-extract)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+PKG_INTEGRITY_SCRIPT="tests/package_manager/test_package_integrity.sh"
+if [ -f "$PKG_INTEGRITY_SCRIPT" ]; then
+    if run_shell_test "$PKG_INTEGRITY_SCRIPT" 2>&1; then
+        echo "  test_package_integrity.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_package_integrity.sh")
+    fi
+else
+    echo "  test_package_integrity.sh: not found, skipping"
+fi
+
 # --- Governance Comment Style Stripping (V-GOV-002) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

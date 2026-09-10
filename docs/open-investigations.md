@@ -375,7 +375,7 @@ measured, not inherited from the report.
 | F35 | `debug.is_tainted` inoperable under the VM | queued | not probed |
 | F36 | multi-agent tool execution needs VM callbacks (tree-walk parity) | queued | not probed |
 | F37 | `env.load_dotenv` ignores `blocked_paths` | queued | not probed |
-| F38 | package tarball extracted before integrity verification | queued | **highest remaining prior** — supply chain |
+| F38 | package tarball extracted before integrity verification | **VERIFIED + FIXED** | plus a second, worse defect in the same mechanism — see below |
 | F39 | package manager writes unsigned govern.json, invalidating its signature | queued | supply chain |
 | F40 | dangling `g_current_interpreter` (thread-local UAF) | **VERIFIED + FIXED** | #217. Report's prescription was itself a regression — see below |
 | F41 | Rust/PHP executors skip `BLOCK_CALL` under a restricted sandbox | queued | not probed |
@@ -383,6 +383,36 @@ measured, not inherited from the report.
 | F43 | SSRF filter not applied to HTTP redirect destinations | queued | network-facing; needs a live redirect server |
 | F44 | trust store: `default.pub` blind spot + injection guard | **real defect, exploitability UNPROVEN** | see below |
 | F45 | `--lock-check` accepts a lockfile whose `.sig` was deleted | **NOT A DEFECT — already fixed** | see below |
+
+**F38 — the ordering claim is true, and tracing it surfaced a second defect in
+the same mechanism that is worse.** Both in `src/packages/package_manager.cpp`,
+both fixed together, both measured through a loopback stub rather than argued.
+Regression test: `tests/package_manager/test_package_integrity.sh`.
+
+(a) *Verified after extraction.* `downloadFromGitHub()` computed the tarball's
+SHA-256 before extracting (the comment even says "before extraction"), but the
+comparison against the lockfile lived in `install()`, after the download call
+returned. By then `extractTarball()` had run `remove_all(dest_dir)` and moved
+the new tree into place, and the rejection path deleted what was left. So a
+tarball that fails the pin could not be *installed* — it could only destroy the
+verified package it was replacing. Measured: with a sentinel file in an
+installed `naab_modules/parent/`, a mismatching download left the directory
+gone. It is bounded to destruction, not arbitrary write: GNU tar refuses `..`
+members and strips a leading `/`, verified with a tarball carrying both.
+
+(b) *The pin named the wrong artefact.* The lockfile entry was written from the
+member `last_download_hash_`, read AFTER the transitive-dependency loop — which
+calls `install()` recursively and overwrites it. Any package with a GitHub
+dependency was pinned to its last dependency's tarball. Measured: installing
+`parent` (one dependency, `child`) recorded `child`'s hash under `parent`'s
+name, and the next legitimate upgrade of `parent` was then reported as
+"this could indicate a supply chain attack".
+
+(b) is the more damaging of the two even though it fails closed, and the reason
+is the remedy text. The check misfires for every multi-dependency package, and
+the error told the user to **delete naab.lock** — which discards the pin for
+every package in the project. A gate that fires on correct input teaches the
+operator to disable it, and this one printed the instructions.
 
 **F44 — real in code, unproven in effect, and the probe trap is the useful part.**
 Two sub-claims, and they land differently. (a) `TrustStore::hasKeys()` counts
