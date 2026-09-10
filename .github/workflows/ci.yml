@@ -37,7 +37,14 @@ jobs:
       - name: Build
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
-          ninja -C build naab-lang libnaab -j$(nproc)
+          # naab-verify-audit is the ONLY verifier for the tamper-evident audit
+          # log. It is a declared executable that no workflow built, so it rotted
+          # unnoticed: on 18dbada it failed to compile (std::filesystem used with
+          # no <filesystem> include). An unbuilt target reads as a shipped
+          # feature -- the same failure register B10 records for unrun tests, one
+          # layer down. tests/security/test_audit_hmac_required.sh needs this
+          # binary and reports UNMEASURABLE rather than passing without it.
+          ninja -C build naab-lang libnaab naab-verify-audit -j$(nproc)
 
       - name: Run tests
         run: bash run-all-tests.sh

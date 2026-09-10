@@ -1373,6 +1373,28 @@ else
     echo "  test_interpreter_pointer_retraction.sh: not found, skipping"
 fi
 
+# --- Audit log HMAC (F31: the artefact could switch off its own verification) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Audit Log HMAC Verification (signature cannot be optional)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+AUDIT_HMAC_SCRIPT="tests/security/test_audit_hmac_required.sh"
+if [ -f "$AUDIT_HMAC_SCRIPT" ]; then
+    if [ ! -x "build/naab-verify-audit" ]; then
+        echo "  building naab-verify-audit (required by this suite)..."
+        cmake --build build --target naab-verify-audit -j4 >/dev/null 2>&1 || true
+    fi
+    if run_shell_test "$AUDIT_HMAC_SCRIPT" 2>&1; then
+        echo "  test_audit_hmac_required.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_audit_hmac_required.sh")
+    fi
+else
+    echo "  test_audit_hmac_required.sh: not found, skipping"
+fi
+
 # --- Governance Comment Style Stripping (V-GOV-002) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
