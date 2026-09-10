@@ -360,6 +360,88 @@ Final tally: **12 verified true** (A7, A8, A10-A18 covering F2/F5/F7/F8/F9/F10/F
 | F29 | REST API installs no ScopedSandbox -> sandbox-gated ops unrestricted (RCE) | **VERIFIED** | A27 — process.run under shell-disabled runs via REST (side-effect proof) |
 | F30 | `naab.toml` manifest parsed but never wired to engine/sandbox | **VERIFIED (trace)** | A28 — used only for has_value()+version print |
 
+### Batches 4-6 (F31-F45), settled and outstanding
+
+Logged here because they were previously recorded only on the still-open draft
+#214, i.e. nowhere a reader of master would find them. Status is per-row and
+measured, not inherited from the report.
+
+| # | claim (as reported) | state | evidence |
+|---|---|---|---|
+| F31 | tamper-evident log: empty signature bypasses HMAC verification | **VERIFIED + FIXED** | #218. Worse than reported — see below |
+| F32 | hardcoded Termux TLS bundle used as the fallback for every platform | **VERIFIED (trace)** | live on `3644c67`; `agent_provider.cpp:117`, `telemetry_forwarder.cpp:155`. Written up as a CLAUDE.md gotcha, not yet fixed |
+| F33 | `use module` bypasses filesystem governance | queued | draft #214 claims a fix; unverified here |
+| F34 | native `io` stdlib ignores `blocked_paths` | queued | not probed |
+| F35 | `debug.is_tainted` inoperable under the VM | queued | not probed |
+| F36 | multi-agent tool execution needs VM callbacks (tree-walk parity) | queued | not probed |
+| F37 | `env.load_dotenv` ignores `blocked_paths` | queued | not probed |
+| F38 | package tarball extracted before integrity verification | queued | **highest remaining prior** — supply chain |
+| F39 | package manager writes unsigned govern.json, invalidating its signature | queued | supply chain |
+| F40 | dangling `g_current_interpreter` (thread-local UAF) | **VERIFIED + FIXED** | #217. Report's prescription was itself a regression — see below |
+| F41 | Rust/PHP executors skip `BLOCK_CALL` under a restricted sandbox | queued | not probed |
+| F42 | unchecked recursive marshalling -> SIGSEGV | **VERIFIED + FIXED** | #215 |
+| F43 | SSRF filter not applied to HTTP redirect destinations | queued | network-facing; needs a live redirect server |
+| F44 | trust store: `default.pub` blind spot + injection guard | **real defect, exploitability UNPROVEN** | see below |
+| F45 | `--lock-check` accepts a lockfile whose `.sig` was deleted | **NOT A DEFECT — already fixed** | see below |
+
+**F44 — real in code, unproven in effect, and the probe trap is the useful part.**
+Two sub-claims, and they land differently. (a) `TrustStore::hasKeys()` counts
+`default.pub` while `loadKeys()` skips it, so a store holding only `default.pub`
+reports "keys installed" and yields none. `trustStoreTampered()` is therefore
+blind to deletion of every real key — but the outcome still **fails closed**:
+`verifySignatureImpl` hits `keys.empty()` and prints `INTEGRITY BLOCK: trust
+store directory emptied during verification`. A detection gap, not a bypass.
+(b) The injection guard at `governance_engine.cpp:4502` reads
+`if (!s_initial_fingerprints.empty() && ...count(fingerprint) == 0)`. The first
+conjunct disables the guard when the startup set is empty, which is exactly the
+state (a) produces. Same self-disabling shape as F31.
+
+**Nobody has demonstrated (b) is exploitable, including me, and here is the trap
+that will cost you an hour if you skip this paragraph.** `s_initial_fingerprints`
+is populated by `std::call_once` at the FIRST VERIFICATION INSIDE THE PROCESS —
+not at any wall-clock startup. Every CLI probe that installs a key before
+launching `naab-lang` therefore puts that key *in* the initial set and tests
+nothing: it demonstrates the trust store installing a key, which is its job. I
+ran exactly that, read it as a confirmed bypass, and was wrong; the control that
+caught it was injecting into a store that already held a real key and watching
+the program run anyway. Settling this needs a long-lived process that verifies,
+then receives a key, then verifies again — the REST API, or an agent run with a
+mid-run reload. Until then the row is a code defect with unknown reach, and
+writing to the trust store is outside the threat model anyway
+(`addGovernanceProtectedPaths()` blocks scripts from it).
+
+**F45 — already fixed, and ITS TEST ASSERTS SOMETHING HARMFUL.** `V-SC-003`
+(`lockfile.cpp:226`) and `V-SC-004` (`main.cpp:1771`) closed this before the
+audit ran. Measured on `3644c67`, four quadrants plus a tamper case:
+
+| key | `.sig` | result |
+|---|---|---|
+| set | valid | exit 0, executes — **the control that proves the harness reaches the gate** |
+| set | deleted | `TAMPER`, blocked |
+| set | lockfile edited, sig stale | `TAMPER`, blocked |
+| unset | present | `TAMPER`, blocked — dropping the key is not an escape either |
+| unset | absent | executes with a warning: signing not enabled |
+
+The audit's harness asserts the last row should be REJECTED. Implementing that
+would make `naab-lang --lock-check` refuse to run for every user who has not
+opted into lockfile signing. **Do not implement it.** The permissive quadrant is
+"signing not configured", a deployment choice, and it warns.
+
+My first run of this probe showed all four quadrants blocked, which reads as
+"attack prevented" and is the right conclusion for the wrong reason: the baseline
+was failing too, because the fixture pinned `Python 3.12` against a box running
+`3.11.15` and `--lock-check` was dying on RUNTIME DRIFT before signatures
+mattered. A probe whose control is not verified can confirm a true conclusion
+while measuring nothing.
+
+**Base rate on this audit, five settled: five directionally useful, five wrong in
+specifics.** F42's crash was real but its named JS file was not the crashing
+path; F40's mechanism was real but its prescribed fix implements the mirror bug;
+the rules proposal cited line 682 of a 593-line file; F31 UNDERSTATED the problem
+(it never established that the verifier does not compile and that no CI workflow
+builds it); F45 was already fixed and its test is harmful. Treat every remaining
+row as a place to look. None of them is a verdict.
+
 **Priority order for the campaign:** F16 (per-agent governance possibly inert — undermines a headline feature), F13 (privilege escalation), F9 + F10 (filesystem/network policy bypass), then F7/F8/F11/F12, then the F6 residual. F9 has the strongest prior (self-observed). Each gets: trace to the point of EFFECT, a positive control proving the gate CAN fire, then the probe. Record verified ones as A-rows with their controls; falsify the rest out loud.
 
 ## B. Known engine behaviour, decided but unfixed
