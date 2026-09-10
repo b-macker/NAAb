@@ -169,8 +169,40 @@ bool PackageManager::httpDownloadFile(const std::string& url, const std::string&
 // GitHub API
 // ============================================================================
 
+namespace {
+
+// Base URL for the GitHub REST API.
+//
+// NAAB_PKG_API_BASE redirects package downloads at a LOOPBACK http(s) address
+// only -- the same rule the agent layer applies to per-agent api_base, and for
+// the same reason: it exists so the package manager can be tested against a
+// local stub (tests/helpers/package_stub.py) without network access. A value
+// pointing anywhere else is ignored, so the variable cannot be used to move a
+// real install onto an attacker's host.
+std::string githubApiBase() {
+    const char* override_base = std::getenv("NAAB_PKG_API_BASE");
+    if (override_base && *override_base) {
+        std::string base(override_base);
+        while (!base.empty() && base.back() == '/') base.pop_back();
+        static const char* kLoopbackPrefixes[] = {
+            "http://127.0.0.1", "http://localhost", "http://[::1]",
+            "https://127.0.0.1", "https://localhost", "https://[::1]"
+        };
+        for (const char* prefix : kLoopbackPrefixes) {
+            if (base.rfind(prefix, 0) == 0) {
+                return base;
+            }
+        }
+        fmt::print(stderr,
+                   "[package] Warning: NAAB_PKG_API_BASE ignored (loopback only)\n");
+    }
+    return "https://api.github.com";
+}
+
+}  // namespace
+
 std::string PackageManager::getLatestRelease(const std::string& owner, const std::string& repo) {
-    std::string url = fmt::format("https://api.github.com/repos/{}/{}/releases/latest", owner, repo);
+    std::string url = fmt::format("{}/repos/{}/{}/releases/latest", githubApiBase(), owner, repo);
     std::string response = httpGet(url);
     if (response.empty()) {
         // No releases — try default branch
@@ -195,7 +227,7 @@ std::string PackageManager::getLatestRelease(const std::string& owner, const std
 }
 
 std::vector<std::string> PackageManager::listTags(const std::string& owner, const std::string& repo) {
-    std::string url = fmt::format("https://api.github.com/repos/{}/{}/tags?per_page=100", owner, repo);
+    std::string url = fmt::format("{}/repos/{}/{}/tags?per_page=100", githubApiBase(), owner, repo);
     std::string response = httpGet(url);
     std::vector<std::string> tags;
     if (response.empty()) return tags;
@@ -217,10 +249,12 @@ std::vector<std::string> PackageManager::listTags(const std::string& owner, cons
 }
 
 bool PackageManager::downloadFromGitHub(const std::string& owner, const std::string& repo,
-                                         const std::string& ref, const std::string& dest_dir) {
+                                         const std::string& ref, const std::string& dest_dir,
+                                         const std::string& expected_integrity) {
+    last_integrity_mismatch_ = false;
     // Download tarball from GitHub
     std::string tarball_url = fmt::format(
-        "https://api.github.com/repos/{}/{}/tarball/{}", owner, repo, ref);
+        "{}/repos/{}/{}/tarball/{}", githubApiBase(), owner, repo, ref);
 
     std::string cache_dir;
     const char* home = std::getenv("HOME");
@@ -252,8 +286,30 @@ bool PackageManager::downloadFromGitHub(const std::string& owner, const std::str
                    file_size / (1024 * 1024));
     }
 
-    // Compute integrity hash before extraction (V-PKG-002)
+    // Compute AND CHECK the integrity hash before extraction (V-PKG-002).
+    //
+    // The comparison has to happen here, not after the install returns:
+    // extractTarball() deletes dest_dir and moves the new tree into its place,
+    // so a check that runs later has already let unverified content replace a
+    // verified package, and rejects the download by deleting what is left --
+    // taking the good copy with it.
     last_download_hash_ = computeSHA256(tarball_path);
+
+    if (!expected_integrity.empty() && expected_integrity != last_download_hash_) {
+        fs::remove(tarball_path);
+        last_integrity_mismatch_ = true;
+        last_error_ = fmt::format(
+            "Integrity check failed for {}/{}@{}!\n"
+            "  Expected: {}\n"
+            "  Got:      {}\n\n"
+            "  The package content has changed since it was locked.\n"
+            "  This could indicate a supply chain attack.\n"
+            "  Nothing was extracted and any installed copy was left untouched.\n"
+            "  To accept the new content, remove this package's [[package]] entry\n"
+            "  from naab.lock and re-run install.",
+            owner, repo, ref, expected_integrity, last_download_hash_);
+        return false;
+    }
 
     // Extract tarball
     if (!extractTarball(tarball_path, dest_dir)) {
@@ -584,36 +640,36 @@ bool PackageManager::install(const std::string& spec) {
     // Create naab_modules directory
     fs::create_directories(modules_dir_);
 
+    // V-PKG-002: the locked hash for this package, if we have one. It is
+    // handed to the downloader so the comparison happens before extraction.
+    std::string expected_integrity;
+    for (const auto& existing : lock_.packages) {
+        if (existing.name == pkg_name && !existing.integrity.empty()) {
+            expected_integrity = existing.integrity;
+            break;
+        }
+    }
+
     // Try version tag with and without 'v' prefix
     std::string ref = version;
-    if (!downloadFromGitHub(parsed.owner, parsed.repo, ref, pkg_dir)) {
+    if (!downloadFromGitHub(parsed.owner, parsed.repo, ref, pkg_dir, expected_integrity)) {
+        // A hash mismatch means the ref resolved and its bytes are not the
+        // locked ones -- retrying under another tag would only hide that.
+        if (last_integrity_mismatch_) {
+            return false;
+        }
         // Try with 'v' prefix
         ref = "v" + version;
-        if (!downloadFromGitHub(parsed.owner, parsed.repo, ref, pkg_dir)) {
+        if (!downloadFromGitHub(parsed.owner, parsed.repo, ref, pkg_dir, expected_integrity)) {
             return false;
         }
     }
 
-    // V-PKG-002: Verify integrity against lockfile if entry exists
-    if (!last_download_hash_.empty()) {
-        for (const auto& existing : lock_.packages) {
-            if (existing.name == pkg_name && !existing.integrity.empty()) {
-                if (existing.integrity != last_download_hash_) {
-                    fs::remove_all(pkg_dir);
-                    last_error_ = fmt::format(
-                        "Integrity check failed for {}!\n"
-                        "  Expected: {}\n"
-                        "  Got:      {}\n\n"
-                        "  The package content has changed since it was locked.\n"
-                        "  This could indicate a supply chain attack.\n"
-                        "  To accept the new version, delete naab.lock and re-run install.",
-                        pkg_name, existing.integrity, last_download_hash_);
-                    return false;
-                }
-                break;
-            }
-        }
-    }
+    // The hash of THIS package's tarball. Installing dependencies below calls
+    // install() recursively, which overwrites last_download_hash_ -- reading the
+    // member again when the lockfile entry is written records a dependency's
+    // hash under this package's name.
+    const std::string package_integrity = last_download_hash_;
 
     // Read package info
     auto pkg_info = readPackageInfo(pkg_dir);
@@ -660,7 +716,7 @@ bool PackageManager::install(const std::string& spec) {
     entry.version = pkg_info.version;
     entry.source = "github:" + parsed.owner + "/" + parsed.repo;
     entry.commit = ref;
-    entry.integrity = last_download_hash_;
+    entry.integrity = package_integrity;
 
     // Remove existing entry for this package
     lock_.packages.erase(
