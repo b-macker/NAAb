@@ -497,11 +497,40 @@ VerificationResult TamperEvidenceLogger::verifyIntegrity(const std::string& hmac
                 result.verified_entries++;
             }
 
-            // Verify HMAC if provided
-            if (!hmac_key.empty() && !entry.signature.empty()) {
-                // Extract HMAC from signature (format: "hmac-sha256:HEXVALUE")
+            // F31: verify the HMAC whenever a key is configured. The signature is
+            // the ONLY part of an entry an attacker cannot recompute -- everything
+            // else in the chain is keyless. toCanonicalString() excludes the
+            // signature, so a forger can edit `details`, recompute `hash`, repair
+            // the next entry's `prev_hash`, and the chain checks all pass. The
+            // keyed signature is what binds the log to the operator.
+            //
+            // This block used to be `if (!hmac_key.empty() && !entry.signature.empty())`
+            // with a silent bail when the signature carried no ':'. Both conditions
+            // are properties of the ARTEFACT UNDER AUDIT, so the log could switch
+            // off its own verification: deleting one signature field made the tool
+            // print "The log chain is intact and has not been tampered with" over a
+            // rewritten entry. Demonstrated end to end in
+            // tests/security/test_audit_hmac_required.sh.
+            //
+            // `hmac_key` is OUR configuration and remains a legitimate guard: no
+            // key supplied means the caller asked for chain-only verification.
+            // Supplying a key asserts the log must be signed, so a missing or
+            // malformed signature is a FAILURE, never a skip.
+            if (!hmac_key.empty()) {
                 size_t colon_pos = entry.signature.find(':');
-                if (colon_pos != std::string::npos) {
+                if (entry.signature.empty()) {
+                    result.is_valid = false;
+                    result.tampered_sequences.push_back(entry.sequence);
+                    result.errors.push_back(fmt::format(
+                        "Missing HMAC signature at sequence {} (a key was supplied, "
+                        "so every entry must carry one)", entry.sequence));
+                } else if (colon_pos == std::string::npos) {
+                    result.is_valid = false;
+                    result.tampered_sequences.push_back(entry.sequence);
+                    result.errors.push_back(fmt::format(
+                        "Malformed HMAC signature at sequence {} (expected "
+                        "\"algorithm:hex\")", entry.sequence));
+                } else {
                     std::string stored_hmac = entry.signature.substr(colon_pos + 1);
                     std::string computed_hmac = computeHMAC(entry.hash, hmac_key);
 

@@ -5,6 +5,12 @@
 
 #include "naab/tamper_evident_logger.h"
 #include <iostream>
+// F31: this file used std::filesystem::exists / file_size without including
+// <filesystem>, so `make naab-verify-audit` failed to compile on master. No CI
+// workflow builds this target (they build only `naab-lang libnaab`), so the
+// break was invisible: a declared executable that nothing compiles reads as a
+// shipped feature. The target is now in the Build & Test workflow.
+#include <filesystem>
 #include <fmt/core.h>
 #include <fmt/color.h>
 
