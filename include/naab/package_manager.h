@@ -68,6 +68,11 @@ public:
     bool applyPackageGovernance(const std::string& package_name);
     bool removePackageGovernance(const std::string& package_name);
 
+    // True when the project's govern.json carries a signature sidecar. A
+    // signed config is a controlled artefact: rewriting it here leaves the
+    // signature behind and every later run is an INTEGRITY BLOCK.
+    bool governanceIsSigned() const;
+
     // Error reporting
     const std::string& getLastError() const { return last_error_; }
 

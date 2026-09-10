@@ -4692,7 +4692,7 @@ int main(int argc, char** argv) {
                 // installAll prints its own output
             } else {
                 fmt::print(stderr, "Error: {}\n", pm.getLastError());
-                fflush(stderr);
+                fflush(nullptr);  // stdout too: _exit skips the flush
                 _exit(1);
             }
         } else {
@@ -4701,7 +4701,7 @@ int main(int argc, char** argv) {
                     // install prints its own output
                 } else {
                     fmt::print(stderr, "Error: {}\n", pm.getLastError());
-                    fflush(stderr);
+                    fflush(nullptr);  // stdout too: _exit skips the flush
                     _exit(1);
                 }
             }
@@ -4714,7 +4714,7 @@ int main(int argc, char** argv) {
         if (argc < 3) {
             fmt::print(stderr, "Error: Missing package name\n");
             fmt::print(stderr, "Usage: naab-lang remove <package-name>\n");
-            fflush(stderr);
+            fflush(nullptr);  // stdout too: _exit skips the flush
             _exit(1);
         }
         naab::packages::PackageManager pm(".");
@@ -4723,7 +4723,7 @@ int main(int argc, char** argv) {
             // remove prints its own output
         } else {
             fmt::print(stderr, "Error: {}\n", pm.getLastError());
-            fflush(stderr);
+            fflush(nullptr);  // stdout too: _exit skips the flush
             _exit(1);
         }
 
@@ -4737,7 +4737,7 @@ int main(int argc, char** argv) {
             // update prints its own output
         } else {
             fmt::print(stderr, "Error: {}\n", pm.getLastError());
-            fflush(stderr);
+            fflush(nullptr);  // stdout too: _exit skips the flush
             _exit(1);
         }
 
@@ -4772,7 +4772,7 @@ int main(int argc, char** argv) {
         if (argc < 3) {
             fmt::print(stderr, "Error: Missing package spec\n");
             fmt::print(stderr, "Usage: naab-lang info <user/repo>\n");
-            fflush(stderr);
+            fflush(nullptr);  // stdout too: _exit skips the flush
             _exit(1);
         }
         naab::packages::PackageManager pm(".");
@@ -4780,7 +4780,7 @@ int main(int argc, char** argv) {
         auto pkg = pm.info(spec);
         if (pkg.name.empty()) {
             fmt::print(stderr, "Error: {}\n", pm.getLastError());
-            fflush(stderr);
+            fflush(nullptr);  // stdout too: _exit skips the flush
             _exit(1);
         }
         fmt::print("{} v{}\n", pkg.name, pkg.version);
@@ -4813,7 +4813,7 @@ int main(int argc, char** argv) {
         if (argc < 3) {
             fmt::print(stderr, "Error: Missing search query\n");
             fmt::print(stderr, "Usage: naab-lang search <query>\n");
-            fflush(stderr);
+            fflush(nullptr);  // stdout too: _exit skips the flush
             _exit(1);
         }
         naab::packages::PackageManager pm(".");
@@ -4846,7 +4846,7 @@ int main(int argc, char** argv) {
         naab::packages::PackageManager pm(".");
         if (!pm.publish()) {
             // publish() prints its own errors
-            fflush(stderr);
+            fflush(nullptr);  // stdout too: _exit skips the flush
             _exit(1);
         }
 
@@ -4865,20 +4865,27 @@ int main(int argc, char** argv) {
                 "  Or use process substitution:\n"
                 "    naab-lang <(echo 'main {{ io.write(\"hello\") }}')\n",
                 command);
-            fflush(stderr);
+            fflush(nullptr);  // stdout too: _exit skips the flush
             _exit(1);
         }
         fmt::print("Unknown command: {}\n\n", command);
         print_usage();
         fflush(stdout);
-        fflush(stderr);
+        fflush(nullptr);  // stdout too: _exit skips the flush
         _exit(1);
     }
 
     // Use _exit() to skip static destructors on Android.
     // Thread pool workers and Python thread states trigger bionic CFI
     // crashes during static destruction (mmap fails for shadow memory
-    // late in process lifetime). _exit() is safe: the OS cleans up all
-    // process resources, and we've already flushed all output.
+    // late in process lifetime).
+    //
+    // _exit() skips the C runtime's flush of stdio buffers, so anything still
+    // sitting in stdout is DISCARDED. That is invisible on a terminal, where
+    // stdout is line-buffered, and total through a pipe or into a file, where
+    // it is fully buffered: `naab-lang install | cat` printed nothing at all,
+    // including the notice that a package had modified govern.json. Flush
+    // every stream first -- the comment above already claimed this was done.
+    fflush(nullptr);
     _exit(0);
 }

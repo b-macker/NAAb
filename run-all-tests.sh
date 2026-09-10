@@ -1413,6 +1413,24 @@ else
     echo "  test_package_integrity.sh: not found, skipping"
 fi
 
+# --- Signed govern.json vs Package Operations (F39) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Signed Governance Tests (package ops must not break the signature)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+SIGNED_GOV_SCRIPT="tests/package_manager/test_signed_governance.sh"
+if [ -f "$SIGNED_GOV_SCRIPT" ]; then
+    if run_shell_test "$SIGNED_GOV_SCRIPT" 2>&1; then
+        echo "  test_signed_governance.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_signed_governance.sh")
+    fi
+else
+    echo "  test_signed_governance.sh: not found, skipping"
+fi
+
 # --- Governance Comment Style Stripping (V-GOV-002) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

@@ -702,9 +702,15 @@ bool PackageManager::install(const std::string& spec) {
         }
     }
 
-    // Apply governance if package has it
+    // Apply governance if package has it. A refusal does not undo the install:
+    // the package is already extracted, and deleting it here would destroy a
+    // copy the operator asked for over a signature technicality. Record it
+    // fully below, then report the refusal so the exit code carries it.
+    std::string governance_error;
     if (pkg_info.has_governance) {
-        applyPackageGovernance(pkg_name);
+        if (!applyPackageGovernance(pkg_name)) {
+            governance_error = last_error_;
+        }
     }
 
     // Update naab.toml
@@ -725,6 +731,11 @@ bool PackageManager::install(const std::string& spec) {
         lock_.packages.end());
     lock_.packages.push_back(entry);
     lock_.save(lockfilePath());
+
+    if (!governance_error.empty()) {
+        last_error_ = governance_error;
+        return false;
+    }
 
     return true;
 }
@@ -830,7 +841,12 @@ bool PackageManager::remove(const std::string& name) {
     }
 
     // Remove governance entries first
-    removePackageGovernance(name);
+    // Before anything is deleted: a signed config that still names this
+    // package cannot be edited here, and removing the files while the entry
+    // stays would leave govern.json pointing at a directory that is gone.
+    if (!removePackageGovernance(name)) {
+        return false;
+    }
 
     // Remove from filesystem
     fs::remove_all(pkg_dir);
@@ -1053,6 +1069,68 @@ bool PackageManager::publish() const {
 // Governance Integration
 // ============================================================================
 
+bool PackageManager::governanceIsSigned() const {
+    return fs::exists(project_dir_ + "/govern.json.sig");
+}
+
+namespace {
+
+enum class GovernWrite { Unchanged, Written, RefusedSigned };
+
+// Write govern.json only when the change is real, and never over a signature.
+//
+// Both halves matter. The unchanged case is not an optimisation: dumping the
+// parsed JSON reorders keys and reindents, so a rewrite that changes NOTHING
+// still produces different bytes and breaks the signature -- `remove` on a
+// package that never touched governance was enough to do it.
+GovernWrite writeGovernIfChanged(const nlohmann::json& before,
+                                 const nlohmann::json& after,
+                                 const std::string& govern_path,
+                                 bool signed_config) {
+    if (before == after) return GovernWrite::Unchanged;
+    if (signed_config) return GovernWrite::RefusedSigned;
+    std::ofstream ofs(govern_path);
+    ofs << after.dump(2) << std::endl;
+    return GovernWrite::Written;
+}
+
+// The refusal text, shared by the two write sites in applyPackageGovernance().
+std::string signedGovernanceRefusal(const std::string& package_name,
+                                    const std::string& rules_file) {
+    return fmt::format(
+        "govern.json is signed, and package '{}' carries governance rules that "
+        "would change it.\n\n"
+        "  The package is installed and pinned. Only its governance rules were "
+        "not applied.\n"
+        "  Rewriting a signed govern.json leaves govern.json.sig behind, and "
+        "every later\n"
+        "  run of this project would then stop with an integrity block.\n\n"
+        "  To apply the rules:\n"
+        "    1. review naab_modules/{}/{}\n"
+        "    2. add the rules you accept to govern.json\n"
+        "    3. re-sign the config with: naab-lang --sign-governance\n",
+        package_name, package_name, rules_file);
+}
+
+// Same, for a removal that would strip an entry out of a signed config.
+std::string signedGovernanceRemovalRefusal(const std::string& package_name) {
+    return fmt::format(
+        "govern.json is signed and still carries the governance entry for "
+        "'{}'.\n\n"
+        "  Nothing was removed.\n"
+        "  Rewriting a signed govern.json leaves govern.json.sig behind, and "
+        "every later\n"
+        "  run of this project would then stop with an integrity block.\n\n"
+        "  To remove this package:\n"
+        "    1. delete its entry from govern.json (the one whose \"_package\" "
+        "is \"{}\")\n"
+        "    2. re-sign the config with: naab-lang --sign-governance\n"
+        "    3. run the removal again\n",
+        package_name, package_name);
+}
+
+}  // namespace
+
 bool PackageManager::applyPackageGovernance(const std::string& package_name) {
     std::string pkg_dir = modules_dir_ + "/" + package_name;
     auto info = readPackageInfo(pkg_dir);
@@ -1100,6 +1178,9 @@ bool PackageManager::applyPackageGovernance(const std::string& package_name) {
         return false;
     }
 
+    // The config as it stands, to compare against before writing anything.
+    const nlohmann::json govern_original = govern;
+
     // Ensure governance_plugins array exists
     if (!govern.contains("governance_plugins") || !govern["governance_plugins"].is_array()) {
         govern["governance_plugins"] = nlohmann::json::array();
@@ -1126,9 +1207,16 @@ bool PackageManager::applyPackageGovernance(const std::string& package_name) {
                 }
             }
 
-            std::ofstream ofs(govern_path);
-            ofs << govern.dump(2) << std::endl;
-            return true;
+            switch (writeGovernIfChanged(govern_original, govern, govern_path,
+                                         governanceIsSigned())) {
+                case GovernWrite::Unchanged:
+                case GovernWrite::Written:
+                    return true;
+                case GovernWrite::RefusedSigned:
+                    last_error_ = signedGovernanceRefusal(package_name, info.rules_file);
+                    return false;
+            }
+            return false;
         }
     }
 
@@ -1154,8 +1242,11 @@ bool PackageManager::applyPackageGovernance(const std::string& package_name) {
     govern["governance_plugins"].push_back(plugin_entry);
 
     // Write updated govern.json
-    std::ofstream ofs(govern_path);
-    ofs << govern.dump(2) << std::endl;
+    if (writeGovernIfChanged(govern_original, govern, govern_path,
+                             governanceIsSigned()) == GovernWrite::RefusedSigned) {
+        last_error_ = signedGovernanceRefusal(package_name, info.rules_file);
+        return false;
+    }
 
     int rule_count = plugin_entry["rules"].size();
     fmt::print("  ✓ Applied {} governance rule{} from {}\n",
@@ -1195,10 +1286,17 @@ bool PackageManager::removePackageGovernance(const std::string& package_name) {
             }
             filtered.push_back(plugin);
         }
+        const nlohmann::json govern_original = govern;
         govern["governance_plugins"] = filtered;
 
-        std::ofstream ofs(govern_path);
-        ofs << govern.dump(2) << std::endl;
+        // Unchanged is the common case and must not write: this package may
+        // never have contributed an entry, and a rewrite that changes nothing
+        // still reorders keys and breaks the signature.
+        if (writeGovernIfChanged(govern_original, govern, govern_path,
+                                 governanceIsSigned()) == GovernWrite::RefusedSigned) {
+            last_error_ = signedGovernanceRemovalRefusal(package_name);
+            return false;
+        }
 
     } catch (const std::exception& e) {
         fprintf(stderr, "[packages] Warning: failed to remove package governance: %s\n", e.what());
