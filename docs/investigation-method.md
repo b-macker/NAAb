@@ -404,6 +404,25 @@ failing: remediation advice is behaviour, not documentation. A gate that trains
 its operator to disable it has a worse expected outcome than one that is
 occasionally permissive.
 
+### A fixture built by hand can grant the property you are testing for
+
+`readPackageInfo()` treats any package shipping a `governance/` directory as a
+governance package, whatever its manifest declares. The fixture generator wrote
+that directory for every package it built, including the one whose whole
+purpose was to have NO governance. So the "no governance" arm silently became a
+governance arm, and the assertion that depended on it measured nothing.
+
+It passed. It passed on the fixed build, and it kept passing, because the
+outcome it asserted was reached by a different route. Only a mutant — one that
+should not have touched that assertion at all — made it fail and exposed the
+fixture.
+
+Two habits follow. **Build the negative arm by omission, not by neutralisation**:
+leave the thing out entirely rather than including it in a form you believe is
+inert. And **when a mutant kills an assertion it has no business killing,
+suspect the fixture before the code** — the surprise is information about your
+harness, and chasing it into the subject wastes the signal.
+
 ### Expect to be wrong at each level
 
 When narrowing a list by investigation, treat every intermediate count as

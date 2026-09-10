@@ -376,7 +376,7 @@ measured, not inherited from the report.
 | F36 | multi-agent tool execution needs VM callbacks (tree-walk parity) | queued | not probed |
 | F37 | `env.load_dotenv` ignores `blocked_paths` | queued | not probed |
 | F38 | package tarball extracted before integrity verification | **VERIFIED + FIXED** | plus a second, worse defect in the same mechanism — see below |
-| F39 | package manager writes unsigned govern.json, invalidating its signature | queued | supply chain |
+| F39 | package manager writes unsigned govern.json, invalidating its signature | **VERIFIED + FIXED** | true, and narrower than the real blast radius — see below |
 | F40 | dangling `g_current_interpreter` (thread-local UAF) | **VERIFIED + FIXED** | #217. Report's prescription was itself a regression — see below |
 | F41 | Rust/PHP executors skip `BLOCK_CALL` under a restricted sandbox | queued | not probed |
 | F42 | unchecked recursive marshalling -> SIGSEGV | **VERIFIED + FIXED** | #215 |
@@ -413,6 +413,49 @@ is the remedy text. The check misfires for every multi-dependency package, and
 the error told the user to **delete naab.lock** — which discards the pin for
 every package in the project. A gate that fires on correct input teaches the
 operator to disable it, and this one printed the instructions.
+
+**F39 — true as reported, and the reported case is the narrow one.** Three
+findings in one mechanism, all measured against the unfixed binary through the
+loopback stub from F38, all fixed together.
+
+(a) *The reported case.* `applyPackageGovernance()` rewrites the project's
+`govern.json` with nlohmann's `dump(2)` and knows nothing about
+`govern.json.sig`. Installing a package that carries governance rules therefore
+leaves the signature behind. Measured: a script that ran at exit 0 before
+`naab-lang install` was an INTEGRITY BLOCK at exit 3 after it, on a config the
+operator had signed minutes earlier.
+
+(b) *The wider case, which the report did not reach.*
+`removePackageGovernance()` wrote **unconditionally** whenever `govern.json`
+had a `governance_plugins` key. So `naab-lang remove <anything>` bricked a
+signed project even when the removed package had never contributed an entry
+and the config was semantically identical: `dump(2)` reorders keys and
+reindents, so the bytes differ and the signature fails on a change that changed
+nothing. Measured on a package with no governance at all.
+
+(c) *Why nobody saw it.* `main.cpp` ends package subcommands with `_exit(0)`,
+which skips the C runtime's flush, so buffered stdout is discarded. On a
+terminal stdout is line-buffered and the output appears; through a pipe or into
+a file it is fully buffered and **everything is lost** — including
+`Applied N governance rules`, the only notice that a package had edited the
+config. Measured: `naab-lang install | cat` printed nothing; the same command
+on a pty printed normally. The comment above that `_exit` already claimed the
+output had been flushed.
+
+Also worth knowing, and left as it is: a package does not have to DECLARE
+governance to get its rules injected. `readPackageInfo()` auto-detects any
+`governance/` directory containing `rules.json` or a `.naab` file, whatever the
+manifest says. That widens (a) to any package shipping such a folder. The fix
+covers it, since the refusal is about the signature rather than the manifest.
+It is also the reason a fixture in the new suite was wrong: building the
+"no governance" package with a `governance/` directory quietly made it a
+governance package, and B-03 measured the wrong thing until a mutant exposed
+it.
+
+Fixes: never rewrite `govern.json` when `govern.json.sig` exists (refuse with
+an actionable message instead), never write when the change is semantically
+empty, propagate the refusal to the exit code, and flush stdio before `_exit`.
+Regression test: `tests/package_manager/test_signed_governance.sh`.
 
 **F44 — real in code, unproven in effect, and the probe trap is the useful part.**
 Two sub-claims, and they land differently. (a) `TrustStore::hasKeys()` counts
