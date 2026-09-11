@@ -159,9 +159,16 @@ public:
                         req_interpreter->execute(*program);
                     }
                 } catch (const governance::GovernanceHardError& e) {
+                    // A HARD block is a verdict about THIS REQUEST, not about
+                    // the process. _exit(3) is right in the CLI -- one script,
+                    // one verdict, no recovery -- and was copied here, where it
+                    // means any client can terminate the daemon and every
+                    // concurrent request with it by submitting code that
+                    // trips governance. Fail the request instead.
                     fprintf(stderr, "[governance] HARD block in REST /execute: %s\n", e.what());
                     fflush(stderr);
-                    _exit(3);
+                    error_msg = naab::error::ErrorSanitizer::sanitize(e.what());
+                    exit_code = 3;
                 } catch (const std::exception& e) {
                     // V-ERR-002: sanitize error messages before returning to caller
                     error_msg = naab::error::ErrorSanitizer::sanitize(e.what());
@@ -189,9 +196,16 @@ public:
                 };
                 res.set_content(error_response.dump(2), "application/json");
             } catch (const governance::GovernanceHardError& e) {
+                // Same reasoning as above: refuse the request, keep the server.
                 fprintf(stderr, "[governance] HARD block in REST /execute: %s\n", e.what());
                 fflush(stderr);
-                _exit(3);
+                res.status = 403;
+                res.set_content(json{
+                    {"error", "Governance block"},
+                    {"message", naab::error::ErrorSanitizer::sanitize(e.what())},
+                    {"status", "error"},
+                    {"exit_code", 3}
+                }.dump(2), "application/json");
             } catch (const std::exception& e) {
                 res.status = 500;
                 json error_response = {
@@ -446,9 +460,16 @@ public:
                     {"status", "error"}
                 }.dump(2), "application/json");
             } catch (const governance::GovernanceHardError& e) {
+                // Same reasoning as /execute: refuse the request, keep the server.
                 fprintf(stderr, "[governance] HARD block in REST /check: %s\n", e.what());
                 fflush(stderr);
-                _exit(3);
+                res.status = 403;
+                res.set_content(json{
+                    {"error", "Governance block"},
+                    {"message", naab::error::ErrorSanitizer::sanitize(e.what())},
+                    {"status", "error"},
+                    {"exit_code", 3}
+                }.dump(2), "application/json");
             } catch (const std::exception& e) {
                 res.status = 500;
                 res.set_content(json{

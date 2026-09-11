@@ -1413,6 +1413,24 @@ else
     echo "  test_package_integrity.sh: not found, skipping"
 fi
 
+# --- Entry-Point Parity (one policy, every door) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Entry-Point Parity (CLI vs REST must reach the same verdict)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+ENTRY_PARITY_SCRIPT="tests/security/test_entry_point_parity.sh"
+if [ -f "$ENTRY_PARITY_SCRIPT" ]; then
+    if run_shell_test "$ENTRY_PARITY_SCRIPT" 2>&1; then
+        echo "  test_entry_point_parity.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_entry_point_parity.sh")
+    fi
+else
+    echo "  test_entry_point_parity.sh: not found, skipping"
+fi
+
 # --- Polyglot Sandbox Gate Coverage (every registered language) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
