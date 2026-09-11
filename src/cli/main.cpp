@@ -3683,6 +3683,27 @@ int main(int argc, char** argv) {
                 if (rules.api.rate_limit > 0 && api_rate_limit == 0) api_rate_limit = static_cast<unsigned int>(rules.api.rate_limit);
                 if (rules.api.max_body != 1048576 && max_body == 1048576) max_body = rules.api.max_body;
                 api_keys = rules.api.keys;
+
+                // Establish the PROCESS sandbox policy from govern.json, the
+                // way the `run` branch does at line ~1357. Without this the
+                // server never calls setDefaultConfig, so every request
+                // resolved to the deny-all fallback and security.sandbox_level
+                // was ignored -- permissively before that fallback existed,
+                // restrictively after. Either way the config did not govern
+                // this door.
+                //
+                // Seeded "unrestricted" so govern.json decides, matching the
+                // CLI default. applyGovernanceSandbox() handles the level
+                // mapping, the enforce-mode upgrade, and setDefaultConfig();
+                // it returns early when no live ScopedSandbox exists, which is
+                // the case on this thread.
+                std::string api_sandbox_level = "unrestricted";
+                auto api_sandbox_config = naab::security::SandboxConfig::fromPermissionLevel(
+                    naab::security::PermissionLevel::UNRESTRICTED);
+                applyGovernanceSandbox(
+                    rules, api_sandbox_config, api_sandbox_level,
+                    api_timeout, 512,
+                    api_gov.getMode() == naab::governance::GovernanceMode::ENFORCE);
             }
         }
 
