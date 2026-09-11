@@ -29,6 +29,16 @@
 #          a HARD governance block with _exit(3), so a single request takes the
 #          whole daemon down and every concurrent request with it.
 #
+#   EP-04  a PERMITTED sandbox rule must be honoured at both doors too. This is
+#          the assertion the first version of this file was missing, and its
+#          absence hid a real defect: after the deny-by-default change the REST
+#          arm refused a config that said "elevated", because `naab-lang api`
+#          never established the process policy at all. EP-02 still passed --
+#          both doors refused the restricted case -- so the suite reported
+#          parity while the two doors agreed only on "no". Parity that holds in
+#          one direction is not parity, and a test that only checks the
+#          refusing direction will certify a build that refuses everything.
+#
 # EVIDENCE IS A SIDE EFFECT, never a message. Each probe writes a marker file;
 # its presence is execution. A polyglot block's stdout is captured rather than
 # forwarded, so asserting on printed output measures nothing (that mistake cost
@@ -170,6 +180,21 @@ if [ "$CLI_POLY" = "$REST_POLY" ]; then
     ok "EP-02" "both doors agree (cli=$CLI_POLY rest=$REST_POLY)"
 else
     bad "EP-02" "doors disagree on a sandbox rule: cli=$CLI_POLY rest=$REST_POLY"
+fi
+
+# ---- EP-04: a PERMITTED sandbox rule must be honoured at both doors -----
+# The mirror of EP-02. Without it, "both refused" counts as agreement even when
+# one door is refusing because it never read the configuration.
+echo "--- EP-04: a permissive sandbox rule must be honoured at both doors"
+PERMIT_CFG='{ "version": "4.0", "mode": "enforce", "security": { "sandbox_level": "elevated" } }'
+cli_probe "$PERMIT_CFG" "$POLY_SRC" "$WDIR/marker_poly.txt" && CLI_OK2=EXECUTED || CLI_OK2=refused
+rest_probe "$PERMIT_CFG" "$POLY_SRC" "$WDIR/marker_poly.txt" && REST_OK2=EXECUTED || REST_OK2=refused
+if [ "$CLI_OK2" = "EXECUTED" ] && [ "$REST_OK2" = "EXECUTED" ]; then
+    ok "EP-04" "both doors honour a permissive sandbox rule"
+elif [ "$CLI_OK2" != "EXECUTED" ]; then
+    skip "EP-04" "the CLI arm did not execute under a permissive config -- UNMEASURABLE (cli=$CLI_OK2)"
+else
+    bad "EP-04" "the config permits it and one door still refuses: cli=$CLI_OK2 rest=$REST_OK2"
 fi
 
 # ---- EP-03: a refusal must not kill the process -------------------------
