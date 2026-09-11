@@ -404,6 +404,28 @@ failing: remediation advice is behaviour, not documentation. A gate that trains
 its operator to disable it has a worse expected outcome than one that is
 occasionally permissive.
 
+### Enumerate from the system, not from the report
+
+When the defect is "someone forgot to do X in one of N places", a test that
+checks the places a report named measures the report, not the system. Derive N
+at runtime from the thing under test.
+
+The polyglot capability check was missing in several executors. The report named
+two languages. A test built from that list would have gone green while a third
+language stayed open, and it did stay open: `cpp` executed under a restricted
+sandbox and appeared in nobody's findings. The test that found it asks the
+binary for its own registered language list and FAILS when a registered name has
+no case, so the coverage is a property of the system rather than of whoever last
+edited the test.
+
+The same shape applies to entry points, stdlib functions, event types, config
+keys: anywhere the population can grow without the test noticing. If you cannot
+enumerate at runtime, enumerate at build time and assert the count, so adding
+one breaks the build rather than widening a gap silently.
+
+This is also the cheapest guard against your own knowledge going stale. A list
+you typed is correct on the day you typed it.
+
 ### A fixture built by hand can grant the property you are testing for
 
 `readPackageInfo()` treats any package shipping a `governance/` directory as a

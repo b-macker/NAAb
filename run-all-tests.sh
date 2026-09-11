@@ -1413,6 +1413,24 @@ else
     echo "  test_package_integrity.sh: not found, skipping"
 fi
 
+# --- Polyglot Sandbox Gate Coverage (every registered language) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Polyglot Gate Coverage (enumerated from the binary, not a list)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+POLYGLOT_GATE_SCRIPT="tests/security/test_polyglot_gate_coverage.sh"
+if [ -f "$POLYGLOT_GATE_SCRIPT" ]; then
+    if run_shell_test "$POLYGLOT_GATE_SCRIPT" 2>&1; then
+        echo "  test_polyglot_gate_coverage.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_polyglot_gate_coverage.sh")
+    fi
+else
+    echo "  test_polyglot_gate_coverage.sh: not found, skipping"
+fi
+
 # --- Signed govern.json vs Package Operations (F39) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
