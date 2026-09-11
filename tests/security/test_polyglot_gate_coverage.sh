@@ -50,8 +50,18 @@ if [ ! -x "$NAAB" ]; then
     skip "PG-00" "naab-lang not built -- UNMEASURABLE, not a pass"; report; exit 0
 fi
 
+# Trust isolation is not optional here. Every probe below writes an UNSIGNED
+# govern.json, and on a machine with any key in the real trust store that is an
+# INTEGRITY BLOCK (exit 3) before the sandbox is ever consulted. The blocks
+# would then fail to run for a reason having nothing to do with the gate, and
+# every "refused under a restricted sandbox" assertion would pass for the wrong
+# reason. tests/self-audit/test_coverage_visibility.sh CV-02 catches exactly
+# this omission, and caught it in this file.
+source "$REPO/tests/helpers/trust_setup.sh"
+setup_isolated_trust
+
 WDIR="$(mktemp -d)"
-trap 'rm -rf "$WDIR"' EXIT
+trap 'teardown_isolated_trust; rm -rf "$WDIR"' EXIT
 cd "$WDIR" || exit 1
 
 cfg() {  # $1 = sandbox level
