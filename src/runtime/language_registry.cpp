@@ -51,13 +51,11 @@ Executor* LanguageRegistry::getExecutor(const std::string& language) {
     // is the narrowest place that covers all of them. A language registered
     // tomorrow is gated the moment it is registered.
     //
-    // Absent context denies: see ScopedSandbox::effectiveConfig(). A thread
-    // that never installed a sandbox falls back to the process policy, and a
-    // process that never established one is refused.
     // effectiveConfig() rather than getCurrent(): a thread with no sandbox
-    // installed must not be a thread with no policy. This is what makes the
-    // gate cover entry points nobody remembered, rather than only the ones that
-    // happen to install a ScopedSandbox.
+    // installed must not be a thread with no policy. Absent context denies --
+    // this thread's sandbox, else the process policy if one was established,
+    // else refuse. That is what makes the gate cover entry points nobody
+    // remembered, rather than only the ones that install a ScopedSandbox.
     if (!security::ScopedSandbox::effectiveConfig()
              .hasCapability(security::Capability::BLOCK_CALL)) {
         if (auto* sandbox = security::ScopedSandbox::getCurrent()) {
