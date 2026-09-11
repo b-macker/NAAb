@@ -378,7 +378,7 @@ measured, not inherited from the report.
 | F38 | package tarball extracted before integrity verification | **VERIFIED + FIXED** | plus a second, worse defect in the same mechanism — see below |
 | F39 | package manager writes unsigned govern.json, invalidating its signature | **VERIFIED + FIXED** | true, and narrower than the real blast radius — see below |
 | F40 | dangling `g_current_interpreter` (thread-local UAF) | **VERIFIED + FIXED** | #217. Report's prescription was itself a regression — see below |
-| F41 | Rust/PHP executors skip `BLOCK_CALL` under a restricted sandbox | queued | not probed |
+| F41 | Rust/PHP executors skip `BLOCK_CALL` under a restricted sandbox | **VERIFIED + FIXED** | true, and cpp was ungated too — nobody had named it. See below |
 | F42 | unchecked recursive marshalling -> SIGSEGV | **VERIFIED + FIXED** | #215 |
 | F43 | SSRF filter not applied to HTTP redirect destinations | queued | network-facing; needs a live redirect server |
 | F44 | trust store: `default.pub` blind spot + injection guard | **real defect, exploitability UNPROVEN** | see below |
@@ -456,6 +456,33 @@ Fixes: never rewrite `govern.json` when `govern.json.sig` exists (refuse with
 an actionable message instead), never write when the change is semantically
 empty, propagate the refusal to the exit code, and flush stdio before `_exit`.
 Regression test: `tests/package_manager/test_signed_governance.sh`.
+
+**F41 — true, incomplete, and the incompleteness is the lesson.** Rust and PHP
+both executed under `security.sandbox_level: "restricted"` and wrote files to
+`/tmp`, on a sandbox level that grants no write capability. So did **cpp**,
+which no report mentioned. Refused correctly on the same config: bash, sh,
+shell, node, python, ruby. Ten more languages could not be measured on this
+machine because their toolchains are absent, and they are reported UNMEASURABLE
+rather than passed.
+
+The mechanism is not what the report described. PHP's executor
+(`GenericSubprocessExecutor`) DOES carry the capability check — on `execute()`,
+which polyglot blocks never call; they reach it through `executeWithReturn()`.
+Rust and cpp have no check anywhere. Reading the code and counting mentions of
+`BLOCK_CALL` per file gives the wrong answer for exactly this reason, and did:
+the first pass of this investigation concluded PHP was covered, and the probe
+disproved it.
+
+Fixed by moving the gate to `LanguageRegistry::getExecutor()`, the one function
+every execution path calls to obtain an executor. The per-language checks stay
+as defence in depth. The regression test derives its language list FROM THE
+BINARY and fails when a registered language has no case, so this class closes
+rather than these three instances.
+
+Scope, stated because it is easy to over-read: the gate is still conditioned on
+a sandbox being active, so it does nothing where no `ScopedSandbox` is
+installed. That is F29, it is a different defect about entry points rather than
+languages, and it is not fixed here.
 
 **F44 — real in code, unproven in effect, and the probe trap is the useful part.**
 Two sub-claims, and they land differently. (a) `TrustStore::hasKeys()` counts
