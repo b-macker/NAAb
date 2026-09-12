@@ -37,7 +37,16 @@ NAAB="${NAAB:-$REPO/build/naab-lang}"
 PASS=0; FAIL=0; SKIP=0
 LAST_OUTPUT=""
 ok()   { echo "  PASS [$1] $2"; PASS=$((PASS+1)); }
-bad()  { echo "  FAIL [$1] $2"; FAIL=$((FAIL+1)); }
+bad()  {
+    echo "  FAIL [$1] $2"
+    # An assertion that cannot show why it failed gets believed over the code.
+    # This suite runs on a Windows job nobody has locally, so a bare FAIL costs
+    # a full CI round trip to learn nothing.
+    if [ -n "${LAST_OUTPUT:-}" ]; then
+        echo "$LAST_OUTPUT" | sed 's/^/        | /' | head -12
+    fi
+    FAIL=$((FAIL+1))
+}
 skip() { echo "  SKIP [$1] $2"; SKIP=$((SKIP+1)); }
 report() { echo "  Results: $PASS passed, $FAIL failed, $SKIP skipped"; }
 
@@ -54,14 +63,23 @@ source "$REPO/tests/helpers/trust_setup.sh"
 setup_isolated_trust
 
 W="$(mktemp -d)"
-OUTSIDE="$(mktemp)"
-trap 'teardown_isolated_trust; rm -rf "$W" "$OUTSIDE"' EXIT
+trap 'teardown_isolated_trust; rm -rf "$W"' EXIT
 
 mkdir -p "$W/data"
 echo "SECRET"  > "$W/secret.txt"
 echo "OK"      > "$W/data/ok.txt"
-echo "OUTSIDE" > "$OUTSIDE"
 
+# EVERY PATH IN THIS SUITE IS RELATIVE, and that is load-bearing rather than
+# stylistic. An absolute path written by the shell is in the shell's vocabulary:
+# under MSYS2 `mktemp -d` yields /tmp/xxx while the native binary canonicalises
+# its file argument to C:/..., so the config entry and the path being judged
+# never share a prefix and even the permitted read is refused. Relative entries
+# go through NAAb's own canonicaliser on both sides, so the comparison is
+# between two things resolved the same way on every platform. It is also how
+# real configs are written, which makes PP-03 ("." voiding self-protection) the
+# realistic case rather than a contrived one. The script cd's into $W for every
+# run, so "." is the fixture directory.
+#
 # sandbox_level elevated on purpose: with "mode": "enforce" and no level, the
 # runtime upgrades unrestricted -> standard, which blocks absolute paths in the
 # sandbox layer. Every assertion here would then be measuring the sandbox
@@ -119,8 +137,8 @@ EOF
 
 # --- PP-00 usability -------------------------------------------------------
 # Without this, an arm that refuses everything scores four passes below.
-cfg "[\"$W\"]" "[]"
-R=$(attempt "$W/data/ok.txt")
+cfg '["."]' '[]'
+R=$(attempt "data/ok.txt")
 if [ "$R" = "read" ]; then
     ok "PP-00" "a permitted read succeeds (probe is usable)"
 else
@@ -129,8 +147,8 @@ else
 fi
 
 # --- PP-01 the inversion ---------------------------------------------------
-cfg "[\"$W\"]" "[\"$W/secret.txt\"]"
-R=$(attempt "$W/secret.txt")
+cfg '["."]' '["./secret.txt"]'
+R=$(attempt "secret.txt")
 if [ "$R" = "refused" ]; then
     ok "PP-01" "a blocked file beats an allowed entry naming its directory"
 else
@@ -138,8 +156,8 @@ else
 fi
 
 # --- PP-02 the pattern that must survive -----------------------------------
-cfg "[\"$W/data\"]" "[\"/\"]"
-R=$(attempt "$W/data/ok.txt")
+cfg '["./data"]' '["."]'
+R=$(attempt "data/ok.txt")
 if [ "$R" = "read" ]; then
     ok "PP-02" "an allowed subdirectory still beats a blocked root"
 else
@@ -150,16 +168,16 @@ fi
 # The blocked entry here is not in the config: addGovernanceProtectedPaths()
 # adds it. PP-03b is its positive control -- if self-protection did not block
 # govern.json even with no allowed_paths, PP-03 would be testing nothing.
-cfg "[]" "[]"
-R=$(attempt "$W/govern.json")
+cfg '[]' '[]'
+R=$(attempt "govern.json")
 if [ "$R" = "refused" ]; then
     ok "PP-03b" "self-protection blocks govern.json with no allowed_paths (control)"
 else
     bad "PP-03b" "self-protection is not active at all: got $R"
 fi
 
-cfg "[\".\"]" "[]"
-R=$(attempt "$W/govern.json")
+cfg '["."]' '[]'
+R=$(attempt "govern.json")
 if [ "$R" = "refused" ]; then
     ok "PP-03" "allowed_paths [\".\"] does not void govern.json self-protection"
 else
@@ -167,8 +185,8 @@ else
 fi
 
 # --- PP-04 the allowlist still denies --------------------------------------
-cfg "[\"$W/data\"]" "[]"
-R=$(attempt "$OUTSIDE")
+cfg '["./data"]' '[]'
+R=$(attempt "secret.txt")
 if [ "$R" = "refused" ]; then
     ok "PP-04" "a path outside a non-empty allowlist is refused (control)"
 else
@@ -176,8 +194,8 @@ else
 fi
 
 # --- PP-05 ties deny -------------------------------------------------------
-cfg "[\"$W/secret.txt\"]" "[\"$W/secret.txt\"]"
-R=$(attempt "$W/secret.txt")
+cfg '["./secret.txt"]' '["./secret.txt"]'
+R=$(attempt "secret.txt")
 if [ "$R" = "refused" ]; then
     ok "PP-05" "equally specific allow and block: the block wins"
 else
@@ -190,9 +208,9 @@ fi
 # decidePathAccess() were applied in LongestPrefixWins mode here it would be a
 # loosening, and this assertion is what would catch that.
 AGENTS="{ \"w\": { \"provider\": \"gemini\", \"model\": \"m\", \"api_key_env\": \"K\",
-      \"blocked_paths\": [\"$W\"], \"allowed_paths\": [\"$W/data\"] } }"
+      \"blocked_paths\": [\".\"], \"allowed_paths\": [\"./data\"] } }"
 cfg "[]" "[]" "$AGENTS"
-R=$(attempt "$W/data/ok.txt" --agent-id w)
+R=$(attempt "data/ok.txt" --agent-id w)
 if [ "$R" = "refused" ]; then
     ok "PP-06" "agent overlay stays deny-first (broad role block beats narrow role allow)"
 else
@@ -202,9 +220,9 @@ fi
 # --- PP-07 the overlay control ---------------------------------------------
 # Without this, PP-06 passes on a build where --agent-id refuses every read.
 AGENTS="{ \"w\": { \"provider\": \"gemini\", \"model\": \"m\", \"api_key_env\": \"K\",
-      \"blocked_paths\": [\"$W/secret.txt\"], \"allowed_paths\": [\"$W\"] } }"
+      \"blocked_paths\": [\"./secret.txt\"], \"allowed_paths\": [\".\"] } }"
 cfg "[]" "[]" "$AGENTS"
-R=$(attempt "$W/data/ok.txt" --agent-id w)
+R=$(attempt "data/ok.txt" --agent-id w)
 if [ "$R" = "read" ]; then
     ok "PP-07" "the same role reads a path it permits (control for PP-06)"
 else
@@ -216,16 +234,16 @@ fi
 # on an empty string, and on this platform it read as "matches everything".
 # Both directions are pinned because defining it moved both: an empty allow no
 # longer grants, and an empty block no longer denies.
-cfg "[\"\"]" "[]"
-R=$(attempt "$W/data/ok.txt")
+cfg '[""]' '[]'
+R=$(attempt "data/ok.txt")
 if [ "$R" = "refused" ]; then
     ok "PP-08" "an empty allowed_paths entry grants nothing"
 else
     bad "PP-08" "an empty allow entry still matches: got $R"
 fi
 
-cfg "[]" "[\"\"]"
-R=$(attempt "$W/data/ok.txt")
+cfg '[]' '[""]'
+R=$(attempt "data/ok.txt")
 if [ "$R" = "read" ]; then
     ok "PP-09" "an empty blocked_paths entry denies nothing"
 else
