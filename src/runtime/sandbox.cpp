@@ -391,6 +391,20 @@ Sandbox* ScopedSandbox::getCurrent() {
     return current_sandbox;
 }
 
+SandboxConfig ScopedSandbox::effectiveConfig() {
+    if (current_sandbox) {
+        return current_sandbox->getConfig();
+    }
+    if (SandboxManager::instance().isConfigured()) {
+        return SandboxManager::instance().getDefaultConfig();
+    }
+    // Nothing installed this thread and nothing established for this process.
+    // Deny: RESTRICTED grants no capabilities and permits no network, fork or
+    // exec, so a caller that forgot to install policy is refused rather than
+    // waved through.
+    return SandboxConfig::fromPermissionLevel(PermissionLevel::RESTRICTED);
+}
+
 // ============================================================================
 // SandboxManager Implementation
 // ============================================================================
@@ -407,6 +421,7 @@ SandboxManager::SandboxManager() {
 
 void SandboxManager::setDefaultConfig(const SandboxConfig& config) {
     default_config_ = config;
+    configured_ = true;
 }
 
 const SandboxConfig& SandboxManager::getDefaultConfig() const {

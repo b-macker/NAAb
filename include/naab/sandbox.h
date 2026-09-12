@@ -160,6 +160,18 @@ public:
     // Get current active sandbox (thread-local)
     static Sandbox* getCurrent();
 
+    // The configuration that governs THIS thread, with absent context denying.
+    //
+    // getCurrent() returns null on any thread that never installed a
+    // ScopedSandbox, and every caller that tested `if (sandbox && ...)` then
+    // skipped its check -- so forgetting to install enforcement and choosing to
+    // allow were the same code path, and a gap never announced itself. Of the
+    // seven places that construct an Interpreter, two install one.
+    //
+    // Resolution order: this thread's sandbox, else the process default IF a
+    // policy was explicitly established for this process, else deny-all.
+    static SandboxConfig effectiveConfig();
+
     // Forwarding methods for governance-sandbox sync
     void removeCapability(Capability cap) { if (sandbox_) sandbox_->removeCapability(cap); }
     void setNetworkEnabled(bool enabled) { if (sandbox_) sandbox_->setNetworkEnabled(enabled); }
@@ -181,6 +193,11 @@ public:
     void setDefaultConfig(const SandboxConfig& config);
     const SandboxConfig& getDefaultConfig() const;
 
+    // True once setDefaultConfig() has been called for this process. The
+    // constructor's value is a placeholder, not a decision: telling the two
+    // apart is what lets absent policy deny instead of silently permitting.
+    bool isConfigured() const { return configured_; }
+
     // Create sandbox config for a specific block
     SandboxConfig createConfigForBlock(const std::string& block_id,
                                       PermissionLevel level);
@@ -196,6 +213,7 @@ private:
     SandboxManager();
 
     SandboxConfig default_config_;
+    bool configured_ = false;
     std::unordered_map<std::string, SandboxConfig> block_configs_;
 };
 

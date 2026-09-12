@@ -177,7 +177,7 @@ NaabVal Interpreter::callFunction(NaabVal fn,
         // the governance config were already propagated below; the sandbox was
         // the one piece of parent state left behind. Same capture-and-reactivate
         // shape as the agent batch/fan_out pool (agent_impl.cpp, "GAP 7").
-        auto sandbox_config = naab::security::SandboxManager::instance().getDefaultConfig();
+        auto sandbox_config = naab::security::ScopedSandbox::effectiveConfig();
         auto shared_future = std::async(std::launch::async, [body, func_env, global_copy, func_name, gov_path, parent_taint, parent_counters, taint_flag, sandbox_config]() -> NaabVal {
             naab::security::ScopedSandbox async_sandbox(sandbox_config);
             Interpreter async_interp;

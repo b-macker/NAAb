@@ -51,13 +51,17 @@ Executor* LanguageRegistry::getExecutor(const std::string& language) {
     // is the narrowest place that covers all of them. A language registered
     // tomorrow is gated the moment it is registered.
     //
-    // The "sandbox &&" half preserves today's meaning of no active sandbox.
-    // That default is its own problem and its own change; this one is about
-    // languages, not entry points.
-    auto* sandbox = security::ScopedSandbox::getCurrent();
-    if (sandbox && !sandbox->getConfig().hasCapability(security::Capability::BLOCK_CALL)) {
-        sandbox->logViolation("polyglot:" + language, "<block>",
-                              "BLOCK_CALL capability required");
+    // effectiveConfig() rather than getCurrent(): a thread with no sandbox
+    // installed must not be a thread with no policy. Absent context denies --
+    // this thread's sandbox, else the process policy if one was established,
+    // else refuse. That is what makes the gate cover entry points nobody
+    // remembered, rather than only the ones that install a ScopedSandbox.
+    if (!security::ScopedSandbox::effectiveConfig()
+             .hasCapability(security::Capability::BLOCK_CALL)) {
+        if (auto* sandbox = security::ScopedSandbox::getCurrent()) {
+            sandbox->logViolation("polyglot:" + language, "<block>",
+                                  "BLOCK_CALL capability required");
+        }
         throw std::runtime_error(language + " execution denied by sandbox");
     }
 

@@ -2942,7 +2942,7 @@ interpreter::NaabVal VM::run() {
 
                 // Enterprise Security: Activate sandbox for polyglot execution
                 auto& sandbox_manager = security::SandboxManager::instance();
-                security::SandboxConfig sandbox_config = sandbox_manager.getDefaultConfig();
+                security::SandboxConfig sandbox_config = security::ScopedSandbox::effectiveConfig();
                 if (governance_ && governance_->getTimeoutSeconds() > 0) {
                     sandbox_config.max_cpu_seconds = governance_->getTimeoutSeconds();
                 }
@@ -3746,7 +3746,7 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             // paths readable, polyglot subprocesses uncontained — regardless of
             // govern.json. Propagate it, same as the agent batch/fan_out pool does.
             auto async_sandbox_config =
-                security::SandboxManager::instance().getDefaultConfig();
+                security::ScopedSandbox::effectiveConfig();
             auto shared_future = std::async(std::launch::async,
                 [closure_copy, args, async_stdlib, file, globals_copy, async_sandbox_config,
                  owned_fns = std::move(async_owned_fns)]() mutable -> interpreter::NaabVal {

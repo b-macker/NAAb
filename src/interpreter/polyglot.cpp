@@ -683,7 +683,14 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
 
     // Enterprise Security: Activate sandbox for polyglot execution
     auto& sandbox_manager = security::SandboxManager::instance();
-    security::SandboxConfig sandbox_config = sandbox_manager.getDefaultConfig();
+    // effectiveConfig(), NOT getDefaultConfig(). This line installed the
+    // PROCESS DEFAULT over whatever sandbox was already active, and an
+    // unconfigured SandboxManager still holds its constructor's STANDARD value,
+    // which grants BLOCK_CALL. So a process that never established a policy
+    // gave every polyglot block a permissive sandbox of its own -- which is why
+    // blocks executed over the REST API under a restricted configuration while
+    // the same program was refused on the command line.
+    security::SandboxConfig sandbox_config = security::ScopedSandbox::effectiveConfig();
 
     // Governance: Override timeout if governance specifies one
     if (governance_ && governance_->isActive() && governance_->getTimeoutSeconds() > 0) {
@@ -1489,7 +1496,14 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
     // Enterprise Security: Activate sandbox for parallel polyglot execution
     auto& sandbox_manager = security::SandboxManager::instance();
 
-    security::SandboxConfig sandbox_config = sandbox_manager.getDefaultConfig();
+    // effectiveConfig(), NOT getDefaultConfig(). This line installed the
+    // PROCESS DEFAULT over whatever sandbox was already active, and an
+    // unconfigured SandboxManager still holds its constructor's STANDARD value,
+    // which grants BLOCK_CALL. So a process that never established a policy
+    // gave every polyglot block a permissive sandbox of its own -- which is why
+    // blocks executed over the REST API under a restricted configuration while
+    // the same program was refused on the command line.
+    security::SandboxConfig sandbox_config = security::ScopedSandbox::effectiveConfig();
 
     security::ScopedSandbox scoped_sandbox(sandbox_config);
 

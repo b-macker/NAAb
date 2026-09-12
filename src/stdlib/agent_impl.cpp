@@ -6418,7 +6418,7 @@ static NaabVal agentBatch(std::vector<NaabVal>& args) {
     // Capture governance engine pointer for worker threads (thread_local)
     auto* gov_engine_ptr = governance::GovernanceEngine::getCurrent();
     // Capture sandbox config for worker thread propagation (fail-closed: GAP 7)
-    auto sandbox_config = security::SandboxManager::instance().getDefaultConfig();
+    auto sandbox_config = security::ScopedSandbox::effectiveConfig();
 
     // Submit in batches respecting max_concurrent
     std::vector<NaabVal> results(tasks.size());

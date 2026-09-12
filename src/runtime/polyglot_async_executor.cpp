@@ -77,12 +77,14 @@ std::future<ffi::AsyncCallbackResult> PythonAsyncExecutor::executeAsync(
     auto callback = makePythonCallback(code, args);
 
     // Capture active sandbox config from calling thread before dispatch to worker
-    security::SandboxConfig sandbox_snapshot;
-    if (auto* cur = security::ScopedSandbox::getCurrent()) {
-        sandbox_snapshot = cur->getConfig();
-    } else {
-        sandbox_snapshot = security::SandboxManager::instance().getDefaultConfig();
-    }
+    // effectiveConfig() resolves this once, and denies when nothing was
+    // configured. The open-coded form below took SandboxManager's default
+    // unconditionally, and an UNCONFIGURED manager still holds its
+    // constructor's STANDARD value -- which grants BLOCK_CALL. A thread with
+    // no policy therefore had a permissive one INSTALLED on it, so every
+    // downstream check saw a real sandbox and allowed. That is how polyglot
+    // blocks executed over the REST API under a restricted configuration.
+    security::SandboxConfig sandbox_snapshot = security::ScopedSandbox::effectiveConfig();
 
     return getPolyglotThreadPool().enqueue(
         [callback = std::move(callback), timeout,
@@ -178,12 +180,14 @@ std::future<ffi::AsyncCallbackResult> JavaScriptAsyncExecutor::executeAsync(
     auto callback = makeJavaScriptCallback(code, args);
 
     // Capture active sandbox config from calling thread before dispatch to worker
-    security::SandboxConfig sandbox_snapshot;
-    if (auto* cur = security::ScopedSandbox::getCurrent()) {
-        sandbox_snapshot = cur->getConfig();
-    } else {
-        sandbox_snapshot = security::SandboxManager::instance().getDefaultConfig();
-    }
+    // effectiveConfig() resolves this once, and denies when nothing was
+    // configured. The open-coded form below took SandboxManager's default
+    // unconditionally, and an UNCONFIGURED manager still holds its
+    // constructor's STANDARD value -- which grants BLOCK_CALL. A thread with
+    // no policy therefore had a permissive one INSTALLED on it, so every
+    // downstream check saw a real sandbox and allowed. That is how polyglot
+    // blocks executed over the REST API under a restricted configuration.
+    security::SandboxConfig sandbox_snapshot = security::ScopedSandbox::effectiveConfig();
 
     return getPolyglotThreadPool().enqueue(
         [callback = std::move(callback), timeout,
@@ -266,12 +270,14 @@ std::future<ffi::AsyncCallbackResult> CppAsyncExecutor::executeAsync(
     auto callback = makeCppCallback(code, args);
 
     // Capture active sandbox config from calling thread before dispatch to worker
-    security::SandboxConfig sandbox_snapshot;
-    if (auto* cur = security::ScopedSandbox::getCurrent()) {
-        sandbox_snapshot = cur->getConfig();
-    } else {
-        sandbox_snapshot = security::SandboxManager::instance().getDefaultConfig();
-    }
+    // effectiveConfig() resolves this once, and denies when nothing was
+    // configured. The open-coded form below took SandboxManager's default
+    // unconditionally, and an UNCONFIGURED manager still holds its
+    // constructor's STANDARD value -- which grants BLOCK_CALL. A thread with
+    // no policy therefore had a permissive one INSTALLED on it, so every
+    // downstream check saw a real sandbox and allowed. That is how polyglot
+    // blocks executed over the REST API under a restricted configuration.
+    security::SandboxConfig sandbox_snapshot = security::ScopedSandbox::effectiveConfig();
 
     return getPolyglotThreadPool().enqueue(
         [callback = std::move(callback), timeout,
@@ -353,12 +359,14 @@ std::future<ffi::AsyncCallbackResult> RustAsyncExecutor::executeAsync(
     auto callback = makeRustCallback(code, args);
 
     // Capture active sandbox config from calling thread before dispatch to worker
-    security::SandboxConfig sandbox_snapshot;
-    if (auto* cur = security::ScopedSandbox::getCurrent()) {
-        sandbox_snapshot = cur->getConfig();
-    } else {
-        sandbox_snapshot = security::SandboxManager::instance().getDefaultConfig();
-    }
+    // effectiveConfig() resolves this once, and denies when nothing was
+    // configured. The open-coded form below took SandboxManager's default
+    // unconditionally, and an UNCONFIGURED manager still holds its
+    // constructor's STANDARD value -- which grants BLOCK_CALL. A thread with
+    // no policy therefore had a permissive one INSTALLED on it, so every
+    // downstream check saw a real sandbox and allowed. That is how polyglot
+    // blocks executed over the REST API under a restricted configuration.
+    security::SandboxConfig sandbox_snapshot = security::ScopedSandbox::effectiveConfig();
 
     return getPolyglotThreadPool().enqueue(
         [callback = std::move(callback), timeout,
@@ -436,12 +444,14 @@ std::future<ffi::AsyncCallbackResult> CSharpAsyncExecutor::executeAsync(
     auto callback = makeCSharpCallback(code, args);
 
     // Capture active sandbox config from calling thread before dispatch to worker
-    security::SandboxConfig sandbox_snapshot;
-    if (auto* cur = security::ScopedSandbox::getCurrent()) {
-        sandbox_snapshot = cur->getConfig();
-    } else {
-        sandbox_snapshot = security::SandboxManager::instance().getDefaultConfig();
-    }
+    // effectiveConfig() resolves this once, and denies when nothing was
+    // configured. The open-coded form below took SandboxManager's default
+    // unconditionally, and an UNCONFIGURED manager still holds its
+    // constructor's STANDARD value -- which grants BLOCK_CALL. A thread with
+    // no policy therefore had a permissive one INSTALLED on it, so every
+    // downstream check saw a real sandbox and allowed. That is how polyglot
+    // blocks executed over the REST API under a restricted configuration.
+    security::SandboxConfig sandbox_snapshot = security::ScopedSandbox::effectiveConfig();
 
     return getPolyglotThreadPool().enqueue(
         [callback = std::move(callback), timeout,
@@ -519,12 +529,14 @@ std::future<ffi::AsyncCallbackResult> ShellAsyncExecutor::executeAsync(
     auto callback = makeShellCallback(command, args);
 
     // Capture active sandbox config from calling thread before dispatch to worker
-    security::SandboxConfig sandbox_snapshot;
-    if (auto* cur = security::ScopedSandbox::getCurrent()) {
-        sandbox_snapshot = cur->getConfig();
-    } else {
-        sandbox_snapshot = security::SandboxManager::instance().getDefaultConfig();
-    }
+    // effectiveConfig() resolves this once, and denies when nothing was
+    // configured. The open-coded form below took SandboxManager's default
+    // unconditionally, and an UNCONFIGURED manager still holds its
+    // constructor's STANDARD value -- which grants BLOCK_CALL. A thread with
+    // no policy therefore had a permissive one INSTALLED on it, so every
+    // downstream check saw a real sandbox and allowed. That is how polyglot
+    // blocks executed over the REST API under a restricted configuration.
+    security::SandboxConfig sandbox_snapshot = security::ScopedSandbox::effectiveConfig();
 
     return getPolyglotThreadPool().enqueue(
         [callback = std::move(callback), timeout,
