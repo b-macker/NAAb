@@ -78,7 +78,11 @@ echo ""
 echo "Test 2: Document open + document symbols"
 
 # Create a test .naab file
-TEST_FILE="/data/data/com.termux/files/home/.naab/language/tests/lsp/test_sample.naab"
+# Beside this script, wherever the checkout happens to live. This was the
+# author's Termux home written out in full, so the test failed on every other
+# machine -- and failed at `cat >`, four lines before the first assertion, so it
+# reported as an LSP failure rather than as a missing directory.
+TEST_FILE="${SCRIPT_DIR}/test_sample.naab"
 cat > "$TEST_FILE" << 'NAAB'
 fn greet(name) {
     return "Hello, " + name
