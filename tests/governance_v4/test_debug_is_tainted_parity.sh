@@ -35,6 +35,9 @@
 # which is engine-agnostic and already reachable via getCurrent(). DT-05 pins
 # that split so this suite is not read as a claim about the other four.
 #
+# That deferred half is register row F46 in docs/open-investigations.md, with
+# its measurements -- it is a real open finding, not a footnote to this one.
+#
 #   DT-01  POSITIVE CONTROL: the tree-walker reports tainted data as tainted.
 #          If this fails the fixture is not tainting anything and every other
 #          arm is meaningless
