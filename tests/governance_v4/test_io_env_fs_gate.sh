@@ -68,6 +68,15 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
+
+# Every govern.json below is UNSIGNED. With any key in the ambient trust store
+# an unsigned config is an INTEGRITY BLOCK at exit 3 -- the same exit code this
+# suite reads as "the filesystem gate fired". Without isolation every gated arm
+# would pass for the wrong reason on a developer machine that has ever run
+# --trust-key, and only the permit controls would notice. Repoint the store.
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
+
 if [ -d "/data/data/com.termux/files/usr/tmp" ]; then
     _SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
 else
@@ -79,7 +88,7 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
 PASS_COUNT=0; FAIL_COUNT=0; FAILURES=""
 pass() { PASS_COUNT=$((PASS_COUNT+1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; }
 fail() { FAIL_COUNT=$((FAIL_COUNT+1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] && echo -e "       ${RED}-> $3${NC}"; FAILURES="${FAILURES}\n  [$1] $2"; }
-cleanup() { rm -rf "$TEST_TMP"; }
+cleanup() { rm -rf "$TEST_TMP"; teardown_isolated_trust; }
 trap cleanup EXIT
 mkdir -p "$TEST_TMP"
 W="$TEST_TMP/w"
