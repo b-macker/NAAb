@@ -372,8 +372,8 @@ measured, not inherited from the report.
 | F32 | hardcoded Termux TLS bundle used as the fallback for every platform | **VERIFIED (trace)** | live on `3644c67`; `agent_provider.cpp:117`, `telemetry_forwarder.cpp:155`. Written up as a CLAUDE.md gotcha, not yet fixed |
 | F33 | `use module` bypasses filesystem governance | queued | draft #214 claims a fix; unverified here |
 | F34 | native `io` stdlib ignores `blocked_paths` | **VERIFIED + FIXED** | reproduced on `fb1e4bd`, both engines: `file.read` exit 3, `io.read_file` exit 0 on the same blocked path. Also `write_file`/`exists`/`list_dir`, and `io.write_file` OVERWROTE `govern.json` at `Governance: PASS`. `io`+`env` added to `filesystemAccessMode()`. Test: `test_io_env_fs_gate.sh` |
-| F35 | `debug.is_tainted` inoperable under the VM | queued | not probed |
-| F36 | multi-agent tool execution needs VM callbacks (tree-walk parity) | queued | not probed |
+| F35 | **`debug.is_tainted` answers `false` for tainted data under the VM** | **VERIFIED (positive control), fix open — an accessor re-route is NOT the fix, see below** | Measured on `bf489f0`, `taint_tracking.sources: ["file.read"]`: `let v = file.read(...)` reports `true` on `--tree-walk` and `false` on the VM, at BOTH main scope and function scope; an untainted literal reports `false` on both (negative control). Unsafe direction and silent — a script guarding `if debug.is_tainted(x) { refuse }` never refuses on the default engine. NOT itself a governance gate: taint SINKS are enforced separately on both engines and were never affected. Pinned by `tests/governance_v4/test_debug_is_tainted_parity.sh` (DT-03/DT-04 assert the defect is still present, so fixing it turns the suite red and forces this row to be updated). |
+| F36 | **agent tool execution is VM-only; under `--tree-walk` the tool never runs and the model is told it failed** | **VERIFIED (positive control), fix open — see below** | Measured on `bf489f0` with the stub harness, identical fixture and config on both engines: VM `TOOL_CALLS=1 TOOL_SUCCESS=true`; `--tree-walk` `TOOL_CALLS=1 TOOL_SUCCESS=false`. The VM column is the positive control. **The failure is near-silent**: `tool_loop_exit_reason=text_response` and **exit 0** on both, and both print `CONTENT=final answer using the tool result` — the model reasons confidently around a tool result it never got. The only signal is `tool_results[i].success`, which a script must inspect deliberately. |
 | F37 | `env.load_dotenv` ignores `blocked_paths` | **VERIFIED + FIXED** | same mechanism as F34, fixed with it. The no-argument form defaults to `.env`, which no engine-side gate can see — resolved and checked in `env_impl.cpp`; IE-09 is the arm that isolates it |
 | F38 | package tarball extracted before integrity verification | **VERIFIED + FIXED** | plus a second, worse defect in the same mechanism — see below |
 | F39 | package manager writes unsigned govern.json, invalidating its signature | **VERIFIED + FIXED** | true, and narrower than the real blast radius — see below |
@@ -384,6 +384,90 @@ measured, not inherited from the report.
 | F44 | trust store: `default.pub` blind spot + injection guard | **real defect, exploitability UNPROVEN** | see below |
 | F45 | `--lock-check` accepts a lockfile whose `.sig` was deleted | **NOT A DEFECT — already fixed** | see below |
 | F46 | **`debug.env`/`stack`/`snapshot`/`trace`-location are tree-walker-only under the VM** — the deferred half of F35, recorded rather than carried in a PR description. All four reach the tree-walker through `g_debug_interpreter` (`src/stdlib/debug_impl.cpp` lines 317, 432, 456, 501), set by `DebugModule::setInterpreter()` from `src/interpreter/interpreter.cpp` and nowhere else, so under the VM — the DEFAULT engine — the pointer is null. Unlike `is_tainted` (F35), these need the interpreter's SCOPE and CALL STACK, which the VM does not expose through this interface: there is no engine-agnostic accessor to fall back to, so the fix is a VM introspection API, not a re-route. | **VERIFIED (positive control), fix open** | Measured on `bf489f0`, same build, same program: `debug.keys(debug.env())` → `[]` on the VM vs `["outer_var", "n"]` on `--tree-walk`; `debug.stack()` → `[]` vs a real frame list. Positive control is the tree-walk column — the calls work, so the VM result is absence, not a broken fixture. **Severity is BELOW F35 and the direction is why**: these degrade to VISIBLY EMPTY, whereas F35 returned a confident wrong answer to a security question. Nothing here is offered to scripts as a guard. Pinned by `DT-05` in `tests/governance_v4/test_debug_is_tainted_parity.sh`, which asserts the VM still returns `[]` — so a change that fixes this must update that arm deliberately instead of silently widening what the F35 suite claims. Not fixed with F35: re-routing an accessor is one line, building scope/stack introspection for the VM is not, and bundling them would have made the F35 fix unreviewable. |
+
+**F35 — I shipped the wrong fix for this, and reverted it. The wrong fix is
+worth recording, because it is the one anybody tracing this will reach for.**
+
+`debug.is_tainted(name)` is a NAME lookup against `GovernanceEngine::taint_set_`.
+`DebugModule::checkTainted()` reached that set through `g_debug_interpreter`,
+set by `DebugModule::setInterpreter()` from `src/interpreter/interpreter.cpp`
+and nowhere else — so it is null under the VM and the function returned `false`
+before consulting anything.
+
+That trace is correct, and it is not the defect. I re-routed the accessor to the
+engine-agnostic `GovernanceEngine::getCurrent()`, committed it with a confident
+message, and the regression test then reported no change at all. **The data is
+not in `taint_set_` under the VM in the first place:**
+
+- `OP_DEFINE_GLOBAL` / `OP_SET_GLOBAL` call `markTainted(name)` — **globals only**
+- locals carry taint on `taint_stack_`, a value-stack shadow with **no name**
+- sink checks call `markTainted("argument 0 of 'f()'")`, run `checkTaintedSink`,
+  then `clearTaint()` it immediately (`vm.cpp`) — transient scaffolding under a
+  synthetic label, never a durable record
+
+So for any ordinary `let`, the name is never in the set under the VM, and no
+accessor change can find it. A real fix needs either durable name-keyed taint
+for VM locals, or `debug.is_tainted` resolving a name to a stack slot and
+reading `taint_stack_`. Both are design changes to the taint model.
+
+Two method notes, because neither was a coding error:
+
+- **I traced to the accessor and stopped** — the point of MENTION, not the point
+  of EFFECT. The question "does `taint_set_` actually contain VM locals?" was one
+  level further and would have killed the fix before it was written.
+- **The fix was caught only because the test was written first and run against
+  the unfixed binary.** Had I written the test after building, it would have
+  been shaped to pass, and a no-op change would have shipped as a fix.
+
+**F36 — verified, and the obvious fix opens a taint hole. Read this before
+"just wiring up the tree-walker."**
+
+Tool execution funnels through `gov_engine->callVMFunction()` in
+`agentSend()` (`src/stdlib/agent_impl.cpp`), gated on `hasVMCallbacks()`.
+`setVMCallbacks()` is installed in exactly two places, both inside the VM
+branch of `src/cli/main.cpp`, both binding `bytecode_vm.callNaabFunction`. The
+tree-walker installs nothing, so `callVMFunction()` throws, and the throw is
+caught by the tool loop's own `catch (const std::exception&)` — sanitized,
+truncated, and handed to the MODEL as the tool result. Hence exit 0 and a
+confident final answer built on an error string.
+
+The tree-walker does have a call primitive (`Interpreter::callFunction`,
+`interpreter.h:518`), so wiring a `ContractCallFn` to it looks like a
+twenty-line change. It is not, and the reason is the third argument:
+
+    ContractCallFn = function<NaabVal(NaabVal, const vector<NaabVal>&, bool)>
+                                                                     ^^^^
+                                                          taint_all_args
+
+`agentSend()` passes `true` there — the arguments come from the LLM and must
+enter the tool as TAINTED. The VM honours it by writing the value stack's
+shadow: `*(taint_top_ - 1) = true` in `VM::callNaabFunction`. The tree-walker
+has no value-stack shadow; its taint is NAME-KEYED (`markTainted(var_name)`,
+`governance_taint.cpp`), so honouring the flag means resolving the callee's
+PARAMETER NAMES and marking those. That is a bridge between two taint models,
+not a signature adaptation.
+
+A tree-walk callback that ignores the flag would compile, pass a naive
+"the tool ran" test, and let LLM-controlled data into tool bodies UNTAINTED —
+trading a visible `success=false` for a silent taint hole. That is strictly
+worse than the current defect, and it is the shape a hurried fix takes.
+
+Note also `VM::callNaabFunction` starts with `if (!fn.isVMClosure())`, while a
+tree-walk registration stores a `FunctionValue` — `agentRegisterTool()` already
+accepts both (`isFunction() || isVMClosure()`), so the registration half is
+engine-agnostic and only the invocation half is not.
+
+Two separable pieces of work, and they should not be confused:
+
+1. **Fail closed** (small, safe): refuse the send when tools are enabled and
+   the engine cannot execute them, instead of feeding the model a fabricated
+   tool failure. Removes the confident-wrong-answer behaviour without touching
+   taint.
+2. **Real parity** (design change): the taint bridge above, plus a tree-walk
+   globals accessor — `Interpreter` exposes `getGlobalEnv()` (an `Environment`),
+   not the flat `unordered_map` `ContractGlobalsFn` returns.
+
+Only (1) is defensible without a decision on the taint model.
 
 **F38 — the ordering claim is true, and tracing it surfaced a second defect in
 the same mechanism that is worse.** Both in `src/packages/package_manager.cpp`,

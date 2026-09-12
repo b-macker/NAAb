@@ -1,54 +1,59 @@
-#!/usr/bin/env bash
-# ============================================================
-# test_debug_is_tainted_parity.sh — debug.is_tainted answered "no" under the VM
+# test_debug_is_tainted_parity.sh — debug.is_tainted is tree-walker-only
+#
+# THIS SUITE PINS AN OPEN DEFECT (register row F35). It asserts what the
+# engines CURRENTLY do. If an arm here starts failing because the VM began
+# answering correctly, that is the defect being FIXED -- update F35 and this
+# file rather than "repairing" the assertion.
 #
 # THE DEFECT
 #
-# DebugModule::checkTainted() reached the GovernanceEngine through
-# g_debug_interpreter, a raw pointer set by DebugModule::setInterpreter() --
-# called from src/interpreter/interpreter.cpp and from NOWHERE else. Under the
-# VM, which is the DEFAULT engine, the pointer is null and the function returned
-# false before consulting anything.
+# debug.is_tainted(name) is a NAME lookup against GovernanceEngine::taint_set_.
+# Under --tree-walk that works: tree-walker taint is name-keyed throughout
+# (markTainted(id->getName()) in call_dispatch.cpp / expressions.cpp).
 #
-# The taint data was never missing. Both engines call markTainted() on the same
-# GovernanceEngine::taint_set_ (vm.cpp, and call_dispatch.cpp/expressions.cpp on
-# the tree-walker). Only the ROUTE from debug.is_tainted to that set was
-# tree-walker-only.
+# Under the VM -- the DEFAULT engine -- it returns false for tainted data.
+# Measured on bf489f0, taint_tracking sources ["file.read"]:
 #
-# Measured on bf489f0, taint_tracking enabled with sources ["file.read"]:
+#   let v = file.read("input.txt")   at main scope    VM false / tree-walk true
+#   let v = file.read("input.txt")   in a function    VM false / tree-walk true
 #
-#   let untrusted = file.read("input.txt")
-#   debug.is_tainted("untrusted")   VM: false    --tree-walk: true
+# TWO MECHANISMS, and the second is the one that matters. Getting this wrong
+# cost a wrong fix that shipped and had to be reverted, so it is spelled out.
 #
-# The failure direction is the unsafe one and it is silent: a script that guards
-# on `if debug.is_tainted(x) { refuse }` never refuses under the default engine.
-# It is not a governance gate itself -- taint SINKS are enforced separately and
-# were never affected -- but it is offered to scripts as one, and it answered
-# wrongly rather than erroring.
+#  1. THE ACCESSOR. DebugModule::checkTainted() reaches the engine through
+#     g_debug_interpreter, set by DebugModule::setInterpreter() from
+#     src/interpreter/interpreter.cpp and nowhere else -- null under the VM.
 #
-# SCOPE, because the pointer has four other users. debug.env(), debug.stack(),
-# debug.snapshot() and debug.trace()'s location need the tree-walker's SCOPE and
-# CALL STACK, which the VM does not expose through this interface; measured on
-# the same build, debug.env() returns [] and debug.stack() returns [] under the
-# VM. Those are a separate and larger problem (a VM introspection API) and are
-# NOT fixed here. is_tainted is the one that needs only the GovernanceEngine,
-# which is engine-agnostic and already reachable via getCurrent(). DT-05 pins
-# that split so this suite is not read as a claim about the other four.
+#  2. THE DATA IS NOT THERE ANYWAY. Re-routing the accessor to the
+#     engine-agnostic GovernanceEngine::getCurrent() changes NOTHING
+#     measurable, because the VM does not name-key local taint at all:
+#       - OP_DEFINE_GLOBAL / OP_SET_GLOBAL call markTainted(name) -- GLOBALS
+#       - locals carry taint on taint_stack_, a value-stack shadow with NO NAME
+#       - sink checks markTainted("argument 0 of 'f()'") then clearTaint() it
+#         immediately (vm.cpp) -- transient scaffolding under a synthetic label
+#     So for any ordinary `let`, the name is never in taint_set_ under the VM.
 #
-# That deferred half is register row F46 in docs/open-investigations.md, with
-# its measurements -- it is a real open finding, not a footnote to this one.
+# A real fix is therefore NOT an accessor re-route. It needs either durable
+# name-keyed taint for VM locals, or debug.is_tainted resolving a name to a
+# stack slot and reading taint_stack_. Both are design changes.
 #
-#   DT-01  POSITIVE CONTROL: the tree-walker reports tainted data as tainted.
-#          If this fails the fixture is not tainting anything and every other
-#          arm is meaningless
-#   DT-02  NEGATIVE CONTROL: an untainted literal reports false, on BOTH
-#          engines. Without this, "return true always" passes DT-01 and DT-03
-#   DT-03  THE FIX: the VM agrees with the tree-walker on tainted data
-#   DT-04  the two engines agree on both answers -- stated as parity rather
-#          than as two separate absolutes, since parity is the actual claim
-#   DT-05  SCOPE PIN: debug.env()/debug.stack() are still tree-walker-only.
-#          Asserted so a future change that makes them work updates this
-#          suite deliberately instead of silently widening what it covers
+# Severity: the failure direction is the unsafe one and it is silent -- a
+# script guarding `if debug.is_tainted(x) { refuse }` never refuses under the
+# default engine. But this is NOT itself a governance gate: taint SINKS are
+# enforced separately on both engines and were never affected.
+#
+#   DT-01  POSITIVE CONTROL: the tree-walker reports tainted data as tainted,
+#          at BOTH main scope and function scope. If this fails the fixture
+#          taints nothing and every other arm is void
+#   DT-02  NEGATIVE CONTROL: an untainted literal reports false on BOTH
+#          engines. Without this, "always true" would satisfy DT-01
+#   DT-03  PIN: the VM answers false for tainted data (the open defect).
+#          Failing here means F35 is fixed -- update the register row
+#   DT-04  PIN: the two engines therefore DISAGREE. Stated separately from
+#          DT-03 so a partial fix (one scope only) is visible
+#   DT-05  SCOPE PIN: debug.env()/debug.stack() are also tree-walker-only.
+#          That is register row F46, a different and larger job (VM scope and
+#          call-stack introspection), deliberately not in scope for F35
 # ============================================================
 set -uo pipefail
 
@@ -86,11 +91,17 @@ JSON_EOF
 cat > "$W/t.naab" <<'NAAB_EOF'
 use file
 use debug
+fn in_a_function() {
+  let fn_local = file.read("input.txt")
+  print("FNLOCAL=" + debug.is_tainted("fn_local"))
+  return 1
+}
 main {
   let untrusted = file.read("input.txt")
   let clean = "literal constant"
   print("UNTRUSTED=" + debug.is_tainted("untrusted"))
   print("CLEAN=" + debug.is_tainted("clean"))
+  let ignored = in_a_function()
 }
 NAAB_EOF
 
@@ -116,21 +127,23 @@ echo -e "${CYAN}|  debug.is_tainted was tree-walker-only                        
 echo -e "${CYAN}+==============================================================+${NC}"
 echo ""
 
+TW_FNLOCAL=$(probe "--tree-walk" "FNLOCAL")
+VM_FNLOCAL=$(probe "" "FNLOCAL")
 TW_UNTRUSTED=$(probe "--tree-walk" "UNTRUSTED")
 TW_CLEAN=$(probe "--tree-walk" "CLEAN")
 VM_UNTRUSTED=$(probe "" "UNTRUSTED")
 VM_CLEAN=$(probe "" "CLEAN")
 
-echo "  measured: tree-walk untrusted=$TW_UNTRUSTED clean=$TW_CLEAN"
-echo "            vm        untrusted=$VM_UNTRUSTED clean=$VM_CLEAN"
+echo "  measured: tree-walk untrusted=$TW_UNTRUSTED clean=$TW_CLEAN fn_local=$TW_FNLOCAL"
+echo "            vm        untrusted=$VM_UNTRUSTED clean=$VM_CLEAN fn_local=$VM_FNLOCAL"
 echo ""
 
 # DT-01 -- without this the fixture could be tainting nothing at all
-if [ "$TW_UNTRUSTED" = "true" ]; then
-    pass "DT-01" "POSITIVE CONTROL: tree-walker sees file.read output as tainted"
+if [ "$TW_UNTRUSTED" = "true" ] && [ "$TW_FNLOCAL" = "true" ]; then
+    pass "DT-01" "POSITIVE CONTROL: tree-walker taints at main AND function scope"
 else
-    fail "DT-01" "POSITIVE CONTROL: tree-walker sees file.read output as tainted" \
-         "got '$TW_UNTRUSTED' -- the fixture taints nothing, every other arm below is void"
+    fail "DT-01" "POSITIVE CONTROL: tree-walker taints at main AND function scope" \
+         "main='$TW_UNTRUSTED' fn='$TW_FNLOCAL' -- the fixture taints nothing, every arm below is void"
 fi
 
 # DT-02 -- without this, "always return true" passes DT-01 and DT-03
@@ -141,23 +154,23 @@ else
          "tree-walk='$TW_CLEAN' vm='$VM_CLEAN' -- a blanket true would pass the other arms"
 fi
 
-# DT-03 -- the fix
-if [ "$VM_UNTRUSTED" = "true" ]; then
-    pass "DT-03" "THE FIX: the VM sees file.read output as tainted"
+# DT-03 -- PIN on the open defect. A pass here means the bug is STILL PRESENT.
+if [ "$VM_UNTRUSTED" = "false" ]; then
+    pass "DT-03" "PIN: the VM still answers false for tainted data (F35 open)"
 elif [ "$VM_UNTRUSTED" = "UNMEASURED" ]; then
-    fail "DT-03" "THE FIX: the VM sees file.read output as tainted" \
-         "UNMEASURED -- the program never printed the marker; this is a broken probe, not a false"
+    fail "DT-03" "PIN: the VM still answers false for tainted data (F35 open)" \
+         "UNMEASURED -- the program never printed the marker. That is a broken probe, not a false"
 else
-    fail "DT-03" "THE FIX: the VM sees file.read output as tainted" \
-         "got '$VM_UNTRUSTED' -- debug.is_tainted answers 'not tainted' for tainted data"
+    fail "DT-03" "PIN: the VM still answers false for tainted data (F35 open)" \
+         "VM now reports '$VM_UNTRUSTED' -- if F35 was FIXED this is good news: update the register row and this arm"
 fi
 
-# DT-04 -- parity is the actual claim
-if [ "$VM_UNTRUSTED" = "$TW_UNTRUSTED" ] && [ "$VM_CLEAN" = "$TW_CLEAN" ]; then
-    pass "DT-04" "the engines agree on both answers"
+# DT-04 -- the disagreement itself, stated separately so a partial fix shows
+if [ "$VM_UNTRUSTED" != "$TW_UNTRUSTED" ]; then
+    pass "DT-04" "PIN: the engines still disagree on tainted data (F35 open)"
 else
-    fail "DT-04" "the engines agree on both answers" \
-         "untrusted vm='$VM_UNTRUSTED' tw='$TW_UNTRUSTED'; clean vm='$VM_CLEAN' tw='$TW_CLEAN'"
+    fail "DT-04" "PIN: the engines still disagree on tainted data (F35 open)" \
+         "engines now agree (vm='$VM_UNTRUSTED' tw='$TW_UNTRUSTED') -- if F35 was fixed, update the register row and this arm"
 fi
 
 # DT-05 -- scope pin. These need interpreter scope/stack, are NOT fixed here,

@@ -638,19 +638,8 @@ interpreter::NaabVal DebugModule::call(
 }
 
 bool DebugModule::checkTainted(const std::string& var_name) {
-    // Taint lives on the GovernanceEngine, and BOTH engines write to the same
-    // taint_set_ -- vm.cpp and call_dispatch.cpp/expressions.cpp all call
-    // markTainted() on it. Only the ROUTE here was engine-specific:
-    // g_debug_interpreter is set from interpreter.cpp and from nowhere else, so
-    // under the VM (the DEFAULT engine) it is null and this returned false for
-    // data that IS tainted -- the unsafe direction, and silent.
-    //
-    // The interpreter route is kept and tried first so the tree-walker's answer
-    // is unchanged; getCurrent() is the engine-agnostic fallback the rest of the
-    // stdlib already uses to reach the engine.
-    governance::GovernanceEngine* gov =
-        g_debug_interpreter ? g_debug_interpreter->getGovernance() : nullptr;
-    if (!gov) gov = governance::GovernanceEngine::getCurrent();
+    if (!g_debug_interpreter) return false;
+    auto* gov = g_debug_interpreter->getGovernance();
     if (!gov) return false;
     return gov->isTainted(var_name);
 }
