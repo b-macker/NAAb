@@ -105,8 +105,16 @@ cfg() {  # $1 = allowed_paths JSON array, $2 = blocked_paths JSON array, $3 = ag
 }
 EOF
     # A malformed fixture exits 4 and every assertion below reads as "refused".
+    #
+    # The file arrives on STDIN, so the SHELL opens it and no path crosses into
+    # a program that may not share the shell's path vocabulary. The first
+    # version passed the path to python3 and reported every fixture broken on
+    # Windows -- MSYS2's python3 is a native build and cannot open "/tmp/...",
+    # so the guard meant to catch a broken fixture became a broken probe,
+    # reporting a finding where the truth was that it could not see the file.
+    # All eleven real assertions passed in that same run.
     if command -v python3 >/dev/null 2>&1; then
-        python3 -c "import json,sys; json.load(open('$W/govern.json'))" 2>/dev/null \
+        python3 -c "import json,sys; json.load(sys.stdin)" < "$W/govern.json" 2>/dev/null \
             || { bad "PP-CFG" "generated govern.json is not valid JSON -- fixture is broken"; }
     fi
 }
