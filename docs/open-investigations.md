@@ -380,10 +380,48 @@ measured, not inherited from the report.
 | F40 | dangling `g_current_interpreter` (thread-local UAF) | **VERIFIED + FIXED** | #217. Report's prescription was itself a regression — see below |
 | F41 | Rust/PHP executors skip `BLOCK_CALL` under a restricted sandbox | **VERIFIED + FIXED** | true, and cpp was ungated too — nobody had named it. See below |
 | F42 | unchecked recursive marshalling -> SIGSEGV | **VERIFIED + FIXED** | #215 |
-| F43 | SSRF filter not applied to HTTP redirect destinations | queued | network-facing; needs a live redirect server |
+| F43 | **SSRF filter is a STRING check on the caller's URL — it misses redirect destinations AND DNS** | **VERIFIED (positive control), fix open** | Measured on `bf489f0` entirely locally (no external network; `/etc/hosts` already maps the non-`localhost` name `runsc` to 127.0.0.1). Two local servers: a redirector on :18431 that 302s to `http://127.0.0.1:18432/secret`, and a target on :18432 serving `LOOPBACK_SECRET_REACHED`. **A, POSITIVE CONTROL** — `http.get("http://127.0.0.1:18432/secret")` is BLOCKED, exit 1, *HTTP request to private network denied*: the filter works. **C, F43** — `http.get("http://runsc:18431/go")` follows the 302 and returns `LOOPBACK_SECRET_REACHED`, exit 0. The redirect target is the LITERAL `127.0.0.1` that arm A blocks. `isPrivateHost()` runs once, on the caller's URL; `CURLOPT_FOLLOWLOCATION=1` + `MAXREDIRS=5` then follow hops the filter never sees. `REDIR_PROTOCOLS_STR` bounds the SCHEME only, so a same-scheme hop to `169.254.169.254` is unguarded. See F47 — the same probe found a second hole that needs no redirect at all. |
 | F44 | trust store: `default.pub` blind spot + injection guard | **real defect, exploitability UNPROVEN** | see below |
 | F45 | `--lock-check` accepts a lockfile whose `.sig` was deleted | **NOT A DEFECT — already fixed** | see below |
 | F46 | **`debug.env`/`stack`/`snapshot`/`trace`-location are tree-walker-only under the VM** — the deferred half of F35, recorded rather than carried in a PR description. All four reach the tree-walker through `g_debug_interpreter` (`src/stdlib/debug_impl.cpp` lines 317, 432, 456, 501), set by `DebugModule::setInterpreter()` from `src/interpreter/interpreter.cpp` and nowhere else, so under the VM — the DEFAULT engine — the pointer is null. Unlike `is_tainted` (F35), these need the interpreter's SCOPE and CALL STACK, which the VM does not expose through this interface: there is no engine-agnostic accessor to fall back to, so the fix is a VM introspection API, not a re-route. | **VERIFIED (positive control), fix open** | Measured on `bf489f0`, same build, same program: `debug.keys(debug.env())` → `[]` on the VM vs `["outer_var", "n"]` on `--tree-walk`; `debug.stack()` → `[]` vs a real frame list. Positive control is the tree-walk column — the calls work, so the VM result is absence, not a broken fixture. **Severity is BELOW F35 and the direction is why**: these degrade to VISIBLY EMPTY, whereas F35 returned a confident wrong answer to a security question. Nothing here is offered to scripts as a guard. Pinned by `DT-05` in `tests/governance_v4/test_debug_is_tainted_parity.sh`, which asserts the VM still returns `[]` — so a change that fixes this must update that arm deliberately instead of silently widening what the F35 suite claims. Not fixed with F35: re-routing an accessor is one line, building scope/stack introspection for the VM is not, and bundling them would have made the F35 fix unreviewable. |
+| F47 | **the SSRF filter never resolves DNS, so any hostname pointing at a private IP walks through it** | **VERIFIED (positive control), fix open** | Found while building the F43 probe, not looked for. Same fixture, same destination, different spelling of the host: **B** — `http.get("http://runsc:18432/secret")` returns `LOOPBACK_SECRET_REACHED` at exit 0, while arm A (`http://127.0.0.1:18432/secret`, the identical endpoint) is HARD-blocked. No redirect is involved. Both layers are pure string checks: `isPrivateHost()` (`http_impl.cpp`) tests the literal `localhost` then `inet_pton`, and returns false for anything that is not an IP literal; `Sandbox::canConnect()` (`sandbox.cpp`) compares `allowed_hosts` as strings and also never resolves. **Arguably more severe than F43**: it needs no redirect, no attacker-controlled server, and an attacker who controls any DNS record (or a public name like `localtest.me`) reaches `169.254.169.254` directly. |
+
+**F43 + F47 — one defect with two faces: the check is on a STRING, the
+connection is to a RESOLVED ADDRESS, and nothing reconciles them.**
+
+`isPrivateHost()` inspects the host substring of the URL the caller passed.
+Two things happen after it returns:
+
+1. libcurl resolves that string to an address. The filter never sees the
+   result, so `runsc` -> 127.0.0.1 is a clean bypass (F47).
+2. libcurl follows up to 5 redirects itself (`CURLOPT_FOLLOWLOCATION`), and
+   the filter never sees those hops either (F43).
+
+Measured, all three arms on the same build and the same target endpoint:
+
+    A  http://127.0.0.1:18432/secret   exit 1   BLOCKED (positive control)
+    B  http://runsc:18432/secret       exit 0   LOOPBACK_SECRET_REACHED
+    C  http://runsc:18431/go  --302->  exit 0   LOOPBACK_SECRET_REACHED
+
+The real-world target is `http://169.254.169.254/latest/meta-data/` — cloud
+instance metadata, i.e. credentials. The probe uses loopback instead because
+it proves the same thing without leaving the container, and because retrieving
+an actual marker from a destination arm A blocks is a stronger claim than a
+connection error to an unroutable address.
+
+**The fix is not another string check.** Filtering redirect Location headers
+would close F43 and leave F47 wide open, and re-checking the hostname would
+close neither. Enforcement has to move to the point where an address is
+actually known: `CURLOPT_OPENSOCKETFUNCTION` (libcurl 8.5.0 here) is called
+with the RESOLVED `curl_sockaddr` before each socket is created, on every hop
+including redirects, and returning `CURL_SOCKET_BAD` refuses the connection.
+One hook covers both faces; `isPrivateHost()` on the URL stays as a cheap
+first-pass rejection with a better error message.
+
+Note the blast radius is bounded and worth stating: this is `http_impl.cpp`
+only. Agent providers connect through `agent_provider.cpp`, which is a
+separate curl setup and deliberately permits loopback `api_base` for test
+stubs — so the fix does not break the stub harness.
 
 **F35 — I shipped the wrong fix for this, and reverted it. The wrong fix is
 worth recording, because it is the one anybody tracing this will reach for.**
