@@ -1,7 +1,8 @@
 # Plan: one policy, two enforcement mechanisms
 
-Status: in progress. Stages 1 and 2 landed in #223, stage 3 in this branch.
-Stage 4 (the process edge) is open.
+Status: stages 1 and 2 landed in #223, stage 3 in #224. Stage 4 is PARTLY done:
+the reporting half is in this branch; the enforcement half is not implemented and
+the reason is recorded below rather than left as a gap.
 
 This plan exists because four separately-reported findings turned out to be one
 defect wearing four coats, and patching them individually would have left the
@@ -42,6 +43,9 @@ the question is open.
 | `race` does not execute a single-block file even at `elevated`, so it cannot be used to test entry-point coverage with that input | unmeasurable |
 | NAAb's `file.read` is HARD-blocked by `capabilities.filesystem.blocked_paths` while a `<<python>>` block in the SAME program reads the same file and governance reports PASS | measured |
 | Landlock headers are present on the development machine and the syscall returns ENOSYS, so per-process path enforcement is not portable | measured |
+| `landlock_create_ruleset` returns `ENOSYS` (errno 38) on this kernel (6.18 microVM); `/sys/kernel/security/lsm` is absent so the LSM set cannot be enumerated | measured |
+| `seccomp` appears exactly ONCE in the entire source tree, inside an error-message string — there is no seccomp policy anywhere | measured |
+| The polyglot path bypass depends on the sandbox level AND on which executor runs: at `standard`, subprocess languages are contained but the IN-PROCESS Python executor reads through the policy | measured |
 | A project configured `allowed_paths: ["."]` reads its own `govern.json`; the same config with `allowed_paths` empty cannot. One broad allow voids `addGovernanceProtectedPaths()` | measured |
 | `checkPathAccess()` contained two precedence rules — capabilities let any allow cancel every block, the agent overlay applied blocks first and unconditionally | traced |
 
@@ -101,8 +105,41 @@ it protects so that it starts red.
    available, report the mechanism on the governance dashboard, and warn when
    the configuration promises more than the platform can deliver.
 
-Stages 1 and 2 close the class. Stages 3 and 4 are what make the configuration
-file truthful.
+   *Split, and only the second half shipped.* The warning is `CONTRA-013`: when
+   a path policy is configured and the sandbox level permits polyglot
+   execution, governance reports that the rules are enforced inside NAAb's
+   standard library only. Hardcoded ADVISORY, unlike every other `CONTRA`,
+   because those name two config keys that disagree and this one names a limit
+   of the engine — no edit to `govern.json` makes the rules reach a child
+   runtime, so blocking would punish an operator for something they cannot fix.
+
+   The enforcement half is **not implemented, deliberately**. Landlock is the
+   only candidate mechanism and `landlock_create_ruleset` returns `ENOSYS` on
+   this kernel, so the enforcing path could be written but never executed here.
+   Shipping an unverifiable enforcement path is the exact shape this campaign
+   keeps finding to be worse than a stated absence: it would read as coverage
+   in the source and in `govern.json` while never having run. The measured
+   table below is what a future implementation has to beat.
+
+   What the bypass actually looks like, measured per level — note that TWO
+   mechanisms shape it, and that the default enforce posture leaks:
+
+   | sandbox level | subprocess language | in-process Python |
+   |---|---|---|
+   | `restricted` | refused (#222 registry gate) | refused |
+   | `standard` (the enforce default) | contained (no fork/exec) | **reads the file** |
+   | `elevated` | **reads the file** | **reads the file** |
+   | `unrestricted` | **reads the file** | **reads the file** |
+
+   `SubprocessContainment` is doing its job at `standard`. The embedded Python
+   executor slips past it by never forking, so there is nothing to contain.
+   That is the hole a real stage 4 has to close, and it is narrower than
+   "polyglot bypasses the path policy".
+
+Stages 1 and 2 close the class. Stage 3 made the precedence one decision, and
+stage 4's reporting half makes the file state its own boundary. The file is now
+truthful about what it covers; making it cover MORE is unfinished work, not a
+documentation problem.
 
 ## Standing rules this campaign produced
 
