@@ -334,7 +334,7 @@ Final tally: **12 verified true** (A7, A8, A10-A18 covering F2/F5/F7/F8/F9/F10/F
 | F6 | inert governance keys (`max_functions`) | **partly wrong** | `max_functions` was REMOVED (governance.h:268), not inert; `max_total_polyglot_lines` is live. Residual: is any OTHER limits.* key inert? — **queued** |
 | F7 | `limits.data.output_size` — VM silent, tree-walk catchable | **VERIFIED** | A18 — unenforced on the default VM; catchable throw (not enforce) on tree-walk |
 | F8 | `ps -A`/`ps -e` miss the regex; `env.get_all()` bypasses `block_env_dump` | **VERIFIED** | A17 — source-text controls; stdlib env-dump evades block_env_dump |
-| F9 | `blocked_paths` silenced when `allowed_paths` is set | **VERIFIED** | A14 — any allowed_paths match skips ALL blocked_paths, ignoring specificity |
+| F9 | `blocked_paths` silenced when `allowed_paths` is set | **VERIFIED + FIXED** | A14 — true, and the blast radius was larger than reported: it voided the govern.json self-protection. See below |
 | F10 | `allowed_hosts`/`blocked_hosts` never enforced (SSRF/metadata) | **VERIFIED** | A15 — egress host-allowlist fully inert; blocked_hosts unread (metadata IP still covered by A11 SSRF range check) |
 | F11 | `capabilities.process` fields parsed only for rationale | **VERIFIED** | A16 — inert; real gate is capabilities.shell |
 | F12 | `allow_hidden_files`/`allow_absolute_paths`/`blocked_extensions` inert | **VERIFIED** | A16 — parsed/ratcheted, never enforced; blocked_extensions not even parsed |
@@ -356,8 +356,8 @@ Final tally: **12 verified true** (A7, A8, A10-A18 covering F2/F5/F7/F8/F9/F10/F
 | F26 | `codegen.run_strict` omitted from the taint bridge | **VERIFIED (trace)** | A24 — vm.cpp:1926 + call_dispatch.cpp:1512 match only run/run_with_args |
 | F27 | local `import` bypasses filesystem governance (`mode:none`, `blocked_paths`) | **VERIFIED** | A25 — module read never consults checkPathAccess |
 
-| F28 | REST `/api/v1/execute` calls `_exit(3)` on a HARD block -> remote DoS | **VERIFIED** | A26 — one request with any HARD violation kills the daemon |
-| F29 | REST API installs no ScopedSandbox -> sandbox-gated ops unrestricted (RCE) | **VERIFIED** | A27 — process.run under shell-disabled runs via REST (side-effect proof) |
+| F28 | REST `/api/v1/execute` calls `_exit(3)` on a HARD block -> remote DoS | **VERIFIED + FIXED** | A26 — one request with any HARD violation kills the daemon. Fixed in #223: the request fails (403), not the process |
+| F29 | REST API installs no ScopedSandbox -> sandbox-gated ops unrestricted (RCE) | **VERIFIED + FIXED** | A27 — true in BOTH directions: the API also refused what the config permitted. Fixed in #223 |
 | F30 | `naab.toml` manifest parsed but never wired to engine/sandbox | **VERIFIED (trace)** | A28 — used only for has_value()+version print |
 
 ### Batches 4-6 (F31-F45), settled and outstanding
@@ -541,6 +541,55 @@ the rules proposal cited line 682 of a 593-line file; F31 UNDERSTATED the proble
 (it never established that the verifier does not compile and that no CI workflow
 builds it); F45 was already fixed and its test is harmful. Treat every remaining
 row as a place to look. None of them is a verdict.
+
+**F9 — true as reported, and the reported blast radius was the small half.** The
+report framed it as precedence: a broad `allowed_paths` entry cancels a more
+specific `blocked_paths` entry, with the code comment claiming "specific allow
+beats broad deny" while nothing compared specificity. That much was already
+verified as A14.
+
+What A14 did not reach is what the silenced blocks CONTAIN.
+`addGovernanceProtectedPaths()` appends `govern.json`, its `.sig` sidecar and
+the trusted-keys directory to `blocked_paths` at load, so that a NAAb program
+cannot rewrite the governance it is running under. Those entries are subject to
+the same precedence. Measured on `c5a645f`: a project configured
+`allowed_paths: ["."]` — the most ordinary entry in the file — reads its own
+`govern.json`, and the identical config with `allowed_paths` empty does not. The
+self-protection was not bypassed by a clever path; it was switched off by a
+config line nobody would look at twice.
+
+Fixed by giving precedence one home. `decidePathAccess()` in
+`governance_engine.cpp` resolves longest-matching-prefix-wins with ties denying,
+and the agent-role overlay passes the same function a `DenyWins` mode because a
+role narrows the project policy and must never widen it. That asymmetry existed
+before — the two layers already disagreed — but it was a consequence of the
+order two loops happened to be written in rather than a decision anyone made.
+
+The change is a strict tightening: the only verdicts that move are PASS to
+BLOCK, and only where a blocked entry is at least as specific as the allowed one
+that was cancelling it. The pattern real configs depend on, allow `./data` under
+block `/`, still resolves to allow, because `./data` is the longer prefix.
+
+Consolidating the two loops also surfaced undefined behaviour neither of them
+was blamed for. `pathPrefixMatch` ends in `prefix.back()`, which is undefined on
+an empty string, and `weakly_canonical("")` resolves to `""` — so a `""` in
+either list reached it. Measured, the UB read as "matches everything": an empty
+`allowed_paths` entry granted every path, an empty `blocked_paths` entry denied
+every path. An empty entry now matches nothing, which costs one direction (an
+empty block no longer blocks everything) and is worth it: that was never a
+specified behaviour, only a compiler's answer to a question the standard does
+not define. Both directions are pinned by PP-08 and PP-09. Note the route — the
+first version of this guard shipped with a comment asserting that an empty entry
+resolves to the current directory, which was inferred from the OUTCOME rather
+than measured at the resolver, and the guard's own probe disproved it.
+
+Test: `tests/security/test_path_precedence.sh`, eleven assertions. Three mutants
+killed: ties resolving to allow fails PP-05 alone; restoring the pre-fix
+short-circuit fails PP-01, PP-03 and PP-05; loosening the agent overlay to
+longest-prefix fails PP-06. PP-00, PP-03b, PP-04 and PP-07 are the controls, and
+PP-07 earned its place immediately — it caught a fixture whose `"agents"` key
+had lost its quotes to a `${var:+...}` expansion inside a heredoc, so both agent
+probes were dying on a config error while PP-06 recorded a pass.
 
 **Priority order for the campaign:** F16 (per-agent governance possibly inert — undermines a headline feature), F13 (privilege escalation), F9 + F10 (filesystem/network policy bypass), then F7/F8/F11/F12, then the F6 residual. F9 has the strongest prior (self-observed). Each gets: trace to the point of EFFECT, a positive control proving the gate CAN fire, then the probe. Record verified ones as A-rows with their controls; falsify the rest out loud.
 
