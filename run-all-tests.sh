@@ -1449,6 +1449,24 @@ else
     echo "  test_polyglot_gate_coverage.sh: not found, skipping"
 fi
 
+# --- Path policy precedence (F9) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Path Policy Precedence (which list wins when both match)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+PATH_PRECEDENCE_SCRIPT="tests/security/test_path_precedence.sh"
+if [ -f "$PATH_PRECEDENCE_SCRIPT" ]; then
+    if run_shell_test "$PATH_PRECEDENCE_SCRIPT" 2>&1; then
+        echo "  test_path_precedence.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_path_precedence.sh")
+    fi
+else
+    echo "  test_path_precedence.sh: not found, skipping"
+fi
+
 # --- Signed govern.json vs Package Operations (F39) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

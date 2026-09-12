@@ -20,6 +20,7 @@
 #include "naab/analyzer/syntactic_analyzer.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
+#include <functional>
 #include <filesystem>
 #include <iostream>
 #include <sstream>
@@ -1918,6 +1919,114 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
     return "";
 }
 
+// ---------------------------------------------------------------------------
+// Path policy precedence, decided in one place.
+//
+// An allowed entry and a blocked entry can both match the same path, and which
+// one wins used to be answered twice in this file with two different answers.
+// The capabilities layer let ANY allowed entry cancel EVERY blocked entry; the
+// agent-role overlay applied its blocked list first and unconditionally.
+//
+// The capabilities answer was the wrong one. Its comment read "specific allow
+// beats broad deny", but nothing compared specificity, so allowed_paths ["."]
+// cancelled a blocked entry naming a single file. That silently voided
+// addGovernanceProtectedPaths(), the mechanism that stops a NAAb program from
+// rewriting its own govern.json: measured, a project allowing "." could read
+// its govern.json, and the same config with allowed_paths empty could not.
+//
+// The rule is now longest matching prefix wins, and a tie denies. A blocked
+// entry naming a file beats an allowed entry naming its directory, while the
+// documented "allowed ./data beats blocked /" pattern still works because
+// ./data resolves to the longer prefix.
+//
+// The agent-role overlay keeps deny-first, which is strictly stricter than
+// longest-prefix. That asymmetry is deliberate: a role narrows the project
+// policy and must never widen it. It is expressed here as a mode rather than
+// left to the order in which two loops happen to be written.
+// ---------------------------------------------------------------------------
+namespace {
+
+enum class PathPrecedence {
+    LongestPrefixWins,  // capabilities.filesystem
+    DenyWins,           // agents.<name> overlay
+};
+
+struct PathMatch {
+    bool matched = false;
+    std::string rule;        // the configured entry that matched
+    std::size_t specificity = 0;  // length of that entry once resolved
+};
+
+struct PathVerdict {
+    enum class Result { Allow, NotAllowlisted, Blocked };
+    Result result = Result::Allow;
+    std::string rule;  // the blocked entry, when result is Blocked
+};
+
+// V-GOV-022: prefix match with a directory boundary, so /data/safe does not
+// match /data/safe_malicious.
+bool pathPrefixMatch(const std::string& path, const std::string& prefix) {
+    // An empty entry names no path, so it matches nothing.
+    //
+    // This guard is not hypothetical: weakly_canonical("") resolves to "" here,
+    // so a `""` in either list reached prefix.back() below, which is undefined
+    // on an empty string. Measured on this platform the UB read as "matches
+    // everything" -- allowed_paths [""] granted every path and blocked_paths
+    // [""] denied every path. Defining it costs one direction: blocked_paths
+    // [""] no longer blocks everything. That was never a specified behaviour to
+    // rely on, and no reader of a config writes an empty string meaning "all".
+    if (prefix.empty()) return false;
+    if (path.find(prefix) != 0) return false;
+    return path.size() == prefix.size() ||
+           prefix.back() == '/' ||
+           path[prefix.size()] == '/';
+}
+
+PathMatch longestPathMatch(const std::string& canonical_path,
+                           const std::vector<std::string>& list,
+                           const std::function<std::string(const std::string&)>& resolve) {
+    PathMatch best;
+    for (const auto& entry : list) {
+        const std::string resolved = resolve(entry);
+        if (!pathPrefixMatch(canonical_path, resolved)) continue;
+        if (best.matched && resolved.size() <= best.specificity) continue;
+        best.matched = true;
+        best.rule = entry;
+        best.specificity = resolved.size();
+    }
+    return best;
+}
+
+PathVerdict decidePathAccess(const std::string& canonical_path,
+                             const std::vector<std::string>& allowed,
+                             const std::vector<std::string>& blocked,
+                             PathPrecedence precedence,
+                             const std::function<std::string(const std::string&)>& resolve) {
+    const PathMatch allow_match = longestPathMatch(canonical_path, allowed, resolve);
+    const PathMatch block_match = longestPathMatch(canonical_path, blocked, resolve);
+
+    if (precedence == PathPrecedence::DenyWins) {
+        if (block_match.matched) return {PathVerdict::Result::Blocked, block_match.rule};
+        if (!allowed.empty() && !allow_match.matched)
+            return {PathVerdict::Result::NotAllowlisted, ""};
+        return {PathVerdict::Result::Allow, ""};
+    }
+
+    // A non-empty allowed list is an allowlist: no match is a denial whatever
+    // the blocked list says.
+    if (!allowed.empty() && !allow_match.matched)
+        return {PathVerdict::Result::NotAllowlisted, ""};
+
+    // >= so that an equally specific blocked entry wins. Ties deny.
+    if (block_match.matched &&
+        (!allow_match.matched || block_match.specificity >= allow_match.specificity))
+        return {PathVerdict::Result::Blocked, block_match.rule};
+
+    return {PathVerdict::Result::Allow, ""};
+}
+
+}  // namespace
+
 std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const std::string& mode) {
     clearTrace();
 
@@ -1968,107 +2077,81 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
         }
     };
 
-    // V-GOV-022: Path prefix match with directory boundary validation.
-    // Ensures /data/safe doesn't match /data/safe_malicious.
-    auto pathPrefixMatch = [](const std::string& path, const std::string& prefix) -> bool {
-        if (path.find(prefix) != 0) return false;
-        // Exact match or next char is '/' (directory boundary)
-        return path.size() == prefix.size() ||
-               prefix.back() == '/' ||
-               path[prefix.size()] == '/';
-    };
+    // Layers 1 and 2: the project path policy. Precedence lives in
+    // decidePathAccess(), not here.
+    const auto& fs_paths = rules().capabilities.filesystem;
+    const PathVerdict project = decidePathAccess(
+        canon_n, fs_paths.allowed_paths, fs_paths.blocked_paths,
+        PathPrecedence::LongestPrefixWins, canonAndNorm);
 
-    // Layer 1: Check allowed_paths first (specific allow beats broad deny)
-    bool explicitly_allowed = false;
-    if (!rules().capabilities.filesystem.allowed_paths.empty()) {
-        for (const auto& ap : rules().capabilities.filesystem.allowed_paths) {
-            if (pathPrefixMatch(canon_n, canonAndNorm(ap))) {
-                explicitly_allowed = true;
-                break;
-            }
+    if (project.result == PathVerdict::Result::NotAllowlisted) {
+        // V-GOV-025: Show resolved paths to help diagnose mismatches
+        std::string resolved_list;
+        std::string raw_list;
+        for (const auto& ap : fs_paths.allowed_paths) {
+            if (!resolved_list.empty()) { resolved_list += ", "; raw_list += ", "; }
+            resolved_list += canonAndNorm(ap);
+            raw_list += ap;
         }
-        if (!explicitly_allowed) {
-            // V-GOV-025: Show resolved paths to help diagnose mismatches
-            std::string resolved_list;
-            std::string raw_list;
-            for (const auto& ap : rules().capabilities.filesystem.allowed_paths) {
-                if (!resolved_list.empty()) { resolved_list += ", "; raw_list += ", "; }
-                resolved_list += canonAndNorm(ap);
-                raw_list += ap;
-            }
-            // Show first allowed path as example
-            std::string example_path = rules().capabilities.filesystem.allowed_paths.empty()
-                ? "allowed/path/file.txt"
-                : rules().capabilities.filesystem.allowed_paths[0] + "file.txt";
-            return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
-                formatError(EnforcementLevel::HARD,
-                    "File path not in allowed paths: " + filepath,
-                    "Resolved to: " + canon_n + "\n  Allowed (resolved): " + resolved_list,
-                    "capabilities.filesystem.allowed_paths does not match",
-                    "Only paths under these directories are accessible: " + raw_list,
-                    "file." + mode + "(\"" + filepath + "\", ...)",
-                    "file." + mode + "(\"" + example_path + "\", ...)"));
-        }
+        // Show first allowed path as example
+        std::string example_path = fs_paths.allowed_paths.empty()
+            ? "allowed/path/file.txt"
+            : fs_paths.allowed_paths[0] + "file.txt";
+        return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "File path not in allowed paths: " + filepath,
+                "Resolved to: " + canon_n + "\n  Allowed (resolved): " + resolved_list,
+                "capabilities.filesystem.allowed_paths does not match",
+                "Only paths under these directories are accessible: " + raw_list,
+                "file." + mode + "(\"" + filepath + "\", ...)",
+                "file." + mode + "(\"" + example_path + "\", ...)"));
     }
 
-    // Layer 2: blocked_paths — but skip if path is explicitly allowed
-    // (specific allow like "./data/" beats broad deny like "/")
-    if (!explicitly_allowed) {
-        for (const auto& bp : rules().capabilities.filesystem.blocked_paths) {
-            if (pathPrefixMatch(canon_n, canonAndNorm(bp))) {
-                return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
-                    formatError(EnforcementLevel::HARD,
-                        "File path blocked by governance: " + filepath,
-                        "",
-                        "capabilities.filesystem.blocked_paths contains \"" + bp + "\"",
-                        "This path is blocked by the project's governance configuration.\n"
-                        "Use a path under an allowed directory (e.g., ./data or ./output).",
-                        "file." + mode + "(\"" + filepath + "\", ...)",
-                        "file." + mode + "(\"./data/my_file.txt\", ...)"));
-            }
-        }
+    if (project.result == PathVerdict::Result::Blocked) {
+        return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "File path blocked by governance: " + filepath,
+                "",
+                "capabilities.filesystem.blocked_paths contains \"" + project.rule + "\"",
+                "This path is blocked by the project's governance configuration.\n"
+                "Use a path under an allowed directory (e.g., ./data or ./output).",
+                "file." + mode + "(\"" + filepath + "\", ...)",
+                "file." + mode + "(\"./data/my_file.txt\", ...)"));
     }
 
     // Layer 3+4: Agent role path restrictions
     for (const auto& role : rules().agents) {
         if (role.name == effectiveAgentId()) {
-            // Agent blocked_paths
-            for (const auto& bp : role.blocked_paths) {
-                if (pathPrefixMatch(canon_n, canonAndNorm(bp))) {
-                    return enforce("agent_role.path", EnforcementLevel::HARD,
-                        formatError(EnforcementLevel::HARD,
-                            "Agent '" + effectiveAgentId() + "' blocked from path: " + filepath,
-                            "",
-                            "agents." + effectiveAgentId() + ".blocked_paths contains \"" + bp + "\"",
-                            "Your agent role does not permit access to this path.\n"
-                            "Use a path within your agent's allowed directories.",
-                            "file." + mode + "(\"" + filepath + "\", ...)",
-                            !role.allowed_paths.empty()
-                                ? "file." + mode + "(\"" + role.allowed_paths[0] + "/my_file.txt\", ...)"
-                                : "file." + mode + "(\"./data/my_file.txt\", ...)"));
-                }
+            // Same decision function, deny-first: a role narrows the project
+            // policy and must never widen it.
+            const PathVerdict overlay = decidePathAccess(
+                canon_n, role.allowed_paths, role.blocked_paths,
+                PathPrecedence::DenyWins, canonAndNorm);
+
+            if (overlay.result == PathVerdict::Result::Blocked) {
+                return enforce("agent_role.path", EnforcementLevel::HARD,
+                    formatError(EnforcementLevel::HARD,
+                        "Agent '" + effectiveAgentId() + "' blocked from path: " + filepath,
+                        "",
+                        "agents." + effectiveAgentId() + ".blocked_paths contains \"" + overlay.rule + "\"",
+                        "Your agent role does not permit access to this path.\n"
+                        "Use a path within your agent's allowed directories.",
+                        "file." + mode + "(\"" + filepath + "\", ...)",
+                        !role.allowed_paths.empty()
+                            ? "file." + mode + "(\"" + role.allowed_paths[0] + "/my_file.txt\", ...)"
+                            : "file." + mode + "(\"./data/my_file.txt\", ...)"));
             }
-            // Agent allowed_paths (if non-empty, must match one)
-            if (!role.allowed_paths.empty()) {
-                bool agent_allowed = false;
-                for (const auto& ap : role.allowed_paths) {
-                    if (pathPrefixMatch(canon_n, canonAndNorm(ap))) {
-                        agent_allowed = true;
-                        break;
-                    }
-                }
-                if (!agent_allowed) {
-                    return enforce("agent_role.path", EnforcementLevel::HARD,
-                        formatError(EnforcementLevel::HARD,
-                            "Agent '" + effectiveAgentId() + "' not allowed to access: " + filepath,
-                            "",
-                            "agents." + effectiveAgentId() + ".allowed_paths",
-                            fmt::format("Your agent role restricts file access to: {}",
-                                [&]() { std::string l; for (const auto& p : role.allowed_paths) {
-                                    if (!l.empty()) l += ", "; l += p; } return l; }()),
-                            "file." + mode + "(\"" + filepath + "\", ...)",
-                            "file." + mode + "(\"" + role.allowed_paths[0] + "/my_file.txt\", ...)"));
-                }
+            if (overlay.result == PathVerdict::Result::NotAllowlisted) {
+                return enforce("agent_role.path", EnforcementLevel::HARD,
+                    formatError(EnforcementLevel::HARD,
+                        "Agent '" + effectiveAgentId() + "' not allowed to access: " + filepath,
+                        "",
+                        "agents." + effectiveAgentId() + ".allowed_paths",
+                        fmt::format("Your agent role restricts file access to: {}",
+                            [&]() { std::string l; for (const auto& p : role.allowed_paths) {
+                                if (!l.empty()) l += ", "; l += p; } return l; }()),
+                        "file." + mode + "(\"" + filepath + "\", ...)",
+                        "file." + mode + "(\"" + role.allowed_paths[0] + "/my_file.txt\", ...)"));
             }
             break;
         }

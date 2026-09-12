@@ -1,6 +1,7 @@
 # Plan: one policy, two enforcement mechanisms
 
-Status: in progress. Stage 1 not yet landed.
+Status: in progress. Stages 1 and 2 landed in #223, stage 3 in this branch.
+Stage 4 (the process edge) is open.
 
 This plan exists because four separately-reported findings turned out to be one
 defect wearing four coats, and patching them individually would have left the
@@ -15,7 +16,7 @@ that sentence with different nouns:
 - the sandbox capability check written sixteen times in sixteen executors, most
   of the copies wrong (F41, fixed in #222)
 - the sandbox installed by the command line and not by the other entry points
-  (F29, open)
+  (F29, fixed in #223)
 - `govern.json` protected from NAAb programs but not from the package manager
   (F39, fixed in #221)
 - the audit-log signature check conditioned on the entry carrying a signature
@@ -41,6 +42,8 @@ the question is open.
 | `race` does not execute a single-block file even at `elevated`, so it cannot be used to test entry-point coverage with that input | unmeasurable |
 | NAAb's `file.read` is HARD-blocked by `capabilities.filesystem.blocked_paths` while a `<<python>>` block in the SAME program reads the same file and governance reports PASS | measured |
 | Landlock headers are present on the development machine and the syscall returns ENOSYS, so per-process path enforcement is not portable | measured |
+| A project configured `allowed_paths: ["."]` reads its own `govern.json`; the same config with `allowed_paths` empty cannot. One broad allow voids `addGovernanceProtectedPaths()` | measured |
+| `checkPathAccess()` contained two precedence rules — capabilities let any allow cancel every block, the agent overlay applied blocks first and unconditionally | traced |
 
 The last two together are the source-of-truth problem: the configuration file
 describes a path policy, and that policy reaches NAAb's own standard library and
@@ -84,6 +87,16 @@ it protects so that it starts red.
 3. **Collapse the path vocabularies** into the single decision function, with
    precedence decided once and most specific winning. This is also the fix for
    F9, where a broad allowed path currently cancels a specific blocked path.
+   *Done.* `decidePathAccess()` is that function, and both layers of
+   `checkPathAccess()` now call it. Precedence is longest-prefix-wins with ties
+   denying; the agent overlay passes `DenyWins` because a role narrows the
+   project policy and must never widen it.
+
+   One vocabulary is deliberately left outside it. `Sandbox::isPathAllowed()`
+   has an allow list and no deny list, so it has no precedence to unify — its
+   fragmentation is a duplicate MATCHER, not a second answer to the same
+   question, and folding it in would be a refactor with no verdict to change.
+   Stage 4 is where the sandbox and the governance policy have to agree.
 4. **Process edge.** Compile the policy to an operating system ruleset where
    available, report the mechanism on the governance dashboard, and warn when
    the configuration promises more than the platform can deliver.
