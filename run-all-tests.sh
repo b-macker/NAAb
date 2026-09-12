@@ -245,11 +245,26 @@ else
     echo "  NOTE: 'timeout' not available — shell test suites run unbounded"
 fi
 
+# Where a failing suite's output is kept so the summary can quote it. A suite
+# runs in the middle of a long job and the summary prints at the end; on CI the
+# only retrievable slice of a job log is its TAIL, so a suite that fails early
+# reports nothing a reader can act on. Four build-windows failures in this
+# campaign each cost a full round trip to learn only which suite was red.
+SHELL_TEST_CAPTURE_DIR="${SHELL_TEST_CAPTURE_DIR:-$(mktemp -d 2>/dev/null || echo "")}"
+
 # Run a shell test suite under the bound. Arguments are passed to bash as-is,
-# so call sites keep their existing shape and exit status.
+# so call sites keep their existing shape and exit status. Output still streams
+# live; tee only copies it aside in case the summary needs to quote it.
 run_shell_test() {
     local rc=0
-    "${SHELL_TEST_TIMEOUT_ARGV[@]}" bash "$@" || rc=$?
+    local cap=""
+    [ -n "$SHELL_TEST_CAPTURE_DIR" ] && cap="$SHELL_TEST_CAPTURE_DIR/$(basename "$1").log"
+    if [ -n "$cap" ]; then
+        "${SHELL_TEST_TIMEOUT_ARGV[@]}" bash "$@" 2>&1 | tee "$cap"
+        rc=${PIPESTATUS[0]}
+    else
+        "${SHELL_TEST_TIMEOUT_ARGV[@]}" bash "$@" || rc=$?
+    fi
     # 124 = TERM'd at the deadline; 137 = SIGKILL followed (128+9).
     if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
         echo ""
@@ -2724,6 +2739,20 @@ if [ $FAILED -gt 0 ]; then
     echo "Unexpected Failures:"
     for test in "${FAILED_TESTS[@]}"; do
         echo "  - $test"
+        # Quote the suite's own failing lines here, where a CI log tail can
+        # reach them. Without this the summary names a suite and says nothing
+        # about why, which reads as a verdict and is really an absence.
+        # Captures are keyed by SCRIPT BASENAME; a few blocks register a label
+        # of their own instead (lsp-integration is one), and those find nothing.
+        # Say so rather than printing nothing — an unexplained silence here is
+        # the very thing this block exists to end.
+        cap="${SHELL_TEST_CAPTURE_DIR:-}/$test.log"
+        if [ -n "${SHELL_TEST_CAPTURE_DIR:-}" ] && [ -f "$cap" ]; then
+            grep -aiE "fail|error|refused|no such|not found" "$cap" \
+                | tail -20 | sed 's/^/      | /'
+        else
+            echo "      | (no captured output under this label — see the run log above)"
+        fi
     done
     echo ""
     exit 1
