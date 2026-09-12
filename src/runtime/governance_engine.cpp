@@ -1867,6 +1867,35 @@ std::string GovernanceEngine::filesystemAccessMode(const std::string& module,
         if (method == "set_output") return "write";
         return "";
     }
+    if (module == "io") {
+        // io carries BOTH a file surface and a console surface, so this one is
+        // an explicit allowlist and must never gain a write-by-default fallback
+        // like "file" has: io.write / io.output / io.write_error / io.print /
+        // io.println / io.log / io.read_line / io.input name no file, and a
+        // fallback would gate every print statement in the language.
+        if (method == "read_file" || method == "exists" ||
+            method == "list_dir") return "read";
+        if (method == "write_file") return "write";
+        return "";
+    }
+    if (module == "path") {
+        // A10. Only the two that touch the disk: exists() stats it, resolve()
+        // calls fs::canonical and so discloses symlink targets. join, dirname,
+        // basename, extension, is_absolute and normalize are LEXICAL -- they
+        // manipulate a string and never open anything, and gating them would
+        // refuse path arithmetic on names the program is allowed to compute.
+        if (method == "exists" || method == "resolve") return "read";
+        return "";
+    }
+    if (module == "env") {
+        // load_dotenv is the only env entry point that opens a file.
+        // parse_env_file takes the CONTENT, not a path. Note this classifies
+        // the path the caller WROTE; load_dotenv() with no argument defaults to
+        // ".env", which no engine-side gate can see -- env_impl.cpp checks that
+        // resolved default itself.
+        if (method == "load_dotenv") return "read";
+        return "";
+    }
     return "";
 }
 
