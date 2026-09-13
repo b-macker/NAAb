@@ -8,6 +8,7 @@
 #include "naab/safe_math.h"
 #include "naab/subprocess_helpers.h"
 #include "naab/sandbox.h"
+#include "naab/governance.h"
 #include "naab/platform.h"
 #include "naab/limits.h"
 #include <unordered_set>
@@ -69,6 +70,23 @@ interpreter::NaabVal ProcessModule::call(
             for (const auto& item : args[1].asListConst()) {
                 argv_vec.push_back(item.toString());
             }
+        }
+
+        // F17: the SANDBOX check above carries SYS_EXEC and knows nothing about
+        // capabilities.shell.blocked_commands, which was enforced only by
+        // scanning <<shell>> source text. Measured: `<<shell>> whoami` blocked
+        // while this ran, same config, same command.
+        //
+        // Checked AFTER argv is built and against the whole command line, so a
+        // blocked token cannot be smuggled past as an argument
+        // (process.run("sh", ["-c", "whoami"])). The engine uses the same
+        // substring match the polyglot path uses -- one config key must not
+        // have two matchers.
+        if (auto* gov = governance::GovernanceEngine::getCurrent()) {
+            std::string full_cmd = cmd;
+            for (const auto& a : argv_vec) full_cmd += " " + a;
+            std::string gerr = gov->checkShellCommandAllowed(full_cmd);
+            if (!gerr.empty()) throw std::runtime_error(gerr);
         }
 
         std::string stdout_str, stderr_str;

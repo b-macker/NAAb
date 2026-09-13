@@ -1844,6 +1844,37 @@ std::string GovernanceEngine::checkFilesystemImports(
     return "";
 }
 
+// F17: capabilities.shell.blocked_commands was enforced ONLY by scanning
+// <<shell>> SOURCE TEXT in checkPolyglotBlock(). process.run() reaches the
+// same shell with a command built at runtime and never passed through it --
+// it asks Sandbox::canExecuteCommand(), which carries SYS_EXEC but knows
+// nothing about the governance list. Measured: `<<shell>> whoami` blocked
+// while process.run("whoami", []) ran, same config, same command.
+//
+// Matching is deliberately the SAME substring test the polyglot path uses.
+// Two different matchers for one config key would be its own defect: an
+// operator would have to know which door a command came through to predict
+// the verdict.
+std::string GovernanceEngine::checkShellCommandAllowed(const std::string& command_line) {
+    clearTrace();
+    if (!isActive()) return "";
+    for (const auto& blocked : rules().capabilities.shell.blocked_commands) {
+        if (blocked.empty()) continue;   // an empty entry must match nothing
+        if (command_line.find(blocked) != std::string::npos) {
+            return enforce("capabilities.shell.blocked_commands", EnforcementLevel::HARD,
+                formatError(EnforcementLevel::HARD,
+                    fmt::format("Blocked shell command detected: '{}'", blocked),
+                    "",
+                    "capabilities.shell.blocked_commands",
+                    "This command is prohibited by governance policy",
+                    fmt::format("process.run(\"{}\", [])", blocked),
+                    "Use NAAb stdlib alternatives instead"));
+        }
+    }
+    recordPass("capabilities.shell.blocked_commands", EnforcementLevel::HARD);
+    return "";
+}
+
 std::string GovernanceEngine::filesystemAccessMode(const std::string& module,
                                                    const std::string& method) {
     if (module == "file") {

@@ -3096,6 +3096,9 @@ public:
     // independent implementations of the same gate, and the csv gap existed
     // because the module list was written out twice and only one of them was
     // ever the subject of a test.
+    // F17: governance's blocked_commands, for runtime-built command lines
+    // (process.run). The polyglot path scans source text instead.
+    std::string checkShellCommandAllowed(const std::string& command_line);
     static std::string filesystemAccessMode(const std::string& module,
                                             const std::string& method);
     std::string checkShellAllowed();
