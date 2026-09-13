@@ -48,6 +48,17 @@
 #   SS-04  NEGATIVE CONTROL: a non-private destination is still reachable, so
 #          the fix is not "block everything". Uses the same alias resolved to a
 #          NON-loopback local address, so it needs no external network
+#   SS-05  register row F15/A11, closed by the SAME gate: the URL-level filter
+#          parses with inet_pton, which accepts ONLY dotted-quad, while
+#          getaddrinfo also accepts the short, integer and octal forms. So
+#          "127.1", "2130706433" and "0177.0.0.1" were each read as "not an IP
+#          literal, therefore not private" and then resolved to 127.0.0.1.
+#          Measured on master: all three REACHED the loopback endpoint that the
+#          dotted-quad spelling of the SAME address is blocked from. The socket
+#          gate closes them because it reads the RESOLVED sockaddr and never
+#          sees the spelling at all. Pinned here so a future refactor cannot
+#          reintroduce the notation bypass silently -- it was fixed
+#          incidentally, and incidental fixes rot.
 # ============================================================
 set -uo pipefail
 
@@ -212,6 +223,27 @@ PY2_EOF
              "got '$D' — the gate is blocking addresses outside the private ranges"
     fi
 fi
+
+echo ""
+echo "SS-05: alternate IP notations (F15/A11) — same gate, different spelling"
+# Resolver control first: if the platform's getaddrinfo does NOT accept a form,
+# that arm is UNMEASURABLE rather than a pass. Without this a platform that
+# simply cannot resolve "127.1" would report the bypass as closed.
+for form in "127.1" "2130706433" "0177.0.0.1"; do
+    if ! curl -s -m 5 -o /dev/null "http://${form}:${TPORT}/secret" 2>/dev/null; then
+        skip "SS-05/${form}" "resolver does not accept this form here — UNMEASURABLE"
+        continue
+    fi
+    r=$(fetch "http://${form}:${TPORT}/secret")
+    if [ "$r" = "blocked" ]; then
+        pass "SS-05/${form}" "alternate notation for loopback is blocked"
+    elif [ "$r" = "UNMEASURED" ]; then
+        fail "SS-05/${form}" "alternate notation for loopback is blocked" "UNMEASURED — broken probe, not a pass"
+    else
+        fail "SS-05/${form}" "alternate notation for loopback is blocked" \
+             "reached 127.0.0.1 spelled '${form}' — the dotted-quad form of the same address is blocked"
+    fi
+done
 
 echo ""
 echo -e "${CYAN}--------------------------------------------------------------${NC}"
