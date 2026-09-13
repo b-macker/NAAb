@@ -212,6 +212,15 @@ interpreter::NaabVal EnvModule::call(
         }
         checkEnvSandbox("get_all");
 
+        // F8: block_env_dump was enforced only by regex over polyglot source,
+        // and checkInfoDisclosure() deliberately skips its bare "env" pattern
+        // for language=="naab" because `env` there is a stdlib module name.
+        // Correct for source scanning, and it left the actual dump unguarded.
+        if (auto* gov = governance::GovernanceEngine::getCurrent()) {
+            std::string derr = gov->checkEnvDumpAllowed();
+            if (!derr.empty()) throw std::runtime_error(derr);
+        }
+
         std::unordered_map<std::string, std::string> env_map;
 #ifndef _WIN32
         if (environ == nullptr) return makeMap(env_map);

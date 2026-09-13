@@ -4,6 +4,7 @@
 //
 
 #include "naab/stdlib_new_modules.h"
+#include "naab/governance.h"
 #include "naab/interpreter.h"
 #include "naab/safe_math.h"
 #include "naab/utils/string_utils.h"
@@ -58,6 +59,17 @@ bool CryptoModule::hasFunction(const std::string& name) const {
     return functions.count(name) > 0;
 }
 
+// F18: the algorithm NAME goes to the engine, which tests it against the
+// operator's restrictions.crypto.weak_hashes list. Applied to every hash entry
+// point rather than just md5/sha1, so the list decides -- adding "sha256" to
+// weak_hashes blocks crypto.sha256 too, which is what the key reads as.
+static void checkHashGovernance(const std::string& algorithm) {
+    auto* gov = governance::GovernanceEngine::getCurrent();
+    if (!gov) return;
+    std::string err = gov->checkWeakHashAllowed(algorithm);
+    if (!err.empty()) throw std::runtime_error(err);
+}
+
 interpreter::NaabVal CryptoModule::call(
     const std::string& function_name,
     std::vector<interpreter::NaabVal>& args) {
@@ -67,6 +79,7 @@ interpreter::NaabVal CryptoModule::call(
         if (args.size() != 1) {
             throw std::runtime_error("md5() takes exactly 1 argument");
         }
+        checkHashGovernance("md5");
         std::string text = getString(args[0]);
         return makeString(hash_md5(text));
     }
@@ -76,6 +89,7 @@ interpreter::NaabVal CryptoModule::call(
         if (args.size() != 1) {
             throw std::runtime_error("sha1() takes exactly 1 argument");
         }
+        checkHashGovernance("sha1");
         std::string text = getString(args[0]);
         return makeString(hash_sha1(text));
     }
@@ -85,6 +99,7 @@ interpreter::NaabVal CryptoModule::call(
         if (args.size() != 1) {
             throw std::runtime_error("sha256() takes exactly 1 argument");
         }
+        checkHashGovernance("sha256");
         std::string text = getString(args[0]);
         return makeString(hash_sha256(text));
     }
@@ -94,6 +109,7 @@ interpreter::NaabVal CryptoModule::call(
         if (args.size() != 1) {
             throw std::runtime_error("sha512() takes exactly 1 argument");
         }
+        checkHashGovernance("sha512");
         std::string text = getString(args[0]);
         return makeString(hash_sha512(text));
     }

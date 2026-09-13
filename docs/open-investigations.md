@@ -333,21 +333,21 @@ Final tally: **12 verified true** (A7, A8, A10-A18 covering F2/F5/F7/F8/F9/F10/F
 | F5 | call-depth ceiling capped by `FRAMES_MAX` 1024 | **VERIFIED (corrected)** | A8 — ordering was backwards in the report; catchable, not a crash |
 | F6 | inert governance keys (`max_functions`) | **partly wrong** | `max_functions` was REMOVED (governance.h:268), not inert; `max_total_polyglot_lines` is live. Residual: is any OTHER limits.* key inert? — **queued** |
 | F7 | `limits.data.output_size` — VM silent, tree-walk catchable | **VERIFIED** | A18 — unenforced on the default VM; catchable throw (not enforce) on tree-walk |
-| F8 | `ps -A`/`ps -e` miss the regex; `env.get_all()` bypasses `block_env_dump` | **VERIFIED** | A17 — source-text controls; stdlib env-dump evades block_env_dump |
+| F8 | `ps -A`/`ps -e` miss the regex; `env.get_all()` bypasses `block_env_dump` | **VERIFIED** | A17 — source-text controls; stdlib env-dump evades block_env_dump **RE-PROBED 2026-09-13 on master (post-#215..#226): STILL OPEN.** probe `env.get_all()` ran; CONTROL polyglot `os.environ` blocked. Needs `restrictions.information_disclosure.enabled: true` — `block_env_dump` alone parses but `checkInfoDisclosure()` returns at its first line. |
 | F9 | `blocked_paths` silenced when `allowed_paths` is set | **VERIFIED + FIXED** | A14 — true, and the blast radius was larger than reported: it voided the govern.json self-protection. See below |
-| F10 | `allowed_hosts`/`blocked_hosts` never enforced (SSRF/metadata) | **VERIFIED** | A15 — egress host-allowlist fully inert; blocked_hosts unread (metadata IP still covered by A11 SSRF range check) |
+| F10 | `allowed_hosts`/`blocked_hosts` never enforced (SSRF/metadata) | **VERIFIED** | A15 — egress host-allowlist fully inert; blocked_hosts unread (metadata IP still covered by A11 SSRF range check) **RE-PROBED 2026-09-13 on master (post-#215..#226): STILL OPEN.** probe ran under `blocked_hosts`; CONTROL policy-off ran. Probed against a ROUTABLE local address, not `example.invalid` — a non-resolving host makes every arm read as blocked by DNS failure. |
 | F11 | `capabilities.process` fields parsed only for rationale | **VERIFIED** | A16 — inert; real gate is capabilities.shell |
-| F12 | `allow_hidden_files`/`allow_absolute_paths`/`blocked_extensions` inert | **VERIFIED** | A16 — parsed/ratcheted, never enforced; blocked_extensions not even parsed |
+| F12 | `allow_hidden_files`/`allow_absolute_paths`/`blocked_extensions` inert | **VERIFIED** | A16 — parsed/ratcheted, never enforced; blocked_extensions not even parsed **RE-PROBED 2026-09-13 on master (post-#215..#226): STILL OPEN.** probe `file.read(".hidden.txt")` ran under `allow_hidden_files: false`; CONTROL the same file under `blocked_paths` blocked, so the filesystem gate works and this key is not wired to it. |
 | F13 | `--sandbox-level` CLI escalates past `integrity.blocked_flags` | **VERIFIED** | A13 — both halves: flag-lock inert AND sandbox escalates above the configured level |
 | F14 | `path.*` stdlib has no sandbox call site | **VERIFIED** | A10 |
 | F15 | SSRF filter bypassed by `127.1`/octal/int IP forms | **VERIFIED** | A11 **UPDATE — FIXED by #229, incidentally and then pinned.** Measured on the same build, same endpoint: on master `127.1`, `2130706433` and `0177.0.0.1` each RETURNED the loopback secret while the dotted-quad `127.0.0.1` spelling of that identical address was blocked; with #229's `CURLOPT_OPENSOCKETFUNCTION` gate all three are refused. Cause: `isPrivateHost()` parses with `inet_pton`, which accepts ONLY dotted-quad, while `getaddrinfo` also accepts short/integer/octal — so the string check concluded "not an IP literal, therefore not private" and the resolver then connected to 127.0.0.1. The socket gate never sees the spelling, only the resolved `sockaddr`. Pinned by `SS-05` in `tests/security/test_ssrf_redirect_dns.sh` (per-form, each with a resolver control that reports UNMEASURABLE rather than passing on a platform whose `getaddrinfo` rejects the form). |
 | F16 | dynamic `agent.create()` roles never enforced (only `--agent-id`) | **VERIFIED** | A12 — the filesystem gates are the confirmed hole; global capabilities still bind |
 
-| F17 | native `process.run` ignores `shell.blocked_commands` | **VERIFIED** | A19 — same native-bypass class |
-| F18 | native `crypto.md5` ignores `restrictions.crypto.weak_hashes` | **VERIFIED** | A19 |
+| F17 | native `process.run` ignores `shell.blocked_commands` | **VERIFIED** | A19 — same native-bypass class **RE-PROBED 2026-09-13 on master (post-#215..#226): STILL OPEN.** probe `process.run("whoami")` ran; CONTROL `<<shell>> whoami` blocked. Same config, same command. |
+| F18 | native `crypto.md5` ignores `restrictions.crypto.weak_hashes` | **VERIFIED** | A19 **RE-PROBED 2026-09-13 on master (post-#215..#226): STILL OPEN.** at `level:"hard"`, CONTROL polyglot `hashlib.md5` blocked (exit 3) while native `crypto.md5` ran (exit 0). Note the default level is ADVISORY, so on a stock config NEITHER path blocks — the polyglot one warns and continues. |
 | F19 | native `crypto.base64_encode` ignores data-exfil scanner | **VERIFIED** | A19 |
 | F20 | privilege-escalation regex misses `su root` / octal `chmod 4755` | **VERIFIED (partly)** | A20 — su -l/-c actually DO match; octal chmod + bare su root real |
-| F21 | `capabilities.network.https_only` inert | **VERIFIED** | A19 — no scheme check |
+| F21 | `capabilities.network.https_only` inert | **VERIFIED** | A19 — no scheme check **RE-PROBED 2026-09-13 on master (post-#215..#226): STILL OPEN.** probe `http.get("http://<routable>/")` ran under `https_only: true`; CONTROL the same request with the policy off also ran, so the endpoint was reachable and the policy simply did not fire. |
 | F22 | tree-walk emits no BSD events | **already B11** | duplicate of existing register row B11 |
 | F23 | tree-walk taint launder via `InlineCodeExpr` in a sink arg | **known (CLAUDE.md)** | instance of `expressionContainsTaint` returning false for unhandled nodes — see B7/taint note; A21 records the specific sink case |
 | F24 | `env.get_all` emits no ENV_READ; BSD window gap overflow | **VERIFIED (a) / by-design (b)** | A22 — (a) is the A17 env-dump blind spot in BSD; (b) sliding-window max_gap is intentional |
@@ -506,6 +506,55 @@ Two separable pieces of work, and they should not be confused:
    not the flat `unordered_map` `ContractGlobalsFn` returns.
 
 Only (1) is defensible without a decision on the taint model.
+
+**Re-probe sweep, 2026-09-13 — six rows confirmed still open, and four probe defects
+worth more than the results.**
+
+Re-measured on master rather than inherited, because A26/A27 had just proved
+inherited status wrong: both were listed as live remote-facing defects and had
+been closed by #223. None of the six below had been incidentally fixed.
+
+Each carries a control that fired in the correct direction, so "ran" means the
+native path skipped a policy that demonstrably works elsewhere in the same run:
+
+    F17  process.run vs shell.blocked_commands   probe ran / control blocked
+    F18  crypto.md5 vs weak_hashes               probe ran / control blocked
+    F8   env.get_all vs block_env_dump           probe ran / control blocked
+    F21  https_only                              probe ran / control ran
+    F10  blocked_hosts                           probe ran / control ran
+    F12  allow_hidden_files                      probe ran / control blocked
+
+**The sweep needed four iterations. The failures are the reusable part:**
+
+1. **Three config-shape errors.** `restrictions.information_disclosure` needs
+   `enabled: true` or the check returns at its first line; `restrictions.crypto`
+   sets `enabled` ITSELF when the object is present and *warns* if you pass it;
+   and `block_weak_hashing` is **never parsed at all**. A partial config makes a
+   working policy look inert — which is the same shape as the finding being
+   hunted, so the probe and the defect are indistinguishable.
+
+2. **One control inverted by sharing a helper.** A single `verdict()` served two
+   different control semantics — a source-text twin must be BLOCKED (proving the
+   policy fires), a policy-off control must RUN (proving the endpoint is
+   reachable). One helper for both silently mislabelled two rows.
+
+3. **A ran/blocked probe is blind to ADVISORY, and this engine has four tiers.**
+   F18's control "failed" twice because `restrictions.crypto` defaults to
+   ADVISORY: it fired, warned, and continued — exit 0, marker printed, probe
+   reads "not enforced". Forcing `level: "hard"` made it decisive. **Any probe
+   reading only exit codes misreports every advisory-level policy as absent.**
+   Read the dashboard, or pin the level.
+
+4. **A non-resolving host makes every network arm read as blocked.** The first
+   F21/F10 attempt used `example.invalid`, so `rc=1` was DNS failure, not
+   policy. Use a routable address. Loopback is no longer usable for this since
+   #229's socket gate refuses it.
+
+**Incidental finding (A2-class):** `block_weak_hashing`, `block_weak_encryption`
+and `block_hardcoded_keys` are WRITTEN into generated configs by
+`governance_init.cpp:775` and never read back by `governance_config.cpp`. Their
+in-code defaults are all `true`, so the checks still run — the defect is that an
+operator who sets one to `false` gets no effect and no warning.
 
 **F38 — the ordering claim is true, and tracing it surfaced a second defect in
 the same mechanism that is worse.** Both in `src/packages/package_manager.cpp`,
