@@ -283,6 +283,23 @@ interpreter::NaabVal EnvModule::call(
                 "Security: env.load_dotenv() denied — FS_READ capability required for: " + path);
         }
 
+        // The engine-side filesystem gate (GovernanceEngine::filesystemAccessMode,
+        // consulted by both vm.cpp and call_dispatch.cpp) path-checks the FIRST
+        // ARGUMENT. With no argument there is no first argument to check, and the
+        // file this is about to open is the default ".env" resolved above — the
+        // one path a project is most likely to have named in blocked_paths. Only
+        // the implementation knows it, so only the implementation can check it.
+        // Guarded on args.empty() so the explicit-path form is not checked twice.
+        if (args.empty()) {
+            auto* gov = governance::GovernanceEngine::getCurrent();
+            if (gov && gov->isActive()) {
+                std::string fs_err = gov->checkFilesystemAllowed("read");
+                if (!fs_err.empty()) throw std::runtime_error(fs_err);
+                std::string path_err = gov->checkPathAccess(path, "read");
+                if (!path_err.empty()) throw std::runtime_error(path_err);
+            }
+        }
+
         std::ifstream file(path);
         if (!file.is_open()) {
             if (strict) {
