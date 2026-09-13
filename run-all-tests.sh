@@ -1352,6 +1352,24 @@ else
     echo "  test_secret_scan_redos.sh: not found, skipping"
 fi
 
+# --- SSRF: filter must adjudicate the RESOLVED address (F43 redirect, F47 DNS) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  SSRF Resolved-Address Gate (redirect hops and DNS)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+SSRF_SCRIPT="tests/security/test_ssrf_redirect_dns.sh"
+if [ -f "$SSRF_SCRIPT" ]; then
+    if run_shell_test "$SSRF_SCRIPT" 2>&1; then
+        echo "  test_ssrf_redirect_dns.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_ssrf_redirect_dns.sh")
+    fi
+else
+    echo "  test_ssrf_redirect_dns.sh: not found, skipping"
+fi
+
 # --- Polyglot marshalling recursion depth (F42: cyclic returns must not crash) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

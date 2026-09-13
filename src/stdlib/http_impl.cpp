@@ -24,6 +24,52 @@ namespace stdlib {
 // HTTP Module Implementation using libcurl
 // ============================================================================
 
+// F43/F47: the authoritative SSRF test, on a RESOLVED address.
+//
+// isPrivateHost() below inspects the host SUBSTRING of the URL the caller
+// passed. That string is not what libcurl connects to: it resolves the name
+// (so a hostname pointing at 127.0.0.1 walks straight through — F47), and it
+// follows up to MAXREDIRS hops itself (so the filter never sees the redirect
+// destination — F43). Both were measured reaching a loopback endpoint that the
+// same filter HARD-blocks when named by IP literal.
+//
+// Filtering Location headers would close F43 and leave F47 open; re-checking
+// the hostname closes neither. The only place both are visible is the point
+// where an address is actually known, so the real gate is
+// naabCurlOpenSocketCallback() at the bottom of this block, wired to
+// CURLOPT_OPENSOCKETFUNCTION. It fires per socket, on every hop.
+//
+// isPrivateHost() is kept as a cheap first-pass rejection: it runs before any
+// DNS or connection and produces a far better error message than a refused
+// socket can.
+static bool isPrivateIPv4(uint32_t ip) {
+    if ((ip >> 24) == 127) return true;                 // 127.0.0.0/8 loopback
+    if ((ip >> 24) == 10) return true;                  // 10.0.0.0/8 RFC1918
+    if ((ip >> 20) == (172 << 4 | 1)) return true;      // 172.16.0.0/12 RFC1918
+    if ((ip >> 16) == (192 << 8 | 168)) return true;    // 192.168.0.0/16 RFC1918
+    if ((ip >> 16) == (169 << 8 | 254)) return true;    // 169.254.0.0/16 link-local
+    if ((ip >> 24) == 0) return true;                   // 0.0.0.0/8 "this" network
+    return false;
+}
+
+static bool isPrivateIPv6(const struct in6_addr& a) {
+    static const uint8_t loopback[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
+    if (std::memcmp(&a, loopback, 16) == 0) return true;
+    static const uint8_t unspec[16] = {0};
+    if (std::memcmp(&a, unspec, 16) == 0) return true;
+    if (a.s6_addr[0] == 0xfe && (a.s6_addr[1] & 0xc0) == 0x80) return true;  // fe80::/10
+    if ((a.s6_addr[0] & 0xfe) == 0xfc) return true;                          // fc00::/7
+    static const uint8_t v4mapped_prefix[12] = {0,0,0,0,0,0,0,0,0,0,0xff,0xff};
+    if (std::memcmp(&a, v4mapped_prefix, 12) == 0) {
+        uint32_t ip = (static_cast<uint32_t>(a.s6_addr[12]) << 24) |
+                      (static_cast<uint32_t>(a.s6_addr[13]) << 16) |
+                      (static_cast<uint32_t>(a.s6_addr[14]) << 8) |
+                       static_cast<uint32_t>(a.s6_addr[15]);
+        return isPrivateIPv4(ip);
+    }
+    return false;
+}
+
 // M-13: SSRF protection — block requests to private/reserved IP ranges
 static bool isPrivateHost(const std::string& host) {
     // Check common private hostnames
@@ -32,52 +78,40 @@ static bool isPrivateHost(const std::string& host) {
     // Try parsing as IPv4
     struct in_addr addr4;
     if (inet_pton(AF_INET, host.c_str(), &addr4) == 1) {
-        uint32_t ip = ntohl(addr4.s_addr);
-        // 127.0.0.0/8 — loopback
-        if ((ip >> 24) == 127) return true;
-        // 10.0.0.0/8 — RFC1918
-        if ((ip >> 24) == 10) return true;
-        // 172.16.0.0/12 — RFC1918
-        if ((ip >> 20) == (172 << 4 | 1)) return true;
-        // 192.168.0.0/16 — RFC1918
-        if ((ip >> 16) == (192 << 8 | 168)) return true;
-        // 169.254.0.0/16 — link-local (cloud metadata)
-        if ((ip >> 16) == (169 << 8 | 254)) return true;
-        // 0.0.0.0/8 — "this" network
-        if ((ip >> 24) == 0) return true;
-        return false;
+        return isPrivateIPv4(ntohl(addr4.s_addr));
     }
 
     // Try parsing as IPv6
     struct in6_addr addr6;
     if (inet_pton(AF_INET6, host.c_str(), &addr6) == 1) {
-        // ::1 — loopback
-        static const uint8_t loopback[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
-        if (std::memcmp(&addr6, loopback, 16) == 0) return true;
-        // :: — unspecified
-        static const uint8_t unspec[16] = {0};
-        if (std::memcmp(&addr6, unspec, 16) == 0) return true;
-        // fe80::/10 — link-local
-        if (addr6.s6_addr[0] == 0xfe && (addr6.s6_addr[1] & 0xc0) == 0x80) return true;
-        // fc00::/7 — unique local
-        if ((addr6.s6_addr[0] & 0xfe) == 0xfc) return true;
-        // ::ffff:0:0/96 — IPv4-mapped (check the embedded IPv4)
-        static const uint8_t v4mapped_prefix[12] = {0,0,0,0,0,0,0,0,0,0,0xff,0xff};
-        if (std::memcmp(&addr6, v4mapped_prefix, 12) == 0) {
-            uint32_t ip = (static_cast<uint32_t>(addr6.s6_addr[12]) << 24) |
-                          (static_cast<uint32_t>(addr6.s6_addr[13]) << 16) |
-                          (static_cast<uint32_t>(addr6.s6_addr[14]) << 8) |
-                           static_cast<uint32_t>(addr6.s6_addr[15]);
-            if ((ip >> 24) == 127 || (ip >> 24) == 10 ||
-                (ip >> 20) == (172 << 4 | 1) ||
-                (ip >> 16) == (192 << 8 | 168) ||
-                (ip >> 16) == (169 << 8 | 254) ||
-                (ip >> 24) == 0) return true;
-        }
-        return false;
+        return isPrivateIPv6(addr6);
     }
 
     return false;
+}
+
+// F43/F47: the authoritative gate. libcurl calls this once per socket with the
+// RESOLVED address, for the initial request AND for every redirect hop, before
+// the socket exists. Returning CURL_SOCKET_BAD refuses the connection.
+//
+// This is what makes the check unbypassable by spelling: the caller controls
+// the URL string, but not what it resolves to, and not where a server redirects
+// them. Both were live bypasses to a loopback endpoint the URL-level filter
+// blocks by IP literal.
+static curl_socket_t naabCurlOpenSocketCallback(void* /*clientp*/,
+                                                curlsocktype purpose,
+                                                struct curl_sockaddr* address) {
+    if (purpose == CURLSOCKTYPE_IPCXN && address) {
+        if (address->family == AF_INET) {
+            const auto* sin = reinterpret_cast<const struct sockaddr_in*>(&address->addr);
+            if (isPrivateIPv4(ntohl(sin->sin_addr.s_addr))) return CURL_SOCKET_BAD;
+        } else if (address->family == AF_INET6) {
+            const auto* sin6 = reinterpret_cast<const struct sockaddr_in6*>(&address->addr);
+            if (isPrivateIPv6(sin6->sin6_addr)) return CURL_SOCKET_BAD;
+        }
+    }
+    curl_socket_t sock = ::socket(address->family, address->socktype, address->protocol);
+    return sock < 0 ? CURL_SOCKET_BAD : sock;
 }
 
 // V-DOS-010: Maximum HTTP response size (25 MB)
@@ -261,9 +295,16 @@ interpreter::NaabVal performRequest(
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, std::min(static_cast<long>(timeout_ms), 10000L));
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
-    // Follow redirects
+    // Follow redirects. Safe only because naabCurlOpenSocketCallback below
+    // re-adjudicates every hop -- the URL-level isPrivateHost() check never
+    // sees a redirect destination (F43).
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
+
+    // F43/F47: adjudicate the RESOLVED address of every connection, including
+    // each redirect hop. Do not remove this in favour of a URL or Location
+    // string check -- neither can see what a name resolves to.
+    curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, naabCurlOpenSocketCallback);
 
     // V-SSRF-001: Restrict protocols to http/https only — prevents redirect-based
     // SSRF to file://, gopher://, dict://, etc.
