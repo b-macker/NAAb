@@ -4,6 +4,7 @@
 // Requires "agents" section in govern.json for configuration
 
 #include "naab/stdlib_new_modules.h"
+#include "naab/error_sanitizer.h"
 #include "naab/naab_val.h"
 #include "naab/governance.h"
 #include "naab/agent_provider.h"
@@ -252,6 +253,92 @@ static bool isKeyDead(const std::string& key_env, int cooldown_seconds,
         return false;
     }
     return true;
+}
+
+// ── Shared attempt primitives (F48/F54) ──────────────────────────────────
+//
+// agentSend()'s retry loop and the TOOL loop both make provider calls, and the
+// two answers that must never diverge between them are "which key" and "does
+// this call fit the run budget". Those live here. Everything else about an
+// attempt -- telemetry shape, response population, tracker state -- is
+// legitimately different between the paths and stays inline.
+//
+// Deliberately NOT a single do-the-whole-retry function. The main loop is
+// entangled with agentSend's locals (handle_id, current_turn, turn_at_request,
+// the AGENT_RESPONSE emitter), so hoisting all of it would rewrite the path
+// that is green in order to fix the one that is not.
+
+// Pick an API key, skipping dead ones and PREFERRING un-throttled ones.
+// Advances key_offset past the chosen key. False when every key is dead or
+// unresolvable. The two-pass fallthrough is load-bearing: throttling must be a
+// PREFERENCE, not a restriction, or a transient 429 becomes an immediate hard
+// failure for any single-key agent -- the common configuration.
+static bool selectAttemptKey(const std::vector<std::string>& keys,
+                             const governance::AgentConfig* config,
+                             governance::GovernanceEngine* gov_engine,
+                             size_t& key_offset,
+                             std::string& api_key_out,
+                             std::string& key_env_out) {
+    for (int pass = 0; pass < 2; pass++) {
+        const bool honour_throttle = (pass == 0);
+        for (size_t k = 0; k < keys.size(); k++) {
+            size_t idx = (key_offset + k) % keys.size();
+            {
+                bool was_revived = false;
+                std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+                if (isKeyDead(keys[idx], config->retry.key_retry_after_seconds, &was_revived)) continue;
+                if (was_revived && gov_engine && gov_engine->isActive()) {
+                    gov_engine->writeAgentTelemetry("AGENT_KEY_REVIVED", {
+                        {"api_key_env", keys[idx]},
+                        {"cooldown_seconds", std::to_string(config->retry.key_retry_after_seconds)}
+                    });
+                }
+                if (honour_throttle &&
+                    isKeyThrottled(keys[idx], config->retry.throttle_cooldown_seconds)) continue;
+            }
+            std::string resolved = runtime::resolveApiKey(keys[idx]);
+            if (!resolved.empty()) {
+                api_key_out = resolved;
+                key_env_out = keys[idx];
+                key_offset = idx + 1;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Count one provider call against the run budget. Returns the stop reason, or
+// "" when within budget.
+//
+// F54: the TOOL loop made provider calls without ever incrementing
+// total_calls, so max_calls_per_run counted only the first call of each
+// agent.send() -- measured at 3 uncounted tool-loop turns against a budget of
+// 2. Both paths charge through here now, so the budget counts CALLS, not sends.
+static std::string chargeCallBudget(
+        const governance::GovernanceRules::AgentDispatchConfig::HardStopConfig& hs,
+        governance::GovernanceEngine* gov_engine,
+        const std::string& config_name) {
+    s_dispatch.total_calls++;
+    if (hs.max_calls_per_run <= 0) return "";
+    if (s_dispatch.total_calls.load() <= hs.max_calls_per_run) return "";
+    std::string reason;
+    {
+        std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
+        s_dispatch.hard_stopped = true;
+        s_dispatch.stop_reason =
+            "max_calls_per_run (" + std::to_string(hs.max_calls_per_run) + ") exceeded";
+        reason = s_dispatch.stop_reason;
+    }
+    if (gov_engine && gov_engine->isActive()) {
+        gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
+            {"rule_name", "max_calls_hard_stop"},
+            {"level", "hard"},
+            {"agent", config_name},
+            {"reason", reason}
+        });
+    }
+    return reason;
 }
 
 // Keyword extraction shared with CDD (include/naab/keyword_extract.h) —
@@ -2725,44 +2812,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         // Pick key (round-robin, skip dead)
         std::string key_env;
         std::string api_key;
-        bool found_key = false;
         size_t key_offset_before = key_offset;  // save for empty-response restore
-        // Two passes. The first prefers a key that is neither dead nor
-        // currently throttled; the second ignores throttling entirely.
-        //
-        // Throttling has to be a PREFERENCE rather than a restriction, or it
-        // would turn a transient 429 into an immediate hard failure for any
-        // agent whose keys are all throttled -- most obviously a single-key
-        // agent, which is the common configuration. Falling through to a
-        // throttled key reproduces today's behaviour exactly in that case
-        // (retry the same key with backoff) while still spreading load
-        // whenever an alternative exists.
-        for (int pass = 0; pass < 2 && !found_key; pass++) {
-            const bool honour_throttle = (pass == 0);
-            for (size_t k = 0; k < keys.size(); k++) {
-                size_t idx = (key_offset + k) % keys.size();
-                {
-                    bool was_revived = false;
-                    std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
-                    if (isKeyDead(keys[idx], config->retry.key_retry_after_seconds, &was_revived)) continue;
-                    if (was_revived && gov_engine && gov_engine->isActive()) {
-                        gov_engine->writeAgentTelemetry("AGENT_KEY_REVIVED", {
-                            {"api_key_env", keys[idx]},
-                            {"cooldown_seconds", std::to_string(config->retry.key_retry_after_seconds)}
-                        });
-                    }
-                    if (honour_throttle &&
-                        isKeyThrottled(keys[idx], config->retry.throttle_cooldown_seconds)) continue;
-                }
-                api_key = runtime::resolveApiKey(keys[idx]);
-                if (!api_key.empty()) {
-                    key_env = keys[idx];
-                    key_offset = idx + 1;
-                    found_key = true;
-                    break;
-                }
-            }
-        }
+        // Shared with the tool loop -- see selectAttemptKey(). Which key an
+        // attempt uses must not depend on which loop is asking.
+        bool found_key = selectAttemptKey(keys, config, gov_engine,
+                                          key_offset, api_key, key_env);
         if (!found_key) {
             last_error = "All API keys exhausted or dead";
             break;
@@ -2782,26 +2836,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
 
         attempts_made++;
-        s_dispatch.total_calls++;
 
-        // Run-level call budget check
-        if (hs.max_calls_per_run > 0 && s_dispatch.total_calls.load() > hs.max_calls_per_run) {
-            std::string reason;
-            {
-                std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
-                s_dispatch.hard_stopped = true;
-                s_dispatch.stop_reason = "max_calls_per_run (" + std::to_string(hs.max_calls_per_run) + ") exceeded";
-                reason = s_dispatch.stop_reason;
+        // Shared with the tool loop -- see chargeCallBudget(). The budget must
+        // count CALLS, and the tool loop was making them uncounted (F54).
+        {
+            std::string stop_reason = chargeCallBudget(hs, gov_engine, config_name);
+            if (!stop_reason.empty()) {
+                throw std::runtime_error("Agent error: Hard stop — " + stop_reason);
             }
-            if (gov_engine && gov_engine->isActive()) {
-                gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
-                    {"rule_name", "max_calls_hard_stop"},
-                    {"level", "hard"},
-                    {"agent", config_name},
-                    {"reason", reason}
-                });
-            }
-            throw std::runtime_error("Agent error: Hard stop — " + reason);
         }
 
         auto attempt_start = std::chrono::steady_clock::now();
@@ -3143,6 +3185,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     int tool_total_result_chars = 0;
     std::vector<NaabVal> tool_results_summary;  // for response dict
     std::string tool_loop_exit_reason = "text_response";
+    // F48/F54 tool-loop attempt state. Separate from the send path's own
+    // key_offset/model_idx on purpose: the tool loop is a different sequence of
+    // calls and should not rewind or advance the send path's rotation. Seeded
+    // from the send path so the first tool call continues where it left off
+    // rather than restarting at key 0.
+    size_t key_offset_tool = key_offset;
+    size_t loop_model_idx = model_idx;
+    const auto& hs_tool = gov_engine && gov_engine->isActive()
+        ? gov_engine->getRules().agent_dispatch.hard_stop
+        : governance::GovernanceRules::AgentDispatchConfig::HardStopConfig{};
 
     // Check if this is a tool_use response AND tools are enabled
     bool is_tool_response = (stop_reason == "tool_use" || stop_reason == "FUNCTION_CALL" ||
@@ -3706,14 +3758,73 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 }
             }
 
-            governance::AgentConfig loop_config = *config;
-            loop_config.model = models[0];  // Use primary model for tool loop
+            // F48/F54: this used to be a single attempt on the primary model
+            // with no key rotation, no fallback, no backoff -- and it never
+            // charged the run budget, so a tool-using agent was both LESS
+            // resilient than the same agent without tools and able to spend
+            // uncounted calls. Measured before the fix: 3 tool-loop turns under
+            // max_calls_per_run: 2.
+            //
+            // Retries use the SAME primitives as the main send path, so "which
+            // key" and "does this fit the budget" cannot answer differently
+            // depending on which loop asked.
+            runtime::ProviderResult loop_result;
+            bool loop_ok = false;
+            std::string loop_last_error;
+            const int loop_max_attempts = std::max(1, config->retry.max_attempts);
 
-            auto loop_result = runtime::callAgentWithTools(
-                loop_config, api_key_loop, messages_str, tool_defs);
+            for (int lattempt = 0; lattempt < loop_max_attempts; lattempt++) {
+                // Key: rotate on each attempt, skipping dead and preferring
+                // un-throttled. The first attempt reuses the key already chosen
+                // above only if selection lands on it again -- rotation after a
+                // failure is the point.
+                std::string lkey_env, lapi_key;
+                if (!selectAttemptKey(keys, config, gov_engine,
+                                      key_offset_tool, lapi_key, lkey_env)) {
+                    loop_last_error = "All API keys exhausted or dead";
+                    break;
+                }
 
-            if (!loop_result.response.success) {
-                tool_loop_exit_reason = "api_error";
+                // Model: walk the fallback chain, one step per attempt.
+                governance::AgentConfig loop_config = *config;
+                loop_config.model = models[loop_model_idx % models.size()];
+
+                std::string stop_reason = chargeCallBudget(hs_tool, gov_engine, config_name);
+                if (!stop_reason.empty()) {
+                    // The budget is a run-level stop, not a retryable error.
+                    tool_loop_exit_reason = "hard_stop";
+                    loop_last_error.clear();
+                    break;
+                }
+
+                loop_result = runtime::callAgentWithTools(
+                    loop_config, lapi_key, messages_str, tool_defs);
+
+                if (loop_result.response.success) { loop_ok = true; break; }
+
+                loop_last_error = loop_result.response.error;
+                s_dispatch.total_retries++;
+                if (models.size() > 1) loop_model_idx++;   // fall back next attempt
+                if (lattempt + 1 < loop_max_attempts && config->retry.backoff_ms > 0) {
+                    std::this_thread::sleep_for(
+                        std::chrono::milliseconds(config->retry.backoff_ms));
+                }
+            }
+
+            if (!loop_ok) {
+                if (tool_loop_exit_reason != "hard_stop") {
+                    // F50: AgentResponse.error is populated and was discarded
+                    // here, so every failure read as the bare literal
+                    // "api_error" -- auth, rate limit, timeout and malformed
+                    // response all indistinguishable to the script.
+                    tool_loop_exit_reason = "api_error";
+                    if (!loop_last_error.empty()) {
+                        std::string detail =
+                            naab::error::ErrorSanitizer::sanitize(loop_last_error);
+                        if (detail.size() > 200) detail = detail.substr(0, 200) + "...";
+                        tool_loop_exit_reason += ": " + detail;
+                    }
+                }
                 break;
             }
 
