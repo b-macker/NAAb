@@ -2736,6 +2736,20 @@ if [ -f "$VISIBILITY_SCRIPT" ]; then
 else
     echo "  test_coverage_visibility.sh: not found, skipping"
 fi
+
+HANDOFF_SCRIPT="tests/self-audit/test_shell_path_handoff.sh"
+if [ -f "$HANDOFF_SCRIPT" ]; then
+    # Baseline gate on shell paths interpolated into python source, which a
+    # NATIVE Windows python3 cannot open. Reads files only; no build needed.
+    if run_shell_test "$HANDOFF_SCRIPT" 2>&1; then
+        echo "  test_shell_path_handoff.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_shell_path_handoff.sh")
+    fi
+else
+    echo "  test_shell_path_handoff.sh: not found, skipping"
+fi
 fi  # phase_runs shell
 
 # Print summary
