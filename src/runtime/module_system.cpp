@@ -2,6 +2,7 @@
 // Phase 4.0: Build System
 
 #include "naab/module_system.h"
+#include "naab/governance.h"   // F33: gate `use module` reads through filesystem governance
 #include "naab/parser.h"
 #include "naab/lexer.h"
 #include "naab/logger.h"
@@ -80,6 +81,17 @@ std::optional<std::string> ModuleRegistry::resolveModulePath(
 
 // Parse a module file
 std::unique_ptr<ast::Program> ModuleRegistry::parseModuleFile(const std::string& file_path) {
+    // F33: `use module` reads a file from disk and must obey the same filesystem
+    // governance as file.read() / `import` (A25). ModuleResolver was gated in
+    // #213 but this second module path (ModuleRegistry) was not, so `use secret`
+    // still bypassed capabilities.filesystem.mode:none / blocked_paths.
+    if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+        std::string fs_err = gov->checkFilesystemAllowed("read");
+        if (!fs_err.empty()) throw std::runtime_error(fs_err);
+        std::string path_err = gov->checkPathAccess(file_path, "read");
+        if (!path_err.empty()) throw std::runtime_error(path_err);
+    }
+
     // V-RT-014 (R24): size-cap + reject symlinks so that a malicious workspace
     // cannot OOM the loader via utils.naab -> /dev/zero.
     auto src = naab::readFileBounded(file_path);
