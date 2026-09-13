@@ -70,11 +70,15 @@ echo -e "${CYAN}+==============================================================+
 echo ""
 
 W="$TEST_TMP/run"; mkdir -p "$W"
+# The path is handed to the SHELL (a redirect), never to python. A native
+# Windows python3 under MSYS2 cannot open an MSYS "/tmp/..." path, so
+# interpolating $W into the python source turns this fixture builder into a
+# broken probe on exactly the platform it is not exercised on.
 python3 -c "
-import json
+import json, sys
 json.dump({'responses':[{'content':'inventory report section %d with records and totals'%i,
                          'output_tokens':40} for i in range(14)]},
-          open('$W/fixture.json','w'))"
+          sys.stdout)" > "$W/fixture.json"
 start_stub "$W/fixture.json" "$W" || { skip "SE-00" "stub failed to start"; exit 0; }
 
 # response_degenerate is switched OFF explicitly, giving SE-02 a known "disabled".
