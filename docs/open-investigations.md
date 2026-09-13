@@ -591,6 +591,60 @@ PP-07 earned its place immediately — it caught a fixture whose `"agents"` key
 had lost its quotes to a `${var:+...}` expansion inside a heredoc, so both agent
 probes were dying on a config error while PP-06 recorded a pass.
 
+**Stage 4 of the enforcement-boundary plan: the reporting half, and why the
+enforcement half is absent on purpose.** The measured fact is that
+`capabilities.filesystem` path rules never leave NAAb's standard library — a
+`<<python>>` block reads a `blocked_paths` file in the same program that
+`file.read()` is HARD-blocked in, and governance reports PASS.
+
+Tracing it produced a narrower and more useful statement than the one I started
+with. Two mechanisms already constrain polyglot execution, and the bypass
+depends on which one applies:
+
+| sandbox level | subprocess language | in-process Python |
+|---|---|---|
+| `restricted` | refused (#222 registry gate) | refused |
+| `standard` (enforce default) | contained | **reads the file** |
+| `elevated` | **reads the file** | **reads the file** |
+| `unrestricted` | **reads the file** | **reads the file** |
+
+`SubprocessContainment` blocks fork and exec at `standard` and genuinely stops
+the subprocess languages. The embedded Python executor runs in-process when the
+build carries pybind11, so it never forks and containment has nothing to
+contain. "Polyglot bypasses the path policy" would have been true but too coarse
+to act on; the actual hole is one executor, at the level the default posture
+resolves to.
+
+Shipped: `CONTRA-013`, reporting the boundary at load whenever a path policy is
+configured and the level permits polyglot execution. Hardcoded ADVISORY, which
+is a deliberate break from its siblings — every other `CONTRA` names two config
+keys that disagree, so escalating one tells the operator to go edit their
+config, while this one names an engine limit that no edit can fix.
+
+NOT shipped, and this is the decision worth recording: the enforcement half.
+Landlock is the only candidate mechanism, and `landlock_create_ruleset` returns
+`ENOSYS` (errno 38) on this kernel, with `/sys/kernel/security/lsm` absent so the
+LSM set cannot even be enumerated. `seccomp` appears exactly once in the whole
+source tree, inside an error-message string. An enforcement path written here
+could never be executed here, and an unverifiable enforcement path is worse than
+a stated absence: it reads as coverage in the source and implies coverage in
+`govern.json` while never having run. That is the same shape as a disabled
+compensator looking like a working one.
+
+Also rejected rather than merely skipped: scanning polyglot source text for
+configured blocked paths. It catches a literal path and nothing else — string
+concatenation evades it — so it would buy the appearance of containment at the
+cost of a false claim.
+
+Test: `tests/security/test_path_policy_reach.sh`, ten assertions, four mutants
+killed (check removed; each of the two conditions dropped; level escalated to
+HARD). The load-bearing ones are not the firing assertions: PR-07 asserts the
+advisory's CLAIM is true, PR-08 is its positive control so that PR-07 cannot
+pass on a build where `blocked_paths` enforces nothing, and PR-09 checks the
+advisory's own recommended remedy actually works. A suite that only checked
+whether the string appeared would certify a warning that is wrong in either
+direction.
+
 **Priority order for the campaign:** F16 (per-agent governance possibly inert — undermines a headline feature), F13 (privilege escalation), F9 + F10 (filesystem/network policy bypass), then F7/F8/F11/F12, then the F6 residual. F9 has the strongest prior (self-observed). Each gets: trace to the point of EFFECT, a positive control proving the gate CAN fire, then the probe. Record verified ones as A-rows with their controls; falsify the rest out loud.
 
 ## B. Known engine behaviour, decided but unfixed

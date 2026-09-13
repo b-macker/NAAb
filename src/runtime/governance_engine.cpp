@@ -6196,6 +6196,63 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
         results.push_back(c);
     }
 
+    // CONTRA-013: the path policy does not reach code run by polyglot blocks.
+    //
+    // capabilities.filesystem.allowed_paths / blocked_paths are enforced by
+    // checkPathAccess(), which is called from NAAb's own standard library. A
+    // polyglot block opens files through its own language runtime and never
+    // passes through it, so the same path that file.read() is HARD-blocked on is
+    // readable from inside <<python>> in the SAME program, and governance reports
+    // PASS. Measured on fb1e4bd, per sandbox level:
+    //
+    //     restricted    shell refused      python refused
+    //     standard      shell contained    python READ THE FILE
+    //     elevated      shell READ         python READ
+    //     unrestricted  shell READ         python READ
+    //
+    // Two separate mechanisms produce that table. The #222 registry gate refuses
+    // every language at "restricted". SubprocessContainment then blocks fork and
+    // exec at "standard", which stops the subprocess languages — but the embedded
+    // Python executor runs IN-PROCESS when the build has pybind11, so it never
+    // forks and there is nothing for containment to contain. That is why the
+    // default enforce posture, which upgrades to "standard", still leaks.
+    //
+    // ADVISORY is hardcoded rather than taking `level`, unlike its siblings. Every
+    // other CONTRA names two config keys that disagree, so escalating one to a
+    // block tells the operator to go fix their config. This one names a limit of
+    // the ENGINE: no amount of editing govern.json makes the path rules reach a
+    // child runtime, and there is no OS-level path enforcement implemented on any
+    // platform to fall back on. Blocking here would punish an operator for
+    // something they cannot fix. It is reported so that a reader of govern.json
+    // can see the boundary, which is the whole defect — the file reads as though
+    // the rules cover the program.
+    {
+        const auto& fs_cfg = rules().capabilities.filesystem;
+        const bool has_path_policy =
+            !fs_cfg.allowed_paths.empty() || !fs_cfg.blocked_paths.empty();
+        // Empty means unset, which enforce mode resolves to "standard" — still a
+        // level where the in-process Python executor reads through the policy.
+        const bool polyglot_reachable = rules().sandbox_level_config != "restricted";
+
+        if (has_path_policy && polyglot_reachable) {
+            ContradictionResult c;
+            c.pattern_id = "CONTRA-013";
+            c.description =
+                "capabilities.filesystem path rules are enforced inside NAAb's "
+                "standard library only. A polyglot block reaches the filesystem "
+                "through its own language runtime, so code in <<python>> and "
+                "similar blocks can read and write paths that file.read() and "
+                "file.write() are blocked on. Path enforcement is in-process; no "
+                "operating-system path enforcement is implemented";
+            c.level = governance::EnforcementLevel::ADVISORY;
+            c.resolution =
+                "Treat these rules as covering NAAb code only, or set "
+                "security.sandbox_level to \"restricted\", which refuses polyglot "
+                "execution outright";
+            results.push_back(c);
+        }
+    }
+
     // Record each contradiction as a governance finding.
     //
     // rule_name goes to formatError as well as to enforce(). It used to be ""
