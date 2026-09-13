@@ -1334,6 +1334,24 @@ else
     echo "  test_state_field_screen.sh: not found, skipping"
 fi
 
+# --- Relative path entries must resolve against the PROJECT, not the cwd ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Relative Path Base (same config, different cwd, same verdict)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RELPATH_SCRIPT="tests/security/test_relative_path_base.sh"
+if [ -f "$RELPATH_SCRIPT" ]; then
+    if run_shell_test "$RELPATH_SCRIPT" 2>&1; then
+        echo "  test_relative_path_base.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_relative_path_base.sh")
+    fi
+else
+    echo "  test_relative_path_base.sh: not found, skipping"
+fi
+
 # --- Secret-scan ReDoS (checkSecrets must render a verdict, never crash) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

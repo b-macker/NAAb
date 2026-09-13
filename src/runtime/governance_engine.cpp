@@ -2189,9 +2189,34 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     // V-GOV-025: Canonicalize config paths the same way as the filepath.
     // Without this, relative paths like "./output" in govern.json won't match
     // the canonicalized absolute filepath, causing false rejections.
-    auto canonAndNorm = [&normSep](const std::string& p) -> std::string {
+    auto canonAndNorm = [&normSep, this](const std::string& p) -> std::string {
         try {
-            return normSep(std::filesystem::weakly_canonical(p).string());
+            std::filesystem::path pp(p);
+            // A RELATIVE entry in govern.json means "relative to the project",
+            // not "relative to wherever the process happened to be started".
+            // weakly_canonical() resolves a relative path against the PROCESS
+            // CWD, so the same config gave different verdicts for the same
+            // file -- and the direction it failed was OPEN. Measured with
+            // blocked_paths:["shared"] and an absolute target:
+            //
+            //   cwd = project dir   exit 3, blocked
+            //   cwd = /tmp          exit 0, READ:SECRET_DATA
+            //
+            // govern_json_dir_ is the project root the config was loaded from
+            // and is the only stable base available. Empty for inline configs,
+            // where the old behaviour is kept because there is no project to
+            // be relative to.
+            // An EMPTY entry must keep matching nothing. #224 defined that
+            // case deliberately -- it previously read prefix.back() on an empty
+            // string, undefined behaviour that behaved as "matches everything".
+            // An empty string is also a RELATIVE path, so rebasing it on the
+            // project root would resolve it to the project directory and
+            // silently restore "matches everything". test_path_precedence.sh
+            // PP-08/PP-09 caught exactly that.
+            if (!p.empty() && pp.is_relative() && !govern_json_dir_.empty()) {
+                pp = std::filesystem::path(govern_json_dir_) / pp;
+            }
+            return normSep(std::filesystem::weakly_canonical(pp).string());
         } catch (...) {
             return normSep(p);
         }
