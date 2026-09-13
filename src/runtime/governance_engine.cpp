@@ -2206,7 +2206,14 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
             // and is the only stable base available. Empty for inline configs,
             // where the old behaviour is kept because there is no project to
             // be relative to.
-            if (pp.is_relative() && !govern_json_dir_.empty()) {
+            // An EMPTY entry must keep matching nothing. #224 defined that
+            // case deliberately -- it previously read prefix.back() on an empty
+            // string, undefined behaviour that behaved as "matches everything".
+            // An empty string is also a RELATIVE path, so rebasing it on the
+            // project root would resolve it to the project directory and
+            // silently restore "matches everything". test_path_precedence.sh
+            // PP-08/PP-09 caught exactly that.
+            if (!p.empty() && pp.is_relative() && !govern_json_dir_.empty()) {
                 pp = std::filesystem::path(govern_json_dir_) / pp;
             }
             return normSep(std::filesystem::weakly_canonical(pp).string());
