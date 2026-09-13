@@ -66,9 +66,16 @@ source "$REPO/tests/helpers/trust_setup.sh"
 setup_isolated_trust
 
 W="$(mktemp -d)"
-TGT="$(mktemp -d)"
-trap 'teardown_isolated_trust; rm -rf "$W" "$TGT"' EXIT
-echo "POLICY_REACH_SECRET" > "$TGT/secret.txt"
+trap 'teardown_isolated_trust; rm -rf "$W"' EXIT
+# The target sits in $W, and every reference to it below is RELATIVE, because
+# the program, the polyglot block and the config all resolve against the same
+# working directory. An absolute path here would be in the SHELL's vocabulary:
+# under MSYS2 `mktemp -d` yields /tmp/xxx, the embedded Python is a native
+# Windows build, and it answered this fixture with
+# "FileNotFoundError: /tmp/tmp.../secret.txt". PR-07 then read as "the block ran
+# but did not read the blocked path", i.e. as evidence that CONTRA-013 had
+# become false, when the truth was that the fixture could not reach the file.
+echo "POLICY_REACH_SECRET" > "$W/secret.txt"
 
 # $1 = sandbox_level ("" leaves the key out entirely, which enforce mode
 #      resolves to "standard" -- a distinct condition from setting it)
@@ -105,10 +112,10 @@ advisory() {
 
 # --- PR-01..04: fires wherever the bypass is reachable --------------------
 for spec in \
-    "standard|\"blocked_paths\": [\"$TGT/secret.txt\"]|PR-01|a blocked path at \"standard\"" \
-    "elevated|\"blocked_paths\": [\"$TGT/secret.txt\"]|PR-02|a blocked path at \"elevated\"" \
+    "standard|\"blocked_paths\": [\"./secret.txt\"]|PR-01|a blocked path at \"standard\"" \
+    "elevated|\"blocked_paths\": [\"./secret.txt\"]|PR-02|a blocked path at \"elevated\"" \
     "elevated|\"allowed_paths\": [\"./data\"]|PR-03|an allowlist at \"elevated\"" \
-    "|\"blocked_paths\": [\"$TGT/secret.txt\"]|PR-04|an unset level (enforce resolves it to \"standard\")"
+    "|\"blocked_paths\": [\"./secret.txt\"]|PR-04|an unset level (enforce resolves it to \"standard\")"
 do
     IFS='|' read -r lvl body id desc <<< "$spec"
     cfg "$lvl" "$body"
@@ -118,7 +125,7 @@ do
 done
 
 # --- PR-05/06: controls -- silent where the claim would be false ----------
-cfg "restricted" "\"blocked_paths\": [\"$TGT/secret.txt\"]"
+cfg "restricted" "\"blocked_paths\": [\"./secret.txt\"]"
 R=$(advisory)
 if [ "$R" = "silent" ]; then
     ok "PR-05" "silent at \"restricted\", where polyglot is refused (control)"
@@ -137,13 +144,13 @@ fi
 # --- PR-07: the claim is true --------------------------------------------
 # The block WRITES A FILE rather than printing: a polyglot block's stdout is
 # captured, not forwarded, so a printed token is invisible even on success.
-cfg "elevated" "\"blocked_paths\": [\"$TGT/secret.txt\"]"
+cfg "elevated" "\"blocked_paths\": [\"./secret.txt\"]"
 rm -f "$W/leaked.txt"
 cat > "$W/bypass.naab" <<EOF
 main {
   <<python
-with open("$TGT/secret.txt") as src:
-    open("$W/leaked.txt", "w").write(src.read())
+with open("secret.txt") as src:
+    open("leaked.txt", "w").write(src.read())
 >>
   print("block ran")
 }
@@ -162,7 +169,7 @@ fi
 # and the suite would be reporting a bypass of a gate that was never closed.
 cat > "$W/direct.naab" <<EOF
 main {
-  let c = file.read("$TGT/secret.txt")
+  let c = file.read("secret.txt")
   print("NAAB_READ_OK")
 }
 EOF
@@ -173,7 +180,7 @@ case "$LAST_OUTPUT" in
 esac
 
 # --- PR-09: the recommended remedy works ---------------------------------
-cfg "restricted" "\"blocked_paths\": [\"$TGT/secret.txt\"]"
+cfg "restricted" "\"blocked_paths\": [\"./secret.txt\"]"
 rm -f "$W/leaked.txt"
 LAST_OUTPUT=$( (cd "$W" && timeout 60s "$NAAB" bypass.naab) 2>&1 )
 if [ ! -s "$W/leaked.txt" ]; then
@@ -183,7 +190,7 @@ else
 fi
 
 # --- PR-10: advisory means advisory --------------------------------------
-cfg "elevated" "\"blocked_paths\": [\"$TGT/secret.txt\"]"
+cfg "elevated" "\"blocked_paths\": [\"./secret.txt\"]"
 printf 'main {\n  print("ran")\n}\n' > "$W/p.naab"
 ( cd "$W" && timeout 60s "$NAAB" p.naab >/dev/null 2>&1 )
 RC=$?
