@@ -3099,6 +3099,10 @@ public:
     // F17: governance's blocked_commands, for runtime-built command lines
     // (process.run). The polyglot path scans source text instead.
     std::string checkShellCommandAllowed(const std::string& command_line);
+    // F18/F8: the native twins of two source-text-only scanners. Both use the
+    // level the polyglot path uses, so neither door is stricter than the other.
+    std::string checkWeakHashAllowed(const std::string& algorithm);
+    std::string checkEnvDumpAllowed();
     static std::string filesystemAccessMode(const std::string& module,
                                             const std::string& method);
     std::string checkShellAllowed();

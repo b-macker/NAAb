@@ -1855,6 +1855,66 @@ std::string GovernanceEngine::checkFilesystemImports(
 // Two different matchers for one config key would be its own defect: an
 // operator would have to know which door a command came through to predict
 // the verdict.
+// F18: restrictions.crypto.weak_hashes was enforced ONLY by regex over
+// polyglot source ("\\bmd5\\b", "hashlib\\.md5"). crypto.md5() computes the
+// same digest and never passes through it. Measured at level "hard": the
+// polyglot spelling blocked at exit 3 while crypto.md5() ran at exit 0.
+//
+// The ALGORITHM NAME is passed in rather than hardcoding md5/sha1 at the call
+// sites, so the operator's list decides. Adding "sha256" to weak_hashes blocks
+// crypto.sha256 too, which is what the key reads as.
+//
+// Uses cfg.level, NOT a hardcoded HARD. The polyglot path uses cfg.level and
+// it defaults to ADVISORY, so hardcoding HARD here would fix one divergence by
+// creating its mirror image -- the native door stricter than the source door.
+std::string GovernanceEngine::checkWeakHashAllowed(const std::string& algorithm) {
+    clearTrace();
+    if (!isActive()) return "";
+    const auto& cfg = rules().restrictions.crypto;
+    if (!cfg.enabled || !cfg.block_weak_hashing) return "";
+    const std::vector<std::string> defaults = {"md5", "sha1"};
+    const auto& hashes = cfg.weak_hashes.empty() ? defaults : cfg.weak_hashes;
+    for (const auto& h : hashes) {
+        if (!h.empty() && h == algorithm) {
+            return enforce("restrictions.crypto", cfg.level,
+                formatError(cfg.level,
+                    fmt::format("Cryptographic weakness: \"{}\"", algorithm),
+                    "", "restrictions.crypto",
+                    "Use strong cryptographic algorithms (SHA-256+, AES-256).\n"
+                    "Weak algorithms like MD5 and SHA-1 are vulnerable to collision attacks.",
+                    fmt::format("crypto.{}(data)", algorithm),
+                    "crypto.sha256(data)"));
+        }
+    }
+    recordPass("restrictions.crypto", cfg.level);
+    return "";
+}
+
+// F8: restrictions.information_disclosure.block_env_dump was enforced ONLY by
+// regex over polyglot source ("os\\.environ", "process\\.env", bare "env").
+// env.get_all() returns the whole environment as a dict and never passes
+// through it. Measured: polyglot os.environ blocked, env.get_all() ran.
+//
+// Note the NAAb-language exemption in checkInfoDisclosure() is why this needs
+// its own call: that scanner deliberately skips the bare "env" pattern for
+// language=="naab", because `env` there is a stdlib module name rather than
+// the shell's dump-everything command. Correct for source scanning, and it
+// leaves the actual dump call unguarded -- which this closes.
+std::string GovernanceEngine::checkEnvDumpAllowed() {
+    clearTrace();
+    if (!isActive()) return "";
+    const auto& cfg = rules().restrictions.information_disclosure;
+    if (!cfg.enabled || !cfg.block_env_dump) return "";
+    return enforce("restrictions.information_disclosure", cfg.level,
+        formatError(cfg.level,
+            "Environment dump blocked by policy",
+            "", "restrictions.information_disclosure",
+            "Reading the whole environment exposes every secret the process holds.\n"
+            "Read the specific variables the program needs instead.",
+            "env.get_all()",
+            "env.get(\"DATABASE_URL\")"));
+}
+
 std::string GovernanceEngine::checkShellCommandAllowed(const std::string& command_line) {
     clearTrace();
     if (!isActive()) return "";
