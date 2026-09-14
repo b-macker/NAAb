@@ -64,6 +64,7 @@ struct SandboxConfig {
 
     // Network restrictions
     std::vector<std::string> allowed_hosts;     // Empty = all allowed
+    std::vector<std::string> blocked_hosts;     // Deny wins over allowed_hosts
     std::vector<int> allowed_ports;             // Empty = all allowed
     bool network_enabled;
 
