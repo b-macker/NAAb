@@ -2,6 +2,7 @@
 // Provides HTTP GET, POST, PUT, DELETE with headers and timeout support
 
 #include "naab/stdlib.h"
+#include "naab/governance.h"
 #include "naab/interpreter.h"
 #include "naab/sandbox.h"
 #include "naab/utils/string_utils.h"
@@ -216,6 +217,27 @@ interpreter::NaabVal performRequest(
                 }
             } else {
                 port = (url.substr(0, 5) == "https") ? 443 : 80;
+            }
+        }
+
+        // F21: capabilities.network.https_only was read in exactly ONE place --
+        // module_resolver.cpp, for URL module imports -- and nowhere on the
+        // request path, so http.get("http://...") ignored it entirely. The key
+        // read as a transport guarantee and was inert for the calls an operator
+        // actually makes.
+        //
+        // Checked here rather than in the sandbox because the sandbox sees a
+        // host and a port, not a scheme, and "port 443" is not the same
+        // statement as "TLS".
+        if (auto* gov = governance::GovernanceEngine::getCurrent()) {
+            if (gov->isActive() && gov->getRules().capabilities.network.https_only &&
+                url.compare(0, 8, "https://") != 0) {
+                sandbox->logViolation("http." + method, url, "https_only: plaintext request blocked");
+                throw std::runtime_error(
+                    "Security: plaintext HTTP request denied\n\n"
+                    "  URL: " + url + "\n\n"
+                    "  This project requires encrypted transport for outbound requests.\n"
+                    "  Use an https:// URL instead.\n");
             }
         }
 

@@ -136,6 +136,15 @@ static void syncGovernanceToSandbox(
         config.network_enabled = false;
         config.capabilities.erase(naab::security::Capability::NET_CONNECT);
     }
+    // F10: the sandbox has always implemented host allowlisting and
+    // capabilities.network.allowed_hosts has always been parsed -- the two were
+    // simply never connected, so the key read as enforcement and was inert.
+    // blocked_hosts had no sandbox field at all. Both are copied here so
+    // canConnect() (which http_impl.cpp already calls) does the enforcing.
+    for (const auto& h : rules.capabilities.network.allowed_hosts)
+        config.allowed_hosts.push_back(h);
+    for (const auto& h : rules.capabilities.network.blocked_hosts)
+        config.blocked_hosts.push_back(h);
     // Shell disabled in governance → remove exec from sandbox
     if (!rules.shell_allowed) {
         config.allow_exec = false;
