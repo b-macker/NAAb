@@ -1352,6 +1352,24 @@ else
     echo "  test_relative_path_base.sh: not found, skipping"
 fi
 
+# --- Network host policy: https_only and allowed/blocked hosts (F21/F10) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Network Host Policy (https_only, allowed_hosts, blocked_hosts)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+NETHOST_SCRIPT="tests/security/test_network_host_policy.sh"
+if [ -f "$NETHOST_SCRIPT" ]; then
+    if run_shell_test "$NETHOST_SCRIPT" 2>&1; then
+        echo "  test_network_host_policy.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_network_host_policy.sh")
+    fi
+else
+    echo "  test_network_host_policy.sh: not found, skipping"
+fi
+
 # --- Secret-scan ReDoS (checkSecrets must render a verdict, never crash) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
