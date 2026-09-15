@@ -1,2 +1,0 @@
-capabilities.shell.blocked_commands PROTECTED tests/governance_v4/test_native_stdlib_policy.sh 2026-09-15T05:08:11Z
-restrictions.crypto PROTECTED tests/governance_v4/test_native_stdlib_policy.sh 2026-09-15T05:08:32Z
