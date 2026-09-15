@@ -738,6 +738,40 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (fs.contains("allow_symlinks") && fs["allow_symlinks"].is_boolean()) fc.allow_symlinks = fs["allow_symlinks"].get<bool>();
             if (fs.contains("allow_hidden_files") && fs["allow_hidden_files"].is_boolean()) fc.allow_hidden_files = fs["allow_hidden_files"].get<bool>();
             if (fs.contains("allow_absolute_paths") && fs["allow_absolute_paths"].is_boolean()) fc.allow_absolute_paths = fs["allow_absolute_paths"].get<bool>();
+
+            // A16. These two are parsed AND ratcheted (governance_config.cpp:3542)
+            // and emitted by `naab governance init`, but no check reads either --
+            // the ratchet is what makes the silence worse, because guarding a key
+            // against loosening implies it does something.
+            //
+            // Warned only on the RESTRICTIVE value. Both default true and the
+            // template ships them true, so warning on "true" would fire on every
+            // generated config and teach operators to ignore the channel. A
+            // warning that cries wolf on the default is worse than none.
+            auto warnInertFsFlag = [&fs](const char* key) {
+                if (fs.contains(key) && fs[key].is_boolean() && !fs[key].get<bool>()) {
+                    fprintf(stderr,
+                            "[governance] Warning: \"capabilities.filesystem.%s\": false is parsed "
+                            "but not enforced — no check reads it. Use "
+                            "\"capabilities.filesystem.blocked_paths\" instead.\n", key);
+                }
+            };
+            warnInertFsFlag("allow_hidden_files");
+            warnInertFsFlag("allow_absolute_paths");
+
+            // blocked_extensions is DECLARED in governance.h and emitted by
+            // `naab governance init`, and is not parsed here at all -- so unlike
+            // its neighbours it never even reaches the rules struct. Warned only
+            // when non-empty, i.e. when the operator actually asked for blocking.
+            // govern-template.json already labels it RESERVED; init does not, and
+            // an operator who populates it deserves to hear so at load.
+            if (fs.contains("blocked_extensions") && fs["blocked_extensions"].is_array() &&
+                !fs["blocked_extensions"].empty()) {
+                fprintf(stderr,
+                        "[governance] Warning: \"capabilities.filesystem.blocked_extensions\" is "
+                        "not enforced — no check reads it. Use "
+                        "\"capabilities.filesystem.blocked_paths\" instead.\n");
+            }
             parseRationale(fs, fc.rationale);
         }
         if (cap.contains("shell") && cap["shell"].is_object()) {
@@ -780,6 +814,31 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cap.contains("process") && cap["process"].is_object()) {
             auto& pr = cap["process"];
             parseRationale(pr, rules_.capabilities.process.rationale);
+
+            // A16. Nothing below rationale is extracted, and nothing reads these
+            // keys anywhere in src/. An operator setting "spawn": false or
+            // "max_processes": 5 gets no enforcement at all -- process spawning
+            // IS gatable, but by capabilities.shell.enabled, which is a different
+            // key in a different block.
+            //
+            // This is FALSE CONFIDENCE rather than a new hole: the real control
+            // exists and works. That is what makes it worth a warning -- an
+            // operator who believes spawning is blocked will not go and set the
+            // key that blocks it.
+            //
+            // Warned rather than wired, for the reason the limits.data block
+            // above records: these enforce nothing today, and govern-template.json
+            // ships "signals": false / "allow_daemon": false, so wiring them would
+            // start blocking configs that pass today -- a behaviour change wearing
+            // a bug fix's clothes.
+            for (const char* k : {"spawn", "signals", "max_processes", "allow_daemon"}) {
+                if (pr.contains(k)) {
+                    fprintf(stderr,
+                            "[governance] Warning: \"capabilities.process.%s\" is parsed but not "
+                            "enforced — no check reads it. Use \"capabilities.shell.enabled\" to "
+                            "gate process execution.\n", k);
+                }
+            }
         }
     }
 
