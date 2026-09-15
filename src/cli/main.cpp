@@ -200,6 +200,28 @@ static int sandboxLevelRank(const std::string& level) {
     return 3;
 }
 
+// The CLI value is validated and rejected outright ("Error: Invalid sandbox
+// level"), but the govern.json value never was -- an unrecognised spelling
+// there matched no branch of the rebuild chain, left the sandbox at its
+// CLI-derived default, and restricted nothing. Measured: sandbox_level "bogus"
+// with no flag READ a file that "standard" refuses.
+//
+// Fail-open, and silent, which is the worst pair. Found while verifying the
+// tighten-only change above rather than looked for; the behaviour predates it
+// (the old predicate took the same branch), so this warns rather than rejects
+// -- erroring would turn every existing typo into a hard failure, and the
+// repo's precedent for an unrecognised enum is the "unknown enforcement level"
+// warning in governance_config.cpp.
+static void warnUnknownConfiguredSandboxLevel(const std::string& configured) {
+    if (configured.empty()) return;
+    if (configured == "restricted" || configured == "standard" ||
+        configured == "elevated"   || configured == "unrestricted") return;
+    fmt::print(stderr,
+        "[governance] Warning: unknown security.sandbox_level \"{}\" — expected "
+        "restricted|standard|elevated|unrestricted. No sandbox level was applied "
+        "from govern.json.\n", configured);
+}
+
 static void applyGovernanceSandbox(
     const naab::governance::GovernanceRules& rules,
     naab::security::SandboxConfig& config,
@@ -216,6 +238,7 @@ static void applyGovernanceSandbox(
     // leaves a stricter CLI value in place (tighten-only) and is byte-identical
     // to the old behaviour when no flag is passed, since the default
     // "unrestricted" ranks least strict.
+    warnUnknownConfiguredSandboxLevel(rules.sandbox_level_config);
     if (!rules.sandbox_level_config.empty() &&
         sandboxLevelRank(rules.sandbox_level_config) <= sandboxLevelRank(sandbox_level)) {
         sandbox_level = rules.sandbox_level_config;
@@ -1985,6 +2008,7 @@ int main(int argc, char** argv) {
                     bool sandbox_level_changed = false;
                     // A13, same change as applyGovernanceSandbox -- the two must
                     // agree or test_sandbox_engine_parity.sh fails.
+                    warnUnknownConfiguredSandboxLevel(rules.sandbox_level_config);
                     if (!rules.sandbox_level_config.empty() &&
                         sandboxLevelRank(rules.sandbox_level_config) <= sandboxLevelRank(sandbox_level)) {
                         sandbox_level = rules.sandbox_level_config;

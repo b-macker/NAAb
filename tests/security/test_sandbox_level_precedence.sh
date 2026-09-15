@@ -164,6 +164,50 @@ r=$(run --sandbox-level standard)
   || bad "SP-05" "NEGATIVE CONTROL: the CLI may still TIGHTEN below the config" \
          "got '$r' — tighten-only was lost; --sandbox-level should still restrict"
 
+
+# SP-06/07 -- ENGINE PARITY. The fix changed TWO sites, applyGovernanceSandbox()
+# and the VM inline block, and the comment above the former warns they must
+# agree. Arms SP-01..SP-05 only exercise the default VM path, so a fix applied to
+# one site and not the other would pass all of them.
+cfg '{"sandbox_level":"standard"}' '{}'
+r=$(run --tree-walk --sandbox-level elevated)
+[ "$r" = refused ] \
+  && ok "SP-06" "the escalation is blocked on the TREE-WALKER too" \
+  || bad "SP-06" "the escalation is blocked on the TREE-WALKER too" \
+         "got '$r' — the two sandbox-level sites have drifted"
+
+cfg '{"sandbox_level":"elevated"}' '{}'
+r=$(run --tree-walk)
+[ "$r" = read ] \
+  && ok "SP-07" "NEGATIVE CONTROL: tree-walker still honours a permissive config" \
+  || bad "SP-07" "NEGATIVE CONTROL: tree-walker still honours a permissive config" \
+         "got '$r' — SP-06 would pass for a tree-walker that blocks everything"
+
+# SP-08 -- an unrecognised configured level applied NOTHING, silently. The CLI
+# value is validated and rejected; the govern.json value never was. Fail-open and
+# silent is the worst pair, so it is at least announced now. Pre-existing
+# behaviour (the old predicate took the same branch), found while verifying the
+# tighten-only change rather than looked for.
+cfg '{"sandbox_level":"bogus"}' '{}'
+out=$( cd "$W" && timeout 60 "$NAAB" "$W/t.naab" 2>&1 )
+case "$out" in
+    *"unknown security.sandbox_level"*)
+        ok "SP-08" "an unknown configured sandbox_level is announced, not silent" ;;
+    *)  bad "SP-08" "an unknown configured sandbox_level is announced, not silent" \
+            "no warning emitted — a typo silently applies no sandbox at all" ;;
+esac
+
+# SP-09 -- NEGATIVE CONTROL for SP-08: a VALID level must warn about nothing, or
+# the warning fires on every config and stops being read.
+cfg '{"sandbox_level":"standard"}' '{}'
+out=$( cd "$W" && timeout 60 "$NAAB" "$W/t.naab" 2>&1 )
+case "$out" in
+    *"unknown security.sandbox_level"*)
+        bad "SP-09" "NEGATIVE CONTROL: a valid level warns about nothing" \
+            "warned on a valid level — the check cries wolf" ;;
+    *)  ok "SP-09" "NEGATIVE CONTROL: a valid level warns about nothing" ;;
+esac
+
 echo ""
 echo -e "${CYAN}--------------------------------------------------------------${NC}"
 echo -e "  Passed: ${GREEN}${PASS}${NC}   Failed: ${RED}${FAIL}${NC}"
