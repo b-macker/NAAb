@@ -45,6 +45,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+source "$SCRIPT_DIR/../helpers/native_path.sh"
 setup_isolated_trust
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -53,26 +54,45 @@ ok()  { PASS=$((PASS+1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; }
 bad() { FAIL=$((FAIL+1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] && echo -e "       ${RED}-> $3${NC}"; FAILURES="${FAILURES}\n  [$1] $2"; }
 
 W="${TMPDIR:-/tmp}/naab-sblevel-$$"
-cleanup(){ teardown_isolated_trust; rm -rf "$W"; }
+cleanup(){ teardown_isolated_trust; rm -rf "$W" "${OUTSIDE:-}"; }
 trap cleanup EXIT
 mkdir -p "$W"
 
-# THE DISCRIMINATOR HAS TO DISCRIMINATE, and the obvious choice does not.
+# THE DISCRIMINATOR HAS TO DISCRIMINATE, AND IT HAS TO EXIST EVERYWHERE.
 #
-# The first version of this suite read a fixture file under $W -- i.e. under
-# /tmp -- which the `standard` sandbox ALLOWLISTS. So `standard` and `elevated`
-# both permitted the read, the baseline arm failed, and two further arms failed
-# for a reason that had nothing to do with A13. The run reported four failures
-# where the defect accounts for two.
+# Two mistakes here, both caught by running rather than reasoning.
 #
-# Measured on this build before being trusted:
-#     configured restricted   -> SANDBOX VIOLATION
-#     configured standard     -> SANDBOX VIOLATION
-#     configured elevated     -> READ_OK
-#     configured unrestricted -> READ_OK
-# /etc/hostname separates the levels; a file in /tmp never did.
-TARGET="/etc/hostname"
-[ -r "$TARGET" ] || { echo "  SKIP: $TARGET unreadable on this platform — UNMEASURABLE"; exit 0; }
+# FIRST: a fixture under $W (i.e. under /tmp) does not discriminate at all.
+# createEnterpriseConfig() -- the "standard" level -- allows exactly cwd and the
+# temp dir, so standard and elevated both permitted the read, the baseline arm
+# failed, and two further arms failed for reasons unrelated to A13.
+#
+# SECOND: /etc/hostname fixed that on Linux and DOES NOT EXIST under MSYS2, so
+# the whole suite hit its own skip guard and exited 0 -- which run-all-tests.sh
+# reports as "ALL PASSED". A13 was therefore completely unverified on Windows
+# while the run looked green. That is the vacuous-pass failure this very suite
+# exists to prevent, committed by the suite itself.
+#
+# The fix is a fixture WE create, outside both cwd and the temp dir, in $HOME --
+# which exists on Linux and MSYS2 alike. Measured across all four levels before
+# being trusted (identically for /etc/hostname and for the $HOME fixture):
+#     restricted   -> SANDBOX VIOLATION      elevated     -> READ_OK
+#     standard     -> SANDBOX VIOLATION      unrestricted -> READ_OK
+#
+# There is deliberately NO skip guard now. If the discriminator ever stops
+# discriminating, SP-01 (the baseline) FAILS rather than the suite quietly
+# passing -- an instrument that cannot measure must not report success.
+OUTSIDE="${HOME:-/root}/naab-sblevel-outside-$$"
+mkdir -p "$OUTSIDE"
+echo "OUTSIDE_DATA" > "$OUTSIDE/secret.txt"
+TARGET=$(native_path "$OUTSIDE/secret.txt")
+# An EMPTY or unreadable TARGET makes every "expects refused" arm pass for free:
+# a failed read is classified as refused, which is their expected value. That
+# happened -- native_path was used before its helper was sourced, TARGET came
+# back empty, and SP-01..03 passed against file.read(""). Assert the instrument
+# before trusting any verdict from it.
+[ -n "$TARGET" ] || { echo -e "  ${RED}ABORT${NC}: TARGET is empty — native_path unavailable"; exit 1; }
+[ -r "$OUTSIDE/secret.txt" ] || { echo -e "  ${RED}ABORT${NC}: fixture unreadable at $OUTSIDE"; exit 1; }
 
 # $1 = security block  $2 = integrity block
 cfg() {
