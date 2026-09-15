@@ -1370,6 +1370,24 @@ else
     echo "  test_sandbox_level_precedence.sh: not found, skipping"
 fi
 
+# --- Privilege escalation pattern completeness (A20) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Privilege Escalation Patterns (su without -, chmod SUID)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+PRIVESC_SCRIPT="tests/security/test_privilege_escalation_patterns.sh"
+if [ -f "$PRIVESC_SCRIPT" ]; then
+    if run_shell_test "$PRIVESC_SCRIPT" 2>&1; then
+        echo "  test_privilege_escalation_patterns.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_privilege_escalation_patterns.sh")
+    fi
+else
+    echo "  test_privilege_escalation_patterns.sh: not found, skipping"
+fi
+
 # --- Network host policy: https_only and allowed/blocked hosts (F21/F10) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
