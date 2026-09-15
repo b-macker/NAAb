@@ -68,6 +68,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+source "$SCRIPT_DIR/../helpers/native_path.sh"
 setup_isolated_trust
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -94,10 +95,11 @@ JSON_EOF
 # the shell's /tmp/xxx is meaningless to naab-lang.exe. cygpath -m yields
 # C:/... with forward slashes, which survives being pasted into a NAAb string
 # literal; -w would yield backslashes and be read as escapes.
-native() {
-    if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi
-}
-NP=$(native "$P")
+# Repointed at the shared helper (tests/helpers/native_path.sh). The local copy
+# replaced here was correct, but a second definition of "convert a path for the
+# native binary" is free to drift from the first -- and this class has now cost
+# five separate diagnoses, each fixed in exactly one file. One definition.
+NP=$(native_path "$P")
 
 # $1 = absolute file to read (native vocabulary) -> writes the program
 write_prog() {

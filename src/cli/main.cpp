@@ -180,6 +180,48 @@ static void syncGovernanceToSandbox(
 // The VM path still has an equivalent block inline. test_sandbox_engine_parity.sh
 // asserts the two agree — a shared helper alone would not have caught the taint
 // engines drifting either; the missing piece there was a test, not a refactor.
+// Lower rank = more restrictive. A13.
+//
+// The CLI may TIGHTEN the configured sandbox level and may never loosen it,
+// mirroring the rule three lines into applyGovernanceSandbox's caller where
+// --timeout takes std::max of flag and config so it "can extend but not shrink
+// the govern.json limit". Same asymmetry, same reason: a flag is a local
+// convenience and govern.json is the project's policy.
+//
+// An unrecognised spelling ranks as the LEAST restrictive so it can never
+// out-rank a real configured level by accident. The CLI value is already
+// validated upstream (unknown spellings exit before this runs), so in practice
+// this only guards a malformed sandbox_level in govern.json.
+static int sandboxLevelRank(const std::string& level) {
+    if (level == "restricted")   return 0;
+    if (level == "standard")     return 1;
+    if (level == "elevated")     return 2;
+    if (level == "unrestricted") return 3;
+    return 3;
+}
+
+// The CLI value is validated and rejected outright ("Error: Invalid sandbox
+// level"), but the govern.json value never was -- an unrecognised spelling
+// there matched no branch of the rebuild chain, left the sandbox at its
+// CLI-derived default, and restricted nothing. Measured: sandbox_level "bogus"
+// with no flag READ a file that "standard" refuses.
+//
+// Fail-open, and silent, which is the worst pair. Found while verifying the
+// tighten-only change above rather than looked for; the behaviour predates it
+// (the old predicate took the same branch), so this warns rather than rejects
+// -- erroring would turn every existing typo into a hard failure, and the
+// repo's precedent for an unrecognised enum is the "unknown enforcement level"
+// warning in governance_config.cpp.
+static void warnUnknownConfiguredSandboxLevel(const std::string& configured) {
+    if (configured.empty()) return;
+    if (configured == "restricted" || configured == "standard" ||
+        configured == "elevated"   || configured == "unrestricted") return;
+    fmt::print(stderr,
+        "[governance] Warning: unknown security.sandbox_level \"{}\" — expected "
+        "restricted|standard|elevated|unrestricted. No sandbox level was applied "
+        "from govern.json.\n", configured);
+}
+
 static void applyGovernanceSandbox(
     const naab::governance::GovernanceRules& rules,
     naab::security::SandboxConfig& config,
@@ -189,7 +231,16 @@ static void applyGovernanceSandbox(
     bool enforce_mode)
 {
     bool level_changed = false;
-    if (!rules.sandbox_level_config.empty() && sandbox_level == "unrestricted") {
+    // A13: was `sandbox_level == "unrestricted"`, i.e. "apply the configured
+    // level only when NO --sandbox-level flag was passed" -- so passing the flag
+    // skipped this block entirely and the CLI silently out-ranked govern.json.
+    // The configured level now wins whenever it is AT LEAST AS STRICT, which
+    // leaves a stricter CLI value in place (tighten-only) and is byte-identical
+    // to the old behaviour when no flag is passed, since the default
+    // "unrestricted" ranks least strict.
+    warnUnknownConfiguredSandboxLevel(rules.sandbox_level_config);
+    if (!rules.sandbox_level_config.empty() &&
+        sandboxLevelRank(rules.sandbox_level_config) <= sandboxLevelRank(sandbox_level)) {
         sandbox_level = rules.sandbox_level_config;
         level_changed = true;
         if (sandbox_level == "restricted") {
@@ -1498,6 +1549,36 @@ int main(int argc, char** argv) {
                     checkBlocked("--governance-override", governance_override);
                     checkBlocked("--governance-baseline-save", governance_baseline_save);
 
+                    // A13: the five checkBlocked() calls above cover only flags
+                    // that happen to have a parsed bool. isBlockedFlag() consults
+                    // the operator's FULL list and nothing called it for anything
+                    // else, so any other flag an owner locked -- --sandbox-level
+                    // among them, the one that can loosen the sandbox -- was never
+                    // consulted. The lock silently did nothing for exactly the
+                    // flags worth locking.
+                    //
+                    // Sweep argv against the configured list so the answer comes
+                    // from govern.json rather than from which flags someone
+                    // remembered to wire up. Matches "--flag" and "--flag=value";
+                    // the hardcoded calls stay as defence in depth and are
+                    // harmless when they duplicate a hit (the block is a latch).
+                    for (const auto& blocked : shared_governance.getRules().integrity.blocked_flags) {
+                        if (blocked.empty()) continue;  // an empty entry matches nothing
+                        for (int ai = 1; ai < argc; ++ai) {
+                            const std::string arg = argv[ai];
+                            if (arg == blocked ||
+                                (arg.rfind(blocked + "=", 0) == 0)) {
+                                fprintf(stderr,
+                                    "[governance] INTEGRITY BLOCK: flag '%s' is locked by the project owner.\n"
+                                    "  This flag is listed in integrity.blocked_flags in govern.json.\n"
+                                    "  Help: Remove '%s' from your command to proceed.\n",
+                                    blocked.c_str(), blocked.c_str());
+                                naab::governance::g_governance_hard_block = true;
+                                break;
+                            }
+                        }
+                    }
+
                     // Gap 13/16: In enforce mode with a signed govern.json,
                     // --no-governance and --governance-override are implicitly blocked
                     // even without blocked_flags. This prevents LLMs from bypassing
@@ -1925,7 +2006,11 @@ int main(int argc, char** argv) {
                     if (rules.runtime.gc_stats && !gc_stats) gc_stats = true;
                     // Category C: security
                     bool sandbox_level_changed = false;
-                    if (!rules.sandbox_level_config.empty() && sandbox_level == "unrestricted") {
+                    // A13, same change as applyGovernanceSandbox -- the two must
+                    // agree or test_sandbox_engine_parity.sh fails.
+                    warnUnknownConfiguredSandboxLevel(rules.sandbox_level_config);
+                    if (!rules.sandbox_level_config.empty() &&
+                        sandboxLevelRank(rules.sandbox_level_config) <= sandboxLevelRank(sandbox_level)) {
                         sandbox_level = rules.sandbox_level_config;
                         sandbox_level_changed = true;
                         // Rebuild security_config from govern.json-specified level
@@ -2053,6 +2138,36 @@ int main(int argc, char** argv) {
                     checkBlocked("--governance-override", governance_override);
                     checkBlocked("--governance-baseline-save", governance_baseline_save);
                     checkBlocked("--no-governance", no_governance);
+
+                    // A13: the five checkBlocked() calls above cover only flags
+                    // that happen to have a parsed bool. isBlockedFlag() consults
+                    // the operator's FULL list and nothing called it for anything
+                    // else, so any other flag an owner locked -- --sandbox-level
+                    // among them, the one that can loosen the sandbox -- was never
+                    // consulted. The lock silently did nothing for exactly the
+                    // flags worth locking.
+                    //
+                    // Sweep argv against the configured list so the answer comes
+                    // from govern.json rather than from which flags someone
+                    // remembered to wire up. Matches "--flag" and "--flag=value";
+                    // the hardcoded calls stay as defence in depth and are
+                    // harmless when they duplicate a hit (the block is a latch).
+                    for (const auto& blocked : vm_governance.getRules().integrity.blocked_flags) {
+                        if (blocked.empty()) continue;  // an empty entry matches nothing
+                        for (int ai = 1; ai < argc; ++ai) {
+                            const std::string arg = argv[ai];
+                            if (arg == blocked ||
+                                (arg.rfind(blocked + "=", 0) == 0)) {
+                                fprintf(stderr,
+                                    "[governance] INTEGRITY BLOCK: flag '%s' is locked by the project owner.\n"
+                                    "  This flag is listed in integrity.blocked_flags in govern.json.\n"
+                                    "  Help: Remove '%s' from your command to proceed.\n",
+                                    blocked.c_str(), blocked.c_str());
+                                naab::governance::g_governance_hard_block = true;
+                                break;
+                            }
+                        }
+                    }
 
                     // Gap 13/16: In enforce mode with a signed govern.json,
                     // --no-governance and --governance-override are implicitly blocked

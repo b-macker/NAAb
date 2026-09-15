@@ -1352,6 +1352,24 @@ else
     echo "  test_relative_path_base.sh: not found, skipping"
 fi
 
+# --- Sandbox level precedence: can the CLI out-rank govern.json? (A13) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Sandbox Level Precedence (CLI may tighten, never loosen)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+SBLEVEL_SCRIPT="tests/security/test_sandbox_level_precedence.sh"
+if [ -f "$SBLEVEL_SCRIPT" ]; then
+    if run_shell_test "$SBLEVEL_SCRIPT" 2>&1; then
+        echo "  test_sandbox_level_precedence.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_sandbox_level_precedence.sh")
+    fi
+else
+    echo "  test_sandbox_level_precedence.sh: not found, skipping"
+fi
+
 # --- Network host policy: https_only and allowed/blocked hosts (F21/F10) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

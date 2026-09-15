@@ -1,4 +1,5 @@
 #include <naab/telemetry_forwarder.h>
+#include <filesystem>
 #include <curl/curl.h>
 #include <cstdio>
 #include <chrono>
@@ -147,13 +148,20 @@ bool TelemetryForwarder::postBatch(const std::string& payload) {
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
 
-    // CA bundle (same logic as agent_provider)
-    const char* ca_env = std::getenv("CURL_CA_BUNDLE");
-    if (ca_env) {
+    // CA bundle. F32, and this copy had drifted from agent_provider in two ways
+    // beyond the shared Termux defect: it read only CURL_CA_BUNDLE (missing
+    // SSL_CERT_FILE, which the other site honours) and tested `if (ca_env)`
+    // without ca_env[0], so an empty env var set CAINFO to "". Both now match.
+    const char* ca_env = std::getenv("SSL_CERT_FILE");
+    if (!ca_env) ca_env = std::getenv("CURL_CA_BUNDLE");
+    if (ca_env && ca_env[0]) {
         curl_easy_setopt(curl, CURLOPT_CAINFO, ca_env);
     } else {
-        curl_easy_setopt(curl, CURLOPT_CAINFO,
-                         "/data/data/com.termux/files/usr/etc/tls/cert.pem");
+        std::error_code ec;
+        const char* termux_ca = "/data/data/com.termux/files/usr/etc/tls/cert.pem";
+        if (std::filesystem::exists(termux_ca, ec) && !ec) {
+            curl_easy_setopt(curl, CURLOPT_CAINFO, termux_ca);
+        }
     }
 
     // Headers
