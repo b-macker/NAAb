@@ -3,6 +3,7 @@
 
 #include "naab/agent_provider.h"
 #include <curl/curl.h>
+#include <filesystem>
 #include <nlohmann/json.hpp>
 #include <fmt/core.h>
 #include <stdexcept>
@@ -109,13 +110,27 @@ static HttpResult httpPostRaw(
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
 
     // On Termux (Android) the system curl CA bundle is not at the standard path.
+    //
+    // F32: the else-branch used to pin CAINFO to the Termux path UNCONDITIONALLY
+    // -- the author's platform compiled in as the default for every platform. On
+    // an ordinary Linux box that names a file which does not exist, so libcurl
+    // fails TLS rather than falling back to the system trust store. An absent
+    // env var means "you decide", not "use my laptop".
+    //
+    // It survived because it fails CLOSED and loudly: TLS simply breaks, which
+    // reads as a misconfigured machine rather than a compiled-in assumption.
+    // Guarded on existence so the fallback still helps on Termux and is silently
+    // skipped everywhere else, leaving libcurl its own default.
     const char* ca_env = std::getenv("SSL_CERT_FILE");
     if (!ca_env) ca_env = std::getenv("CURL_CA_BUNDLE");
     if (ca_env && ca_env[0]) {
         curl_easy_setopt(curl, CURLOPT_CAINFO, ca_env);
     } else {
-        curl_easy_setopt(curl, CURLOPT_CAINFO,
-            "/data/data/com.termux/files/usr/etc/tls/cert.pem");
+        std::error_code ec;
+        const char* termux_ca = "/data/data/com.termux/files/usr/etc/tls/cert.pem";
+        if (std::filesystem::exists(termux_ca, ec) && !ec) {
+            curl_easy_setopt(curl, CURLOPT_CAINFO, termux_ca);
+        }
     }
 
     struct curl_slist* headers = nullptr;
