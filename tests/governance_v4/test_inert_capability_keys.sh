@@ -33,6 +33,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+source "$SCRIPT_DIR/../helpers/native_path.sh"
 setup_isolated_trust
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -74,10 +75,26 @@ JSON
     ( cd "$W" && timeout 60 "$NAAB" t.naab 2>&1 ) | grep -c "not enforced" || true
 }
 
+# PATH VOCABULARY. The first version of this suite wrote absolute "$W/..." paths
+# into the program. naab-lang under MSYS2 is a NATIVE build and cannot open an
+# MSYS /tmp/... path, so IC-01..03 failed on build-windows while passing on
+# Linux -- the same defect fixed in test_relative_path_base.sh EARLIER THE SAME
+# DAY, reintroduced here. Hence tests/helpers/native_path.sh.
+#
+# IC-01 and IC-03 use RELATIVE paths: run() cd's into $W, the blocked_paths
+# entries are already relative, and a relative name goes through NAAb's own
+# canonicaliser on both sides. That is strictly more robust than converting.
+#
+# IC-02 is the exception and MUST stay absolute -- it tests allow_absolute_paths,
+# and a relative path would not test the thing the arm names. So it converts.
+ABS_PLAIN=$(native_path "$W/plain.txt")
+
 READ_HIDDEN='use file
-main { let x = file.read("'"$W"'/.hidden_secret") print("READ_OK") }'
+main { let x = file.read(".hidden_secret") print("READ_OK") }'
 READ_PLAIN='use file
-main { let x = file.read("'"$W"'/plain.txt") print("READ_OK") }'
+main { let x = file.read("plain.txt") print("READ_OK") }'
+READ_PLAIN_ABS='use file
+main { let x = file.read("'"$ABS_PLAIN"'") print("READ_OK") }'
 DO_EXEC='use process
 main { let r = process.run("echo", ["hi"]) print("RAN") }'
 
@@ -108,7 +125,7 @@ pair "IC-01" "allow_hidden_files:false is inert (blocked_paths is not)" \
 pair "IC-02" "allow_absolute_paths:false is inert (blocked_paths is not)" \
      '{"filesystem":{"mode":"readwrite","allow_absolute_paths":false}}' \
      '{"filesystem":{"mode":"readwrite","blocked_paths":["plain.txt"]}}' \
-     "$READ_PLAIN"
+     "$READ_PLAIN_ABS"
 
 pair "IC-03" "blocked_extensions is inert (blocked_paths is not)" \
      '{"filesystem":{"mode":"readwrite","blocked_extensions":[".txt"]}}' \
