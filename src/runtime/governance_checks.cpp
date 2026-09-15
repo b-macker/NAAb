@@ -5500,9 +5500,38 @@ std::string GovernanceEngine::checkPrivilegeEscalation(const std::string& code, 
     clearTrace();
     std::vector<std::string> pats;
     if (cfg.block_sudo) pats.push_back("\\bsudo\\s");
-    if (cfg.block_su) pats.push_back("\\bsu\\s+-");
-    if (cfg.block_chmod_suid) pats.push_back("chmod\\s+[ugo]*s");
+    if (cfg.block_su) {
+        // A20. This was `\bsu\s+-` alone, so it required a HYPHEN: `su - root`,
+        // `su -l` and `su -c` were caught while `su root` and a bare `su` ran
+        // free. The hyphenated spellings are the ones an attacker is least
+        // constrained to use.
+        pats.push_back("\\bsu\\s+-");           // su - / su -l / su -c
+        pats.push_back("\\bsu\\s+[A-Za-z_]");   // su root, su nobody
+        pats.push_back("\\bsu\\s*$");           // bare su
+    }
+    if (cfg.block_chmod_suid) {
+        // A20, and this flag caught NOTHING. It was `chmod\s+[ugo]*s`: read it
+        // against "chmod u+s" -- after the space [ugo]* takes "u", the pattern
+        // then needs a literal "s" and finds "+"; backtrack to empty, needs "s",
+        // finds "u". No match. The same holds for +s, ug+s and every octal form.
+        // The register recorded only the octal gap; measurement showed the
+        // SYMBOLIC forms the pattern was presumably written for were missed too.
+        //
+        // Symbolic: the mode chars are optional, so u+s / +s / ug+s / a+s match.
+        pats.push_back("chmod\\s+[ugoa,]*\\+s");
+        // Octal: a 4-digit mode whose leading digit carries the setuid (4) or
+        // setgid (2) bit -- 4755, 2755, 6755, and 04755 with a leading zero.
+        // Deliberately NOT 3-digit modes: `chmod 755` and `chmod 644` are
+        // ordinary and blocking them is how this check gets switched off.
+        // 1755 (sticky only) is not privilege escalation and stays unmatched.
+        pats.push_back("chmod\\s+0?[2-7][0-7]{3}\\b");
+    }
     if (cfg.block_setuid) pats.push_back("\\bsetuid\\b");
+    // Every pattern above is a bounded character class followed by literals.
+    // No `.*` or `[\s\S]*` between two required pieces of text: that shape is
+    // what made SECRET_PATTERNS exhaust the stack and kill the interpreter
+    // (tests/security/test_secret_scan_redos.sh), and a crash renders no verdict
+    // at all -- strictly worse than the false negative it replaces.
     std::string found = searchPatterns(code, pats);
     if (!found.empty()) {
         return enforce("restrictions.privilege_escalation", cfg.level,
