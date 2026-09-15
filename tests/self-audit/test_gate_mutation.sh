@@ -70,16 +70,39 @@ list_gates() {
         | sed 's/enforce("//; s/"$//' | grep -vE '\.$' | sort -u
 }
 
-MODE="sample"; N=1; ONE=""
+MODE="sample"; N=1; ONE=""; FILTER="all"; SHARD=1; SHARDS=1
 while [ $# -gt 0 ]; do
     case "$1" in
         --gate) ONE="$2"; MODE="one"; shift 2;;
         --sample) N="$2"; MODE="sample"; shift 2;;
         --all) MODE="all"; shift;;
         --list) MODE="list"; shift;;
-        *) echo "usage: $0 [--gate NAME | --sample N | --all | --list]"; exit 2;;
+        --list-gates) MODE="list-gates"; shift;;
+        --filter) FILTER="$2"; shift 2;;
+        --shard) SHARD="$2"; shift 2;;
+        --shards) SHARDS="$2"; shift 2;;
+        *) echo "usage: $0 [--gate 'NAME...' | --sample N | --all | --list]"
+           echo "          [--list-gates [--filter mentioned|unmentioned|all]]"
+           echo "          [--shard I --shards N]"; exit 2;;
     esac
 done
+
+# A gate is "mentioned" if any test script contains its rule name. That is the
+# same ORDERING heuristic candidates() uses and is NEVER a verdict -- an
+# unmentioned gate can still be protected by a test that triggers it without
+# naming it, which is precisely the case only a probe can settle.
+mentions() { grep -rl --include='*.sh' -- "$1" "$REPO/tests" >/dev/null 2>&1; }
+
+if [ "$MODE" = "list-gates" ]; then
+    list_gates | while read -r g; do
+        case "$FILTER" in
+            mentioned)   mentions "$g" && echo "$g" ;;
+            unmentioned) mentions "$g" || echo "$g" ;;
+            *)           echo "$g" ;;
+        esac
+    done | awk -v s="$SHARD" -v n="$SHARDS" 'n<=1 || (NR-1)%n==(s-1)'
+    exit 0
+fi
 
 mkdir -p "$(dirname "$LEDGER")"; touch "$LEDGER"
 ledger_has() { grep -q "^$1 " "$LEDGER" 2>/dev/null; }
