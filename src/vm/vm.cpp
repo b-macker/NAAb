@@ -888,7 +888,16 @@ interpreter::NaabVal VM::run() {
                     size_t combined = result.size() + blist.size();
                     naab::limits::checkArraySize(combined);
                     if (governance_) {
-                        std::string gerr = governance_->checkArraySize(combined);
+                        // isActive() is false only for govern.json `mode: "off"`.
+                        // The tree-walker gates every equivalent check this way
+                        // (call_dispatch.cpp: 0 bare guards of 14 calls); the VM
+                        // gated some and not others, INSIDE THE SAME BLOCKS --
+                        // e.g. checkDangerousCall at :1839/:3861 and the taint
+                        // sink at :3870 already carry it. So `mode: "off"` meant
+                        // two different things per engine. Gates:
+                        // limits.data.array_size (list concatenation).
+                        std::string gerr = governance_->isActive()
+                            ? governance_->checkArraySize(combined) : std::string();
                         if (!gerr.empty()) runtimeError("%s", gerr.c_str());
                     }
                     result.insert(result.end(), blist.begin(), blist.end());
@@ -1809,13 +1818,20 @@ interpreter::NaabVal VM::run() {
                                 }
                                 if (!fs_is_file_sink) { /* not a filesystem access */ }
                                 else {
-                                std::string err = governance_->checkFilesystemAllowed(fs_mode);
+                                // Gates: capabilities.filesystem.mode. isActive() is
+                                // false only for `mode: "off"`; note the sibling
+                                // checkDangerousCall below already carries this gate.
+                                std::string err = governance_->isActive()
+                                    ? governance_->checkFilesystemAllowed(fs_mode) : std::string();
                                 if (!err.empty()) runtimeError("%s", err.c_str());
                                 // Path-level access check (first arg = file path)
                                 if (argc > 0) {
                                     interpreter::NaabVal path_arg = stack_top_[-argc];
                                     if (path_arg.isString()) {
-                                        std::string perr = governance_->checkPathAccess(path_arg.asString(), fs_mode);
+                                        // Gates: capabilities.filesystem allowed_paths/blocked_paths.
+                                        std::string perr = governance_->isActive()
+                                            ? governance_->checkPathAccess(path_arg.asString(), fs_mode)
+                                            : std::string();
                                         if (!perr.empty()) runtimeError("%s", perr.c_str());
                                     }
                                 }
@@ -1823,14 +1839,19 @@ interpreter::NaabVal VM::run() {
                                 if ((method == "copy" || method == "move") && argc > 1) {
                                     interpreter::NaabVal dest_arg = stack_top_[-argc + 1];
                                     if (dest_arg.isString()) {
-                                        std::string perr = governance_->checkPathAccess(dest_arg.asString(), "write");
+                                        // Gates: the same path policy, on a copy/move DESTINATION.
+                                        std::string perr = governance_->isActive()
+                                            ? governance_->checkPathAccess(dest_arg.asString(), "write")
+                                            : std::string();
                                         if (!perr.empty()) runtimeError("%s", perr.c_str());
                                     }
                                 }
                                 }
                             }
                             if (mod == "http") {
-                                std::string err = governance_->checkNetworkAllowed();
+                                // Gates: capabilities.network on a stdlib http call.
+                                std::string err = governance_->isActive()
+                                    ? governance_->checkNetworkAllowed() : std::string();
                                 if (!err.empty()) runtimeError("%s", err.c_str());
                             } else if (mod == "env") {
                                 // Finding E fix: enforce governance dangerous-call policy on env access
@@ -2867,15 +2888,24 @@ interpreter::NaabVal VM::run() {
                     governance_->reloadIfChanged();
                     int gov_line = polyglot_gov_line;
                     governance_->setCheckContext(current_file_, gov_line);
-                    std::string err = governance_->checkPolyglotBlock(
-                        language, raw_code, current_file_, gov_line,
-                        bound_var_names.size());
+                    // Gates: languages.allowed / languages.blocked and the
+                    // per-language rules. reloadIfChanged() and setCheckContext()
+                    // above deliberately stay OUTSIDE this gate -- they maintain
+                    // engine state rather than render a verdict.
+                    std::string err = governance_->isActive()
+                        ? governance_->checkPolyglotBlock(language, raw_code, current_file_,
+                                                          gov_line, bound_var_names.size())
+                        : std::string();
                     if (!err.empty()) runtimeError("%s", err.c_str());
-                    std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
+                    // Gates: limits.execution.polyglot_blocks. Named with a verb my
+                    // ->check* sweep did not match, so it was missed on the first pass.
+                    std::string count_err = governance_->isActive()
+                        ? governance_->incrementAndCheckPolyglotBlockCount() : std::string();
                     if (!count_err.empty()) runtimeError("%s", count_err.c_str());
 
                     // Rate limiting for polyglot execution
-                    if (!governance_->checkPolyglotRate()) {
+                    // Gates: limits.rate.max_polyglot_per_second.
+                    if (governance_->isActive() && !governance_->checkPolyglotRate()) {
                         runtimeError("Governance: polyglot execution rate limit exceeded.\n\n"
                             "  Too many polyglot blocks executed per second.\n"
                             "  Reduce execution frequency or restructure code to batch polyglot calls.\n");
@@ -3849,10 +3879,14 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             if (mod_name == "file") {
                 // Conservative: treat direct file module call as "write" (most restrictive)
                 // since the specific function name is not available from the callee string
-                std::string err = governance_->checkFilesystemAllowed("write");
+                // Gates: capabilities.filesystem.mode on a codegen/indirect sink.
+                std::string err = governance_->isActive()
+                    ? governance_->checkFilesystemAllowed("write") : std::string();
                 if (!err.empty()) runtimeError("%s", err.c_str());
             } else if (mod_name == "http") {
-                std::string err = governance_->checkNetworkAllowed();
+                // Gates: capabilities.network on a codegen/indirect sink.
+                std::string err = governance_->isActive()
+                    ? governance_->checkNetworkAllowed() : std::string();
                 if (!err.empty()) runtimeError("%s", err.c_str());
             }
             // Generic dangerous-calls policy check for ALL modules (Finding C parity)
@@ -3926,7 +3960,10 @@ bool VM::callFunction(VMClosure* closure, int argc) {
 
     // Governance: check call depth + input contracts
     if (governance_) {
-        std::string err = governance_->checkCallDepth(static_cast<size_t>(frame_count_ + 1));
+        // Gates: limits.execution.call_depth. The input-contract check on the very
+        // next line already carries this gate -- the two sat in one block disagreeing.
+        std::string err = governance_->isActive()
+            ? governance_->checkCallDepth(static_cast<size_t>(frame_count_ + 1)) : std::string();
         if (!err.empty()) runtimeError("%s", err.c_str());
 
         // Check function input contracts
