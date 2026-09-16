@@ -61,25 +61,46 @@ cat > "$W/govern.json" <<'JSON'
   "capabilities":{"shell":{"enabled":true}} }
 JSON
 
-# blocked | ran | unmeasurable -- three outcomes. A polyglot block that fails to
-# execute for an unrelated reason must not be read as "the check fired", which
-# is how an absent toolchain turns into fictional coverage.
+# ASSERT ON THE GOVERNANCE VERDICT, NOT ON WHETHER THE SHELL RAN.
+#
+# The first version of the negative controls required the command to EXECUTE
+# (they looked for PE_RAN). That asks the wrong question. What is under test is
+# "did the privilege-escalation check block this?", and the check is a STATIC
+# scan that runs BEFORE execution -- so its verdict is available on a platform
+# with no shell executor at all.
+#
+# On the Windows runner there is no shell executor (the same run reports
+# "SKIPPED (no python/shell executor)" elsewhere), so every benign command came
+# back `unmeasurable` and all four negative controls failed while PE-01..15
+# passed. The fix was fine; the controls were measuring the environment.
+#
+# Absence of the block message is only meaningful if the scanner actually ran.
+# THAT IS GUARDED BY THE THIRTEEN must_block ARMS, not by a marker inside this
+# function. An earlier draft required "[governance] Loaded" in the captured
+# output; that string is captured inside $( ) and never reaches the CI log, so
+# it could not be verified cross-platform and would have silently turned every
+# arm unmeasurable if it were ever absent.
+#
+# The suite as a whole is the calibration: if anything stopped the privilege
+# scan from running, PE-01..15 fail loudly, and a reader knows the four negative
+# arms are void. That is a stronger guarantee than a marker string, because it
+# is asserted thirteen times against known-blocking input.
 verdict() {
     printf 'main {\n  let r = <<shell\necho %s\n>>\n  print("PE_RAN")\n}\n' "$1" > "$W/t.naab"
     local o; o=$( cd "$W" && timeout 60 "$NAAB" t.naab 2>&1 )
     case "$o" in
         *"Privilege escalation"*) echo blocked ;;
-        *PE_RAN*)                 echo ran ;;
-        *)                        echo unmeasurable ;;
+        *)                        echo not-blocked ;;
     esac
 }
 must_block() {  # id, label, command
     local v; v=$(verdict "$3")
     [ "$v" = blocked ] && ok "$1" "$2" || bad "$1" "$2" "got '$v' for: $3"
 }
-must_run()   {  # id, label, command  -- negative control
+must_run()   {  # id, label, command  -- negative control: must NOT be blocked
     local v; v=$(verdict "$3")
-    [ "$v" = ran ] && ok "$1" "$2" || bad "$1" "$2" "got '$v' for: $3 (false positive or unmeasurable)"
+    [ "$v" = not-blocked ] && ok "$1" "$2" \
+        || bad "$1" "$2" "got '$v' for: $3 — FALSE POSITIVE (see PE-01..15: if those passed, the scanner is live)"
 }
 
 echo ""
