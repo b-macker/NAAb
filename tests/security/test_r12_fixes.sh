@@ -69,16 +69,17 @@ EOF
         fail "T-SC-3: tampered lockfile not detected (exit=$TAMPER_CODE, out=$TAMPER_OUT)"
     fi
 
-    # T-SC-4: without NAAB_LOCK_KEY, --lock-check warns but proceeds (exit 0)
-    # Reset to a clean state first
-    NAAB_LOCK_KEY=testkey123 "$NAAB" --lock "$WORK_DIR/simple.naab" > /dev/null 2>&1 || true
-    WARN_OUT=$(unset NAAB_LOCK_KEY; "$NAAB" --lock-check "$WORK_DIR/simple.naab" 2>&1 || true)
-    WARN_CODE=$?
-    if echo "$WARN_OUT" | grep -qi "NAAB_LOCK_KEY not set" && [ "$WARN_CODE" -eq 0 ]; then
-        pass "T-SC-4: no NAAB_LOCK_KEY warns but does not block"
-    else
-        fail "T-SC-4: expected warn-and-proceed without key (exit=$WARN_CODE, out=$WARN_OUT)"
-    fi
+    # T-SC-4 REMOVED. It asserted that --lock-check without NAAB_LOCK_KEY
+    # WARNS AND PROCEEDS (exit 0). The runtime now refuses:
+    #   [lock] TAMPER: ...naab.lock.sig exists but NAAB_LOCK_KEY is not set.
+    # That is the correct direction and the same rule F31 established -- a
+    # signature that is present but cannot be verified is a FAILURE, not a
+    # skip. The assertion encodes the older permissive contract, so it fails
+    # because the code got safer, and satisfying it would reopen the hole.
+    # (It was also self-inconsistent: WARN_CODE=$? after a command-substitution
+    # ASSIGNMENT captures the assignment's status, not the command's, and the
+    # inner `|| true` pinned that to 0 regardless -- so the exit-code half of
+    # the condition could never fail.)
 
     rm -rf "$WORK_DIR"
 fi
