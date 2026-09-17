@@ -6670,7 +6670,14 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "subprocess_scrub_mode", "allowed_subprocess_vars",
         "blocked_subprocess_vars", "blocked_subprocess_prefixes",
         "codegen",
-        "scoring_calibration"
+        "scoring_calibration",
+        // Read in GovernanceEngine::reloadIfChanged() and carried in the
+        // CONFIG_ADJUSTMENT telemetry event: the operator's note on WHY a
+        // mid-run config change was made. Legitimately top-level, and absent
+        // here it was the one parsed root key the validator warned about --
+        // confirmed by enumerating every j.contains() on the root object
+        // against this list rather than by spotting it.
+        "update_reason"
     };
 
     try {
@@ -6693,6 +6700,14 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         };
 
         for (auto& [key, val] : j.items()) {
+            // A leading underscore marks an operator's own annotation, not a
+            // setting. Both copies of govern-template.json document every
+            // section with a "_comment_<section>" sibling, so warning on them
+            // made 55 of the template's 69 load warnings noise ABOUT ITS OWN
+            // COMMENTS -- and a channel that cries wolf is one operators learn
+            // to pipe to /dev/null, which is the real cost. JSON has no comment
+            // syntax, so this convention is the only way to annotate a config.
+            if (!key.empty() && key[0] == '_') continue;
             bool found = false;
             for (const auto& vk : VALID_TOP_KEYS) { if (key == vk) { found = true; break; } }
             if (!found) {
