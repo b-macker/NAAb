@@ -1364,6 +1364,22 @@ std::string GovernanceEngine::enforce(
                 // First occurrence — standard advisory warning
                 if (rule_name.rfind("agent_review.", 0) != 0) {
                     fprintf(stderr, "[governance] WARNING %s\n", rule_name.c_str());
+                    // ADVISORY IS THE STEERING TIER, and it used to print the rule
+                    // name and nothing else -- no function, no reason, no remedy.
+                    // violation_message carries the whole formatted guidance (Help,
+                    // Example, the specific fix) and was built, stored in
+                    // check_results_ and then dropped. The text was recoverable from
+                    // --governance-report <path>, but stderr is the channel a person
+                    // or an agent loop actually reads, so in practice the guidance
+                    // did not exist. "Warn and continue" that cannot say WHAT is
+                    // wrong only tells you something is.
+                    //
+                    // Detail prints on the FIRST occurrence only. Repeats already
+                    // fall to the occurrence-count branch below, which keeps a
+                    // noisy advisory from burying the rest of the output.
+                    if (!violation_message.empty()) {
+                        fprintf(stderr, "%s\n", violation_message.c_str());
+                    }
                 }
             } else if (esc.enabled) {
                 // 2nd+ occurrence — warn with count
