@@ -817,6 +817,12 @@ struct IntentValidationConfig {
     EnforcementLevel missing_level = EnforcementLevel::ADVISORY; // Missing level
     std::string mode = "hybrid";   // "static", "agent", "hybrid"
     int min_function_lines = 3;    // Skip tiny functions
+    // Fraction of the owner intent's keywords that must appear in the function's
+    // executable surface. The EFFECTIVE threshold is max(min_overlap, 2.0/n) for
+    // an n-keyword intent, so a short intent still requires two matches however
+    // low this is set. Was hardcoded at 0.3; govern-template.json advertised the
+    // key and the engine ignored it.
+    double min_overlap = 0.3;
     std::vector<std::string> exempt_functions;
     // Owner-defined intents (ground truth from govern.json)
     std::string project_intent;    // Broad project purpose — freeform text

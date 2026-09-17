@@ -2422,7 +2422,7 @@ std::string GovernanceEngine::checkIntentValidation(
             std::string missing, matched;
             // Don't match against function_name — owner defined that slot, so name match is circular
             double overlap = keywordOverlap(keywords, inner_body, "", missing, matched);
-            double min_overlap = std::max(0.3, 2.0 / static_cast<double>(keywords.size()));
+            double min_overlap = std::max(cfg.min_overlap, 2.0 / static_cast<double>(keywords.size()));
             addTrace(fmt::format("keyword overlap={:.0f}% (threshold={:.0f}%), matched=[{}], missing=[{}]",
                 overlap * 100, min_overlap * 100,
                 matched.empty() ? "none" : matched,
@@ -2433,9 +2433,23 @@ std::string GovernanceEngine::checkIntentValidation(
                         "  Owner requires: \"{}\"\n"
                         "  Matched: {}\n"
                         "  Missing: {}\n"
+                        "\n"
+                        "  Two different things cause this, and they have opposite fixes:\n"
+                        "  1. The code does not do what the intent says. Implement it.\n"
+                        "  2. The intent is prose this check cannot verify against code.\n"
+                        "     Rewrite it around the concrete verbs and data names the\n"
+                        "     function must touch, not a description of its purpose.\n"
+                        "     \"Perform statistical analysis\" matches nothing; \"compute\n"
+                        "     mean and stddev of response_times\" matches mean(), stddev()\n"
+                        "     and the key it reads.\n"
+                        "  Check which one you have by reading Missing above: if those\n"
+                        "  words name things the function genuinely does, the intent is\n"
+                        "  the problem.\n"
+                        "\n"
                         "  Note: Only executable code counts. Comments, string literals\n"
                         "  assigned to variables, and local variable names are stripped\n"
-                        "  before matching.\n"
+                        "  before matching, so the words have to appear in calls,\n"
+                        "  parameters or dictionary keys.\n"
                         "  Hint: Use intent keywords in function calls and identifiers.\n"
                         "  Snake_case like load_data() matches 'load'. Common synonyms\n"
                         "  of programming verbs also count (e.g., 'for' matches 'iterate').\n"
@@ -2763,7 +2777,7 @@ std::string GovernanceEngine::checkIntentValidation(
 
             std::string missing, matched;
             double overlap = keywordOverlap(keywords, t3_body, function_name, missing, matched);
-            double t3_min_overlap = std::max(0.3, 2.0 / static_cast<double>(keywords.size()));
+            double t3_min_overlap = std::max(cfg.min_overlap, 2.0 / static_cast<double>(keywords.size()));
             addTrace(fmt::format("Tier 3 overlap={:.0f}% (threshold={:.0f}%), matched=[{}], missing=[{}]",
                 overlap * 100, t3_min_overlap * 100,
                 matched.empty() ? "none" : matched,

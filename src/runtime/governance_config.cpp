@@ -1337,6 +1337,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (iv.contains("missing_level")) { auto [en, lv] = parseEnforcementLevel(iv["missing_level"]); rules_.code_quality.intent_validation.missing_level = lv; }
             if (iv.contains("mode") && iv["mode"].is_string()) rules_.code_quality.intent_validation.mode = iv["mode"].get<std::string>();
             if (iv.contains("min_function_lines") && iv["min_function_lines"].is_number_integer()) rules_.code_quality.intent_validation.min_function_lines = iv["min_function_lines"].get<int>();
+            if (iv.contains("min_overlap") && iv["min_overlap"].is_number())
+                rules_.code_quality.intent_validation.min_overlap =
+                    std::max(0.0, std::min(1.0, iv["min_overlap"].get<double>()));
             if (iv.contains("exempt_functions")) {
                 for (auto& f : iv["exempt_functions"])
                     if (f.is_string()) rules_.code_quality.intent_validation.exempt_functions.push_back(f.get<std::string>());
