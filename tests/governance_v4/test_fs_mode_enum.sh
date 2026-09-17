@@ -50,6 +50,13 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
+# Without this, an unsigned govern.json is an INTEGRITY BLOCK (exit 3) whenever
+# the ambient trust store holds any key -- so every arm below would read as a
+# refusal for a reason that has nothing to do with the mode enum, and the eight
+# refusal-expecting arms would pass for free. Gate: CV-02 in
+# tests/self-audit/test_coverage_visibility.sh, which caught this file.
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
 PASS=0; FAIL=0; FAILURES=""
@@ -57,7 +64,7 @@ ok()  { PASS=$((PASS+1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; }
 bad() { FAIL=$((FAIL+1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] && echo -e "       ${RED}-> $3${NC}"; FAILURES="${FAILURES}\n  [$1] $2"; }
 
 W="${TMPDIR:-/tmp}/naab-fsmode-$$"
-cleanup(){ rm -rf "$W"; }
+cleanup(){ teardown_isolated_trust; rm -rf "$W"; }
 trap cleanup EXIT
 mkdir -p "$W"
 
