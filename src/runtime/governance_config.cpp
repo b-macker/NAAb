@@ -212,6 +212,37 @@ static std::pair<bool, EnforcementLevel> parseEnforcementLevel(
 // check runs. Walk the parsed tree once and reject any array wider than this
 // cap — cheap, and a single guard covers every downstream loop without
 // mechanically rewriting each call site.
+// capabilities.filesystem.mode is a closed enum, and its DEFAULT is the most
+// permissive member ("write"). checkFilesystemAllowed() tests only for "none"
+// and "read", so any other string -- a typo like "readonly", "read-only" or
+// "raed" -- falls through to full write access silently, under Governance: PASS.
+// The operator asked for protection and received its opposite.
+//
+// Warning and falling back to the default (the pattern A13 used for
+// security.sandbox_level) does NOT work here: the default IS "write", so a
+// warn-and-default is still fail-open. A policy value the engine cannot
+// interpret is therefore a CONFIG ERROR -- the caller turns this into exit 4.
+//
+// "read_write" is accepted as an alias for "write": three shipped example
+// configs use it and the intent is unambiguous. Adding a member here means
+// teaching fsModeRank() about it too, or the mid-run ratchet will disagree
+// with the gate.
+static std::string normalizeFilesystemMode(const std::string& raw) {
+    if (raw == "none" || raw == "read" || raw == "write") return raw;
+    if (raw == "read_write") return "write";
+    throw std::runtime_error(fmt::format(
+        "Unrecognized filesystem access mode \"{}\"\n\n"
+        "  Got: \"{}\"\n"
+        "  Expected: one of \"none\", \"read\", \"write\"\n\n"
+        "  Help:\n"
+        "  - An unrecognized mode is refused rather than assumed, because the\n"
+        "    permissive mode is the one that would be assumed.\n"
+        "  - \"read_write\" is accepted and means the same as \"write\".\n\n"
+        "  Example:\n"
+        "    x Wrong: \"mode\": \"readonly\"\n"
+        "    v Right: \"mode\": \"read\"\n", raw, raw));
+}
+
 static constexpr size_t MAX_GOV_ARRAY_ELEMS = 10000;
 
 static bool checkJsonArrayWidth(const nlohmann::json& j, size_t max = MAX_GOV_ARRAY_ELEMS) {
@@ -411,9 +442,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (cap.contains("filesystem")) {
             if (cap["filesystem"].is_string())
-                rules_.filesystem_mode = cap["filesystem"].get<std::string>();
+                rules_.filesystem_mode = normalizeFilesystemMode(cap["filesystem"].get<std::string>());
             else if (cap["filesystem"].is_object() && cap["filesystem"].contains("mode") && cap["filesystem"]["mode"].is_string())
-                rules_.filesystem_mode = cap["filesystem"]["mode"].get<std::string>();
+                rules_.filesystem_mode = normalizeFilesystemMode(cap["filesystem"]["mode"].get<std::string>());
         }
         if (cap.contains("shell") && cap["shell"].is_boolean()) {
             if (cap["shell"].is_boolean())
@@ -726,7 +757,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cap.contains("filesystem") && cap["filesystem"].is_object()) {
             auto& fs = cap["filesystem"];
             auto& fc = rules_.capabilities.filesystem;
-            if (fs.contains("mode") && fs["mode"].is_string()) { fc.mode = fs["mode"].get<std::string>(); rules_.filesystem_mode = fc.mode; rules_.explicitly_set.insert("capabilities.filesystem.mode"); }
+            if (fs.contains("mode") && fs["mode"].is_string()) { fc.mode = normalizeFilesystemMode(fs["mode"].get<std::string>()); rules_.filesystem_mode = fc.mode; rules_.explicitly_set.insert("capabilities.filesystem.mode"); }
             if (fs.contains("allowed_paths"))
                 for (auto& p : fs["allowed_paths"]) if (p.is_string()) fc.allowed_paths.push_back(p.get<std::string>());
             if (fs.contains("blocked_paths"))
@@ -3607,7 +3638,10 @@ static bool checkRatchetViolation(
     auto fsModeRank = [](const std::string& m) -> int {
         if (m == "none") return 0;
         if (m == "read") return 1;
-        return 2; // "write"
+        // Reached only for "write"/"read_write": normalizeFilesystemMode() refuses
+        // every other string at load, so an unrecognized mode can no longer arrive
+        // here and be ranked as the most permissive member by default.
+        return 2;
     };
     int old_fs = fsModeRank(old_r.capabilities.filesystem.mode);
     int new_fs = fsModeRank(new_r.capabilities.filesystem.mode);
