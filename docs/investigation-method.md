@@ -91,6 +91,39 @@ one error repeated four times, not four findings.
 ---
 ## Investigating
 
+### Establish reachability before severity
+
+Severity is a function of who reaches the thing. Before judging an artifact — a
+config, a template, a script, a generated file — find its consumers. Grep for
+what loads it, not only for what it contains. A file nothing reads cannot have a
+severity however alarming its contents, and the check is one grep that returns
+nothing.
+
+The failure mode is specific. Measuring an artifact's behaviour is engaging and
+produces vivid evidence, so it gets done first; by the time the consumer question
+is asked there is already a conclusion for it to contradict.
+
+Precedent: `govern-template.json` was reviewed by running it — observed exit 4 on
+a missing `extends` base, observed exit 3 on eighteen phantom contract functions,
+observed a filesystem policy permitting an SSH key read. All three measurements
+were correct. The severity attached to them rested on "the template is what
+operators copy", which was **authored, not observed**, and false: nothing in
+`tests/`, `run-all-tests.sh` or the runtime loads either template copy, and
+operators get their config from `naab-lang init`, which builds a different and
+sounder one in `governance_init.cpp`. The report survived one question from the
+reader.
+
+### Order checks by decisiveness, not by interest
+
+Rank the pending checks by how much of the analysis each can invalidate, and run
+the cheapest high-invalidation check first. That check is reliably the boring
+one — who loads this, is the instrument live, does the population have members
+you did not list — and it reliably gets done second, because the interesting
+check produces a finding and the boring one produces a null.
+
+A null arriving first reframes the work. The same null arriving last only damages
+a conclusion you are already invested in.
+
 ### Trace to the point of EFFECT, not the point of mention
 
 A grep finds references. A reference proves nothing: the function containing it
@@ -264,6 +297,26 @@ engage. The harness looks rigorous and is structurally incapable of answering.
 Ask what the mechanism needs in order to act at all, and check your design
 supplies it, before trusting a null result from it.
 
+### An outer gate masks the inner one
+
+When enforcement is layered, a probe measures the OUTERMOST layer that fires, not
+the one you are asking about. The tell is a uniform refusal across every arm,
+which reads as a strong result and is the signature of never having reached the
+subject at all.
+
+Neutralise the outer layers explicitly, and keep an arm that must SUCCEED — it is
+the only arm that can reveal the masking, because every blocked arm looks
+identical whether the block came from the layer under test or the one in front of
+it.
+
+Precedent: `capabilities.filesystem.mode` was probed with seven values under
+`mode: enforce`. Five returned an unclassified non-zero exit — the sandbox had
+upgraded to `standard` and denied the write before governance was consulted.
+Re-run with `security.sandbox_level: "elevated"`, the same seven arms separated
+cleanly and showed the gate falls through to full write access on any
+unrecognised value. Had the probe carried only refusal-expecting arms, the masked
+run would have read as a clean pass.
+
 ### A sweep over explicit values cannot see a default
 
 If every cell of your matrix SETS the key, changing its default moves nothing,
@@ -359,6 +412,20 @@ new verification is the most persuasive way to be wrong.
 Precedent: nine unenforced keys were all aggregates, which produced the claim
 that the engine "never accumulates". It does — a live aggregate limit is backed
 by a member counter. The observations were all correct; the explanation was not.
+
+### Evidence you already collected gets read as confirming
+
+The dangerous disconfirming evidence is not what you failed to gather — it is the
+line already sitting in output you have read, filed as support because you had a
+thesis when you read it. Re-read your own early output against the finished
+conclusion, looking specifically for the line that should have stopped you.
+
+Precedent: the first grep of the template investigation returned
+`governance_init.cpp:2` — *"Generates a complete govern.json covering all 83
+sections from govern-template.json"* — read as confirmation that `init` derives
+from the template. It says the opposite: a separate generator exists. It was in
+hand before the first measurement was taken, and was quoted in the write-up it
+falsified.
 
 ### Distinguish absent from uncontrolled
 
