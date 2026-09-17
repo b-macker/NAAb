@@ -223,13 +223,27 @@ static std::pair<bool, EnforcementLevel> parseEnforcementLevel(
 // warn-and-default is still fail-open. A policy value the engine cannot
 // interpret is therefore a CONFIG ERROR -- the caller turns this into exit 4.
 //
-// "read_write" is accepted as an alias for "write": three shipped example
-// configs use it and the intent is unambiguous. Adding a member here means
-// teaching fsModeRank() about it too, or the mid-run ratchet will disagree
-// with the gate.
+// THE HARM IS ONE-DIRECTIONAL, and that sets which values are accepted.
+// A spelling that still evidently means PERMISSIVE and resolves to permissive
+// harms nobody -- nobody writing "readwrite" wanted read-only. A spelling that
+// means RESTRICTIVE and silently resolves to permissive is the entire defect.
+// So the unambiguous write-synonyms are aliased and everything else is refused,
+// which catches every "readonly"/"read-only" variant -- the dangerous direction.
+//
+// The synonyms are not hypothetical: "read_write" is in ~40 files including
+// three shipped example configs, and "readwrite" in 15 across eight test files,
+// three of them security suites. Both reached the gate through the same
+// fall-through this function closes.
+//
+// Refusing rather than GUESSING for the rest is deliberate. Mapping "readonly"
+// to "read" would be friendlier and is still a guess; a config error naming the
+// three valid members is fail-closed and teaches the spelling.
+//
+// Adding a member here means teaching fsModeRank() about it too, or the mid-run
+// ratchet will disagree with the gate.
 static std::string normalizeFilesystemMode(const std::string& raw) {
     if (raw == "none" || raw == "read" || raw == "write") return raw;
-    if (raw == "read_write") return "write";
+    if (raw == "read_write" || raw == "readwrite" || raw == "read-write") return "write";
     throw std::runtime_error(fmt::format(
         "Unrecognized filesystem access mode \"{}\"\n\n"
         "  Got: \"{}\"\n"

@@ -36,7 +36,12 @@
 #   FM-03      LIVE CONTROL: "write" still ALLOWS -- the only arm that can
 #              reveal a masked probe. Every other arm here expects a refusal,
 #              and a refusal is what a broken probe produces for free.
-#   FM-04      "read_write" still allows (shipped configs keep working)
+#   FM-04      the write-SYNONYMS still allow. "read_write" is in ~40 files
+#              including three shipped configs and "readwrite" in 15 across
+#              eight test files, three of them security suites; both reached the
+#              gate through the same fall-through. A spelling that evidently
+#              means permissive and resolves to permissive harms nobody -- the
+#              defect is a spelling that means RESTRICTIVE and silently grants.
 #   FM-05..07  typos are REFUSED at load, not silently granted
 #   FM-08      the legacy string form is refused too (second parse site)
 #   FM-09      NEGATIVE CONTROL: omitting the key entirely must still load
@@ -63,13 +68,18 @@ printf 'main {\n  file.write("out.txt", "DATA")\n  print("WROTE")\n}\n' > "$W/t.
 # sandbox_level elevated is deliberate: with mode:enforce the sandbox upgrades to
 # "standard" and denies the write BEFORE governance is consulted, so every arm
 # reads as blocked and the suite passes without testing the gate at all.
+# python writes to STDOUT and the SHELL does the redirect. Handing "$W/..." to
+# python3 would break under MSYS2, where python3 is a native Windows build that
+# cannot open an MSYS /tmp path -- the fixture writer becomes a broken probe and
+# every refusal-expecting arm below passes for free.
+# Guarded by tests/self-audit/test_shell_path_handoff.sh, which caught this file.
 write_cfg() {  # $1 = json fragment for capabilities.filesystem
     python3 -c "
 import json,sys
 json.dump({'version':'1.0','mode':'enforce',
  'security':{'sandbox_level':'elevated'},
- 'capabilities':{'filesystem':json.loads(sys.argv[1])}}, open(sys.argv[2],'w'))
-" "$1" "$W/govern.json"
+ 'capabilities':{'filesystem':json.loads(sys.argv[1])}}, sys.stdout)
+" "$1" > "$W/govern.json"
 }
 
 verdict() {
@@ -87,7 +97,8 @@ verdict() {
 
 echo -e "${CYAN}=== Group FM: filesystem.mode enum ===${NC}"
 
-for pair in "none:blocked:FM-01" "read:blocked:FM-02" "write:allowed:FM-03" "read_write:allowed:FM-04"; do
+for pair in "none:blocked:FM-01" "read:blocked:FM-02" "write:allowed:FM-03" \
+            "read_write:allowed:FM-04" "readwrite:allowed:FM-04b" "read-write:allowed:FM-04c"; do
     m="${pair%%:*}"; rest="${pair#*:}"; want="${rest%%:*}"; id="${rest##*:}"
     write_cfg "{\"mode\":\"$m\"}"
     got=$(verdict)
@@ -113,10 +124,10 @@ else bad "FM-08" "legacy string form must be refused" "got: $got"; fi
 # NEGATIVE CONTROL. Refusing unknown values must not refuse an ABSENT key --
 # without this, a validator that rejected everything would pass FM-05..08.
 python3 -c "
-import json
+import json,sys
 json.dump({'version':'1.0','mode':'enforce','security':{'sandbox_level':'elevated'},
- 'capabilities':{'filesystem':{'allowed_paths':[]}}}, open('$W/govern.json','w'))
-"
+ 'capabilities':{'filesystem':{'allowed_paths':[]}}}, sys.stdout)
+" > "$W/govern.json"
 got=$(verdict)
 if [ "$got" = "allowed" ]; then ok "FM-09" "absent mode still loads and uses the default"
 else bad "FM-09" "omitting the key must not be a config error" "got: $got"; fi

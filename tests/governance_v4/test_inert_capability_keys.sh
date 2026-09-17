@@ -118,18 +118,18 @@ pair() {  # $1=id $2=label $3=inert-caps $4=control-caps $5=program
 }
 
 pair "IC-01" "allow_hidden_files:false is inert (blocked_paths is not)" \
-     '{"filesystem":{"mode":"readwrite","allow_hidden_files":false}}' \
-     '{"filesystem":{"mode":"readwrite","blocked_paths":[".hidden_secret"]}}' \
+     '{"filesystem":{"mode":"write","allow_hidden_files":false}}' \
+     '{"filesystem":{"mode":"write","blocked_paths":[".hidden_secret"]}}' \
      "$READ_HIDDEN"
 
 pair "IC-02" "allow_absolute_paths:false is inert (blocked_paths is not)" \
-     '{"filesystem":{"mode":"readwrite","allow_absolute_paths":false}}' \
-     '{"filesystem":{"mode":"readwrite","blocked_paths":["plain.txt"]}}' \
+     '{"filesystem":{"mode":"write","allow_absolute_paths":false}}' \
+     '{"filesystem":{"mode":"write","blocked_paths":["plain.txt"]}}' \
      "$READ_PLAIN_ABS"
 
 pair "IC-03" "blocked_extensions is inert (blocked_paths is not)" \
-     '{"filesystem":{"mode":"readwrite","blocked_extensions":[".txt"]}}' \
-     '{"filesystem":{"mode":"readwrite","blocked_paths":["plain.txt"]}}' \
+     '{"filesystem":{"mode":"write","blocked_extensions":[".txt"]}}' \
+     '{"filesystem":{"mode":"write","blocked_paths":["plain.txt"]}}' \
      "$READ_PLAIN"
 
 # process.* uses a different control: shell.enabled, the gate that really fires.
