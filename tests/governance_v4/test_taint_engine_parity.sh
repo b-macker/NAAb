@@ -171,7 +171,23 @@ for entry in $SCENARIOS; do
     vm=$(count_violations "$name" "")
     tw=$(count_violations "$name" "--tree-walk")
 
-    if [ "$vm" != "$tw" ]; then
+    # DETECTION parity, not verbosity parity. The two engines report through
+    # different paths and formats -- the VM routes through enforce() (lowercase
+    # "[governance] WARNING <rule>" plus the violation text plus a summary line),
+    # while the tree-walker prints its own uppercase "[GOVERNANCE] WARNING:"
+    # directly. Counting MATCHING LINES conflates "did it detect" with "how many
+    # lines did it print", and the two only ever agreed because both paths
+    # happened to emit 2. Printing the advisory detail on the VM path (strictly
+    # better output -- it names "argument 1 of file.write()" and the real line,
+    # where the tree-walker says "expression" at :0) moved one side to 3 and this
+    # assertion failed without any taint behaviour changing.
+    #
+    # What must agree is WHETHER each engine flagged it. Counts stay in the
+    # message for diagnosis, and the clean case below now tests both engines
+    # explicitly rather than relying on equality to imply it.
+    vm_flagged=$([ "$vm" -gt 0 ] && echo yes || echo no)
+    tw_flagged=$([ "$tw" -gt 0 ] && echo yes || echo no)
+    if [ "$vm_flagged" != "$tw_flagged" ]; then
         fail "PARITY-$name" "engines disagree (VM=$vm tree-walk=$tw)" \
              "taint is implemented twice; a divergence means one path is wrong"
         continue
@@ -186,10 +202,10 @@ for entry in $SCENARIOS; do
                  "agreement on a false negative — taint reached a sink unflagged"
         fi
     else
-        if [ "$vm" -eq 0 ]; then
+        if [ "$vm" -eq 0 ] && [ "$tw" -eq 0 ]; then
             pass "PARITY-$name" "both engines leave clean data alone"
         else
-            fail "PARITY-$name" "both engines flagged CLEAN data ($vm)" \
+            fail "PARITY-$name" "an engine flagged CLEAN data (VM=$vm tree-walk=$tw)" \
                  "a false positive makes every taint count untrustworthy"
         fi
     fi

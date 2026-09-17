@@ -185,7 +185,14 @@ main {
 }
 NAAB
 OUTPUT=$("$NAAB_BIN" test_load.naab 2>&1 || true)
-check "No config load error" "! echo '$OUTPUT' | grep -q 'Failed to load'"
+# The condition is SINGLE-quoted so $OUTPUT is expanded inside the eval, within
+# [[ ]] double quotes, instead of being spliced into the condition string. The
+# previous form interpolated captured governance output into an eval'd string
+# between single quotes, so any apostrophe in a message terminated the quote --
+# CONTRA-013's advisory text says "NAAb's standard library" and contains
+# "<<python>>", which the shell then read as a heredoc operator. The test failed
+# with a bash syntax error while the thing it was checking was fine.
+check "No config load error" '[[ "$OUTPUT" != *"Failed to load"* ]]'
 
 # --- Summary ---
 echo ""
