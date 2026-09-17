@@ -1796,6 +1796,17 @@ std::string GovernanceEngine::checkEmptyMain(const std::string& source) {
     return "";
 }
 
+// Name a NaabVal's type for contract diagnostics. int 20 and float 20.0 render
+// identically via toString(), so a type-strict mismatch is invisible without it.
+static const char* naabTypeName(const interpreter::NaabVal& v) {
+    if (v.isNull())   return "null";
+    if (v.isBool())   return "bool";
+    if (v.isInt())    return "int";
+    if (v.isDouble()) return "float";
+    if (v.isString()) return "string";
+    return "value";
+}
+
 // --- Intent Validation: verify code matches declared intent ---
 // Authority hierarchy:
 //   1. Owner's function_intents in govern.json (ground truth, cfg.level)
@@ -3862,8 +3873,44 @@ std::string GovernanceEngine::checkMustProduce(
         std::string expect_str = expected.isNull() ? "null" : expected.toString();
 
         if (type_mismatch || result_str != expect_str) {
-            addTrace(fmt::format("must_produce test #{}: args={}, expected={}, got={}",
-                i + 1, args_display, expect_str, result_str));
+            addTrace(fmt::format("must_produce test #{}: args={}, expected={} ({}), got={} ({})",
+                i + 1, args_display, expect_str, naabTypeName(expected),
+                result_str, naabTypeName(result)));
+
+            // A type mismatch can render IDENTICALLY on both sides -- int 20 and
+            // float 20.0 both print as "20", so the operator reads
+            // "Expected: 20 / Got: 20" and has no way to see the difference.
+            // That is not cosmetic. NAAb division is ALWAYS double (DIV-001), so
+            // every computed mean or ratio is a float, while a fixture written
+            // `"expect": 20` is an int -- the CORRECT implementation fails while a
+            // hardcoded `return 20` PASSES. Measured: with int fixtures, a
+            // hardcoded stub exits 0 and the real implementation exits 3. The
+            // gate inverts, rewarding exactly the hardcoding contracts exist to
+            // catch, and the message gives no way to diagnose it.
+            if (type_mismatch) {
+                return enforce("contracts." + func_name + ".must_produce", level,
+                    formatError(level,
+                        fmt::format("must_produce: '{}' returned the right value with the wrong TYPE",
+                            func_name),
+                        line > 0 ? fmt::format("line {}", line) : "",
+                        "contracts.must_produce",
+                        fmt::format("Input: {}\n"
+                            "  Expected: {} ({})\n"
+                            "  Got:      {} ({})\n\n"
+                            "  Comparison is type-strict, so these do not match even when\n"
+                            "  they print the same.\n"
+                            "  Division always produces a float, so a computed average or\n"
+                            "  ratio needs a float in the fixture.",
+                            args_display, expect_str, naabTypeName(expected),
+                            result_str, naabTypeName(result)),
+                        fmt::format("\"expect\": {}   // {}", expect_str, naabTypeName(expected)),
+                        fmt::format("\"expect\": {}   // {}",
+                            (naabTypeName(result) == std::string("float") &&
+                             expect_str.find('.') == std::string::npos)
+                                ? expect_str + ".0" : result_str,
+                            naabTypeName(result))));
+            }
+
             return enforce("contracts." + func_name + ".must_produce", level,
                 formatError(level,
                     fmt::format("must_produce: '{}' returned wrong value", func_name),
