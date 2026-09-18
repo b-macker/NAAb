@@ -1629,12 +1629,28 @@ int main(int argc, char** argv) {
             interpreter.setProfileMode(profile);
             interpreter.setExplainMode(explain);
             interpreter.setScriptArgs(script_args);  // ISS-028: Pass script arguments
-            if (no_governance) {
-                interpreter.disableGovernance();
-            } else if (governance_override) {
+            // govern.json is the source of truth; a CLI flag may tighten, never
+            // loosen -- the same rule --sandbox-level and --timeout already follow.
+            // So --no-governance does NOT disable the engine here. It keeps the one
+            // job nothing else can do: waiving the "no govern.json found" hard error,
+            // since require_governance defaults TRUE (see global_require_governance
+            // above), so a program with no config cannot run without it.
+            //
+            // This mirrors the VM path, which has never honoured the flag as an off
+            // switch -- the tree-walker was the last place a CLI flag could disable
+            // governance wholesale, which made the VM's hardening one flag deep:
+            // `--tree-walk --no-governance` walked past a HARD block that
+            // `--no-governance` alone was refused.
+            //
+            // Note disableGovernance() reset governance_, and setSourceCode()'s
+            // config-load block is gated on `if (governance_ && ...)`, so it also
+            // suppressed that block's stderr banners as a side effect. With the
+            // engine alive those banners now appear on tree-walk runs. That is
+            // cosmetic, not enforcement.
+            if (!no_governance && governance_override) {
                 interpreter.setGovernanceOverride(true);
             }
-            if (require_governance) {
+            if (require_governance && !no_governance) {
                 interpreter.setRequireGovernance(true);
             }
             interpreter.setGovernanceVerbose(governance_verbose);

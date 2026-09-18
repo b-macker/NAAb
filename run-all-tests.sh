@@ -1572,6 +1572,23 @@ else
     echo "  test_path_precedence.sh: not found, skipping"
 fi
 
+# --- govern.json authority: a flag may tighten, the file decides ---
+# Two arms that must fail INDEPENDENTLY, or one patch silently carries the
+# other's coverage: GA-01 dies if main.cpp lets --no-governance disable the
+# tree-walker, GB-01 dies if vm.cpp stops honouring `mode: "off"`. Both revert
+# checks were run rather than assumed.
+GOV_AUTHORITY_SCRIPT="tests/security/test_governance_authority.sh"
+if [ -f "$GOV_AUTHORITY_SCRIPT" ]; then
+    if run_shell_test "$GOV_AUTHORITY_SCRIPT" 2>&1; then
+        echo "  test_governance_authority.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_governance_authority.sh")
+    fi
+else
+    echo "  test_governance_authority.sh: not found, skipping"
+fi
+
 # --- Path policy reach (CONTRA-013) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
