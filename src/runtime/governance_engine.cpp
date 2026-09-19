@@ -2396,6 +2396,53 @@ std::string GovernanceEngine::checkEnvVarRead(const std::string& var_name) {
                 "env.get(\"MY_VAR\")",
                 "let value = config.get(\"my_var\")  // use config instead"));
     }
+    // Per-agent action matrix: ENV_READ.
+    // Without this the matrix could not express "may not read environment
+    // variables" -- ENV_READ had zero occurrences in it, while env vars are the
+    // primary credential-exfiltration surface. Placed after the global master
+    // switch and before the per-variable lists, matching the NET_CONNECT shape
+    // in checkNetworkAllowed: a role narrows the project policy, never widens
+    // it, so an empty matrix means "role adds no restriction".
+    for (const auto& role : rules().agents) {
+        if (role.name == effectiveAgentId()) {
+            // OPT-IN, and deliberately so. A matrix written before ENV_READ /
+            // ENV_WRITE existed opted into an allowlist over a six-action
+            // vocabulary; enforcing a seventh retroactively denies something
+            // those configs never had the option to permit. Measured: every
+            // shipped config using the matrix (living-script_v2's twelve roles)
+            // lists no ENV_* action, so a non-opt-in version would break all of
+            // them. Matches the shell_content_allowed convention -- a new field
+            // must not change existing behaviour.
+            //
+            // The gate is "does this matrix mention env at all". Listing
+            // ENV_WRITE but not ENV_READ therefore denies reads, which is how a
+            // config expresses the restriction.
+            bool matrix_governs_env = false;
+            for (const auto& a : role.allowed_actions) {
+                if (a == "ENV_READ" || a == "ENV_WRITE") { matrix_governs_env = true; break; }
+            }
+            if (matrix_governs_env) {
+                bool allowed = false;
+                for (const auto& a : role.allowed_actions) {
+                    if (a == "ENV_READ") { allowed = true; break; }
+                }
+                if (!allowed) {
+                    return enforce("agent_role.action_matrix", EnforcementLevel::HARD,
+                        formatError(EnforcementLevel::HARD,
+                            "Agent '" + effectiveAgentId() + "' action matrix does not include ENV_READ",
+                            "",
+                            "agents." + effectiveAgentId() + ".allowed_actions",
+                            "Your agent's allowed_actions list does not include ENV_READ.\n"
+                            "Add ENV_READ to the allowed_actions list to permit reading\n"
+                            "environment variables.",
+                            "env.get(\"" + var_name + "\")",
+                            "let value = config.get(\"my_var\")  // use config instead"));
+                }
+            }
+            break;
+        }
+    }
+
     // blocked_read: case-insensitive match
     std::string upper_name = var_name;
     std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), ::toupper);
@@ -2456,6 +2503,47 @@ std::string GovernanceEngine::checkEnvVarWrite(const std::string& var_name) {
                 "env.set_var(\"MY_VAR\", value)",
                 "config.set(\"my_var\", value)  // use config instead"));
     }
+    // Per-agent action matrix: ENV_WRITE (see the ENV_READ note above).
+    for (const auto& role : rules().agents) {
+        if (role.name == effectiveAgentId()) {
+            // OPT-IN, and deliberately so. A matrix written before ENV_READ /
+            // ENV_WRITE existed opted into an allowlist over a six-action
+            // vocabulary; enforcing a seventh retroactively denies something
+            // those configs never had the option to permit. Measured: every
+            // shipped config using the matrix (living-script_v2's twelve roles)
+            // lists no ENV_* action, so a non-opt-in version would break all of
+            // them. Matches the shell_content_allowed convention -- a new field
+            // must not change existing behaviour.
+            //
+            // The gate is "does this matrix mention env at all". Listing
+            // ENV_WRITE but not ENV_READ therefore denies reads, which is how a
+            // config expresses the restriction.
+            bool matrix_governs_env = false;
+            for (const auto& a : role.allowed_actions) {
+                if (a == "ENV_READ" || a == "ENV_WRITE") { matrix_governs_env = true; break; }
+            }
+            if (matrix_governs_env) {
+                bool allowed = false;
+                for (const auto& a : role.allowed_actions) {
+                    if (a == "ENV_WRITE") { allowed = true; break; }
+                }
+                if (!allowed) {
+                    return enforce("agent_role.action_matrix", EnforcementLevel::HARD,
+                        formatError(EnforcementLevel::HARD,
+                            "Agent '" + effectiveAgentId() + "' action matrix does not include ENV_WRITE",
+                            "",
+                            "agents." + effectiveAgentId() + ".allowed_actions",
+                            "Your agent's allowed_actions list does not include ENV_WRITE.\n"
+                            "Add ENV_WRITE to the allowed_actions list to permit setting\n"
+                            "environment variables.",
+                            "env.set_var(\"" + var_name + "\", value)",
+                            "// pass the value as a function argument instead"));
+                }
+            }
+            break;
+        }
+    }
+
     // blocked_write: case-insensitive match
     std::string upper_name = var_name;
     std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), ::toupper);
