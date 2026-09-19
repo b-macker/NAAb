@@ -1,8 +1,23 @@
-# Plan — function-scope effect envelopes
+# Plan — function-scope capabilities
 
 **Status:** design, nothing built. Written before code so the premises can be
 checked rather than discovered. Every file:line below was traced, and the
 premises that did not survive tracing are recorded rather than deleted.
+
+## Terminology
+
+Called **function-scope capabilities**, not "effect envelopes". The whole value
+of this design is that it is not a new subsystem: it is `capabilities` at a
+third scope, reusing the existing action vocabulary, enforced inside functions
+that already exist, ratcheted by the machinery that already ratchets its
+siblings. An operator who knows `capabilities.filesystem` and
+`agents.<n>.allowed_actions` already knows this.
+
+A new concept name would invite a new config section, new defaults and new
+docs — which is how this repo acquired 75 pinned inert keys and a flag with
+zero uses across 146 configs. If it needs its own name, it has been made too
+separate from capabilities. "Envelope" survives only as informal shorthand for
+the computed set, never in a config key, an error message or a heading.
 
 ## What this is for
 
@@ -32,14 +47,14 @@ was standing in for: **what is this function allowed to DO.**
 
 ## What it is NOT
 
-- **effect envelopes** catch **excess** — doing more than declared.
+- **function-scope capabilities** catch **excess** — doing more than declared.
 - **contracts** (`must_produce`, `must_vary`, `must_differentiate`) catch
   **absence** — not doing the job. They execute the function and compare
   outputs. They already work.
 - **intent prose** reliably catches neither. That is the measurement above.
 
-An envelope will not catch `fn compute_totals(rows) { return 0 }`. That stub
-performs no actions and satisfies any envelope trivially; `must_produce` catches
+A function's capabilities will not catch `fn compute_totals(rows) { return 0 }`. That stub
+performs no actions and satisfies any declaration trivially; `must_produce` catches
 it today. Documentation must say this in those words.
 
 ## Premises that did NOT survive tracing
@@ -117,19 +132,19 @@ for getting that wrong is `emitTryEndsForLoopExit()` in the compiler.
 rather than a boundary.** If `format_report()` declares `[FS_READ]` and calls
 `write_helper()` declaring `[FS_WRITE]`:
 
-- *innermost-wins* → the caller escapes its envelope by delegating. This is the
+- *innermost-wins* → the caller escapes its own declaration by delegating. This is the
   split-delegation pattern `agent_review`'s prompt already hunts for.
-- *intersection* → effective envelope is `[]`; the deputy cannot be used to
+- *intersection* → the effective set is `[]`; the deputy cannot be used to
   launder authority.
 
-Effective envelope = intersection of every entry on the function stack, then
+Effective capabilities = intersection of every entry on the function stack, then
 intersected with the role, then with the program. Same monotonic-narrowing
 principle the engine already applies for role ⊆ program, extended to depth.
 
 The usability cost is real and is the security property: a shared utility must
 be callable from its most restrictive caller. Expect this to surface as "my
 logger stopped working", and the helper error (F6) must name the *caller* whose
-envelope caused the intersection, not just the function that attempted the call.
+declaration caused the intersection, not just the function that attempted the call.
 
 No new machinery — intersection is computed over the F3 stack that must exist
 anyway.
@@ -139,10 +154,12 @@ anyway.
 Enforced in the matrix today: `FS_READ`, `FS_WRITE`, `NET_CONNECT`,
 `SHELL_EXEC`, `AGENT_SEND`, `TOOL_EXEC`.
 
-Missing, and needed before envelopes can express what they are for:
+Missing, and needed before function-scope capabilities can express what they
+are for:
 
 - **`ENV_READ` / `ENV_WRITE`** — zero occurrences in the matrix. Without them an
-  envelope cannot say "this function may not read environment variables", which
+  declaration cannot say "this function may not read environment variables",
+  which
   is the primary credential-exfiltration concern and the thing
   `capabilities.env_vars` governs globally. Enforcement points already exist:
   `checkEnvVarRead()` / `checkEnvVarWrite()`, called from all 9 env access sites.
@@ -174,7 +191,8 @@ This also settles "block on first vs accumulate": `advisory` accumulates,
 
 `capabilities.filesystem.mode` is already ratcheted (one of 68 loosening checks
 in `governance_config.cpp`), as are per-agent `shell_allowed` /
-`network_allowed`. Function envelopes join that: adding an action mid-run is a
+`network_allowed`. Function-scope capabilities join that: adding an action
+mid-run is a
 loosening violation, removing one is a notice. Adding a **new function entry**
 mid-run needs what `meta.allow_agent_addition_mid_run` gives new agents, or the
 ratchet is escapable by renaming — that exact hole existed for agents and was
@@ -184,7 +202,7 @@ closed.
 
 ```
 Undeclared effect in 'format_report': FS_WRITE
-  Effective envelope: FS_READ
+  Effective capabilities: FS_READ
     from function 'format_report'   [FS_READ]
     narrowed by caller 'render_all' [FS_READ, FS_WRITE]
   Attempted: file.write("out.txt")  at report.naab:42
@@ -198,13 +216,13 @@ Undeclared effect in 'format_report': FS_WRITE
 ```
 
 The provenance lines are required by F8: under intersection the blocking
-envelope often belongs to a *caller*, and without naming it the operator edits
+declaration often belongs to a *caller*, and without naming it the operator edits
 the wrong entry. The closing note prevents hitting containment as a second,
 unexplained refusal.
 
 ### F10 — Telemetry
 
-`EFFECT_VIOLATION` with function, effective envelope, attempted action, call
+`CAPABILITY_VIOLATION` with function, effective capabilities, attempted action, call
 stack, source location, and the enforcement level. Every other subsystem emits
 one and the audit trail needs it. Chain rules in CLAUDE.md apply: seed with
 `chainPrevLocked(fp)` and increment `chained_events_this_run_` under
@@ -239,7 +257,7 @@ Each phase is independently useful and independently testable.
    carries `file` and `line` and no function.
 2. **F9 vocabulary** — `ENV_READ`/`ENV_WRITE` in the matrix first; useful to
    per-agent `allowed_actions` immediately, before function scope exists.
-3. **F1 + F2 + F6** — envelopes enforced at one gate (`FS_WRITE`) end to end,
+3. **F1 + F2 + F6** — enforced at one gate (`FS_WRITE`) end to end,
    advisory only. Smallest thing that demonstrates the loop.
 4. **F8 composition** — before widening to more gates, because it changes the
    semantics of everything built in phase 3.
