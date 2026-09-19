@@ -1364,6 +1364,22 @@ std::string GovernanceEngine::enforce(
                 // First occurrence — standard advisory warning
                 if (rule_name.rfind("agent_review.", 0) != 0) {
                     fprintf(stderr, "[governance] WARNING %s\n", rule_name.c_str());
+                    // ADVISORY IS THE STEERING TIER, and it used to print the rule
+                    // name and nothing else -- no function, no reason, no remedy.
+                    // violation_message carries the whole formatted guidance (Help,
+                    // Example, the specific fix) and was built, stored in
+                    // check_results_ and then dropped. The text was recoverable from
+                    // --governance-report <path>, but stderr is the channel a person
+                    // or an agent loop actually reads, so in practice the guidance
+                    // did not exist. "Warn and continue" that cannot say WHAT is
+                    // wrong only tells you something is.
+                    //
+                    // Detail prints on the FIRST occurrence only. Repeats already
+                    // fall to the occurrence-count branch below, which keeps a
+                    // noisy advisory from burying the rest of the output.
+                    if (!violation_message.empty()) {
+                        fprintf(stderr, "%s\n", violation_message.c_str());
+                    }
                 }
             } else if (esc.enabled) {
                 // 2nd+ occurrence — warn with count
@@ -2035,6 +2051,61 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
             break;
         }
     }
+    // --- Tier 3: function-scope capabilities -------------------------------
+    // Phase 3 of docs/plan-function-effects.md, enforced at ONE gate (this one)
+    // and ADVISORY only, so the loop can be demonstrated before it can break a
+    // build. Composition across the call stack (F8) is NOT implemented yet:
+    // only the innermost function is consulted, so a restricted caller can
+    // still reach this through a permissive callee. That is a known gap, not an
+    // oversight, and it is why this tier stays advisory until F8 lands.
+    if (!rules().capabilities.functions.empty()) {
+        const std::string& fn = currentFunction();
+        const auto& fns = rules().capabilities.functions;
+        auto it = fns.find(fn);
+        bool via_default = false;
+        if (it == fns.end()) { it = fns.find("default"); via_default = true; }
+        if (it != fns.end()) {
+            std::string required = (mode == "write") ? "FS_WRITE" : "FS_READ";
+            bool allowed = false;
+            for (const auto& a : it->second.allowed_actions) {
+                if (a == required) { allowed = true; break; }
+            }
+            if (!allowed) {
+                // Two renderings: `listed` is prose, `quoted` is valid JSON.
+                // Building one string and reusing it produced
+                // ["FS_READ, FS_WRITE"] -- a single element containing a comma,
+                // which is JSON the operator cannot paste.
+                std::string listed, quoted;
+                for (const auto& a : it->second.allowed_actions) {
+                    if (!listed.empty()) { listed += ", "; quoted += ", "; }
+                    listed += a;
+                    quoted += "\"" + a + "\"";
+                }
+                std::string entry = via_default ? std::string("default") : it->first;
+                std::string who = fn.empty() ? std::string("top level") : ("'" + fn + "'");
+                std::string proposed = quoted.empty() ? ("\"" + required + "\"")
+                                                     : (quoted + ", \"" + required + "\"");
+                return enforce("capabilities.functions", EnforcementLevel::ADVISORY,
+                    formatError(EnforcementLevel::ADVISORY,
+                        "Undeclared action in " + who + ": " + required,
+                        fn.empty() ? "" : ("in function '" + fn + "'"),
+                        "capabilities.functions." + entry + ".allowed_actions",
+                        "That function may perform: " + (listed.empty() ? "(nothing)" : listed) + "\n"
+                        "Either the operation does not belong here, or the\n"
+                        "declaration is incomplete. To permit it, add " + required + ":\n"
+                        "  \"capabilities\": { \"functions\": { \"" + entry + "\": {\n"
+                        "      \"allowed_actions\": [" + proposed + "] } } }\n"
+                        "A function grant can only narrow what its role and the\n"
+                        "program already permit - adding it here has no effect if\n"
+                        "either of those lacks it.",
+                        mode == "write" ? "file.write(\"output.txt\", data)"
+                                        : "file.read(\"input.txt\")",
+                        "Declare " + required + " for " + who + ", or move the call"));
+            }
+        }
+    }
+
+
     recordPass("capabilities.filesystem", EnforcementLevel::HARD);
     return "";
 }
@@ -2253,10 +2324,17 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     }
 
     if (project.result == PathVerdict::Result::Blocked) {
+        // FAS phase 1 consumer: name the function that attempted it. Before the
+        // attribution stack there was no way to say this -- RuntimeEvent carries
+        // file and line and no function, and the refusal named a path with no
+        // indication of which function owns the call.
+        const std::string& fn_at = currentFunction();
+        std::string where = fn_at.empty() ? std::string()
+                                          : ("in function '" + fn_at + "'");
         return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 "File path blocked by governance: " + filepath,
-                "",
+                where,
                 "capabilities.filesystem.blocked_paths contains \"" + project.rule + "\"",
                 "This path is blocked by the project's governance configuration.\n"
                 "Use a path under an allowed directory (e.g., ./data or ./output).",
@@ -2373,6 +2451,53 @@ std::string GovernanceEngine::checkEnvVarRead(const std::string& var_name) {
                 "env.get(\"MY_VAR\")",
                 "let value = config.get(\"my_var\")  // use config instead"));
     }
+    // Per-agent action matrix: ENV_READ.
+    // Without this the matrix could not express "may not read environment
+    // variables" -- ENV_READ had zero occurrences in it, while env vars are the
+    // primary credential-exfiltration surface. Placed after the global master
+    // switch and before the per-variable lists, matching the NET_CONNECT shape
+    // in checkNetworkAllowed: a role narrows the project policy, never widens
+    // it, so an empty matrix means "role adds no restriction".
+    for (const auto& role : rules().agents) {
+        if (role.name == effectiveAgentId()) {
+            // OPT-IN, and deliberately so. A matrix written before ENV_READ /
+            // ENV_WRITE existed opted into an allowlist over a six-action
+            // vocabulary; enforcing a seventh retroactively denies something
+            // those configs never had the option to permit. Measured: every
+            // shipped config using the matrix (living-script_v2's twelve roles)
+            // lists no ENV_* action, so a non-opt-in version would break all of
+            // them. Matches the shell_content_allowed convention -- a new field
+            // must not change existing behaviour.
+            //
+            // The gate is "does this matrix mention env at all". Listing
+            // ENV_WRITE but not ENV_READ therefore denies reads, which is how a
+            // config expresses the restriction.
+            bool matrix_governs_env = false;
+            for (const auto& a : role.allowed_actions) {
+                if (a == "ENV_READ" || a == "ENV_WRITE") { matrix_governs_env = true; break; }
+            }
+            if (matrix_governs_env) {
+                bool allowed = false;
+                for (const auto& a : role.allowed_actions) {
+                    if (a == "ENV_READ") { allowed = true; break; }
+                }
+                if (!allowed) {
+                    return enforce("agent_role.action_matrix", EnforcementLevel::HARD,
+                        formatError(EnforcementLevel::HARD,
+                            "Agent '" + effectiveAgentId() + "' action matrix does not include ENV_READ",
+                            "",
+                            "agents." + effectiveAgentId() + ".allowed_actions",
+                            "Your agent's allowed_actions list does not include ENV_READ.\n"
+                            "Add ENV_READ to the allowed_actions list to permit reading\n"
+                            "environment variables.",
+                            "env.get(\"" + var_name + "\")",
+                            "let value = config.get(\"my_var\")  // use config instead"));
+                }
+            }
+            break;
+        }
+    }
+
     // blocked_read: case-insensitive match
     std::string upper_name = var_name;
     std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), ::toupper);
@@ -2433,6 +2558,47 @@ std::string GovernanceEngine::checkEnvVarWrite(const std::string& var_name) {
                 "env.set_var(\"MY_VAR\", value)",
                 "config.set(\"my_var\", value)  // use config instead"));
     }
+    // Per-agent action matrix: ENV_WRITE (see the ENV_READ note above).
+    for (const auto& role : rules().agents) {
+        if (role.name == effectiveAgentId()) {
+            // OPT-IN, and deliberately so. A matrix written before ENV_READ /
+            // ENV_WRITE existed opted into an allowlist over a six-action
+            // vocabulary; enforcing a seventh retroactively denies something
+            // those configs never had the option to permit. Measured: every
+            // shipped config using the matrix (living-script_v2's twelve roles)
+            // lists no ENV_* action, so a non-opt-in version would break all of
+            // them. Matches the shell_content_allowed convention -- a new field
+            // must not change existing behaviour.
+            //
+            // The gate is "does this matrix mention env at all". Listing
+            // ENV_WRITE but not ENV_READ therefore denies reads, which is how a
+            // config expresses the restriction.
+            bool matrix_governs_env = false;
+            for (const auto& a : role.allowed_actions) {
+                if (a == "ENV_READ" || a == "ENV_WRITE") { matrix_governs_env = true; break; }
+            }
+            if (matrix_governs_env) {
+                bool allowed = false;
+                for (const auto& a : role.allowed_actions) {
+                    if (a == "ENV_WRITE") { allowed = true; break; }
+                }
+                if (!allowed) {
+                    return enforce("agent_role.action_matrix", EnforcementLevel::HARD,
+                        formatError(EnforcementLevel::HARD,
+                            "Agent '" + effectiveAgentId() + "' action matrix does not include ENV_WRITE",
+                            "",
+                            "agents." + effectiveAgentId() + ".allowed_actions",
+                            "Your agent's allowed_actions list does not include ENV_WRITE.\n"
+                            "Add ENV_WRITE to the allowed_actions list to permit setting\n"
+                            "environment variables.",
+                            "env.set_var(\"" + var_name + "\", value)",
+                            "// pass the value as a function argument instead"));
+                }
+            }
+            break;
+        }
+    }
+
     // blocked_write: case-insensitive match
     std::string upper_name = var_name;
     std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), ::toupper);
@@ -6875,6 +7041,45 @@ void GovernanceEngine::setAgentTurn(int handle_id, int turn) {
 // agent.create() handle's tool-driven file/net/shell access to its role.
 const std::string& GovernanceEngine::effectiveAgentId() const {
     return t_active_tool_role.empty() ? agent_id_ : t_active_tool_role;
+}
+
+// --- Function attribution -------------------------------------------------
+// Thread-local so concurrent agent/polyglot worker threads each keep their own
+// stack, matching t_active_tool_role above. Outermost-first.
+static thread_local std::vector<std::string> t_function_stack;
+
+void GovernanceEngine::syncFunctionStack(
+        const std::function<const std::string&(size_t)>& at, size_t depth) {
+    t_function_stack.clear();
+    t_function_stack.reserve(depth);
+    for (size_t i = 0; i < depth; i++) {
+        const std::string& nm = at(i);
+        // The VM wraps top-level code in a synthetic "<script>" frame; the
+        // tree-walker has no frame there at all. Reporting "<script>" on one
+        // engine and nothing on the other is an attribution parity gap -- and
+        // "<script>" is not a function an operator can name in a config. Top
+        // level is represented as ABSENT on both engines; capabilities.functions
+        // reaches it through the "default" entry.
+        if (nm == "<script>") continue;
+        t_function_stack.push_back(nm);
+    }
+}
+
+void GovernanceEngine::pushFunctionContext(const std::string& fn) {
+    t_function_stack.push_back(fn);
+}
+
+void GovernanceEngine::popFunctionContext() {
+    if (!t_function_stack.empty()) t_function_stack.pop_back();
+}
+
+const std::string& GovernanceEngine::currentFunction() const {
+    static const std::string kNone;
+    return t_function_stack.empty() ? kNone : t_function_stack.back();
+}
+
+const std::vector<std::string>& GovernanceEngine::functionStack() const {
+    return t_function_stack;
 }
 
 std::string GovernanceEngine::pushActiveToolRole(const std::string& role) {

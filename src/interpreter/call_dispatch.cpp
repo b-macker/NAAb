@@ -80,6 +80,11 @@ NaabVal Interpreter::callFunction(NaabVal fn,
     }
     auto& func = fn.asFunction();
 
+    // Function attribution (FAS): bracket the body so governance can name the
+    // executing function. RAII, so an exception or a `return` out of a `try`
+    // unwinds it. No-op unless something consumes attribution.
+    governance::ScopedFunctionContext fn_ctx_(governance_.get(), func->name);
+
     // Phase 5: Generator function — return GeneratorValue instead of executing
     if (func->is_generator) {
         // FIX-E1b: Validate param types before creating generator
@@ -2265,6 +2270,14 @@ void Interpreter::visit(ast::CallExpr& node) {
         // Check for user-defined function
         if (value.isFunction()) {
             auto& func = value.asFunction();
+
+            // Function attribution (FAS). The tree-walker has TWO divergent
+            // paths into a user function -- callFunction() and this one -- as
+            // the file header warns. Wiring only one left attribution empty
+            // under --tree-walk while the VM reported correctly, which is the
+            // engine-parity shape CLAUDE.md flags for taint.
+            governance::ScopedFunctionContext fn_ctx_call_(governance_.get(),
+                                                           func->name);
 
             // Phase 5: If this is a generator function, return GeneratorValue
             if (func->is_generator) {

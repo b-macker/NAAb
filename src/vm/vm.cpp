@@ -1804,6 +1804,21 @@ interpreter::NaabVal VM::run() {
 
                         // Governance: check module-level permissions
                         if (governance_) {
+                            // Function attribution (FAS). The VM DERIVES the stack
+                            // from frames_ rather than mirroring it with push/pop:
+                            // frame_count_ is decremented at six sites plus the
+                            // exception unwind, and a parallel stack leaks at
+                            // whichever one someone forgets -- the same failure
+                            // shape as the try-handler cleanup. frames_ is
+                            // authoritative by construction, so a rebuild cannot
+                            // drift. Off the hot path: only runs when attribution
+                            // is enabled and a governed stdlib call is being made.
+                            if (governance_->functionAttributionEnabled()) {
+                                governance_->syncFunctionStack(
+                                    [this](size_t i) -> const std::string& {
+                                        return frames_[i].function->name;
+                                    }, frame_count_);
+                            }
                             std::string fs_mode =
                                 governance::GovernanceEngine::filesystemAccessMode(mod, method);
                             if (!fs_mode.empty()) {
