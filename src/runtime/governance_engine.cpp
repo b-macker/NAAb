@@ -2269,10 +2269,17 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     }
 
     if (project.result == PathVerdict::Result::Blocked) {
+        // FAS phase 1 consumer: name the function that attempted it. Before the
+        // attribution stack there was no way to say this -- RuntimeEvent carries
+        // file and line and no function, and the refusal named a path with no
+        // indication of which function owns the call.
+        const std::string& fn_at = currentFunction();
+        std::string where = fn_at.empty() ? std::string()
+                                          : ("in function '" + fn_at + "'");
         return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 "File path blocked by governance: " + filepath,
-                "",
+                where,
                 "capabilities.filesystem.blocked_paths contains \"" + project.rule + "\"",
                 "This path is blocked by the project's governance configuration.\n"
                 "Use a path under an allowed directory (e.g., ./data or ./output).",
@@ -6891,6 +6898,35 @@ void GovernanceEngine::setAgentTurn(int handle_id, int turn) {
 // agent.create() handle's tool-driven file/net/shell access to its role.
 const std::string& GovernanceEngine::effectiveAgentId() const {
     return t_active_tool_role.empty() ? agent_id_ : t_active_tool_role;
+}
+
+// --- Function attribution -------------------------------------------------
+// Thread-local so concurrent agent/polyglot worker threads each keep their own
+// stack, matching t_active_tool_role above. Outermost-first.
+static thread_local std::vector<std::string> t_function_stack;
+
+void GovernanceEngine::syncFunctionStack(
+        const std::function<const std::string&(size_t)>& at, size_t depth) {
+    t_function_stack.clear();
+    t_function_stack.reserve(depth);
+    for (size_t i = 0; i < depth; i++) t_function_stack.push_back(at(i));
+}
+
+void GovernanceEngine::pushFunctionContext(const std::string& fn) {
+    t_function_stack.push_back(fn);
+}
+
+void GovernanceEngine::popFunctionContext() {
+    if (!t_function_stack.empty()) t_function_stack.pop_back();
+}
+
+const std::string& GovernanceEngine::currentFunction() const {
+    static const std::string kNone;
+    return t_function_stack.empty() ? kNone : t_function_stack.back();
+}
+
+const std::vector<std::string>& GovernanceEngine::functionStack() const {
+    return t_function_stack;
 }
 
 std::string GovernanceEngine::pushActiveToolRole(const std::string& role) {

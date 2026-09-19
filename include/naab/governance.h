@@ -3029,6 +3029,35 @@ public:
     const std::string& effectiveAgentId() const;
     std::string pushActiveToolRole(const std::string& role);
     void popActiveToolRole(const std::string& prev);
+
+    // --- Function attribution ---
+    // Which NAAb function is executing. Nothing in the engine could answer that
+    // before this: RuntimeEvent carries `file` and `line` and no function, so a
+    // taint violation, a BSD event and a capability refusal could all name a
+    // line but not the function that owns it.
+    //
+    // Maintained by BOTH engines through ScopedFunctionContext (RAII, so an
+    // exception or a `return` out of a `try` unwinds it correctly -- a manual
+    // push/pop pair leaks on those paths). Mirrors the t_active_tool_role
+    // precedent, which ScopedToolContext already drives the same way.
+    //
+    // Tracking is GATED on functionAttributionEnabled() so it costs one bool
+    // test per call when nothing consumes it; OP_CALL is a hot path.
+    // Rebuild the stack from an authoritative source (the VM's frames_).
+    // Used instead of push/pop where a mirrored stack could drift out of sync.
+    void syncFunctionStack(const std::function<const std::string&(size_t)>& at,
+                           size_t depth);
+    void pushFunctionContext(const std::string& fn);
+    void popFunctionContext();
+    // Innermost executing function, or "" at top level.
+    const std::string& currentFunction() const;
+    // Outermost-first, for composition across the call stack.
+    const std::vector<std::string>& functionStack() const;
+    // Derived from active_ rather than held as its own flag: active_ is assigned
+    // at three sites in governance_config.cpp, and a fourth piece of state to
+    // keep in sync is a fourth place to forget. Attribution is live exactly when
+    // governance is, which is when anything consumes it.
+    bool functionAttributionEnabled() const { return isActive(); }
     const std::string& getAgentId() const { return agent_id_; }
     void applyAgentRole();
 
@@ -3984,6 +4013,28 @@ private:
     // --- Audit helpers ---
     std::string computeAuditHash(const std::string& data) const;
     std::string computeHash(const std::string& data, const TamperEvidenceConfig& te) const;
+};
+
+// RAII bracket for the function attribution stack. Used by BOTH engines around
+// NAAb function bodies. Must be RAII and never a manual push/pop pair: a
+// `return` out of a `try`, or an exception unwinding through the call, would
+// otherwise leak a frame and attribute later effects to the wrong function.
+// ScopedToolContext (agent_impl.cpp) is the precedent this copies.
+class ScopedFunctionContext {
+public:
+    ScopedFunctionContext(GovernanceEngine* eng, const std::string& fn)
+        : eng_(eng) {
+        if (eng_ && eng_->functionAttributionEnabled()) {
+            eng_->pushFunctionContext(fn);
+            pushed_ = true;
+        }
+    }
+    ~ScopedFunctionContext() { if (pushed_ && eng_) eng_->popFunctionContext(); }
+    ScopedFunctionContext(const ScopedFunctionContext&) = delete;
+    ScopedFunctionContext& operator=(const ScopedFunctionContext&) = delete;
+private:
+    GovernanceEngine* eng_ = nullptr;
+    bool pushed_ = false;
 };
 
 } // namespace governance
