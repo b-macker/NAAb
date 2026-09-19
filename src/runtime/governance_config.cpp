@@ -832,6 +832,40 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sh.contains("max_execution_time") && sh["max_execution_time"].is_number_integer()) sc.max_execution_time = sh["max_execution_time"].get<int>();
             parseRationale(sh, sc.rationale);
         }
+        // --- capabilities.functions: function-scope capabilities ---
+        // Third rung of the scope ladder. Unknown action names are warned at
+        // load rather than ignored: a typo'd action in an ALLOWLIST silently
+        // removes a permission, and the operator has no other signal.
+        if (cap.contains("functions") && cap["functions"].is_object()) {
+            static const std::vector<std::string> kKnownActions = {
+                "FS_READ", "FS_WRITE", "NET_CONNECT", "SHELL_EXEC",
+                "AGENT_SEND", "TOOL_EXEC", "ENV_READ", "ENV_WRITE"
+            };
+            for (auto& [fn_name, fn_cfg] : cap["functions"].items()) {
+                if (!fn_cfg.is_object()) continue;
+                FunctionCapability fc_fn;
+                if (fn_cfg.contains("allowed_actions") && fn_cfg["allowed_actions"].is_array()) {
+                    for (const auto& a : fn_cfg["allowed_actions"]) {
+                        if (!a.is_string()) continue;
+                        std::string act = a.get<std::string>();
+                        bool known = false;
+                        for (const auto& k : kKnownActions) if (k == act) { known = true; break; }
+                        if (!known) {
+                            fprintf(stderr,
+                                "[governance] Warning: unknown action \"%s\" in "
+                                "capabilities.functions.%s.allowed_actions — expected one of "
+                                "FS_READ, FS_WRITE, NET_CONNECT, SHELL_EXEC, AGENT_SEND, "
+                                "TOOL_EXEC, ENV_READ, ENV_WRITE\n",
+                                act.c_str(), fn_name.c_str());
+                        }
+                        fc_fn.allowed_actions.push_back(act);
+                    }
+                }
+                rules_.capabilities.functions[fn_name] = fc_fn;
+            }
+            rules_.explicitly_set.insert("capabilities.functions");
+        }
+
         if (cap.contains("env_vars") && cap["env_vars"].is_object()) {
             auto& ev = cap["env_vars"];
             auto& ec = rules_.capabilities.env_vars;

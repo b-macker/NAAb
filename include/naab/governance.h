@@ -222,6 +222,16 @@ struct MemoryCapability {
     bool allow_shared_memory = true;
 };
 
+// Function-scope capabilities: what a single NAAb function may do. The third
+// rung of the scope ladder (program -> role -> function); see
+// docs/plan-function-effects.md. Deliberately NOT a new subsystem -- it reuses
+// the same action vocabulary as agents.<n>.allowed_actions and is enforced
+// inside the same gate functions, so a role narrows the program and a function
+// narrows the role.
+struct FunctionCapability {
+    std::vector<std::string> allowed_actions;
+};
+
 struct CapabilitiesConfig {
     NetworkCapability network;
     FilesystemCapability filesystem;
@@ -230,6 +240,10 @@ struct CapabilitiesConfig {
     ProcessCapability process;
     TimeCapability time;
     MemoryCapability memory;
+    // Keyed by function name. "default" applies to any function without its own
+    // entry -- NOT "absent means unrestricted", which would protect only what
+    // someone remembered to list. Empty map = feature unused, no restriction.
+    std::unordered_map<std::string, FunctionCapability> functions;
 };
 
 // ============================================================================

@@ -2051,6 +2051,61 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
             break;
         }
     }
+    // --- Tier 3: function-scope capabilities -------------------------------
+    // Phase 3 of docs/plan-function-effects.md, enforced at ONE gate (this one)
+    // and ADVISORY only, so the loop can be demonstrated before it can break a
+    // build. Composition across the call stack (F8) is NOT implemented yet:
+    // only the innermost function is consulted, so a restricted caller can
+    // still reach this through a permissive callee. That is a known gap, not an
+    // oversight, and it is why this tier stays advisory until F8 lands.
+    if (!rules().capabilities.functions.empty()) {
+        const std::string& fn = currentFunction();
+        const auto& fns = rules().capabilities.functions;
+        auto it = fns.find(fn);
+        bool via_default = false;
+        if (it == fns.end()) { it = fns.find("default"); via_default = true; }
+        if (it != fns.end()) {
+            std::string required = (mode == "write") ? "FS_WRITE" : "FS_READ";
+            bool allowed = false;
+            for (const auto& a : it->second.allowed_actions) {
+                if (a == required) { allowed = true; break; }
+            }
+            if (!allowed) {
+                // Two renderings: `listed` is prose, `quoted` is valid JSON.
+                // Building one string and reusing it produced
+                // ["FS_READ, FS_WRITE"] -- a single element containing a comma,
+                // which is JSON the operator cannot paste.
+                std::string listed, quoted;
+                for (const auto& a : it->second.allowed_actions) {
+                    if (!listed.empty()) { listed += ", "; quoted += ", "; }
+                    listed += a;
+                    quoted += "\"" + a + "\"";
+                }
+                std::string entry = via_default ? std::string("default") : it->first;
+                std::string who = fn.empty() ? std::string("top level") : ("'" + fn + "'");
+                std::string proposed = quoted.empty() ? ("\"" + required + "\"")
+                                                     : (quoted + ", \"" + required + "\"");
+                return enforce("capabilities.functions", EnforcementLevel::ADVISORY,
+                    formatError(EnforcementLevel::ADVISORY,
+                        "Undeclared action in " + who + ": " + required,
+                        fn.empty() ? "" : ("in function '" + fn + "'"),
+                        "capabilities.functions." + entry + ".allowed_actions",
+                        "That function may perform: " + (listed.empty() ? "(nothing)" : listed) + "\n"
+                        "Either the operation does not belong here, or the\n"
+                        "declaration is incomplete. To permit it, add " + required + ":\n"
+                        "  \"capabilities\": { \"functions\": { \"" + entry + "\": {\n"
+                        "      \"allowed_actions\": [" + proposed + "] } } }\n"
+                        "A function grant can only narrow what its role and the\n"
+                        "program already permit - adding it here has no effect if\n"
+                        "either of those lacks it.",
+                        mode == "write" ? "file.write(\"output.txt\", data)"
+                                        : "file.read(\"input.txt\")",
+                        "Declare " + required + " for " + who + ", or move the call"));
+            }
+        }
+    }
+
+
     recordPass("capabilities.filesystem", EnforcementLevel::HARD);
     return "";
 }
@@ -6997,7 +7052,17 @@ void GovernanceEngine::syncFunctionStack(
         const std::function<const std::string&(size_t)>& at, size_t depth) {
     t_function_stack.clear();
     t_function_stack.reserve(depth);
-    for (size_t i = 0; i < depth; i++) t_function_stack.push_back(at(i));
+    for (size_t i = 0; i < depth; i++) {
+        const std::string& nm = at(i);
+        // The VM wraps top-level code in a synthetic "<script>" frame; the
+        // tree-walker has no frame there at all. Reporting "<script>" on one
+        // engine and nothing on the other is an attribution parity gap -- and
+        // "<script>" is not a function an operator can name in a config. Top
+        // level is represented as ABSENT on both engines; capabilities.functions
+        // reaches it through the "default" entry.
+        if (nm == "<script>") continue;
+        t_function_stack.push_back(nm);
+    }
 }
 
 void GovernanceEngine::pushFunctionContext(const std::string& fn) {

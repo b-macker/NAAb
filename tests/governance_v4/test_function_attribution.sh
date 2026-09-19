@@ -59,8 +59,13 @@ json.dump({'version':'1.0','mode':'enforce','security':{'sandbox_level':'elevate
 
 # attributed function name for a run, or "" when none was reported
 attrib() { ( cd "$W" && timeout 60 "$NAAB" ${2:-} "$1" 2>&1 ) \
-    | grep -oE "in function '[a-zA-Z_][a-zA-Z0-9_]*'" | head -1 \
+    | grep -oE "in function '[^']*'" | head -1 \
     | sed "s/in function '//;s/'//"; }
+# NOTE: the character class must accept ANY name. It was
+# [a-zA-Z_][a-zA-Z0-9_]* and therefore could not match the VM's synthetic
+# "<script>" frame, so a printed name read as "no name" and FA-03 passed for
+# the wrong reason. Top level is now absent on both engines, but the pattern
+# stays permissive so a future synthetic name is visible rather than silent.
 blocked() { local o; o=$( cd "$W" && timeout 60 "$NAAB" ${2:-} "$1" 2>&1 ); \
     case "$o" in *"File path blocked"*) echo yes ;; *) echo no ;; esac; }
 
