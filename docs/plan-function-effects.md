@@ -187,16 +187,43 @@ enforced rather than encouraged, and the loop is the one already proven for
 This also settles "block on first vs accumulate": `advisory` accumulates,
 `hard` blocks. Two levels, no new concept.
 
-### F5 — Ratchet
+### F5 — Ratchet — SHIPPED
 
 `capabilities.filesystem.mode` is already ratcheted (one of 68 loosening checks
 in `governance_config.cpp`), as are per-agent `shell_allowed` /
-`network_allowed`. Function-scope capabilities join that: adding an action
-mid-run is a
-loosening violation, removing one is a notice. Adding a **new function entry**
-mid-run needs what `meta.allow_agent_addition_mid_run` gives new agents, or the
-ratchet is escapable by renaming — that exact hole existed for agents and was
-closed.
+`network_allowed`. Function-scope capabilities join that.
+
+**The plan's premise here did not survive implementation.** It said adding a new
+function entry mid-run needs an opt-in like `meta.allow_agent_addition_mid_run`,
+"or the ratchet is escapable by renaming — that exact hole existed for agents
+and was closed". Two things are wrong with that.
+
+First, the analogy breaks on `default`. A new *agent* is a new identity with no
+prior permission to compare against, which is why the agent ratchet needed an
+explicit opt-in. A new *function entry* always has a prior effective permission:
+its own entry, else `default`, else unrestricted. So the comparison the agent
+case could not make is exactly the one available here.
+
+Second, entry-level bookkeeping gets the direction wrong in both directions.
+Adding an entry can tighten (grants less than `default`) or loosen (grants
+more); removing one can tighten (`default` is stricter) or loosen (`default` is
+looser); and editing `default` silently moves every function with no entry.
+A name-by-name diff of the raw map mishandles all four.
+
+So the check compares **effective** permissions per name over the union of both
+maps — no opt-in flag, no new config key. Gaining an action is a violation,
+losing one a notice; unrestricted → restricted is a notice, the reverse a
+violation. Deleting the section needs no special case: every previously listed
+function is in the union and reports its own transition to unrestricted.
+
+What a config ratchet still cannot see is a rename in the *source*, which drops
+that function through to `default`. That is a code change, not a config change,
+and it is the reason `default` exists rather than "absent means unrestricted".
+
+Test: `tests/governance_v4/test_function_capability_ratchet.sh` — FR-03/05/07
+are the arms a naive diff waves through, FR-04/06/09 their same-shape controls
+in the tightening direction, and FR-10 the one that checks an accepted reload is
+actually installed rather than merely reported.
 
 ### F6 — Helper error, naming the fix and the containment rule
 
@@ -261,7 +288,7 @@ Each phase is independently useful and independently testable.
    advisory only. Smallest thing that demonstrates the loop.
 4. **F8 composition** — before widening to more gates, because it changes the
    semantics of everything built in phase 3.
-5. **F5 ratchet**, **F4 hard level**, remaining gates.
+5. **F5 ratchet** (shipped), then **F4 hard level** and the remaining gates.
 
 ## Test surface — non-negotiable
 
