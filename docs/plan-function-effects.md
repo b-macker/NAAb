@@ -172,20 +172,54 @@ Decide the `SHELL_EXEC` / `PROCESS_EXEC` / `POLYGLOT_EXEC` mapping **once**, or
 the all-or-nothing hole that `intent_mentions_io` has reappears at a new
 altitude.
 
-### F4 — Bootstrap is the error message, not a flag or a mode
+### F4 — Level, and bootstrap through the error message — SHIPPED
 
 Nobody passes a flag, and the precedent proves it (premise 4 above). An agent
 writing code runs the program, reads stderr and iterates; it will never invoke a
-record mode, and neither will a human setting up a project.
+record mode, and neither will a human setting up a project. So there is no
+record mode: `capabilities.functions.level` (string, default `advisory`) is the
+only control, and it ratchets like every other enforcement level — lowering it
+mid-run is a violation.
 
-So there is no record mode. At `advisory`, one run reports **every** undeclared
-effect with the exact declaration to add. The operator or reviewer pastes them
-and tightens to `hard`. That is the ratchet's own direction, so progression is
-enforced rather than encouraged, and the loop is the one already proven for
-`must_produce`.
+`level` is reserved **only when its value is a string**. A function entry is
+always an object, so a program with a real `level()` function keeps its entry.
+Reserving the name unconditionally would have dropped that function through to
+`default` and silently changed its permissions — the exact failure this tier
+exists to prevent. Both readings are tested, and neither arm means anything
+without the other.
 
-This also settles "block on first vs accumulate": `advisory` accumulates,
-`hard` blocks. Two levels, no new concept.
+**The second half of this item did not survive tracing.** The plan claimed that
+at `advisory`, "one run reports **every** undeclared effect with the exact
+declaration to add", and concluded that this settles block-on-first vs
+accumulate with no new concept. The conclusion was right; the premise was false.
+`enforce()` prints an advisory's detail on the **first occurrence per RULE
+NAME**, and every undeclared effect in a program shares the rule name
+`capabilities.functions`. Measured before the fix: three violating functions,
+**one** reported, the other two producing no stderr line at all — the
+occurrence-count branch sits behind `advisory_escalation`, which defaults off.
+The bootstrap pass was a one-finding-per-run loop.
+
+Accumulation is therefore explicit, following the `ptc_functions_` precedent
+already in the engine: distinct `(frame, action)` sites collect in a member and
+`flushGroupedAdvisories()` emits one grouped summary naming every site, then the
+declarations to add. Those are grouped by the **entry** that must be edited
+rather than by the function that attempted the call, because under intersection
+the narrowing declaration is often a caller — grouping by frame would hand the
+operator a list of edits that change nothing. Each printed declaration is the
+**union** of what the entry already permits with what was attempted; printing
+only the missing actions would read as a replacement and silently drop
+permissions already there.
+
+Note the accuracy of this check was never the problem — the first site always
+reported correctly, which is why the gap survived reading the code. It took
+running three violating functions to see the other two say nothing.
+
+Test: `tests/governance_v4/test_function_capability_level.sh`. FL-02 covers the
+accumulate half and FL-06 is the one that matters — it greps the declaration out
+of the summary, pastes it back, and requires the advisory to fall silent while
+the program still runs. FL-04 exists because an exit code is not a block: it
+asserts the write did not happen. The level's ratchet is FR-11/FR-12 in
+`test_function_capability_ratchet.sh`.
 
 ### F5 — Ratchet — SHIPPED
 
@@ -288,7 +322,7 @@ Each phase is independently useful and independently testable.
    advisory only. Smallest thing that demonstrates the loop.
 4. **F8 composition** — before widening to more gates, because it changes the
    semantics of everything built in phase 3.
-5. **F5 ratchet** (shipped), then **F4 hard level** and the remaining gates.
+5. **F5 ratchet** and **F4 level** (both shipped), then the remaining gates.
 
 ## Test surface — non-negotiable
 

@@ -244,6 +244,11 @@ struct CapabilitiesConfig {
     // entry -- NOT "absent means unrestricted", which would protect only what
     // someone remembered to list. Empty map = feature unused, no restriction.
     std::unordered_map<std::string, FunctionCapability> functions;
+    // Enforcement level for the map above, from capabilities.functions.level
+    // (F4). ADVISORY is the bootstrap level: it accumulates EVERY undeclared
+    // effect in one run and prints the declarations to add. Raising it to hard
+    // blocks on the first, which is the ratchet's own direction.
+    EnforcementLevel functions_level = EnforcementLevel::ADVISORY;
 };
 
 // ============================================================================
@@ -3839,6 +3844,15 @@ private:
     struct DupCallEntry { std::string function_name; int count; int line; };
     std::unordered_map<std::string, std::vector<DupCallEntry>> dup_call_summary_;
     std::vector<std::pair<std::string, int>> ptc_functions_; // polyglot try/catch: {name, line}
+    // F4: undeclared function effects, accumulated for the end-of-run summary.
+    // enforce() dedupes its detail print by RULE NAME, and every undeclared
+    // effect shares the rule name "capabilities.functions" -- so without this
+    // the first one printed its remedy and the rest were silent, making the
+    // advisory tier a one-finding-per-run loop instead of the bootstrap pass
+    // it is meant to be. Measured: three violating functions, one reported.
+    struct UndeclaredEffect { std::string frame, action, entry; };
+    std::vector<UndeclaredEffect> undeclared_effects_;
+    std::set<std::string> undeclared_effects_seen_;
     int advisory_count_ = 0;
     int advisory_suppressed_ = 0;
     int agent_review_count_ = 0;  // confirmed findings from agent review phase

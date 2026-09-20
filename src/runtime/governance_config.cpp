@@ -842,6 +842,21 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 "AGENT_SEND", "TOOL_EXEC", "ENV_READ", "ENV_WRITE"
             };
             for (auto& [fn_name, fn_cfg] : cap["functions"].items()) {
+                // "level" carrying a STRING is this section's enforcement level,
+                // not a function named level(). The two cannot collide because a
+                // function entry is always an object: reserving the name
+                // unconditionally would drop a real level() through to "default"
+                // and silently change its permissions, which is the failure mode
+                // this whole tier exists to avoid.
+                if (fn_name == "level" && fn_cfg.is_string()) {
+                    auto [fn_en, fn_lv] = parseEnforcementLevel(fn_cfg);
+                    // An unrecognised level string means DISABLED here, the same
+                    // as everywhere else (see A1c in parseEnforcementLevel), and
+                    // it has already warned by name.
+                    rules_.capabilities.functions_level =
+                        fn_en ? fn_lv : EnforcementLevel::NONE;
+                    continue;
+                }
                 if (!fn_cfg.is_object()) continue;
                 FunctionCapability fc_fn;
                 if (fn_cfg.contains("allowed_actions") && fn_cfg["allowed_actions"].is_array()) {
@@ -3729,6 +3744,9 @@ static bool checkRatchetViolation(
     chkLevel(old_r.code_quality.no_oversimplification.level, new_r.code_quality.no_oversimplification.level, "code_quality.no_oversimplification.level");
     chkLevel(old_r.code_quality.no_incomplete_logic.level, new_r.code_quality.no_incomplete_logic.level, "code_quality.no_incomplete_logic.level");
     chkLevel(old_r.code_quality.no_simulation_markers.level, new_r.code_quality.no_simulation_markers.level, "code_quality.no_simulation_markers.level");
+    // F4: lowering the function-capability level mid-run (e.g. hard -> advisory)
+    // converts blocks into warnings, so it is loosening like any other level.
+    chkLevel(old_r.capabilities.functions_level, new_r.capabilities.functions_level, "capabilities.functions.level");
 
     // --- D. Boolean restrictions (true = stricter) ---
     auto chkRestrict = [&](bool old_v, bool new_v, const char* name) {

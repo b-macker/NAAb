@@ -2129,8 +2129,22 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
                 chain += "\n";
             }
 
-            return enforce("capabilities.functions", EnforcementLevel::ADVISORY,
-                formatError(EnforcementLevel::ADVISORY,
+            // F4: the level is configurable so a project can bootstrap at
+            // advisory and tighten to hard. Accumulate BEFORE enforce(), which
+            // may throw: at hard the run stops here and the summary never
+            // flushes, which is correct (one block, one verdict), but the record
+            // still belongs in check_results_ either way.
+            const EnforcementLevel fn_level = rules().capabilities.functions_level;
+            if (fn_level == EnforcementLevel::ADVISORY) {
+                std::lock_guard<std::mutex> lock(results_mutex_);
+                std::string key = blocking_frame + "\x1f" + required;
+                if (undeclared_effects_seen_.insert(key).second) {
+                    undeclared_effects_.push_back(
+                        {blocking_frame, required, blocking_entry});
+                }
+            }
+            return enforce("capabilities.functions", fn_level,
+                formatError(fn_level,
                     "Undeclared action in " + who + ": " + required,
                     fn.empty() ? "" : ("in function '" + fn + "'"),
                     "capabilities.functions." + blocking_entry + ".allowed_actions",
@@ -3043,7 +3057,49 @@ void GovernanceEngine::flushGroupedAdvisories() {
         emitAdvisory(msg);
     }
 
-    // 3. Suppression summary
+    // 3. Undeclared function effects (F4)
+    //
+    // The per-occurrence advisory in enforce() prints its detail once per RULE
+    // NAME, and every undeclared effect in a program shares one rule name. So
+    // the first site printed its remedy and every later site was silent --
+    // measured at three violating functions, one reported. That turned the
+    // bootstrap pass into one-finding-per-run. This summary is the accumulating
+    // half: one run, every site, every declaration to add.
+    if (!undeclared_effects_.empty()) {
+        std::string msg = "[ADVISORY] Undeclared function effects ("
+            + std::to_string(undeclared_effects_.size()) + "):";
+        // Group by the ENTRY that must be edited, not by the function that
+        // attempted the call: under intersection the narrowing declaration is
+        // often a caller, so grouping by frame would hand the operator a list
+        // of edits to files that change nothing.
+        std::map<std::string, std::set<std::string>> by_entry;
+        for (const auto& ue : undeclared_effects_) {
+            msg += "\n  " + ue.frame + " needs " + ue.action
+                 + " (declared on \"" + ue.entry + "\")";
+            by_entry[ue.entry].insert(ue.action);
+        }
+        msg += "\n\n  To permit these, add to capabilities.functions:";
+        for (const auto& [entry, acts] : by_entry) {
+            std::string quoted;
+            // Union of what the entry ALREADY permits with what was attempted --
+            // printing only the missing actions would tell the operator to
+            // replace the list and silently drop the permissions already there.
+            std::set<std::string> all(acts.begin(), acts.end());
+            auto ei = rules().capabilities.functions.find(entry);
+            if (ei != rules().capabilities.functions.end()) {
+                for (const auto& a : ei->second.allowed_actions) all.insert(a);
+            }
+            for (const auto& a : all) {
+                if (!quoted.empty()) quoted += ", ";
+                quoted += "\"" + a + "\"";
+            }
+            msg += "\n    \"" + entry + "\": { \"allowed_actions\": ["
+                 + quoted + "] }";
+        }
+        emitAdvisory(msg);
+    }
+
+    // 4. Suppression summary
     if (advisory_suppressed_ > 0 && rules().output.advisory_summary) {
         fmt::print(stderr, "[ADVISORY] ... and {} more advisories suppressed "
                    "(increase output.max_advisories to see all)\n", advisory_suppressed_);
@@ -3054,6 +3110,8 @@ void GovernanceEngine::flushGroupedAdvisories() {
         std::lock_guard<std::mutex> lock(results_mutex_);
         dup_call_summary_.clear();
         ptc_functions_.clear();
+        undeclared_effects_.clear();
+        undeclared_effects_seen_.clear();
         emitted_advisories_.clear();
         advisory_count_ = 0;
         advisory_suppressed_ = 0;

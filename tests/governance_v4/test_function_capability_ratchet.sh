@@ -54,7 +54,7 @@ echo -e "${CYAN}|  F5: capabilities.functions is ratcheted (tighten-only)      |
 echo -e "${CYAN}+==============================================================+${NC}"
 echo ""
 
-ALL_IDS="FR-01 FR-02 FR-03 FR-04 FR-05 FR-06 FR-07 FR-08 FR-09 FR-10"
+ALL_IDS="FR-01 FR-02 FR-03 FR-04 FR-05 FR-06 FR-07 FR-08 FR-09 FR-10 FR-11 FR-12"
 
 IS_WINDOWS=0
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
@@ -62,14 +62,14 @@ case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
 if [ "$IS_WINDOWS" -eq 1 ]; then
     for id in $ALL_IDS; do skip "$id" "mid-run file swap requires POSIX file semantics"; done
     echo ""
-    echo "  Total: 10 | Pass: 0 | Fail: 0 | Skip: 10"
+    echo "  Total: 12 | Pass: 0 | Fail: 0 | Skip: 12"
     exit 0
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
     for id in $ALL_IDS; do skip "$id" "python3 unavailable (fixture generator + polyglot swap)"; done
     echo ""
-    echo "  Total: 10 | Pass: 0 | Fail: 0 | Skip: 10"
+    echo "  Total: 12 | Pass: 0 | Fail: 0 | Skip: 12"
     exit 0
 fi
 
@@ -253,6 +253,26 @@ if [ "$R" = "accepted" ] && [ "$A" = "ADVISED" ]; then
     pass "FR-10" "control: an accepted tightening actually governs the next call"
 else
     fail "FR-10" "the reloaded map did not take effect" "reload=$R advisory=$A"
+fi
+
+# --- The section's enforcement level (F4) ------------------------------------
+
+# FR-11: dropping the level turns blocks back into warnings, which is loosening
+# in exactly the way every other enforcement level already ratchets.
+read -r R _ <<< "$(run_swap '{"level": "hard", "default": {"allowed_actions": ["FS_READ"]}}' '{"level": "advisory", "default": {"allowed_actions": ["FS_READ"]}}')"
+if [ "$R" = "rejected" ]; then
+    pass "FR-11" "lowering capabilities.functions.level is refused"
+else
+    fail "FR-11" "the enforcement level was lowered mid-run" "reload=$R"
+fi
+
+# FR-12 CONTROL: raising it must still be accepted, or FR-11 could be refusing
+# every reload that mentions a level at all.
+read -r R _ <<< "$(run_swap '{"level": "advisory", "default": {"allowed_actions": ["FS_READ"]}}' '{"level": "soft", "default": {"allowed_actions": ["FS_READ"]}}')"
+if [ "$R" = "accepted" ]; then
+    pass "FR-12" "control: raising the level is accepted"
+else
+    fail "FR-12" "raising the level was refused" "reload=$R"
 fi
 
 echo ""
