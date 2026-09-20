@@ -2051,60 +2051,106 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
             break;
         }
     }
-    // --- Tier 3: function-scope capabilities -------------------------------
-    // Phase 3 of docs/plan-function-effects.md, enforced at ONE gate (this one)
-    // and ADVISORY only, so the loop can be demonstrated before it can break a
-    // build. Composition across the call stack (F8) is NOT implemented yet:
-    // only the innermost function is consulted, so a restricted caller can
-    // still reach this through a permissive callee. That is a known gap, not an
-    // oversight, and it is why this tier stays advisory until F8 lands.
+    // --- Tier 3: function-scope capabilities, composed ----------------------
+    // F8 of docs/plan-function-effects.md. The effective permission is the
+    // INTERSECTION of every function on the call stack, not the innermost one.
+    //
+    // Consulting only the innermost frame makes the whole mechanism escapable by
+    // refactoring: a caller declaring [FS_READ] calls a helper declaring
+    // [FS_WRITE] and the write goes through. That is the split-delegation /
+    // confused-deputy pattern agent_review's own prompt hunts for, and it means
+    // `git mv` defeats the feature. Intersection is the same monotonic narrowing
+    // the engine already applies for role-subset-of-program, extended to depth.
+    //
+    // A frame with no entry and no "default" is UNRESTRICTED and contributes the
+    // universal set, so it narrows nothing. That keeps configs that name a few
+    // functions from accidentally denying everything else.
+    //
+    // The usability cost is real and IS the security property: a shared utility
+    // must be callable from its most restrictive caller. The error therefore
+    // names which frame narrowed the set, because under intersection the
+    // blocking declaration is often a CALLER and editing the callee does nothing.
     if (!rules().capabilities.functions.empty()) {
-        const std::string& fn = currentFunction();
         const auto& fns = rules().capabilities.functions;
-        auto it = fns.find(fn);
-        bool via_default = false;
-        if (it == fns.end()) { it = fns.find("default"); via_default = true; }
-        if (it != fns.end()) {
-            std::string required = (mode == "write") ? "FS_WRITE" : "FS_READ";
-            bool allowed = false;
-            for (const auto& a : it->second.allowed_actions) {
-                if (a == required) { allowed = true; break; }
+        const std::string& fn = currentFunction();
+        std::string required = (mode == "write") ? "FS_WRITE" : "FS_READ";
+
+        // Resolve a frame to its declaration, or nullptr when unrestricted.
+        auto resolve = [&](const std::string& name,
+                           std::string& entry_out) -> const FunctionCapability* {
+            auto i = fns.find(name);
+            if (i != fns.end()) { entry_out = i->first; return &i->second; }
+            i = fns.find("default");
+            if (i != fns.end()) { entry_out = "default"; return &i->second; }
+            return nullptr;
+        };
+
+        // Walk outermost -> innermost. Any frame lacking `required` removes it
+        // from the effective set; the FIRST such frame is the one to report,
+        // since it is the outermost constraint the operator has to relax.
+        const std::vector<std::string>& stk = functionStack();
+        std::vector<std::string> frames(stk.begin(), stk.end());
+        if (frames.empty()) frames.push_back(fn);  // top level resolves via "default"
+
+        const FunctionCapability* blocking = nullptr;
+        std::string blocking_entry, blocking_frame;
+        for (const auto& frame : frames) {
+            std::string entry;
+            const FunctionCapability* cap = resolve(frame, entry);
+            if (!cap) continue;  // unrestricted frame narrows nothing
+            bool has = false;
+            for (const auto& a : cap->allowed_actions) {
+                if (a == required) { has = true; break; }
             }
-            if (!allowed) {
-                // Two renderings: `listed` is prose, `quoted` is valid JSON.
-                // Building one string and reusing it produced
-                // ["FS_READ, FS_WRITE"] -- a single element containing a comma,
-                // which is JSON the operator cannot paste.
-                std::string listed, quoted;
-                for (const auto& a : it->second.allowed_actions) {
-                    if (!listed.empty()) { listed += ", "; quoted += ", "; }
-                    listed += a;
-                    quoted += "\"" + a + "\"";
-                }
-                std::string entry = via_default ? std::string("default") : it->first;
-                std::string who = fn.empty() ? std::string("top level") : ("'" + fn + "'");
-                std::string proposed = quoted.empty() ? ("\"" + required + "\"")
-                                                     : (quoted + ", \"" + required + "\"");
-                return enforce("capabilities.functions", EnforcementLevel::ADVISORY,
-                    formatError(EnforcementLevel::ADVISORY,
-                        "Undeclared action in " + who + ": " + required,
-                        fn.empty() ? "" : ("in function '" + fn + "'"),
-                        "capabilities.functions." + entry + ".allowed_actions",
-                        "That function may perform: " + (listed.empty() ? "(nothing)" : listed) + "\n"
-                        "Either the operation does not belong here, or the\n"
-                        "declaration is incomplete. To permit it, add " + required + ":\n"
-                        "  \"capabilities\": { \"functions\": { \"" + entry + "\": {\n"
-                        "      \"allowed_actions\": [" + proposed + "] } } }\n"
-                        "A function grant can only narrow what its role and the\n"
-                        "program already permit - adding it here has no effect if\n"
-                        "either of those lacks it.",
-                        mode == "write" ? "file.write(\"output.txt\", data)"
-                                        : "file.read(\"input.txt\")",
-                        "Declare " + required + " for " + who + ", or move the call"));
+            if (!has) { blocking = cap; blocking_entry = entry; blocking_frame = frame; break; }
+        }
+
+        if (blocking) {
+            // Two renderings: `listed` is prose, `quoted` is valid JSON. Building
+            // one string and reusing it produced ["FS_READ, FS_WRITE"] -- a single
+            // element containing a comma, which is JSON nobody can paste.
+            std::string listed, quoted;
+            for (const auto& a : blocking->allowed_actions) {
+                if (!listed.empty()) { listed += ", "; quoted += ", "; }
+                listed += a;
+                quoted += "\"" + a + "\"";
             }
+            std::string who = fn.empty() ? std::string("top level") : ("'" + fn + "'");
+            std::string proposed = quoted.empty() ? ("\"" + required + "\"")
+                                                 : (quoted + ", \"" + required + "\"");
+
+            // Provenance. Without it, an operator under intersection edits the
+            // function that attempted the call and nothing changes, because the
+            // narrowing declaration belongs to a caller further up.
+            std::string chain;
+            if (!blocking_frame.empty() && blocking_frame != fn) {
+                chain = "  Narrowed by caller '" + blocking_frame + "'";
+                if (blocking_entry != blocking_frame) chain += " (via \"default\")";
+                chain += "\n";
+            }
+
+            return enforce("capabilities.functions", EnforcementLevel::ADVISORY,
+                formatError(EnforcementLevel::ADVISORY,
+                    "Undeclared action in " + who + ": " + required,
+                    fn.empty() ? "" : ("in function '" + fn + "'"),
+                    "capabilities.functions." + blocking_entry + ".allowed_actions",
+                    chain +
+                    "  Effective permissions are the intersection of every\n"
+                    "  function on the call stack, so a caller can narrow a\n"
+                    "  callee but never widen it.\n"
+                    "That entry may perform: " + (listed.empty() ? "(nothing)" : listed) + "\n"
+                    "Either the operation does not belong here, or the\n"
+                    "declaration is incomplete. To permit it, add " + required + ":\n"
+                    "  \"capabilities\": { \"functions\": { \"" + blocking_entry + "\": {\n"
+                    "      \"allowed_actions\": [" + proposed + "] } } }\n"
+                    "A function grant can only narrow what its role and the\n"
+                    "program already permit - adding it here has no effect if\n"
+                    "either of those lacks it.",
+                    mode == "write" ? "file.write(\"output.txt\", data)"
+                                    : "file.read(\"input.txt\")",
+                    "Declare " + required + " on '" + blocking_entry + "', or move the call"));
         }
     }
-
 
     recordPass("capabilities.filesystem", EnforcementLevel::HARD);
     return "";
