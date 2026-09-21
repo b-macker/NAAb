@@ -101,20 +101,30 @@ run() {
 }
 
 # The whole vocabulary in one program, one function per action.
+# The shell function lives in its OWN program, deliberately. A polyglot block
+# that cannot run ABORTS the program, and every function after it never
+# executes -- so one unusable executor silently took down the FS, NET, ENV and
+# AGENT arms too. That is what reddened build-windows: 11 of 12 arms failed
+# there while FG-11 passed, because FG-11 is the only one reading the
+# per-occurrence message rather than the end-of-run summary.
 cat > "$W/all.naab" << 'EOF'
 use http
 use env
 use agent
 fn writer()  { file.write("o.txt", "x") }
 fn fetcher() { try { let r = http.get("https://127.0.0.1:9/x") } catch (e) { } }
+fn reader()  { let v = env.get("HOME") }
+fn setter()  { env.set("NAAB_FG", "1") }
+fn talker()  { try { let h = agent.create("w") let r = agent.send(h, "hi") } catch (e) { } }
+main { writer() fetcher() reader() setter() talker() print("DONE") }
+EOF
+
+cat > "$W/shell.naab" << 'EOF'
 fn sheller() { let r = <<shell
 echo hi
 >>
 }
-fn reader()  { let v = env.get("HOME") }
-fn setter()  { env.set("NAAB_FG", "1") }
-fn talker()  { try { let h = agent.create("w") let r = agent.send(h, "hi") } catch (e) { } }
-main { writer() fetcher() sheller() reader() setter() talker() print("DONE") }
+main { sheller() print("DONE") }
 EOF
 
 RO='{"default": {"allowed_actions": ["FS_READ"]}}'
@@ -122,12 +132,23 @@ RO='{"default": {"allowed_actions": ["FS_READ"]}}'
 # saw ACTION FUNC -> is "<func> needs <ACTION>" in the summary?
 saw() { case "$OUT" in *"$1 needs $2"*) return 0 ;; *) return 1 ;; esac; }
 
-# --- FG-01..FG-06: every gate, both engines ---------------------------------
-declare -a IDS=(FG-01 FG-02 FG-03 FG-04 FG-05 FG-06)
-declare -a FNS=(writer fetcher sheller reader setter talker)
-declare -a ACTS=(FS_WRITE NET_CONNECT SHELL_EXEC ENV_READ ENV_WRITE AGENT_SEND)
 
-for i in 0 1 2 3 4 5; do
+# Can this platform run a <<shell>> block at all? Asked with the action GRANTED,
+# so the only thing that can fail is the executor. Without this the shell arms
+# report a governance FAILURE on a platform that simply has no shell executor --
+# a broken probe rendering as a finding.
+SHELL_OK=0
+mkcfg '{"default": {"allowed_actions": ["FS_READ", "SHELL_EXEC"]}}' >/dev/null && {
+    probe_out="$(cd "$W" && timeout 60s "$NAAB" shell.naab 2>&1)"
+    case "$probe_out" in *DONE*) SHELL_OK=1 ;; esac
+}
+
+# --- FG-01..FG-06: every gate, both engines ---------------------------------
+declare -a IDS=(FG-01 FG-02 FG-04 FG-05 FG-06)
+declare -a FNS=(writer fetcher reader setter talker)
+declare -a ACTS=(FS_WRITE NET_CONNECT ENV_READ ENV_WRITE AGENT_SEND)
+
+for i in 0 1 2 3 4; do
     id="${IDS[$i]}"; fn="${FNS[$i]}"; act="${ACTS[$i]}"
     miss=""
     for eng in "" "--tree-walk"; do
@@ -141,6 +162,23 @@ for i in 0 1 2 3 4 5; do
     fi
 done
 
+
+# FG-03: SHELL_EXEC, in its own program so it cannot take the others with it.
+if [ "$SHELL_OK" -eq 0 ]; then
+    skip "FG-03" "UNMEASURABLE — no usable <<shell>> executor on this platform"
+else
+    miss=""
+    for eng in "" "--tree-walk"; do
+        run shell.naab "$RO" $eng
+        saw sheller SHELL_EXEC || miss="$miss ${eng:-VM}"
+    done
+    if [ -z "$miss" ]; then
+        pass "FG-03" "SHELL_EXEC is gated in 'sheller' on both engines"
+    else
+        fail "FG-03" "SHELL_EXEC was not gated" "engines missing:$miss"
+    fi
+fi
+
 # --- FG-07: stale attribution on the VM (the defect this suite found) -------
 cat > "$W/stale.naab" << 'EOF'
 fn alpha() { file.read("d.txt") }
@@ -151,12 +189,19 @@ echo hi
 main { alpha() bravo() print("DONE") }
 EOF
 wrong=""
+if [ "$SHELL_OK" -eq 0 ]; then
+    skip "FG-07" "UNMEASURABLE — no usable <<shell>> executor on this platform"
+    wrong="SKIPPED"
+fi
 for eng in "" "--tree-walk"; do
+    [ "$SHELL_OK" -eq 0 ] && break
     run stale.naab "$RO" $eng
     saw bravo SHELL_EXEC || wrong="$wrong ${eng:-VM}"
     case "$OUT" in *"alpha needs SHELL_EXEC"*) wrong="$wrong ${eng:-VM}(blamed-alpha)" ;; esac
 done
-if [ -z "$wrong" ]; then
+if [ "$SHELL_OK" -eq 0 ]; then
+    :  # already reported as UNMEASURABLE above
+elif [ -z "$wrong" ]; then
     pass "FG-07" "a polyglot block is attributed to its OWN function, not the last stdlib caller"
 else
     fail "FG-07" "stale attribution stack" "wrong on:$wrong"
