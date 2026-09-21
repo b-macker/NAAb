@@ -51,6 +51,7 @@ jobs:
             -not -path './benchmarks/*' \
             -not -path './fuzz/*' \
             -not -path './stdlib/*' \
+            -not -path './investigate/*' \
             -not -path '*/ch0_full_projects/*' \
             -not -name 'test_go_async.naab' \
             -type f | sort)
@@ -77,6 +78,20 @@ jobs:
           # - benchmarks: no govern.json, not governance targets
           # - fuzz: intentionally broken files
           # - stdlib: library modules, not standalone programs
+          # - investigate: needs a LIVE API KEY, which CI will never have.
+          #   investigate/deescalation/measure.naab makes real agent calls and
+          #   dies at startup with "Agent error: API key not available" (exit 1,
+          #   a RUNTIME error -- not exit 3, a governance block). Its own report
+          #   reads total:0 passed:0 failed_hard:0 -- zero checks ran, because
+          #   the program never got far enough to be checked. It was therefore
+          #   counted as the "1 failed" in every Governance Report comment,
+          #   which says "one file violated governance" and meant "one file
+          #   could not run". Identical 17/16/1 on #242, #244 and #246.
+          #   This loop is two-valued, so "did not run" had nowhere to go but
+          #   FAILED -- and a permanently-red count is how a REAL finding here
+          #   would get ignored. Excluding it makes the report honest (16/16/0).
+          #   The better fix is a third outcome (SKIPPED/UNMEASURABLE) rather
+          #   than an exclusion; this is the smaller one.
           # - ch0_full_projects: multi-file integration projects needing
           #   specific CWD, compilers (Rust/Go), and inter-process setup
           for f in $(find . -name '*.naab' \
@@ -88,6 +103,7 @@ jobs:
             -not -path './benchmarks/*' \
             -not -path './fuzz/*' \
             -not -path './stdlib/*' \
+            -not -path './investigate/*' \
             -not -path '*/ch0_full_projects/*' \
             -not -name 'test_go_async.naab' \
             -type f | sort); do

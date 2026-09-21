@@ -53,10 +53,10 @@ echo -e "${CYAN}|  Function capabilities reach every gate, on both engines     |
 echo -e "${CYAN}+==============================================================+${NC}"
 echo ""
 
-ALL_IDS="FG-01 FG-02 FG-03 FG-04 FG-05 FG-06 FG-07 FG-08 FG-09 FG-10 FG-11"
+ALL_IDS="FG-01 FG-02 FG-03 FG-04 FG-05 FG-06 FG-07 FG-08 FG-09 FG-10 FG-11 FG-12"
 if ! command -v python3 >/dev/null 2>&1; then
     for id in $ALL_IDS; do skip "$id" "python3 unavailable (fixture generator)"; done
-    echo ""; echo "  Total: 11 | Pass: 0 | Fail: 0 | Skip: 11"; exit 0
+    echo ""; echo "  Total: 12 | Pass: 0 | Fail: 0 | Skip: 12"; exit 0
 fi
 
 mkdir -p "$W"
@@ -70,11 +70,11 @@ echo "data" > "$W/d.txt"
 # UNRELATED rule before reaching the call under test — which reads as a refusal
 # and passes every refusal-expecting arm. That cost three debugging rounds.
 mkcfg() {
-    python3 - "$W/govern.json" "$1" << 'PY'
+    python3 - "$W/govern.json" "$1" "${2:-enforce}" << 'PY'
 import json, sys
 fns = sys.argv[2]
 cfg = {
-    "version": "5.0", "mode": "enforce",
+    "version": "5.0", "mode": sys.argv[3],
     "security": {"sandbox_level": "elevated"},
     "languages": {"allowed": ["shell"]},
     "capabilities": {
@@ -220,6 +220,34 @@ if [ -z "$bad" ]; then
     pass "FG-11" "level hard blocks at a non-filesystem gate on both engines"
 else
     fail "FG-11" "the level did not carry to the new gates" "problems:$bad"
+fi
+
+# --- FG-12: mode "off" silences the tier on both engines ---------------------
+# isActive() is false only for govern.json mode:"off", and the engine treats
+# that as "governance renders no verdict". The function tier postdates the work
+# that made that consistent across engines (tests/security/test_governance_
+# authority.sh), so nothing else pins it for these gates. Checked with the
+# strictest possible declaration -- hard level, an entry permitting NOTHING --
+# because a weaker fixture would pass even if the tier ignored mode entirely.
+bad=""
+for eng in "" "--tree-walk"; do
+    mkcfg '{"level": "hard", "default": {"allowed_actions": []}}' off >/dev/null \
+        || { bad="$bad ${eng:-VM}(fixture)"; continue; }
+    out="$(cd "$W" && FK=x timeout 60s "$NAAB" $eng all.naab 2>&1)"; rc=$?
+    [ "$rc" -eq 0 ] || bad="$bad ${eng:-VM}(rc=$rc)"
+    case "$out" in *"Undeclared"*) bad="$bad ${eng:-VM}(still-gating)" ;; esac
+    case "$out" in *DONE*) ;; *) bad="$bad ${eng:-VM}(no-DONE)" ;; esac
+done
+# Positive control: the SAME declaration under enforce must block, or FG-12
+# would pass for a build where the tier never worked at all.
+for eng in "" "--tree-walk"; do
+    run all.naab '{"level": "hard", "default": {"allowed_actions": []}}' $eng
+    [ "$RC" -eq 3 ] || bad="$bad ${eng:-VM}(enforce-rc=$RC)"
+done
+if [ -z "$bad" ]; then
+    pass "FG-12" "mode \"off\" silences the tier on both engines, and enforce still blocks"
+else
+    fail "FG-12" "the tier disagreed with mode:off" "problems:$bad"
 fi
 
 echo ""

@@ -146,6 +146,7 @@
       "allow_absolute_paths": true
     },
     "shell": {
+      "_comment_spawn_boundary": "SPAWN BOUNDARY: with shell enabled, project governance is ADVISORY for anything that can start a process. Governance is discovered per-process from the SCRIPT'S OWN directory, so a program can write a .naab file where no govern.json is discoverable, run naab-lang on it, and the child is ungoverned -- it reads what this config blocks. Signing does not stop it: the child discovers no config, so blocked_flags and the implicit bypass-flag block never apply. blocked_commands does not stop it either -- it matches the command line, so a renamed copy of the binary walks past. The only containment is setting enabled to false, which removes SYS_EXEC at the sandbox layer. Prefer false for agent-facing projects unless they genuinely need to spawn processes.",
       "enabled": true,
       "rationale": "CWE-78 — shell access allowed but sudo/su/suid blocked to prevent privilege escalation",
       "allowed_commands": [],
