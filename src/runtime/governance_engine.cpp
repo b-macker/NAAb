@@ -1746,6 +1746,12 @@ std::string GovernanceEngine::checkNetworkAllowed() {
             break;
         }
     }
+    // Tier 3: function-scope capabilities. Same helper as every other
+    // gate -- composed by intersection over the call stack.
+    {
+        std::string ferr = checkFunctionCapability("NET_CONNECT", "http.get(\"https://example.com\")");
+        if (!ferr.empty()) return ferr;
+    }
     recordPass("capabilities.network", EnforcementLevel::HARD);
     return "";
 }
@@ -2006,6 +2012,131 @@ std::string GovernanceEngine::filesystemAccessMode(const std::string& module,
     return "";
 }
 
+// ---------------------------------------------------------------------------
+// Function-scope capabilities, composed — ONE implementation, every gate.
+// ---------------------------------------------------------------------------
+//
+// F8 of docs/plan-function-effects.md. The effective permission is the
+// INTERSECTION of every function on the call stack, not the innermost one.
+//
+// Consulting only the innermost frame makes the whole mechanism escapable by
+// refactoring: a caller declaring [FS_READ] calls a helper declaring
+// [FS_WRITE] and the write goes through. That is the split-delegation /
+// confused-deputy pattern this tier exists to catch, and it means `git mv`
+// defeats the feature. Intersection is the same monotonic narrowing the engine
+// already applies for role-subset-of-program, extended to depth.
+//
+// A frame with no entry and no "default" is UNRESTRICTED and contributes the
+// universal set, so it narrows nothing. That keeps configs that name a few
+// functions from accidentally denying everything else.
+//
+// The usability cost is real and IS the security property: a shared utility
+// must be callable from its most restrictive caller. The error therefore names
+// which frame narrowed the set, because under intersection the blocking
+// declaration is often a CALLER and editing the callee does nothing.
+//
+// WHY THIS IS A FUNCTION rather than repeated at each gate: the per-executor
+// polyglot capability check is the precedent in this tree — sixteen copies of
+// one rule, several of them missing and one sitting on a method polyglot
+// blocks never call, which let cpp, php and rust run under a restricted
+// sandbox. A rule that must hold at N call sites belongs in one place that all
+// N call.
+std::string GovernanceEngine::checkFunctionCapability(
+    const std::string& required,
+    const std::string& example_bad,
+    const std::string& example_good) {
+
+    if (rules().capabilities.functions.empty()) return "";
+    const auto& fns = rules().capabilities.functions;
+    const std::string& fn = currentFunction();
+
+    // Resolve a frame to its declaration, or nullptr when unrestricted.
+    auto resolve = [&](const std::string& name,
+                       std::string& entry_out) -> const FunctionCapability* {
+        auto i = fns.find(name);
+        if (i != fns.end()) { entry_out = i->first; return &i->second; }
+        i = fns.find("default");
+        if (i != fns.end()) { entry_out = "default"; return &i->second; }
+        return nullptr;
+    };
+
+    // Walk outermost -> innermost. Any frame lacking `required` removes it from
+    // the effective set; the FIRST such frame is the one to report, since it is
+    // the outermost constraint the operator has to relax.
+    const std::vector<std::string>& stk = functionStack();
+    std::vector<std::string> frames(stk.begin(), stk.end());
+    if (frames.empty()) frames.push_back(fn);  // top level resolves via "default"
+
+    const FunctionCapability* blocking = nullptr;
+    std::string blocking_entry, blocking_frame;
+    for (const auto& frame : frames) {
+        std::string entry;
+        const FunctionCapability* cap = resolve(frame, entry);
+        if (!cap) continue;  // unrestricted frame narrows nothing
+        bool has = false;
+        for (const auto& a : cap->allowed_actions) {
+            if (a == required) { has = true; break; }
+        }
+        if (!has) { blocking = cap; blocking_entry = entry; blocking_frame = frame; break; }
+    }
+    if (!blocking) return "";
+
+    // Two renderings: `listed` is prose, `quoted` is valid JSON. Building one
+    // string and reusing it produced ["FS_READ, FS_WRITE"] -- a single element
+    // containing a comma, which is JSON nobody can paste.
+    std::string listed, quoted;
+    for (const auto& a : blocking->allowed_actions) {
+        if (!listed.empty()) { listed += ", "; quoted += ", "; }
+        listed += a;
+        quoted += "\"" + a + "\"";
+    }
+    std::string who = fn.empty() ? std::string("top level") : ("'" + fn + "'");
+    std::string proposed = quoted.empty() ? ("\"" + required + "\"")
+                                          : (quoted + ", \"" + required + "\"");
+
+    // Provenance. Without it, an operator under intersection edits the function
+    // that attempted the call and nothing changes, because the narrowing
+    // declaration belongs to a caller further up.
+    std::string chain;
+    if (!blocking_frame.empty() && blocking_frame != fn) {
+        chain = "  Narrowed by caller '" + blocking_frame + "'";
+        if (blocking_entry != blocking_frame) chain += " (via \"default\")";
+        chain += "\n";
+    }
+
+    // F4: the level is configurable so a project can bootstrap at advisory and
+    // tighten to hard. Accumulate BEFORE enforce(), which may throw: at hard the
+    // run stops here and the summary never flushes, which is correct (one block,
+    // one verdict).
+    const EnforcementLevel fn_level = rules().capabilities.functions_level;
+    if (fn_level == EnforcementLevel::ADVISORY) {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        std::string key = blocking_frame + "\x1f" + required;
+        if (undeclared_effects_seen_.insert(key).second) {
+            undeclared_effects_.push_back({blocking_frame, required, blocking_entry});
+        }
+    }
+    return enforce("capabilities.functions", fn_level,
+        formatError(fn_level,
+            "Undeclared action in " + who + ": " + required,
+            fn.empty() ? "" : ("in function '" + fn + "'"),
+            "capabilities.functions." + blocking_entry + ".allowed_actions",
+            chain +
+            "  Effective permissions are the intersection of every\n"
+            "  function on the call stack, so a caller can narrow a\n"
+            "  callee but never widen it.\n"
+            "That entry may perform: " + (listed.empty() ? "(nothing)" : listed) + "\n"
+            "Either the operation does not belong here, or the\n"
+            "declaration is incomplete. To permit it, add " + required + ":\n"
+            "  \"capabilities\": { \"functions\": { \"" + blocking_entry + "\": {\n"
+            "      \"allowed_actions\": [" + proposed + "] } } }\n"
+            "A function grant can only narrow what its role and the\n"
+            "program already permit - adding it here has no effect if\n"
+            "either of those lacks it.",
+            example_bad,
+            "Declare " + required + " on '" + blocking_entry + "', or move the call"));
+}
+
 std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
     clearTrace();
     if (rules().filesystem_mode == "none") {
@@ -2052,118 +2183,14 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
         }
     }
     // --- Tier 3: function-scope capabilities, composed ----------------------
-    // F8 of docs/plan-function-effects.md. The effective permission is the
-    // INTERSECTION of every function on the call stack, not the innermost one.
-    //
-    // Consulting only the innermost frame makes the whole mechanism escapable by
-    // refactoring: a caller declaring [FS_READ] calls a helper declaring
-    // [FS_WRITE] and the write goes through. That is the split-delegation /
-    // confused-deputy pattern agent_review's own prompt hunts for, and it means
-    // `git mv` defeats the feature. Intersection is the same monotonic narrowing
-    // the engine already applies for role-subset-of-program, extended to depth.
-    //
-    // A frame with no entry and no "default" is UNRESTRICTED and contributes the
-    // universal set, so it narrows nothing. That keeps configs that name a few
-    // functions from accidentally denying everything else.
-    //
-    // The usability cost is real and IS the security property: a shared utility
-    // must be callable from its most restrictive caller. The error therefore
-    // names which frame narrowed the set, because under intersection the
-    // blocking declaration is often a CALLER and editing the callee does nothing.
-    if (!rules().capabilities.functions.empty()) {
-        const auto& fns = rules().capabilities.functions;
-        const std::string& fn = currentFunction();
-        std::string required = (mode == "write") ? "FS_WRITE" : "FS_READ";
-
-        // Resolve a frame to its declaration, or nullptr when unrestricted.
-        auto resolve = [&](const std::string& name,
-                           std::string& entry_out) -> const FunctionCapability* {
-            auto i = fns.find(name);
-            if (i != fns.end()) { entry_out = i->first; return &i->second; }
-            i = fns.find("default");
-            if (i != fns.end()) { entry_out = "default"; return &i->second; }
-            return nullptr;
-        };
-
-        // Walk outermost -> innermost. Any frame lacking `required` removes it
-        // from the effective set; the FIRST such frame is the one to report,
-        // since it is the outermost constraint the operator has to relax.
-        const std::vector<std::string>& stk = functionStack();
-        std::vector<std::string> frames(stk.begin(), stk.end());
-        if (frames.empty()) frames.push_back(fn);  // top level resolves via "default"
-
-        const FunctionCapability* blocking = nullptr;
-        std::string blocking_entry, blocking_frame;
-        for (const auto& frame : frames) {
-            std::string entry;
-            const FunctionCapability* cap = resolve(frame, entry);
-            if (!cap) continue;  // unrestricted frame narrows nothing
-            bool has = false;
-            for (const auto& a : cap->allowed_actions) {
-                if (a == required) { has = true; break; }
-            }
-            if (!has) { blocking = cap; blocking_entry = entry; blocking_frame = frame; break; }
-        }
-
-        if (blocking) {
-            // Two renderings: `listed` is prose, `quoted` is valid JSON. Building
-            // one string and reusing it produced ["FS_READ, FS_WRITE"] -- a single
-            // element containing a comma, which is JSON nobody can paste.
-            std::string listed, quoted;
-            for (const auto& a : blocking->allowed_actions) {
-                if (!listed.empty()) { listed += ", "; quoted += ", "; }
-                listed += a;
-                quoted += "\"" + a + "\"";
-            }
-            std::string who = fn.empty() ? std::string("top level") : ("'" + fn + "'");
-            std::string proposed = quoted.empty() ? ("\"" + required + "\"")
-                                                 : (quoted + ", \"" + required + "\"");
-
-            // Provenance. Without it, an operator under intersection edits the
-            // function that attempted the call and nothing changes, because the
-            // narrowing declaration belongs to a caller further up.
-            std::string chain;
-            if (!blocking_frame.empty() && blocking_frame != fn) {
-                chain = "  Narrowed by caller '" + blocking_frame + "'";
-                if (blocking_entry != blocking_frame) chain += " (via \"default\")";
-                chain += "\n";
-            }
-
-            // F4: the level is configurable so a project can bootstrap at
-            // advisory and tighten to hard. Accumulate BEFORE enforce(), which
-            // may throw: at hard the run stops here and the summary never
-            // flushes, which is correct (one block, one verdict), but the record
-            // still belongs in check_results_ either way.
-            const EnforcementLevel fn_level = rules().capabilities.functions_level;
-            if (fn_level == EnforcementLevel::ADVISORY) {
-                std::lock_guard<std::mutex> lock(results_mutex_);
-                std::string key = blocking_frame + "\x1f" + required;
-                if (undeclared_effects_seen_.insert(key).second) {
-                    undeclared_effects_.push_back(
-                        {blocking_frame, required, blocking_entry});
-                }
-            }
-            return enforce("capabilities.functions", fn_level,
-                formatError(fn_level,
-                    "Undeclared action in " + who + ": " + required,
-                    fn.empty() ? "" : ("in function '" + fn + "'"),
-                    "capabilities.functions." + blocking_entry + ".allowed_actions",
-                    chain +
-                    "  Effective permissions are the intersection of every\n"
-                    "  function on the call stack, so a caller can narrow a\n"
-                    "  callee but never widen it.\n"
-                    "That entry may perform: " + (listed.empty() ? "(nothing)" : listed) + "\n"
-                    "Either the operation does not belong here, or the\n"
-                    "declaration is incomplete. To permit it, add " + required + ":\n"
-                    "  \"capabilities\": { \"functions\": { \"" + blocking_entry + "\": {\n"
-                    "      \"allowed_actions\": [" + proposed + "] } } }\n"
-                    "A function grant can only narrow what its role and the\n"
-                    "program already permit - adding it here has no effect if\n"
-                    "either of those lacks it.",
-                    mode == "write" ? "file.write(\"output.txt\", data)"
-                                    : "file.read(\"input.txt\")",
-                    "Declare " + required + " on '" + blocking_entry + "', or move the call"));
-        }
+    // Every gate calls the SAME helper. The per-executor polyglot check is the
+    // cautionary precedent: sixteen copies of one rule, and most were wrong.
+    {
+        std::string ferr = checkFunctionCapability(
+            (mode == "write") ? "FS_WRITE" : "FS_READ",
+            mode == "write" ? "file.write(\"output.txt\", data)"
+                            : "file.read(\"input.txt\")");
+        if (!ferr.empty()) return ferr;
     }
 
     recordPass("capabilities.filesystem", EnforcementLevel::HARD);
@@ -2492,6 +2519,12 @@ std::string GovernanceEngine::checkShellAllowed() {
             break;
         }
     }
+    // Tier 3: function-scope capabilities. Same helper as every other
+    // gate -- composed by intersection over the call stack.
+    {
+        std::string ferr = checkFunctionCapability("SHELL_EXEC", "let result = <<shell\nls -la\n>>");
+        if (!ferr.empty()) return ferr;
+    }
     recordPass("capabilities.shell", EnforcementLevel::HARD);
     return "";
 }
@@ -2599,6 +2632,12 @@ std::string GovernanceEngine::checkEnvVarRead(const std::string& var_name) {
                     "env.get(\"HOME\")  // use an allowed variable"));
         }
     }
+    // Tier 3: function-scope capabilities. Same helper as every other
+    // gate -- composed by intersection over the call stack.
+    {
+        std::string ferr = checkFunctionCapability("ENV_READ", "env.get(\"API_KEY\")");
+        if (!ferr.empty()) return ferr;
+    }
     recordPass("capabilities.env_vars.read", EnforcementLevel::HARD);
     return "";
 }
@@ -2699,6 +2738,12 @@ std::string GovernanceEngine::checkEnvVarWrite(const std::string& var_name) {
                     "env.set_var(\"" + var_name + "\", value)",
                     "env.set_var(\"ALLOWED_VAR\", value)"));
         }
+    }
+    // Tier 3: function-scope capabilities. Same helper as every other
+    // gate -- composed by intersection over the call stack.
+    {
+        std::string ferr = checkFunctionCapability("ENV_WRITE", "env.set(\"API_KEY\", value)");
+        if (!ferr.empty()) return ferr;
     }
     recordPass("capabilities.env_vars.write", EnforcementLevel::HARD);
     return "";

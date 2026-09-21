@@ -7155,6 +7155,36 @@ NaabVal AgentModule::call(
     const std::string& function_name,
     std::vector<NaabVal>& args) {
 
+    // Function-scope capabilities: AGENT_SEND.
+    //
+    // Gated HERE, at the dispatch table, and NOT inside agentSend(). The
+    // attribution stack is `static thread_local`, and agentBatch()/agentFanOut()
+    // run agentSend() on pool worker threads where that stack is EMPTY. Under
+    // intersection an empty stack is fewer constraints, not more -- so gating
+    // deeper would make a batched send strictly MORE permissive than the same
+    // send on the main thread, which is the wrong direction for a confused-deputy
+    // control. This dispatch point runs on the caller's thread for every entry
+    // point, batched or not.
+    //
+    // One site rather than one per engine: both the VM (which syncs the stack
+    // before any governed stdlib call) and the tree-walker (RAII) reach this
+    // function with a correct stack, exactly as env_impl.cpp does for ENV_READ.
+    //
+    // Only the entry points that actually initiate a model call are listed.
+    // "commit" is deliberately absent: it makes no API call (the candidate was
+    // paid for at propose time) and its authority is already re-checked against
+    // the standing lease and CRITICAL suspension.
+    if (function_name == "send" || function_name == "run" ||
+        function_name == "batch" || function_name == "fan_out" ||
+        function_name == "pipeline" || function_name == "propose") {
+        auto* gov = governance::GovernanceEngine::getCurrent();
+        if (gov && gov->isActive()) {
+            std::string ferr = gov->checkFunctionCapability(
+                "AGENT_SEND", "agent.send(handle, prompt)");
+            if (!ferr.empty()) throw std::runtime_error(ferr);
+        }
+    }
+
     if (function_name == "create") return agentCreate(args);
     if (function_name == "send") return agentSend(args);
     if (function_name == "run") return agentRun(args);

@@ -2064,6 +2064,19 @@ interpreter::NaabVal VM::run() {
 
                         // Governance checks
                         if (governance_ && governance_->isActive()) {
+                            // Function attribution: the VM DERIVES the stack from
+                            // frames_ at each governed site rather than maintaining it.
+                            // Without a sync here the stack is whatever the last governed
+                            // STDLIB call left behind, so a polyglot block is attributed
+                            // to an unrelated function -- measured: a <<shell>> block in
+                            // bravo() reported as 'alpha' on the VM while the tree-walker
+                            // (RAII, continuously maintained) correctly said 'bravo'.
+                            if (governance_->functionAttributionEnabled()) {
+                                governance_->syncFunctionStack(
+                                    [this](size_t i) -> const std::string& {
+                                        return frames_[i].function->name;
+                                    }, frame_count_);
+                            }
                             int gov_line = CURRENT_CHUNK().getLine(
                                 static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
                             std::string gov_err = governance_->checkPolyglotBlock(
@@ -2880,6 +2893,19 @@ interpreter::NaabVal VM::run() {
                           static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
                 if (governance_) {
                     governance_->reloadIfChanged();
+                    // Function attribution: the VM DERIVES the stack from
+                    // frames_ at each governed site rather than maintaining it.
+                    // Without a sync here the stack is whatever the last governed
+                    // STDLIB call left behind, so a polyglot block is attributed
+                    // to an unrelated function -- measured: a <<shell>> block in
+                    // bravo() reported as 'alpha' on the VM while the tree-walker
+                    // (RAII, continuously maintained) correctly said 'bravo'.
+                    if (governance_->functionAttributionEnabled()) {
+                        governance_->syncFunctionStack(
+                            [this](size_t i) -> const std::string& {
+                                return frames_[i].function->name;
+                            }, frame_count_);
+                    }
                     int gov_line = polyglot_gov_line;
                     governance_->setCheckContext(current_file_, gov_line);
                     std::string err = governance_->checkPolyglotBlock(

@@ -3072,6 +3072,15 @@ public:
     const std::string& currentFunction() const;
     // Outermost-first, for composition across the call stack.
     const std::vector<std::string>& functionStack() const;
+
+    // Function-scope capabilities (F2/F8), composed by intersection over the
+    // call stack. Called by every capability gate; see the definition in
+    // governance_engine.cpp for why it is one function and not N copies.
+    // `example_good` is unused today (the remedy line is generated), kept so a
+    // gate can supply a concrete alternative without changing every caller.
+    std::string checkFunctionCapability(const std::string& required,
+                                        const std::string& example_bad,
+                                        const std::string& example_good = "");
     // Derived from active_ rather than held as its own flag: active_ is assigned
     // at three sites in governance_config.cpp, and a fourth piece of state to
     // keep in sync is a fourth place to forget. Attribution is live exactly when

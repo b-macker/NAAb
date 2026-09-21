@@ -149,6 +149,47 @@ declaration caused the intersection, not just the function that attempted the ca
 No new machinery — intersection is computed over the F3 stack that must exist
 anyway.
 
+### F2 widened — every gate, one helper — SHIPPED
+
+The tier shipped wired to `checkFilesystemAllowed` alone. It now covers
+NET_CONNECT (`checkNetworkAllowed`), SHELL_EXEC (`checkShellAllowed`),
+ENV_READ/ENV_WRITE (`checkEnvVarRead`/`checkEnvVarWrite`) and AGENT_SEND (the
+agent dispatch table), through a single `checkFunctionCapability()` rather than
+a copy per gate — the sixteen-copies-of-one-rule polyglot precedent is in the
+tree precisely because that goes wrong.
+
+Two things surfaced only once a second kind of gate existed:
+
+**The VM's attribution stack was stale outside stdlib calls.** It derives the
+stack from `frames_` at each governed site instead of maintaining one, and it
+synced only inside the stdlib-call path. Wiring SHELL_EXEC made that visible: a
+`<<shell>>` block inside `bravo()` was reported as `alpha` on the VM — the last
+function to make a governed stdlib call — while the tree-walker said `bravo`.
+Both polyglot sites now sync. This is a standing rule for any new governed site
+in the VM, not a one-off fix.
+
+**AGENT_SEND cannot be gated inside `agentSend()`.** The stack is thread_local
+and `batch`/`fan_out` run `agentSend()` on pool workers with an empty stack —
+and under intersection an empty stack is FEWER constraints, so the deeper gate
+would have made a batched send *more* permissive than a direct one. It is gated
+at the dispatch table, which runs on the caller's thread for every entry point.
+
+**TOOL_EXEC is not wired, by construction.** A tool call is initiated by the
+model inside the agent loop, on a worker, with no user call stack to intersect.
+There is no frame the tier could name. The per-agent action matrix already
+gates it.
+
+Adoption cost nothing to measure: **no config in the tree used
+`capabilities.functions`** at the time of widening. That was verified by parsing
+every JSON file, not by grepping `"functions"` — `contracts.functions` and
+`requirements.naming_conventions.functions` share the key name and produce
+dozens of false hits.
+
+Test: `tests/governance_v4/test_function_capability_gates.sh` (11 arms, both
+engines). FG-07 pins the stale-attribution fix; FG-09 is the control that the
+tier stays opt-in, without which an implementation that gated everything
+unconditionally would pass every other arm.
+
 ### F9 — Complete the action vocabulary
 
 Enforced in the matrix today: `FS_READ`, `FS_WRITE`, `NET_CONNECT`,
@@ -322,7 +363,7 @@ Each phase is independently useful and independently testable.
    advisory only. Smallest thing that demonstrates the loop.
 4. **F8 composition** — before widening to more gates, because it changes the
    semantics of everything built in phase 3.
-5. **F5 ratchet** and **F4 level** (both shipped), then the remaining gates.
+5. **F5 ratchet** and **F4 level**, then **F2 widened to every gate** — all shipped.
 
 ## Test surface — non-negotiable
 
