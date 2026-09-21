@@ -832,6 +832,55 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sh.contains("max_execution_time") && sh["max_execution_time"].is_number_integer()) sc.max_execution_time = sh["max_execution_time"].get<int>();
             parseRationale(sh, sc.rationale);
         }
+        // --- capabilities.functions: function-scope capabilities ---
+        // Third rung of the scope ladder. Unknown action names are warned at
+        // load rather than ignored: a typo'd action in an ALLOWLIST silently
+        // removes a permission, and the operator has no other signal.
+        if (cap.contains("functions") && cap["functions"].is_object()) {
+            static const std::vector<std::string> kKnownActions = {
+                "FS_READ", "FS_WRITE", "NET_CONNECT", "SHELL_EXEC",
+                "AGENT_SEND", "TOOL_EXEC", "ENV_READ", "ENV_WRITE"
+            };
+            for (auto& [fn_name, fn_cfg] : cap["functions"].items()) {
+                // "level" carrying a STRING is this section's enforcement level,
+                // not a function named level(). The two cannot collide because a
+                // function entry is always an object: reserving the name
+                // unconditionally would drop a real level() through to "default"
+                // and silently change its permissions, which is the failure mode
+                // this whole tier exists to avoid.
+                if (fn_name == "level" && fn_cfg.is_string()) {
+                    auto [fn_en, fn_lv] = parseEnforcementLevel(fn_cfg);
+                    // An unrecognised level string means DISABLED here, the same
+                    // as everywhere else (see A1c in parseEnforcementLevel), and
+                    // it has already warned by name.
+                    rules_.capabilities.functions_level =
+                        fn_en ? fn_lv : EnforcementLevel::NONE;
+                    continue;
+                }
+                if (!fn_cfg.is_object()) continue;
+                FunctionCapability fc_fn;
+                if (fn_cfg.contains("allowed_actions") && fn_cfg["allowed_actions"].is_array()) {
+                    for (const auto& a : fn_cfg["allowed_actions"]) {
+                        if (!a.is_string()) continue;
+                        std::string act = a.get<std::string>();
+                        bool known = false;
+                        for (const auto& k : kKnownActions) if (k == act) { known = true; break; }
+                        if (!known) {
+                            fprintf(stderr,
+                                "[governance] Warning: unknown action \"%s\" in "
+                                "capabilities.functions.%s.allowed_actions — expected one of "
+                                "FS_READ, FS_WRITE, NET_CONNECT, SHELL_EXEC, AGENT_SEND, "
+                                "TOOL_EXEC, ENV_READ, ENV_WRITE\n",
+                                act.c_str(), fn_name.c_str());
+                        }
+                        fc_fn.allowed_actions.push_back(act);
+                    }
+                }
+                rules_.capabilities.functions[fn_name] = fc_fn;
+            }
+            rules_.explicitly_set.insert("capabilities.functions");
+        }
+
         if (cap.contains("env_vars") && cap["env_vars"].is_object()) {
             auto& ev = cap["env_vars"];
             auto& ec = rules_.capabilities.env_vars;
@@ -1337,6 +1386,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (iv.contains("missing_level")) { auto [en, lv] = parseEnforcementLevel(iv["missing_level"]); rules_.code_quality.intent_validation.missing_level = lv; }
             if (iv.contains("mode") && iv["mode"].is_string()) rules_.code_quality.intent_validation.mode = iv["mode"].get<std::string>();
             if (iv.contains("min_function_lines") && iv["min_function_lines"].is_number_integer()) rules_.code_quality.intent_validation.min_function_lines = iv["min_function_lines"].get<int>();
+            if (iv.contains("min_overlap") && iv["min_overlap"].is_number())
+                rules_.code_quality.intent_validation.min_overlap =
+                    std::max(0.0, std::min(1.0, iv["min_overlap"].get<double>()));
             if (iv.contains("exempt_functions")) {
                 for (auto& f : iv["exempt_functions"])
                     if (f.is_string()) rules_.code_quality.intent_validation.exempt_functions.push_back(f.get<std::string>());
@@ -3692,6 +3744,9 @@ static bool checkRatchetViolation(
     chkLevel(old_r.code_quality.no_oversimplification.level, new_r.code_quality.no_oversimplification.level, "code_quality.no_oversimplification.level");
     chkLevel(old_r.code_quality.no_incomplete_logic.level, new_r.code_quality.no_incomplete_logic.level, "code_quality.no_incomplete_logic.level");
     chkLevel(old_r.code_quality.no_simulation_markers.level, new_r.code_quality.no_simulation_markers.level, "code_quality.no_simulation_markers.level");
+    // F4: lowering the function-capability level mid-run (e.g. hard -> advisory)
+    // converts blocks into warnings, so it is loosening like any other level.
+    chkLevel(old_r.capabilities.functions_level, new_r.capabilities.functions_level, "capabilities.functions.level");
 
     // --- D. Boolean restrictions (true = stricter) ---
     auto chkRestrict = [&](bool old_v, bool new_v, const char* name) {
@@ -3714,6 +3769,76 @@ static bool checkRatchetViolation(
     chkRestrict(old_r.code_quality.no_incomplete_logic.enabled, new_r.code_quality.no_incomplete_logic.enabled, "code_quality.no_incomplete_logic.enabled");
     chkRestrict(old_r.code_quality.no_simulation_markers.enabled, new_r.code_quality.no_simulation_markers.enabled, "code_quality.no_simulation_markers.enabled");
     chkRestrict(old_r.taint_tracking.enabled, new_r.taint_tracking.enabled, "taint_tracking.enabled");
+
+    // --- D2. capabilities.functions (F5) ---
+    // Compares EFFECTIVE permissions per function, not raw entries, because
+    // adding or removing an entry can go either way:
+    //
+    //   * adding an entry for X that grants more than "default" LOOSENS X
+    //   * adding one that grants less TIGHTENS it
+    //   * REMOVING X's entry loosens whenever "default" is more permissive
+    //   * editing "default" moves every function that has no entry
+    //
+    // A name-by-name diff of the raw map gets all four of those wrong. Effective
+    // resolution is: own entry, else "default", else UNRESTRICTED.
+    //
+    // Note what a config ratchet cannot see: renaming a function in the SOURCE
+    // makes it fall through to "default". That is a code change, not a config
+    // change, so "default" is the mitigation and it is why default exists rather
+    // than "absent means unrestricted".
+    {
+        struct Eff { bool unrestricted; std::set<std::string> acts; };
+        auto effective = [](const std::unordered_map<std::string, FunctionCapability>& m,
+                            const std::string& name) -> Eff {
+            auto i = m.find(name);
+            if (i == m.end()) i = m.find("default");
+            if (i == m.end()) return Eff{true, {}};
+            Eff e{false, {}};
+            for (const auto& a : i->second.allowed_actions) e.acts.insert(a);
+            return e;
+        };
+
+        std::set<std::string> names;
+        for (const auto& [k, v] : old_r.capabilities.functions) { (void)v; names.insert(k); }
+        for (const auto& [k, v] : new_r.capabilities.functions) { (void)v; names.insert(k); }
+
+        for (const auto& name : names) {
+            Eff before = effective(old_r.capabilities.functions, name);
+            Eff after  = effective(new_r.capabilities.functions, name);
+
+            if (before.unrestricted && after.unrestricted) continue;
+            if (before.unrestricted && !after.unrestricted) {
+                notices.push_back(fmt::format(
+                    "capabilities.functions.{}: unrestricted -> restricted (tightened)", name));
+                continue;
+            }
+            if (!before.unrestricted && after.unrestricted) {
+                violations.push_back(fmt::format(
+                    "capabilities.functions.{}: restricted -> unrestricted (loosened)", name));
+                continue;
+            }
+            std::vector<std::string> gained, lost;
+            for (const auto& a : after.acts)  if (!before.acts.count(a)) gained.push_back(a);
+            for (const auto& a : before.acts) if (!after.acts.count(a))  lost.push_back(a);
+            if (!gained.empty()) {
+                std::string g;
+                for (const auto& a : gained) { if (!g.empty()) g += ", "; g += a; }
+                violations.push_back(fmt::format(
+                    "capabilities.functions.{}: gained {} (loosened)", name, g));
+            }
+            if (!lost.empty()) {
+                std::string l;
+                for (const auto& a : lost) { if (!l.empty()) l += ", "; l += a; }
+                notices.push_back(fmt::format(
+                    "capabilities.functions.{}: dropped {} (tightened)", name, l));
+            }
+        }
+
+        // Deleting the whole section needs no separate case: `names` is the
+        // union of both maps, so every previously-listed function is walked and
+        // each reports restricted -> unrestricted on its own. A summary line
+        // here would duplicate those, not add a case they miss.
+    }
 
     // --- E. Per-agent config changes ---
     auto agentByName = [](const std::vector<AgentConfig>& agents, const std::string& n)

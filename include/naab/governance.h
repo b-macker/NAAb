@@ -222,6 +222,16 @@ struct MemoryCapability {
     bool allow_shared_memory = true;
 };
 
+// Function-scope capabilities: what a single NAAb function may do. The third
+// rung of the scope ladder (program -> role -> function); see
+// docs/plan-function-effects.md. Deliberately NOT a new subsystem -- it reuses
+// the same action vocabulary as agents.<n>.allowed_actions and is enforced
+// inside the same gate functions, so a role narrows the program and a function
+// narrows the role.
+struct FunctionCapability {
+    std::vector<std::string> allowed_actions;
+};
+
 struct CapabilitiesConfig {
     NetworkCapability network;
     FilesystemCapability filesystem;
@@ -230,6 +240,15 @@ struct CapabilitiesConfig {
     ProcessCapability process;
     TimeCapability time;
     MemoryCapability memory;
+    // Keyed by function name. "default" applies to any function without its own
+    // entry -- NOT "absent means unrestricted", which would protect only what
+    // someone remembered to list. Empty map = feature unused, no restriction.
+    std::unordered_map<std::string, FunctionCapability> functions;
+    // Enforcement level for the map above, from capabilities.functions.level
+    // (F4). ADVISORY is the bootstrap level: it accumulates EVERY undeclared
+    // effect in one run and prints the declarations to add. Raising it to hard
+    // blocks on the first, which is the ratchet's own direction.
+    EnforcementLevel functions_level = EnforcementLevel::ADVISORY;
 };
 
 // ============================================================================
@@ -817,6 +836,12 @@ struct IntentValidationConfig {
     EnforcementLevel missing_level = EnforcementLevel::ADVISORY; // Missing level
     std::string mode = "hybrid";   // "static", "agent", "hybrid"
     int min_function_lines = 3;    // Skip tiny functions
+    // Fraction of the owner intent's keywords that must appear in the function's
+    // executable surface. The EFFECTIVE threshold is max(min_overlap, 2.0/n) for
+    // an n-keyword intent, so a short intent still requires two matches however
+    // low this is set. Was hardcoded at 0.3; govern-template.json advertised the
+    // key and the engine ignored it.
+    double min_overlap = 0.3;
     std::vector<std::string> exempt_functions;
     // Owner-defined intents (ground truth from govern.json)
     std::string project_intent;    // Broad project purpose — freeform text
@@ -3023,6 +3048,44 @@ public:
     const std::string& effectiveAgentId() const;
     std::string pushActiveToolRole(const std::string& role);
     void popActiveToolRole(const std::string& prev);
+
+    // --- Function attribution ---
+    // Which NAAb function is executing. Nothing in the engine could answer that
+    // before this: RuntimeEvent carries `file` and `line` and no function, so a
+    // taint violation, a BSD event and a capability refusal could all name a
+    // line but not the function that owns it.
+    //
+    // Maintained by BOTH engines through ScopedFunctionContext (RAII, so an
+    // exception or a `return` out of a `try` unwinds it correctly -- a manual
+    // push/pop pair leaks on those paths). Mirrors the t_active_tool_role
+    // precedent, which ScopedToolContext already drives the same way.
+    //
+    // Tracking is GATED on functionAttributionEnabled() so it costs one bool
+    // test per call when nothing consumes it; OP_CALL is a hot path.
+    // Rebuild the stack from an authoritative source (the VM's frames_).
+    // Used instead of push/pop where a mirrored stack could drift out of sync.
+    void syncFunctionStack(const std::function<const std::string&(size_t)>& at,
+                           size_t depth);
+    void pushFunctionContext(const std::string& fn);
+    void popFunctionContext();
+    // Innermost executing function, or "" at top level.
+    const std::string& currentFunction() const;
+    // Outermost-first, for composition across the call stack.
+    const std::vector<std::string>& functionStack() const;
+
+    // Function-scope capabilities (F2/F8), composed by intersection over the
+    // call stack. Called by every capability gate; see the definition in
+    // governance_engine.cpp for why it is one function and not N copies.
+    // `example_good` is unused today (the remedy line is generated), kept so a
+    // gate can supply a concrete alternative without changing every caller.
+    std::string checkFunctionCapability(const std::string& required,
+                                        const std::string& example_bad,
+                                        const std::string& example_good = "");
+    // Derived from active_ rather than held as its own flag: active_ is assigned
+    // at three sites in governance_config.cpp, and a fourth piece of state to
+    // keep in sync is a fourth place to forget. Attribution is live exactly when
+    // governance is, which is when anything consumes it.
+    bool functionAttributionEnabled() const { return isActive(); }
     const std::string& getAgentId() const { return agent_id_; }
     void applyAgentRole();
 
@@ -3790,6 +3853,15 @@ private:
     struct DupCallEntry { std::string function_name; int count; int line; };
     std::unordered_map<std::string, std::vector<DupCallEntry>> dup_call_summary_;
     std::vector<std::pair<std::string, int>> ptc_functions_; // polyglot try/catch: {name, line}
+    // F4: undeclared function effects, accumulated for the end-of-run summary.
+    // enforce() dedupes its detail print by RULE NAME, and every undeclared
+    // effect shares the rule name "capabilities.functions" -- so without this
+    // the first one printed its remedy and the rest were silent, making the
+    // advisory tier a one-finding-per-run loop instead of the bootstrap pass
+    // it is meant to be. Measured: three violating functions, one reported.
+    struct UndeclaredEffect { std::string frame, action, entry; };
+    std::vector<UndeclaredEffect> undeclared_effects_;
+    std::set<std::string> undeclared_effects_seen_;
     int advisory_count_ = 0;
     int advisory_suppressed_ = 0;
     int agent_review_count_ = 0;  // confirmed findings from agent review phase
@@ -3978,6 +4050,28 @@ private:
     // --- Audit helpers ---
     std::string computeAuditHash(const std::string& data) const;
     std::string computeHash(const std::string& data, const TamperEvidenceConfig& te) const;
+};
+
+// RAII bracket for the function attribution stack. Used by BOTH engines around
+// NAAb function bodies. Must be RAII and never a manual push/pop pair: a
+// `return` out of a `try`, or an exception unwinding through the call, would
+// otherwise leak a frame and attribute later effects to the wrong function.
+// ScopedToolContext (agent_impl.cpp) is the precedent this copies.
+class ScopedFunctionContext {
+public:
+    ScopedFunctionContext(GovernanceEngine* eng, const std::string& fn)
+        : eng_(eng) {
+        if (eng_ && eng_->functionAttributionEnabled()) {
+            eng_->pushFunctionContext(fn);
+            pushed_ = true;
+        }
+    }
+    ~ScopedFunctionContext() { if (pushed_ && eng_) eng_->popFunctionContext(); }
+    ScopedFunctionContext(const ScopedFunctionContext&) = delete;
+    ScopedFunctionContext& operator=(const ScopedFunctionContext&) = delete;
+private:
+    GovernanceEngine* eng_ = nullptr;
+    bool pushed_ = false;
 };
 
 } // namespace governance

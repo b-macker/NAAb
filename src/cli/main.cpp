@@ -2911,6 +2911,16 @@ int main(int argc, char** argv) {
 
         } catch (const naab::governance::GovernanceHardError& e) {
             // Uncatchable governance violation — NAAb try/catch cannot swallow this
+            // The accumulated advisory summary lives in the engine until
+            // flushGroupedAdvisories() runs, and both engines only call it
+            // after a CLEAN run. So any fatal error discarded the whole
+            // summary -- F4's "one run reports every undeclared effect"
+            // silently became zero exactly when the operator most needs the
+            // list. Idempotent: it clears its own buffers, so the normal-exit
+            // call and this one cannot double-print.
+            if (auto* gov = naab::governance::GovernanceEngine::getCurrent()) {
+                if (gov->isActive()) gov->flushGroupedAdvisories();
+            }
             std::string msg = naab::error::ErrorSanitizer::sanitize(e.what());
             fmt::print("Error: {}\n", msg);
             fflush(stdout);
@@ -2918,6 +2928,16 @@ int main(int argc, char** argv) {
             _exit(3);
         } catch (const naab::limits::ExitException& e) {
             // V-DOS-014: process.exit() throws ExitException instead of std::exit()
+            // The accumulated advisory summary lives in the engine until
+            // flushGroupedAdvisories() runs, and both engines only call it
+            // after a CLEAN run. So any fatal error discarded the whole
+            // summary -- F4's "one run reports every undeclared effect"
+            // silently became zero exactly when the operator most needs the
+            // list. Idempotent: it clears its own buffers, so the normal-exit
+            // call and this one cannot double-print.
+            if (auto* gov = naab::governance::GovernanceEngine::getCurrent()) {
+                if (gov->isActive()) gov->flushGroupedAdvisories();
+            }
             fflush(stdout);
             fflush(stderr);
             // naab-29 L-02: governance hard block overrides process.exit()
@@ -2925,6 +2945,16 @@ int main(int argc, char** argv) {
             _exit(e.exit_code);
         } catch (const naab::interpreter::NaabError& e) {
             // NaabError has full stack trace - print it
+            // The accumulated advisory summary lives in the engine until
+            // flushGroupedAdvisories() runs, and both engines only call it
+            // after a CLEAN run. So any fatal error discarded the whole
+            // summary -- F4's "one run reports every undeclared effect"
+            // silently became zero exactly when the operator most needs the
+            // list. Idempotent: it clears its own buffers, so the normal-exit
+            // call and this one cannot double-print.
+            if (auto* gov = naab::governance::GovernanceEngine::getCurrent()) {
+                if (gov->isActive()) gov->flushGroupedAdvisories();
+            }
             // V-ERR-002: sanitize before displaying to prevent sensitive data leakage
             fmt::print("{}\n", naab::error::ErrorSanitizer::sanitize(e.formatError()));
             fflush(stdout);
@@ -2933,6 +2963,16 @@ int main(int argc, char** argv) {
             _exit(1);
         } catch (const std::exception& e) {
             // V-ERR-002: keep raw_msg for exit-code detection; display sanitized version
+            // The accumulated advisory summary lives in the engine until
+            // flushGroupedAdvisories() runs, and both engines only call it
+            // after a CLEAN run. So any fatal error discarded the whole
+            // summary -- F4's "one run reports every undeclared effect"
+            // silently became zero exactly when the operator most needs the
+            // list. Idempotent: it clears its own buffers, so the normal-exit
+            // call and this one cannot double-print.
+            if (auto* gov = naab::governance::GovernanceEngine::getCurrent()) {
+                if (gov->isActive()) gov->flushGroupedAdvisories();
+            }
             std::string raw_msg = e.what();
             std::string msg = naab::error::ErrorSanitizer::sanitize(raw_msg);
             fmt::print("Error: {}\n", msg);

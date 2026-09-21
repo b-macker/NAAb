@@ -1796,6 +1796,17 @@ std::string GovernanceEngine::checkEmptyMain(const std::string& source) {
     return "";
 }
 
+// Name a NaabVal's type for contract diagnostics. int 20 and float 20.0 render
+// identically via toString(), so a type-strict mismatch is invisible without it.
+static const char* naabTypeName(const interpreter::NaabVal& v) {
+    if (v.isNull())   return "null";
+    if (v.isBool())   return "bool";
+    if (v.isInt())    return "int";
+    if (v.isDouble()) return "float";
+    if (v.isString()) return "string";
+    return "value";
+}
+
 // --- Intent Validation: verify code matches declared intent ---
 // Authority hierarchy:
 //   1. Owner's function_intents in govern.json (ground truth, cfg.level)
@@ -2411,7 +2422,7 @@ std::string GovernanceEngine::checkIntentValidation(
             std::string missing, matched;
             // Don't match against function_name — owner defined that slot, so name match is circular
             double overlap = keywordOverlap(keywords, inner_body, "", missing, matched);
-            double min_overlap = std::max(0.3, 2.0 / static_cast<double>(keywords.size()));
+            double min_overlap = std::max(cfg.min_overlap, 2.0 / static_cast<double>(keywords.size()));
             addTrace(fmt::format("keyword overlap={:.0f}% (threshold={:.0f}%), matched=[{}], missing=[{}]",
                 overlap * 100, min_overlap * 100,
                 matched.empty() ? "none" : matched,
@@ -2422,9 +2433,23 @@ std::string GovernanceEngine::checkIntentValidation(
                         "  Owner requires: \"{}\"\n"
                         "  Matched: {}\n"
                         "  Missing: {}\n"
+                        "\n"
+                        "  Two different things cause this, and they have opposite fixes:\n"
+                        "  1. The code does not do what the intent says. Implement it.\n"
+                        "  2. The intent is prose this check cannot verify against code.\n"
+                        "     Rewrite it around the concrete verbs and data names the\n"
+                        "     function must touch, not a description of its purpose.\n"
+                        "     \"Perform statistical analysis\" matches nothing; \"compute\n"
+                        "     mean and stddev of response_times\" matches mean(), stddev()\n"
+                        "     and the key it reads.\n"
+                        "  Check which one you have by reading Missing above: if those\n"
+                        "  words name things the function genuinely does, the intent is\n"
+                        "  the problem.\n"
+                        "\n"
                         "  Note: Only executable code counts. Comments, string literals\n"
                         "  assigned to variables, and local variable names are stripped\n"
-                        "  before matching.\n"
+                        "  before matching, so the words have to appear in calls,\n"
+                        "  parameters or dictionary keys.\n"
                         "  Hint: Use intent keywords in function calls and identifiers.\n"
                         "  Snake_case like load_data() matches 'load'. Common synonyms\n"
                         "  of programming verbs also count (e.g., 'for' matches 'iterate').\n"
@@ -2752,7 +2777,7 @@ std::string GovernanceEngine::checkIntentValidation(
 
             std::string missing, matched;
             double overlap = keywordOverlap(keywords, t3_body, function_name, missing, matched);
-            double t3_min_overlap = std::max(0.3, 2.0 / static_cast<double>(keywords.size()));
+            double t3_min_overlap = std::max(cfg.min_overlap, 2.0 / static_cast<double>(keywords.size()));
             addTrace(fmt::format("Tier 3 overlap={:.0f}% (threshold={:.0f}%), matched=[{}], missing=[{}]",
                 overlap * 100, t3_min_overlap * 100,
                 matched.empty() ? "none" : matched,
@@ -3862,8 +3887,44 @@ std::string GovernanceEngine::checkMustProduce(
         std::string expect_str = expected.isNull() ? "null" : expected.toString();
 
         if (type_mismatch || result_str != expect_str) {
-            addTrace(fmt::format("must_produce test #{}: args={}, expected={}, got={}",
-                i + 1, args_display, expect_str, result_str));
+            addTrace(fmt::format("must_produce test #{}: args={}, expected={} ({}), got={} ({})",
+                i + 1, args_display, expect_str, naabTypeName(expected),
+                result_str, naabTypeName(result)));
+
+            // A type mismatch can render IDENTICALLY on both sides -- int 20 and
+            // float 20.0 both print as "20", so the operator reads
+            // "Expected: 20 / Got: 20" and has no way to see the difference.
+            // That is not cosmetic. NAAb division is ALWAYS double (DIV-001), so
+            // every computed mean or ratio is a float, while a fixture written
+            // `"expect": 20` is an int -- the CORRECT implementation fails while a
+            // hardcoded `return 20` PASSES. Measured: with int fixtures, a
+            // hardcoded stub exits 0 and the real implementation exits 3. The
+            // gate inverts, rewarding exactly the hardcoding contracts exist to
+            // catch, and the message gives no way to diagnose it.
+            if (type_mismatch) {
+                return enforce("contracts." + func_name + ".must_produce", level,
+                    formatError(level,
+                        fmt::format("must_produce: '{}' returned the right value with the wrong TYPE",
+                            func_name),
+                        line > 0 ? fmt::format("line {}", line) : "",
+                        "contracts.must_produce",
+                        fmt::format("Input: {}\n"
+                            "  Expected: {} ({})\n"
+                            "  Got:      {} ({})\n\n"
+                            "  Comparison is type-strict, so these do not match even when\n"
+                            "  they print the same.\n"
+                            "  Division always produces a float, so a computed average or\n"
+                            "  ratio needs a float in the fixture.",
+                            args_display, expect_str, naabTypeName(expected),
+                            result_str, naabTypeName(result)),
+                        fmt::format("\"expect\": {}   // {}", expect_str, naabTypeName(expected)),
+                        fmt::format("\"expect\": {}   // {}",
+                            (naabTypeName(result) == std::string("float") &&
+                             expect_str.find('.') == std::string::npos)
+                                ? expect_str + ".0" : result_str,
+                            naabTypeName(result))));
+            }
+
             return enforce("contracts." + func_name + ".must_produce", level,
                 formatError(level,
                     fmt::format("must_produce: '{}' returned wrong value", func_name),
@@ -6670,7 +6731,14 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "subprocess_scrub_mode", "allowed_subprocess_vars",
         "blocked_subprocess_vars", "blocked_subprocess_prefixes",
         "codegen",
-        "scoring_calibration"
+        "scoring_calibration",
+        // Read in GovernanceEngine::reloadIfChanged() and carried in the
+        // CONFIG_ADJUSTMENT telemetry event: the operator's note on WHY a
+        // mid-run config change was made. Legitimately top-level, and absent
+        // here it was the one parsed root key the validator warned about --
+        // confirmed by enumerating every j.contains() on the root object
+        // against this list rather than by spotting it.
+        "update_reason"
     };
 
     try {
@@ -6693,6 +6761,14 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         };
 
         for (auto& [key, val] : j.items()) {
+            // A leading underscore marks an operator's own annotation, not a
+            // setting. Both copies of govern-template.json document every
+            // section with a "_comment_<section>" sibling, so warning on them
+            // made 55 of the template's 69 load warnings noise ABOUT ITS OWN
+            // COMMENTS -- and a channel that cries wolf is one operators learn
+            // to pipe to /dev/null, which is the real cost. JSON has no comment
+            // syntax, so this convention is the only way to annotate a config.
+            if (!key.empty() && key[0] == '_') continue;
             bool found = false;
             for (const auto& vk : VALID_TOP_KEYS) { if (key == vk) { found = true; break; } }
             if (!found) {

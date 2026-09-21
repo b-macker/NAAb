@@ -1364,6 +1364,22 @@ std::string GovernanceEngine::enforce(
                 // First occurrence — standard advisory warning
                 if (rule_name.rfind("agent_review.", 0) != 0) {
                     fprintf(stderr, "[governance] WARNING %s\n", rule_name.c_str());
+                    // ADVISORY IS THE STEERING TIER, and it used to print the rule
+                    // name and nothing else -- no function, no reason, no remedy.
+                    // violation_message carries the whole formatted guidance (Help,
+                    // Example, the specific fix) and was built, stored in
+                    // check_results_ and then dropped. The text was recoverable from
+                    // --governance-report <path>, but stderr is the channel a person
+                    // or an agent loop actually reads, so in practice the guidance
+                    // did not exist. "Warn and continue" that cannot say WHAT is
+                    // wrong only tells you something is.
+                    //
+                    // Detail prints on the FIRST occurrence only. Repeats already
+                    // fall to the occurrence-count branch below, which keeps a
+                    // noisy advisory from burying the rest of the output.
+                    if (!violation_message.empty()) {
+                        fprintf(stderr, "%s\n", violation_message.c_str());
+                    }
                 }
             } else if (esc.enabled) {
                 // 2nd+ occurrence — warn with count
@@ -1730,6 +1746,12 @@ std::string GovernanceEngine::checkNetworkAllowed() {
             break;
         }
     }
+    // Tier 3: function-scope capabilities. Same helper as every other
+    // gate -- composed by intersection over the call stack.
+    {
+        std::string ferr = checkFunctionCapability("NET_CONNECT", "http.get(\"https://example.com\")");
+        if (!ferr.empty()) return ferr;
+    }
     recordPass("capabilities.network", EnforcementLevel::HARD);
     return "";
 }
@@ -1990,6 +2012,131 @@ std::string GovernanceEngine::filesystemAccessMode(const std::string& module,
     return "";
 }
 
+// ---------------------------------------------------------------------------
+// Function-scope capabilities, composed — ONE implementation, every gate.
+// ---------------------------------------------------------------------------
+//
+// F8 of docs/plan-function-effects.md. The effective permission is the
+// INTERSECTION of every function on the call stack, not the innermost one.
+//
+// Consulting only the innermost frame makes the whole mechanism escapable by
+// refactoring: a caller declaring [FS_READ] calls a helper declaring
+// [FS_WRITE] and the write goes through. That is the split-delegation /
+// confused-deputy pattern this tier exists to catch, and it means `git mv`
+// defeats the feature. Intersection is the same monotonic narrowing the engine
+// already applies for role-subset-of-program, extended to depth.
+//
+// A frame with no entry and no "default" is UNRESTRICTED and contributes the
+// universal set, so it narrows nothing. That keeps configs that name a few
+// functions from accidentally denying everything else.
+//
+// The usability cost is real and IS the security property: a shared utility
+// must be callable from its most restrictive caller. The error therefore names
+// which frame narrowed the set, because under intersection the blocking
+// declaration is often a CALLER and editing the callee does nothing.
+//
+// WHY THIS IS A FUNCTION rather than repeated at each gate: the per-executor
+// polyglot capability check is the precedent in this tree — sixteen copies of
+// one rule, several of them missing and one sitting on a method polyglot
+// blocks never call, which let cpp, php and rust run under a restricted
+// sandbox. A rule that must hold at N call sites belongs in one place that all
+// N call.
+std::string GovernanceEngine::checkFunctionCapability(
+    const std::string& required,
+    const std::string& example_bad,
+    const std::string& example_good) {
+
+    if (rules().capabilities.functions.empty()) return "";
+    const auto& fns = rules().capabilities.functions;
+    const std::string& fn = currentFunction();
+
+    // Resolve a frame to its declaration, or nullptr when unrestricted.
+    auto resolve = [&](const std::string& name,
+                       std::string& entry_out) -> const FunctionCapability* {
+        auto i = fns.find(name);
+        if (i != fns.end()) { entry_out = i->first; return &i->second; }
+        i = fns.find("default");
+        if (i != fns.end()) { entry_out = "default"; return &i->second; }
+        return nullptr;
+    };
+
+    // Walk outermost -> innermost. Any frame lacking `required` removes it from
+    // the effective set; the FIRST such frame is the one to report, since it is
+    // the outermost constraint the operator has to relax.
+    const std::vector<std::string>& stk = functionStack();
+    std::vector<std::string> frames(stk.begin(), stk.end());
+    if (frames.empty()) frames.push_back(fn);  // top level resolves via "default"
+
+    const FunctionCapability* blocking = nullptr;
+    std::string blocking_entry, blocking_frame;
+    for (const auto& frame : frames) {
+        std::string entry;
+        const FunctionCapability* cap = resolve(frame, entry);
+        if (!cap) continue;  // unrestricted frame narrows nothing
+        bool has = false;
+        for (const auto& a : cap->allowed_actions) {
+            if (a == required) { has = true; break; }
+        }
+        if (!has) { blocking = cap; blocking_entry = entry; blocking_frame = frame; break; }
+    }
+    if (!blocking) return "";
+
+    // Two renderings: `listed` is prose, `quoted` is valid JSON. Building one
+    // string and reusing it produced ["FS_READ, FS_WRITE"] -- a single element
+    // containing a comma, which is JSON nobody can paste.
+    std::string listed, quoted;
+    for (const auto& a : blocking->allowed_actions) {
+        if (!listed.empty()) { listed += ", "; quoted += ", "; }
+        listed += a;
+        quoted += "\"" + a + "\"";
+    }
+    std::string who = fn.empty() ? std::string("top level") : ("'" + fn + "'");
+    std::string proposed = quoted.empty() ? ("\"" + required + "\"")
+                                          : (quoted + ", \"" + required + "\"");
+
+    // Provenance. Without it, an operator under intersection edits the function
+    // that attempted the call and nothing changes, because the narrowing
+    // declaration belongs to a caller further up.
+    std::string chain;
+    if (!blocking_frame.empty() && blocking_frame != fn) {
+        chain = "  Narrowed by caller '" + blocking_frame + "'";
+        if (blocking_entry != blocking_frame) chain += " (via \"default\")";
+        chain += "\n";
+    }
+
+    // F4: the level is configurable so a project can bootstrap at advisory and
+    // tighten to hard. Accumulate BEFORE enforce(), which may throw: at hard the
+    // run stops here and the summary never flushes, which is correct (one block,
+    // one verdict).
+    const EnforcementLevel fn_level = rules().capabilities.functions_level;
+    if (fn_level == EnforcementLevel::ADVISORY) {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        std::string key = blocking_frame + "\x1f" + required;
+        if (undeclared_effects_seen_.insert(key).second) {
+            undeclared_effects_.push_back({blocking_frame, required, blocking_entry});
+        }
+    }
+    return enforce("capabilities.functions", fn_level,
+        formatError(fn_level,
+            "Undeclared action in " + who + ": " + required,
+            fn.empty() ? "" : ("in function '" + fn + "'"),
+            "capabilities.functions." + blocking_entry + ".allowed_actions",
+            chain +
+            "  Effective permissions are the intersection of every\n"
+            "  function on the call stack, so a caller can narrow a\n"
+            "  callee but never widen it.\n"
+            "That entry may perform: " + (listed.empty() ? "(nothing)" : listed) + "\n"
+            "Either the operation does not belong here, or the\n"
+            "declaration is incomplete. To permit it, add " + required + ":\n"
+            "  \"capabilities\": { \"functions\": { \"" + blocking_entry + "\": {\n"
+            "      \"allowed_actions\": [" + proposed + "] } } }\n"
+            "A function grant can only narrow what its role and the\n"
+            "program already permit - adding it here has no effect if\n"
+            "either of those lacks it.",
+            example_bad,
+            "Declare " + required + " on '" + blocking_entry + "', or move the call"));
+}
+
 std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
     clearTrace();
     if (rules().filesystem_mode == "none") {
@@ -2035,6 +2182,17 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
             break;
         }
     }
+    // --- Tier 3: function-scope capabilities, composed ----------------------
+    // Every gate calls the SAME helper. The per-executor polyglot check is the
+    // cautionary precedent: sixteen copies of one rule, and most were wrong.
+    {
+        std::string ferr = checkFunctionCapability(
+            (mode == "write") ? "FS_WRITE" : "FS_READ",
+            mode == "write" ? "file.write(\"output.txt\", data)"
+                            : "file.read(\"input.txt\")");
+        if (!ferr.empty()) return ferr;
+    }
+
     recordPass("capabilities.filesystem", EnforcementLevel::HARD);
     return "";
 }
@@ -2253,10 +2411,17 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     }
 
     if (project.result == PathVerdict::Result::Blocked) {
+        // FAS phase 1 consumer: name the function that attempted it. Before the
+        // attribution stack there was no way to say this -- RuntimeEvent carries
+        // file and line and no function, and the refusal named a path with no
+        // indication of which function owns the call.
+        const std::string& fn_at = currentFunction();
+        std::string where = fn_at.empty() ? std::string()
+                                          : ("in function '" + fn_at + "'");
         return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 "File path blocked by governance: " + filepath,
-                "",
+                where,
                 "capabilities.filesystem.blocked_paths contains \"" + project.rule + "\"",
                 "This path is blocked by the project's governance configuration.\n"
                 "Use a path under an allowed directory (e.g., ./data or ./output).",
@@ -2354,6 +2519,12 @@ std::string GovernanceEngine::checkShellAllowed() {
             break;
         }
     }
+    // Tier 3: function-scope capabilities. Same helper as every other
+    // gate -- composed by intersection over the call stack.
+    {
+        std::string ferr = checkFunctionCapability("SHELL_EXEC", "let result = <<shell\nls -la\n>>");
+        if (!ferr.empty()) return ferr;
+    }
     recordPass("capabilities.shell", EnforcementLevel::HARD);
     return "";
 }
@@ -2373,6 +2544,53 @@ std::string GovernanceEngine::checkEnvVarRead(const std::string& var_name) {
                 "env.get(\"MY_VAR\")",
                 "let value = config.get(\"my_var\")  // use config instead"));
     }
+    // Per-agent action matrix: ENV_READ.
+    // Without this the matrix could not express "may not read environment
+    // variables" -- ENV_READ had zero occurrences in it, while env vars are the
+    // primary credential-exfiltration surface. Placed after the global master
+    // switch and before the per-variable lists, matching the NET_CONNECT shape
+    // in checkNetworkAllowed: a role narrows the project policy, never widens
+    // it, so an empty matrix means "role adds no restriction".
+    for (const auto& role : rules().agents) {
+        if (role.name == effectiveAgentId()) {
+            // OPT-IN, and deliberately so. A matrix written before ENV_READ /
+            // ENV_WRITE existed opted into an allowlist over a six-action
+            // vocabulary; enforcing a seventh retroactively denies something
+            // those configs never had the option to permit. Measured: every
+            // shipped config using the matrix (living-script_v2's twelve roles)
+            // lists no ENV_* action, so a non-opt-in version would break all of
+            // them. Matches the shell_content_allowed convention -- a new field
+            // must not change existing behaviour.
+            //
+            // The gate is "does this matrix mention env at all". Listing
+            // ENV_WRITE but not ENV_READ therefore denies reads, which is how a
+            // config expresses the restriction.
+            bool matrix_governs_env = false;
+            for (const auto& a : role.allowed_actions) {
+                if (a == "ENV_READ" || a == "ENV_WRITE") { matrix_governs_env = true; break; }
+            }
+            if (matrix_governs_env) {
+                bool allowed = false;
+                for (const auto& a : role.allowed_actions) {
+                    if (a == "ENV_READ") { allowed = true; break; }
+                }
+                if (!allowed) {
+                    return enforce("agent_role.action_matrix", EnforcementLevel::HARD,
+                        formatError(EnforcementLevel::HARD,
+                            "Agent '" + effectiveAgentId() + "' action matrix does not include ENV_READ",
+                            "",
+                            "agents." + effectiveAgentId() + ".allowed_actions",
+                            "Your agent's allowed_actions list does not include ENV_READ.\n"
+                            "Add ENV_READ to the allowed_actions list to permit reading\n"
+                            "environment variables.",
+                            "env.get(\"" + var_name + "\")",
+                            "let value = config.get(\"my_var\")  // use config instead"));
+                }
+            }
+            break;
+        }
+    }
+
     // blocked_read: case-insensitive match
     std::string upper_name = var_name;
     std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), ::toupper);
@@ -2414,6 +2632,12 @@ std::string GovernanceEngine::checkEnvVarRead(const std::string& var_name) {
                     "env.get(\"HOME\")  // use an allowed variable"));
         }
     }
+    // Tier 3: function-scope capabilities. Same helper as every other
+    // gate -- composed by intersection over the call stack.
+    {
+        std::string ferr = checkFunctionCapability("ENV_READ", "env.get(\"API_KEY\")");
+        if (!ferr.empty()) return ferr;
+    }
     recordPass("capabilities.env_vars.read", EnforcementLevel::HARD);
     return "";
 }
@@ -2433,6 +2657,47 @@ std::string GovernanceEngine::checkEnvVarWrite(const std::string& var_name) {
                 "env.set_var(\"MY_VAR\", value)",
                 "config.set(\"my_var\", value)  // use config instead"));
     }
+    // Per-agent action matrix: ENV_WRITE (see the ENV_READ note above).
+    for (const auto& role : rules().agents) {
+        if (role.name == effectiveAgentId()) {
+            // OPT-IN, and deliberately so. A matrix written before ENV_READ /
+            // ENV_WRITE existed opted into an allowlist over a six-action
+            // vocabulary; enforcing a seventh retroactively denies something
+            // those configs never had the option to permit. Measured: every
+            // shipped config using the matrix (living-script_v2's twelve roles)
+            // lists no ENV_* action, so a non-opt-in version would break all of
+            // them. Matches the shell_content_allowed convention -- a new field
+            // must not change existing behaviour.
+            //
+            // The gate is "does this matrix mention env at all". Listing
+            // ENV_WRITE but not ENV_READ therefore denies reads, which is how a
+            // config expresses the restriction.
+            bool matrix_governs_env = false;
+            for (const auto& a : role.allowed_actions) {
+                if (a == "ENV_READ" || a == "ENV_WRITE") { matrix_governs_env = true; break; }
+            }
+            if (matrix_governs_env) {
+                bool allowed = false;
+                for (const auto& a : role.allowed_actions) {
+                    if (a == "ENV_WRITE") { allowed = true; break; }
+                }
+                if (!allowed) {
+                    return enforce("agent_role.action_matrix", EnforcementLevel::HARD,
+                        formatError(EnforcementLevel::HARD,
+                            "Agent '" + effectiveAgentId() + "' action matrix does not include ENV_WRITE",
+                            "",
+                            "agents." + effectiveAgentId() + ".allowed_actions",
+                            "Your agent's allowed_actions list does not include ENV_WRITE.\n"
+                            "Add ENV_WRITE to the allowed_actions list to permit setting\n"
+                            "environment variables.",
+                            "env.set_var(\"" + var_name + "\", value)",
+                            "// pass the value as a function argument instead"));
+                }
+            }
+            break;
+        }
+    }
+
     // blocked_write: case-insensitive match
     std::string upper_name = var_name;
     std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), ::toupper);
@@ -2473,6 +2738,12 @@ std::string GovernanceEngine::checkEnvVarWrite(const std::string& var_name) {
                     "env.set_var(\"" + var_name + "\", value)",
                     "env.set_var(\"ALLOWED_VAR\", value)"));
         }
+    }
+    // Tier 3: function-scope capabilities. Same helper as every other
+    // gate -- composed by intersection over the call stack.
+    {
+        std::string ferr = checkFunctionCapability("ENV_WRITE", "env.set(\"API_KEY\", value)");
+        if (!ferr.empty()) return ferr;
     }
     recordPass("capabilities.env_vars.write", EnforcementLevel::HARD);
     return "";
@@ -2831,7 +3102,49 @@ void GovernanceEngine::flushGroupedAdvisories() {
         emitAdvisory(msg);
     }
 
-    // 3. Suppression summary
+    // 3. Undeclared function effects (F4)
+    //
+    // The per-occurrence advisory in enforce() prints its detail once per RULE
+    // NAME, and every undeclared effect in a program shares one rule name. So
+    // the first site printed its remedy and every later site was silent --
+    // measured at three violating functions, one reported. That turned the
+    // bootstrap pass into one-finding-per-run. This summary is the accumulating
+    // half: one run, every site, every declaration to add.
+    if (!undeclared_effects_.empty()) {
+        std::string msg = "[ADVISORY] Undeclared function effects ("
+            + std::to_string(undeclared_effects_.size()) + "):";
+        // Group by the ENTRY that must be edited, not by the function that
+        // attempted the call: under intersection the narrowing declaration is
+        // often a caller, so grouping by frame would hand the operator a list
+        // of edits to files that change nothing.
+        std::map<std::string, std::set<std::string>> by_entry;
+        for (const auto& ue : undeclared_effects_) {
+            msg += "\n  " + ue.frame + " needs " + ue.action
+                 + " (declared on \"" + ue.entry + "\")";
+            by_entry[ue.entry].insert(ue.action);
+        }
+        msg += "\n\n  To permit these, add to capabilities.functions:";
+        for (const auto& [entry, acts] : by_entry) {
+            std::string quoted;
+            // Union of what the entry ALREADY permits with what was attempted --
+            // printing only the missing actions would tell the operator to
+            // replace the list and silently drop the permissions already there.
+            std::set<std::string> all(acts.begin(), acts.end());
+            auto ei = rules().capabilities.functions.find(entry);
+            if (ei != rules().capabilities.functions.end()) {
+                for (const auto& a : ei->second.allowed_actions) all.insert(a);
+            }
+            for (const auto& a : all) {
+                if (!quoted.empty()) quoted += ", ";
+                quoted += "\"" + a + "\"";
+            }
+            msg += "\n    \"" + entry + "\": { \"allowed_actions\": ["
+                 + quoted + "] }";
+        }
+        emitAdvisory(msg);
+    }
+
+    // 4. Suppression summary
     if (advisory_suppressed_ > 0 && rules().output.advisory_summary) {
         fmt::print(stderr, "[ADVISORY] ... and {} more advisories suppressed "
                    "(increase output.max_advisories to see all)\n", advisory_suppressed_);
@@ -2842,6 +3155,8 @@ void GovernanceEngine::flushGroupedAdvisories() {
         std::lock_guard<std::mutex> lock(results_mutex_);
         dup_call_summary_.clear();
         ptc_functions_.clear();
+        undeclared_effects_.clear();
+        undeclared_effects_seen_.clear();
         emitted_advisories_.clear();
         advisory_count_ = 0;
         advisory_suppressed_ = 0;
@@ -6875,6 +7190,45 @@ void GovernanceEngine::setAgentTurn(int handle_id, int turn) {
 // agent.create() handle's tool-driven file/net/shell access to its role.
 const std::string& GovernanceEngine::effectiveAgentId() const {
     return t_active_tool_role.empty() ? agent_id_ : t_active_tool_role;
+}
+
+// --- Function attribution -------------------------------------------------
+// Thread-local so concurrent agent/polyglot worker threads each keep their own
+// stack, matching t_active_tool_role above. Outermost-first.
+static thread_local std::vector<std::string> t_function_stack;
+
+void GovernanceEngine::syncFunctionStack(
+        const std::function<const std::string&(size_t)>& at, size_t depth) {
+    t_function_stack.clear();
+    t_function_stack.reserve(depth);
+    for (size_t i = 0; i < depth; i++) {
+        const std::string& nm = at(i);
+        // The VM wraps top-level code in a synthetic "<script>" frame; the
+        // tree-walker has no frame there at all. Reporting "<script>" on one
+        // engine and nothing on the other is an attribution parity gap -- and
+        // "<script>" is not a function an operator can name in a config. Top
+        // level is represented as ABSENT on both engines; capabilities.functions
+        // reaches it through the "default" entry.
+        if (nm == "<script>") continue;
+        t_function_stack.push_back(nm);
+    }
+}
+
+void GovernanceEngine::pushFunctionContext(const std::string& fn) {
+    t_function_stack.push_back(fn);
+}
+
+void GovernanceEngine::popFunctionContext() {
+    if (!t_function_stack.empty()) t_function_stack.pop_back();
+}
+
+const std::string& GovernanceEngine::currentFunction() const {
+    static const std::string kNone;
+    return t_function_stack.empty() ? kNone : t_function_stack.back();
+}
+
+const std::vector<std::string>& GovernanceEngine::functionStack() const {
+    return t_function_stack;
 }
 
 std::string GovernanceEngine::pushActiveToolRole(const std::string& role) {
