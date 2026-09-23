@@ -5495,9 +5495,38 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
             pats.push_back("os\\.system\\s*\\(");
             pats.push_back("subprocess\\.(?:call|Popen|run|check_output|check_call)\\s*\\(");
             pats.push_back("ctypes\\.(?:CDLL|cdll)\\s*\\(");
-            // Block dangerous imports (bare import grants access to system calls)
+            // Block dangerous imports (bare import grants access to system calls).
+            // `import os` AND `import os.path` both bind the name `os`, so both
+            // reach os.system — this stays a blanket block.
             pats.push_back("\\bimport\\s+(?:os|subprocess|shutil|ctypes|pty|commands)\\b");
-            pats.push_back("\\bfrom\\s+(?:os|subprocess|shutil|ctypes|pty|commands)\\b");
+            // Non-os modules keep the blanket form: they have no member worth
+            // carving out that does not also bring execution within reach.
+            pats.push_back("\\bfrom\\s+(?:subprocess|shutil|ctypes|pty|commands)\\b");
+            // `from os import ...` is NOT the same risk: it binds only the names
+            // listed, so `from os import path` cannot reach os.system. The old
+            // blanket `\bfrom\s+os\b` blocked it anyway, and since `import os.path`
+            // is blocked too, there was NO way to use Python's path helpers at all
+            // — with no config escape short of block_command_injection:false, which
+            // disables os.system and subprocess detection along with it.
+            //
+            // So: block unless EVERY name in the list is provably inert. This is an
+            // ALLOWLIST by deliberate choice. A short blocklist of dangerous names
+            // fails OPEN (an omitted name is permitted); a short allowlist fails
+            // CLOSED (an omitted safe name stays blocked — a false positive, not a
+            // hole). This repo has been bitten by the first shape three times.
+            //
+            // The list must match in FULL to the end of the line, which is what
+            // stops `from os import path, system` — `path` alone would satisfy a
+            // first-name-only check while `system` came in beside it. Anything the
+            // form does not cover (aliases via `as`, parenthesised or multi-line
+            // lists, `import *`) fails to match and is therefore blocked.
+            {
+                const std::string safe_name =
+                    "(?:pathsep|altsep|extsep|linesep|path|sep|curdir|pardir"
+                    "|devnull|name|fspath|PathLike|getcwdb|getcwd)\\b";
+                pats.push_back("\\bfrom\\s+os\\s+import\\s+(?!" + safe_name +
+                               "(?:\\s*,\\s*" + safe_name + ")*\\s*(?:\\r?\\n|$))");
+            }
         } else if (language == "go" || language == "golang") {
             pats.push_back("exec\\.Command\\s*\\(");
         } else if (language == "rust") {
@@ -5545,8 +5574,17 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
         return enforce("restrictions.code_injection", cfg.level,
             formatError(cfg.level, fmt::format("Code injection pattern in {} block: \"{}\"", language, found),
                 line > 0 ? fmt::format("line {}", line) : "", "restrictions.code_injection",
-                "Dynamic code execution detected — eval/exec/Function can run arbitrary code.\n"
-                "Use data-driven approaches (lookup tables, config) instead of code generation.",
+                // One message serves three families (dynamic code gen, command
+                // execution, SQL string-building), so it names what was matched
+                // rather than assuming eval. It previously said "eval/exec/Function
+                // can run arbitrary code" for EVERY hit, which is simply untrue of
+                // an import or a SQL concat and sent the reader looking for an eval
+                // that was never there.
+                "The matched construct can reach code or command execution.\n"
+                "  - eval/exec/Function: run arbitrary code — use lookup tables or config instead.\n"
+                "  - os/subprocess/ctypes imports: bind names that execute — import only\n"
+                "    the inert members you need (e.g. `from os import path`), or use NAAb stdlib.\n"
+                "  - SQL built by concatenation or f-string: use parameterised queries.",
                 "result = eval(user_expression)",
                 "ops = {\"add\": fn(a,b) { a+b }, \"mul\": fn(a,b) { a*b }}\nresult = ops.get(op_name)(a, b)"));
     }
