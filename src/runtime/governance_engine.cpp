@@ -2109,6 +2109,39 @@ std::string GovernanceEngine::checkFunctionCapability(
     // run stops here and the summary never flushes, which is correct (one block,
     // one verdict).
     const EnforcementLevel fn_level = rules().capabilities.functions_level;
+
+    // F10: every other governance mechanism emits a JSONL event; without one a
+    // violation here is visible on stderr and in --governance-report, and
+    // INVISIBLE to anything auditing the run afterwards -- not in the
+    // tamper-evident chain, not forwardable to a SIEM, not replayable. Emitted
+    // BEFORE enforce() for the same reason the accumulator is: at hard, enforce()
+    // throws and nothing after it runs.
+    //
+    // The chain rules in CLAUDE.md are satisfied by writeAgentTelemetry() itself,
+    // which seeds prev_hash with chainPrevLocked(fp) and increments
+    // chained_events_this_run_ under telemetry_hash_mutex_. Do NOT hand-roll the
+    // hash pair here.
+    {
+        // The whole stack, outermost first, because under intersection the frame
+        // that ATTEMPTED the call is usually not the one that narrowed the set --
+        // an audit that records only `function` cannot reconstruct why.
+        std::string chain_str;
+        for (const auto& f : frames) {
+            if (!chain_str.empty()) chain_str += " > ";
+            chain_str += f.empty() ? "(top level)" : f;
+        }
+        writeAgentTelemetry("CAPABILITY_VIOLATION", {
+            {"function",         fn.empty() ? "(top level)" : fn},
+            {"attempted_action", required},
+            {"blocking_frame",   blocking_frame.empty() ? "(top level)" : blocking_frame},
+            {"blocking_entry",   blocking_entry},
+            {"effective",        listed.empty() ? "(nothing)" : listed},
+            {"call_stack",       chain_str},
+            {"level",            levelToString(fn_level)},
+            {"file",             current_check_file_},
+            {"line",             std::to_string(current_check_line_)},
+        });
+    }
     if (fn_level == EnforcementLevel::ADVISORY) {
         std::lock_guard<std::mutex> lock(results_mutex_);
         std::string key = blocking_frame + "\x1f" + required;
