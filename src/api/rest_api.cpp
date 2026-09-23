@@ -406,6 +406,30 @@ public:
                 // Always use server-side governance config — never accept client-supplied config
                 engine.discoverAndLoad(std::filesystem::current_path().string());
 
+                // Refuse rather than answer "blocked": false for a request that was
+                // never governed. discoverAndLoad() is best-effort: with no config
+                // found the checks below run against nothing, wasBlocked() is false,
+                // and a 200 carrying "blocked": false is indistinguishable from a
+                // genuine pass unless the caller also reads config_loaded. That is
+                // the same fail-open shape naab-gov carried (no JSON => reads as
+                // "not blocked"); a governance endpoint must not report a verdict it
+                // did not reach.
+                //
+                // The predicate is "was a config FILE discovered", not isActive().
+                // A govern.json carrying "mode": "off" loads fine and leaves
+                // active_ false -- that is an operator who has deliberately turned
+                // governance off, not an absent policy, and refusing it would break
+                // a supported configuration. tests/api/test_api_auth.sh runs exactly
+                // that config and caught this when the guard first used isActive().
+                if (engine.getGovernDir().empty()) {
+                    res.status = 400;
+                    res.set_content(json{
+                        {"error", "No governance config"},
+                        {"status", "error"}
+                    }.dump(2), "application/json");
+                    return;
+                }
+
                 engine.setCheckContext(source_file, start_line);
                 // V-API-004: Apply same timeout to /check as /execute to prevent ReDoS
                 unsigned int t = api_timeout_seconds.load();

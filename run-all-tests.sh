@@ -2897,6 +2897,34 @@ else
     echo "  run-naab40.sh: not found, skipping"
 fi
 
+PLATFORM_FIXES_SCRIPT="tests/api/test_platform_fixes.sh"
+if [ -f "$PLATFORM_FIXES_SCRIPT" ]; then
+    # 24 assertions over the platform/binding fixes, including the REST route
+    # error handler. Unreferenced anywhere in the repo until now, and it was
+    # carrying a live failure the whole time: /api/v1/check answered 200 with
+    # "blocked": false when no governance config was found.
+    #
+    # It needs naab-gov and libnaab-governance, not just naab-lang -- without
+    # them two arms fail on a FileNotFoundError from the python binding rather
+    # than on anything the engine did. run_shell_test builds what the suite
+    # needs; if that ever changes, expect those two arms to report a defect
+    # that is really a missing build target.
+    echo ""
+    echo "═══════════════════════════════════════════════════════════"
+    echo "  Platform + binding fixes (REST route errors, __del__ safety)"
+    echo "═══════════════════════════════════════════════════════════"
+    echo ""
+    if run_shell_test "$PLATFORM_FIXES_SCRIPT" 2>&1; then
+        echo "  test_platform_fixes.sh: ALL PASSED"
+    else
+        echo "  test_platform_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_platform_fixes.sh")
+    fi
+else
+    echo "  test_platform_fixes.sh: not found, skipping"
+fi
+
 VISIBILITY_SCRIPT="tests/self-audit/test_coverage_visibility.sh"
 if [ -f "$VISIBILITY_SCRIPT" ]; then
     # Two baseline gates on what this runner cannot see about itself: test

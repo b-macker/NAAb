@@ -320,13 +320,51 @@ if [ -x "$NAAB_LANG" ] && command -v curl >/dev/null 2>&1; then
             curl -s -X GET "http://127.0.0.1:$PORT/api/v1/nonexistent" \
                 -H "Authorization: Bearer test-key-123"
 
-        # T12.4: Valid request with config returns 200
-        check_output "valid request returns blocked field" \
-            '"blocked"' \
-            curl -s -X POST "http://127.0.0.1:$PORT/api/v1/check" \
-                -H "Authorization: Bearer test-key-123" \
-                -H "Content-Type: application/json" \
-                -d '{"code": "x = 1", "language": "python", "config": {"version":"3.0","mode":"enforce","restrictions":{}}}'
+        # T12.4: a GOVERNED request returns 200 with a verdict.
+        #
+        # This arm used to pass a "config" field in the request body and run
+        # against the server started above, which has no govern.json in its
+        # CWD. The handler states "Always use server-side governance config --
+        # never accept client-supplied config", so that field is ignored by
+        # design; the arm passed only because the ungoverned response happened
+        # to contain "blocked" (the fail-open T12.2 exists to catch). It was
+        # asserting the presence of a field, not that anything was governed.
+        #
+        # So give the server a real server-side config, on its own port and CWD,
+        # and drop the body field that is refused by design.
+        T124_DIR="$TMPDIR/t124"
+        mkdir -p "$T124_DIR"
+        cat > "$T124_DIR/govern.json" <<'T124_JSON'
+{
+  "version": "4.0",
+  "mode": "enforce",
+  "languages": { "allowed": ["python"], "require_explicit": false }
+}
+T124_JSON
+        PORT2=18931
+        # exec, so the backgrounded subshell IS the server and $! is its pid.
+        # Without it $! is the subshell, the kill below misses the server, and
+        # the leaked process keeps the port and holds the parent shell open --
+        # which reads as run-all-tests.sh hanging long after it has printed its
+        # summary.
+        ( cd "$T124_DIR" && exec "$NAAB_LANG" api "$PORT2" --api-key "test-key-123" \
+            >"$TMPDIR/naab_fix12b.log" 2>&1 ) &
+        API_PID2=$!
+        for i in $(seq 1 50); do
+            curl -s "http://127.0.0.1:$PORT2/health" >/dev/null 2>&1 && break
+            sleep 0.1
+        done
+        if curl -s "http://127.0.0.1:$PORT2/health" >/dev/null 2>&1; then
+            check_output "governed request returns blocked field" \
+                '"blocked"' \
+                curl -s -X POST "http://127.0.0.1:$PORT2/api/v1/check" \
+                    -H "Authorization: Bearer test-key-123" \
+                    -H "Content-Type: application/json" \
+                    -d '{"code": "x = 1", "language": "python"}'
+        else
+            echo "  SKIP: second API server failed to start"
+        fi
+        kill "$API_PID2" 2>/dev/null; wait "$API_PID2" 2>/dev/null
     else
         echo "  SKIP: API server failed to start"
     fi
