@@ -2871,6 +2871,32 @@ else
     echo "  test_prescan_canaries.sh: not found, skipping"
 fi
 
+NAAB40_SCRIPT="tests/gorilla/naab-40/run-naab40.sh"
+if [ -f "$NAAB40_SCRIPT" ]; then
+    # 60 offline assertions across scoring calibration, stdlib/VM parity, the
+    # dashboard deadlock fix, DETECT-level violations, the Python import hook,
+    # and unicode normalisation. No API keys, ~4s.
+    #
+    # It has existed and passed since it was written and was never registered
+    # here, which is exactly the state test_coverage_visibility.sh CV-01 exists
+    # to name: "a test directory nobody runs reads as coverage while providing
+    # none." Its own remedy text offers three options -- add it to TEST_DIRS,
+    # give it a runner, or delete it. This one already HAD a runner; only the
+    # registration was missing.
+    #
+    # NOTE it exits with the FAILURE COUNT rather than 0/1, so any non-zero is a
+    # failure here and the count is bounded by its 60 assertions.
+    if run_shell_test "$NAAB40_SCRIPT" 2>&1; then
+        echo "  run-naab40.sh: ALL PASSED"
+    else
+        echo "  run-naab40.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("run-naab40.sh")
+    fi
+else
+    echo "  run-naab40.sh: not found, skipping"
+fi
+
 VISIBILITY_SCRIPT="tests/self-audit/test_coverage_visibility.sh"
 if [ -f "$VISIBILITY_SCRIPT" ]; then
     # Two baseline gates on what this runner cannot see about itself: test
