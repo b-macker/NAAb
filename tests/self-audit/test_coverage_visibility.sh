@@ -171,6 +171,15 @@ fi
 # branch, and a measurement that never ran was reported as "found violations".
 # Bash has git on its PATH here, and reading the file with grep also sidesteps
 # the cp1252 decode problem that has bitten this repo three times.
+# The character class is [A-Z0-9_], not [A-Z_], and the digit is load-bearing.
+# Registrations are named after the thing they run, and a lot of this suite's
+# names carry an identifier: VM001_SCRIPT, RT004_SCRIPT, ASYNC001R_SCRIPT,
+# NAAB40_SCRIPT. With [A-Z_] every one of those was skipped -- measured at the
+# time this was widened, CV-03 reported 110 registered paths against an actual
+# 135, so 25 registrations sat outside the very gate that exists to catch a
+# registration pointing at a file nobody moved back. All 25 happened to exist,
+# which is exactly why it stayed quiet: an under-counting extractor reports a
+# smaller clean number, never an error. Same shape as the git probe below.
 REGISTERED=""; MISSING_LIST=""; UNTRACKED_LIST=""
 MISSING=0; UNTRACKED=0; MEASURED=1; GIT_USABLE=1
 
@@ -194,8 +203,8 @@ while IFS= read -r pth; do
     elif [ "$GIT_USABLE" -eq 1 ] && ! git ls-files --error-unmatch "$pth" >/dev/null 2>&1; then
         UNTRACKED=$((UNTRACKED+1)); UNTRACKED_LIST="$UNTRACKED_LIST $pth"
     fi
-done < <(grep -oE '^[A-Z_]+="(tests|examples)/[^"]+"' run-all-tests.sh \
-         | sed 's/^[A-Z_]*="//; s/"$//' | sort -u)
+done < <(grep -oE '^[A-Z0-9_]+="(tests|examples)/[^"]+"' run-all-tests.sh \
+         | sed 's/^[A-Z0-9_]*="//; s/"$//' | sort -u)
 
 NREG=$(echo $REGISTERED | wc -w)
 # A count of zero and a measurement that did not happen must not look alike.
