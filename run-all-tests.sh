@@ -1572,6 +1572,48 @@ else
     echo "  test_path_precedence.sh: not found, skipping"
 fi
 
+# --- naab-gov check: one output shape for both verdicts ---
+# The JSON builder in cmdCheck was reachable only on a PASS; a HARD block threw
+# past it to main()'s plain-text handler. Exit codes were always right, so this
+# pins SHAPE (OS-02/03/06) with the pass path and both exit codes as controls.
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  naab-gov output shape (JSON on a block, not just a pass)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+GOV_SHAPE_SCRIPT="tests/security/test_gov_output_shape.sh"
+if [ -f "$GOV_SHAPE_SCRIPT" ]; then
+    if run_shell_test "$GOV_SHAPE_SCRIPT" 2>&1; then
+        echo "  test_gov_output_shape.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_gov_output_shape.sh")
+    fi
+else
+    echo "  test_gov_output_shape.sh: not found, skipping"
+fi
+
+# --- code_injection: `from os import <inert>` is not injection ---
+# This change LOOSENS a security pattern, so the load-bearing arms are the ones
+# that must still BLOCK -- above all the comma trap (`from os import path,
+# system`), which any first-name-only narrowing would let through.
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  code_injection os imports (allowlist, and the comma trap)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+CI_IMPORTS_SCRIPT="tests/security/test_code_injection_imports.sh"
+if [ -f "$CI_IMPORTS_SCRIPT" ]; then
+    if run_shell_test "$CI_IMPORTS_SCRIPT" 2>&1; then
+        echo "  test_code_injection_imports.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_code_injection_imports.sh")
+    fi
+else
+    echo "  test_code_injection_imports.sh: not found, skipping"
+fi
+
 # --- govern.json authority: a flag may tighten, the file decides ---
 # Two arms that must fail INDEPENDENTLY, or one patch silently carries the
 # other's coverage: GA-01 dies if main.cpp lets --no-governance disable the
