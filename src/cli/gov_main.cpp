@@ -368,9 +368,30 @@ static int cmdCheck(const std::vector<std::string>& args) {
         engine.applyEnvironment(env_name);
     }
 
-    // Run polyglot governance checks
-    engine.setCheckContext(source_file, 1);
-    engine.checkPolyglotBlock(language, code, source_file, 1);
+    // Run polyglot governance checks.
+    //
+    // checkPolyglotBlock() THROWS GovernanceHardError on a HARD block. Letting
+    // that escape sends it to main()'s handler, which prints e.what() as plain
+    // text and _exit(3)s -- so the structured output below was reachable only
+    // on a PASS. That made `check`'s contract asymmetric: JSON when nothing is
+    // wrong, unformatted prose exactly when something is. A caller parsing
+    // stdout for `"blocked": true` therefore never saw a block; the deleted
+    // tests/security/test_alias_bypass.sh did precisely that and reported 86
+    // false failures. The exit code was always correct (3), so this is an
+    // output-shape defect, not a fail-open one.
+    //
+    // Catching it here is the point, not a leak: this is the CLI boundary
+    // where a verdict becomes a report, the same role main()'s handler plays.
+    // The engine has already recorded the violation, so the block is rendered
+    // from getCheckResults() like any other, and the exit code below is
+    // unchanged.
+    std::string hard_block_message;
+    try {
+        engine.setCheckContext(source_file, 1);
+        engine.checkPolyglotBlock(language, code, source_file, 1);
+    } catch (const naab::governance::GovernanceHardError& e) {
+        hard_block_message = e.what();
+    }
 
     // Output
     if (sarif_output) {
@@ -379,7 +400,9 @@ static int cmdCheck(const std::vector<std::string>& args) {
         // Build structured JSON output
         using json = nlohmann::json;
         json result;
-        result["blocked"] = engine.wasBlocked();
+        // A thrown HARD block counts as blocked whether or not wasBlocked()
+        // reflects it, so the field can never read false on a refused input.
+        result["blocked"] = engine.wasBlocked() || !hard_block_message.empty();
 
         json violations = json::array();
         for (const auto& cr : engine.getCheckResults()) {
@@ -397,11 +420,19 @@ static int cmdCheck(const std::vector<std::string>& args) {
         result["violations"] = violations;
         result["violation_count"] = violations.size();
 
+        // The engine's own prose for a HARD block. Preserved so the fix loses
+        // no detail that used to reach the terminal -- it moves into the
+        // document rather than being dropped. Absent on a pass.
+        if (!hard_block_message.empty()) {
+            result["hard_block"] = hard_block_message;
+        }
+
         std::cout << result.dump(2) << "\n";
     }
 
-    // Exit code
-    if (naab::governance::g_governance_hard_block || engine.wasBlocked()) {
+    // Exit code — unchanged: 3 on a block, and a thrown HARD block is one.
+    if (naab::governance::g_governance_hard_block || engine.wasBlocked() ||
+        !hard_block_message.empty()) {
         return 3;
     }
     return 0;
