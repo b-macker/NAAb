@@ -322,7 +322,7 @@ declaration often belongs to a *caller*, and without naming it the operator edit
 the wrong entry. The closing note prevents hitting containment as a second,
 unexplained refusal.
 
-### F10 — Telemetry
+### F10 — Telemetry — SHIPPED
 
 `CAPABILITY_VIOLATION` with function, effective capabilities, attempted action, call
 stack, source location, and the enforcement level. Every other subsystem emits
