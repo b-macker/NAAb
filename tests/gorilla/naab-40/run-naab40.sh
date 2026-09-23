@@ -106,6 +106,50 @@ mkdir -p "$TEST_TMP"
 "$NAAB" --trust-key "$TEST_TMP/test-key.pem.pub" 2>/dev/null
 export NAAB_SIGNING_KEY="$TEST_TMP/test-key.pem"
 
+# Python-expression viability probe.
+#
+# Seven arms below (E3-E5, F1-F4) assert that a dangerous construct inside a
+# <<python>> block is refused, and read ANY non-zero exit as "refused". That
+# inference only holds where python expression blocks actually run. Where the
+# build has no embedded Python (no pybind11 at cmake time) the block is
+# DISABLED, the expression evaluates to null, the program exits 0 -- and the
+# arms report the engine failed to block something it never got the chance to
+# see. That is how they read on the Windows runner: 7 governance FAILURES for
+# an absent executor.
+#
+# SEPARATE, PRE-EXISTING defect found while diagnosing this, NOT fixed here:
+# F1-F4 pass on Linux for the wrong reason. Their blocks call os.system without
+# importing os, so CPython raises NameError -- exit 1, which these arms read as
+# "blocked". Measured: the ASCII control F4 produces
+#   NameError: name 'os' is not defined
+# and no governance violation at all, while the same block WITH `import os` is
+# refused by the audit hook (PermissionError: os.system denied by sandbox
+# policy). So the unicode normalization F1-F3 exist to exercise is never
+# reached; they would pass identically if normalizeUnicode did not exist.
+# Fixing that changes what the arms assert and belongs in its own change.
+#
+# So ask the question with nothing to refuse: no governance, no dangerous call,
+# just whether a python expression yields its value. The only thing that can
+# fail here is the executor, which is what makes a failure mean "unmeasurable"
+# rather than "unsafe".
+PYTHON_EXPR_OK=0
+probe_python_expr() {
+    local d="$TEST_TMP/py-probe-$$"
+    mkdir -p "$d"
+    printf 'main {\n    let r = <<python\n40 + 2\n>>\n    print(string(r))\n}\n' > "$d/probe.naab"
+    local out
+    out=$(cd "$d" && timeout 30 "$NAAB" --no-governance probe.naab 2>/dev/null) || true
+    rm -rf "$d"
+    [ "$out" = "42" ]
+}
+if probe_python_expr; then
+    PYTHON_EXPR_OK=1
+else
+    echo ""
+    echo "  NOTE: python expression blocks are unavailable in this build."
+    echo "        E3-E5 and F1-F4 will report UNMEASURABLE, not FAIL."
+fi
+
 setup_workdir() {
     local phase="$1"
     local workdir="$TEST_TMP/work-${phase}-$$-$RANDOM"
@@ -505,7 +549,9 @@ if should_run 5; then
     # so they exit with a Python error (non-zero), not necessarily exit 3
     WORKDIR_E3=$(setup_workdir "cat5-imports")
     e3_output=$(run_subprocess "$WORKDIR_E3" "cat5_e3_dunder_import.naab") && e3_exit=0 || e3_exit=$?
-    if [ "$e3_exit" -ne 0 ] && ! echo "$e3_output" | grep -q "bypass"; then
+    if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
+        skip "E3" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
+    elif [ "$e3_exit" -ne 0 ] && ! echo "$e3_output" | grep -q "bypass"; then
         pass "E3" "__import__(\"os\") blocked (exit $e3_exit)"
     else
         fail "E3" "__import__(\"os\") not blocked" "exit=$e3_exit"
@@ -514,7 +560,9 @@ if should_run 5; then
     # E4: importlib.import_module("subprocess") blocked
     WORKDIR_E4=$(setup_workdir "cat5-imports")
     e4_output=$(run_subprocess "$WORKDIR_E4" "cat5_e4_importlib.naab") && e4_exit=0 || e4_exit=$?
-    if [ "$e4_exit" -ne 0 ] && ! echo "$e4_output" | grep -q "bypass"; then
+    if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
+        skip "E4" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
+    elif [ "$e4_exit" -ne 0 ] && ! echo "$e4_output" | grep -q "bypass"; then
         pass "E4" "importlib.import_module blocked (exit $e4_exit)"
     else
         fail "E4" "importlib.import_module not blocked" "exit=$e4_exit"
@@ -523,7 +571,9 @@ if should_run 5; then
     # E5: __import__("o"+"s") concat blocked
     WORKDIR_E5=$(setup_workdir "cat5-imports")
     e5_output=$(run_subprocess "$WORKDIR_E5" "cat5_e5_concat.naab") && e5_exit=0 || e5_exit=$?
-    if [ "$e5_exit" -ne 0 ] && ! echo "$e5_output" | grep -q "bypass"; then
+    if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
+        skip "E5" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
+    elif [ "$e5_exit" -ne 0 ] && ! echo "$e5_output" | grep -q "bypass"; then
         pass "E5" "__import__(concat) blocked (exit $e5_exit)"
     else
         fail "E5" "__import__(concat) not blocked" "exit=$e5_exit"
@@ -600,7 +650,9 @@ print("bypass")
 }
 NAABEOF
     f1_output=$(cd "$WORKDIR_UNI" && timeout 30 "$NAAB" f1_subscript_m.naab 2>&1) && f1_exit=0 || f1_exit=$?
-    if [ "$f1_exit" -ne 0 ]; then
+    if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
+        skip "F1" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
+    elif [ "$f1_exit" -ne 0 ]; then
         pass "F1" "subscript U+2098 in os.system blocked"
     else
         fail "F1" "subscript bypass not detected" "exit=$f1_exit"
@@ -620,7 +672,9 @@ print("bypass")
 }
 NAABEOF
     f2_output=$(cd "$WORKDIR_UNI" && timeout 30 "$NAAB" f2_subscript_o.naab 2>&1) && f2_exit=0 || f2_exit=$?
-    if [ "$f2_exit" -ne 0 ]; then
+    if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
+        skip "F2" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
+    elif [ "$f2_exit" -ne 0 ]; then
         pass "F2" "subscript U+2092 in os.system blocked"
     else
         fail "F2" "subscript os bypass not detected" "exit=$f2_exit"
@@ -639,7 +693,9 @@ print("bypass")
 }
 NAABEOF
     f3_output=$(cd "$WORKDIR_UNI" && timeout 30 "$NAAB" f3_fullwidth_o.naab 2>&1) && f3_exit=0 || f3_exit=$?
-    if [ "$f3_exit" -ne 0 ]; then
+    if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
+        skip "F3" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
+    elif [ "$f3_exit" -ne 0 ]; then
         pass "F3" "fullwidth U+FF4F in os.system blocked"
     else
         fail "F3" "fullwidth bypass not detected" "exit=$f3_exit"
@@ -656,7 +712,9 @@ print("bypass")
 }
 NAABEOF
     f4_output=$(cd "$WORKDIR_UNI" && timeout 30 "$NAAB" f4_ascii_control.naab 2>&1) && f4_exit=0 || f4_exit=$?
-    if [ "$f4_exit" -ne 0 ]; then
+    if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
+        skip "F4" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
+    elif [ "$f4_exit" -ne 0 ]; then
         pass "F4" "ASCII os.system still blocked (control)"
     else
         fail "F4" "ASCII os.system not blocked" "exit=$f4_exit"
