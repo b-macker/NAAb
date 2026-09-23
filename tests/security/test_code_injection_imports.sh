@@ -52,8 +52,14 @@ if ! command -v python3 >/dev/null 2>&1; then
     echo "  SKIP [CI-00] python3 absent -- cannot parse verdicts, UNMEASURABLE"; exit 0
 fi
 
+# An unsigned govern.json is an INTEGRITY BLOCK (exit 3) whenever the ambient
+# trust store holds any key -- so without this, every "allowed" arm below would
+# read as BLOCKED depending on what else had run first. Isolate the store.
+source "$REPO/tests/helpers/trust_setup.sh"
+setup_isolated_trust
+
 W="$(mktemp -d)"
-trap 'rm -rf "$W"' EXIT
+trap 'teardown_isolated_trust; rm -rf "$W"' EXIT
 cat > "$W/govern.json" <<'EOF'
 { "version": "3.0", "mode": "enforce",
   "restrictions": { "code_injection": { "level": "hard" } } }
