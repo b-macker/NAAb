@@ -68,9 +68,15 @@ echo "--- V-PKG-002: Integrity hash verification ---"
 grep -q 'computeSHA256.*tarball_path' "$SRC/packages/package_manager.cpp"
 check $? "SHA-256 computed on downloaded tarball"
 
-# T8: Source — integrity stored in lockfile
-grep -q 'entry.integrity.*last_download_hash' "$SRC/packages/package_manager.cpp"
-check $? "Integrity hash stored in lockfile entry"
+# T8 REMOVED. It grepped for `entry.integrity.*last_download_hash` -- the
+# PRE-FIX shape, where the lockfile pin was written from the member
+# last_download_hash_ read AFTER the recursive transitive-dependency loop had
+# overwritten it. That defect was fixed by handing the expected hash DOWN into
+# downloadFromGitHub(), so the assertion began failing BECAUSE the bug was
+# fixed, and chasing it green would mean reinstating the defect.
+# The guarantee it meant to cover is now tested behaviourally, in a suite that
+# actually runs: tests/package_manager/test_package_integrity.sh Group B
+# (B-03 is the load-bearing case), registered at run-all-tests.sh:1509.
 
 # T9: Source — integrity verified on re-install
 grep -q 'Integrity check failed' "$SRC/packages/package_manager.cpp"

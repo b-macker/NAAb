@@ -4,7 +4,12 @@
 # V-CONC-004 (LSP diagnostic data race), V-RT-012 (Fragile block extraction),
 # V-DOS-001 (BOLO unbounded input)
 
-set -euo pipefail
+# NOT `set -e`. Every assertion here is `grep -q ...` followed by `check $?`,
+# and under -e a failing grep kills the script BEFORE check can record it --
+# so the suite could only ever abort, never report a FAIL. Measured: it died
+# at assertion 3 of 6, printing two passes, no failure, and exit 1 with no
+# stated reason.
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -79,11 +84,12 @@ else
     echo "  SKIP [T-GOV12-2] naab-lang binary not found at $NAAB"
 fi
 
-# ---------------------------------------------------------------------------
-# T-CONC3-1: Source check — rest_api.cpp contains stdout_capture_mutex_
-# ---------------------------------------------------------------------------
-grep -q "stdout_capture_mutex_" "$REPO_ROOT/src/api/rest_api.cpp"
-check "T-CONC3-1" $? "V-CONC-003: stdout_capture_mutex_ present in rest_api.cpp"
+# T-CONC3-1 REMOVED. It required a global stdout_capture_mutex_ in
+# rest_api.cpp. That mutex is gone on purpose: rest_api.cpp:118 records the
+# replacement -- a THREAD-LOCAL capture stream per request, so there is "no
+# global mutex or rdbuf() redirect needed, so requests run in parallel". The
+# assertion demanded the weaker design, and `git log -S stdout_capture_mutex_`
+# finds the symbol never present in that file, so it likely never passed.
 
 # ---------------------------------------------------------------------------
 # T-CONC4-1: Source check — document_manager.h contains diag_mutex_
