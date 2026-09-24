@@ -75,9 +75,34 @@ echo ""
 
 # ─── Fix 1: Python subprocess fallback ───────────────────────────────
 
+PY_BINDING_OK=0
+if command -v python3 >/dev/null 2>&1; then
+    # Viability probe, asked with nothing under test: can the binding be
+    # constructed at all? Every arm below that touches it needs this, so the
+    # probe must run BEFORE Fix 1 -- when it sat inside Fix 5 it could only
+    # gate Fix 5, and Fix 1 and Fix 8 still reported six failures on Windows
+    # for a binding that never loaded.
+    #
+    # Two independent ways it is unavailable, and neither is an engine defect:
+    # the Linux job builds only naab-lang, so there is no libnaab-governance to
+    # load; and on Windows python3 is a NATIVE build while $LANG_DIR is an MSYS
+    # path it cannot resolve -- the path-vocabulary mismatch CLAUDE.md records
+    # for test_path_precedence.sh. Existence of naab-gov implies neither, which
+    # is why -x alone is not a sufficient guard.
+    if python3 -c "
+import sys; sys.path.insert(0, '$LANG_DIR')
+from bindings.python.naab_governance import GovernanceEngine
+GovernanceEngine()
+" >/dev/null 2>&1; then
+        PY_BINDING_OK=1
+    else
+        echo "  SKIP: naab_governance binding unavailable (not built, or an MSYS path a native python cannot resolve)"
+    fi
+fi
+
 echo "--- Fix 1: Python subprocess fallback ---"
 
-if [ -x "$NAAB_GOV" ] && command -v python3 >/dev/null 2>&1; then
+if [ -x "$NAAB_GOV" ] && [ "$PY_BINDING_OK" -eq 1 ]; then
     # T1.1: GovernanceEngine initializes (subprocess or ctypes)
     check "GovernanceEngine imports and initializes" \
         python3 -c "
@@ -180,24 +205,6 @@ echo ""
 
 echo "--- Fix 5: Python __del__ safety ---"
 
-PY_BINDING_OK=0
-if command -v python3 >/dev/null 2>&1; then
-    # Viability probe, asked with nothing under test: can the binding be
-    # constructed at all? It needs libnaab-governance or the naab-gov CLI, and
-    # the Linux CI job builds only naab-lang -- so without this the arms below
-    # fail on a FileNotFoundError from the binding rather than on anything the
-    # engine did, which is a missing build target reported as a defect.
-    if python3 -c "
-import sys; sys.path.insert(0, '$LANG_DIR')
-from bindings.python.naab_governance import GovernanceEngine
-GovernanceEngine()
-" >/dev/null 2>&1; then
-        PY_BINDING_OK=1
-    else
-        echo "  SKIP: naab_governance binding unavailable (libnaab-governance / naab-gov not built)"
-    fi
-fi
-
 if [ "$PY_BINDING_OK" -eq 1 ]; then
     # T5.1: _destroy_fn is set (ctypes mode) or None (subprocess mode)
     check "GovernanceEngine has _destroy_fn attribute" \
@@ -247,7 +254,7 @@ if [ -x "$NAAB_GOV" ]; then
     GOV_CLI_VER=$($NAAB_GOV --version 2>&1 | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
 
     # T8.1: CLI version matches C API version
-    if command -v python3 >/dev/null 2>&1; then
+    if [ "$PY_BINDING_OK" -eq 1 ]; then
         check_output "CLI and Python binding versions match" "$GOV_CLI_VER" \
             python3 -c "
 import sys; sys.path.insert(0, '$LANG_DIR')
