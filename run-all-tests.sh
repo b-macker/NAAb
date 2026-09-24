@@ -3256,6 +3256,36 @@ else
     echo "  test_taint_array_transform.sh: not found, skipping"
 fi
 
+PLATFORM_FIXES_SCRIPT="tests/api/test_platform_fixes.sh"
+if [ -f "$PLATFORM_FIXES_SCRIPT" ]; then
+    # 24 assertions over the platform/binding fixes, including the REST route
+    # error handler. Unreferenced anywhere in the repo until now, and it was
+    # carrying a live failure the whole time: /api/v1/check answered 200 with
+    # "blocked": false when no governance config was found.
+    #
+    # It needs naab-gov and libnaab-governance, not just naab-lang -- without
+    # them the binding arms fail on a FileNotFoundError rather than on anything
+    # the engine did. run_shell_test does NOT build them, and the Linux CI job
+    # builds only naab-lang, which is why the suite carries its own viability
+    # probe and skips those arms instead of reporting a missing build target as
+    # a defect. (#252 claimed in its commit message to have corrected this
+    # comment and did not; corrected here.)
+    echo ""
+    echo "═══════════════════════════════════════════════════════════"
+    echo "  Platform + binding fixes (REST route errors, __del__ safety)"
+    echo "═══════════════════════════════════════════════════════════"
+    echo ""
+    if run_shell_test "$PLATFORM_FIXES_SCRIPT" 2>&1; then
+        echo "  test_platform_fixes.sh: ALL PASSED"
+    else
+        echo "  test_platform_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_platform_fixes.sh")
+    fi
+else
+    echo "  test_platform_fixes.sh: not found, skipping"
+fi
+
 VISIBILITY_SCRIPT="tests/self-audit/test_coverage_visibility.sh"
 if [ -f "$VISIBILITY_SCRIPT" ]; then
     # Two baseline gates on what this runner cannot see about itself: test
