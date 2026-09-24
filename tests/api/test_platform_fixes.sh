@@ -16,7 +16,18 @@ FAIL=0
 LANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 NAAB_GOV="$LANG_DIR/build/naab-gov"
 NAAB_LANG="$LANG_DIR/build/naab-lang"
-TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+# The previous default here was /data/data/com.termux/files/usr/tmp -- the
+# author's Termux path, compiled in as the fallback for every platform, the
+# same shape CLAUDE.md records for CURLOPT_CAINFO in agent_provider.cpp. An
+# absent TMPDIR means "you decide", not "use my phone". It survived because
+# that path happens to exist in some dev containers, so the suite passed there
+# and failed on CI, where line 289 could not write the server log and every
+# Fix 12 arm reported "API server failed to start".
+TMPDIR="${TMPDIR:-/tmp}"
+if [ ! -d "$TMPDIR" ] || [ ! -w "$TMPDIR" ]; then
+    echo "  FATAL: TMPDIR '$TMPDIR' is not a writable directory" >&2
+    exit 1
+fi
 
 check() {
     local desc="$1"
@@ -64,9 +75,34 @@ echo ""
 
 # ─── Fix 1: Python subprocess fallback ───────────────────────────────
 
+PY_BINDING_OK=0
+if command -v python3 >/dev/null 2>&1; then
+    # Viability probe, asked with nothing under test: can the binding be
+    # constructed at all? Every arm below that touches it needs this, so the
+    # probe must run BEFORE Fix 1 -- when it sat inside Fix 5 it could only
+    # gate Fix 5, and Fix 1 and Fix 8 still reported six failures on Windows
+    # for a binding that never loaded.
+    #
+    # Two independent ways it is unavailable, and neither is an engine defect:
+    # the Linux job builds only naab-lang, so there is no libnaab-governance to
+    # load; and on Windows python3 is a NATIVE build while $LANG_DIR is an MSYS
+    # path it cannot resolve -- the path-vocabulary mismatch CLAUDE.md records
+    # for test_path_precedence.sh. Existence of naab-gov implies neither, which
+    # is why -x alone is not a sufficient guard.
+    if python3 -c "
+import sys; sys.path.insert(0, '$LANG_DIR')
+from bindings.python.naab_governance import GovernanceEngine
+GovernanceEngine()
+" >/dev/null 2>&1; then
+        PY_BINDING_OK=1
+    else
+        echo "  SKIP: naab_governance binding unavailable (not built, or an MSYS path a native python cannot resolve)"
+    fi
+fi
+
 echo "--- Fix 1: Python subprocess fallback ---"
 
-if [ -x "$NAAB_GOV" ] && command -v python3 >/dev/null 2>&1; then
+if [ -x "$NAAB_GOV" ] && [ "$PY_BINDING_OK" -eq 1 ]; then
     # T1.1: GovernanceEngine initializes (subprocess or ctypes)
     check "GovernanceEngine imports and initializes" \
         python3 -c "
@@ -169,7 +205,7 @@ echo ""
 
 echo "--- Fix 5: Python __del__ safety ---"
 
-if command -v python3 >/dev/null 2>&1; then
+if [ "$PY_BINDING_OK" -eq 1 ]; then
     # T5.1: _destroy_fn is set (ctypes mode) or None (subprocess mode)
     check "GovernanceEngine has _destroy_fn attribute" \
         python3 -c "
@@ -218,7 +254,7 @@ if [ -x "$NAAB_GOV" ]; then
     GOV_CLI_VER=$($NAAB_GOV --version 2>&1 | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
 
     # T8.1: CLI version matches C API version
-    if command -v python3 >/dev/null 2>&1; then
+    if [ "$PY_BINDING_OK" -eq 1 ]; then
         check_output "CLI and Python binding versions match" "$GOV_CLI_VER" \
             python3 -c "
 import sys; sys.path.insert(0, '$LANG_DIR')
@@ -320,13 +356,51 @@ if [ -x "$NAAB_LANG" ] && command -v curl >/dev/null 2>&1; then
             curl -s -X GET "http://127.0.0.1:$PORT/api/v1/nonexistent" \
                 -H "Authorization: Bearer test-key-123"
 
-        # T12.4: Valid request with config returns 200
-        check_output "valid request returns blocked field" \
-            '"blocked"' \
-            curl -s -X POST "http://127.0.0.1:$PORT/api/v1/check" \
-                -H "Authorization: Bearer test-key-123" \
-                -H "Content-Type: application/json" \
-                -d '{"code": "x = 1", "language": "python", "config": {"version":"3.0","mode":"enforce","restrictions":{}}}'
+        # T12.4: a GOVERNED request returns 200 with a verdict.
+        #
+        # This arm used to pass a "config" field in the request body and run
+        # against the server started above, which has no govern.json in its
+        # CWD. The handler states "Always use server-side governance config --
+        # never accept client-supplied config", so that field is ignored by
+        # design; the arm passed only because the ungoverned response happened
+        # to contain "blocked" (the fail-open T12.2 exists to catch). It was
+        # asserting the presence of a field, not that anything was governed.
+        #
+        # So give the server a real server-side config, on its own port and CWD,
+        # and drop the body field that is refused by design.
+        T124_DIR="$TMPDIR/t124"
+        mkdir -p "$T124_DIR"
+        cat > "$T124_DIR/govern.json" <<'T124_JSON'
+{
+  "version": "4.0",
+  "mode": "enforce",
+  "languages": { "allowed": ["python"], "require_explicit": false }
+}
+T124_JSON
+        PORT2=18931
+        # exec, so the backgrounded subshell IS the server and $! is its pid.
+        # Without it $! is the subshell, the kill below misses the server, and
+        # the leaked process keeps the port and holds the parent shell open --
+        # which reads as run-all-tests.sh hanging long after it has printed its
+        # summary.
+        ( cd "$T124_DIR" && exec "$NAAB_LANG" api "$PORT2" --api-key "test-key-123" \
+            >"$TMPDIR/naab_fix12b.log" 2>&1 ) &
+        API_PID2=$!
+        for i in $(seq 1 50); do
+            curl -s "http://127.0.0.1:$PORT2/health" >/dev/null 2>&1 && break
+            sleep 0.1
+        done
+        if curl -s "http://127.0.0.1:$PORT2/health" >/dev/null 2>&1; then
+            check_output "governed request returns blocked field" \
+                '"blocked"' \
+                curl -s -X POST "http://127.0.0.1:$PORT2/api/v1/check" \
+                    -H "Authorization: Bearer test-key-123" \
+                    -H "Content-Type: application/json" \
+                    -d '{"code": "x = 1", "language": "python"}'
+        else
+            echo "  SKIP: second API server failed to start"
+        fi
+        kill "$API_PID2" 2>/dev/null; wait "$API_PID2" 2>/dev/null
     else
         echo "  SKIP: API server failed to start"
     fi
