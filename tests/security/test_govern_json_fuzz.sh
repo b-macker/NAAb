@@ -12,7 +12,7 @@ FAIL=0
 CRASH=0
 LANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 NAAB="$LANG_DIR/build/naab-lang"
-TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+TMPDIR="${TMPDIR:-/tmp}"
 FUZZ_DIR="$TMPDIR/naab_fuzz_$$"
 
 mkdir -p "$FUZZ_DIR"

@@ -17,7 +17,7 @@ PASS=0; FAIL=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
-SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+SYSTMP="${TMPDIR:-/tmp}"
 WORKDIR=$(mktemp -d "${SYSTMP}/signing_bypass_XXXXXX")
 
 cleanup() { rm -rf "$WORKDIR"; }

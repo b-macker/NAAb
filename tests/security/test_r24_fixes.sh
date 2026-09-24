@@ -10,7 +10,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
 GOV="$SCRIPT_DIR/../../build/naab-gov"
-WORK_DIR="$(mktemp -d "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab_r24.XXXXXX")"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/naab_r24.XXXXXX")"
 SERVER_PID=""
 cleanup() {
     if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
