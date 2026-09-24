@@ -16,7 +16,18 @@ FAIL=0
 LANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 NAAB_GOV="$LANG_DIR/build/naab-gov"
 NAAB_LANG="$LANG_DIR/build/naab-lang"
-TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+# The previous default here was /data/data/com.termux/files/usr/tmp -- the
+# author's Termux path, compiled in as the fallback for every platform, the
+# same shape CLAUDE.md records for CURLOPT_CAINFO in agent_provider.cpp. An
+# absent TMPDIR means "you decide", not "use my phone". It survived because
+# that path happens to exist in some dev containers, so the suite passed there
+# and failed on CI, where line 289 could not write the server log and every
+# Fix 12 arm reported "API server failed to start".
+TMPDIR="${TMPDIR:-/tmp}"
+if [ ! -d "$TMPDIR" ] || [ ! -w "$TMPDIR" ]; then
+    echo "  FATAL: TMPDIR '$TMPDIR' is not a writable directory" >&2
+    exit 1
+fi
 
 check() {
     local desc="$1"
@@ -169,7 +180,25 @@ echo ""
 
 echo "--- Fix 5: Python __del__ safety ---"
 
+PY_BINDING_OK=0
 if command -v python3 >/dev/null 2>&1; then
+    # Viability probe, asked with nothing under test: can the binding be
+    # constructed at all? It needs libnaab-governance or the naab-gov CLI, and
+    # the Linux CI job builds only naab-lang -- so without this the arms below
+    # fail on a FileNotFoundError from the binding rather than on anything the
+    # engine did, which is a missing build target reported as a defect.
+    if python3 -c "
+import sys; sys.path.insert(0, '$LANG_DIR')
+from bindings.python.naab_governance import GovernanceEngine
+GovernanceEngine()
+" >/dev/null 2>&1; then
+        PY_BINDING_OK=1
+    else
+        echo "  SKIP: naab_governance binding unavailable (libnaab-governance / naab-gov not built)"
+    fi
+fi
+
+if [ "$PY_BINDING_OK" -eq 1 ]; then
     # T5.1: _destroy_fn is set (ctypes mode) or None (subprocess mode)
     check "GovernanceEngine has _destroy_fn attribute" \
         python3 -c "
