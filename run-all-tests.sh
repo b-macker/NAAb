@@ -2897,6 +2897,365 @@ else
     echo "  run-naab40.sh: not found, skipping"
 fi
 
+
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Security suites (previously unreferenced)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+# tests/security held 71 suites while run-all-tests.sh referenced 43. These 26
+# are the remainder that pass today, each verified by running it before wiring
+# it up -- 26 of 28 clean, in under six minutes for the whole sweep.
+#
+# Each is registered with its own NAME="tests/..." line rather than a loop over
+# an array, because test_coverage_visibility.sh CV-03 finds registrations with
+#   grep -oE '^[A-Z0-9_]+="(tests|examples)/[^"]+"'
+# and an array would be invisible to it -- reproducing the exact defect #250
+# fixed, where 25 registrations sat outside the gate meant to police them.
+#
+# Held back deliberately: test_r22_fixes.sh (7 passed, 2 failed) and
+# test_r32_fixes.sh (8 passed, 1 failed). On this repo's history either could be
+# a broken probe rather than a live defect, and that needs diagnosis, not
+# registration.
+
+SEC_DATA_EXFIL_PATTERNS_SCRIPT="tests/security/test_data_exfil_patterns.sh"
+if [ -f "$SEC_DATA_EXFIL_PATTERNS_SCRIPT" ]; then
+    if run_shell_test "$SEC_DATA_EXFIL_PATTERNS_SCRIPT" 2>&1; then
+        echo "  test_data_exfil_patterns.sh: ALL PASSED"
+    else
+        echo "  test_data_exfil_patterns.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_data_exfil_patterns.sh")
+    fi
+else
+    echo "  test_data_exfil_patterns.sh: not found, skipping"
+fi
+
+SEC_ENV_SCRUB_POLYGLOT_SCRIPT="tests/security/test_env_scrub_polyglot.sh"
+if [ -f "$SEC_ENV_SCRUB_POLYGLOT_SCRIPT" ]; then
+    if run_shell_test "$SEC_ENV_SCRUB_POLYGLOT_SCRIPT" 2>&1; then
+        echo "  test_env_scrub_polyglot.sh: ALL PASSED"
+    else
+        echo "  test_env_scrub_polyglot.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_env_scrub_polyglot.sh")
+    fi
+else
+    echo "  test_env_scrub_polyglot.sh: not found, skipping"
+fi
+
+SEC_ERROR_MSG_LEAKS_SCRIPT="tests/security/test_error_msg_leaks.sh"
+if [ -f "$SEC_ERROR_MSG_LEAKS_SCRIPT" ]; then
+    if run_shell_test "$SEC_ERROR_MSG_LEAKS_SCRIPT" 2>&1; then
+        echo "  test_error_msg_leaks.sh: ALL PASSED"
+    else
+        echo "  test_error_msg_leaks.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_error_msg_leaks.sh")
+    fi
+else
+    echo "  test_error_msg_leaks.sh: not found, skipping"
+fi
+
+SEC_ERROR_SANITIZER_VERR001_SCRIPT="tests/security/test_error_sanitizer_verr001.sh"
+if [ -f "$SEC_ERROR_SANITIZER_VERR001_SCRIPT" ]; then
+    if run_shell_test "$SEC_ERROR_SANITIZER_VERR001_SCRIPT" 2>&1; then
+        echo "  test_error_sanitizer_verr001.sh: ALL PASSED"
+    else
+        echo "  test_error_sanitizer_verr001.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_error_sanitizer_verr001.sh")
+    fi
+else
+    echo "  test_error_sanitizer_verr001.sh: not found, skipping"
+fi
+
+SEC_GOVERN_JSON_FUZZ_SCRIPT="tests/security/test_govern_json_fuzz.sh"
+if [ -f "$SEC_GOVERN_JSON_FUZZ_SCRIPT" ]; then
+    if run_shell_test "$SEC_GOVERN_JSON_FUZZ_SCRIPT" 2>&1; then
+        echo "  test_govern_json_fuzz.sh: ALL PASSED"
+    else
+        echo "  test_govern_json_fuzz.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_govern_json_fuzz.sh")
+    fi
+else
+    echo "  test_govern_json_fuzz.sh: not found, skipping"
+fi
+
+SEC_GOVERNANCE_VALIDITY_SCRIPT="tests/security/test_governance_validity.sh"
+if [ -f "$SEC_GOVERNANCE_VALIDITY_SCRIPT" ]; then
+    if run_shell_test "$SEC_GOVERNANCE_VALIDITY_SCRIPT" 2>&1; then
+        echo "  test_governance_validity.sh: ALL PASSED"
+    else
+        echo "  test_governance_validity.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_governance_validity.sh")
+    fi
+else
+    echo "  test_governance_validity.sh: not found, skipping"
+fi
+
+SEC_PACKAGE_SECURITY_SCRIPT="tests/security/test_package_security.sh"
+if [ -f "$SEC_PACKAGE_SECURITY_SCRIPT" ]; then
+    if run_shell_test "$SEC_PACKAGE_SECURITY_SCRIPT" 2>&1; then
+        echo "  test_package_security.sh: ALL PASSED"
+    else
+        echo "  test_package_security.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_package_security.sh")
+    fi
+else
+    echo "  test_package_security.sh: not found, skipping"
+fi
+
+SEC_R11_FIXES_SCRIPT="tests/security/test_r11_fixes.sh"
+if [ -f "$SEC_R11_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R11_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r11_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r11_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r11_fixes.sh")
+    fi
+else
+    echo "  test_r11_fixes.sh: not found, skipping"
+fi
+
+SEC_R12_FIXES_SCRIPT="tests/security/test_r12_fixes.sh"
+if [ -f "$SEC_R12_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R12_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r12_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r12_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r12_fixes.sh")
+    fi
+else
+    echo "  test_r12_fixes.sh: not found, skipping"
+fi
+
+SEC_R13_FIXES_SCRIPT="tests/security/test_r13_fixes.sh"
+if [ -f "$SEC_R13_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R13_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r13_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r13_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r13_fixes.sh")
+    fi
+else
+    echo "  test_r13_fixes.sh: not found, skipping"
+fi
+
+SEC_R14_FIXES_SCRIPT="tests/security/test_r14_fixes.sh"
+if [ -f "$SEC_R14_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R14_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r14_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r14_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r14_fixes.sh")
+    fi
+else
+    echo "  test_r14_fixes.sh: not found, skipping"
+fi
+
+SEC_R15_FIXES_SCRIPT="tests/security/test_r15_fixes.sh"
+if [ -f "$SEC_R15_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R15_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r15_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r15_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r15_fixes.sh")
+    fi
+else
+    echo "  test_r15_fixes.sh: not found, skipping"
+fi
+
+SEC_R16_FIXES_SCRIPT="tests/security/test_r16_fixes.sh"
+if [ -f "$SEC_R16_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R16_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r16_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r16_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r16_fixes.sh")
+    fi
+else
+    echo "  test_r16_fixes.sh: not found, skipping"
+fi
+
+SEC_R18_FIXES_SCRIPT="tests/security/test_r18_fixes.sh"
+if [ -f "$SEC_R18_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R18_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r18_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r18_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r18_fixes.sh")
+    fi
+else
+    echo "  test_r18_fixes.sh: not found, skipping"
+fi
+
+SEC_R19_FIXES_SCRIPT="tests/security/test_r19_fixes.sh"
+if [ -f "$SEC_R19_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R19_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r19_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r19_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r19_fixes.sh")
+    fi
+else
+    echo "  test_r19_fixes.sh: not found, skipping"
+fi
+
+SEC_R20_FIXES_SCRIPT="tests/security/test_r20_fixes.sh"
+if [ -f "$SEC_R20_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R20_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r20_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r20_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r20_fixes.sh")
+    fi
+else
+    echo "  test_r20_fixes.sh: not found, skipping"
+fi
+
+SEC_R24_FIXES_SCRIPT="tests/security/test_r24_fixes.sh"
+if [ -f "$SEC_R24_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R24_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r24_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r24_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r24_fixes.sh")
+    fi
+else
+    echo "  test_r24_fixes.sh: not found, skipping"
+fi
+
+SEC_R25_FIXES_SCRIPT="tests/security/test_r25_fixes.sh"
+if [ -f "$SEC_R25_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R25_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r25_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r25_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r25_fixes.sh")
+    fi
+else
+    echo "  test_r25_fixes.sh: not found, skipping"
+fi
+
+SEC_R28_FIXES_SCRIPT="tests/security/test_r28_fixes.sh"
+if [ -f "$SEC_R28_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R28_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r28_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r28_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r28_fixes.sh")
+    fi
+else
+    echo "  test_r28_fixes.sh: not found, skipping"
+fi
+
+SEC_R30_FIXES_SCRIPT="tests/security/test_r30_fixes.sh"
+if [ -f "$SEC_R30_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R30_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r30_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r30_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r30_fixes.sh")
+    fi
+else
+    echo "  test_r30_fixes.sh: not found, skipping"
+fi
+
+SEC_R31_FIXES_SCRIPT="tests/security/test_r31_fixes.sh"
+if [ -f "$SEC_R31_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R31_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r31_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r31_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r31_fixes.sh")
+    fi
+else
+    echo "  test_r31_fixes.sh: not found, skipping"
+fi
+
+SEC_R33_FIXES_SCRIPT="tests/security/test_r33_fixes.sh"
+if [ -f "$SEC_R33_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R33_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r33_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r33_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r33_fixes.sh")
+    fi
+else
+    echo "  test_r33_fixes.sh: not found, skipping"
+fi
+
+SEC_R34_FIXES_SCRIPT="tests/security/test_r34_fixes.sh"
+if [ -f "$SEC_R34_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R34_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r34_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r34_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r34_fixes.sh")
+    fi
+else
+    echo "  test_r34_fixes.sh: not found, skipping"
+fi
+
+SEC_SHELL_INJECTION_PATTERNS_SCRIPT="tests/security/test_shell_injection_patterns.sh"
+if [ -f "$SEC_SHELL_INJECTION_PATTERNS_SCRIPT" ]; then
+    if run_shell_test "$SEC_SHELL_INJECTION_PATTERNS_SCRIPT" 2>&1; then
+        echo "  test_shell_injection_patterns.sh: ALL PASSED"
+    else
+        echo "  test_shell_injection_patterns.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_shell_injection_patterns.sh")
+    fi
+else
+    echo "  test_shell_injection_patterns.sh: not found, skipping"
+fi
+
+SEC_SIGNING_BYPASS_SCRIPT="tests/security/test_signing_bypass.sh"
+if [ -f "$SEC_SIGNING_BYPASS_SCRIPT" ]; then
+    if run_shell_test "$SEC_SIGNING_BYPASS_SCRIPT" 2>&1; then
+        echo "  test_signing_bypass.sh: ALL PASSED"
+    else
+        echo "  test_signing_bypass.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_signing_bypass.sh")
+    fi
+else
+    echo "  test_signing_bypass.sh: not found, skipping"
+fi
+
+SEC_TAINT_ARRAY_TRANSFORM_SCRIPT="tests/security/test_taint_array_transform.sh"
+if [ -f "$SEC_TAINT_ARRAY_TRANSFORM_SCRIPT" ]; then
+    if run_shell_test "$SEC_TAINT_ARRAY_TRANSFORM_SCRIPT" 2>&1; then
+        echo "  test_taint_array_transform.sh: ALL PASSED"
+    else
+        echo "  test_taint_array_transform.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_taint_array_transform.sh")
+    fi
+else
+    echo "  test_taint_array_transform.sh: not found, skipping"
+fi
+
 VISIBILITY_SCRIPT="tests/self-audit/test_coverage_visibility.sh"
 if [ -f "$VISIBILITY_SCRIPT" ]; then
     # Two baseline gates on what this runner cannot see about itself: test

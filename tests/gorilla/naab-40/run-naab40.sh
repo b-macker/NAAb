@@ -634,6 +634,20 @@ if should_run 6; then
     echo -e "${CYAN}══════════════════════════════════════════════════════${NC}"
     echo ""
 
+    # F1-F4 asserted only that the run exited non-zero, and every one of them
+    # got that from a Python NameError rather than from governance: the blocks
+    # called os.system WITHOUT importing os. Measured on the ASCII control F4,
+    # which is supposed to be the one unambiguous case:
+    #   [PY ADAPTER ERROR] Python execution error: NameError: name 'os' is not defined
+    # and no governance violation at all. The unicode normalisation F1-F3 exist
+    # to exercise was therefore never reached -- all four would have passed
+    # identically if normalizeUnicode did not exist.
+    #
+    # So import os (the call now resolves and reaches the governed sink) and
+    # require the refusal to NAME governance. Verified all four are refused with
+    #   PermissionError: Governance: os.system denied by sandbox policy
+    # including the three homoglyph variants, so normalisation is doing real
+    # work here now.
     # F1-F4: Unicode normalization tests — generate .naab files with UTF-8 bytes
     WORKDIR_UNI=$(setup_workdir "cat6-unicode-stdlib")
 
@@ -641,6 +655,7 @@ if should_run 6; then
     cat > "$WORKDIR_UNI/f1_subscript_m.naab" << 'NAABEOF'
 main {
     let r = <<python
+import os
 NAABEOF
     printf 'os.syste\xe2\x82\x98("ls")\n' >> "$WORKDIR_UNI/f1_subscript_m.naab"
     cat >> "$WORKDIR_UNI/f1_subscript_m.naab" << 'NAABEOF'
@@ -652,7 +667,7 @@ NAABEOF
     f1_output=$(cd "$WORKDIR_UNI" && timeout 30 "$NAAB" f1_subscript_m.naab 2>&1) && f1_exit=0 || f1_exit=$?
     if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
         skip "F1" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
-    elif [ "$f1_exit" -ne 0 ]; then
+    elif [ "$f1_exit" -ne 0 ] && printf '%s' "$f1_output" | grep -qE "denied by sandbox|Governance error|Dangerous pattern"; then
         pass "F1" "subscript U+2098 in os.system blocked"
     else
         fail "F1" "subscript bypass not detected" "exit=$f1_exit"
@@ -663,6 +678,7 @@ NAABEOF
     cat > "$WORKDIR_UNI/f2_subscript_o.naab" << 'NAABEOF'
 main {
     let r = <<python
+import os
 NAABEOF
     printf '\xe2\x82\x92s.system("ls")\n' >> "$WORKDIR_UNI/f2_subscript_o.naab"
     cat >> "$WORKDIR_UNI/f2_subscript_o.naab" << 'NAABEOF'
@@ -674,7 +690,7 @@ NAABEOF
     f2_output=$(cd "$WORKDIR_UNI" && timeout 30 "$NAAB" f2_subscript_o.naab 2>&1) && f2_exit=0 || f2_exit=$?
     if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
         skip "F2" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
-    elif [ "$f2_exit" -ne 0 ]; then
+    elif [ "$f2_exit" -ne 0 ] && printf '%s' "$f2_output" | grep -qE "denied by sandbox|Governance error|Dangerous pattern"; then
         pass "F2" "subscript U+2092 in os.system blocked"
     else
         fail "F2" "subscript os bypass not detected" "exit=$f2_exit"
@@ -684,6 +700,7 @@ NAABEOF
     cat > "$WORKDIR_UNI/f3_fullwidth_o.naab" << 'NAABEOF'
 main {
     let r = <<python
+import os
 NAABEOF
     printf '\xef\xbd\x8fs.system("ls")\n' >> "$WORKDIR_UNI/f3_fullwidth_o.naab"
     cat >> "$WORKDIR_UNI/f3_fullwidth_o.naab" << 'NAABEOF'
@@ -695,7 +712,7 @@ NAABEOF
     f3_output=$(cd "$WORKDIR_UNI" && timeout 30 "$NAAB" f3_fullwidth_o.naab 2>&1) && f3_exit=0 || f3_exit=$?
     if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
         skip "F3" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
-    elif [ "$f3_exit" -ne 0 ]; then
+    elif [ "$f3_exit" -ne 0 ] && printf '%s' "$f3_output" | grep -qE "denied by sandbox|Governance error|Dangerous pattern"; then
         pass "F3" "fullwidth U+FF4F in os.system blocked"
     else
         fail "F3" "fullwidth bypass not detected" "exit=$f3_exit"
@@ -705,6 +722,7 @@ NAABEOF
     cat > "$WORKDIR_UNI/f4_ascii_control.naab" << 'NAABEOF'
 main {
     let r = <<python
+import os
 os.system("ls")
 print("bypass")
 >>
@@ -714,7 +732,7 @@ NAABEOF
     f4_output=$(cd "$WORKDIR_UNI" && timeout 30 "$NAAB" f4_ascii_control.naab 2>&1) && f4_exit=0 || f4_exit=$?
     if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
         skip "F4" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
-    elif [ "$f4_exit" -ne 0 ]; then
+    elif [ "$f4_exit" -ne 0 ] && printf '%s' "$f4_output" | grep -qE "denied by sandbox|Governance error|Dangerous pattern"; then
         pass "F4" "ASCII os.system still blocked (control)"
     else
         fail "F4" "ASCII os.system not blocked" "exit=$f4_exit"
