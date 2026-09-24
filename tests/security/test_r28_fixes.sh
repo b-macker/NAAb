@@ -20,6 +20,11 @@ pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
 fail() { echo "FAIL: $1"; [[ -n "${2:-}" ]] && echo "  $2"; FAIL=$((FAIL+1)); }
 skip() { echo "SKIP: $1"; SKIP=$((SKIP+1)); }
 
+# Create govern.json so governance doesn't block execution
+cat > "$WORK_DIR/govern.json" << 'JSON'
+{ "version": "4.0", "mode": "off" }
+JSON
+
 # Per-language viability probes. The arms below grep the output for rejection
 # words ("blocked", "rejected", "not permitted"...). When the executor is
 # absent the engine prints "No executor found for language: cpp", which matches
@@ -30,23 +35,32 @@ skip() { echo "SKIP: $1"; SKIP=$((SKIP+1)); }
 # Ask each language with nothing to refuse: a trivial block that should simply
 # run. The only thing that can fail is the executor, which is what makes a
 # failure mean "unmeasurable" rather than "unsafe".
+#
+# THIS MUST RUN AFTER govern.json EXISTS. The first version sat above it, so
+# the probe executed with no config discoverable while the arms it gates ran
+# with one. The engine then refused the probe block for a GOVERNANCE reason,
+# whose text does not contain "No executor found", so the probe reported the
+# executor as available and the arms went on to fail exactly as before --
+# 6 passed, 3 failed, 0 skipped on Windows. A probe has to be asked in the
+# same conditions as the thing it is speaking for.
 probe_lang() {
     local lang="$1" body="$2" d out
     d="$WORK_DIR/probe_$lang"; mkdir -p "$d"
     printf 'main {\n    let r = <<%s\n%s\n>>\n}\n' "$lang" "$body" > "$d/p.naab"
-    out=$("$NAAB" "$d/p.naab" 2>&1 || true)
-    case "$out" in *"No executor found"*) return 1;; esac
-    return 0
+    # Judge on the EXIT CODE, not on the error text. Matching the string
+    # "No executor found" made the probe depend on which failure it hit: with
+    # no config discoverable the engine refuses for a governance reason whose
+    # text does not contain it, so the probe called an absent executor
+    # available. An exit code cannot be wrong that way, and it fails SAFE --
+    # anything that stops a trivial block from running becomes "unmeasurable"
+    # (a skip), never a false security failure.
+    ( cd "$d" && timeout 60 "$NAAB" p.naab >/dev/null 2>&1 )
 }
 CPP_OK=0;  probe_lang cpp  'int main() { return 0; }' && CPP_OK=1
 RUST_OK=0; probe_lang rust 'fn main() {}'             && RUST_OK=1
 [ "$CPP_OK"  -eq 1 ] || echo "  NOTE: cpp executor unavailable; its arms report UNMEASURABLE"
 [ "$RUST_OK" -eq 1 ] || echo "  NOTE: rust executor unavailable; its arms report UNMEASURABLE"
 
-# Create govern.json so governance doesn't block execution
-cat > "$WORK_DIR/govern.json" << 'JSON'
-{ "version": "4.0", "mode": "off" }
-JSON
 
 # ── V-RCE-012: Nim scanner rejects parenthesis-less invocation ─────────────
 
