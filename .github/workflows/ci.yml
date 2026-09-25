@@ -49,6 +49,113 @@ jobs:
       - name: Run tests
         run: bash run-all-tests.sh
 
+  # Run the suite as a NON-ROOT user.
+  #
+  # Root masks every permission-shaped portability bug, and that is not
+  # hypothetical here: dozens of scripts defaulted their temp directory to
+  # /data/data/com.termux/files/usr/tmp, and as root a plain mkdir -p CREATED
+  # that tree on an ordinary Linux box. The suite then went green because it was
+  # privileged, while a normal user got hard failures -- and the phantom
+  # directory went on to flip libnaab-governance from SHARED to STATIC at the
+  # next configure. Every runner in this file is root, so nothing caught it.
+  #
+  # This job is the missing control. It does not need to run everything: the
+  # failure mode is "a script cannot create its work directory", which surfaces
+  # in the first suites that try.
+  build-and-test-nonroot:
+    name: Build & Test (non-root)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build libsqlite3-dev python3-dev \
+            libssl-dev libffi-dev libcurl4-openssl-dev pkg-config
+          pip3 install pybind11
+
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
+          ninja -C build naab-lang libnaab naab-verify-audit -j$(nproc)
+
+      - name: Assert the phantom Termux tree was not created by the build
+        run: |
+          if [ -e /data/data/com.termux ]; then
+            echo "FAIL: /data/data/com.termux exists -- something re-introduced it" >&2
+            exit 1
+          fi
+          echo "OK: no phantom Termux tree"
+
+      - name: Run tests as a non-root user
+        run: |
+          set -euo pipefail
+          sudo useradd -m naabtest
+
+          # COPY the tree rather than chown the checkout. Re-owning
+          # $GITHUB_WORKSPACE takes .git with it, and the runner's post-job
+          # cleanup then cannot write .git/config ("could not lock config
+          # file: Permission denied"), which fails the job for a reason that
+          # has nothing to do with the tests and buries the result we came for.
+          WORK=/home/naabtest/naab
+          sudo cp -a "$GITHUB_WORKSPACE" "$WORK"
+          sudo chown -R naabtest:naabtest "$WORK"
+
+          # HOME must be the test user's: several suites write under $HOME, and
+          # leaving root's HOME set is another way to run "as non-root" while
+          # still exercising a privileged path.
+          # Converting the temp-path handling took the non-root failure count
+          # from 125 to 0 ON THIS RUNNER. The ceiling is 0, so this is a real
+          # gate rather than a ratchet with slack -- any suite that starts
+          # needing root fails the build on the commit that does it.
+          #
+          # The first version of this shipped a ceiling of 7, from a local
+          # measurement that named five suites as "genuinely root-only"
+          # (test_go_executor, test_sandbox_level_precedence,
+          # test_sandbox_engine_parity, test_python_audit_hook,
+          # test_default_patterns). CI reported 0, so that label was wrong:
+          # those five fail in one particular dev container for a local
+          # reason, not because they require privilege. A ceiling of 7 would
+          # have left room for six real regressions to land unnoticed, on the
+          # strength of a claim the runner had already contradicted.
+          set +e
+          sudo -u naabtest env "PATH=$PATH" HOME=/home/naabtest \
+            bash -c "cd '$WORK' && bash run-all-tests.sh" | tee /tmp/nonroot.log
+          set -e
+
+          N=$(grep -aoE 'Unexpected fails:[[:space:]]*[0-9]+' /tmp/nonroot.log \
+                | tail -1 | grep -oE '[0-9]+')
+          if [ -z "$N" ]; then
+            echo "UNMEASURABLE: the suite printed no 'Unexpected fails:' line." >&2
+            echo "That is a broken probe, not a pass -- failing rather than" >&2
+            echo "reporting a ceiling nothing was measured against." >&2
+            exit 1
+          fi
+          echo "non-root unexpected failures: $N (ceiling 0)"
+          [ "$N" -le 0 ] || { echo "REGRESSION: non-root failures rose to $N" >&2; exit 1; }
+
+      - name: Confirm the run really was unprivileged
+        run: |
+          # A job that silently ran as root would pass every assertion here for
+          # the wrong reason, which is the failure mode this whole PR is about.
+          test "$(sudo -u naabtest id -u)" -ne 0
+          echo "OK: test user is uid $(sudo -u naabtest id -u)"
+
+      - name: Assert the suite still did not create it
+        if: always()
+        run: |
+          if [ -e /data/data/com.termux ]; then
+            echo "FAIL: the test run created /data/data/com.termux" >&2
+            exit 1
+          fi
+          echo "OK: suite left no phantom tree"
+
   build-msvc:
     name: MSVC Build Check
     runs-on: windows-latest

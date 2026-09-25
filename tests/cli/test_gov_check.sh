@@ -5,7 +5,7 @@ PASS=0
 FAIL=0
 LANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 GOV="$LANG_DIR/build/naab-gov"
-TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+TMPDIR="${TMPDIR:-/tmp}"
 
 if [ ! -x "$GOV" ]; then
     echo "SKIP: naab-gov not built (run: cd build && cmake .. && make naab-gov)"

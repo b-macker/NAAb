@@ -11,6 +11,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
 GOV="$SCRIPT_DIR/../../build/naab-gov"
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/naab_r24.XXXXXX")"
+# A failed mktemp leaves $WORK_DIR EMPTY, and every "$WORK_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 SERVER_PID=""
 cleanup() {
     if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then

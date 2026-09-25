@@ -9,7 +9,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../../build/naab-lang"
-TEST_TMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab31a-$$"
+TEST_TMP="${TMPDIR:-/tmp}/naab31a-$$"
 RESULTS_DIR="$SCRIPT_DIR/results"
 SIGNING_KEY="$HOME/.naab/keys/signing.pem"
 PHASE_CONFIG="$SCRIPT_DIR/../naab-31/phases/phase1-depth-tight.json"

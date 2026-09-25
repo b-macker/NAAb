@@ -20,6 +20,10 @@ skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 # Use /usr/tmp on Termux, /tmp elsewhere
 SYSTMP="${TMPDIR:-/tmp}"
 WORKDIR=$(mktemp -d "${SYSTMP}/gov_validity_XXXXXX")
+# A failed mktemp leaves $WORKDIR EMPTY, and every "$WORKDIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 
 cleanup() {
     rm -rf "$WORKDIR"

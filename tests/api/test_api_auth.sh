@@ -9,7 +9,7 @@ FAIL=0
 LANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 NAAB="$LANG_DIR/build/naab-lang"
 PORT=18931  # Unlikely to conflict
-TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+TMPDIR="${TMPDIR:-/tmp}"
 WORKDIR="$TMPDIR/naab_api_auth_$$"
 
 if [ ! -x "$NAAB" ]; then

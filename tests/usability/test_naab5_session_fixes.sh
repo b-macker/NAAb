@@ -47,6 +47,10 @@ check $? "json_impl.cpp uses governance-configured depth"
 
 # T5: Runtime — json.stringify respects governance depth limit
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_json_depth_XXXXXX")
+# A failed mktemp leaves $WORK_DIR EMPTY, and every "$WORK_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 mkdir -p "$WORK_DIR"
 cat > "$WORK_DIR/govern.json" << 'GOVEOF'
 {
@@ -89,6 +93,10 @@ check $? "Parser has C-style for loop hint"
 
 # T7: Runtime — for (let i = 0; ...) gives helpful error
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_for_XXXXXX")
+# A failed mktemp leaves $WORK_DIR EMPTY, and every "$WORK_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$WORK_DIR/test.naab" << 'EOF'
 main {
     for (let i = 0; i < 10; i = i + 1) {

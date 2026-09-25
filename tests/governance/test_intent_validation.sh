@@ -16,6 +16,10 @@ ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); TOTAL=$((TOTAL + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); }
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/naab_intent_XXXXXX")"
+# A failed mktemp leaves $WORK EMPTY, and every "$WORK/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK" ] && [ -d "$WORK" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 
 # Isolate trust store so tests run unsigned (no Ed25519 interference)
 export NAAB_TRUST_STORE_DIR="$WORK/trust-store"

@@ -14,7 +14,7 @@
 
 LANG_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
 NAAB="$LANG_DIR/build/naab-lang"
-TMPBASE="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+TMPBASE="${TMPDIR:-/tmp}"
 WORKDIR="$TMPBASE/naab37_$$"
 SIGNING_KEY="${HOME}/.naab/keys/signing.pem"
 

@@ -32,11 +32,12 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
 
-if [ -d "/data/data/com.termux/files/usr/tmp" ]; then
-    _SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
-else
-    _SYSTMP="${TMPDIR:-/tmp}"
-fi
+# The old form probed `[ -d <termux tmp> ]` first. That probe is unsound off
+# Android: the project's own runners created that directory on Linux, so the
+# branch was taken on a box where the path is root-owned 755 -- and a non-root
+# user got "mktemp: Permission denied". TMPDIR is what Termux actually sets,
+# so consulting it needs no Termux-specific branch at all.
+_SYSTMP="${TMPDIR:-/tmp}"
 W="${_SYSTMP}/cap-telem-$$"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'

@@ -8,11 +8,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
 SIGNING_KEY="${HOME}/.naab/keys/signing.pem"
-if [ -d "/data/data/com.termux/files/usr/tmp" ]; then
-    _SYSTMP="${TMPDIR:-/tmp}"
-else
-    _SYSTMP="${TMPDIR:-/tmp}"
-fi
+# The old form probed `[ -d <termux tmp> ]` first. That probe is unsound off
+# Android: the project's own runners created that directory on Linux, so the
+# branch was taken on a box where the path is root-owned 755 -- and a non-root
+# user got "mktemp: Permission denied". TMPDIR is what Termux actually sets,
+# so consulting it needs no Termux-specific branch at all.
+# (both branches already said /tmp; the probe decided nothing.)
+_SYSTMP="${TMPDIR:-/tmp}"
 TMPBASE="$_SYSTMP/test_containment_$$"
 mkdir -p "$TMPBASE"
 

@@ -52,6 +52,10 @@ command -v python3 >/dev/null 2>&1 || { echo "  python3 unavailable, skipping"; 
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 W="$(mktemp -d "${TMPDIR:-/tmp}/pathbound-XXXXXX")"
+# A failed mktemp leaves $W EMPTY, and every "$W/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$W" ] && [ -d "$W" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cleanup() { teardown_isolated_trust; rm -rf "$W"; }
 trap cleanup EXIT
 cd "$W" || exit 1

@@ -14,7 +14,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../../build/naab-lang"
 NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
-TEST_TMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naabx2-$$"
+TEST_TMP="${TMPDIR:-/tmp}/naabx2-$$"
 RESULTS_DIR="$SCRIPT_DIR/results"
 SIGNING_KEY="$HOME/.naab/keys/signing.pem"
 

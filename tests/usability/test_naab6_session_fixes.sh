@@ -37,6 +37,10 @@ check $? "Tree-walker DictExpr has governance array size check"
 
 # T4: Runtime — array literal blocked when governance max_array_size exceeded
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_arr_gov_XXXXXX")
+# A failed mktemp leaves $WORK_DIR EMPTY, and every "$WORK_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 mkdir -p "$WORK_DIR"
 cat > "$WORK_DIR/govern.json" << 'GOVEOF'
 {
@@ -74,6 +78,10 @@ check $? "Parser has async block hint"
 
 # T6: Runtime — async { } gives helpful error
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_async_XXXXXX")
+# A failed mktemp leaves $WORK_DIR EMPTY, and every "$WORK_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$WORK_DIR/test.naab" << 'EOF'
 main {
     async {
@@ -91,6 +99,10 @@ rm -rf "$WORK_DIR"
 
 # T7: Runtime — async taskName() gives helpful error
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_async2_XXXXXX")
+# A failed mktemp leaves $WORK_DIR EMPTY, and every "$WORK_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$WORK_DIR/test.naab" << 'EOF'
 function myTask() {
     print("hello")

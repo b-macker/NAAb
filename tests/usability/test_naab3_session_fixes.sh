@@ -33,6 +33,10 @@ check $? "Hint explains -> JSON goes in block header"
 
 # T3: Runtime — >> -> JSON gives helpful error
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_json_hint_XXXXXX")
+# A failed mktemp leaves $WORK_DIR EMPTY, and every "$WORK_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$WORK_DIR/test.naab" << 'EOF'
 main {
     let x = <<python
@@ -80,6 +84,10 @@ check $? "Lexer has () binding error with guidance"
 
 # T10: Runtime — <<python(x) gives clear error
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_paren_XXXXXX")
+# A failed mktemp leaves $WORK_DIR EMPTY, and every "$WORK_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$WORK_DIR/test.naab" << 'EOF'
 main {
     let x = 10;

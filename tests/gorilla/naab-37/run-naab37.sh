@@ -7,7 +7,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../../build/naab-lang"
-TMPBASE="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab37-$$"
+TMPBASE="${TMPDIR:-/tmp}/naab37-$$"
 RESULTS_DIR="$SCRIPT_DIR/results"
 
 # Category selection (0 = all)

@@ -12,6 +12,10 @@ set -e
 
 NAAB_BIN="${NAAB_BIN:-./build/naab-lang}"
 TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_diff_XXXXXX")
+# A failed mktemp leaves $TMPDIR EMPTY, and every "$TMPDIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$TMPDIR" ] && [ -d "$TMPDIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 mkdir -p "$TMPDIR"
 
 PASSED=0

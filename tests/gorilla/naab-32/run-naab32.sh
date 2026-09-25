@@ -8,7 +8,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../../build/naab-lang"
-TEST_TMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab32-$$"
+TEST_TMP="${TMPDIR:-/tmp}/naab32-$$"
 RESULTS_DIR="$SCRIPT_DIR/results"
 SIGNING_KEY="$HOME/.naab/keys/signing.pem"
 PHASE1_CONFIG="$SCRIPT_DIR/phases/phase1-hardening.json"

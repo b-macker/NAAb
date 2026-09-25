@@ -896,7 +896,18 @@ message(STATUS "  ✓ naab-gov (standalone governance CLI, Phase 8.2)")
 # libnaab-governance — C API library for agent governance (Phase 8.3)
 # ARM64 Android (bionic): thread_local uses local-exec TLS which is incompatible
 # with shared libraries. Build as STATIC on bionic, SHARED everywhere else.
-if(EXISTS "/data/data/com.termux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
+#
+# The condition is the TOOLCHAIN's answer, never a stat() of the build machine.
+# This used to also test EXISTS "/data/data/com.termux", and the project's own
+# test scripts created that directory on ordinary Linux boxes: run-naab29.sh
+# and friends did mkdir -p on "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/...",
+# which with TMPDIR unset builds the whole phantom tree. Any configure after
+# that produced libnaab-governance.a instead of .so -- losing SOVERSION, losing
+# hidden symbol visibility, and losing the shared object the Go/Rust/Java/C#/
+# Python bindings load. CI never saw it because CI configures before any test
+# runs. A Termux build IS an Android build, so CMAKE_SYSTEM_NAME already knows;
+# a directory is something anyone can create.
+if(CMAKE_SYSTEM_NAME STREQUAL "Android")
     add_library(naab_governance STATIC src/api/governance_c_api.cpp)
     set_target_properties(naab_governance PROPERTIES OUTPUT_NAME "naab-governance")
 else()
