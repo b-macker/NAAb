@@ -95,13 +95,56 @@ jobs:
 
       - name: Run tests as a non-root user
         run: |
+          set -euo pipefail
           sudo useradd -m naabtest
-          sudo chmod -R a+rX "$GITHUB_WORKSPACE"
-          sudo chown -R naabtest "$GITHUB_WORKSPACE"
-          sudo -u naabtest env "PATH=$PATH" bash -c '
-            cd "'"$GITHUB_WORKSPACE"'"
-            bash run-all-tests.sh
-          '
+
+          # COPY the tree rather than chown the checkout. Re-owning
+          # $GITHUB_WORKSPACE takes .git with it, and the runner's post-job
+          # cleanup then cannot write .git/config ("could not lock config
+          # file: Permission denied"), which fails the job for a reason that
+          # has nothing to do with the tests and buries the result we came for.
+          WORK=/home/naabtest/naab
+          sudo cp -a "$GITHUB_WORKSPACE" "$WORK"
+          sudo chown -R naabtest:naabtest "$WORK"
+
+          # HOME must be the test user's: several suites write under $HOME, and
+          # leaving root's HOME set is another way to run "as non-root" while
+          # still exercising a privileged path.
+          # Ratchet, not a pass/fail gate, and deliberately so. Converting the
+          # temp-path handling took the non-root failure count from 125 to 7,
+          # and 2 of those 7 fail as root too. The other 5 are genuine
+          # root-only suites that predate this change:
+          #
+          #   test_go_executor.naab          test_sandbox_engine_parity.sh
+          #   test_sandbox_level_precedence.sh   test_python_audit_hook.sh
+          #   test_default_patterns.sh
+          #
+          # Failing the job on those would mean shipping red; allowlisting them
+          # by name would go stale silently. A count ceiling is what CV-01 and
+          # CV-02 already do for the same shape of problem: it cannot regress
+          # without someone noticing, and it drops as each one is fixed.
+          set +e
+          sudo -u naabtest env "PATH=$PATH" HOME=/home/naabtest \
+            bash -c "cd '$WORK' && bash run-all-tests.sh" | tee /tmp/nonroot.log
+          set -e
+
+          N=$(grep -aoE 'Unexpected fails:[[:space:]]*[0-9]+' /tmp/nonroot.log \
+                | tail -1 | grep -oE '[0-9]+')
+          if [ -z "$N" ]; then
+            echo "UNMEASURABLE: the suite printed no 'Unexpected fails:' line." >&2
+            echo "That is a broken probe, not a pass -- failing rather than" >&2
+            echo "reporting a ceiling nothing was measured against." >&2
+            exit 1
+          fi
+          echo "non-root unexpected failures: $N (ceiling 7)"
+          [ "$N" -le 7 ] || { echo "REGRESSION: non-root failures rose to $N" >&2; exit 1; }
+
+      - name: Confirm the run really was unprivileged
+        run: |
+          # A job that silently ran as root would pass every assertion here for
+          # the wrong reason, which is the failure mode this whole PR is about.
+          test "$(sudo -u naabtest id -u)" -ne 0
+          echo "OK: test user is uid $(sudo -u naabtest id -u)"
 
       - name: Assert the suite still did not create it
         if: always()

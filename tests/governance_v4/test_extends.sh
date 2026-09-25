@@ -8,11 +8,12 @@ PASS=0
 FAIL=0
 LANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 NAAB="$LANG_DIR/build/naab-lang"
-if [ -d "/data/data/com.termux/files/usr/tmp" ]; then
-    TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
-else
-    TMPDIR="${TMPDIR:-/tmp}"
-fi
+# The old form probed `[ -d <termux tmp> ]` first. That probe is unsound off
+# Android: the project's own runners created that directory on Linux, so the
+# branch was taken on a box where the path is root-owned 755 -- and a non-root
+# user got "mktemp: Permission denied". TMPDIR is what Termux actually sets,
+# so consulting it needs no Termux-specific branch at all.
+TMPDIR="${TMPDIR:-/tmp}"
 WORKDIR="$TMPDIR/naab_extends_$$"
 
 if [ ! -x "$NAAB" ]; then

@@ -10,11 +10,12 @@
 #   "$NAAB" --trust-key "$WORKDIR/test-key.pem.pub" 2>/dev/null
 #   export NAAB_SIGNING_KEY="$WORKDIR/test-key.pem"
 
-if [ -d "/data/data/com.termux/files/usr/tmp" ]; then
-    _TRUST_SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
-else
-    _TRUST_SYSTMP="${TMPDIR:-/tmp}"
-fi
+# The old form probed `[ -d <termux tmp> ]` first. That probe is unsound off
+# Android: the project's own runners created that directory on Linux, so the
+# branch was taken on a box where the path is root-owned 755 -- and a non-root
+# user got "mktemp: Permission denied". TMPDIR is what Termux actually sets,
+# so consulting it needs no Termux-specific branch at all.
+_TRUST_SYSTMP="${TMPDIR:-/tmp}"
 
 setup_isolated_trust() {
     export NAAB_TRUST_STORE_DIR="$(mktemp -d "${_TRUST_SYSTMP}/trust-XXXXXX")"
