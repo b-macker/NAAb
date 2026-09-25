@@ -9,6 +9,10 @@ NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
 
 # Skip on platforms without working polyglot executors
 PROBE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/gov_probe_XXXXXX")
+# A failed mktemp leaves $PROBE_DIR EMPTY, and every "$PROBE_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$PROBE_DIR" ] && [ -d "$PROBE_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$PROBE_DIR/govern.json" <<'EOF'
 {"version":"5.0","mode":"off"}
 EOF
@@ -30,6 +34,10 @@ ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); TOTAL=$((TOTAL + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); }
 
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/gov_enforce_XXXXXX")
+# A failed mktemp leaves $WORK_DIR EMPTY, and every "$WORK_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap "rm -rf $WORK_DIR" EXIT
 
 # Override HOME so the trust store at $HOME/.naab/trusted-keys is empty.

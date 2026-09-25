@@ -37,6 +37,10 @@ check $? "parseSpec validates against shell metacharacters"
 
 # T3: Runtime — single quote injection blocked
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_pkg_XXXXXX")
+# A failed mktemp leaves $WORK_DIR EMPTY, and every "$WORK_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$WORK_DIR/govern.json" << 'G'
 {"version":"1.0.0","mode":"off"}
 G

@@ -28,6 +28,10 @@ echo ""
 echo "--- F1: BSD detail_glob without lineage ---"
 
 WORK_F1=$(mktemp -d "${TMPDIR:-/tmp}/test_bsd_f1_XXXXXX")
+# A failed mktemp leaves $WORK_F1 EMPTY, and every "$WORK_F1/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_F1" ] && [ -d "$WORK_F1" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf "$WORK_F1"' EXIT
 
 # govern.json: BSD enabled, lineage explicitly DISABLED, taint enabled but minimal
@@ -203,6 +207,10 @@ echo ""
 echo "--- F2: Shell polyglot pre-execution abort ---"
 
 WORK_F2=$(mktemp -d "${TMPDIR:-/tmp}/test_bsd_f2_XXXXXX")
+# A failed mktemp leaves $WORK_F2 EMPTY, and every "$WORK_F2/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_F2" ] && [ -d "$WORK_F2" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf "$WORK_F2"' EXIT
 
 # govern.json: BSD with env_to_shell pattern (soft level for the test),
@@ -360,6 +368,10 @@ echo "--- F6: CDD hard enforcement abort ---"
 # If GK5 is not set, skip these tests gracefully.
 
 WORK_F6=$(mktemp -d "${TMPDIR:-/tmp}/test_cdd_f6_XXXXXX")
+# A failed mktemp leaves $WORK_F6 EMPTY, and every "$WORK_F6/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_F6" ] && [ -d "$WORK_F6" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf "$WORK_F6"' EXIT
 
 if [ -z "$GK5" ]; then

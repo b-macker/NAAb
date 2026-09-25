@@ -15,7 +15,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../../build/naab-lang"
 NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
-TMPBASE="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab38-$$"
+TMPBASE="${TMPDIR:-/tmp}/naab38-$$"
 RESULTS_DIR="$SCRIPT_DIR/results"
 
 RED='\033[0;31m'

@@ -49,6 +49,69 @@ jobs:
       - name: Run tests
         run: bash run-all-tests.sh
 
+  # Run the suite as a NON-ROOT user.
+  #
+  # Root masks every permission-shaped portability bug, and that is not
+  # hypothetical here: dozens of scripts defaulted their temp directory to
+  # /data/data/com.termux/files/usr/tmp, and as root a plain mkdir -p CREATED
+  # that tree on an ordinary Linux box. The suite then went green because it was
+  # privileged, while a normal user got hard failures -- and the phantom
+  # directory went on to flip libnaab-governance from SHARED to STATIC at the
+  # next configure. Every runner in this file is root, so nothing caught it.
+  #
+  # This job is the missing control. It does not need to run everything: the
+  # failure mode is "a script cannot create its work directory", which surfaces
+  # in the first suites that try.
+  build-and-test-nonroot:
+    name: Build & Test (non-root)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build libsqlite3-dev python3-dev \
+            libssl-dev libffi-dev libcurl4-openssl-dev pkg-config
+          pip3 install pybind11
+
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
+          ninja -C build naab-lang libnaab naab-verify-audit -j$(nproc)
+
+      - name: Assert the phantom Termux tree was not created by the build
+        run: |
+          if [ -e /data/data/com.termux ]; then
+            echo "FAIL: /data/data/com.termux exists -- something re-introduced it" >&2
+            exit 1
+          fi
+          echo "OK: no phantom Termux tree"
+
+      - name: Run tests as a non-root user
+        run: |
+          sudo useradd -m naabtest
+          sudo chmod -R a+rX "$GITHUB_WORKSPACE"
+          sudo chown -R naabtest "$GITHUB_WORKSPACE"
+          sudo -u naabtest env "PATH=$PATH" bash -c '
+            cd "'"$GITHUB_WORKSPACE"'"
+            bash run-all-tests.sh
+          '
+
+      - name: Assert the suite still did not create it
+        if: always()
+        run: |
+          if [ -e /data/data/com.termux ]; then
+            echo "FAIL: the test run created /data/data/com.termux" >&2
+            exit 1
+          fi
+          echo "OK: suite left no phantom tree"
+
   build-msvc:
     name: MSVC Build Check
     runs-on: windows-latest

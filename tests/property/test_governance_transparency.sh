@@ -11,6 +11,10 @@ NAAB_BIN="${NAAB_BIN:-$PROJECT_DIR/build/naab-lang}"
 # Resolve to absolute path so sign_gov works from temp dirs
 NAAB_BIN="$(cd "$(dirname "$NAAB_BIN")" && pwd)/$(basename "$NAAB_BIN")"
 TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_prop_XXXXXX")
+# A failed mktemp leaves $TMPDIR EMPTY, and every "$TMPDIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$TMPDIR" ] && [ -d "$TMPDIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 mkdir -p "$TMPDIR/gov" "$TMPDIR/nogov"
 
 # Signing helper (trusted keys require govern.json signatures)

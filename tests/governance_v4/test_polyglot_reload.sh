@@ -11,6 +11,10 @@ NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
 
 SIGNING_KEY="${HOME}/.naab/keys/signing.pem"
 WORKDIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_reload_XXXXXX")
+# A failed mktemp leaves $WORKDIR EMPTY, and every "$WORKDIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf "$WORKDIR"' EXIT
 
 PASS=0; FAIL=0; SKIP=0

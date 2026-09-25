@@ -29,7 +29,11 @@ grep -A20 'command == "install"' "$SRC/cli/main.cpp" | grep -q 'rfind("--"'
 check $? "Install handler skips -- flags"
 
 # T2: Runtime — --verbose not treated as package name
-WORK_DIR=$(mktemp -d "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab7_XXXXXX")
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab7_XXXXXX")
+# A failed mktemp leaves $WORK_DIR EMPTY, and every "$WORK_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$WORK_DIR/govern.json" << 'G'
 {"version":"1.0.0","mode":"off"}
 G

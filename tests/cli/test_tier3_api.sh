@@ -8,7 +8,11 @@ NAAB="${1:-$SCRIPT_DIR/../../build/naab-lang}"
 NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
 PASS=0
 FAIL=0
-TD=$(mktemp -d "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/tier3_test_XXXXXX")
+TD=$(mktemp -d "${TMPDIR:-/tmp}/tier3_test_XXXXXX")
+# A failed mktemp leaves $TD EMPTY, and every "$TD/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$TD" ] && [ -d "$TD" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 
 cleanup() { rm -rf "$TD"; }
 trap cleanup EXIT

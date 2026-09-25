@@ -16,7 +16,7 @@ check() {
 }
 
 make_work_dir() {
-    local d=$(mktemp -d "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab_dx_XXXXXX")
+    local d=$(mktemp -d "${TMPDIR:-/tmp}/naab_dx_XXXXXX")
     cat > "$d/govern.json" << 'GOVEOF'
 {"version":"1.0.0","mode":"off"}
 GOVEOF

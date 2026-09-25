@@ -58,6 +58,10 @@ bad() { FAIL=$((FAIL+1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] &
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 W="$(mktemp -d "${TMPDIR:-/tmp}/arraysize-XXXXXX")"
+# A failed mktemp leaves $W EMPTY, and every "$W/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$W" ] && [ -d "$W" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cleanup() { teardown_isolated_trust; rm -rf "$W"; }
 trap cleanup EXIT
 mkdir -p "$W/limited" "$W/unlimited"

@@ -12,6 +12,10 @@ pass() { PASSED=$((PASSED + 1)); TOTAL=$((TOTAL + 1)); echo "  PASS: $1"; }
 fail() { FAILED=$((FAILED + 1)); TOTAL=$((TOTAL + 1)); echo "  FAIL: $1"; }
 
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_XXXXXX")
+# A failed mktemp leaves $WORK_DIR EMPTY, and every "$WORK_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 
 # V-SC-009: Isolate trust store so T1-T53 run unsigned (no trust-store interference)
 export NAAB_TRUST_STORE_DIR="$WORK_DIR/trust-store"
@@ -938,6 +942,10 @@ fi
 
 # --- T33: Gate 13 — Config presence: removing govern.json blocks execution ---
 WORK_DIR_13=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g13_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_13 EMPTY, and every "$WORK_DIR_13/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_13" ] && [ -d "$WORK_DIR_13" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf $WORK_DIR $WORK_DIR_13' EXIT
 
 cat > "$WORK_DIR_13/govern.json" << 'EOF'
@@ -1003,6 +1011,10 @@ fi
 
 # --- T34: Gate 13 — Unchanged config passes ---
 WORK_DIR_14=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g13b_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_14 EMPTY, and every "$WORK_DIR_14/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_14" ] && [ -d "$WORK_DIR_14" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14' EXIT
 
 cat > "$WORK_DIR_14/govern.json" << 'EOF'
@@ -1039,6 +1051,10 @@ fi
 # --- T35: Gate 14 — Script relocation blocks execution ---
 WORK_DIR_15=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g14_XXXXXX")
 WORK_DIR_15B=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g14b_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_15B EMPTY, and every "$WORK_DIR_15B/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_15B" ] && [ -d "$WORK_DIR_15B" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B' EXIT
 
 cat > "$WORK_DIR_15/govern.json" << 'EOF'
@@ -1091,6 +1107,10 @@ fi
 
 # --- T37: Gate 3 — Complexity regression blocks ---
 WORK_DIR_17=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g3_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_17 EMPTY, and every "$WORK_DIR_17/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_17" ] && [ -d "$WORK_DIR_17" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_17' EXIT
 
 cat > "$WORK_DIR_17/govern.json" << 'EOF'
@@ -1199,6 +1219,10 @@ fi
 
 # --- T39: Gate 16 — Signature file removal blocks ---
 WORK_DIR_19=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g16_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_19 EMPTY, and every "$WORK_DIR_19/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_19" ] && [ -d "$WORK_DIR_19" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_17 $WORK_DIR_19' EXIT
 
 cat > "$WORK_DIR_19/govern.json" << 'EOF'
@@ -1264,6 +1288,10 @@ unset NAAB_GOVERN_KEY
 
 # --- T41: Gate 17 — Polyglot block shrinkage blocks ---
 WORK_DIR_21=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g17_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_21 EMPTY, and every "$WORK_DIR_21/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_21" ] && [ -d "$WORK_DIR_21" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_17 $WORK_DIR_19 $WORK_DIR_21' EXIT
 
 cat > "$WORK_DIR_21/govern.json" << 'EOF'
@@ -1400,6 +1428,10 @@ fi # end Python check
 
 # --- T43: Gate 12 — param named "a" should not match inside "data" ---
 WORK_DIR_22=$(mktemp -d "${TMPDIR:-/tmp}/naab_drift_t43.XXXXXX")
+# A failed mktemp leaves $WORK_DIR_22 EMPTY, and every "$WORK_DIR_22/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_22" ] && [ -d "$WORK_DIR_22" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$WORK_DIR_22/govern.json" << 'EOF'
 {"version":"1.0.0","project_name":"t43","mode":"enforce","sandbox_level":"unrestricted","code_quality":{"drift_detection":{"enabled":true,"level":"hard","baseline_path":".naab/drift-baseline.json","check_param_utilization":true,"min_param_utilization":0.5,"check_body_hash":false}}}
 EOF
@@ -1440,6 +1472,10 @@ fi
 # T44-T45: Gate 18 — New function detection
 # =====================================================================
 WORK_DIR_23=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g18_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_23 EMPTY, and every "$WORK_DIR_23/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_23" ] && [ -d "$WORK_DIR_23" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_16 $WORK_DIR_17 $WORK_DIR_18 $WORK_DIR_19 $WORK_DIR_20 $WORK_DIR_21 $WORK_DIR_22 $WORK_DIR_23' EXIT
 
 cat > "$WORK_DIR_23/govern.json" << 'EOF'
@@ -1502,6 +1538,10 @@ fi
 # T46-T47: Gate 0 extension — Function gain detection
 # =====================================================================
 WORK_DIR_24=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g0gain_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_24 EMPTY, and every "$WORK_DIR_24/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_24" ] && [ -d "$WORK_DIR_24" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_16 $WORK_DIR_17 $WORK_DIR_18 $WORK_DIR_19 $WORK_DIR_20 $WORK_DIR_21 $WORK_DIR_22 $WORK_DIR_23 $WORK_DIR_24' EXIT
 
 cat > "$WORK_DIR_24/govern.json" << 'EOF'
@@ -1576,6 +1616,10 @@ fi
 # T48-T49: Pre-flight blocked_flags — --no-governance and --tree-walk
 # =====================================================================
 WORK_DIR_25=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_blocked_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_25 EMPTY, and every "$WORK_DIR_25/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_25" ] && [ -d "$WORK_DIR_25" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_16 $WORK_DIR_17 $WORK_DIR_18 $WORK_DIR_19 $WORK_DIR_20 $WORK_DIR_21 $WORK_DIR_22 $WORK_DIR_23 $WORK_DIR_24 $WORK_DIR_25' EXIT
 
 cat > "$WORK_DIR_25/govern.json" << 'EOF'
@@ -1613,6 +1657,10 @@ fi
 
 # --- T50: NAAB_GOVERN_KEY blocked from env.get() (V-SC-006) ---
 WORK_DIR_26=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_T50_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_26 EMPTY, and every "$WORK_DIR_26/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_26" ] && [ -d "$WORK_DIR_26" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$WORK_DIR_26/test.naab" << 'NAAB_EOF'
 main {
     let key = env.get("NAAB_GOVERN_KEY")
@@ -1641,6 +1689,10 @@ rm -rf "$WORK_DIR_26"
 
 # --- T51: NAAB_GOVERN_KEY scrubbed from shell polyglot subprocess (V-SC-006) ---
 WORK_DIR_27=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_T51_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_27 EMPTY, and every "$WORK_DIR_27/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_27" ] && [ -d "$WORK_DIR_27" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$WORK_DIR_27/test.naab" << 'NAAB_EOF'
 main {
     let result = <<shell
@@ -1681,6 +1733,10 @@ rm -rf "$WORK_DIR_27"
 
 # --- T52: Gate 1 violation includes Help text ---
 WORK_DIR_28=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_T52_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_28 EMPTY, and every "$WORK_DIR_28/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_28" ] && [ -d "$WORK_DIR_28" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$WORK_DIR_28/test.naab" << 'NAAB_EOF'
 function process(a, b, c, d) { return a + b + c + d }
 main { print(process(1, 2, 3, 4)) }
@@ -1706,6 +1762,10 @@ rm -rf "$WORK_DIR_28"
 
 # --- T53: Gate 2 violation includes deleted import names ---
 WORK_DIR_29=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_T53_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_29 EMPTY, and every "$WORK_DIR_29/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_29" ] && [ -d "$WORK_DIR_29" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$WORK_DIR_29/test.naab" << 'NAAB_EOF'
 use math
 use string
@@ -1738,6 +1798,10 @@ rm -rf "$WORK_DIR_29"
 # --- T54: --keygen generates keypair (does NOT auto-install to trust store) ---
 # Trust store is isolated via NAAB_TRUST_STORE_DIR; T54-T61 create fresh keys
 WORK_DIR_T54=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_T54_XXXXXX")
+# A failed mktemp leaves $WORK_DIR_T54 EMPTY, and every "$WORK_DIR_T54/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK_DIR_T54" ] && [ -d "$WORK_DIR_T54" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 PRIV_KEY="$WORK_DIR_T54/test-key.pem"
 OUTPUT=$("$NAAB" --keygen "$PRIV_KEY" 2>&1)
 RC=$?

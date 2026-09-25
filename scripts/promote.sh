@@ -25,7 +25,7 @@ echo ""
 
 # ─── 2. Generate PLDB entry ───
 echo "[2/7] PLDB Entry (Programming Language Database)"
-PLDB_FILE="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab.pldb"
+PLDB_FILE="${TMPDIR:-/tmp}/naab.pldb"
 cat > "$PLDB_FILE" << 'PLDB_EOF'
 title NAAb
 type pl
@@ -67,7 +67,7 @@ echo ""
 
 # ─── 3. Generate Rosetta Code solutions ───
 echo "[3/7] Rosetta Code Solutions (5 classic tasks in NAAb)"
-ROSETTA_DIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/rosetta_naab"
+ROSETTA_DIR="${TMPDIR:-/tmp}/rosetta_naab"
 mkdir -p "$ROSETTA_DIR"
 
 cat > "$ROSETTA_DIR/hello_world.naab" << 'EOF'

@@ -22,6 +22,10 @@ skip() { SKIPPED=$((SKIPPED + 1)); TOTAL=$((TOTAL + 1)); echo "  SKIP: $1"; }
 echo "=== Test: Reality Checkpoint ==="
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/test_rcp_XXXXXX")
+# A failed mktemp leaves $WORK EMPTY, and every "$WORK/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORK" ] && [ -d "$WORK" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 trap 'rm -rf "$WORK"' EXIT
 
 # =====================================================================

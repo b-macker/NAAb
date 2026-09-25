@@ -129,7 +129,11 @@ MODEL="${1:-}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 mkdir -p "$RESULTS_DIR"
 
-WORKDIR=$(mktemp -d "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab47-XXXXXX")
+WORKDIR=$(mktemp -d "${TMPDIR:-/tmp}/naab47-XXXXXX")
+# A failed mktemp leaves $WORKDIR EMPTY, and every "$WORKDIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cp "$SRCDIR/govern.json" "$WORKDIR/"
 cp "$SRCDIR/run-code.naab" "$WORKDIR/"
 

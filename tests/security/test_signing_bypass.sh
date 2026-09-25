@@ -19,6 +19,10 @@ fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
 SYSTMP="${TMPDIR:-/tmp}"
 WORKDIR=$(mktemp -d "${SYSTMP}/signing_bypass_XXXXXX")
+# A failed mktemp leaves $WORKDIR EMPTY, and every "$WORKDIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 
 cleanup() { rm -rf "$WORKDIR"; }
 trap cleanup EXIT

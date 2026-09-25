@@ -9,6 +9,10 @@ NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
 PASS=0
 FAIL=0
 TD=$(mktemp -d "${TMPDIR:-/tmp}/tier2_test_XXXXXX")
+# A failed mktemp leaves $TD EMPTY, and every "$TD/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$TD" ] && [ -d "$TD" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 
 cleanup() { rm -rf "$TD"; }
 trap cleanup EXIT

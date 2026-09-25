@@ -17,7 +17,7 @@ set -u
 LANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 NAAB_BIN="$LANG_DIR/build/naab-lang"
 TEST_DIR="$(cd "$(dirname "$0")" && pwd)"
-TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+TMPDIR="${TMPDIR:-/tmp}"
 PASS=0
 FAIL=0
 TOTAL=0

@@ -10,6 +10,10 @@ NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
 # Skip on platforms without working polyglot executors (Windows CI)
 # Check if naab-lang can actually execute a python block (pybind11 must be built)
 PROBE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/pass2_probe_XXXXXX")
+# A failed mktemp leaves $PROBE_DIR EMPTY, and every "$PROBE_DIR/x" write below then
+# rebases onto the filesystem ROOT. That is how a stray govern.json reached /
+# and silently governed every later run on the machine. Fail loudly instead.
+[ -n "$PROBE_DIR" ] && [ -d "$PROBE_DIR" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 cat > "$PROBE_DIR/govern.json" <<'EOF'
 {"version":"5.0","mode":"off"}
 EOF
