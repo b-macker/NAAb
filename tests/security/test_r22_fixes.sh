@@ -15,6 +15,8 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 
 PASS=0
 FAIL=0
+SKIP=0
+skip() { echo "SKIP: $1 (UNMEASURABLE)"; SKIP=$((SKIP+1)); }
 
 # Instrument usability. Six arms below run naab-gov. With no binary, "$GOV"
 # exits 127 and prints nothing -- which the two symlink arms read as "secret
@@ -65,41 +67,67 @@ check() {
 
 # ── V-GOV-017: Scanner symlink rejection ─────────────────────────────────────
 
-# Create a fake secret file and a symlink to it with a .naab extension
+# The scanner never prints file CONTENTS, so "secret absent from scan output"
+# held whether or not a symlink was followed -- these arms could not fail. The
+# discriminating signal is the scanned-file count: a followed symlink is
+# counted, a rejected one is not. Each arm has a positive control (the same
+# file as a regular file MUST be counted), and the symlink targets are .naab
+# files so an extension filter cannot be what produced the zero. /etc/hostname
+# is gone as a target: it does not exist on the Windows runner.
 SECRET_CONTENT="NAAB_R22_SECRET_KEY=sk-ant-AAABBBCCCDDDEEEFFFGGG12345678901234567890"
-echo "$SECRET_CONTENT" > "$WORK_DIR/private_key.txt"
-ln -sf "$WORK_DIR/private_key.txt" "$WORK_DIR/audit.naab"
+mkdir -p "$WORK_DIR/outside" "$WORK_DIR/sym1" "$WORK_DIR/sym2" "$WORK_DIR/ctl"
+echo "$SECRET_CONTENT" > "$WORK_DIR/outside/private_key.txt"
+echo 'let x = 1' > "$WORK_DIR/outside/target.naab"
+echo 'let x = 1' > "$WORK_DIR/ctl/audit.naab"
+ln -s "$WORK_DIR/outside/private_key.txt" "$WORK_DIR/sym1/audit.naab" 2>/dev/null
+ln -s "$WORK_DIR/outside/target.naab" "$WORK_DIR/sym2/system.naab" 2>/dev/null
 
-# Test 1: Symlink file entry is not followed — secret content must NOT appear in scan output
-"$GOV" scan "$WORK_DIR" > "$WORK_DIR/scan1.txt" 2>&1 || true
-if ! grep -qF "NAAB_R22_SECRET_KEY" "$WORK_DIR/scan1.txt"; then
-    echo "PASS: V-GOV-017: file symlink (audit.naab -> private_key.txt) not followed; secret absent from scan"
-    PASS=$((PASS+1))
-else
-    echo "FAIL: V-GOV-017: secret key content leaked into scan output via symlink"
-    echo "  output excerpt: $(grep 'NAAB_R22_SECRET_KEY' "$WORK_DIR/scan1.txt" | head -3)"
-    FAIL=$((FAIL+1))
-fi
+scanned_count() {  # prints N from "naab-gov scan: N file(s) scanned", or nothing
+    local out
+    out=$(cd "$WORK_DIR" && "$GOV" scan "$1" 2>&1)
+    case "$out" in
+        *"naab-gov scan: "*) out="${out##*naab-gov scan: }"; echo "${out%% file*}" ;;
+    esac
+}
 
-# Test 2: Defense-in-depth — symlink to /etc/hostname (always exists, always a regular file target)
-# The symlink itself should be skipped; hostname content should not appear in SARIF
-ln -sf /etc/hostname "$WORK_DIR/system.naab"
-"$GOV" scan "$WORK_DIR" --sarif "$WORK_DIR/report2.sarif" > "$WORK_DIR/scan2.txt" 2>&1 || true
-HOSTNAME_CONTENT=$(cat /etc/hostname 2>/dev/null | head -1)
-if [[ -z "$HOSTNAME_CONTENT" ]]; then
-    echo "PASS: V-GOV-017: /etc/hostname empty or unreadable — symlink defense-in-depth test skipped"
-    PASS=$((PASS+1))
-elif ! grep -qF "$HOSTNAME_CONTENT" "$WORK_DIR/report2.sarif" 2>/dev/null && \
-     ! grep -qF "$HOSTNAME_CONTENT" "$WORK_DIR/scan2.txt"; then
-    echo "PASS: V-GOV-017: /etc/hostname content absent from SARIF (symlink to real file rejected)"
-    PASS=$((PASS+1))
+CTL_N=$(scanned_count "$WORK_DIR/ctl")
+if [[ "$CTL_N" != "1" ]]; then
+    fail_msg="positive control: a regular .naab file was not counted (got '${CTL_N}')"
+    echo "FAIL: V-GOV-017: $fail_msg"; FAIL=$((FAIL+1))
 else
-    echo "FAIL: V-GOV-017: /etc/hostname content appeared in output via symlink"
-    FAIL=$((FAIL+1))
+    # Test 1: symlink to a non-.naab file carrying a secret
+    if [[ ! -L "$WORK_DIR/sym1/audit.naab" ]]; then
+        skip "V-GOV-017 T1: platform cannot create symlinks"
+    else
+        N=$(cd "$WORK_DIR" && "$GOV" scan "$WORK_DIR/sym1" 2>&1)
+        case "$N" in
+            *"naab-gov scan: 0 file"*)
+                if ! grep -qF "NAAB_R22_SECRET_KEY" <<<"$N"; then
+                    echo "PASS: V-GOV-017 T1: symlink audit.naab -> private_key.txt not followed (0 files scanned)"
+                    PASS=$((PASS+1))
+                else
+                    echo "FAIL: V-GOV-017 T1: secret content leaked into scan output"; FAIL=$((FAIL+1))
+                fi ;;
+            *)  echo "FAIL: V-GOV-017 T1: symlink was followed"; echo "  output: $N"; FAIL=$((FAIL+1)) ;;
+        esac
+    fi
+    # Test 2: symlink to a .naab file outside the scanned tree
+    if [[ ! -L "$WORK_DIR/sym2/system.naab" ]]; then
+        skip "V-GOV-017 T2: platform cannot create symlinks"
+    else
+        N2=$(scanned_count "$WORK_DIR/sym2")
+        if [[ "$N2" == "0" ]]; then
+            echo "PASS: V-GOV-017 T2: symlink to an outside .naab file not followed (0 files scanned)"
+            PASS=$((PASS+1))
+        else
+            echo "FAIL: V-GOV-017 T2: symlink to outside .naab file followed (scanned '${N2}')"
+            FAIL=$((FAIL+1))
+        fi
+    fi
 fi
 
 # Clean up symlinks before next tests
-rm -f "$WORK_DIR/audit.naab" "$WORK_DIR/system.naab" "$WORK_DIR/private_key.txt"
+rm -rf "$WORK_DIR/outside" "$WORK_DIR/sym1" "$WORK_DIR/sym2" "$WORK_DIR/ctl"
 
 # ── V-RT-013: Chunked read with 10MB cap ─────────────────────────────────────
 
@@ -118,7 +146,7 @@ dd if=/dev/zero of="$WORK_DIR/bigfile.naab" bs=65536 count=$((BIG_MB * 16)) 2>/d
 BIG_SIZE=$(wc -c < "$WORK_DIR/bigfile.naab" 2>/dev/null || echo 0)
 if [[ "$BIG_SIZE" -gt 10000000 ]]; then
     rc=0
-    "$GOV" scan "$WORK_DIR/bigfile.naab" > "$WORK_DIR/scan3.txt" 2>&1 || rc=$?
+    (cd "$WORK_DIR" && "$GOV" scan "$WORK_DIR/bigfile.naab") > "$WORK_DIR/scan3.txt" 2>&1 || rc=$?
     # Exit 0/1/2 = scanner survived (2 = findings present). We only fail on crash (>=128 = signal).
     if [[ $rc -le 2 ]]; then
         echo "PASS: V-RT-013: ${BIG_MB}MB file scanned without crash (exit $rc, capped read)"
@@ -135,7 +163,11 @@ fi
 rm -f "$WORK_DIR/bigfile.naab"
 
 # Test 4: Normal small file scans correctly after chunked read change
-cat > "$WORK_DIR/normal.naab" << 'NAAB'
+# Its own directory and govern.json: with none discoverable, the default
+# require-governance refuses to run at all -- which the old "" expectation hid.
+mkdir -p "$WORK_DIR/norm"
+echo '{ "version": "4.0", "mode": "off" }' > "$WORK_DIR/norm/govern.json"
+cat > "$WORK_DIR/norm/normal.naab" << 'NAAB'
 main {
     let x = 42
     io.write(x)
@@ -143,10 +175,10 @@ main {
 NAAB
 # (expected text was "" -- grep -F "" matches anything, so this arm could not fail)
 check "V-RT-013: normal 1KB NAAb file runs cleanly" "42" \
-    "$NAAB" "$WORK_DIR/normal.naab"
+    "$NAAB" "$WORK_DIR/norm/normal.naab"
 # Just verify the scanner itself doesn't crash on it
 rc=0
-"$GOV" scan "$WORK_DIR/normal.naab" > "$WORK_DIR/scan4.txt" 2>&1 || rc=$?
+(cd "$WORK_DIR" && "$GOV" scan "$WORK_DIR/norm/normal.naab") > "$WORK_DIR/scan4.txt" 2>&1 || rc=$?
 if [[ $rc -le 2 ]]; then
     echo "PASS: V-RT-013: small file scan completes without crash (exit $rc)"
     PASS=$((PASS+1))
@@ -154,7 +186,7 @@ else
     echo "FAIL: V-RT-013: small file scan exited $rc"
     FAIL=$((FAIL+1))
 fi
-rm -f "$WORK_DIR/normal.naab"
+rm -rf "$WORK_DIR/norm"
 
 # ── V-GOV-018: Per-agent shell enforcement ────────────────────────────────────
 # naab-lang discovers govern.json from the script's directory upward, so we
@@ -222,7 +254,9 @@ fi
 rc=0
 "$NAAB" --agent-id senior "$WORK_DIR/scen_a/shell_test.naab" \
     > "$WORK_DIR/gov018_t2.txt" 2>&1 || rc=$?
-if [[ $rc -eq 0 ]] && grep -q shell_execution_marker "$WORK_DIR/gov018_t2.txt"; then
+if grep -q "No executor found for language: shell" "$WORK_DIR/gov018_t2.txt"; then
+    skip "V-GOV-018: senior arm -- no shell executor on this platform"
+elif [[ $rc -eq 0 ]] && grep -q shell_execution_marker "$WORK_DIR/gov018_t2.txt"; then
     echo "PASS: V-GOV-018: --agent-id senior inherits global shell_allowed:true (exit 0)"
     PASS=$((PASS+1))
 else
@@ -248,7 +282,9 @@ fi
 rc=0
 "$NAAB" --agent-id unknown_bot "$WORK_DIR/scen_a/shell_test.naab" \
     > "$WORK_DIR/gov018_t4.txt" 2>&1 || rc=$?
-if [[ $rc -eq 0 ]] && grep -q shell_execution_marker "$WORK_DIR/gov018_t4.txt"; then
+if grep -q "No executor found for language: shell" "$WORK_DIR/gov018_t4.txt"; then
+    skip "V-GOV-018: unknown arm -- no shell executor on this platform"
+elif [[ $rc -eq 0 ]] && grep -q shell_execution_marker "$WORK_DIR/gov018_t4.txt"; then
     echo "PASS: V-GOV-018: unknown agent inherits global shell_allowed:true (exit 0)"
     PASS=$((PASS+1))
 else
@@ -259,5 +295,5 @@ fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
+echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"
 [[ $FAIL -eq 0 ]]
