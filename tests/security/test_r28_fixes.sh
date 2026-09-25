@@ -8,20 +8,59 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
-WORK_DIR="$(mktemp -d "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab_r28.XXXXXX")"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/naab_r28.XXXXXX")"
 cleanup() { rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
 
 PASS=0
 FAIL=0
+SKIP=0
 
 pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
 fail() { echo "FAIL: $1"; [[ -n "${2:-}" ]] && echo "  $2"; FAIL=$((FAIL+1)); }
+skip() { echo "SKIP: $1"; SKIP=$((SKIP+1)); }
 
 # Create govern.json so governance doesn't block execution
 cat > "$WORK_DIR/govern.json" << 'JSON'
 { "version": "4.0", "mode": "off" }
 JSON
+
+# Per-language viability probes. The arms below grep the output for rejection
+# words ("blocked", "rejected", "not permitted"...). When the executor is
+# absent the engine prints "No executor found for language: cpp", which matches
+# none of them, so a MISSING COMPILER reported as "absolute path NOT rejected"
+# -- a governance hole that is not there. That is how the Windows runner read,
+# where neither cpp nor rust is available.
+#
+# Ask each language with nothing to refuse: a trivial block that should simply
+# run. The only thing that can fail is the executor, which is what makes a
+# failure mean "unmeasurable" rather than "unsafe".
+#
+# THIS MUST RUN AFTER govern.json EXISTS. The first version sat above it, so
+# the probe executed with no config discoverable while the arms it gates ran
+# with one. The engine then refused the probe block for a GOVERNANCE reason,
+# whose text does not contain "No executor found", so the probe reported the
+# executor as available and the arms went on to fail exactly as before --
+# 6 passed, 3 failed, 0 skipped on Windows. A probe has to be asked in the
+# same conditions as the thing it is speaking for.
+probe_lang() {
+    local lang="$1" body="$2" d out
+    d="$WORK_DIR/probe_$lang"; mkdir -p "$d"
+    printf 'main {\n    let r = <<%s\n%s\n>>\n}\n' "$lang" "$body" > "$d/p.naab"
+    # Judge on the EXIT CODE, not on the error text. Matching the string
+    # "No executor found" made the probe depend on which failure it hit: with
+    # no config discoverable the engine refuses for a governance reason whose
+    # text does not contain it, so the probe called an absent executor
+    # available. An exit code cannot be wrong that way, and it fails SAFE --
+    # anything that stops a trivial block from running becomes "unmeasurable"
+    # (a skip), never a false security failure.
+    ( cd "$d" && timeout 60 "$NAAB" p.naab >/dev/null 2>&1 )
+}
+CPP_OK=0;  probe_lang cpp  'int main() { return 0; }' && CPP_OK=1
+RUST_OK=0; probe_lang rust 'fn main() {}'             && RUST_OK=1
+[ "$CPP_OK"  -eq 1 ] || echo "  NOTE: cpp executor unavailable; its arms report UNMEASURABLE"
+[ "$RUST_OK" -eq 1 ] || echo "  NOTE: rust executor unavailable; its arms report UNMEASURABLE"
+
 
 # ── V-RCE-012: Nim scanner rejects parenthesis-less invocation ─────────────
 
@@ -95,11 +134,15 @@ int main() { return 0; }
 }
 NAAB
 
+if [ "$CPP_OK" -ne 1 ]; then
+    skip "V-RCE-013 T4: UNMEASURABLE - executor unavailable"
+else
 OUTPUT=$("$NAAB" "$WORK_DIR/cpp_macro_include.naab" 2>&1 || true)
 if echo "$OUTPUT" | grep -qi "not permitted\|macro\|blocked\|rejected\|unsafe"; then
     pass "V-RCE-013 T4: #include MACRO rejected"
 else
     fail "V-RCE-013 T4: #include MACRO NOT rejected" "$OUTPUT"
+fi
 fi
 
 # Test 5: #define with absolute path value must be rejected
@@ -113,11 +156,15 @@ int main() { return 0; }
 }
 NAAB
 
+if [ "$CPP_OK" -ne 1 ]; then
+    skip "V-RCE-013 T5: UNMEASURABLE - executor unavailable"
+else
 OUTPUT=$("$NAAB" "$WORK_DIR/cpp_define_path.naab" 2>&1 || true)
 if echo "$OUTPUT" | grep -qi "not permitted\|macro\|absolute\|blocked\|rejected\|unsafe"; then
     pass "V-RCE-013 T5: #define with absolute path rejected"
 else
     fail "V-RCE-013 T5: #define with absolute path NOT rejected" "$OUTPUT"
+fi
 fi
 
 # ── V-RCE-014: Rust concat! macro evasion ──────────────────────────────────
@@ -136,11 +183,15 @@ fn main() {
 }
 NAAB
 
+if [ "$RUST_OK" -ne 1 ]; then
+    skip "V-RCE-014 T6: UNMEASURABLE - executor unavailable"
+else
 OUTPUT=$("$NAAB" "$WORK_DIR/rust_concat_include.naab" 2>&1 || true)
 if echo "$OUTPUT" | grep -qi "not permitted\|macro\|blocked\|rejected\|unsafe"; then
     pass "V-RCE-014 T6: include_str!(concat!()) rejected"
 else
     fail "V-RCE-014 T6: include_str!(concat!()) NOT rejected" "$OUTPUT"
+fi
 fi
 
 # Test 7: include_bytes!(env!(...)) must be rejected
@@ -155,11 +206,15 @@ fn main() {
 }
 NAAB
 
+if [ "$RUST_OK" -ne 1 ]; then
+    skip "V-RCE-014 T7: UNMEASURABLE - executor unavailable"
+else
 OUTPUT=$("$NAAB" "$WORK_DIR/rust_env_include.naab" 2>&1 || true)
 if echo "$OUTPUT" | grep -qi "not permitted\|macro\|blocked\|rejected\|unsafe"; then
     pass "V-RCE-014 T7: include_bytes!(env!()) rejected"
 else
     fail "V-RCE-014 T7: include_bytes!(env!()) NOT rejected" "$OUTPUT"
+fi
 fi
 
 # Test 8: Legitimate include_str!("/relative.txt") still works (shouldn't be blocked by new check)
@@ -199,7 +254,7 @@ fi
 
 echo ""
 echo "================================"
-echo "R28 Results: $PASS passed, $FAIL failed (of $((PASS+FAIL)) tests)"
+echo "R28 Results: $PASS passed, $FAIL failed, $SKIP skipped (of $((PASS+FAIL+SKIP)) tests)"
 echo "================================"
 
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1

@@ -18,7 +18,7 @@ fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 
 # Use /usr/tmp on Termux, /tmp elsewhere
-SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+SYSTMP="${TMPDIR:-/tmp}"
 WORKDIR=$(mktemp -d "${SYSTMP}/gov_validity_XXXXXX")
 
 cleanup() {

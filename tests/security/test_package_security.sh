@@ -36,7 +36,7 @@ grep -q 'Reject shell metacharacters' "$SRC/packages/package_manager.cpp"
 check $? "parseSpec validates against shell metacharacters"
 
 # T3: Runtime — single quote injection blocked
-WORK_DIR=$(mktemp -d "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab_pkg_XXXXXX")
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_pkg_XXXXXX")
 cat > "$WORK_DIR/govern.json" << 'G'
 {"version":"1.0.0","mode":"off"}
 G

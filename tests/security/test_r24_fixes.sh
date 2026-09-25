@@ -10,7 +10,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
 GOV="$SCRIPT_DIR/../../build/naab-gov"
-WORK_DIR="$(mktemp -d "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab_r24.XXXXXX")"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/naab_r24.XXXXXX")"
 SERVER_PID=""
 cleanup() {
     if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
@@ -31,6 +31,15 @@ fail() { echo "FAIL: $1"; [[ -n "${2:-}" ]] && echo "  $2"; FAIL=$((FAIL+1)); }
 # "introspection unavailable" verifies nothing; recording it as a pass let an
 # unrun check read as a green one.
 skip() { echo "SKIP: $1"; SKIP=$((SKIP+1)); }
+
+# naab-gov viability probe. The two arms that drive it read ANY exit > 2 as
+# "the scanner crashed", and a missing binary exits 127 -- so on the Linux CI
+# job, which builds only naab-lang and libnaab, an unbuilt tool was reported as
+# a scanner crash. Ask with nothing to refuse: can it run at all?
+GOV_OK=0
+if [ -x "$GOV" ] && "$GOV" --version >/dev/null 2>&1; then
+    GOV_OK=1
+fi
 
 # ── V-API-004: REST API per-request timeout ─────────────────────────────────
 
@@ -179,12 +188,16 @@ cat > "$WORK_DIR/rt14_proj/main.naab" << 'NAAB'
 main { io.write("rt14") }
 NAAB
 ln -sf /dev/zero "$WORK_DIR/rt14_proj/README.md"
+if [ "$GOV_OK" -ne 1 ]; then
+    skip "V-RT-014-T1: UNMEASURABLE - naab-gov not built"
+else
 rc=0
 "$GOV" scan "$WORK_DIR/rt14_proj" > "$WORK_DIR/rt14_scan.txt" 2>&1 || rc=$?
 if [[ $rc -le 2 ]]; then
     pass "V-RT-014-T1: scan with symlinked README.md -> /dev/zero survives (exit $rc)"
 else
     fail "V-RT-014-T1: scanner crashed (exit $rc)" "$(tail -5 "$WORK_DIR/rt14_scan.txt")"
+fi
 fi
 rm -f "$WORK_DIR/rt14_proj/README.md"
 
@@ -245,6 +258,9 @@ cat > "$WORK_DIR/gov019_proj/main.naab" << 'NAAB'
 main { io.write("hi") }
 NAAB
 
+if [ "$GOV_OK" -ne 1 ]; then
+    skip "V-GOV-019-T1: UNMEASURABLE - naab-gov not built"
+else
 rc=0
 "$GOV" scan "$WORK_DIR/gov019_proj" > "$WORK_DIR/gov019_out.txt" 2>&1 || rc=$?
 # Acceptable: rc <= 2 (not a crash) AND either rejection logged OR scan completed.
@@ -260,6 +276,7 @@ if [[ $rc -le 2 ]]; then
 else
     fail "V-GOV-019-T1: naab-gov crashed on wide array (exit $rc)" \
          "$(tail -5 "$WORK_DIR/gov019_out.txt")"
+fi
 fi
 
 # ── Summary ─────────────────────────────────────────────────────────────────

@@ -6,7 +6,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
-WORK_DIR="$(mktemp -d "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab_r33.XXXXXX")"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/naab_r33.XXXXXX")"
 cleanup() { rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
 
