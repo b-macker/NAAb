@@ -4002,6 +4002,9 @@ private:
                        EnforcementLevel level,
                        const std::string& violation_message);
     void recordPass(const std::string& rule_name, EnforcementLevel level);
+    // V-GOV-024: evict oldest non-preflight entries down to MAX_CHECK_RESULTS.
+    // Caller MUST hold results_mutex_. Every check_results_ writer calls this.
+    void capCheckResultsLocked();
 
     // --- Formatting ---
     static std::string formatError(EnforcementLevel level,

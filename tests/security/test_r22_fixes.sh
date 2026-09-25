@@ -16,6 +16,17 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 PASS=0
 FAIL=0
 
+# Instrument usability. Six arms below run naab-gov. With no binary, "$GOV"
+# exits 127 and prints nothing -- which the two symlink arms read as "secret
+# absent from scan output", i.e. a PASS for a scan that never ran. The Linux CI
+# jobs did not build naab-gov when this suite was registered. No binary is
+# UNMEASURABLE, never a pass.
+if [ ! -x "$GOV" ]; then
+    echo "FAIL: naab-gov not built at $GOV (UNMEASURABLE, not a pass)"
+    echo "  build it with: cmake --build build --target naab-gov"
+    exit 1
+fi
+
 check() {
     local desc="$1" expect="$2" rc=0
     shift 2
@@ -130,7 +141,8 @@ main {
     io.write(x)
 }
 NAAB
-check "V-RT-013: normal 1KB NAAb file scans cleanly" "" \
+# (expected text was "" -- grep -F "" matches anything, so this arm could not fail)
+check "V-RT-013: normal 1KB NAAb file runs cleanly" "42" \
     "$NAAB" "$WORK_DIR/normal.naab"
 # Just verify the scanner itself doesn't crash on it
 rc=0
@@ -147,6 +159,13 @@ rm -f "$WORK_DIR/normal.naab"
 # ── V-GOV-018: Per-agent shell enforcement ────────────────────────────────────
 # naab-lang discovers govern.json from the script's directory upward, so we
 # create one subdir per scenario and place a govern.json + shell_test.naab in each.
+#
+# Both configs set security.sandbox_level: "elevated". Without it, mode:enforce
+# upgrades the sandbox to "standard", which refuses EVERY <<shell block with a
+# sandbox error (exit 1) before per-agent policy is consulted -- so the two
+# "allowed" arms failed and, worse, the two "blocked" arms passed without ever
+# reaching the rule they claim to test. The blocked arms therefore also require
+# the GOVERNANCE refusal (exit 3), not merely a non-zero exit.
 
 SHELL_NAAB='main {
     let result = <<shell
@@ -160,6 +179,7 @@ mkdir -p "$WORK_DIR/scen_a"
 cat > "$WORK_DIR/scen_a/govern.json" << 'GOV'
 {
   "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
   "capabilities": { "shell": true },
   "agent_roles": {
     "junior": {
@@ -179,6 +199,7 @@ mkdir -p "$WORK_DIR/scen_b"
 cat > "$WORK_DIR/scen_b/govern.json" << 'GOV'
 {
   "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
   "capabilities": { "shell": false }
 }
 GOV
@@ -188,11 +209,11 @@ echo "$SHELL_NAAB" > "$WORK_DIR/scen_b/shell_test.naab"
 rc=0
 "$NAAB" --agent-id junior "$WORK_DIR/scen_a/shell_test.naab" \
     > "$WORK_DIR/gov018_t1.txt" 2>&1 || rc=$?
-if [[ $rc -ne 0 ]]; then
+if [[ $rc -eq 3 ]]; then
     echo "PASS: V-GOV-018: --agent-id junior with shell_allowed:false blocks <<shell (exit $rc)"
     PASS=$((PASS+1))
 else
-    echo "FAIL: V-GOV-018: junior agent ran <<shell despite shell_allowed:false in role"
+    echo "FAIL: V-GOV-018: junior agent not refused by governance (exit $rc, want 3)"
     echo "  output: $(cat "$WORK_DIR/gov018_t1.txt")"
     FAIL=$((FAIL+1))
 fi
@@ -201,7 +222,7 @@ fi
 rc=0
 "$NAAB" --agent-id senior "$WORK_DIR/scen_a/shell_test.naab" \
     > "$WORK_DIR/gov018_t2.txt" 2>&1 || rc=$?
-if [[ $rc -eq 0 ]]; then
+if [[ $rc -eq 0 ]] && grep -q shell_execution_marker "$WORK_DIR/gov018_t2.txt"; then
     echo "PASS: V-GOV-018: --agent-id senior inherits global shell_allowed:true (exit 0)"
     PASS=$((PASS+1))
 else
@@ -214,11 +235,11 @@ fi
 rc=0
 "$NAAB" "$WORK_DIR/scen_b/shell_test.naab" \
     > "$WORK_DIR/gov018_t3.txt" 2>&1 || rc=$?
-if [[ $rc -ne 0 ]]; then
+if [[ $rc -eq 3 ]]; then
     echo "PASS: V-GOV-018: global shell_allowed:false blocks <<shell without agent-id (exit $rc)"
     PASS=$((PASS+1))
 else
-    echo "FAIL: V-GOV-018: global shell_allowed:false did not block shell"
+    echo "FAIL: V-GOV-018: global shell_allowed:false not refused by governance (exit $rc, want 3)"
     echo "  output: $(cat "$WORK_DIR/gov018_t3.txt")"
     FAIL=$((FAIL+1))
 fi
@@ -227,7 +248,7 @@ fi
 rc=0
 "$NAAB" --agent-id unknown_bot "$WORK_DIR/scen_a/shell_test.naab" \
     > "$WORK_DIR/gov018_t4.txt" 2>&1 || rc=$?
-if [[ $rc -eq 0 ]]; then
+if [[ $rc -eq 0 ]] && grep -q shell_execution_marker "$WORK_DIR/gov018_t4.txt"; then
     echo "PASS: V-GOV-018: unknown agent inherits global shell_allowed:true (exit 0)"
     PASS=$((PASS+1))
 else
