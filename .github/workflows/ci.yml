@@ -110,19 +110,20 @@ jobs:
           # HOME must be the test user's: several suites write under $HOME, and
           # leaving root's HOME set is another way to run "as non-root" while
           # still exercising a privileged path.
-          # Ratchet, not a pass/fail gate, and deliberately so. Converting the
-          # temp-path handling took the non-root failure count from 125 to 7,
-          # and 2 of those 7 fail as root too. The other 5 are genuine
-          # root-only suites that predate this change:
+          # Converting the temp-path handling took the non-root failure count
+          # from 125 to 0 ON THIS RUNNER. The ceiling is 0, so this is a real
+          # gate rather than a ratchet with slack -- any suite that starts
+          # needing root fails the build on the commit that does it.
           #
-          #   test_go_executor.naab          test_sandbox_engine_parity.sh
-          #   test_sandbox_level_precedence.sh   test_python_audit_hook.sh
-          #   test_default_patterns.sh
-          #
-          # Failing the job on those would mean shipping red; allowlisting them
-          # by name would go stale silently. A count ceiling is what CV-01 and
-          # CV-02 already do for the same shape of problem: it cannot regress
-          # without someone noticing, and it drops as each one is fixed.
+          # The first version of this shipped a ceiling of 7, from a local
+          # measurement that named five suites as "genuinely root-only"
+          # (test_go_executor, test_sandbox_level_precedence,
+          # test_sandbox_engine_parity, test_python_audit_hook,
+          # test_default_patterns). CI reported 0, so that label was wrong:
+          # those five fail in one particular dev container for a local
+          # reason, not because they require privilege. A ceiling of 7 would
+          # have left room for six real regressions to land unnoticed, on the
+          # strength of a claim the runner had already contradicted.
           set +e
           sudo -u naabtest env "PATH=$PATH" HOME=/home/naabtest \
             bash -c "cd '$WORK' && bash run-all-tests.sh" | tee /tmp/nonroot.log
@@ -136,8 +137,8 @@ jobs:
             echo "reporting a ceiling nothing was measured against." >&2
             exit 1
           fi
-          echo "non-root unexpected failures: $N (ceiling 7)"
-          [ "$N" -le 7 ] || { echo "REGRESSION: non-root failures rose to $N" >&2; exit 1; }
+          echo "non-root unexpected failures: $N (ceiling 0)"
+          [ "$N" -le 0 ] || { echo "REGRESSION: non-root failures rose to $N" >&2; exit 1; }
 
       - name: Confirm the run really was unprivileged
         run: |
