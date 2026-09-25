@@ -5,6 +5,7 @@
 //           visit(ExportStmt), loadAndExecuteModule
 
 #include "naab/interpreter.h"
+#include "naab/paths.h"
 #include "naab/governance.h"
 #include "naab/logger.h"
 #include "naab/language_registry.h"
@@ -45,7 +46,7 @@ void Interpreter::visit(ast::UseStatement& node) {
 
     // Lazy initialization: only load block registry when actually needed
     if (!block_registry.isInitialized()) {
-        std::string home_dir = std::getenv("HOME") ? std::getenv("HOME") : ".";
+        std::string home_dir = naab::paths::home();
         std::string blocks_path = home_dir + "/.naab/language/blocks/library/";
         LOG_DEBUG("[INFO] Lazy-loading BlockRegistry from: {}\n", blocks_path);
         block_registry.initialize(blocks_path);

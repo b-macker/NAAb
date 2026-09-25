@@ -1,4 +1,5 @@
 #include "naab/audit_logger.h"
+#include "naab/paths.h"
 #include "naab/tamper_evident_logger.h"
 #include <chrono>
 #include <iomanip>
@@ -179,12 +180,11 @@ void AuditLogger::writeLogEntry(const std::string& json) {
     std::string log_path = log_file_path_;
     if (log_path.empty()) {
         // Default to ~/.naab/logs/security.log
-        const char* home = std::getenv("HOME");
-        if (home) {
-            log_path = std::string(home) + "/.naab/logs/security.log";
-        } else {
-            log_path = "/tmp/naab_security.log";
-        }
+        // THE SECURITY LOG LOCATION. HOME is normally unset on Windows, so the
+        // old guard fell through and this landed wherever the caller's default
+        // pointed -- not the user profile, and not where anyone auditing would
+        // look. trust_store.cpp already did this correctly; this did not.
+        log_path = naab::paths::home() + "/.naab/logs/security.log";
     }
 
     // Create directory if it doesn't exist
@@ -255,12 +255,10 @@ void AuditLogger::setTamperEvidence(bool enabled) {
         // Initialize tamper-evident logger
         std::string log_path = log_file_path_;
         if (log_path.empty()) {
-            const char* home = std::getenv("HOME");
-            if (home) {
-                log_path = std::string(home) + "/.naab/logs/security_tamper_evident.log";
-            } else {
-                log_path = "/tmp/naab_security_tamper_evident.log";
-            }
+            // Same for the TAMPER-EVIDENT log -- the one whose whole value is
+            // being findable and intact after the fact.
+            log_path = naab::paths::home() +
+                       "/.naab/logs/security_tamper_evident.log";
         } else {
             // Use separate file for tamper-evident logs
             log_path += ".tamper_evident";

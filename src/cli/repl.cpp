@@ -3,6 +3,7 @@
 //
 
 #include "repl.h"
+#include "naab/paths.h"
 #include "naab/interpreter.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
@@ -57,7 +58,7 @@ static bool isIncomplete(const std::string& input) {
 
 // Save a line to history file
 static void saveHistory(const std::string& line) {
-    std::string home = getenv("HOME") ? getenv("HOME") : ".";
+    std::string home = naab::paths::home();
     std::string history_path = home + "/.naab_history";
     std::ofstream file(history_path, std::ios::app);
     if (file.is_open()) {

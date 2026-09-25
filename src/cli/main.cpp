@@ -2524,7 +2524,7 @@ int main(int argc, char** argv) {
                 for (auto& import : program->getImports()) {
                     auto& block_registry = naab::runtime::BlockRegistry::instance();
                     if (!block_registry.isInitialized()) {
-                        std::string home_dir = std::getenv("HOME") ? std::getenv("HOME") : ".";
+                        std::string home_dir = naab::paths::home();
                         std::string blocks_path = home_dir + "/.naab/language/blocks/library/";
                         block_registry.initialize(blocks_path);
                     }
@@ -3226,7 +3226,7 @@ int main(int argc, char** argv) {
             }
 
             // Initialize block loader
-            std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+            std::string db_path = naab::paths::home() + "/.naab/blocks.db";
             auto loader = std::make_shared<naab::runtime::BlockLoader>(db_path);
 
             // Create validator
@@ -3289,7 +3289,7 @@ int main(int argc, char** argv) {
     } else if (command == "stats") {
         try {
             // Initialize block loader
-            std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+            std::string db_path = naab::paths::home() + "/.naab/blocks.db";
             auto loader = std::make_shared<naab::runtime::BlockLoader>(db_path);
 
             fmt::print("NAAb Block Usage Statistics\n");
@@ -3388,7 +3388,7 @@ int main(int argc, char** argv) {
 
             try {
                 // Use default blocks database location
-                std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+                std::string db_path = naab::paths::home() + "/.naab/blocks.db";
                 naab::runtime::BlockSearchIndex search_index(db_path);
 
                 if (!language_filter.empty() || !category_filter.empty()) {
@@ -3464,7 +3464,7 @@ int main(int argc, char** argv) {
 
             try {
                 // Use default blocks database location
-                std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+                std::string db_path = naab::paths::home() + "/.naab/blocks.db";
                 naab::runtime::BlockSearchIndex search_index(db_path);
 
                 // Build search query
@@ -3522,11 +3522,11 @@ int main(int argc, char** argv) {
                 blocks_path = argv[3];
             } else {
                 // Default to ~/.naab/language/blocks/library
-                blocks_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/language/blocks/library";
+                blocks_path = naab::paths::home() + "/.naab/language/blocks/library";
             }
 
             try {
-                std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+                std::string db_path = naab::paths::home() + "/.naab/blocks.db";
 
                 fmt::print("Building search index...\n");
                 fmt::print("  Source: {}\n", blocks_path);
@@ -3559,7 +3559,7 @@ int main(int argc, char** argv) {
 
             try {
                 // Use default blocks database location
-                std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+                std::string db_path = naab::paths::home() + "/.naab/blocks.db";
                 naab::runtime::BlockSearchIndex search_index(db_path);
 
                 // Get block metadata
@@ -3630,7 +3630,7 @@ int main(int argc, char** argv) {
             }
             std::string block_id = argv[3];
             try {
-                std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+                std::string db_path = naab::paths::home() + "/.naab/blocks.db";
                 naab::runtime::BlockSearchIndex search_index(db_path);
 
                 // Get block metadata to use as search query
@@ -3674,7 +3674,7 @@ int main(int argc, char** argv) {
         } else if (subcmd == "stats") {
             // Alias to top-level stats command
             try {
-                std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+                std::string db_path = naab::paths::home() + "/.naab/blocks.db";
                 naab::runtime::BlockSearchIndex search_index(db_path);
 
                 int total_blocks = search_index.getBlockCount();
@@ -3706,7 +3706,7 @@ int main(int argc, char** argv) {
             std::string block_id = argv[3];
 
             // Use BlockRegistry to find the block's JSON file
-            std::string blocks_dir = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/language/blocks/library";
+            std::string blocks_dir = naab::paths::home() + "/.naab/language/blocks/library";
             naab::runtime::BlockRegistry::instance().initialize(blocks_dir);
             auto block_opt = naab::runtime::BlockRegistry::instance().getBlock(block_id);
 
@@ -3764,7 +3764,7 @@ int main(int argc, char** argv) {
             }
 
             // Copy to appropriate language directory
-            std::string dest_dir = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") +
+            std::string dest_dir = naab::paths::home() +
                 "/.naab/language/blocks/library/" + language;
             std::string dest_path = dest_dir + "/" + block_id + ".json";
 
@@ -3802,7 +3802,7 @@ int main(int argc, char** argv) {
             return 0;
 
         } else if (subcmd == "backup") {
-            std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+            std::string db_path = naab::paths::home() + "/.naab/blocks.db";
             std::string backup_path = db_path + ".backup";
             std::ifstream src(db_path, std::ios::binary);
             if (!src.is_open()) {
@@ -3815,7 +3815,7 @@ int main(int argc, char** argv) {
             return 0;
 
         } else if (subcmd == "restore") {
-            std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+            std::string db_path = naab::paths::home() + "/.naab/blocks.db";
             std::string backup_path = db_path + ".backup";
             std::ifstream src(backup_path, std::ios::binary);
             if (!src.is_open()) {
@@ -4421,12 +4421,18 @@ int main(int argc, char** argv) {
                         } else if (lang.name == "go") {
                             cmd = "go run " + quoted + " 2>/dev/null";
                         } else if (lang.name == "rust") {
-                            tmp_bin = "/data/data/com.termux/files/usr/tmp/naab_bench_" +
+                            // Was the author's Termux path, hardcoded for every
+                            // platform: `naab-lang bench` could not compile a rust
+                            // or nim benchmark on Linux, macOS or Windows.
+                            tmp_bin = naab::paths::temp_dir() + "/naab_bench_" +
                                       std::to_string(getpid());
                             cmd = "rustc -o " + tmp_bin + " " + quoted +
                                   " 2>/dev/null && " + tmp_bin;
                         } else if (lang.name == "nim") {
-                            tmp_bin = "/data/data/com.termux/files/usr/tmp/naab_bench_" +
+                            // Was the author's Termux path, hardcoded for every
+                            // platform: `naab-lang bench` could not compile a rust
+                            // or nim benchmark on Linux, macOS or Windows.
+                            tmp_bin = naab::paths::temp_dir() + "/naab_bench_" +
                                       std::to_string(getpid());
                             cmd = "nim c --hints:off -o:" + tmp_bin + " " + quoted +
                                   " 2>/dev/null && " + tmp_bin;
@@ -4521,12 +4527,7 @@ int main(int argc, char** argv) {
 
         // Write calibration file as JSON manually
         if (output_path.empty()) {
-            const char* home = std::getenv("HOME");
-            if (home) {
-                output_path = std::string(home) + "/.naab/calibration.json";
-            } else {
-                output_path = "calibration.json";
-            }
+            output_path = naab::paths::home() + "/.naab/calibration.json";
         }
 
         {
@@ -4636,8 +4637,8 @@ int main(int argc, char** argv) {
         cal_engine.getMutableRules().polyglot_optimization.calibration.enabled = true;
         bool has_cal = cal_engine.loadCalibration();
 
-        const char* home = std::getenv("HOME");
-        std::string cal_path = home ? std::string(home) + "/.naab/calibration.json" : "calibration.json";
+        const std::string home = naab::paths::home();
+        std::string cal_path = home != "." ? home + "/.naab/calibration.json" : "calibration.json";
 
         if (!has_cal) {
             fmt::print("No calibration data found at {}\n", cal_path);

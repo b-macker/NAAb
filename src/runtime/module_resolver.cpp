@@ -2,6 +2,7 @@
 // Resolves and loads NAAb modules from filesystem
 
 #include "naab/module_resolver.h"
+#include "naab/paths.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/bounded_read.h"
@@ -92,9 +93,8 @@ void ModuleResolver::initializeSearchPaths() {
 
     // 1. Current directory naab_modules/ (will be added per-file)
     // 2. Global modules: ~/.naab/modules/
-    auto home = std::getenv("HOME");
-    if (home) {
-        fs::path global_modules = fs::path(home) / ".naab" / "modules";
+    {
+        fs::path global_modules = fs::path(naab::paths::home()) / ".naab" / "modules";
         if (fs::exists(global_modules)) {
             search_paths_.push_back(global_modules);
         }
@@ -152,7 +152,7 @@ static fs::path urlToCachePath(const std::string& url) {
         filename += ".naab";
     }
 
-    std::string home = getenv("HOME") ? getenv("HOME") : ".";
+    std::string home = naab::paths::home();
     fs::path cache_dir = fs::path(home) / ".naab" / "cache";
     return cache_dir / (std::to_string(hash) + "_" + filename);
 }
@@ -426,8 +426,8 @@ std::optional<fs::path> ModuleResolver::resolveFromModules(
 }
 
 std::optional<fs::path> ModuleResolver::resolveFromGlobal(const std::string& spec) {
-    auto home = std::getenv("HOME");
-    if (!home) {
+    const std::string home = naab::paths::home();
+    if (home == ".") {
         return std::nullopt;
     }
 

@@ -2,6 +2,7 @@
 // Extracted from governance.cpp lines 5603-7484
 
 #include "naab/governance.h"
+#include "naab/paths.h"
 #include "naab/telemetry_forwarder.h"
 #include "naab/error_sanitizer.h"
 #include "naab/crypto_utils.h"
@@ -2157,8 +2158,10 @@ void GovernanceEngine::writeProfileEntry(const std::string& language,
     // Expand ~ in path
     std::string path = cfg.profile_path;
     if (path.size() >= 2 && path[0] == '~' && path[1] == '/') {
-        const char* home = std::getenv("HOME");
-        if (home) path = std::string(home) + path.substr(1);
+        // "~/" expansion. paths::home() resolves USERPROFILE on Windows, where
+        // HOME is normally unset and the old form left the tilde in place.
+        const std::string home = naab::paths::home();
+        if (home != ".") path = home + path.substr(1);
     }
 
     // Ensure parent directory exists
@@ -2221,8 +2224,10 @@ bool GovernanceEngine::loadCalibration() {
     // Expand ~ in path
     std::string path = cfg.calibration_path;
     if (path.size() >= 2 && path[0] == '~' && path[1] == '/') {
-        const char* home = std::getenv("HOME");
-        if (home) path = std::string(home) + path.substr(1);
+        // "~/" expansion. paths::home() resolves USERPROFILE on Windows, where
+        // HOME is normally unset and the old form left the tilde in place.
+        const std::string home = naab::paths::home();
+        if (home != ".") path = home + path.substr(1);
     }
 
     std::ifstream in(path);
@@ -2640,8 +2645,10 @@ void GovernanceEngine::writeDriftEvent(
     // Expand ~ in path
     std::string path = dtc.path;
     if (path.size() >= 2 && path[0] == '~' && path[1] == '/') {
-        const char* home = std::getenv("HOME");
-        if (home) path = std::string(home) + path.substr(1);
+        // "~/" expansion. paths::home() resolves USERPROFILE on Windows, where
+        // HOME is normally unset and the old form left the tilde in place.
+        const std::string home = naab::paths::home();
+        if (home != ".") path = home + path.substr(1);
     }
 
     // Ensure parent directory exists
@@ -2709,8 +2716,10 @@ void GovernanceEngine::analyzeDriftTrend(const std::string& language) {
     // Expand ~ in path
     std::string path = dtc.path;
     if (path.size() >= 2 && path[0] == '~' && path[1] == '/') {
-        const char* home = std::getenv("HOME");
-        if (home) path = std::string(home) + path.substr(1);
+        // "~/" expansion. paths::home() resolves USERPROFILE on Windows, where
+        // HOME is normally unset and the old form left the tilde in place.
+        const std::string home = naab::paths::home();
+        if (home != ".") path = home + path.substr(1);
     }
 
     // Read JSONL and filter by language
