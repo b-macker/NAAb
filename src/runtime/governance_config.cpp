@@ -2,6 +2,7 @@
 // Extracted from governance.cpp lines 1-1727
 
 #include "naab/governance.h"
+#include "naab/paths.h"
 #include "naab/telemetry_forwarder.h"
 #include "naab/limits.h"
 #include "naab/language_registry.h"
@@ -4843,8 +4844,11 @@ std::string GovernanceEngine::resolveExtendsPath(const std::string& extends_val,
     if (extends_val[0] == '/') return extends_val;
     // Home-relative
     if (extends_val.size() >= 2 && extends_val[0] == '~' && extends_val[1] == '/') {
-        const char* home = std::getenv("HOME");
-        if (home) return std::string(home) + extends_val.substr(1);
+        // paths::home() falls back to "." only when nothing resolves, so the
+        // literal-passthrough below is now unreachable in practice; it stays as
+        // the last resort rather than expanding "~" to a bare "/...".
+        const std::string home = naab::paths::home();
+        if (home != ".") return home + extends_val.substr(1);
         return extends_val; // fallback: literal
     }
     // Remote: not yet supported

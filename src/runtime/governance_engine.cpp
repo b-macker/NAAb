@@ -7,6 +7,7 @@
 //   ADVISORY  - Warn only. Execution continues.
 
 #include "naab/governance.h"
+#include "naab/paths.h"
 #include "naab/limits.h"
 #include "naab/stdlib_new_modules.h"
 #include "naab/agent_review.h"
@@ -885,9 +886,12 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
         addProtectedPath(govern_json_dir_ + "/govern.json.sig");
     }
     // Block trust store directory
-    const char* home = std::getenv("HOME");
-    if (home) {
-        addProtectedPath(std::string(home) + "/.naab/trusted-keys");
+    // paths::home() resolves USERPROFILE on Windows, where HOME is normally
+    // unset -- the old guard silently skipped protecting the trusted-key store
+    // there rather than protecting the wrong path.
+    {
+        const std::string home = naab::paths::home();
+        addProtectedPath(home + "/.naab/trusted-keys");
     }
 }
 

@@ -2,6 +2,7 @@
 // Extracted from stdlib/agent_impl.cpp for reuse by governance engine
 
 #include "naab/agent_provider.h"
+#include "naab/paths.h"
 #include <curl/curl.h>
 #include <filesystem>
 #include <nlohmann/json.hpp>
@@ -28,8 +29,8 @@ std::string resolveApiKey(const std::string& env_var_name) {
     }
 
     // Fallback: read from ~/.naab/keys/<varname>
-    const char* home = std::getenv("HOME");
-    if (!home) return "";
+    const std::string home = naab::paths::home();
+    if (home == ".") return "";
 
     std::string key_path = std::string(home) + "/.naab/keys/" + env_var_name;
     std::ifstream ifs(key_path);

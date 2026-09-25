@@ -2,6 +2,7 @@
 // GitHub-based package management with governance integration
 
 #include "naab/package_manager.h"
+#include "naab/paths.h"
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <toml++/toml.h>
@@ -256,13 +257,10 @@ bool PackageManager::downloadFromGitHub(const std::string& owner, const std::str
     std::string tarball_url = fmt::format(
         "{}/repos/{}/{}/tarball/{}", githubApiBase(), owner, repo, ref);
 
-    std::string cache_dir;
-    const char* home = std::getenv("HOME");
-    if (home) {
-        cache_dir = std::string(home) + "/.naab/cache";
-    } else {
-        cache_dir = "/tmp/naab-cache";
-    }
+    // paths::home() resolves USERPROFILE on Windows and only falls back to "."
+    // when nothing resolves at all; the hardcoded /tmp branch it replaces was
+    // both POSIX-only and outside the user's own cache.
+    std::string cache_dir = naab::paths::home() + "/.naab/cache";
     fs::create_directories(cache_dir);
 
     std::string tarball_path = cache_dir + "/" + owner + "-" + repo + "-" + ref + ".tar.gz";
