@@ -64,7 +64,13 @@ pass() { echo "  PASS [$1] $2"; PASS=$((PASS+1)); }
 fail() { echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && echo "         $3"; FAIL=$((FAIL+1)); }
 
 A30="$(printf 'a%.0s' $(seq 30))"   # validator arms only: rejected before any work runs
-A25="$(printf 'a%.0s' $(seq 25))"   # budget arms: over budget, but finite
+A25="$(printf 'a%.0s' $(seq 25))"   # B-01: over budget, but finite
+# C-01 needs abandoned workers to still be RUNNING when later calls arrive, or
+# the stuck-worker count never reaches the cap. At n=25 an optimised CI build
+# finishes each abandoned search in under ~4s -- CI measured 6 timeouts and 0
+# refusals, one call per second -- so the cap was never exercised. n=28 is ~8x
+# longer: comfortably alive for the 6 calls, still finite (seconds to a minute).
+A28="$(printf 'a%.0s' $(seq 28))"
 
 # run_match ID PATTERN INPUT -> sets OUT (stdout+stderr) and ELAPSED (whole seconds)
 run_match() {
@@ -130,7 +136,7 @@ main {
     let i = 0
     while i < 6 {
         try {
-            regex.matches("${A25}!", "(a|a)+b")
+            regex.matches("${A28}!", "(a|a)+b")
             print("RUN:done")
         } catch (e) {
             let m = e["message"]
