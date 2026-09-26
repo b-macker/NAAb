@@ -3284,6 +3284,19 @@ else
     echo "  test_r32_fixes.sh: not found, skipping"
 fi
 
+SEC_REGEX_TIMEOUT_BOUND_SCRIPT="tests/security/test_regex_timeout_bound.sh"
+if [ -f "$SEC_REGEX_TIMEOUT_BOUND_SCRIPT" ]; then
+    if run_shell_test "$SEC_REGEX_TIMEOUT_BOUND_SCRIPT" 2>&1; then
+        echo "  test_regex_timeout_bound.sh: ALL PASSED"
+    else
+        echo "  test_regex_timeout_bound.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_regex_timeout_bound.sh")
+    fi
+else
+    echo "  test_regex_timeout_bound.sh: not found, skipping"
+fi
+
 PLATFORM_FIXES_SCRIPT="tests/api/test_platform_fixes.sh"
 if [ -f "$PLATFORM_FIXES_SCRIPT" ]; then
     # 24 assertions over the platform/binding fixes, including the REST route
