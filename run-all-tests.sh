@@ -3297,6 +3297,19 @@ else
     echo "  test_regex_timeout_bound.sh: not found, skipping"
 fi
 
+PARSER_STRING_INTERP_ESCAPE_SCRIPT="tests/parser/test_string_interp_escape.sh"
+if [ -f "$PARSER_STRING_INTERP_ESCAPE_SCRIPT" ]; then
+    if run_shell_test "$PARSER_STRING_INTERP_ESCAPE_SCRIPT" 2>&1; then
+        echo "  test_string_interp_escape.sh: ALL PASSED"
+    else
+        echo "  test_string_interp_escape.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_string_interp_escape.sh")
+    fi
+else
+    echo "  test_string_interp_escape.sh: not found, skipping"
+fi
+
 PLATFORM_FIXES_SCRIPT="tests/api/test_platform_fixes.sh"
 if [ -f "$PLATFORM_FIXES_SCRIPT" ]; then
     # 24 assertions over the platform/binding fixes, including the REST route

@@ -2656,8 +2656,11 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
     }
 
     if (match(lexer::TokenType::STRING)) {
-        std::string value = tokens_[pos_ - 1].value;
-        return std::make_unique<ast::LiteralExpr>(ast::LiteralKind::String, value, ast::SourceLocation());
+        const auto& t = tokens_[pos_ - 1];
+        // Carry the literal's position: an error inside ${...} is reported
+        // against the enclosing string, which previously had no location.
+        return std::make_unique<ast::LiteralExpr>(ast::LiteralKind::String, t.value,
+                                                  ast::SourceLocation(t.line, t.column));
     }
 
     if (match(lexer::TokenType::BOOLEAN)) {
@@ -3129,6 +3132,15 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         hint = "\n\n  Help: NAAb uses 'or' for logical OR, not '||':\n\n"
                "    ✗ Wrong: if a || b { ... }\n"
                "    ✓ Right: if a or b { ... }\n";
+    }
+    // === / !== lex as == or != followed by a stray '='.
+    else if (tok.value == "=" && pos_ > 0 &&
+             (tokens_[pos_ - 1].value == "==" || tokens_[pos_ - 1].value == "!=")) {
+        std::string op = tokens_[pos_ - 1].value;
+        hint = "\n\n  Help: NAAb has no '" + op + "=' operator. '" + op + "' already compares\n"
+               "  strictly (no type coercion), so it does what JavaScript's '" + op + "=' does:\n\n"
+               "    \xE2\x9C\x97 Wrong: if a " + op + "= b { ... }\n"
+               "    \xE2\x9C\x93 Right: if a " + op + " b { ... }\n";
     }
     // Check if this is -> JSON placed after >> (common LLM mistake)
     else if (tok.type == lexer::TokenType::ARROW) {
