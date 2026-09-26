@@ -24,8 +24,8 @@ protected:
 
     // Helper: Create simple callback that returns a value
     static AsyncCallbackWrapper::CallbackFunc makeSimpleCallback(int value) {
-        return [value]() -> Value {
-            return Value(value);
+        return [value]() -> NaabVal {
+            return NaabVal::makeInt(value);
         };
     }
 
@@ -34,9 +34,9 @@ protected:
         int sleep_ms,
         int return_value
     ) {
-        return [sleep_ms, return_value]() -> Value {
+        return [sleep_ms, return_value]() -> NaabVal {
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
-            return Value(return_value);
+            return NaabVal::makeInt(return_value);
         };
     }
 
@@ -44,7 +44,7 @@ protected:
     static AsyncCallbackWrapper::CallbackFunc makeThrowingCallback(
         const std::string& message
     ) {
-        return [message]() -> Value {
+        return [message]() -> NaabVal {
             throw std::runtime_error(message);
         };
     }
@@ -123,7 +123,7 @@ TEST_F(FFIAsyncCallbackTest, MultipleExceptionTypes) {
     // Test with std::runtime_error
     {
         AsyncCallbackWrapper wrapper(
-            []() -> Value { throw std::runtime_error("runtime error"); },
+            []() -> NaabVal { throw std::runtime_error("runtime error"); },
             "runtime_error_test"
         );
 
@@ -135,7 +135,7 @@ TEST_F(FFIAsyncCallbackTest, MultipleExceptionTypes) {
     // Test with std::logic_error
     {
         AsyncCallbackWrapper wrapper(
-            []() -> Value { throw std::logic_error("logic error"); },
+            []() -> NaabVal { throw std::logic_error("logic error"); },
             "logic_error_test"
         );
 

@@ -12,13 +12,18 @@ using namespace naab::lexer;
 
 // Helper to execute and get result
 std::shared_ptr<Value> execute(const std::string& source) {
-    Lexer lexer(source);
+    // Top-level statements are no longer valid NAAb: only use/import/export/
+    // struct/enum/fn/main may appear at file scope. Every test here was written
+    // as bare statements, so all of them died at that parse gate before
+    // reaching what they test. Wrapping measured what the gate had been hiding:
+    // see docs/unit-test-findings.md section 4.
+    Lexer lexer("main {\n" + source + "\n}\n");
     auto tokens = lexer.tokenize();
     Parser parser(tokens);
     auto program = parser.parseProgram();
     Interpreter interp;
     interp.execute(*program);
-    return interp.getResult();
+    return interp.getResult().toLegacy();
 }
 
 // ============================================================================
@@ -259,7 +264,7 @@ TEST(InterpreterTest, RecursiveFunction) {
 
 TEST(InterpreterTest, ArrayLiteral) {
     auto result = execute("[1, 2, 3]");
-    auto* arrval = std::get_if<std::vector<std::shared_ptr<Value>>>(&result->data);
+    auto* arrval = std::get_if<std::vector<NaabVal>>(&result->data);
     ASSERT_NE(arrval, nullptr);
     EXPECT_EQ(arrval->size(), 3);
 }

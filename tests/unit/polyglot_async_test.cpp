@@ -5,6 +5,7 @@
 #include "naab/python_interpreter_manager.h"
 #include "naab/value.h"
 #include <gtest/gtest.h>
+#include "naab/sandbox.h"
 #include <fmt/format.h>
 #include <thread>
 #include <chrono>
@@ -35,7 +36,9 @@ static ::testing::Environment* const polyglot_env =
 class PolyglotAsyncTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // Test setup (Python already initialized globally)
+        naab::security::SandboxManager::instance().setDefaultConfig(
+            naab::security::SandboxConfig::fromPermissionLevel(
+                naab::security::PermissionLevel::UNRESTRICTED));
     }
 
     void TearDown() override {
@@ -315,7 +318,7 @@ TEST_F(PolyglotAsyncTest, UnifiedJavaScriptExecution) {
 TEST_F(PolyglotAsyncTest, ParallelMixedLanguages) {
     PolyglotAsyncExecutor executor;
 
-    std::vector<std::tuple<PolyglotAsyncExecutor::Language, std::string, std::vector<Value>>> blocks;
+    std::vector<std::tuple<PolyglotAsyncExecutor::Language, std::string, std::vector<NaabVal>>> blocks;
 
     // Python block
     blocks.push_back({
@@ -600,7 +603,7 @@ TEST_F(PolyglotAsyncTest, UnifiedShellExecution) {
 TEST_F(PolyglotAsyncTest, ParallelAll7LanguagesSimulation) {
     PolyglotAsyncExecutor executor;
 
-    std::vector<std::tuple<PolyglotAsyncExecutor::Language, std::string, std::vector<Value>>> blocks;
+    std::vector<std::tuple<PolyglotAsyncExecutor::Language, std::string, std::vector<NaabVal>>> blocks;
 
     // Python block
     blocks.push_back({PolyglotAsyncExecutor::Language::Python, "10", {}});
