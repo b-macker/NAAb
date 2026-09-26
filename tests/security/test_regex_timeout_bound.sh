@@ -23,10 +23,22 @@
 #          unbounded threads.
 #
 # B-01 is only meaningful if its pattern really is slow at this length.
-# (a|a)+b quadruples every 2 characters (measured: n=20 takes 0.37s on raw
-# std::regex), so n=30 needs minutes -- a result inside the bound can only come
-# from the timeout. B-02 is the control that the same call on a short input
-# still COMPLETES, so B-01 cannot pass by refusing everything.
+# (a|a)+b roughly doubles per character (measured on raw -O0 std::regex:
+# n=22 1.5s, n=23 2.9s, n=24 6.1s), so n=25 is several times the 1s budget
+# even on an optimised build -- a return inside the bound can only come from the
+# timeout. B-02 is the control that the same call on a short input still
+# COMPLETES, so B-01 cannot pass by refusing everything.
+#
+# Why n=25 and not larger: std::regex cannot be interrupted, so a timed-out
+# worker is ABANDONED, not killed, and keeps a core busy until its search ends.
+# This suite first used n=30 (minutes to hours of work per worker, five workers
+# across B-01 and C-01). On Linux they die with the process. build-windows
+# instead stalled in this phase for 50+ minutes with no step timeout firing and
+# no logs uploaded -- consistent with MinGW holding the process open for
+# running threads, and a runner starved by 100%-CPU workers. The input is kept
+# just long enough to exceed the budget so abandoned work ends in seconds on
+# any platform. If exit does wait for abandoned workers, B-01's wall-time bound
+# FAILS, with a log, instead of wedging the runner.
 
 set -uo pipefail
 PASS=0
@@ -51,7 +63,8 @@ echo '{ "version": "4.0", "mode": "off" }' > "$WORK/govern.json"
 pass() { echo "  PASS [$1] $2"; PASS=$((PASS+1)); }
 fail() { echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && echo "         $3"; FAIL=$((FAIL+1)); }
 
-A30="$(printf 'a%.0s' $(seq 30))"
+A30="$(printf 'a%.0s' $(seq 30))"   # validator arms only: rejected before any work runs
+A25="$(printf 'a%.0s' $(seq 25))"   # budget arms: over budget, but finite
 
 # run_match ID PATTERN INPUT -> sets OUT (stdout+stderr) and ELAPSED (whole seconds)
 run_match() {
@@ -96,11 +109,12 @@ case "$OUT" in
 esac
 
 echo "=== B: the budget holds ==="
-run_match b01 '(a|a)+b' "${A30}!"
-if [ "$ELAPSED" -le 10 ] && [[ "$OUT" == *CAUGHT:*"timed out"* ]]; then
+run_match b01 '(a|a)+b' "${A25}!"
+# 1s budget + process start/exit. The broken build needed the full ~12s here.
+if [ "$ELAPSED" -le 4 ] && [[ "$OUT" == *CAUGHT:*"timed out"* ]]; then
     pass B-01 "exponential pattern stopped at the budget (${ELAPSED}s)"
 else
-    fail B-01 "not stopped within 10s (took ${ELAPSED}s)" "$(echo "$OUT" | head -2)"
+    fail B-01 "not stopped within 4s (took ${ELAPSED}s)" "$(echo "$OUT" | head -2)"
 fi
 
 run_match b02 '(a|a)+b' "aaaab"
@@ -116,7 +130,7 @@ main {
     let i = 0
     while i < 6 {
         try {
-            regex.matches("${A30}!", "(a|a)+b")
+            regex.matches("${A25}!", "(a|a)+b")
             print("RUN:done")
         } catch (e) {
             let m = e["message"]
