@@ -7,6 +7,14 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <atomic>
+#include <condition_variable>
+#include <exception>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <thread>
+#include <vector>
 
 namespace naab {
 namespace regex_safety {
@@ -129,6 +137,38 @@ PatternComplexity SafeRegex::analyzePattern(const std::string& pattern) const {
     return result;
 }
 
+namespace {
+
+// Operations that timed out but whose worker thread is still running.
+// std::regex cannot be interrupted, so a timed-out match keeps its thread busy
+// until the backtracking finishes -- possibly hours. Cap how many may pile up,
+// and refuse new work beyond that rather than spawn threads without limit.
+std::atomic<int> g_abandoned_workers{0};
+constexpr int kMaxAbandonedWorkers = 4;
+
+template<typename R>
+struct TimedTask {
+    std::mutex m;
+    std::condition_variable cv;
+    bool done = false;
+    bool abandoned = false;
+    std::optional<R> value;
+    std::exception_ptr error;
+};
+
+} // namespace
+
+// Runs func on its own thread and returns its result, or throws
+// RegexTimeoutException once `timeout` has elapsed -- without waiting for the
+// work to finish.
+//
+// This used std::async and threw on wait_for() timing out. But a std::async
+// future's destructor blocks until the task completes, so unwinding the throw
+// waited for the runaway regex anyway: a 1s budget measured 30s on a 28-char
+// input, and --timeout could not preempt it either.
+//
+// func MUST own everything it touches (capture by value): on timeout the
+// worker is detached and outlives this call and the caller's arguments.
 template<typename Func>
 auto SafeRegex::executeWithTimeout(Func&& func,
                                    std::chrono::milliseconds timeout,
@@ -136,18 +176,41 @@ auto SafeRegex::executeWithTimeout(Func&& func,
     -> decltype(func()) {
     using ReturnType = decltype(func());
 
-    // Launch async task
-    auto future = std::async(std::launch::async, std::forward<Func>(func));
-
-    // Wait with timeout
-    if (future.wait_for(timeout) == std::future_status::timeout) {
-        // Note: std::future doesn't have a way to cancel the task
-        // The task will continue running in the background
-        // In a production system, we'd use a more sophisticated approach
-        throw RegexTimeoutException(operation_name, timeout);
+    if (g_abandoned_workers.load() >= kMaxAbandonedWorkers) {
+        throw std::runtime_error(
+            "Regex error: too many timed-out regex operations are still running.\n\n"
+            "  Help:\n"
+            "  - Earlier patterns exceeded the time limit and have not finished yet\n"
+            "  - Simplify the pattern to avoid nested or overlapping repetition\n");
     }
 
-    return future.get();
+    auto state = std::make_shared<TimedTask<ReturnType>>();
+    std::thread([state, work = std::forward<Func>(func)]() mutable {
+        std::optional<ReturnType> value;
+        std::exception_ptr error;
+        try {
+            value.emplace(work());
+        } catch (...) {
+            error = std::current_exception();
+        }
+        {
+            std::lock_guard<std::mutex> lock(state->m);
+            state->value = std::move(value);
+            state->error = error;
+            state->done = true;
+            if (state->abandoned) g_abandoned_workers.fetch_sub(1);
+        }
+        state->cv.notify_all();
+    }).detach();
+
+    std::unique_lock<std::mutex> lock(state->m);
+    if (!state->cv.wait_for(lock, timeout, [&] { return state->done; })) {
+        state->abandoned = true;
+        g_abandoned_workers.fetch_add(1);
+        throw RegexTimeoutException(operation_name, timeout);
+    }
+    if (state->error) std::rethrow_exception(state->error);
+    return std::move(*state->value);
 }
 
 bool SafeRegex::safeMatch(const std::string& text,
@@ -158,7 +221,7 @@ bool SafeRegex::safeMatch(const std::string& text,
 
     auto effective_timeout = getEffectiveTimeout(timeout);
 
-    auto operation = [&text, &pattern]() {
+    auto operation = [text, pattern]() {
         std::regex re(pattern);
         return std::regex_match(text, re);
     };
@@ -178,7 +241,7 @@ bool SafeRegex::safeSearch(const std::string& text,
 
     auto effective_timeout = getEffectiveTimeout(timeout);
 
-    auto operation = [&text, &pattern]() {
+    auto operation = [text, pattern]() {
         std::regex re(pattern);
         return std::regex_search(text, re);
     };
@@ -199,13 +262,23 @@ bool SafeRegex::safeSearch(const std::string& text,
 
     auto effective_timeout = getEffectiveTimeout(timeout);
 
-    auto operation = [&text, &pattern, &match]() {
+    // The worker searches its own copy: std::smatch holds iterators into the
+    // string it searched, so it cannot be filled across the thread boundary.
+    // Only after the bounded run completes is the same deterministic search
+    // repeated on the caller's text to fill `match` -- worst case about twice
+    // the budget, never unbounded.
+    auto operation = [text, pattern]() {
         std::regex re(pattern);
-        return std::regex_search(text, match, re);
+        return std::regex_search(text, re);
     };
 
     try {
-        return executeWithTimeout(operation, effective_timeout, pattern);
+        if (!executeWithTimeout(operation, effective_timeout, pattern)) {
+            match = std::smatch();
+            return false;
+        }
+        std::regex re(pattern);
+        return std::regex_search(text, match, re);
     } catch (const std::regex_error& e) {
         throw std::runtime_error("Regex error: " + std::string(e.what()));
     }
@@ -221,7 +294,7 @@ std::string SafeRegex::safeReplace(const std::string& text,
 
     auto effective_timeout = getEffectiveTimeout(timeout);
 
-    auto operation = [&text, &pattern, &replacement, replace_all]() {
+    auto operation = [text, pattern, replacement, replace_all]() {
         std::regex re(pattern);
         if (replace_all) {
             return std::regex_replace(text, re, replacement);
@@ -246,7 +319,7 @@ std::vector<std::string> SafeRegex::safeFindAll(const std::string& text,
 
     auto effective_timeout = getEffectiveTimeout(timeout);
 
-    auto operation = [&text, &pattern, this]() {
+    auto operation = [text, pattern, max_matches = limits_.max_matches]() {
         std::regex re(pattern);
         std::vector<std::string> matches;
 
@@ -255,10 +328,10 @@ std::vector<std::string> SafeRegex::safeFindAll(const std::string& text,
 
         size_t count = 0;
         for (auto i = begin; i != end; ++i) {
-            if (count >= limits_.max_matches) {
+            if (count >= max_matches) {
                 throw std::runtime_error(
                     "Number of regex matches exceeds limit of " +
-                    std::to_string(limits_.max_matches));
+                    std::to_string(max_matches));
             }
             matches.push_back(i->str(0));
             ++count;
@@ -278,15 +351,60 @@ std::vector<std::string> SafeRegex::safeFindAll(const std::string& text,
 namespace pattern_analysis {
 
 bool hasNestedQuantifiers(const std::string& pattern) {
-    // Look for patterns like (a+)+ or (a*)* or (a+)* etc.
-    // This is a simplified check - a full implementation would need a parser
+    // Detects a quantified group that itself contains a quantifier: (a+)+,
+    // (a*)*, (?:a+)+, (a{2,})*. This was one regex,
+    //   \([^)]*[*+?][^)]*\)[*+?{]
+    // which required the quantified group's ')' to follow its inner quantifier
+    // with no ')' in between -- so a redundant pair of parentheses defeated it:
+    // ((a+))+ passed validation and ran exponentially (30s on a 28-char input).
+    //
+    // Scan instead: track, per open group, whether anything inside it (at any
+    // depth) is quantified; when a group closes, pass that up to its parent,
+    // and report nesting if the group is itself followed by a quantifier.
+    // Escapes and character classes are skipped so '\(' and '[+]' are literal.
+    auto isQuantifierAt = [&](size_t k) {
+        if (k >= pattern.size()) return false;
+        char c = pattern[k];
+        if (c == '*' || c == '+' || c == '?') return true;
+        return c == '{' && k + 1 < pattern.size() &&
+               std::isdigit(static_cast<unsigned char>(pattern[k + 1]));
+    };
 
-    std::regex nested_quantifier_pattern(R"(\([^)]*[*+?][^)]*\)[*+?{])");
-    try {
-        return std::regex_search(pattern, nested_quantifier_pattern);
-    } catch (...) {
-        return false;
+    std::vector<bool> group_has_quantifier;
+    for (size_t k = 0; k < pattern.size(); ++k) {
+        char c = pattern[k];
+        if (c == '\\') { ++k; continue; }
+        if (c == '[') {
+            size_t e = k + 1;
+            if (e < pattern.size() && pattern[e] == '^') ++e;
+            if (e < pattern.size() && pattern[e] == ']') ++e;  // leading ']' is literal
+            while (e < pattern.size() && pattern[e] != ']') {
+                if (pattern[e] == '\\') ++e;
+                ++e;
+            }
+            k = e;
+            continue;
+        }
+        if (c == '(') {
+            group_has_quantifier.push_back(false);
+            if (k + 1 < pattern.size() && pattern[k + 1] == '?') ++k;  // (?:, (?=, (?! -- not a quantifier
+            continue;
+        }
+        if (c == ')') {
+            if (group_has_quantifier.empty()) continue;
+            bool inner = group_has_quantifier.back();
+            group_has_quantifier.pop_back();
+            if (inner && isQuantifierAt(k + 1)) return true;
+            if (!group_has_quantifier.empty() && (inner || isQuantifierAt(k + 1))) {
+                group_has_quantifier.back() = true;
+            }
+            continue;
+        }
+        if (isQuantifierAt(k) && !group_has_quantifier.empty()) {
+            group_has_quantifier.back() = true;
+        }
     }
+    return false;
 }
 
 bool hasOverlappingAlternatives(const std::string& pattern) {
