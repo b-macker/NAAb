@@ -1003,6 +1003,25 @@ std::string GovernanceEngine::lookupRationale(const std::string& rule_name) cons
     return "";  // No rationale configured
 }
 
+void GovernanceEngine::capCheckResultsLocked() {
+    if (check_results_.size() <= MAX_CHECK_RESULTS) return;
+    // One pass, not one erase per entry: the post-execution audit can append
+    // several results per polyglot block at once, and erase-from-front in a
+    // loop is quadratic. F8: preflight entries are evicted only as a last resort.
+    size_t excess = check_results_.size() - MAX_CHECK_RESULTS;
+    auto out = check_results_.begin();
+    for (auto it = check_results_.begin(); it != check_results_.end(); ++it) {
+        if (excess > 0 && !it->preflight) { --excess; continue; }
+        if (out != it) *out = std::move(*it);
+        ++out;
+    }
+    check_results_.erase(out, check_results_.end());
+    if (check_results_.size() > MAX_CHECK_RESULTS) {
+        check_results_.erase(check_results_.begin(),
+            check_results_.begin() + (check_results_.size() - MAX_CHECK_RESULTS));
+    }
+}
+
 void GovernanceEngine::recordPass(const std::string& rule_name,
                                    EnforcementLevel level) {
     std::string cat = rule_name.substr(0, rule_name.find('.'));
@@ -1015,9 +1034,7 @@ void GovernanceEngine::recordPass(const std::string& rule_name,
                               false, rationale, std::move(t_current_decision_trace), ""});
     t_current_decision_trace.clear();
     // V-GOV-024: cap telemetry to prevent unbounded memory growth
-    if (check_results_.size() > MAX_CHECK_RESULTS) {
-        check_results_.erase(check_results_.begin());
-    }
+    capCheckResultsLocked();
     // Pulse: track governance liveness
     pulse_.total_checks++;
     // consecutive_passes is deliberately NOT advanced here. Every recordPass()
@@ -1120,15 +1137,7 @@ std::string GovernanceEngine::enforce(
                                   explanation});
         t_current_decision_trace.clear();
         // V-GOV-024: cap telemetry — F8: skip preflight entries during eviction
-        if (check_results_.size() > MAX_CHECK_RESULTS) {
-            auto it = std::find_if(check_results_.begin(), check_results_.end(),
-                [](const CheckResult& cr) { return !cr.preflight; });
-            if (it != check_results_.end()) {
-                check_results_.erase(it);
-            } else {
-                check_results_.erase(check_results_.begin());
-            }
-        }
+        capCheckResultsLocked();
 
         // Cumulative risk scoring — ADVISORY findings only
         // MONOTONIC: weight >= 0 guaranteed (clamped), score can only increase
@@ -6818,6 +6827,12 @@ void GovernanceEngine::runPostExecutionAudit() {
     auditSemanticCorrectness();
     auditCrossBlockFlows();
     auditSideEffects();
+    {
+        // The audits above append pass2.* results per polyglot block with no
+        // cap of their own (V-GOV-024) — a loop of N blocks adds up to ~7N.
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        capCheckResultsLocked();
+    }
     printValidationReport();
 }
 

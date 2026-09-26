@@ -2913,10 +2913,12 @@ echo ""
 # and an array would be invisible to it -- reproducing the exact defect #250
 # fixed, where 25 registrations sat outside the gate meant to police them.
 #
-# Held back deliberately: test_r22_fixes.sh (7 passed, 2 failed) and
-# test_r32_fixes.sh (8 passed, 1 failed). On this repo's history either could be
-# a broken probe rather than a live defect, and that needs diagnosis, not
-# registration.
+# test_r22_fixes.sh and test_r32_fixes.sh were held back from that sweep until
+# diagnosed; both are registered at the end of this block. Each failure was a
+# broken probe, and each probe was hiding something: r22's fixtures predated the
+# enforce-mode sandbox upgrade, so its "blocked" arms passed without reaching
+# the rule under test; r32's eviction grep was satisfied by any one site and
+# never saw the ~10 check_results_ writers that had no cap at all.
 
 SEC_DATA_EXFIL_PATTERNS_SCRIPT="tests/security/test_data_exfil_patterns.sh"
 if [ -f "$SEC_DATA_EXFIL_PATTERNS_SCRIPT" ]; then
@@ -3254,6 +3256,32 @@ if [ -f "$SEC_TAINT_ARRAY_TRANSFORM_SCRIPT" ]; then
     fi
 else
     echo "  test_taint_array_transform.sh: not found, skipping"
+fi
+
+SEC_R22_FIXES_SCRIPT="tests/security/test_r22_fixes.sh"
+if [ -f "$SEC_R22_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R22_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r22_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r22_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r22_fixes.sh")
+    fi
+else
+    echo "  test_r22_fixes.sh: not found, skipping"
+fi
+
+SEC_R32_FIXES_SCRIPT="tests/security/test_r32_fixes.sh"
+if [ -f "$SEC_R32_FIXES_SCRIPT" ]; then
+    if run_shell_test "$SEC_R32_FIXES_SCRIPT" 2>&1; then
+        echo "  test_r32_fixes.sh: ALL PASSED"
+    else
+        echo "  test_r32_fixes.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_r32_fixes.sh")
+    fi
+else
+    echo "  test_r32_fixes.sh: not found, skipping"
 fi
 
 PLATFORM_FIXES_SCRIPT="tests/api/test_platform_fixes.sh"

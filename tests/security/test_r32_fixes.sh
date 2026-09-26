@@ -58,11 +58,53 @@ else
     fail "V-GOV-024 T3: MAX_CHECK_RESULTS not found"
 fi
 
-# Test 4: Eviction logic after push_back
-if grep -A3 'check_results_.push_back' "$SRC_GOV_CPP" | grep -q 'MAX_CHECK_RESULTS\|erase'; then
-    pass "V-GOV-024 T4: Eviction logic present after push_back"
+# Test 4: EVERY check_results_ writer is capped.
+# This used to be `grep -A3 push_back | grep erase`, which asked only whether
+# SOME push_back had an eviction within three lines -- a question both wrong
+# ways round: the real eviction sat four lines down (false FAIL), and the pass2
+# audit + polyglot_optimization writers had no cap at all, which a grep that is
+# satisfied by any one site could never have reported. The checker below
+# attributes each push_back to its enclosing function and requires that
+# function to call capCheckResultsLocked() after it -- or, for the pass2
+# audit*() functions, that runPostExecutionAudit() caps after running them.
+R32_CAP_CHECK='
+import re, sys
+def uncapped(srcs):
+    run_caps = False
+    for text in srcs:
+        m = re.search(r"GovernanceEngine::runPostExecutionAudit\(\)\s*\{(.*?)\n\}", text, re.S)
+        if m and "capCheckResultsLocked()" in m.group(1).split("auditSideEffects();")[-1]:
+            run_caps = True
+    bad = []
+    for text in srcs:
+        lines = text.split("\n")
+        for n, line in enumerate(lines):
+            if "check_results_.push_back" not in line and "check_results_.emplace_back" not in line:
+                continue
+            fn, start = "?", 0
+            for k in range(n, -1, -1):
+                f = re.match(r"^\S.*GovernanceEngine::(\w+)\(", lines[k])
+                if f: fn, start = f.group(1), k; break
+            end = next((k for k in range(n, len(lines)) if lines[k].startswith("}")), len(lines))
+            if "capCheckResultsLocked()" in "\n".join(lines[n:end]): continue
+            if fn.startswith("audit") and run_caps: continue
+            bad.append("%s:%d" % (fn, n + 1))
+    return bad
+if sys.argv[1] == "--control":
+    ctl = "void GovernanceEngine::f() {\n    check_results_.push_back(x);\n}\n"
+    sys.exit(0 if uncapped([ctl]) == ["f:2"] else 1)
+bad = uncapped([open(f, encoding="utf-8", errors="replace").read() for f in sys.argv[1:]])
+if bad: print(" ".join(bad)); sys.exit(1)
+'
+SRC_GOV_REPORTS="$SCRIPT_DIR/../../src/runtime/governance_reports.cpp"
+if ! python3 -c "$R32_CAP_CHECK" --control; then
+    fail "V-GOV-024 T4: cap checker failed its own control (UNMEASURABLE)"
+elif ! grep -q 'capCheckResultsLocked' "$SRC_GOV_CPP"; then
+    fail "V-GOV-024 T4: capCheckResultsLocked() not found"
+elif T4_OUT=$(python3 -c "$R32_CAP_CHECK" "$SRC_GOV_CPP" "$SRC_GOV_REPORTS"); then
+    pass "V-GOV-024 T4: every check_results_ writer is capped"
 else
-    fail "V-GOV-024 T4: No eviction logic found"
+    fail "V-GOV-024 T4: uncapped check_results_ writers" "$T4_OUT"
 fi
 
 # ── V-CONC-006: NaabVal deepCopy ──────────────────────────────────────────

@@ -2005,6 +2005,7 @@ std::string GovernanceEngine::checkPolyglotOptimization(
         {
             std::lock_guard<std::mutex> lock(results_mutex_);
             check_results_.push_back(check);
+            capCheckResultsLocked();  // V-GOV-024
         }
 
         // Only HARD blocks execution
