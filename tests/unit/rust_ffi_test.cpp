@@ -9,9 +9,23 @@
 // Forward declaration of conversion helpers
 namespace naab {
 namespace runtime {
-    std::shared_ptr<interpreter::Value> ffiToValue(NaabRustValue* ffi_val);
-    NaabRustValue* valueToFfi(const std::shared_ptr<interpreter::Value>& val);
+    // Must match rust_ffi_bridge.cpp exactly. These prototypes used to name the
+    // pre-NaabVal signatures: valueToFfi then failed to link, and ffiToValue --
+    // same parameter list, different return type, which the mangled name does
+    // not encode -- would have LINKED and returned a NaabVal read as a shared_ptr.
+    interpreter::NaabVal ffiToValue(NaabRustValue* ffi_val);
+    NaabRustValue* valueToFfi(const interpreter::NaabVal& val);
 }
+}
+
+// Adapters: the round-trip tests below assert on legacy Value, so convert at
+// the boundary and leave every assertion as written.
+static NaabRustValue* toFfi(const std::shared_ptr<naab::interpreter::Value>& v) {
+    using naab::interpreter::NaabVal;
+    return naab::runtime::valueToFfi(v ? NaabVal::fromLegacy(v) : NaabVal::makeNull());
+}
+static std::shared_ptr<naab::interpreter::Value> fromFfi(NaabRustValue* p) {
+    return naab::runtime::ffiToValue(p).toLegacy();
 }
 
 // Test FFI value creation and access
@@ -93,10 +107,10 @@ TEST(RustFFITest, RoundTripConversionInt) {
     using namespace naab;
 
     auto original = std::make_shared<interpreter::Value>(123);
-    NaabRustValue* ffi_val = runtime::valueToFfi(original);
+    NaabRustValue* ffi_val = toFfi(original);
     ASSERT_NE(ffi_val, nullptr);
 
-    auto recovered = runtime::ffiToValue(ffi_val);
+    auto recovered = fromFfi(ffi_val);
     ASSERT_NE(recovered, nullptr);
     EXPECT_TRUE(std::holds_alternative<int>(recovered->data));
     EXPECT_EQ(std::get<int>(recovered->data), 123);
@@ -108,10 +122,10 @@ TEST(RustFFITest, RoundTripConversionDouble) {
     using namespace naab;
 
     auto original = std::make_shared<interpreter::Value>(2.71828);
-    NaabRustValue* ffi_val = runtime::valueToFfi(original);
+    NaabRustValue* ffi_val = toFfi(original);
     ASSERT_NE(ffi_val, nullptr);
 
-    auto recovered = runtime::ffiToValue(ffi_val);
+    auto recovered = fromFfi(ffi_val);
     ASSERT_NE(recovered, nullptr);
     EXPECT_TRUE(std::holds_alternative<double>(recovered->data));
     EXPECT_DOUBLE_EQ(std::get<double>(recovered->data), 2.71828);
@@ -123,10 +137,10 @@ TEST(RustFFITest, RoundTripConversionBool) {
     using namespace naab;
 
     auto original = std::make_shared<interpreter::Value>(true);
-    NaabRustValue* ffi_val = runtime::valueToFfi(original);
+    NaabRustValue* ffi_val = toFfi(original);
     ASSERT_NE(ffi_val, nullptr);
 
-    auto recovered = runtime::ffiToValue(ffi_val);
+    auto recovered = fromFfi(ffi_val);
     ASSERT_NE(recovered, nullptr);
     EXPECT_TRUE(std::holds_alternative<bool>(recovered->data));
     EXPECT_EQ(std::get<bool>(recovered->data), true);
@@ -138,10 +152,10 @@ TEST(RustFFITest, RoundTripConversionString) {
     using namespace naab;
 
     auto original = std::make_shared<interpreter::Value>(std::string("Test string"));
-    NaabRustValue* ffi_val = runtime::valueToFfi(original);
+    NaabRustValue* ffi_val = toFfi(original);
     ASSERT_NE(ffi_val, nullptr);
 
-    auto recovered = runtime::ffiToValue(ffi_val);
+    auto recovered = fromFfi(ffi_val);
     ASSERT_NE(recovered, nullptr);
     EXPECT_TRUE(std::holds_alternative<std::string>(recovered->data));
     EXPECT_EQ(std::get<std::string>(recovered->data), "Test string");
@@ -153,13 +167,13 @@ TEST(RustFFITest, ConversionNullValue) {
     using namespace naab;
 
     // Null C++ value -> FFI should create void
-    NaabRustValue* ffi_val = runtime::valueToFfi(nullptr);
+    NaabRustValue* ffi_val = toFfi(nullptr);
     ASSERT_NE(ffi_val, nullptr);
     EXPECT_EQ(naab_rust_value_get_type(ffi_val), NAAB_RUST_TYPE_VOID);
     naab_rust_value_free(ffi_val);
 
     // Null FFI value -> C++ should create void value
-    auto cpp_val = runtime::ffiToValue(nullptr);
+    auto cpp_val = fromFfi(nullptr);
     ASSERT_NE(cpp_val, nullptr);
     EXPECT_TRUE(std::holds_alternative<std::monostate>(cpp_val->data));
 }

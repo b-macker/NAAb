@@ -19,8 +19,8 @@ TEST(StructValueTest, CreateAndSetFields) {
     sv.setField("x", std::make_shared<interpreter::Value>(10));
     sv.setField("y", std::make_shared<interpreter::Value>(20));
 
-    ASSERT_EQ(std::get<int>(sv.getField("x")->data), 10);
-    ASSERT_EQ(std::get<int>(sv.getField("y")->data), 20);
+    ASSERT_EQ(std::get<int>(sv.getField("x").toLegacy()->data), 10);
+    ASSERT_EQ(std::get<int>(sv.getField("y").toLegacy()->data), 20);
 }
 
 TEST(StructValueTest, InvalidFieldThrows) {
@@ -115,10 +115,10 @@ TEST(StructValueTest, NestedStruct) {
     line.setField("end", std::make_shared<interpreter::Value>(end_point));
 
     // Verify nested access
-    auto start_val = line.getField("start");
+    auto start_val = line.getField("start").toLegacy();
     ASSERT_TRUE(std::holds_alternative<std::shared_ptr<interpreter::StructValue>>(start_val->data));
     auto start_struct = std::get<std::shared_ptr<interpreter::StructValue>>(start_val->data);
-    ASSERT_EQ(std::get<int>(start_struct->getField("x")->data), 0);
+    ASSERT_EQ(std::get<int>(start_struct->getField("x").toLegacy()->data), 0);
 }
 
 TEST(StructValueTest, StructArray) {
@@ -139,7 +139,7 @@ TEST(StructValueTest, StructArray) {
     ASSERT_EQ(points.size(), 3);
     for (size_t i = 0; i < points.size(); ++i) {
         auto s = std::get<std::shared_ptr<interpreter::StructValue>>(points[i]->data);
-        ASSERT_EQ(std::get<int>(s->getField("x")->data), static_cast<int>(i * 10));
+        ASSERT_EQ(std::get<int>(s->getField("x").toLegacy()->data), static_cast<int>(i * 10));
     }
 }
 
@@ -163,7 +163,7 @@ TEST(StructValueTest, StructInMap) {
     // Verify map access
     ASSERT_EQ(point_map.size(), 2);
     auto origin = std::get<std::shared_ptr<interpreter::StructValue>>(point_map["origin"]->data);
-    ASSERT_EQ(std::get<int>(origin->getField("x")->data), 10);
+    ASSERT_EQ(std::get<int>(origin->getField("x").toLegacy()->data), 10);
 }
 
 TEST(StructValueTest, DefaultFieldValue) {
@@ -179,7 +179,7 @@ TEST(StructValueTest, DefaultFieldValue) {
     // Explicitly set field value (default values would be handled in interpreter)
     auto default_val = std::make_shared<interpreter::Value>(42);
     config.field_values[0] = default_val;
-    ASSERT_EQ(std::get<int>(config.getField("port")->data), 42);
+    ASSERT_EQ(std::get<int>(config.getField("port").toLegacy()->data), 42);
 }
 
 TEST(StructValueTest, StructToString) {
@@ -216,12 +216,12 @@ TEST(StructValueTest, StructCopy) {
     auto p2 = std::make_shared<interpreter::StructValue>(*p1);
 
     // Verify copy has same values
-    ASSERT_EQ(std::get<int>(p2->getField("x")->data), 100);
+    ASSERT_EQ(std::get<int>(p2->getField("x").toLegacy()->data), 100);
 
     // Verify independence (modifying copy doesn't affect original)
     p2->setField("x", std::make_shared<interpreter::Value>(200));
-    ASSERT_EQ(std::get<int>(p1->getField("x")->data), 100);
-    ASSERT_EQ(std::get<int>(p2->getField("x")->data), 200);
+    ASSERT_EQ(std::get<int>(p1->getField("x").toLegacy()->data), 100);
+    ASSERT_EQ(std::get<int>(p2->getField("x").toLegacy()->data), 200);
 }
 
 TEST(StructRegistryTest, ThreadSafety) {
@@ -277,7 +277,7 @@ TEST(StructValueTest, LargeFieldCount) {
 
     for (int i = 0; i < 100; ++i) {
         std::string field_name = "field_" + std::to_string(i);
-        ASSERT_EQ(std::get<int>(large.getField(field_name)->data), i);
+        ASSERT_EQ(std::get<int>(large.getField(field_name).toLegacy()->data), i);
     }
 }
 
@@ -293,5 +293,5 @@ TEST(StructValueTest, UnicodeFieldName) {
     interpreter::StructValue s("UnicodeStruct", def);
     s.setField(unicode_field, std::make_shared<interpreter::Value>(999));
 
-    ASSERT_EQ(std::get<int>(s.getField(unicode_field)->data), 999);
+    ASSERT_EQ(std::get<int>(s.getField(unicode_field).toLegacy()->data), 999);
 }

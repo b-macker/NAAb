@@ -18,7 +18,7 @@ std::shared_ptr<Value> execute(const std::string& source) {
     auto program = parser.parseProgram();
     Interpreter interp;
     interp.execute(*program);
-    return interp.getResult();
+    return interp.getResult().toLegacy();
 }
 
 // ============================================================================
@@ -259,7 +259,7 @@ TEST(InterpreterTest, RecursiveFunction) {
 
 TEST(InterpreterTest, ArrayLiteral) {
     auto result = execute("[1, 2, 3]");
-    auto* arrval = std::get_if<std::vector<std::shared_ptr<Value>>>(&result->data);
+    auto* arrval = std::get_if<std::vector<NaabVal>>(&result->data);
     ASSERT_NE(arrval, nullptr);
     EXPECT_EQ(arrval->size(), 3);
 }

@@ -26,8 +26,24 @@ std::shared_ptr<Value> makeBool(bool v) {
     return std::make_shared<Value>(v);
 }
 
+// Value's list alternative is std::vector<NaabVal>, not a vector of Values.
 std::shared_ptr<Value> makeArray(const std::vector<std::shared_ptr<Value>>& v) {
-    return std::make_shared<Value>(v);
+    std::vector<NaabVal> items;
+    items.reserve(v.size());
+    for (const auto& e : v) items.push_back(NaabVal::fromLegacy(e));
+    return std::make_shared<Value>(items);
+}
+
+// The module API moved from shared_ptr<Value> to NaN-boxed NaabVal. These
+// tests were written against the old API and stopped compiling unnoticed,
+// because nothing built naab_unit_tests. This adapter keeps every assertion
+// as written: arguments go in as NaabVal, the result comes back as a Value.
+std::shared_ptr<Value> callModule(Module& mod, const std::string& fn,
+                                  const std::vector<std::shared_ptr<Value>>& args) {
+    std::vector<NaabVal> boxed;
+    boxed.reserve(args.size());
+    for (const auto& a : args) boxed.push_back(NaabVal::fromLegacy(a));
+    return mod.call(fn, boxed).toLegacy();
 }
 
 // ============================================================================
@@ -59,7 +75,7 @@ TEST(StdLibTest, ModuleNotFound) {
 
 TEST(StringModuleTest, Length) {
     StringModule mod;
-    auto result = mod.call("length", {makeString("hello")});
+    auto result = callModule(mod, "length", {makeString("hello")});
     auto* intval = std::get_if<int>(&result->data);
     ASSERT_NE(intval, nullptr);
     EXPECT_EQ(*intval, 5);
@@ -67,7 +83,7 @@ TEST(StringModuleTest, Length) {
 
 TEST(StringModuleTest, Upper) {
     StringModule mod;
-    auto result = mod.call("upper", {makeString("hello")});
+    auto result = callModule(mod, "upper", {makeString("hello")});
     auto* strval = std::get_if<std::string>(&result->data);
     ASSERT_NE(strval, nullptr);
     EXPECT_EQ(*strval, "HELLO");
@@ -75,7 +91,7 @@ TEST(StringModuleTest, Upper) {
 
 TEST(StringModuleTest, Lower) {
     StringModule mod;
-    auto result = mod.call("lower", {makeString("HELLO")});
+    auto result = callModule(mod, "lower", {makeString("HELLO")});
     auto* strval = std::get_if<std::string>(&result->data);
     ASSERT_NE(strval, nullptr);
     EXPECT_EQ(*strval, "hello");
@@ -83,7 +99,7 @@ TEST(StringModuleTest, Lower) {
 
 TEST(StringModuleTest, Trim) {
     StringModule mod;
-    auto result = mod.call("trim", {makeString("  hello  ")});
+    auto result = callModule(mod, "trim", {makeString("  hello  ")});
     auto* strval = std::get_if<std::string>(&result->data);
     ASSERT_NE(strval, nullptr);
     EXPECT_EQ(*strval, "hello");
@@ -91,15 +107,15 @@ TEST(StringModuleTest, Trim) {
 
 TEST(StringModuleTest, Split) {
     StringModule mod;
-    auto result = mod.call("split", {makeString("a,b,c"), makeString(",")});
-    auto* arrval = std::get_if<std::vector<std::shared_ptr<Value>>>(&result->data);
+    auto result = callModule(mod, "split", {makeString("a,b,c"), makeString(",")});
+    auto* arrval = std::get_if<std::vector<NaabVal>>(&result->data);
     ASSERT_NE(arrval, nullptr);
     EXPECT_EQ(arrval->size(), 3);
 }
 
 TEST(StringModuleTest, Contains) {
     StringModule mod;
-    auto result = mod.call("contains", {makeString("hello world"), makeString("world")});
+    auto result = callModule(mod, "contains", {makeString("hello world"), makeString("world")});
     auto* boolval = std::get_if<bool>(&result->data);
     ASSERT_NE(boolval, nullptr);
     EXPECT_TRUE(*boolval);
@@ -107,7 +123,7 @@ TEST(StringModuleTest, Contains) {
 
 TEST(StringModuleTest, StartsWith) {
     StringModule mod;
-    auto result = mod.call("starts_with", {makeString("hello"), makeString("hel")});
+    auto result = callModule(mod, "starts_with", {makeString("hello"), makeString("hel")});
     auto* boolval = std::get_if<bool>(&result->data);
     ASSERT_NE(boolval, nullptr);
     EXPECT_TRUE(*boolval);
@@ -115,7 +131,7 @@ TEST(StringModuleTest, StartsWith) {
 
 TEST(StringModuleTest, EndsWith) {
     StringModule mod;
-    auto result = mod.call("ends_with", {makeString("hello"), makeString("lo")});
+    auto result = callModule(mod, "ends_with", {makeString("hello"), makeString("lo")});
     auto* boolval = std::get_if<bool>(&result->data);
     ASSERT_NE(boolval, nullptr);
     EXPECT_TRUE(*boolval);
@@ -123,7 +139,7 @@ TEST(StringModuleTest, EndsWith) {
 
 TEST(StringModuleTest, Replace) {
     StringModule mod;
-    auto result = mod.call("replace", {makeString("hello world"), makeString("world"), makeString("there")});
+    auto result = callModule(mod, "replace", {makeString("hello world"), makeString("world"), makeString("there")});
     auto* strval = std::get_if<std::string>(&result->data);
     ASSERT_NE(strval, nullptr);
     EXPECT_EQ(*strval, "hello there");
@@ -131,7 +147,7 @@ TEST(StringModuleTest, Replace) {
 
 TEST(StringModuleTest, Substring) {
     StringModule mod;
-    auto result = mod.call("substring", {makeString("hello"), makeInt(1), makeInt(4)});
+    auto result = callModule(mod, "substring", {makeString("hello"), makeInt(1), makeInt(4)});
     auto* strval = std::get_if<std::string>(&result->data);
     ASSERT_NE(strval, nullptr);
     EXPECT_EQ(*strval, "ell");
@@ -139,7 +155,7 @@ TEST(StringModuleTest, Substring) {
 
 TEST(StringModuleTest, IndexOf) {
     StringModule mod;
-    auto result = mod.call("index_of", {makeString("hello"), makeString("l")});
+    auto result = callModule(mod, "index_of", {makeString("hello"), makeString("l")});
     auto* intval = std::get_if<int>(&result->data);
     ASSERT_NE(intval, nullptr);
     EXPECT_EQ(*intval, 2);
@@ -147,7 +163,7 @@ TEST(StringModuleTest, IndexOf) {
 
 TEST(StringModuleTest, Repeat) {
     StringModule mod;
-    auto result = mod.call("repeat", {makeString("ab"), makeInt(3)});
+    auto result = callModule(mod, "repeat", {makeString("ab"), makeInt(3)});
     auto* strval = std::get_if<std::string>(&result->data);
     ASSERT_NE(strval, nullptr);
     EXPECT_EQ(*strval, "ababab");
@@ -160,7 +176,7 @@ TEST(StringModuleTest, Repeat) {
 TEST(ArrayModuleTest, Length) {
     ArrayModule mod;
     auto arr = makeArray({makeInt(1), makeInt(2), makeInt(3)});
-    auto result = mod.call("length", {arr});
+    auto result = callModule(mod, "length", {arr});
     auto* intval = std::get_if<int>(&result->data);
     ASSERT_NE(intval, nullptr);
     EXPECT_EQ(*intval, 3);
@@ -169,8 +185,8 @@ TEST(ArrayModuleTest, Length) {
 TEST(ArrayModuleTest, Push) {
     ArrayModule mod;
     auto arr = makeArray({makeInt(1), makeInt(2)});
-    auto result = mod.call("push", {arr, makeInt(3)});
-    auto* arrval = std::get_if<std::vector<std::shared_ptr<Value>>>(&result->data);
+    auto result = callModule(mod, "push", {arr, makeInt(3)});
+    auto* arrval = std::get_if<std::vector<NaabVal>>(&result->data);
     ASSERT_NE(arrval, nullptr);
     EXPECT_EQ(arrval->size(), 3);
 }
@@ -178,7 +194,7 @@ TEST(ArrayModuleTest, Push) {
 TEST(ArrayModuleTest, Pop) {
     ArrayModule mod;
     auto arr = makeArray({makeInt(1), makeInt(2), makeInt(3)});
-    auto result = mod.call("pop", {arr});
+    auto result = callModule(mod, "pop", {arr});
     auto* intval = std::get_if<int>(&result->data);
     ASSERT_NE(intval, nullptr);
     EXPECT_EQ(*intval, 3);
@@ -187,7 +203,7 @@ TEST(ArrayModuleTest, Pop) {
 TEST(ArrayModuleTest, Shift) {
     ArrayModule mod;
     auto arr = makeArray({makeInt(1), makeInt(2), makeInt(3)});
-    auto result = mod.call("shift", {arr});
+    auto result = callModule(mod, "shift", {arr});
     auto* intval = std::get_if<int>(&result->data);
     ASSERT_NE(intval, nullptr);
     EXPECT_EQ(*intval, 1);
@@ -196,8 +212,8 @@ TEST(ArrayModuleTest, Shift) {
 TEST(ArrayModuleTest, Unshift) {
     ArrayModule mod;
     auto arr = makeArray({makeInt(2), makeInt(3)});
-    auto result = mod.call("unshift", {arr, makeInt(1)});
-    auto* arrval = std::get_if<std::vector<std::shared_ptr<Value>>>(&result->data);
+    auto result = callModule(mod, "unshift", {arr, makeInt(1)});
+    auto* arrval = std::get_if<std::vector<NaabVal>>(&result->data);
     ASSERT_NE(arrval, nullptr);
     EXPECT_EQ(arrval->size(), 3);
 }
@@ -205,7 +221,7 @@ TEST(ArrayModuleTest, Unshift) {
 TEST(ArrayModuleTest, First) {
     ArrayModule mod;
     auto arr = makeArray({makeInt(1), makeInt(2), makeInt(3)});
-    auto result = mod.call("first", {arr});
+    auto result = callModule(mod, "first", {arr});
     auto* intval = std::get_if<int>(&result->data);
     ASSERT_NE(intval, nullptr);
     EXPECT_EQ(*intval, 1);
@@ -214,7 +230,7 @@ TEST(ArrayModuleTest, First) {
 TEST(ArrayModuleTest, Last) {
     ArrayModule mod;
     auto arr = makeArray({makeInt(1), makeInt(2), makeInt(3)});
-    auto result = mod.call("last", {arr});
+    auto result = callModule(mod, "last", {arr});
     auto* intval = std::get_if<int>(&result->data);
     ASSERT_NE(intval, nullptr);
     EXPECT_EQ(*intval, 3);
@@ -223,12 +239,13 @@ TEST(ArrayModuleTest, Last) {
 TEST(ArrayModuleTest, Reverse) {
     ArrayModule mod;
     auto arr = makeArray({makeInt(1), makeInt(2), makeInt(3)});
-    auto result = mod.call("reverse", {arr});
-    auto* arrval = std::get_if<std::vector<std::shared_ptr<Value>>>(&result->data);
+    auto result = callModule(mod, "reverse", {arr});
+    auto* arrval = std::get_if<std::vector<NaabVal>>(&result->data);
     ASSERT_NE(arrval, nullptr);
     EXPECT_EQ(arrval->size(), 3);
     // First element should be 3
-    auto* first = std::get_if<int>(&(*arrval)[0]->data);
+    auto first_val = (*arrval)[0].toLegacy();  // keep the Value alive past get_if
+    auto* first = std::get_if<int>(&first_val->data);
     ASSERT_NE(first, nullptr);
     EXPECT_EQ(*first, 3);
 }
@@ -236,7 +253,7 @@ TEST(ArrayModuleTest, Reverse) {
 TEST(ArrayModuleTest, Contains) {
     ArrayModule mod;
     auto arr = makeArray({makeInt(1), makeInt(2), makeInt(3)});
-    auto result = mod.call("contains", {arr, makeInt(2)});
+    auto result = callModule(mod, "contains", {arr, makeInt(2)});
     auto* boolval = std::get_if<bool>(&result->data);
     ASSERT_NE(boolval, nullptr);
     EXPECT_TRUE(*boolval);
@@ -245,7 +262,7 @@ TEST(ArrayModuleTest, Contains) {
 TEST(ArrayModuleTest, Join) {
     ArrayModule mod;
     auto arr = makeArray({makeString("a"), makeString("b"), makeString("c")});
-    auto result = mod.call("join", {arr, makeString(",")});
+    auto result = callModule(mod, "join", {arr, makeString(",")});
     auto* strval = std::get_if<std::string>(&result->data);
     ASSERT_NE(strval, nullptr);
     EXPECT_EQ(*strval, "a,b,c");
@@ -257,7 +274,7 @@ TEST(ArrayModuleTest, Join) {
 
 TEST(MathModuleTest, Abs) {
     MathModule mod;
-    auto result = mod.call("abs", {makeInt(-5)});
+    auto result = callModule(mod, "abs", {makeInt(-5)});
     auto* intval = std::get_if<int>(&result->data);
     ASSERT_NE(intval, nullptr);
     EXPECT_EQ(*intval, 5);
@@ -265,7 +282,7 @@ TEST(MathModuleTest, Abs) {
 
 TEST(MathModuleTest, Floor) {
     MathModule mod;
-    auto result = mod.call("floor", {makeFloat(3.7)});
+    auto result = callModule(mod, "floor", {makeFloat(3.7)});
     auto* floatval = std::get_if<double>(&result->data);
     ASSERT_NE(floatval, nullptr);
     EXPECT_EQ(*floatval, 3.0);
@@ -273,7 +290,7 @@ TEST(MathModuleTest, Floor) {
 
 TEST(MathModuleTest, Ceil) {
     MathModule mod;
-    auto result = mod.call("ceil", {makeFloat(3.2)});
+    auto result = callModule(mod, "ceil", {makeFloat(3.2)});
     auto* floatval = std::get_if<double>(&result->data);
     ASSERT_NE(floatval, nullptr);
     EXPECT_EQ(*floatval, 4.0);
@@ -281,7 +298,7 @@ TEST(MathModuleTest, Ceil) {
 
 TEST(MathModuleTest, Round) {
     MathModule mod;
-    auto result = mod.call("round", {makeFloat(3.6)});
+    auto result = callModule(mod, "round", {makeFloat(3.6)});
     auto* floatval = std::get_if<double>(&result->data);
     ASSERT_NE(floatval, nullptr);
     EXPECT_EQ(*floatval, 4.0);
@@ -289,7 +306,7 @@ TEST(MathModuleTest, Round) {
 
 TEST(MathModuleTest, Max) {
     MathModule mod;
-    auto result = mod.call("max", {makeInt(5), makeInt(10)});
+    auto result = callModule(mod, "max", {makeInt(5), makeInt(10)});
     auto* intval = std::get_if<int>(&result->data);
     ASSERT_NE(intval, nullptr);
     EXPECT_EQ(*intval, 10);
@@ -297,7 +314,7 @@ TEST(MathModuleTest, Max) {
 
 TEST(MathModuleTest, Min) {
     MathModule mod;
-    auto result = mod.call("min", {makeInt(5), makeInt(10)});
+    auto result = callModule(mod, "min", {makeInt(5), makeInt(10)});
     auto* intval = std::get_if<int>(&result->data);
     ASSERT_NE(intval, nullptr);
     EXPECT_EQ(*intval, 5);
@@ -305,7 +322,7 @@ TEST(MathModuleTest, Min) {
 
 TEST(MathModuleTest, Pow) {
     MathModule mod;
-    auto result = mod.call("pow", {makeInt(2), makeInt(3)});
+    auto result = callModule(mod, "pow", {makeInt(2), makeInt(3)});
     auto* floatval = std::get_if<double>(&result->data);
     ASSERT_NE(floatval, nullptr);
     EXPECT_EQ(*floatval, 8.0);
@@ -313,7 +330,7 @@ TEST(MathModuleTest, Pow) {
 
 TEST(MathModuleTest, Sqrt) {
     MathModule mod;
-    auto result = mod.call("sqrt", {makeInt(16)});
+    auto result = callModule(mod, "sqrt", {makeInt(16)});
     auto* floatval = std::get_if<double>(&result->data);
     ASSERT_NE(floatval, nullptr);
     EXPECT_EQ(*floatval, 4.0);
