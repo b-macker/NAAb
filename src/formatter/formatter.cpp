@@ -2,6 +2,7 @@
 // AST-based code formatter with configurable style rules
 
 #include "formatter.h"
+#include "naab/string_interpolation.h"
 #include "naab/ast.h"
 #include "naab/parser.h"
 #include "naab/lexer.h"
@@ -941,11 +942,20 @@ void Formatter::visitLiteralExpr(const ast::LiteralExpr& node) {
             write(node.getValue());
             break;
 
-        case ast::LiteralKind::String:
+        case ast::LiteralKind::String: {
+            // Re-encode a \${ escape: the lexer stores it as kEscapedDollar,
+            // and writing that out unchanged would turn the formatted file's
+            // literal ${ back into live interpolation.
+            std::string v = node.getValue();
+            const std::string marker(interp::kEscapedDollar);
+            for (size_t p = v.find(marker); p != std::string::npos; p = v.find(marker, p + 2)) {
+                v.replace(p, marker.size(), "\\$");
+            }
             write("\"");
-            write(node.getValue());
+            write(v);
             write("\"");
             break;
+        }
 
         case ast::LiteralKind::Null:
             write("null");

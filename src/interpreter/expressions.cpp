@@ -6,6 +6,7 @@
 //           visit(RangeExpr), visit(StructLiteralExpr)
 
 #include "naab/limits.h"
+#include "naab/string_interpolation.h"
 #include "naab/interpreter.h"
 #include "naab/governance.h"
 #include "naab/lexer.h"
@@ -1160,58 +1161,52 @@ void Interpreter::visit(ast::LiteralExpr& node) {
 
         case ast::LiteralKind::String: {
             const std::string& raw = node.getValue();
-            // Check if string contains interpolation ${...}
-            if (raw.find("${") != std::string::npos) {
-                std::string result;
-                size_t i = 0;
-                while (i < raw.size()) {
-                    if (raw[i] == '$' && i + 1 < raw.size() && raw[i + 1] == '{') {
-                        // Extract expression inside ${...}
-                        i += 2; // skip ${
-                        int depth = 1;
-                        std::string expr_text;
-                        while (i < raw.size() && depth > 0) {
-                            if (raw[i] == '{') depth++;
-                            else if (raw[i] == '}') {
-                                depth--;
-                                if (depth == 0) break;
-                            }
-                            expr_text += raw[i];
-                            i++;
-                        }
-                        if (i < raw.size()) i++; // skip closing }
-
-                        // Lex, parse, and evaluate the expression
-                        try {
-                            naab::lexer::Lexer expr_lexer(expr_text);
-                            auto expr_tokens = expr_lexer.tokenize();
-                            naab::parser::Parser expr_parser(expr_tokens);
-                            auto expr_ast = expr_parser.parseExpression();
-                            expr_ast->accept(*this);
-                            if (!result_.isNull()) {
-                                result += result_.toString();
-                            }
-                        } catch (const governance::GovernanceHardError&) {
-                            throw;  // uncatchable — propagate to main
-                        } catch (const std::exception& e) {
-                            // Rethrow with context about the interpolation
-                            std::string interp_err = std::string(e.what());
-                            interp_err += "\n\n  Error occurred inside string interpolation: ${" + expr_text + "}\n"
-                                         "  The expression inside ${...} must be a valid NAAb expression.\n"
-                                         "  If calling a function stored in a variable, call it directly:\n"
-                                         "    \"${myFunc()}\"              // correct\n"
-                                         "    \"${Sys.callFunction(fn)}\"  // WRONG - no Sys in NAAb";
-                            throw std::runtime_error(interp_err);
-                        }
-                    } else {
-                        result += raw[i];
-                        i++;
-                    }
-                }
-                result_ = NaabVal::makeString(result);
-            } else {
+            // One splitter for every consumer (see string_interpolation.h):
+            // also decodes \${ escapes in strings with no interpolation.
+            if (interp::isPlainLiteral(raw)) {
                 result_ = NaabVal::makeString(raw);
+                trackAllocation();
+                break;
             }
+            std::string result;
+            for (const auto& seg : interp::splitInterpolation(raw)) {
+                if (!seg.is_expr) {
+                    result += seg.text;
+                    continue;
+                }
+                std::unique_ptr<ast::Expr> expr_ast;
+                try {
+                    naab::lexer::Lexer expr_lexer(seg.text);
+                    auto expr_tokens = expr_lexer.tokenize();
+                    // Tokens of the extracted expression count lines from 1; move them to
+                    // the string's line so runtime errors inside ${...} point at it.
+                    for (auto& t : expr_tokens) t.line += std::max(0, node.getLocation().line - 1);
+                    naab::parser::Parser expr_parser(expr_tokens);
+                    expr_ast = expr_parser.parseExpression();
+                } catch (const governance::GovernanceHardError&) {
+                    throw;  // uncatchable -- propagate to main
+                } catch (const std::exception& e) {
+                    auto loc = node.getLocation();
+                    throw std::runtime_error(interp::formatInterpolationError(
+                        seg.text, e.what(), current_file_, loc.line, loc.column));
+                }
+                try {
+                    expr_ast->accept(*this);
+                } catch (const governance::GovernanceHardError&) {
+                    throw;  // uncatchable -- propagate to main
+                } catch (const std::exception& e) {
+                    auto loc = node.getLocation();
+                    std::string at = current_file_.empty() ? "" : " at " + current_file_ +
+                        (loc.line > 0 ? ":" + std::to_string(loc.line) : "");
+                    throw std::runtime_error(std::string(e.what()) +
+                        "\n\n  Error occurred inside string interpolation ${" + seg.text + "}" + at + "\n"
+                        "  To keep a literal ${ in the string instead, escape it as \\${");
+                }
+                if (!result_.isNull()) {
+                    result += result_.toString();
+                }
+            }
+            result_ = NaabVal::makeString(result);
             // Phase 3.2: Track allocation for automatic GC (strings are heap values)
             trackAllocation();
             break;

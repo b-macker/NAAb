@@ -2,6 +2,7 @@
 // Ported from Python implementation (naab/compiler/lexer.py)
 
 #include "naab/lexer.h"
+#include "naab/string_interpolation.h"
 #include "naab/limits.h"  // Week 1, Task 1.2: Input size caps
 #include <cctype>
 #include <stdexcept>
@@ -288,6 +289,32 @@ std::string Lexer::readString(bool is_fstring) {
                     case '\'': value += '\''; break;
                     case '0':  value += '\0'; break;
                     case 'e':  value += '\x1b'; break;  // ESC
+                    case '$':
+                        // \${ is a literal "${" (JS template literals, shell
+                        // ${VAR}). Encoded so no interpolation scanner sees
+                        // '$'; decoded by splitInterpolation(). A \$ not
+                        // followed by '{' keeps its backslash, as before, so
+                        // shell text like "echo \$HOME" is unchanged.
+                        if (peekChar() && *peekChar() == '{') {
+                            value += interp::kEscapedDollar;
+                            value += '{';
+                            advance();  // consume '{' so an f-string does not open on it
+                        } else {
+                            value += "\\$";
+                        }
+                        break;
+                    case '{':
+                    case '}':
+                        // In an f-string a bare '{' interpolates; \{ and \} are
+                        // literal (both accepted, so "\{x\}" reads naturally).
+                        // Elsewhere keep the backslash (regex text like "a\{2\}").
+                        if (is_fstring) {
+                            value += escaped;
+                        } else {
+                            value += '\\';
+                            value += escaped;
+                        }
+                        break;
                     case 'x': {
                         // \xNN hex escape (exactly 2 hex digits)
                         char hex[3] = {0, 0, 0};

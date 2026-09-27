@@ -31,14 +31,15 @@
 #
 # Why n=25 and not larger: std::regex cannot be interrupted, so a timed-out
 # worker is ABANDONED, not killed, and keeps a core busy until its search ends.
-# This suite first used n=30 (minutes to hours of work per worker, five workers
-# across B-01 and C-01). On Linux they die with the process. build-windows
-# instead stalled in this phase for 50+ minutes with no step timeout firing and
-# no logs uploaded -- consistent with MinGW holding the process open for
-# running threads, and a runner starved by 100%-CPU workers. The input is kept
-# just long enough to exceed the budget so abandoned work ends in seconds on
-# any platform. If exit does wait for abandoned workers, B-01's wall-time bound
-# FAILS, with a log, instead of wedging the runner.
+# Keep that work finite: this suite first used n=30 (minutes to hours per
+# worker). build-windows stalled once in this phase at that size, and the
+# input was shrunk on the hypothesis that MinGW holds the process open for
+# running threads. That hypothesis was then FALSIFIED: on Windows B-01 finished
+# in 1s INCLUDING process exit, so exit does not wait for abandoned workers.
+# The stall was most likely the runner wedge windows.yml already documents
+# (it has recurred on commits that could not have caused it). n=25 stays
+# because finite abandoned work is right regardless; C-01 uses n=28 so its
+# workers outlive the six calls and actually reach the cap.
 
 set -uo pipefail
 PASS=0

@@ -88,6 +88,7 @@ SCENARIOS="
 direct|tainted
 concat|tainted
 interp|tainted
+interp_escaped|clean
 list_elem|tainted
 dict_val|tainted
 if_expr|tainted
@@ -114,6 +115,15 @@ w interp        <<'EOF'
 use env
 use file
 main { let t = env.get("HOME") let x = "v=${t}" file.write("o.txt", x) }
+EOF
+# \${t} is a LITERAL "${t}", not a use of t. The evaluator and both taint
+# scanners share one splitter (string_interpolation.h); if a scanner still
+# treated the escape as interpolation this would be a false positive, and if
+# the evaluator did, it would be a false negative on `interp` above.
+w interp_escaped <<'EOF'
+use env
+use file
+main { let t = env.get("HOME") let x = "v=\${t}" file.write("o.txt", x) }
 EOF
 w list_elem     <<'EOF'
 use env

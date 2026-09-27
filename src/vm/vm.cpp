@@ -1,4 +1,5 @@
 #include "naab/vm.h"
+#include "naab/string_interpolation.h"
 #include "naab/compiler.h"
 #include "naab/debugger.h"
 #include "naab/governance.h"
@@ -5085,7 +5086,11 @@ std::string VM::getVariableHelper(const std::string& name) const {
         if (gname.find("__builtin__:") == 0) continue;
         candidates.push_back(gname);
     }
-    return naab::error::suggestForUndefinedVariable(name, candidates);
+    std::string fuzzy = naab::error::suggestForUndefinedVariable(name, candidates);
+    // ALL_CAPS is almost always shell/env syntax that NAAb interpolated out of
+    // a string ("echo ${HOME}") -- add the escape, keep any typo suggestion.
+    if (interp::isAllCapsName(name)) fuzzy += interp::undefinedCapsHint(name);
+    return fuzzy;
 }
 
 // ============================================================================

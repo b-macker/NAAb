@@ -63,6 +63,40 @@ main {
 }
 ```
 
+### 2.2.1 String Interpolation and Escapes
+
+Every string literal evaluates `${...}` as a NAAb expression. An f-string
+(`f"..."`) also accepts a bare `{...}`:
+
+```naab
+main {
+    let name = "Ada"
+    let n = 3
+    print("Hello ${name}, you have ${n * 2} messages")   // Hello Ada, you have 6 messages
+    print(f"Hello {name}")                                // Hello Ada
+}
+```
+
+Because **every** `${...}` is evaluated, text that uses the same syntax for
+something else (JavaScript template literals, shell variables, templating
+languages) has to be escaped. Write `\${` for a literal `${`, and in f-strings
+`\{` and `\}` for literal braces:
+
+```naab
+main {
+    let name = "Ada"
+    print("Template literal: `\${user.name}`")   // Template literal: `${user.name}`
+    print("Shell variable: echo \${HOME}")       // Shell variable: echo ${HOME}
+    print(f"Literal braces: \{name\}")           // Literal braces: {name}
+}
+```
+
+Better still, put JavaScript in a `<<javascript ... >>` block rather than a
+NAAb string. Inside a polyglot block, `${...}` belongs to that language.
+
+A `\$` that is not followed by `{` keeps its backslash, so shell text such as
+`"echo \$HOME"` reaches the shell unchanged.
+
 ## 2.3 Compound Data Types: Arrays and Dictionaries
 
 Beyond primitives, NAAb provides built-in support for common compound data types: arrays and dictionaries.

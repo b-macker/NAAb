@@ -5,6 +5,7 @@
 //           checkPolyglotBoundVarTaint, checkExpressionTaintedSink
 
 #include "naab/interpreter.h"
+#include "naab/string_interpolation.h"
 #include <fmt/core.h>
 
 namespace naab {
@@ -48,32 +49,13 @@ bool Interpreter::expressionContainsTaint(ast::Expr* expr) {
         return expressionContainsTaint(member->getObject());
     }
 
-    // BUG-S: String interpolation in LiteralExpr — scan ${...} for tainted variable references
+    // BUG-S: String interpolation in LiteralExpr -- scan ${...} for tainted
+    // variable references. Same splitter as the evaluator, so an escaped \${x}
+    // is literal text, not a use of x.
     if (auto* lit = dynamic_cast<ast::LiteralExpr*>(expr)) {
         if (lit->getLiteralKind() == ast::LiteralKind::String) {
-            const std::string& raw = lit->getValue();
-            size_t pos = 0;
-            while ((pos = raw.find("${", pos)) != std::string::npos) {
-                pos += 2;
-                int depth = 1;
-                std::string expr_text;
-                size_t i = pos;
-                while (i < raw.size() && depth > 0) {
-                    if (raw[i] == '{') depth++;
-                    else if (raw[i] == '}') { depth--; if (depth == 0) break; }
-                    expr_text += raw[i]; i++;
-                }
-                // Extract identifiers from the interpolated expression text
-                std::string word;
-                for (char c : expr_text) {
-                    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') { word += c; }
-                    else {
-                        if (!word.empty() && governance_->isTainted(word)) return true;
-                        word.clear();
-                    }
-                }
-                if (!word.empty() && governance_->isTainted(word)) return true;
-                pos = i + 1;
+            for (const auto& id : interp::interpolatedIdentifiers(lit->getValue())) {
+                if (governance_->isTainted(id)) return true;
             }
         }
         return false;

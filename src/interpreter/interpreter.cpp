@@ -2,6 +2,7 @@
 // Core interpreter implementation
 
 #include "naab/interpreter.h"
+#include "naab/string_interpolation.h"
 #include "naab/governance.h"  // GovernanceHardError — uncatchable exception
 #include "naab/lexer.h"   // For string interpolation evaluation
 #include "naab/parser.h"  // For string interpolation evaluation
@@ -461,6 +462,9 @@ NaabVal Environment::get(const std::string& name) {
         if (!suggestion.empty()) {
             error_msg += "\n  " + suggestion;
         }
+        // ALL_CAPS: almost always shell/env syntax NAAb interpolated out of a
+        // string ("echo ${HOME}"). Same hint as the VM.
+        if (interp::isAllCapsName(name)) error_msg += interp::undefinedCapsHint(name);
     }
     throw std::runtime_error(error_msg);
 }

@@ -1,4 +1,5 @@
 #include "naab/compiler.h"
+#include "naab/string_interpolation.h"
 #include "naab/governance.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
@@ -546,71 +547,54 @@ void Compiler::visit(ast::LiteralExpr& node) {
         }
         case ast::LiteralKind::String: {
             const std::string& raw = node.getValue();
-            // Check for string interpolation ${...}
-            if (raw.find("${") != std::string::npos) {
-                // Split into literal parts and expressions, compile as concatenation.
-                // Strategy: build result string on stack via OP_ADD.
-                // For each expression, call string(expr) to convert to string first.
-                // string() is a global builtin.
-
-                // Collect segments: literal strings and expression texts
-                struct Segment { bool is_expr; std::string text; };
-                std::vector<Segment> segments;
-                size_t i = 0;
-                while (i < raw.size()) {
-                    if (raw[i] == '$' && i + 1 < raw.size() && raw[i + 1] == '{') {
-                        i += 2; // skip ${
-                        int depth = 1;
-                        std::string expr_text;
-                        while (i < raw.size() && depth > 0) {
-                            if (raw[i] == '{') depth++;
-                            else if (raw[i] == '}') { depth--; if (depth == 0) break; }
-                            expr_text += raw[i++];
-                        }
-                        if (i < raw.size()) i++; // skip }
-                        segments.push_back({true, expr_text});
-                    } else {
-                        std::string text;
-                        while (i < raw.size() && !(raw[i] == '$' && i + 1 < raw.size() && raw[i + 1] == '{')) {
-                            text += raw[i++];
-                        }
-                        if (!text.empty()) segments.push_back({false, text});
-                    }
-                }
-
-                if (segments.empty()) {
-                    int idx = makeConstant(interpreter::NaabVal::makeString(""));
-                    emitWide(OpCode::OP_CONST, static_cast<uint32_t>(idx), line);
-                } else {
-                    // Compile first segment
-                    bool have_value = false;
-                    for (size_t si = 0; si < segments.size(); si++) {
-                        auto& seg = segments[si];
-                        if (seg.is_expr) {
-                            // Emit: string(expr) — push string builtin, push expr, call
-                            int str_fn = identifierConstant("string");
-                            emitWide(OpCode::OP_GET_GLOBAL, static_cast<uint32_t>(str_fn), line);
-                            // Compile the expression inline
-                            naab::lexer::Lexer expr_lexer(seg.text);
-                            auto expr_tokens = expr_lexer.tokenize();
-                            naab::parser::Parser expr_parser(expr_tokens);
-                            auto expr_ast = expr_parser.parseExpression();
-                            expr_ast->accept(*this);
-                            // Call string(expr) — 1 arg
-                            emit3(OpCode::OP_CALL, 1, 0, 0, line);
-                        } else {
-                            int tidx = makeConstant(interpreter::NaabVal::makeString(seg.text));
-                            emitWide(OpCode::OP_CONST, static_cast<uint32_t>(tidx), line);
-                        }
-                        if (have_value) {
-                            emitOp(OpCode::OP_ADD, line); // concat with previous
-                        }
-                        have_value = true;
-                    }
-                }
-            } else {
+            // One splitter for every consumer (see string_interpolation.h).
+            if (interp::isPlainLiteral(raw)) {
                 int idx = makeConstant(interpreter::NaabVal::makeString(raw));
                 emitWide(OpCode::OP_CONST, static_cast<uint32_t>(idx), line);
+                break;
+            }
+            // Compile as concatenation: literal parts as constants, each
+            // ${expr} as string(expr), joined with OP_ADD.
+            auto segments = interp::splitInterpolation(raw);
+            if (segments.empty()) {
+                int idx = makeConstant(interpreter::NaabVal::makeString(""));
+                emitWide(OpCode::OP_CONST, static_cast<uint32_t>(idx), line);
+                break;
+            }
+            bool have_value = false;
+            for (const auto& seg : segments) {
+                if (seg.is_expr) {
+                    // Parse first: a parse error here used to escape as
+                    // "line 1, column N" -- its position inside the extracted
+                    // expression, with no file -- plus an unrelated hint.
+                    std::unique_ptr<ast::Expr> expr_ast;
+                    try {
+                        naab::lexer::Lexer expr_lexer(seg.text);
+                        auto expr_tokens = expr_lexer.tokenize();
+                        // Tokens of the extracted expression count lines from 1; move them to
+                        // the string's line so runtime errors inside ${...} point at it.
+                        for (auto& t : expr_tokens) t.line += std::max(0, node.getLocation().line - 1);
+                        naab::parser::Parser expr_parser(expr_tokens);
+                        expr_ast = expr_parser.parseExpression();
+                    } catch (const governance::GovernanceHardError&) {
+                        throw;
+                    } catch (const std::exception& e) {
+                        auto loc = node.getLocation();
+                        throw std::runtime_error(interp::formatInterpolationError(
+                            seg.text, e.what(), source_file_, loc.line, loc.column));
+                    }
+                    int str_fn = identifierConstant("string");
+                    emitWide(OpCode::OP_GET_GLOBAL, static_cast<uint32_t>(str_fn), line);
+                    expr_ast->accept(*this);
+                    emit3(OpCode::OP_CALL, 1, 0, 0, line);  // string(expr)
+                } else {
+                    int tidx = makeConstant(interpreter::NaabVal::makeString(seg.text));
+                    emitWide(OpCode::OP_CONST, static_cast<uint32_t>(tidx), line);
+                }
+                if (have_value) {
+                    emitOp(OpCode::OP_ADD, line);  // concat with previous
+                }
+                have_value = true;
             }
             break;
         }
@@ -845,10 +829,16 @@ void Compiler::visit(ast::BinaryExpr& node) {
                 default: break;
             }
         }
-        // String + String concatenation
+        // String + String concatenation. Fold only PLAIN literals: the raw
+        // value of "n=${n}" is its source text, so folding it produced the
+        // literal text "n=${n}!" on the VM while the tree-walker interpolated
+        // ("n=5!"), and a \${ escape leaked its internal marker. Anything with
+        // interpolation or an escape compiles normally, via the splitter.
         if (left_lit->getLiteralKind() == ast::LiteralKind::String &&
             right_lit->getLiteralKind() == ast::LiteralKind::String &&
-            node.getOp() == ast::BinaryOp::Add) {
+            node.getOp() == ast::BinaryOp::Add &&
+            interp::isPlainLiteral(left_lit->getValue()) &&
+            interp::isPlainLiteral(right_lit->getValue())) {
             { int ci = makeConstant(interpreter::NaabVal::makeString(
                 left_lit->getValue() + right_lit->getValue()));
               emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); }
@@ -2130,33 +2120,12 @@ bool Compiler::exprContainsTaint(ast::Expr* expr) {
                exprContainsTaint(ife->getElseExpr());
     }
 
-    // LiteralExpr(String): scan ${var} for tainted variable references
+    // LiteralExpr(String): scan ${var} for tainted variable references.
+    // Same splitter as the evaluator, so an escaped \${x} is not a use of x.
     if (auto* lit = dynamic_cast<ast::LiteralExpr*>(expr)) {
         if (lit->getLiteralKind() == ast::LiteralKind::String) {
-            const std::string& raw = lit->getValue();
-            size_t pos = 0;
-            while ((pos = raw.find("${", pos)) != std::string::npos) {
-                pos += 2;
-                int depth = 1;
-                std::string expr_text;
-                size_t i = pos;
-                while (i < raw.size() && depth > 0) {
-                    if (raw[i] == '{') depth++;
-                    else if (raw[i] == '}') { depth--; if (depth == 0) break; }
-                    expr_text += raw[i]; i++;
-                }
-                // Extract identifiers from interpolated expression
-                std::string word;
-                for (char c : expr_text) {
-                    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
-                        word += c;
-                    } else {
-                        if (!word.empty() && tainted_vars_.count(word) > 0) return true;
-                        word.clear();
-                    }
-                }
-                if (!word.empty() && tainted_vars_.count(word) > 0) return true;
-                pos = i + 1;
+            for (const auto& id : interp::interpolatedIdentifiers(lit->getValue())) {
+                if (tainted_vars_.count(id) > 0) return true;
             }
         }
         return false;

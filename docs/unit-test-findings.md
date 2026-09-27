@@ -110,6 +110,14 @@ rejected 3 ordinary ones, including `(?:ab)+`. Measured after the fix:
 `tests/security/test_regex_timeout_bound.sh`, which fails 4 of 7 against the
 old implementation (its 3 controls pass on both builds).
 
+**Windows follow-up.** build-windows stalled once (58 min, no logs) in the
+phase that runs the new suite. The first explanation, that MinGW holds the
+process open for abandoned regex threads, was tested and falsified: on the next
+Windows run the suite passed 7/7 and B-01 took 1 s including process exit. The
+stall is most likely the runner wedge `windows.yml` documents. Measured on that
+run: `test_r22_fixes.sh` alone took about 6 of the 9m39s shell phase (the slow
+`naab-gov scan` of an 11 MB file).
+
 **Open (2a):** embedded Python.
 
 ## 3. Real but not reachable today
@@ -124,7 +132,12 @@ old implementation (its 3 controls pass on both builds).
   future's `.get()` is called; `submit()` blocks until an earlier callback is
   done, which cannot happen before the caller reaches `.get()`. Also explains
   `CancelDuringExecution` and `ExecuteRaceFirstWins`. Only tests construct a
-  pool.
+  pool. It is also RACY, not only deadlock-prone: `PoolThreadSafety`
+  segfaulted in 2 of 6 isolated runs (measured on the string-interpolation
+  branch, which does not touch this code). With deferred launch a callback
+  runs on whichever thread calls `.get()`, while another thread's `submit()`
+  runs `cleanupCompleted()` and erases wrappers it sees as done -- a wrapper
+  can be freed while its callback is still returning through it.
 - **Zero means two things.** `PermissionLevel::UNRESTRICTED` sets
   `max_cpu_seconds = 0` ("no limit"); the shell, JS, generic-subprocess and
   persistent-process executors pass it to `ScopedTimeout(0)`, whose timer fires
