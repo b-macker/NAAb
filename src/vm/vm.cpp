@@ -10,6 +10,7 @@
 #include "naab/language_registry.h"
 #include "naab/module_resolver.h"
 #include "naab/stdlib.h"
+#include "naab/string_ops.h"
 #include "naab/stdlib_new_modules.h"
 #include "naab/sandbox.h"
 #include "naab/error_helpers.h"
@@ -4288,36 +4289,21 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
         }
         if (method == "substring" || method == "substr") {
             if (argc < 1) runtimeError("substring() requires at least 1 argument");
-            int start = args[0].toInt();
-            if (start < 0) start = 0;
-            if (start >= static_cast<int>(s.size())) return interpreter::NaabVal::makeString("");
-            if (argc >= 2) {
-                int end_val = args[1].toInt();
-                if (end_val < start) return interpreter::NaabVal::makeString("");
-                return interpreter::NaabVal::makeString(s.substr(start, end_val - start));
-            }
-            return interpreter::NaabVal::makeString(s.substr(start));
+            return interpreter::NaabVal::makeString(
+                strops::substring(s, args[0].toInt(), argc >= 2, argc >= 2 ? args[1].toInt() : 0));
         }
         if (method == "slice") {
             if (argc < 1) runtimeError("slice() requires at least 1 argument");
-            int len = static_cast<int>(s.size());
-            int start = args[0].toInt();
-            if (start < 0) start += len;
-            if (start < 0) start = 0;
-            int end_val = argc >= 2 ? args[1].toInt() : len;
-            if (end_val < 0) end_val += len;
-            if (end_val > len) end_val = len;
-            if (start >= end_val) return interpreter::NaabVal::makeString("");
-            return interpreter::NaabVal::makeString(s.substr(start, end_val - start));
+            return interpreter::NaabVal::makeString(
+                strops::slice(s, args[0].toInt(), argc >= 2, argc >= 2 ? args[1].toInt() : 0));
         }
         if (method == "replace") {
+            // Every occurrence, like string.replace() and the tree-walker. This
+            // replaced only the FIRST, so s.replace("-", "+") gave "a+b-c" on
+            // the VM and "a+b+c" on the tree-walker.
             if (argc < 2) runtimeError("replace() requires 2 arguments");
-            std::string result = s;
-            std::string from = args[0].toString();
-            std::string to = args[1].toString();
-            size_t pos = result.find(from);
-            if (pos != std::string::npos) result.replace(pos, from.size(), to);
-            return interpreter::NaabVal::makeString(std::move(result));
+            return interpreter::NaabVal::makeString(
+                strops::replaceAll(s, args[0].toString(), args[1].toString()));
         }
         if (method == "startsWith" || method == "starts_with") {
             if (argc < 1) runtimeError("startsWith() requires 1 argument");

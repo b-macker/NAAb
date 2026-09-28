@@ -27,6 +27,8 @@
 #include <unordered_set>
 #include <naab/safe_math.h>
 
+#include "naab/string_ops.h"
+
 namespace naab {
 namespace interpreter {
 
@@ -1020,33 +1022,29 @@ void Interpreter::visit(ast::CallExpr& node) {
                     result_ = NaabVal::makeInt(pos != std::string::npos ? static_cast<int>(pos) : -1);
                     return;
                 }
-                if (method_name == "substring" || method_name == "substr" || method_name == "slice") {
+                if (method_name == "substring" || method_name == "substr") {
                     if (args.empty()) throw std::runtime_error("string.substring() requires at least 1 argument");
-                    int start = args[0].asInt();
-                    if (start < 0) start = 0;
-                    if (start >= static_cast<int>(str.size())) {
-                        result_ = NaabVal::makeString("");
-                        return;
-                    }
-                    if (args.size() >= 2) {
-                        int end = args[1].asInt();
-                        if (end > static_cast<int>(str.size())) end = static_cast<int>(str.size());
-                        result_ = NaabVal::makeString(str.substr(static_cast<size_t>(start), static_cast<size_t>(end - start)));
-                    } else {
-                        result_ = NaabVal::makeString(str.substr(static_cast<size_t>(start)));
-                    }
+                    result_ = NaabVal::makeString(strops::substring(
+                        str, args[0].asInt(), args.size() >= 2, args.size() >= 2 ? args[1].asInt() : 0));
+                    return;
+                }
+                // slice is NOT substring: JavaScript semantics, as on the VM. This path
+                // aliased it to substring, so s.slice(-3) gave "hello" here and "llo" on
+                // the VM; substring's reversed-range case also returned the rest of the
+                // string ("lo") via a wrapped size_t.
+                if (method_name == "slice") {
+                    if (args.empty()) throw std::runtime_error("string.slice() requires at least 1 argument (start)");
+                    result_ = NaabVal::makeString(strops::slice(
+                        str, args[0].asInt(), args.size() >= 2, args.size() >= 2 ? args[1].asInt() : 0));
                     return;
                 }
                 if (method_name == "replace") {
+                    // Through strops::replaceAll: this loop had no empty-pattern guard, and
+                    // find("") matches at every position, so "ab".replace("", "+") inserted
+                    // forever -- an unbounded hang with growing memory that --timeout cannot
+                    // stop (it never returns to the interpreter). REST runs the tree-walker.
                     if (args.size() < 2) throw std::runtime_error("string.replace() requires 2 arguments (old, new)");
-                    std::string old_s = args[0].toString(), new_s = args[1].toString();
-                    std::string result = str;
-                    size_t pos = 0;
-                    while ((pos = result.find(old_s, pos)) != std::string::npos) {
-                        result.replace(pos, old_s.length(), new_s);
-                        pos += new_s.length();
-                    }
-                    result_ = NaabVal::makeString(result);
+                    result_ = NaabVal::makeString(strops::replaceAll(str, args[0].toString(), args[1].toString()));
                     return;
                 }
                 if (method_name == "toUpperCase" || method_name == "upper") {
@@ -2010,34 +2008,29 @@ void Interpreter::visit(ast::CallExpr& node) {
                 result_ = NaabVal::makeInt(pos != std::string::npos ? static_cast<int>(pos) : -1);
                 return;
             }
-            if (method_name == "substring" || method_name == "substr" || method_name == "slice") {
+            if (method_name == "substring" || method_name == "substr") {
                 if (args.empty()) throw std::runtime_error("string.substring() requires at least 1 argument (start)");
-                int start = args[0].asInt();
-                if (start < 0) start = 0;
-                if (start >= static_cast<int>(str.size())) {
-                    result_ = NaabVal::makeString("");
-                    return;
-                }
-                if (args.size() >= 2) {
-                    int end = args[1].asInt();
-                    if (end > static_cast<int>(str.size())) end = static_cast<int>(str.size());
-                    result_ = NaabVal::makeString(str.substr(static_cast<size_t>(start), static_cast<size_t>(end - start)));
-                } else {
-                    result_ = NaabVal::makeString(str.substr(static_cast<size_t>(start)));
-                }
+                result_ = NaabVal::makeString(strops::substring(
+                    str, args[0].asInt(), args.size() >= 2, args.size() >= 2 ? args[1].asInt() : 0));
+                return;
+            }
+            // slice is NOT substring: JavaScript semantics, as on the VM. This path
+            // aliased it to substring, so s.slice(-3) gave "hello" here and "llo" on
+            // the VM; substring's reversed-range case also returned the rest of the
+            // string ("lo") via a wrapped size_t.
+            if (method_name == "slice") {
+                if (args.empty()) throw std::runtime_error("string.slice() requires at least 1 argument (start)");
+                result_ = NaabVal::makeString(strops::slice(
+                    str, args[0].asInt(), args.size() >= 2, args.size() >= 2 ? args[1].asInt() : 0));
                 return;
             }
             if (method_name == "replace") {
+                // Through strops::replaceAll: this loop had no empty-pattern guard, and
+                // find("") matches at every position, so "ab".replace("", "+") inserted
+                // forever -- an unbounded hang with growing memory that --timeout cannot
+                // stop (it never returns to the interpreter). REST runs the tree-walker.
                 if (args.size() < 2) throw std::runtime_error("string.replace() requires 2 arguments (old, new)");
-                std::string old_str = args[0].toString();
-                std::string new_str = args[1].toString();
-                std::string result = str;
-                size_t pos = 0;
-                while ((pos = result.find(old_str, pos)) != std::string::npos) {
-                    result.replace(pos, old_str.length(), new_str);
-                    pos += new_str.length();
-                }
-                result_ = NaabVal::makeString(result);
+                result_ = NaabVal::makeString(strops::replaceAll(str, args[0].toString(), args[1].toString()));
                 return;
             }
             if (method_name == "toUpperCase" || method_name == "upper") {

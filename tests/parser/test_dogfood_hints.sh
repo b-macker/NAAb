@@ -127,7 +127,9 @@ echo "=== S: string names from other languages point at the NAAb one ==="
 # Match the suggestion itself ("Did you mean: string.X"): the old message
 # listed every function after "Available:", so a loose match on the name
 # passed S-01 on the build that suggested split().
-for case_ in "S-01:slice:string.substring" "S-02:includes:string.contains" \
+# (S-01 was slice -> substring; string.slice now exists, see S-06. substr keeps
+# a hint because JavaScript's substr takes a LENGTH, not an end index.)
+for case_ in "S-01:substr:string.substring" "S-02:includes:string.contains" \
              "S-03:padStart:string.pad_left" "S-04:replaceAll:string.replace" \
              "S-05:trimStart:string.trim"; do
     id="${case_%%:*}"; rest="${case_#*:}"; fn="${rest%%:*}"; want="${rest#*:}"
@@ -142,6 +144,40 @@ printf 'use string\nmain {\n    print(string.substring("hello", 1, 3))\n}\n' > "
 out="$(run "" s_ok.naab)"
 if grep -qx 'el' <<<"$out"; then pass S-00 "control: string.substring still works"
 else fail S-00 "control: string.substring broke" "$(head -2 <<<"$out")"; fi
+
+# S-06 (round 3): `s.slice(...)` worked as a METHOD while `string.slice(...)`
+# was an unknown function. It is now a module function with the method's
+# JavaScript semantics, in both engines.
+printf 'use string\nmain {\n    print(string.slice("hello", -3))\n    print(string.slice("hello", 1, -1))\n}\n' > "$WORK/s_slice.naab"
+for eng in "" "--tree-walk"; do
+    tag="${eng:-vm}"; tag="${tag#--}"
+    out="$(run "$eng" s_slice.naab)"
+    if [ "$(grep -xE 'llo|ell' <<<"$out" | tr '\n' ' ')" = "llo ell " ]; then
+        pass "S-06/$tag" "string.slice works, negative indices count from the end"
+    else
+        fail "S-06/$tag" "string.slice missing or wrong" "$(head -3 <<<"$out")"
+    fi
+done
+
+echo "=== E: an empty pattern cannot hang replace ==="
+# The tree-walker's s.replace had no empty-pattern guard: find("") matches at
+# every position, so "ab".replace("", "+") inserted forever with growing
+# memory, and --timeout could not stop it (the loop never returns to the
+# interpreter). The REST API runs the tree-walker. The expected output is the
+# string unchanged, as string.replace already did.
+printf 'main {\n    print("ab".replace("", "+"))\n    print("E_DONE")\n}\n' > "$WORK/e_empty.naab"
+for eng in "" "--tree-walk"; do
+    tag="${eng:-vm}"; tag="${tag#--}"
+    out="$( (cd "$WORK" && timeout 10 "$NAAB" $eng "$WORK/e_empty.naab" 2>&1) )"
+    rc=$?
+    if [ "$rc" -eq 124 ]; then
+        fail "E-01/$tag" "s.replace(\"\", ...) hung (killed after 10s)"
+    elif grep -qx 'ab' <<<"$out" && grep -qx 'E_DONE' <<<"$out"; then
+        pass "E-01/$tag" "empty-pattern replace returns the string unchanged"
+    else
+        fail "E-01/$tag" "empty-pattern replace gave the wrong result" "$(head -3 <<<"$out")"
+    fi
+done
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
