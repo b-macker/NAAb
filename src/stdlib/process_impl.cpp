@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <stdexcept>
 #include <cstdlib>
+#include <cctype>
 
 #ifndef _WIN32
 #  include <csignal>
@@ -27,6 +28,52 @@
 
 namespace naab {
 namespace stdlib {
+
+namespace {
+
+// Recognise `<interpreter> <inline-code flag> <code>` and return the code with
+// the governance language name. The command may carry a directory, a Windows
+// .exe suffix or a version suffix (python3.12, /usr/bin/node). Short flags may
+// be clustered (`bash -ec`, `python3 -Ic`) when the code flag comes last.
+bool inlineInterpreterCode(const std::string& cmd,
+                           const std::vector<std::string>& argv,
+                           std::string& lang, std::string& code) {
+    std::string base = cmd;
+    auto slash = base.find_last_of("/\\");
+    if (slash != std::string::npos) base = base.substr(slash + 1);
+    for (auto& c : base) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (base.size() > 4 && base.compare(base.size() - 4, 4, ".exe") == 0)
+        base.resize(base.size() - 4);
+    // strip a trailing version: python3.12 -> python, ruby3.2 -> ruby
+    while (!base.empty() && (std::isdigit(static_cast<unsigned char>(base.back())) || base.back() == '.'))
+        base.pop_back();
+
+    std::string short_flags;   // single letters that take the code as the next arg
+    std::vector<std::string> long_flags;
+    if (base == "python" || base == "pypy") { lang = "python"; short_flags = "c"; }
+    else if (base == "node" || base == "nodejs") { lang = "javascript"; short_flags = "ep"; long_flags = {"--eval", "--print"}; }
+    else if (base == "ruby") { lang = "ruby"; short_flags = "e"; }
+    else if (base == "perl") { lang = "perl"; short_flags = "eE"; }
+    else if (base == "php") { lang = "php"; short_flags = "r"; }
+    else if (base == "bash" || base == "sh" || base == "dash" || base == "zsh" || base == "ksh") { lang = "shell"; short_flags = "c"; }
+    else return false;
+
+    for (size_t i = 0; i + 1 < argv.size(); ++i) {
+        const std::string& a = argv[i];
+        bool hit = false;
+        for (const auto& lf : long_flags) if (a == lf) hit = true;
+        if (!hit && a.size() >= 2 && a[0] == '-' && a[1] != '-' &&
+            short_flags.find(a.back()) != std::string::npos) hit = true;
+        if (hit) { code = argv[i + 1]; return true; }
+    }
+    // `node --eval=CODE`
+    for (const auto& a : argv)
+        for (const auto& lf : long_flags)
+            if (a.rfind(lf + "=", 0) == 0) { code = a.substr(lf.size() + 1); return true; }
+    return false;
+}
+
+} // namespace
 
 bool ProcessModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
@@ -87,6 +134,20 @@ interpreter::NaabVal ProcessModule::call(
             for (const auto& a : argv_vec) full_cmd += " " + a;
             std::string gerr = gov->checkShellCommandAllowed(full_cmd);
             if (!gerr.empty()) throw std::runtime_error(gerr);
+
+            // Inline interpreter code (python3 -c, node -e, sh -c, ...) is a
+            // polyglot block by another name. It used to skip every code check
+            // a <<python>> block or codegen.run() gets: measured, the same
+            // `except Exception: return 0` was a HARD block in both of those
+            // and ran silently here. Route it through the same check.
+            if (gov->isActive()) {
+                std::string lang, code;
+                if (inlineInterpreterCode(cmd, argv_vec, lang, code)) {
+                    std::string berr = gov->checkPolyglotBlock(
+                        lang, code, "<process.run:" + lang + ">", 0);
+                    if (!berr.empty()) throw std::runtime_error(berr);
+                }
+            }
         }
 
         std::string stdout_str, stderr_str;
