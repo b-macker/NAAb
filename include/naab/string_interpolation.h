@@ -138,13 +138,20 @@ inline std::string formatInterpolationError(const std::string& expr,
                                             const std::string& file,
                                             int line, int column) {
     std::string first = inner_error.substr(0, inner_error.find("\n\n"));
-    // The inner parser only saw the extracted expression, so its "line 1,
-    // column N" is a position inside ${...}. Say that, not a file position.
-    const std::string prefix = "Parse error at line 1, column ";
+    // The inner parser only saw the extracted expression, so its column is a
+    // position inside ${...}. Its LINE is not: the evaluators shift the inner
+    // tokens to the string's line (so runtime errors point at the right file
+    // line), which means the inner parse error reads "line <file line>,
+    // column <offset in the expression>" -- a file line paired with a column
+    // that is not one. Matching only "line 1" missed every string not on line
+    // 1 and printed exactly that mix. Report the column as what it is.
+    const std::string prefix = "Parse error at line ";
     if (first.compare(0, prefix.size(), prefix) == 0) {
-        size_t colon = first.find(':', prefix.size());
+        size_t col_kw = first.find(", column ", prefix.size());
+        size_t colon = col_kw == std::string::npos ? col_kw : first.find(':', col_kw);
         if (colon != std::string::npos) {
-            first = "at character " + first.substr(prefix.size(), colon - prefix.size()) +
+            size_t col_start = col_kw + 9;  // strlen(", column ")
+            first = "at character " + first.substr(col_start, colon - col_start) +
                     " of the expression:" + first.substr(colon + 1);
         }
     }

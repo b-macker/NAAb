@@ -103,6 +103,46 @@ for case_ in "T-01:t_let:let (control)" "T-02:t_dict:dict literal value" "T-03:t
     fi
 done
 
+echo "=== I: interpolation parse errors report the column as a column ==="
+# #258 shifted the inner tokens to the string's FILE line (so runtime errors
+# inside ${...} point at the right line), which moved the inner parse error
+# off "line 1" -- and the rewrite to "character N of the expression" matched
+# only "line 1", so round 2 of repo-sentinel printed "Parser said: Parse error
+# at line 2, column 11": a file line paired with an offset inside ${...}.
+printf 'main {\n    let js = "x ${c.replace(/a/g, 1)} y"\n}\n' > "$WORK/i_line2.naab"
+out="$(run "" i_line2.naab)"
+case "$out" in
+    *"Parser said:  at character"*"of the expression"*)
+        if [[ "$out" == *"Parser said:  Parse error at line"* ]]; then
+            fail I-01 "still reports the inner parse error as a file line"
+        else
+            pass I-01 "string on line 2: the inner column is reported as a character offset"
+        fi ;;
+    *) fail I-01 "inner parse error not rewritten" "$(grep 'Parser said' <<<"$out")" ;;
+esac
+
+echo "=== S: string names from other languages point at the NAAb one ==="
+# F-007: `string.slice` suggested split() (edit distance). These say the
+# equivalent directly. S-00 is the control that a real function still works.
+# Match the suggestion itself ("Did you mean: string.X"): the old message
+# listed every function after "Available:", so a loose match on the name
+# passed S-01 on the build that suggested split().
+for case_ in "S-01:slice:string.substring" "S-02:includes:string.contains" \
+             "S-03:padStart:string.pad_left" "S-04:replaceAll:string.replace" \
+             "S-05:trimStart:string.trim"; do
+    id="${case_%%:*}"; rest="${case_#*:}"; fn="${rest%%:*}"; want="${rest#*:}"
+    printf 'use string\nmain {\n    print(string.%s("abc", 1, 2))\n}\n' "$fn" > "$WORK/s_$fn.naab"
+    out="$(run "" "s_$fn.naab")"
+    case "$out" in
+        *"Did you mean: $want"*) pass "$id" "string.$fn -> $want" ;;
+        *) fail "$id" "string.$fn gives no useful suggestion" "$(grep -m2 'Did you mean\|Error' <<<"$out")" ;;
+    esac
+done
+printf 'use string\nmain {\n    print(string.substring("hello", 1, 3))\n}\n' > "$WORK/s_ok.naab"
+out="$(run "" s_ok.naab)"
+if grep -qx 'el' <<<"$out"; then pass S-00 "control: string.substring still works"
+else fail S-00 "control: string.substring broke" "$(head -2 <<<"$out")"; fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
