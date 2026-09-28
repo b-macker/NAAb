@@ -15,52 +15,176 @@ namespace ffi {
 // AsyncCallbackWrapper Implementation
 // ============================================================================
 
+struct AsyncCallbackWrapper::State {
+    AsyncCallbackWrapper::CallbackFunc callback;
+    AsyncCallbackWrapper::TaintReporterFunc taint_reporter;  // V-GOV-015: optional
+    std::string name;
+    std::chrono::milliseconds timeout;
+    std::atomic<bool> cancelled{false};
+    std::atomic<bool> done{false};
+};
+
+static void logAsyncEvent(const std::string& name, const std::string& event,
+                          const std::string& details) {
+    security::AuditLogger::log(
+        security::AuditEvent::BLOCK_EXECUTE,
+        fmt::format("[{}] {}: {}", name, event, details)
+    );
+}
+
+// Run the callback on its own thread and wait up to the timeout. Takes the
+// state by shared_ptr: the callback thread holds its own reference, so a
+// timed-out callback that is still running when the wrapper is destroyed runs
+// against live state, not a freed wrapper.
+static AsyncCallbackResult runWithTimeout(std::shared_ptr<AsyncCallbackWrapper::State> st) {
+    auto start_time = std::chrono::steady_clock::now();
+    auto elapsed_ms = [&start_time]() {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start_time);
+    };
+
+    try {
+        if (st->cancelled.load()) {
+            st->done.store(true);
+            return AsyncCallbackResult::makeError(
+                "Callback cancelled before execution",
+                "CancelledException"
+            );
+        }
+
+        auto result_promise = std::make_shared<std::promise<interpreter::NaabVal>>();
+        std::future<interpreter::NaabVal> result_future = result_promise->get_future();
+
+        std::thread worker_thread([st, result_promise]() {
+            try {
+                if (st->cancelled.load()) {
+                    result_promise->set_exception(std::make_exception_ptr(
+                        AsyncCallbackException("Callback cancelled during execution")));
+                    return;
+                }
+                result_promise->set_value(st->callback());
+            } catch (...) {
+                result_promise->set_exception(std::current_exception());
+            }
+        });
+
+        std::future_status status;
+        if (st->timeout.count() > 0) {
+            status = result_future.wait_for(st->timeout);
+        } else {
+            result_future.wait();
+            status = std::future_status::ready;
+        }
+
+        if (status == std::future_status::timeout) {
+            st->cancelled.store(true);
+            worker_thread.detach();  // cannot be cancelled; it owns what it touches
+            auto elapsed = elapsed_ms();
+            logAsyncEvent(st->name, "timeout", fmt::format(
+                "Execution timed out after {}ms (limit: {}ms)",
+                elapsed.count(), st->timeout.count()));
+            security::AuditLogger::logSecurityViolation(
+                fmt::format("async_callback_timeout: Async callback '{}' timed out after {}ms",
+                            st->name, elapsed.count()));
+            st->done.store(true);
+            return AsyncCallbackResult::makeError(
+                fmt::format("Callback timed out after {}ms", elapsed.count()),
+                "TimeoutException"
+            );
+        }
+
+        worker_thread.join();
+        try {
+            interpreter::NaabVal result = result_future.get();
+            auto elapsed = elapsed_ms();
+            logAsyncEvent(st->name, "completed", fmt::format(
+                "Execution completed successfully in {}ms", elapsed.count()));
+            // V-GOV-015: query taint reporter (if wired) so the async result
+            // carries the governance taint bit from the worker thread.
+            bool tainted = st->taint_reporter ? st->taint_reporter() : false;
+            st->done.store(true);
+            return AsyncCallbackResult::makeSuccess(result, elapsed, tainted);
+        } catch (const std::exception& e) {
+            auto elapsed = elapsed_ms();
+            logAsyncEvent(st->name, "error", fmt::format(
+                "Execution failed: {} (after {}ms)", e.what(), elapsed.count()));
+            security::AuditLogger::logSecurityViolation(
+                fmt::format("async_callback_exception: Async callback '{}' threw exception: {}",
+                            st->name, e.what()));
+            st->done.store(true);
+            return AsyncCallbackResult::makeError(e.what(), "std::exception");
+        } catch (...) {
+            st->done.store(true);
+            return AsyncCallbackResult::makeError(
+                "Unknown exception in callback", "UnknownException");
+        }
+    } catch (const std::exception& e) {
+        logAsyncEvent(st->name, "error", fmt::format(
+            "Unexpected error: {} (after {}ms)", e.what(), elapsed_ms().count()));
+        st->done.store(true);
+        return AsyncCallbackResult::makeError(e.what(), "std::exception");
+    } catch (...) {
+        logAsyncEvent(st->name, "error", "Execution failed with unknown exception");
+        st->done.store(true);
+        return AsyncCallbackResult::makeError(
+            "Unknown exception in async callback", "UnknownException");
+    }
+}
+
 AsyncCallbackWrapper::AsyncCallbackWrapper(
     CallbackFunc callback,
     const std::string& name,
     std::chrono::milliseconds timeout
 )
-    : callback_(std::move(callback))
-    , name_(name)
+    : name_(name)
     , timeout_(timeout)
+    , state_(std::make_shared<State>())
 {
-    logAsyncEvent("created", "Async callback wrapper initialized");
+    state_->callback = std::move(callback);
+    state_->name = name;
+    state_->timeout = timeout;
+    logAsyncEvent(name_, "created", "Async callback wrapper initialized");
 }
 
 AsyncCallbackWrapper::~AsyncCallbackWrapper() {
     // Cancel if still running
-    if (!done_.load()) {
+    if (!state_->done.load()) {
         cancel();
     }
 }
 
+void AsyncCallbackWrapper::setTaintReporter(TaintReporterFunc reporter) {
+    state_->taint_reporter = std::move(reporter);
+}
+
 std::future<AsyncCallbackResult> AsyncCallbackWrapper::executeAsync() {
-    logAsyncEvent("execute_async", "Starting async execution");
+    logAsyncEvent(name_, "execute_async", "Starting async execution");
 
-    // WORKAROUND: Use deferred execution - no separate thread, runs when .get() is called
-    // This avoids "thread constructor failed" errors from thread exhaustion
-    auto lambda = [this]() {
-        auto result = executeWithTimeout();
-        return result;
-    };
-
-    auto future = std::async(std::launch::deferred, std::move(lambda));
+    // Starts NOW. This used std::launch::deferred (commented as a workaround
+    // for thread exhaustion), so a callback ran only when someone called its
+    // future's .get(): AsyncCallbackPool, which blocks submit() until an
+    // earlier callback finishes, deadlocked once submissions exceeded its
+    // limit, and executeRace() polled futures that could never become ready.
+    auto st = state_;
+    auto promise = std::make_shared<std::promise<AsyncCallbackResult>>();
+    auto future = promise->get_future();
+    std::thread([st, promise]() {
+        promise->set_value(runWithTimeout(st));
+    }).detach();
     return future;
 }
 
 AsyncCallbackResult AsyncCallbackWrapper::executeBlocking() {
-    logAsyncEvent("execute_blocking", "Starting blocking execution");
-
-    auto future = executeAsync();
-    return future.get();
+    logAsyncEvent(name_, "execute_blocking", "Starting blocking execution");
+    return runWithTimeout(state_);
 }
 
 void AsyncCallbackWrapper::cancel() {
     std::lock_guard<std::mutex> lock(state_mutex_);
 
-    if (!done_.load()) {
-        cancelled_.store(true);
-        logAsyncEvent("cancelled", "Execution cancelled by user");
+    if (!state_->done.load()) {
+        state_->cancelled.store(true);
+        logAsyncEvent(name_, "cancelled", "Execution cancelled by user");
 
         // Log security event
         security::AuditLogger::logSecurityViolation(
@@ -70,178 +194,11 @@ void AsyncCallbackWrapper::cancel() {
 }
 
 bool AsyncCallbackWrapper::isDone() const {
-    return done_.load();
+    return state_->done.load();
 }
 
 bool AsyncCallbackWrapper::isCancelled() const {
-    return cancelled_.load();
-}
-
-AsyncCallbackResult AsyncCallbackWrapper::executeWithTimeout() {
-    auto start_time = std::chrono::steady_clock::now();
-
-    try {
-        // Check for cancellation before starting
-        if (cancelled_.load()) {
-            return AsyncCallbackResult::makeError(
-                "Callback cancelled before execution",
-                "CancelledException"
-            );
-        }
-
-        // Execute callback in a separate thread with timeout
-        // Use shared_ptr so detached threads don't access destroyed promise
-        auto result_promise = std::make_shared<std::promise<interpreter::NaabVal>>();
-        std::future<interpreter::NaabVal> result_future = result_promise->get_future();
-
-        std::thread worker_thread([this, result_promise]() {
-            try {
-                if (cancelled_.load()) {
-                    result_promise->set_exception(
-                        std::make_exception_ptr(
-                            AsyncCallbackException("Callback cancelled during execution")
-                        )
-                    );
-                    return;
-                }
-
-                // Execute the actual callback
-                interpreter::NaabVal result = callback_();
-                result_promise->set_value(result);
-
-            } catch (const std::exception& e) {
-                result_promise->set_exception(std::current_exception());
-            } catch (...) {
-                result_promise->set_exception(
-                    std::make_exception_ptr(
-                        AsyncCallbackException("Unknown exception in callback")
-                    )
-                );
-            }
-        });
-
-        // Wait for result with timeout
-        std::future_status status;
-        if (timeout_.count() > 0) {
-            status = result_future.wait_for(timeout_);
-        } else {
-            result_future.wait();
-            status = std::future_status::ready;
-        }
-
-        // Handle timeout
-        if (status == std::future_status::timeout) {
-            cancelled_.store(true);
-
-            // Detach thread (can't safely cancel it)
-            worker_thread.detach();
-
-            auto end_time = std::chrono::steady_clock::now();
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                end_time - start_time
-            );
-
-            logAsyncEvent("timeout", fmt::format(
-                "Execution timed out after {}ms (limit: {}ms)",
-                elapsed.count(), timeout_.count()
-            ));
-
-            // Log security violation
-            security::AuditLogger::logSecurityViolation(
-                fmt::format("async_callback_timeout: Async callback '{}' timed out after {}ms",
-                           name_, elapsed.count())
-            );
-
-            done_.store(true);
-            return AsyncCallbackResult::makeError(
-                fmt::format("Callback timed out after {}ms", elapsed.count()),
-                "TimeoutException"
-            );
-        }
-
-        // Get result (may throw if callback threw)
-        interpreter::NaabVal result = interpreter::NaabVal::makeNull();
-        try {
-            result = result_future.get();
-
-            // Join thread after successful get
-            worker_thread.join();
-
-            auto end_time = std::chrono::steady_clock::now();
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                end_time - start_time
-            );
-
-            done_.store(true);
-
-            logAsyncEvent("completed", fmt::format(
-                "Execution completed successfully in {}ms", elapsed.count()
-            ));
-
-            // V-GOV-015: query taint reporter (if wired) so the async result
-            // carries the governance taint bit from the worker thread.
-            bool tainted = taint_reporter_ ? taint_reporter_() : false;
-            return AsyncCallbackResult::makeSuccess(result, elapsed, tainted);
-
-        } catch (const std::exception& e) {
-            // Exception from callback - join thread before handling
-            worker_thread.join();
-
-            auto end_time = std::chrono::steady_clock::now();
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                end_time - start_time
-            );
-
-            done_.store(true);
-
-            logAsyncEvent("error", fmt::format(
-                "Execution failed: {} (after {}ms)", e.what(), elapsed.count()
-            ));
-
-            // Log security violation
-            security::AuditLogger::logSecurityViolation(
-                fmt::format("async_callback_exception: Async callback '{}' threw exception: {}",
-                           name_, e.what())
-            );
-
-            return AsyncCallbackResult::makeError(e.what(), "std::exception");
-        }
-
-    } catch (const std::exception& e) {
-        // Outer catch for other exceptions (shouldn't normally happen)
-        auto end_time = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            end_time - start_time
-        );
-
-        done_.store(true);
-
-        logAsyncEvent("error", fmt::format(
-            "Unexpected error: {} (after {}ms)", e.what(), elapsed.count()
-        ));
-
-        return AsyncCallbackResult::makeError(e.what(), "std::exception");
-
-    } catch (...) {
-        done_.store(true);
-
-        logAsyncEvent("error", "Execution failed with unknown exception");
-
-        return AsyncCallbackResult::makeError(
-            "Unknown exception in async callback",
-            "UnknownException"
-        );
-    }
-}
-
-void AsyncCallbackWrapper::logAsyncEvent(
-    const std::string& event,
-    const std::string& details
-) const {
-    security::AuditLogger::log(
-        security::AuditEvent::BLOCK_EXECUTE,
-        fmt::format("[{}] {}: {}", name_, event, details)
-    );
+    return state_->cancelled.load();
 }
 
 // ============================================================================

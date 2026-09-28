@@ -3323,6 +3323,19 @@ else
     echo "  test_child_memory_limit.sh: not found, skipping"
 fi
 
+API_REST_HARD_BLOCK_SCRIPT="tests/api/test_rest_hard_block_survives.sh"
+if [ -f "$API_REST_HARD_BLOCK_SCRIPT" ]; then
+    if run_shell_test "$API_REST_HARD_BLOCK_SCRIPT" 2>&1; then
+        echo "  test_rest_hard_block_survives.sh: ALL PASSED"
+    else
+        echo "  test_rest_hard_block_survives.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_rest_hard_block_survives.sh")
+    fi
+else
+    echo "  test_rest_hard_block_survives.sh: not found, skipping"
+fi
+
 SEC_TIMEOUT_REACH_SCRIPT="tests/security/test_timeout_reach.sh"
 if [ -f "$SEC_TIMEOUT_REACH_SCRIPT" ]; then
     if run_shell_test "$SEC_TIMEOUT_REACH_SCRIPT" 2>&1; then

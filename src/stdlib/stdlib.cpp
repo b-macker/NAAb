@@ -39,6 +39,10 @@ void setIoCaptureStream(std::ostream* stream) {
     tl_capture_stream = stream;
 }
 
+std::ostream& ioOutputStream() {
+    return tl_capture_stream ? *tl_capture_stream : std::cout;
+}
+
 // ============================================================================
 // IO Module Implementation
 // ============================================================================

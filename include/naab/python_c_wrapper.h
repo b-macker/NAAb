@@ -189,7 +189,7 @@ void python_c_warmup(void);
  *
  * `--timeout` is a flag the NAAb interpreter polls; code running inside
  * CPython never polls it, so a <<python>> busy loop ran to completion however
- * long it took. python_c_request_interrupt() queues a CPython pending call
+ * long it took. python_c_interrupt() queues a CPython pending call
  * that raises TimeoutError in the running code. It needs neither a thread
  * state nor the GIL (so no PyGILState_Ensure on a foreign thread), and is
  * called from the timeout's timer thread.
@@ -198,12 +198,29 @@ void python_c_warmup(void);
  * fire into a later, unrelated block; while the timeout stands it re-queues
  * itself, so `except Exception: pass` in a loop cannot swallow it.
  *
- * Limit: CPython runs pending calls on the MAIN thread only, so Python running
- * on a worker thread (parallel polyglot groups) is not interrupted.
+ * CPython runs pending calls on its MAIN thread only, so a worker thread
+ * (parallel polyglot groups, async executors) is interrupted differently: with
+ * PyThreadState_SetAsyncExc, which needs the GIL. Workers are found through a
+ * registry of threads currently running Python (python_c_running_enter/leave).
+ *
+ * python_c_interrupt(key, all): interrupt the Python execution running on
+ * the thread whose PyThread ident equals `key`, or every running execution
+ * when `all` is nonzero. Blocks the calling (timer) thread until each targeted
+ * WORKER execution has left Python, re-sending the exception every 100 ms,
+ * since a single async exception can be caught and swallowed. Not on Android,
+ * where taking the GIL from a foreign thread is the bionic CFI crash this file
+ * avoids: there, only the main thread is interrupted.
  */
 typedef int (*NaabPyTimeoutCheckFn)(void);
 void python_c_set_timeout_check(NaabPyTimeoutCheckFn check);
-void python_c_request_interrupt(void);
+void python_c_interrupt(unsigned long key, int all);
+
+/* Bracket code that runs Python bytecode on the calling thread. enter() must
+ * be called with the GIL held (it drops any async exception left over from an
+ * interrupt that arrived after the previous block ended); leave() may be
+ * called with or without it. */
+void python_c_running_enter(void);
+void python_c_running_leave(void);
 
 /**
  * Shutdown Python interpreter (call once from main thread)

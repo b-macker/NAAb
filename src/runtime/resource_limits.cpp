@@ -63,8 +63,22 @@ void ResourceLimiter::setTimeoutInterruptHook(TimeoutInterruptHook hook) {
     g_timeout_interrupt_hook.store(hook, std::memory_order_release);
 }
 
-static void fireTimeoutInterruptHook() {
-    if (auto hook = g_timeout_interrupt_hook.load(std::memory_order_acquire)) hook();
+static void fireTimeoutInterruptHook(unsigned long long thread_key, bool script_wide) {
+    if (auto hook = g_timeout_interrupt_hook.load(std::memory_order_acquire)) {
+        hook(thread_key, script_wide);
+    }
+}
+
+// This thread's own "my deadline fired" flag. Held by shared_ptr because the
+// timer thread that sets it can outlive the thread that armed it.
+static const std::shared_ptr<std::atomic<bool>>& threadFiredFlag() {
+    static thread_local const std::shared_ptr<std::atomic<bool>> fired =
+        std::make_shared<std::atomic<bool>>(false);
+    return fired;
+}
+
+bool ResourceLimiter::threadTimerFired() {
+    return threadFiredFlag()->load(std::memory_order_relaxed);
 }
 
 void ResourceLimiter::installSignalHandlers() {
@@ -106,6 +120,7 @@ bool ResourceLimiter::isInitialized() {
 // Deadline of the innermost active timeout on this thread. ScopedTimeout
 // reads it to nest: see resource_limits.h.
 static thread_local bool t_has_deadline = false;
+static thread_local bool t_deadline_script_wide = false;
 static thread_local std::chrono::steady_clock::time_point t_deadline;
 
 bool ResourceLimiter::currentDeadline(std::chrono::steady_clock::time_point& out) {
@@ -113,20 +128,36 @@ bool ResourceLimiter::currentDeadline(std::chrono::steady_clock::time_point& out
     return t_has_deadline;
 }
 
+bool ResourceLimiter::currentDeadline(std::chrono::steady_clock::time_point& out,
+                                      bool& script_wide) {
+    if (t_has_deadline) {
+        out = t_deadline;
+        script_wide = t_deadline_script_wide;
+    }
+    return t_has_deadline;
+}
+
 void ResourceLimiter::setExecutionTimeout(unsigned int seconds) {
     setDeadline(std::chrono::steady_clock::now() + std::chrono::seconds(seconds));
 }
 
-void ResourceLimiter::setDeadline(std::chrono::steady_clock::time_point deadline) {
+void ResourceLimiter::setDeadline(std::chrono::steady_clock::time_point deadline,
+                                  bool script_wide) {
     if (!initialized_) {
         installSignalHandlers();
     }
     t_has_deadline = true;
     t_deadline = deadline;
+    t_deadline_script_wide = script_wide;
 
-    // V-ASYNC-001: reset both flags at the start of each new execution budget.
-    global_shutdown_.store(false, std::memory_order_relaxed);
+    // V-ASYNC-001: reset the flags at the start of each new execution budget.
+    // The process-wide flag belongs to the script-wide deadline only: a local
+    // (nested or per-task) deadline must not reset it, or a pool worker arming
+    // its own budget would erase the script's timeout after it fired.
+    if (script_wide) global_shutdown_.store(false, std::memory_order_relaxed);
     timeout_triggered_ = false;
+    auto fired = threadFiredFlag();
+    fired->store(false, std::memory_order_relaxed);
 
 #ifndef _WIN32
     // V-RT-007: capture the calling thread's id by value so the timer thread
@@ -134,22 +165,26 @@ void ResourceLimiter::setDeadline(std::chrono::steady_clock::time_point deadline
     // tid is NOT stored as a static — it lives in the lambda closure so each
     // concurrent call to setDeadline() has its own independent timer.
     pthread_t tid = pthread_self();
+    unsigned long long key = static_cast<unsigned long long>(tid);
     posix_timer_cancel_.store(false, std::memory_order_relaxed);
     auto gen = timerGeneration();
     uint64_t my_gen = ++*gen;
-    std::thread([deadline, tid, gen, my_gen]() {
+    std::thread([deadline, tid, key, gen, my_gen, fired, script_wide]() {
         using clock = std::chrono::steady_clock;
         while (clock::now() < deadline) {
             if (gen->load(std::memory_order_relaxed) != my_gen) return;
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
         if (gen->load(std::memory_order_relaxed) == my_gen) {
-            // Set global_shutdown_ first so isTimeoutTriggered() returns true
-            // even if the signal is not delivered immediately (e.g. tight loops
-            // on Android/Termux where SIGALRM may stay pending).
-            ResourceLimiter::global_shutdown_.store(true, std::memory_order_relaxed);
+            // Set the flags first so isTimeoutTriggered() returns true even if
+            // the signal is not delivered immediately (e.g. tight loops on
+            // Android/Termux where SIGALRM may stay pending).
+            fired->store(true, std::memory_order_relaxed);
+            if (script_wide) {
+                ResourceLimiter::global_shutdown_.store(true, std::memory_order_relaxed);
+            }
             pthread_kill(tid, SIGALRM);
-            fireTimeoutInterruptHook();
+            fireTimeoutInterruptHook(key, script_wide);
         }
     }).detach();
     alarm(0);  // cancel any prior system-level alarm
@@ -165,15 +200,18 @@ void ResourceLimiter::setDeadline(std::chrono::steady_clock::time_point deadline
     auto gen = timerGeneration();
     uint64_t my_gen = ++*gen;
     win_timer_cancel_.store(false, std::memory_order_relaxed);  // kept for compat
-    std::thread([deadline, gen, my_gen]() {
+    std::thread([deadline, gen, my_gen, fired, script_wide]() {
         using clock = std::chrono::steady_clock;
         while (clock::now() < deadline) {
             if (gen->load(std::memory_order_relaxed) != my_gen) return;
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
         if (gen->load(std::memory_order_relaxed) == my_gen) {
-            ResourceLimiter::global_shutdown_.store(true, std::memory_order_relaxed);
-            fireTimeoutInterruptHook();
+            fired->store(true, std::memory_order_relaxed);
+            if (script_wide) {
+                ResourceLimiter::global_shutdown_.store(true, std::memory_order_relaxed);
+            }
+            fireTimeoutInterruptHook(0, script_wide);
         }
     }).detach();
 #endif
@@ -195,7 +233,13 @@ void ResourceLimiter::clearTimeout() {
     win_timer_cancel_.store(true, std::memory_order_relaxed);  // kept for compat
 #endif
     timeout_triggered_ = false;
-    global_shutdown_.store(false, std::memory_order_relaxed);  // V-ASYNC-001
+    threadFiredFlag()->store(false, std::memory_order_relaxed);
+    // V-ASYNC-001: only the script-wide deadline owns the process-wide flag.
+    // Clearing a LOCAL deadline must leave it alone -- a pool worker finishing
+    // its own task would otherwise erase the script's timeout.
+    if (!t_has_deadline || t_deadline_script_wide) {
+        global_shutdown_.store(false, std::memory_order_relaxed);
+    }
     t_has_deadline = false;
 }
 

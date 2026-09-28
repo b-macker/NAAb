@@ -27,8 +27,19 @@ public:
     // Arm the timer for an absolute deadline (setExecutionTimeout is this with
     // now + seconds). currentDeadline() reports this thread's active deadline,
     // if any; ScopedTimeout uses the pair to nest.
-    static void setDeadline(std::chrono::steady_clock::time_point deadline);
+    //
+    // `script_wide`: when this deadline fires, does the whole SCRIPT stop, or
+    // only the thread that armed it? Only the outermost timeout of a run (the
+    // CLI's or a REST request's) is script-wide. Every timeout used to be: a
+    // firing set the process-wide flag and every arm or clear RESET it, so a
+    // pool worker honouring a 50 ms async-executor timeout would have stopped
+    // the whole script, and a worker merely arming one could erase the
+    // script's own --timeout after it fired.
+    static void setDeadline(std::chrono::steady_clock::time_point deadline,
+                            bool script_wide = true);
     static bool currentDeadline(std::chrono::steady_clock::time_point& out);
+    static bool currentDeadline(std::chrono::steady_clock::time_point& out,
+                                bool& script_wide);
 
     // Clear the current timeout
     static void clearTimeout();
@@ -59,7 +70,13 @@ public:
     // an execution timeout fires. An in-process runtime that cannot poll
     // isTimeoutTriggered() itself -- embedded CPython -- registers one to be
     // interrupted. QuickJS needs none: its interrupt handler polls the flag.
-    using TimeoutInterruptHook = void (*)();
+    //
+    // `thread_key` identifies the thread whose deadline fired (pthread_self()
+    // as an integer on POSIX, 0 elsewhere); `script_wide` says whether every
+    // thread of the script is stopping or only that one. The hook may block:
+    // it runs on the timer thread, which has nothing else to do.
+    using TimeoutInterruptHook = void (*)(unsigned long long thread_key,
+                                          bool script_wide);
     static void setTimeoutInterruptHook(TimeoutInterruptHook hook);
 
     // Check if timeout has been triggered on this thread OR process-wide.
@@ -67,9 +84,13 @@ public:
     // global_shutdown_: set by the signal handler; visible to ALL threads,
     // including async worker threads that never receive SIGALRM directly.
     // Together they cover both the main execution thread and ThreadPool workers.
+    // Plus this thread's own timer (threadTimerFired), which is how a LOCAL
+    // timeout reaches only the thread that armed it.
     static bool isTimeoutTriggered() {
-        return timeout_triggered_ || global_shutdown_.load(std::memory_order_relaxed);
+        return timeout_triggered_ || global_shutdown_.load(std::memory_order_relaxed) ||
+               threadTimerFired();
     }
+    static bool threadTimerFired();
 
 private:
     static void handleAlarm(int sig);
@@ -104,14 +125,26 @@ private:
 // exit restores the outer deadline instead of clearing it. `seconds == 0`
 // means "no limit of its own" (the UNRESTRICTED sandbox preset); it used to arm
 // a zero-second timer that killed every subprocess on start.
+//
+// Scope: the OUTERMOST seconds-based timeout on a thread is script-wide (the
+// CLI and REST arm the run's deadline this way); a nested one, or any
+// Local timeout, stops only the thread that armed it. Async executors use
+// Local: their per-task budget runs on a pool thread with no outer deadline,
+// and must not stop the script when it expires.
 class ScopedTimeout {
 public:
-    explicit ScopedTimeout(unsigned int seconds) {
-        had_outer_ = ResourceLimiter::currentDeadline(outer_);
-        if (seconds == 0) return;
-        auto mine = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
+    enum class Scope { Auto, Local };
+
+    explicit ScopedTimeout(unsigned int seconds)
+        : ScopedTimeout(std::chrono::milliseconds(seconds * 1000ULL), Scope::Auto) {}
+
+    ScopedTimeout(std::chrono::milliseconds budget, Scope scope) {
+        had_outer_ = ResourceLimiter::currentDeadline(outer_, outer_script_wide_);
+        if (budget.count() <= 0) return;
+        auto mine = std::chrono::steady_clock::now() + budget;
         if (had_outer_ && outer_ <= mine) return;  // the outer limit is tighter
-        ResourceLimiter::setDeadline(mine);
+        bool script_wide = (scope == Scope::Auto) && !had_outer_;
+        ResourceLimiter::setDeadline(mine, script_wide);
         armed_ = true;
     }
 
@@ -119,7 +152,7 @@ public:
         if (!armed_) return;
         if (had_outer_) {
             // Re-arms for the remaining time, or fires at once if it has passed.
-            ResourceLimiter::setDeadline(outer_);
+            ResourceLimiter::setDeadline(outer_, outer_script_wide_);
         } else {
             ResourceLimiter::clearTimeout();
         }
@@ -132,6 +165,7 @@ public:
 private:
     std::chrono::steady_clock::time_point outer_{};
     bool had_outer_ = false;
+    bool outer_script_wide_ = false;
     bool armed_ = false;
 };
 

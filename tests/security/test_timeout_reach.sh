@@ -29,10 +29,23 @@
 #          outside, both engines). codegen.run did the same by hand. The loop
 #          AFTER the block is what must be stopped.
 #
+# Group W: Python on a WORKER thread. The P-group interrupt is a CPython
+#          pending call, which CPython runs on its main thread only, so Python
+#          inside an `async fn` (run on another thread by the VM) ran to
+#          completion: measured 20.8s against --timeout 3, and 30s+ (killed from
+#          outside) when the loop caught every Exception. Workers are now sent an
+#          async exception of a BaseException subclass, which `except Exception`
+#          cannot catch. Note what is NOT a worker: Python in a tree-walker
+#          parallel group runs on the main thread by design (polyglot.cpp), so a
+#          probe built on that path passes on the old build too -- that was the
+#          first version of this arm. The same holds for the W arms under
+#          --tree-walk, whose async-fn Python the main-thread interrupt already
+#          reached: they pass on the old build and are coverage. The VM arms
+#          are the proof (old build: W-01/vm 20s, W-02/vm 40s).
+#
 # Known limit, not asserted: a Python block blocked inside C (time.sleep, a
-# socket read) is not interrupted -- CPython runs the interrupt only between
-# bytecodes. Python on worker threads (parallel polyglot groups) is not either:
-# CPython runs pending calls on its main thread only.
+# socket read) is not interrupted -- CPython delivers the interrupt only
+# between bytecodes, so it fires when the call returns.
 
 set -uo pipefail
 PASS=0
@@ -83,7 +96,7 @@ len("abc")
 EOF
 run "$WORK/p" ctl.naab --timeout 5
 if [[ "$OUT" != *"CTL:499500,3"* ]]; then
-    for id in P-01/vm P-01/tree-walk P-03 P-04; do
+    for id in P-01/vm P-01/tree-walk P-03 P-04 W-01/vm W-01/tree-walk W-02/vm W-02/tree-walk; do
         skip "$id" "embedded Python executor not available in this build"
     done
 else
@@ -131,6 +144,41 @@ EOF
     else
         fail P-03 "the interrupt was swallowed (took ${ELAPSED}s)" "$(tail -2 <<<"$OUT")"
     fi
+
+    for kind in busy swallow; do
+        if [ "$kind" = busy ]; then
+            body='while time.time() - t < 20:
+    pass'
+        else
+            body='while time.time() - t < 20:
+    try:
+        while True:
+            pass
+    except Exception:
+        pass'
+        fi
+        {
+            printf 'async fn spin() {\n    let r = <<python\nimport time\nt = time.time()\n'
+            printf '%s\n' "$body"
+            printf '1\n>>\n    return r\n}\nmain {\n    let v = await spin()\n'
+            printf '    print("AFTER:" + string(v))\n}\n'
+        } > "$WORK/p/async_$kind.naab"
+    done
+    for eng in "" "--tree-walk"; do
+        tag="${eng:-vm}"; tag="${tag#--}"
+        run "$WORK/p" async_busy.naab $eng --timeout 3
+        if [ "$ELAPSED" -le 8 ] && [[ "$OUT" != *AFTER* ]]; then
+            pass "W-01/$tag" "Python in an async fn stopped at the 3s limit (${ELAPSED}s)"
+        else
+            fail "W-01/$tag" "Python in an async fn not stopped (took ${ELAPSED}s)" "$(tail -2 <<<"$OUT")"
+        fi
+        run "$WORK/p" async_swallow.naab $eng --timeout 3
+        if [ "$ELAPSED" -le 8 ] && [[ "$OUT" != *AFTER* ]]; then
+            pass "W-02/$tag" "...and when it catches every Exception (${ELAPSED}s)"
+        else
+            fail "W-02/$tag" "worker interrupt swallowed (took ${ELAPSED}s)" "$(tail -2 <<<"$OUT")"
+        fi
+    done
 fi
 
 echo "=== H: http ==="

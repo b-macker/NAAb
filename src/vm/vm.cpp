@@ -245,11 +245,12 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
 interpreter::NaabVal VM::callBuiltinFunction(const std::string& name, int argc,
                                              interpreter::NaabVal* args) {
     if (name == "print" || name == "println") {
+        std::ostream& out = stdlib::ioOutputStream();
         for (int i = 0; i < argc; i++) {
-            if (i > 0) std::cout << " ";
-            std::cout << args[i].toString();
+            if (i > 0) out << " ";
+            out << args[i].toString();
         }
-        std::cout << std::endl;
+        out << std::endl;
         return interpreter::NaabVal::makeNull();
     }
     if (name == "len") {

@@ -117,25 +117,19 @@ public:
     // V-GOV-015: register a taint reporter so the governance engine can learn
     // whether the callback's return value is tainted. Call before executeAsync()
     // or executeBlocking().
-    void setTaintReporter(TaintReporterFunc reporter) {
-        taint_reporter_ = std::move(reporter);
-    }
+    void setTaintReporter(TaintReporterFunc reporter);
+
+    // Everything a running callback touches. Shared with the threads that run
+    // it, so they never reach back through `this`: the pool destroys a wrapper
+    // as soon as it reports done, and a timed-out callback keeps running
+    // detached -- both used to leave a thread executing inside a freed wrapper.
+    struct State;
 
 private:
-    CallbackFunc callback_;
-    TaintReporterFunc taint_reporter_;  // V-GOV-015: optional; null if not set
     std::string name_;
     std::chrono::milliseconds timeout_;
-
+    std::shared_ptr<State> state_;
     mutable std::mutex state_mutex_;
-    std::atomic<bool> cancelled_{false};
-    std::atomic<bool> done_{false};
-
-    // Internal execution with timeout
-    AsyncCallbackResult executeWithTimeout();
-
-    // Logging helper
-    void logAsyncEvent(const std::string& event, const std::string& details) const;
 };
 
 // RAII guard for async callback execution

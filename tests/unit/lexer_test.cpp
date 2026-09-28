@@ -20,17 +20,22 @@ TEST(LexerTest, EmptySource) {
 }
 
 TEST(LexerTest, Whitespace) {
+    // Spaces and tabs produce nothing; the newline is a token (statement
+    // separator), so the result is NEWLINE, EOF.
     Lexer lexer("   \t\n  ");
     auto tokens = lexer.tokenize();
-    ASSERT_EQ(tokens.size(), 1);  // Only EOF
-    EXPECT_EQ(tokens[0].type, TokenType::END_OF_FILE);
+    ASSERT_EQ(tokens.size(), 2);
+    EXPECT_EQ(tokens[0].type, TokenType::NEWLINE);
+    EXPECT_EQ(tokens[1].type, TokenType::END_OF_FILE);
 }
 
 TEST(LexerTest, SingleLineComment) {
+    // The comment text is dropped; the newline that ends it is still a token.
     Lexer lexer("// this is a comment\n");
     auto tokens = lexer.tokenize();
-    ASSERT_EQ(tokens.size(), 1);  // Only EOF (comments ignored)
-    EXPECT_EQ(tokens[0].type, TokenType::END_OF_FILE);
+    ASSERT_EQ(tokens.size(), 2);
+    EXPECT_EQ(tokens[0].type, TokenType::NEWLINE);
+    EXPECT_EQ(tokens[1].type, TokenType::END_OF_FILE);
 }
 
 TEST(LexerTest, MultiLineComment) {
@@ -384,10 +389,11 @@ TEST(LexerTest, OrOperator) {
 }
 
 TEST(LexerTest, PipeOperator) {
+    // `|>` is the pipeline operator; PIPE is a lone `|`.
     Lexer lexer("|>");
     auto tokens = lexer.tokenize();
     ASSERT_GE(tokens.size(), 1);
-    EXPECT_EQ(tokens[0].type, TokenType::PIPE);
+    EXPECT_EQ(tokens[0].type, TokenType::PIPELINE);
 }
 
 // ============================================================================
@@ -520,9 +526,11 @@ TEST(LexerTest, VariableDeclaration) {
 TEST(LexerTest, MultipleStatementsOnOneLine) {
     Lexer lexer("let x = 1; let y = 2");
     auto tokens = lexer.tokenize();
-    ASSERT_GE(tokens.size(), 9);
+    // let x = 1 ; let y = 2 EOF -- the second `let` is token 5, after the ';'.
+    ASSERT_GE(tokens.size(), 10);
     EXPECT_EQ(tokens[0].type, TokenType::LET);
-    EXPECT_EQ(tokens[4].type, TokenType::LET);
+    EXPECT_EQ(tokens[4].type, TokenType::SEMICOLON);
+    EXPECT_EQ(tokens[5].type, TokenType::LET);
 }
 
 TEST(LexerTest, NumbersWithoutSpaces) {

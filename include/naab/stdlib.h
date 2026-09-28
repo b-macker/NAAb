@@ -28,6 +28,13 @@ bool getPipeMode();
 // clears it afterward. nullptr restores the default (std::cout / std::cerr).
 void setIoCaptureStream(std::ostream* stream);
 
+// Where program output goes on this thread: the capture stream when one is
+// set, std::cout otherwise. The builtin print() must use it too -- it wrote to
+// std::cout directly, so over REST every print() landed in the SERVER's log
+// (interleaved across concurrent requests) and the client got empty output;
+// only io.* calls were captured.
+std::ostream& ioOutputStream();
+
 // Module interface
 class Module {
 public:

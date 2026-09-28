@@ -15,6 +15,8 @@
 #include "naab/audit_logger.h"
 #include "naab/sandbox.h"      // ScopedSandbox / SandboxManager for context propagation
 #include "naab/thread_pool.h"  // Thread pool for limited concurrency
+#include "naab/resource_limits.h"
+#include <optional>
 #include <fmt/format.h>
 #include <mutex>  // std::call_once for thread-safe pool init (S2)
 #include <fstream>
@@ -48,6 +50,39 @@ static runtime::ThreadPool& getPolyglotThreadPool() {
         g_thread_pool = new runtime::ThreadPool(2);
     });
     return *g_thread_pool;
+}
+
+// Run one async task on the calling pool worker under its own deadline.
+//
+// Every executeAsync() accepted a `timeout` and never read it (the nested
+// thread that used to enforce it was removed over an Android CFI crash). The
+// budget is now a LOCAL ScopedTimeout on the worker: when it expires, only
+// this task stops -- the JS interrupt handler, subprocess polling and the
+// embedded-Python interrupt all see this thread's flag -- and the script's own
+// deadline is untouched. A task that overran is reported as a timeout even if
+// the runtime surfaced some other error on the way out.
+static ffi::AsyncCallbackResult runWithTaskTimeout(
+    const ffi::AsyncCallbackWrapper::CallbackFunc& callback,
+    std::chrono::milliseconds timeout) {
+    ffi::AsyncCallbackResult result;
+    std::optional<security::ScopedTimeout> deadline;
+    if (timeout.count() > 0) {
+        deadline.emplace(timeout, security::ScopedTimeout::Scope::Local);
+    }
+    try {
+        interpreter::NaabVal value = callback();
+        result.success = true;
+        result.value = value;
+    } catch (const std::exception& e) {
+        result.success = false;
+        result.error_message = e.what();
+    }
+    // Read before `deadline` is destroyed: its destructor clears the flag.
+    if (timeout.count() > 0 && security::ResourceLimiter::threadTimerFired()) {
+        result.success = false;
+        result.error_message = fmt::format("Execution timed out after {} ms", timeout.count());
+    }
+    return result;
 }
 
 // Eagerly initialize thread pool BEFORE any use/dlopen statements.
@@ -91,19 +126,8 @@ std::future<ffi::AsyncCallbackResult> PythonAsyncExecutor::executeAsync(
          sandbox_snapshot = std::move(sandbox_snapshot)]() {
         // Reinstall sandbox context on this worker thread
         security::ScopedSandbox worker_sandbox(sandbox_snapshot);
-        // Execute callback DIRECTLY in thread pool worker - no nested threads!
-        // AsyncCallbackWrapper::executeWithTimeout() creates a std::thread which
-        // triggers Android bionic CFI crash (ShadowWrite CHECK failed)
-        ffi::AsyncCallbackResult result;
-        try {
-            interpreter::NaabVal value = callback();
-            result.success = true;
-            result.value = value;
-        } catch (const std::exception& e) {
-            result.success = false;
-            result.error_message = e.what();
-        }
-        return result;
+        // Runs DIRECTLY on the pool worker -- no nested threads (Android CFI).
+        return runWithTaskTimeout(callback, timeout);
     });
 }
 
@@ -194,17 +218,8 @@ std::future<ffi::AsyncCallbackResult> JavaScriptAsyncExecutor::executeAsync(
          sandbox_snapshot = std::move(sandbox_snapshot)]() {
         // Reinstall sandbox context on this worker thread
         security::ScopedSandbox worker_sandbox(sandbox_snapshot);
-        // Execute callback DIRECTLY - no nested threads (Android CFI fix)
-        ffi::AsyncCallbackResult result;
-        try {
-            interpreter::NaabVal value = callback();
-            result.success = true;
-            result.value = value;
-        } catch (const std::exception& e) {
-            result.success = false;
-            result.error_message = e.what();
-        }
-        return result;
+        // Runs DIRECTLY on the pool worker -- no nested threads (Android CFI).
+        return runWithTaskTimeout(callback, timeout);
     });
 }
 
@@ -284,16 +299,8 @@ std::future<ffi::AsyncCallbackResult> CppAsyncExecutor::executeAsync(
          sandbox_snapshot = std::move(sandbox_snapshot)]() {
         // Reinstall sandbox context on this worker thread
         security::ScopedSandbox worker_sandbox(sandbox_snapshot);
-        ffi::AsyncCallbackResult result;
-        try {
-            interpreter::NaabVal value = callback();
-            result.success = true;
-            result.value = value;
-        } catch (const std::exception& e) {
-            result.success = false;
-            result.error_message = e.what();
-        }
-        return result;
+        // Runs DIRECTLY on the pool worker -- no nested threads (Android CFI).
+        return runWithTaskTimeout(callback, timeout);
     });
 }
 
@@ -373,16 +380,8 @@ std::future<ffi::AsyncCallbackResult> RustAsyncExecutor::executeAsync(
          sandbox_snapshot = std::move(sandbox_snapshot)]() {
         // Reinstall sandbox context on this worker thread
         security::ScopedSandbox worker_sandbox(sandbox_snapshot);
-        ffi::AsyncCallbackResult result;
-        try {
-            interpreter::NaabVal value = callback();
-            result.success = true;
-            result.value = value;
-        } catch (const std::exception& e) {
-            result.success = false;
-            result.error_message = e.what();
-        }
-        return result;
+        // Runs DIRECTLY on the pool worker -- no nested threads (Android CFI).
+        return runWithTaskTimeout(callback, timeout);
     });
 }
 
@@ -458,16 +457,8 @@ std::future<ffi::AsyncCallbackResult> CSharpAsyncExecutor::executeAsync(
          sandbox_snapshot = std::move(sandbox_snapshot)]() {
         // Reinstall sandbox context on this worker thread
         security::ScopedSandbox worker_sandbox(sandbox_snapshot);
-        ffi::AsyncCallbackResult result;
-        try {
-            interpreter::NaabVal value = callback();
-            result.success = true;
-            result.value = value;
-        } catch (const std::exception& e) {
-            result.success = false;
-            result.error_message = e.what();
-        }
-        return result;
+        // Runs DIRECTLY on the pool worker -- no nested threads (Android CFI).
+        return runWithTaskTimeout(callback, timeout);
     });
 }
 
@@ -543,17 +534,8 @@ std::future<ffi::AsyncCallbackResult> ShellAsyncExecutor::executeAsync(
          sandbox_snapshot = std::move(sandbox_snapshot)]() {
         // Reinstall sandbox context on this worker thread
         security::ScopedSandbox worker_sandbox(sandbox_snapshot);
-        // Execute callback DIRECTLY in thread pool worker - no nested threads!
-        ffi::AsyncCallbackResult result;
-        try {
-            interpreter::NaabVal value = callback();
-            result.success = true;
-            result.value = value;
-        } catch (const std::exception& e) {
-            result.success = false;
-            result.error_message = e.what();
-        }
-        return result;
+        // Runs DIRECTLY on the pool worker -- no nested threads (Android CFI).
+        return runWithTaskTimeout(callback, timeout);
     });
 }
 

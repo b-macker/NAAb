@@ -127,11 +127,32 @@ calls" is false, so the loop is never told. A brief GIL acquire from the timer
 thread makes the running thread re-take the GIL and recompute the breaker on
 its own thread (skipped on Android, where `PyGILState_Ensure` on a foreign
 thread is the bionic CFI crash). Measured: the 20 s busy loop stops at 3.06 s
-in both engines. **Limits:** a block blocked inside C (`time.sleep`, a socket
-read) is not interrupted, since CPython only runs pending calls between
-bytecodes (`time.sleep(15)` took 15 s on both builds), and Python on a worker
-thread is not interrupted, since CPython runs pending calls on its main thread
-only.
+in both engines. **Limit:** a block blocked inside C (`time.sleep`, a socket
+read) is interrupted only when the call returns, since CPython runs the
+interrupt between bytecodes (`time.sleep(15)` took 15 s on both builds).
+
+**Fixed later (2e): Python on a worker thread.** CPython runs pending calls on
+its main thread only, so the 2a interrupt never reached Python running
+elsewhere. The recorded limit also named the wrong path: Python in a
+tree-walker parallel polyglot group runs on the MAIN thread by design
+(`polyglot.cpp`), and a probe built on that path passed on the old build too.
+The real worker path is an `async fn` on the VM: measured 20.8 s against
+`--timeout 3`, and 40 s when the loop caught every Exception. Threads running
+Python now register (with a sequence number) and a worker is sent
+`PyThreadState_SetAsyncExc`, re-sent until the execution that was running
+when the deadline fired has left Python. Re-sending alone was not enough:
+an async exception lands at the next eval-breaker check, which inside
+`try: <loop> except Exception: pass` is almost always inside the try. The
+exception is therefore `naab.ExecutionTimeout`, a `BaseException` subclass
+like KeyboardInterrupt, which `except Exception` does not catch. Both cases now
+stop at 3 s.
+
+**2f: timeouts were all script-wide.** Every timer that fired set the
+process-wide flag, and every arm or clear reset it. So an async executor that
+honoured its own per-task budget would have stopped the whole script, and a
+worker merely arming a timer could erase the script's timeout after it fired.
+Only the outermost timeout of a run is script-wide now; nested and per-task
+timeouts set only their thread's flag.
 
 ### 2c. One block cancelled the script's `--timeout` (found while fixing 2a)
 
@@ -167,16 +188,22 @@ during connect, and the first CI run stopped at curl's 10 s connect timeout
 instead of 3 s. With the callback disabled locally, the cap alone stops the
 request at 3 s.
 
-Regression suite for 2a, 2c and 2d: `tests/security/test_timeout_reach.sh`,
-9 arms. Against the old code, all 8 non-control arms fail and the control passes.
+Regression suite for 2a, 2c, 2d and 2e: `tests/security/test_timeout_reach.sh`,
+13 arms. The W arms are 2e: on the build before it, W-01/vm and W-02/vm fail
+(20 s, 40 s) while their tree-walk twins pass, so the tree-walk arms are
+coverage and the VM arms are the proof.
 
 ## 3. Real but not reachable today
 
-- **Async executors drop `timeout`.** Every `*AsyncExecutor::executeAsync()` in
-  `polyglot_async_executor.cpp` captures `timeout` and never reads it; the
+- **Async executors drop `timeout`** (fixed). Every `*AsyncExecutor::executeAsync()` in
+  `polyglot_async_executor.cpp` captured `timeout` and never read it; the
   nested-thread version was removed over an Android CFI crash. The single
   production caller (parallel polyglot groups, `polyglot.cpp`) passes none.
-- **`AsyncCallbackPool` deadlocks** once submissions exceed `max_concurrent_`.
+  Each task now runs under a LOCAL `ScopedTimeout` on its pool worker (2f), so
+  an overrun stops that task only. `ShellWithTimeout` stops at 52 ms against
+  a 50 ms budget. `PythonTimeout` uses `time.sleep`, so it is reported as a
+  timeout when the sleep returns, not before (the 2a limit).
+- **`AsyncCallbackPool` deadlocks** (fixed) once submissions exceed `max_concurrent_`.
   `AsyncCallbackWrapper::executeAsync()` uses `std::launch::deferred` (commented
   as a workaround for thread exhaustion), so a callback runs only when its
   future's `.get()` is called; `submit()` blocks until an earlier callback is
@@ -187,7 +214,13 @@ Regression suite for 2a, 2c and 2d: `tests/security/test_timeout_reach.sh`,
   branch, which does not touch this code). With deferred launch a callback
   runs on whichever thread calls `.get()`, while another thread's `submit()`
   runs `cleanupCompleted()` and erases wrappers it sees as done -- a wrapper
-  can be freed while its callback is still returning through it.
+  can be freed while its callback is still returning through it. A timed-out
+  callback was worse: its thread was detached still running `callback_()`, a
+  member of a wrapper the pool was free to destroy. **Fixed:** the wrapper's
+  mutable state (callback, flags, name, timeout) lives in a `shared_ptr` held
+  by every thread that runs it, and `executeAsync()` starts the work
+  immediately. All five pool and race tests pass, and the pool tests passed
+  30 of 30 repeated runs.
 - **Zero means two things** (fixed with 2c). `PermissionLevel::UNRESTRICTED`
   sets `max_cpu_seconds = 0` ("no limit"); the shell, JS and generic-subprocess
   executors passed it to `ScopedTimeout(0)`, whose timer fired immediately.
@@ -223,16 +256,23 @@ Regression suite for 2a, 2c and 2d: `tests/security/test_timeout_reach.sh`,
 ## 5. CI
 
 `naab_unit_tests` now runs in CI (`ci.yml`, Build & Test) through
-`tests/unit/run_unit_tests.sh`. The 30 known failures are listed in
-`tests/unit/known_failures.txt`, each with its reason from this document. The
+`tests/unit/run_unit_tests.sh`. It started with 30 known failures in
+`tests/unit/known_failures.txt`, each with its reason from this document; the
 runner fails if an unlisted test fails, if a listed test no longer exists, or
 if a listed `fails` entry starts passing, so the list has to shrink when
-something is fixed. Three entries are `hang` (the `AsyncCallbackPool`
-deadlocks and the use-after-free) and are not run. Two shell tests changed
-status with 2c: `ShellWithTimeout` used to pass only because the zero-second
-timer killed the command; it now shows the async-executor timeout defect. The
-two `executeBlocking` shell tests are refused by the fail-closed sandbox,
-because the callback thread has none (a fixture issue).
+something is fixed.
+
+Now 580 pass and 9 remain listed, none of them hangs: two C++ snippets written
+against the pre-NaabVal ABI, the two `executeBlocking` shell tests that the
+fail-closed sandbox refuses (the callback thread has none, a fixture issue),
+and the five FFI-validator stub tests. The 14 stale expectations that were
+one-line fixes were rewritten to the rule each now encodes, not to whatever
+the code returned: DIV-001 for division, mandatory `catch`, ISS-036
+first-definition-wins for struct registration (it no longer throws, but a
+conflicting definition must not replace the first), the oracle's
+`math.abs`-returns-float fact, and newline/`|>` tokens. The module-count test
+no longer hard-codes a number: it checks every listed module resolves and the
+original set is present.
 
 ## 6. Lessons that generalise
 
