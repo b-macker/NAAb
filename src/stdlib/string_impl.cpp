@@ -440,6 +440,49 @@ interpreter::NaabVal StringModule::call(
             "  Example: string.index_of(\"hello\", \"ll\")  // 2\n"
         );
     }
+    // Names from JavaScript and Python that an LLM (or a person) reaches for.
+    // The generic "did you mean" picks by edit distance, which sent `slice`
+    // to split(); these say the equivalent directly.
+    if (function_name == "slice" || function_name == "substr") {
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  Did you mean: string.substring(s, start, end)? The end index is exclusive.\n"
+            "  Example: string.substring(\"hello\", 1, 3)  // \"el\"\n"
+        );
+    }
+    if (function_name == "includes") {
+        throw std::runtime_error(
+            "Unknown string function: includes\n\n"
+            "  Did you mean: string.contains()?\n"
+            "  Example: string.contains(\"hello\", \"ell\")  // true\n"
+        );
+    }
+    if (function_name == "padStart" || function_name == "padEnd" ||
+        function_name == "rjust" || function_name == "ljust") {
+        bool left = function_name == "padStart" || function_name == "rjust";
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  Did you mean: string." + std::string(left ? "pad_left" : "pad_right") +
+            "(s, width, fill)?\n"
+            "  Example: string." + std::string(left ? "pad_left" : "pad_right") +
+            "(\"7\", 3, \"0\")  // \"" + std::string(left ? "007" : "700") + "\"\n"
+        );
+    }
+    if (function_name == "trimStart" || function_name == "trimEnd" ||
+        function_name == "trimLeft" || function_name == "trimRight") {
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  Did you mean: string.trim()? It trims both ends.\n"
+            "  Example: string.trim(\"  hi  \")  // \"hi\"\n"
+        );
+    }
+    if (function_name == "replaceAll") {
+        throw std::runtime_error(
+            "Unknown string function: replaceAll\n\n"
+            "  Did you mean: string.replace()? It already replaces every occurrence.\n"
+            "  Example: string.replace(\"a-b-c\", \"-\", \"+\")  // \"a+b+c\"\n"
+        );
+    }
     if (function_name == "startsWith") {
         throw std::runtime_error(
             "Unknown string function: startsWith\n\n"
