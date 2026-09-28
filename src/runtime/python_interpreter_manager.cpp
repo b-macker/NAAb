@@ -2,6 +2,7 @@
 
 #include "naab/python_interpreter_manager.h"
 #include "naab/python_c_wrapper.h"
+#include "naab/resource_limits.h"
 #include <fmt/core.h>
 #include <stdexcept>
 
@@ -39,6 +40,13 @@ PythonInterpreterManager::PythonInterpreterManager()
     if (python_c_init() != 0) {
         throw std::runtime_error("Failed to initialize Python interpreter");
     }
+
+    // Let --timeout interrupt Python code: the timer thread queues a pending
+    // call that raises TimeoutError inside the running block.
+    python_c_set_timeout_check([]() -> int {
+        return naab::security::ResourceLimiter::isTimeoutTriggered() ? 1 : 0;
+    });
+    naab::security::ResourceLimiter::setTimeoutInterruptHook(&python_c_request_interrupt);
 }
 
 PythonInterpreterManager::~PythonInterpreterManager() {

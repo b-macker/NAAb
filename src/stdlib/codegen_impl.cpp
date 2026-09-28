@@ -496,9 +496,9 @@ interpreter::NaabVal CodegenModule::call(
 
         auto exec_start = std::chrono::steady_clock::now();
         try {
-            security::ResourceLimiter::setExecutionTimeout(static_cast<unsigned int>(timeout));
+            // Nested, so it cannot extend or cancel the script's own --timeout.
+            security::ScopedTimeout codegen_timeout(static_cast<unsigned int>(timeout));
             interpreter::NaabVal result = executor->executeWithReturn(final_code);
-            security::ResourceLimiter::clearTimeout();
 
             output = executor->getCapturedOutput();
             exit_code = executor->getLastExitCode();
@@ -508,10 +508,8 @@ interpreter::NaabVal CodegenModule::call(
                 output = result.asString();
             }
         } catch (const governance::GovernanceHardError&) {
-            security::ResourceLimiter::clearTimeout();
             throw;  // V-CG-001: HARD blocks propagate without suppression
         } catch (const std::exception& e) {
-            security::ResourceLimiter::clearTimeout();
             exit_code = 1;
             stderr_output = e.what();
         }

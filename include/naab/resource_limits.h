@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <string>
 #include <stdexcept>
@@ -22,6 +23,12 @@ public:
     // Set execution timeout in seconds (uses alarm())
     // Throws ResourceLimitException when timeout expires
     static void setExecutionTimeout(unsigned int seconds);
+
+    // Arm the timer for an absolute deadline (setExecutionTimeout is this with
+    // now + seconds). currentDeadline() reports this thread's active deadline,
+    // if any; ScopedTimeout uses the pair to nest.
+    static void setDeadline(std::chrono::steady_clock::time_point deadline);
+    static bool currentDeadline(std::chrono::steady_clock::time_point& out);
 
     // Clear the current timeout
     static void clearTimeout();
@@ -47,6 +54,13 @@ public:
     static void requestShutdown() {
         global_shutdown_.store(true, std::memory_order_relaxed);
     }
+
+    // Called from the timer thread (never from a signal handler) right after
+    // an execution timeout fires. An in-process runtime that cannot poll
+    // isTimeoutTriggered() itself -- embedded CPython -- registers one to be
+    // interrupted. QuickJS needs none: its interrupt handler polls the flag.
+    using TimeoutInterruptHook = void (*)();
+    static void setTimeoutInterruptHook(TimeoutInterruptHook hook);
 
     // Check if timeout has been triggered on this thread OR process-wide.
     // thread_local flag: set when this specific thread received SIGALRM.
@@ -79,20 +93,46 @@ private:
 #endif
 };
 
-// RAII helper for automatic timeout cleanup
+// RAII timeout that NESTS. The script's run is wrapped in one (CLI, REST),
+// and executors wrap each block in another. There is one timer per thread, so
+// these used to clobber each other: the block's scope re-armed the timer with
+// its own budget and its destructor CLEARED it, so one <<javascript>>
+// expression silently removed --timeout for the rest of the script (measured:
+// a `while true` after it ran until killed from outside).
+//
+// Now a scope can only TIGHTEN the deadline in force, never extend it, and on
+// exit restores the outer deadline instead of clearing it. `seconds == 0`
+// means "no limit of its own" (the UNRESTRICTED sandbox preset); it used to arm
+// a zero-second timer that killed every subprocess on start.
 class ScopedTimeout {
 public:
     explicit ScopedTimeout(unsigned int seconds) {
-        ResourceLimiter::setExecutionTimeout(seconds);
+        had_outer_ = ResourceLimiter::currentDeadline(outer_);
+        if (seconds == 0) return;
+        auto mine = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
+        if (had_outer_ && outer_ <= mine) return;  // the outer limit is tighter
+        ResourceLimiter::setDeadline(mine);
+        armed_ = true;
     }
 
     ~ScopedTimeout() {
-        ResourceLimiter::clearTimeout();
+        if (!armed_) return;
+        if (had_outer_) {
+            // Re-arms for the remaining time, or fires at once if it has passed.
+            ResourceLimiter::setDeadline(outer_);
+        } else {
+            ResourceLimiter::clearTimeout();
+        }
     }
 
     // Prevent copying
     ScopedTimeout(const ScopedTimeout&) = delete;
     ScopedTimeout& operator=(const ScopedTimeout&) = delete;
+
+private:
+    std::chrono::steady_clock::time_point outer_{};
+    bool had_outer_ = false;
+    bool armed_ = false;
 };
 
 } // namespace security

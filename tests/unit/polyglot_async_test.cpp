@@ -494,7 +494,7 @@ TEST_F(PolyglotAsyncTest, ShellBlockingExecution) {
     std::string command = "echo 42";
     auto result = executor.executeBlocking(command, {});
 
-    EXPECT_TRUE(result.success);
+    EXPECT_TRUE(result.success) << "Error: " << result.error_message;
 }
 
 TEST_F(PolyglotAsyncTest, ShellConcurrentExecutions) {
@@ -518,7 +518,7 @@ TEST_F(PolyglotAsyncTest, ShellConcurrentExecutions) {
 
     // Verify all succeeded
     for (int i = 0; i < num_threads; ++i) {
-        EXPECT_TRUE(results[i].success);
+        EXPECT_TRUE(results[i].success) << "Error: " << results[i].error_message;
     }
 }
 

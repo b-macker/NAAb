@@ -29,6 +29,40 @@ static __thread PyThreadState* worker_tstate = NULL;
 // Sentinel value: python_c_gil_acquire returns -1 when using pre-created state
 #define GIL_HANDLE_PRECREATED (-1)
 
+// --- Execution-timeout interrupt (see python_c_wrapper.h) ------------------
+static NaabPyTimeoutCheckFn timeout_check = NULL;
+
+void python_c_set_timeout_check(NaabPyTimeoutCheckFn check) {
+    timeout_check = check;
+}
+
+static int naab_timeout_pending_call(void* arg) {
+    (void)arg;
+    if (!timeout_check || !timeout_check()) return 0;  // stale: timeout cleared
+    PyErr_SetString(PyExc_TimeoutError,
+                    "execution timeout exceeded while running Python code");
+    // Re-arm: the next eval-breaker check raises again, so a broad except
+    // clause cannot keep the block alive past the timeout.
+    Py_AddPendingCall(naab_timeout_pending_call, NULL);
+    return -1;
+}
+
+void python_c_request_interrupt(void) {
+    if (!Py_IsInitialized()) return;
+    Py_AddPendingCall(naab_timeout_pending_call, NULL);
+#if !defined(__ANDROID__)
+    // Queuing is not enough on CPython 3.11: Py_AddPendingCall computes the
+    // eval breaker on the CALLING thread, and "can handle pending calls" is
+    // false off the main thread, so the running loop is never told. Measured:
+    // the call was queued and never ran. Taking the GIL briefly makes the
+    // running thread drop it; when it re-takes it, it recomputes the breaker on
+    // its own thread and runs the call. Not on Android, where PyGILState_Ensure
+    // on a foreign thread is the bionic CFI crash this file avoids elsewhere.
+    PyGILState_STATE g = PyGILState_Ensure();
+    PyGILState_Release(g);
+#endif
+}
+
 // --- Sandbox audit hook (see python_c_wrapper.h) ---------------------------
 // Policy lives in C++ (it owns the sandbox); this side only decodes CPython's
 // audit arguments and recognises the interpreter loading its own modules.

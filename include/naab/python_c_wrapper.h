@@ -185,6 +185,27 @@ char* python_c_object_to_string(void* obj);
 void python_c_warmup(void);
 
 /**
+ * Execution-timeout interrupt.
+ *
+ * `--timeout` is a flag the NAAb interpreter polls; code running inside
+ * CPython never polls it, so a <<python>> busy loop ran to completion however
+ * long it took. python_c_request_interrupt() queues a CPython pending call
+ * that raises TimeoutError in the running code. It needs neither a thread
+ * state nor the GIL (so no PyGILState_Ensure on a foreign thread), and is
+ * called from the timeout's timer thread.
+ *
+ * The pending call re-checks `check` when it runs, so a stale request cannot
+ * fire into a later, unrelated block; while the timeout stands it re-queues
+ * itself, so `except Exception: pass` in a loop cannot swallow it.
+ *
+ * Limit: CPython runs pending calls on the MAIN thread only, so Python running
+ * on a worker thread (parallel polyglot groups) is not interrupted.
+ */
+typedef int (*NaabPyTimeoutCheckFn)(void);
+void python_c_set_timeout_check(NaabPyTimeoutCheckFn check);
+void python_c_request_interrupt(void);
+
+/**
  * Shutdown Python interpreter (call once from main thread)
  *
  * Returns: 0 on success, -1 on error

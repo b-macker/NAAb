@@ -3297,6 +3297,19 @@ else
     echo "  test_regex_timeout_bound.sh: not found, skipping"
 fi
 
+SEC_TIMEOUT_REACH_SCRIPT="tests/security/test_timeout_reach.sh"
+if [ -f "$SEC_TIMEOUT_REACH_SCRIPT" ]; then
+    if run_shell_test "$SEC_TIMEOUT_REACH_SCRIPT" 2>&1; then
+        echo "  test_timeout_reach.sh: ALL PASSED"
+    else
+        echo "  test_timeout_reach.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_timeout_reach.sh")
+    fi
+else
+    echo "  test_timeout_reach.sh: not found, skipping"
+fi
+
 PARSER_STRING_INTERP_ESCAPE_SCRIPT="tests/parser/test_string_interp_escape.sh"
 if [ -f "$PARSER_STRING_INTERP_ESCAPE_SCRIPT" ]; then
     if run_shell_test "$PARSER_STRING_INTERP_ESCAPE_SCRIPT" 2>&1; then

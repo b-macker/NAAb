@@ -118,7 +118,53 @@ stall is most likely the runner wedge `windows.yml` documents. Measured on that
 run: `test_r22_fixes.sh` alone took about 6 of the 9m39s shell phase (the slow
 `naab-gov scan` of an 11 MB file).
 
-**Open (2a):** embedded Python.
+**Fixed (2a):** the timeout's timer thread now queues a CPython pending call
+that raises `TimeoutError` in the running block, and re-queues itself while the
+timeout stands, so `except Exception: pass` in a loop cannot swallow it.
+Queuing alone was measured to do nothing on CPython 3.11: `Py_AddPendingCall`
+computes the eval breaker on the *calling* thread, where "can handle pending
+calls" is false, so the loop is never told. A brief GIL acquire from the timer
+thread makes the running thread re-take the GIL and recompute the breaker on
+its own thread (skipped on Android, where `PyGILState_Ensure` on a foreign
+thread is the bionic CFI crash). Measured: the 20 s busy loop stops at 3.06 s
+in both engines. **Limits:** a block blocked inside C (`time.sleep`, a socket
+read) is not interrupted, since CPython only runs pending calls between
+bytecodes (`time.sleep(15)` took 15 s on both builds), and Python on a worker
+thread is not interrupted, since CPython runs pending calls on its main thread
+only.
+
+### 2c. One block cancelled the script's `--timeout` (found while fixing 2a)
+
+There is one timer per thread. The CLI and REST wrap the run in a
+`ScopedTimeout`, and the JS, shell, subprocess and C++ executors wrap every
+block in another. Each scope re-armed the timer with its own budget and its
+destructor **cleared** it, so after a single `<<javascript>>` expression the
+script had no timeout at all. Measured, `--timeout 3`: a `while true` after
+`let v = <<javascript 1 + 1 >>` ran until killed from outside, in both
+engines. `codegen.run` did the same by calling `setExecutionTimeout` /
+`clearTimeout` directly. A second layer: the cancel counter was process-wide,
+so a scope on another thread (the tree-walker runs this JS off the main
+thread) cancelled the main thread's timer, and a REST request could cancel a
+concurrent request's.
+
+**Fixed:** `ScopedTimeout` nests. A scope can only tighten the deadline in
+force, never extend it, and restores the outer deadline on exit. The cancel
+counter is per thread. `0` now means "no limit of its own", which also fixes
+the zero-second timer in section 3 (it killed every subprocess on start under
+the `UNRESTRICTED` preset).
+
+### 2d. `http.*` outlived `--timeout` (was section 5, unmeasured)
+
+Measured once an address that drops SYNs was found (`8.8.8.8:81`):
+`http.get(url, {}, 0)` was still connecting 20 s into a `--timeout 3` run.
+curl never returns to the interpreter mid-transfer, and `timeout_ms = 0` is
+libcurl's "never". **Fixed:** a progress callback aborts the transfer when the
+timeout fires (curl calls it at least once a second, including while
+connecting), and a non-positive `timeout_ms` falls back to the 30 s default.
+Stops at 3 s now.
+
+Regression suite for 2a, 2c and 2d: `tests/security/test_timeout_reach.sh`,
+9 arms. Against the old code, all 8 non-control arms fail and the control passes.
 
 ## 3. Real but not reachable today
 
@@ -138,11 +184,11 @@ run: `test_r22_fixes.sh` alone took about 6 of the 9m39s shell phase (the slow
   runs on whichever thread calls `.get()`, while another thread's `submit()`
   runs `cleanupCompleted()` and erases wrappers it sees as done -- a wrapper
   can be freed while its callback is still returning through it.
-- **Zero means two things.** `PermissionLevel::UNRESTRICTED` sets
-  `max_cpu_seconds = 0` ("no limit"); the shell, JS, generic-subprocess and
-  persistent-process executors pass it to `ScopedTimeout(0)`, whose timer fires
-  immediately. The CLI and REST API always overwrite the value from
-  `--timeout`, so no measured path reaches it. Clamp at `ScopedTimeout` anyway.
+- **Zero means two things** (fixed with 2c). `PermissionLevel::UNRESTRICTED`
+  sets `max_cpu_seconds = 0` ("no limit"); the shell, JS and generic-subprocess
+  executors passed it to `ScopedTimeout(0)`, whose timer fired immediately.
+  `ScopedTimeout(0)` now arms nothing. The persistent-process executor
+  converts it to a millisecond budget of its own and is unchanged.
 - **`naab::Context` cannot run polyglot.** Executor registration
   (`initialize_executors()`) lives in `src/cli/main.cpp`, not in `libnaab`, so an
   embedder gets "No executor found" for every polyglot block. An API gap rather
@@ -170,13 +216,19 @@ run: `test_r22_fixes.sh` alone took about 6 of the 9m39s shell phase (the slow
 - **Other `std::async` sites** (`vm.cpp`, `call_dispatch.cpp`) never abandon
   their futures on a timeout, so they do not share SafeRegex's defect.
 
-## 5. Unmeasured
+## 5. CI
 
-- **`http.*` with `timeout_ms = 0`.** The script-supplied value goes straight
-  to `CURLOPT_TIMEOUT_MS`, which libcurl documents as "never time out", and
-  nothing clamps it to `--timeout`. Could not be measured here: SSRF protection
-  refuses loopback, and no external slow endpoint was available. *Code*, not
-  *measured*.
+`naab_unit_tests` now runs in CI (`ci.yml`, Build & Test) through
+`tests/unit/run_unit_tests.sh`. The 30 known failures are listed in
+`tests/unit/known_failures.txt`, each with its reason from this document. The
+runner fails if an unlisted test fails, if a listed test no longer exists, or
+if a listed `fails` entry starts passing, so the list has to shrink when
+something is fixed. Three entries are `hang` (the `AsyncCallbackPool`
+deadlocks and the use-after-free) and are not run. Two shell tests changed
+status with 2c: `ShellWithTimeout` used to pass only because the zero-second
+timer killed the command; it now shows the async-executor timeout defect. The
+two `executeBlocking` shell tests are refused by the fail-closed sandbox,
+because the callback thread has none (a fixture issue).
 
 ## 6. Lessons that generalise
 
