@@ -19,6 +19,7 @@ tests/differential/corpus/null_coalesce.naab probe
 tests/differential/corpus/plus_overload_order.naab probe
 tests/differential/corpus/precedence.naab probe
 tests/differential/corpus/string_ops.naab probe
+tests/differential/corpus/string_methods.naab probe
 # Reused engine test corpus (governance/taint/typed-scoring robustness tests excluded —
 # they legitimately differ across engines or need the repo govern.json):
 tests/vm/test_enum_module.naab vm

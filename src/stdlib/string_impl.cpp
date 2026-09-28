@@ -6,6 +6,7 @@
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
 #include "naab/utils/string_utils.h"
+#include "naab/string_ops.h"
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -30,7 +31,7 @@ static interpreter::NaabVal makeStringArray(const std::vector<std::string>& arr)
 
 bool StringModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
-        "length", "substring", "concat", "split", "join",
+        "length", "substring", "slice", "concat", "split", "join",
         "trim", "upper", "lower", "replace", "contains",
         "starts_with", "ends_with", "index_of", "repeat",
         "char_at", "reverse", "format", "fmt",
@@ -57,16 +58,23 @@ interpreter::NaabVal StringModule::call(
         if (args.size() != 3) {
             throw std::runtime_error("substring() takes exactly 3 arguments");
         }
-        std::string s = getString(args[0]);
-        int start = getInt(args[1]);
-        int end = getInt(args[2]);
+        return makeString(strops::substring(getString(args[0]), getInt(args[1]), true, getInt(args[2])));
+    }
 
-        // Bounds checking
-        if (start < 0) start = 0;
-        if (end > static_cast<int>(s.length())) end = s.length();
-        if (start >= end) return makeString("");
-
-        return makeString(s.substr(start, end - start));
+    // slice(s, start[, end]): JavaScript semantics, the same as the method
+    // form s.slice(...) -- negative indices count from the end. It existed only
+    // as a method, so string.slice(s, ...) was an unknown function while
+    // s.slice(...) worked (repo-sentinel F-007).
+    if (function_name == "slice") {
+        if (args.size() != 2 && args.size() != 3) {
+            throw std::runtime_error(
+                "slice() takes 2 or 3 arguments\n\n"
+                "  Expected: string.slice(s, start[, end])\n"
+                "  Example: string.slice(\"hello\", -3)  // \"llo\"\n");
+        }
+        bool has_end = args.size() == 3;
+        return makeString(strops::slice(getString(args[0]), getInt(args[1]), has_end,
+                                        has_end ? getInt(args[2]) : 0));
     }
 
     // Function 3: concat
@@ -167,14 +175,7 @@ interpreter::NaabVal StringModule::call(
         std::string old_str = getString(args[1]);
         std::string new_str = getString(args[2]);
 
-        if (old_str.empty()) return makeString(s);
-
-        size_t pos = 0;
-        while ((pos = s.find(old_str, pos)) != std::string::npos) {
-            s.replace(pos, old_str.length(), new_str);
-            pos += new_str.length();
-        }
-        return makeString(s);
+        return makeString(strops::replaceAll(s, old_str, new_str));
     }
 
     // Function 10: contains
@@ -443,10 +444,10 @@ interpreter::NaabVal StringModule::call(
     // Names from JavaScript and Python that an LLM (or a person) reaches for.
     // The generic "did you mean" picks by edit distance, which sent `slice`
     // to split(); these say the equivalent directly.
-    if (function_name == "slice" || function_name == "substr") {
+    if (function_name == "substr") {
         throw std::runtime_error(
-            "Unknown string function: " + function_name + "\n\n"
-            "  Did you mean: string.substring(s, start, end)? The end index is exclusive.\n"
+            "Unknown string function: substr\n\n"
+            "  Did you mean: string.substring(s, start, end)? It takes an END index, not a length.\n"
             "  Example: string.substring(\"hello\", 1, 3)  // \"el\"\n"
         );
     }
@@ -542,7 +543,7 @@ interpreter::NaabVal StringModule::call(
 
     // Generic unknown function with suggestions
     static const std::vector<std::string> FUNCTIONS = {
-        "length", "substring", "upper", "lower", "trim", "split",
+        "length", "substring", "slice", "upper", "lower", "trim", "split",
         "contains", "starts_with", "ends_with", "replace", "index_of",
         "char_at", "repeat", "reverse", "format", "fmt",
         "pad_left", "pad_right"

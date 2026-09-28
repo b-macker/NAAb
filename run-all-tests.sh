@@ -1649,6 +1649,23 @@ else
     echo "  test_path_policy_reach.sh: not found, skipping"
 fi
 
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  process.run Inline Code Gate (python -c, sh -c, ...)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+PROC_INLINE_SCRIPT="tests/security/test_process_run_inline_gate.sh"
+if [ -f "$PROC_INLINE_SCRIPT" ]; then
+    if run_shell_test "$PROC_INLINE_SCRIPT" 2>&1; then
+        echo "  test_process_run_inline_gate.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_process_run_inline_gate.sh")
+    fi
+else
+    echo "  test_process_run_inline_gate.sh: not found, skipping"
+fi
+
 # --- Signed govern.json vs Package Operations (F39) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
