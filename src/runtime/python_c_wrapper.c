@@ -14,6 +14,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 #ifndef _WIN32
 #  include <fcntl.h>   // O_ACCMODE / O_WRONLY for audit write-detection
 #endif
@@ -36,10 +37,18 @@ void python_c_set_timeout_check(NaabPyTimeoutCheckFn check) {
     timeout_check = check;
 }
 
+// Raised into Python code when its deadline passes. A BaseException subclass,
+// like KeyboardInterrupt, so `except Exception:` cannot swallow it: a worker's
+// interrupt is a single async exception, delivered at the next eval-breaker
+// check, which in a `while ...: try: <loop> except Exception: pass` is almost
+// always INSIDE the try (measured: re-sending every 100 ms never escaped a 20 s
+// loop). A bare `except:` can still catch it, as with KeyboardInterrupt.
+static PyObject* naab_timeout_exc = NULL;
+
 static int naab_timeout_pending_call(void* arg) {
     (void)arg;
     if (!timeout_check || !timeout_check()) return 0;  // stale: timeout cleared
-    PyErr_SetString(PyExc_TimeoutError,
+    PyErr_SetString(naab_timeout_exc ? naab_timeout_exc : PyExc_TimeoutError,
                     "execution timeout exceeded while running Python code");
     // Re-arm: the next eval-breaker check raises again, so a broad except
     // clause cannot keep the block alive past the timeout.
@@ -47,19 +56,110 @@ static int naab_timeout_pending_call(void* arg) {
     return -1;
 }
 
-void python_c_request_interrupt(void) {
-    if (!Py_IsInitialized()) return;
-    Py_AddPendingCall(naab_timeout_pending_call, NULL);
+// Threads currently running Python bytecode (see python_c_running_enter).
+// Each registration carries a sequence number, so an interrupt can target the
+// executions that were running when the deadline fired and not a later,
+// unrelated block that happens to run on the same thread. Guarded by a CPython
+// lock so it builds wherever the interpreter does. Lock order is always
+// GIL -> running_lock: the interrupt takes the GIL first, enter() holds the
+// GIL, and leave() takes only the lock.
+#define NAAB_MAX_RUNNING_PY_THREADS 64
+typedef struct { unsigned long ident; unsigned long long seq; } NaabRunning;
+static NaabRunning running[NAAB_MAX_RUNNING_PY_THREADS];
+static int running_count = 0;
+static unsigned long long running_seq = 0;
+static PyThread_type_lock running_lock = NULL;
+static unsigned long main_ident = 0;
+
+void python_c_running_enter(void) {
+    if (!running_lock) return;
+    unsigned long me = PyThread_get_thread_ident();
+    // A worker interrupt that landed after this thread's previous block ended
+    // is still pending on its thread state; drop it before new code runs.
+    PyThreadState_SetAsyncExc(me, NULL);
+    PyThread_acquire_lock(running_lock, WAIT_LOCK);
+    if (running_count < NAAB_MAX_RUNNING_PY_THREADS) {
+        running[running_count].ident = me;
+        running[running_count].seq = ++running_seq;
+        ++running_count;
+    }
+    PyThread_release_lock(running_lock);
+}
+
+void python_c_running_leave(void) {
+    if (!running_lock) return;
+    unsigned long me = PyThread_get_thread_ident();
+    PyThread_acquire_lock(running_lock, WAIT_LOCK);
+    for (int i = 0; i < running_count; ++i) {
+        if (running[i].ident == me) {
+            running[i] = running[--running_count];
+            break;
+        }
+    }
+    PyThread_release_lock(running_lock);
+}
+
 #if !defined(__ANDROID__)
-    // Queuing is not enough on CPython 3.11: Py_AddPendingCall computes the
-    // eval breaker on the CALLING thread, and "can handle pending calls" is
-    // false off the main thread, so the running loop is never told. Measured:
-    // the call was queued and never ran. Taking the GIL briefly makes the
-    // running thread drop it; when it re-takes it, it recomputes the breaker on
-    // its own thread and runs the call. Not on Android, where PyGILState_Ensure
-    // on a foreign thread is the bionic CFI crash this file avoids elsewhere.
+// Send TimeoutError to each worker in `targets` that is STILL running the same
+// execution; returns how many were sent. GIL and lock taken here, in order.
+static int naab_interrupt_targets(const NaabRunning* targets, int n) {
+    int sent = 0;
     PyGILState_STATE g = PyGILState_Ensure();
+    PyThread_acquire_lock(running_lock, WAIT_LOCK);
+    for (int t = 0; t < n; ++t) {
+        for (int i = 0; i < running_count; ++i) {
+            if (running[i].ident == targets[t].ident && running[i].seq == targets[t].seq) {
+                if (PyThreadState_SetAsyncExc(targets[t].ident,
+                        naab_timeout_exc ? naab_timeout_exc : PyExc_TimeoutError) > 0) ++sent;
+                break;
+            }
+        }
+    }
+    PyThread_release_lock(running_lock);
     PyGILState_Release(g);
+    return sent;
+}
+#endif
+
+void python_c_interrupt(unsigned long key, int all) {
+    if (!Py_IsInitialized() || !running_lock) return;
+#if defined(__ANDROID__)
+    // No GIL from a foreign thread here: main thread only, via pending call.
+    if (all || key == main_ident) Py_AddPendingCall(naab_timeout_pending_call, NULL);
+#else
+    // Snapshot the executions to stop. Taking the GIL also serves the main
+    // thread: on CPython 3.11, Py_AddPendingCall computes the eval breaker on
+    // the CALLING thread, where "can handle pending calls" is false, so the
+    // running loop is never told (measured: the call was queued and never
+    // ran). Taking the GIL makes the running thread drop it; when it re-takes
+    // it, it recomputes the breaker on its own thread and runs the call.
+    NaabRunning targets[NAAB_MAX_RUNNING_PY_THREADS];
+    int n = 0;
+    int main_running = 0;
+    PyGILState_STATE g = PyGILState_Ensure();
+    PyThread_acquire_lock(running_lock, WAIT_LOCK);
+    for (int i = 0; i < running_count; ++i) {
+        if (!all && running[i].ident != key) continue;
+        if (running[i].ident == main_ident) main_running = 1;
+        else targets[n++] = running[i];
+    }
+    PyThread_release_lock(running_lock);
+    // The main thread's pending call re-arms itself while the timeout stands.
+    if (main_running) Py_AddPendingCall(naab_timeout_pending_call, NULL);
+    PyGILState_Release(g);
+
+    // A worker's interrupt is ONE async exception, which `except Exception:
+    // pass` in a loop swallows. Keep re-sending to the executions snapshotted
+    // above until each has left Python. This deliberately does not consult
+    // the timeout flags: the thread that armed a script-wide deadline clears
+    // them as it unwinds, and then blocks waiting for the very worker still
+    // spinning (measured: an async fn swallowing the interrupt held the VM
+    // for its full 20 s). A later block on the same thread has a new sequence
+    // number and is left alone.
+    while (n > 0 && naab_interrupt_targets(targets, n) > 0) {
+        struct timespec ts = {0, 100 * 1000 * 1000};
+        nanosleep(&ts, NULL);
+    }
 #endif
 }
 
@@ -237,6 +337,9 @@ int python_c_init(void) {
 
     // Initialize Python
     Py_Initialize();
+    main_ident = PyThread_get_thread_ident();
+    running_lock = PyThread_allocate_lock();
+    naab_timeout_exc = PyErr_NewException("naab.ExecutionTimeout", PyExc_BaseException, NULL);
 
     // Initialize threading support (deprecated in 3.9+, but harmless)
     #if PY_VERSION_HEX < 0x03090000
@@ -391,7 +494,9 @@ PythonCResult python_c_execute(const char* code) {
     }
 
     // Execute code as file input (allows statements)
+    python_c_running_enter();
     PyObject* py_result = PyRun_String(code, Py_file_input, globals, globals);
+    python_c_running_leave();
 
     if (py_result == NULL) {
         // Error occurred
@@ -467,7 +572,9 @@ PythonCResult python_c_eval(const char* code) {
     }
 
     // Evaluate expression
+    python_c_running_enter();
     PyObject* py_result = PyRun_String(code, Py_eval_input, globals, globals);
+    python_c_running_leave();
 
     if (py_result == NULL) {
         // Error occurred

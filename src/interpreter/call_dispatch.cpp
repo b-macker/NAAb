@@ -2754,11 +2754,12 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (!terr.empty()) throw std::runtime_error(terr);
             }
         }
+        std::ostream& out = stdlib::ioOutputStream();
         for (size_t i = 0; i < args.size(); i++) {
-            if (i > 0) std::cout << " ";
-            std::cout << args[i].toString();
+            if (i > 0) out << " ";
+            out << args[i].toString();
         }
-        std::cout << std::endl;
+        out << std::endl;
         result_ = NaabVal::makeNull();
     }
     else if (func_name == "len") {

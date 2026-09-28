@@ -46,17 +46,32 @@ TEST(StructRegistryTest, RegisterAndRetrieve) {
     ASSERT_EQ(retrieved->name, "TestStruct1");
 }
 
-TEST(StructRegistryTest, DuplicateThrows) {
+TEST(StructRegistryTest, DuplicateRegistration) {
+    // ISS-036: re-registering the same name no longer throws -- modules that
+    // are imported twice register their structs twice. An identical definition
+    // is a no-op; a CONFLICTING one warns and the first definition wins.
     auto& registry = runtime::StructRegistry::instance();
 
     auto def1 = std::make_shared<interpreter::StructDef>();
     def1->name = "DuplicateTest2";
+    def1->fields.push_back(ast::StructField{"a", ast::Type(ast::TypeKind::Int), std::nullopt});
 
-    auto def2 = std::make_shared<interpreter::StructDef>();
-    def2->name = "DuplicateTest2";
+    auto same = std::make_shared<interpreter::StructDef>();
+    same->name = "DuplicateTest2";
+    same->fields.push_back(ast::StructField{"a", ast::Type(ast::TypeKind::Int), std::nullopt});
+
+    auto conflicting = std::make_shared<interpreter::StructDef>();
+    conflicting->name = "DuplicateTest2";
+    conflicting->fields.push_back(ast::StructField{"b", ast::Type(ast::TypeKind::Int), std::nullopt});
 
     registry.registerStruct(def1);
-    ASSERT_THROW(registry.registerStruct(def2), std::runtime_error);
+    EXPECT_NO_THROW(registry.registerStruct(same));
+    EXPECT_NO_THROW(registry.registerStruct(conflicting));
+
+    auto kept = registry.getStruct("DuplicateTest2");
+    ASSERT_NE(kept, nullptr);
+    ASSERT_EQ(kept->fields.size(), 1u);
+    EXPECT_EQ(kept->fields[0].name, "a");  // first definition wins
 }
 
 TEST(StructRegistryTest, CircularDetection) {

@@ -96,10 +96,11 @@ TEST(InterpreterTest, Multiplication) {
 }
 
 TEST(InterpreterTest, Division) {
+    // DIV-001: division is always double, in both engines (7/2 == 3.5).
     auto result = execute("10 / 2");
-    auto* intval = std::get_if<int>(&result->data);
-    ASSERT_NE(intval, nullptr);
-    EXPECT_EQ(*intval, 5);
+    auto* val = std::get_if<double>(&result->data);
+    ASSERT_NE(val, nullptr);
+    EXPECT_EQ(*val, 5.0);
 }
 
 TEST(InterpreterTest, Modulo) {
@@ -341,7 +342,8 @@ TEST(InterpreterTest, ThrowAndCatch) {
 }
 
 TEST(InterpreterTest, FinallyBlock) {
-    auto result = execute("let x = 0\ntry { x = 10 } finally { x = x + 5 }\nx");
+    // `catch` is mandatory, so finally is exercised through try/catch/finally.
+    auto result = execute("let x = 0\ntry { x = 10 } catch (e) { x = -1 } finally { x = x + 5 }\nx");
     auto* intval = std::get_if<int>(&result->data);
     ASSERT_NE(intval, nullptr);
     EXPECT_EQ(*intval, 15);

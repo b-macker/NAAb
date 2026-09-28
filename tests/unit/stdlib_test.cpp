@@ -1,3 +1,4 @@
+#include <algorithm>
 // Standard Library Unit Tests
 // Tests all stdlib modules and functions
 
@@ -51,9 +52,18 @@ std::shared_ptr<Value> callModule(Module& mod, const std::string& fn,
 // ============================================================================
 
 TEST(StdLibTest, AllModulesAvailable) {
+    // Was a hard-coded count (13), which went stale as modules were added
+    // (25 today) and would say nothing about a module going missing. Check
+    // instead that every listed module resolves and the original set is there.
     StdLib stdlib;
     auto modules = stdlib.listModules();
-    EXPECT_EQ(modules.size(), 13);  // All 13 modules
+    for (const auto& name : modules) {
+        EXPECT_NE(stdlib.getModule(name), nullptr) << name;
+    }
+    for (const char* core : {"io", "json", "http", "string", "array", "math",
+                             "time", "env", "csv", "regex", "crypto", "file"}) {
+        EXPECT_NE(std::find(modules.begin(), modules.end(), core), modules.end()) << core;
+    }
 }
 
 TEST(StdLibTest, GetModule) {
@@ -273,35 +283,39 @@ TEST(ArrayModuleTest, Join) {
 // ============================================================================
 
 TEST(MathModuleTest, Abs) {
+    // math.abs returns float (locked in by the naabfuzz oracle vectors).
     MathModule mod;
     auto result = callModule(mod, "abs", {makeInt(-5)});
-    auto* intval = std::get_if<int>(&result->data);
-    ASSERT_NE(intval, nullptr);
-    EXPECT_EQ(*intval, 5);
+    auto* val = std::get_if<double>(&result->data);
+    ASSERT_NE(val, nullptr);
+    EXPECT_EQ(*val, 5.0);
 }
 
 TEST(MathModuleTest, Floor) {
+    // floor/ceil/round return int: they exist to produce one.
     MathModule mod;
     auto result = callModule(mod, "floor", {makeFloat(3.7)});
-    auto* floatval = std::get_if<double>(&result->data);
-    ASSERT_NE(floatval, nullptr);
-    EXPECT_EQ(*floatval, 3.0);
+    auto* val = std::get_if<int>(&result->data);
+    ASSERT_NE(val, nullptr);
+    EXPECT_EQ(*val, 3);
 }
 
 TEST(MathModuleTest, Ceil) {
+    // floor/ceil/round return int: they exist to produce one.
     MathModule mod;
     auto result = callModule(mod, "ceil", {makeFloat(3.2)});
-    auto* floatval = std::get_if<double>(&result->data);
-    ASSERT_NE(floatval, nullptr);
-    EXPECT_EQ(*floatval, 4.0);
+    auto* val = std::get_if<int>(&result->data);
+    ASSERT_NE(val, nullptr);
+    EXPECT_EQ(*val, 4);
 }
 
 TEST(MathModuleTest, Round) {
+    // floor/ceil/round return int: they exist to produce one.
     MathModule mod;
     auto result = callModule(mod, "round", {makeFloat(3.6)});
-    auto* floatval = std::get_if<double>(&result->data);
-    ASSERT_NE(floatval, nullptr);
-    EXPECT_EQ(*floatval, 4.0);
+    auto* val = std::get_if<int>(&result->data);
+    ASSERT_NE(val, nullptr);
+    EXPECT_EQ(*val, 4);
 }
 
 TEST(MathModuleTest, Max) {

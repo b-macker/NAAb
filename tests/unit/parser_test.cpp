@@ -77,7 +77,9 @@ TEST(ParserTest, EmptyArray) {
 }
 
 TEST(ParserTest, DictLiteral) {
-    auto program = parse("{\"key\": \"value\"}");
+    // `{` at statement start opens a block, so a dict literal is tested in
+    // expression position.
+    auto program = parse("let d = {\"key\": \"value\"}");
     ASSERT_NE(program, nullptr);
 }
 
@@ -331,9 +333,15 @@ TEST(ParserTest, TryCatchBlock) {
     ASSERT_NE(program, nullptr);
 }
 
-TEST(ParserTest, TryFinallyBlock) {
-    auto program = parse("try { risky() } finally { cleanup() }");
-    ASSERT_NE(program, nullptr);
+TEST(ParserTest, TryWithoutCatchIsRejected) {
+    // `catch` is mandatory; try/finally with no catch is a parse error that
+    // names the fix. (Was TryFinallyBlock, expecting it to parse.)
+    try {
+        parse("try { risky() } finally { cleanup() }");
+        FAIL() << "try without catch parsed";
+    } catch (const std::exception& e) {
+        EXPECT_NE(std::string(e.what()).find("catch"), std::string::npos) << e.what();
+    }
 }
 
 TEST(ParserTest, TryCatchFinallyBlock) {

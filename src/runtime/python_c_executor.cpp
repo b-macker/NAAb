@@ -158,6 +158,12 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
     // Acquire GIL safely (pre-created state on workers, PyGILState on main)
     int gil_handle = python_c_gil_acquire();
 
+    // Register this thread as running Python so a timeout can interrupt it,
+    // including on a worker thread (see python_c_interrupt). leave() needs no
+    // GIL, so the guard may unwind after the explicit releases below.
+    python_c_running_enter();
+    struct RunningGuard { ~RunningGuard() { python_c_running_leave(); } } running_guard;
+
     // Get __main__ module and globals
     PyObject* main_module = PyImport_AddModule("__main__");
     if (!main_module) {

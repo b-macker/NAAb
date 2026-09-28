@@ -12,6 +12,12 @@ extern "C" int naabPythonAuditPolicy(const char* event, const char* target, int 
 namespace naab {
 namespace runtime {
 
+// Runs on the timeout's timer thread: interrupt the Python that was running
+// on the timed-out thread (or everywhere, for a script-wide deadline).
+static void pythonTimeoutHook(unsigned long long thread_key, bool script_wide) {
+    python_c_interrupt(static_cast<unsigned long>(thread_key), script_wide ? 1 : 0);
+}
+
 // Static member initialization
 std::unique_ptr<PythonInterpreterManager> PythonInterpreterManager::instance_ = nullptr;
 std::mutex PythonInterpreterManager::init_mutex_;
@@ -46,7 +52,7 @@ PythonInterpreterManager::PythonInterpreterManager()
     python_c_set_timeout_check([]() -> int {
         return naab::security::ResourceLimiter::isTimeoutTriggered() ? 1 : 0;
     });
-    naab::security::ResourceLimiter::setTimeoutInterruptHook(&python_c_request_interrupt);
+    naab::security::ResourceLimiter::setTimeoutInterruptHook(&pythonTimeoutHook);
 }
 
 PythonInterpreterManager::~PythonInterpreterManager() {
