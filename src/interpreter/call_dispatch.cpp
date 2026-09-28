@@ -647,33 +647,11 @@ void Interpreter::visit(ast::CallExpr& node) {
                     } else if (args.size() >= 2) {
                         result_ = args[1];
                     } else {
-                        // "Did you mean?" hint when key not found and similar keys exist
-                        // Deduplicate: only show each (key, suggestion) pair once per execution
                         if (!dict.empty()) {
                             std::vector<std::string> keys;
                             keys.reserve(dict.size());
                             for (const auto& [k, v] : dict) { (void)v; keys.push_back(k); }
-                            auto suggestion = naab::error::suggestDictKey(key, keys);
-                            if (!suggestion.empty()) {
-                                static std::unordered_set<std::string> seen_hints;
-                                auto hint_key = key + "\xe2\x86\x92" + suggestion;
-                                if (seen_hints.insert(hint_key).second) {
-                                    fprintf(stderr, "[hint] dict.get(\"%s\") returned null — did you mean \"%s\"?\n",
-                                            key.c_str(), suggestion.c_str());
-                                }
-                            } else if (keys.size() <= 8) {
-                                static std::unordered_set<std::string> seen_avail;
-                                auto avail_key = key + "\xe2\x86\x92?";
-                                if (seen_avail.insert(avail_key).second) {
-                                    std::string avail;
-                                    for (size_t j = 0; j < keys.size(); ++j) {
-                                        if (j > 0) avail += ", ";
-                                        avail += "\"" + keys[j] + "\"";
-                                    }
-                                    fprintf(stderr, "[hint] dict.get(\"%s\") returned null — available keys: %s\n",
-                                            key.c_str(), avail.c_str());
-                                }
-                            }
+                            naab::error::hintDictGetMiss(key, keys);
                         }
                         result_ = NaabVal::makeNull();
                     }
@@ -1605,33 +1583,11 @@ void Interpreter::visit(ast::CallExpr& node) {
                 } else if (args.size() >= 2) {
                     result_ = args[1];  // default value
                 } else {
-                    // "Did you mean?" hint when key not found and similar keys exist
-                    // Deduplicate: only show each (key, suggestion) pair once per execution
                     if (!dict.empty()) {
                         std::vector<std::string> keys;
                         keys.reserve(dict.size());
                         for (const auto& [k, v] : dict) { (void)v; keys.push_back(k); }
-                        auto suggestion = naab::error::suggestDictKey(key, keys);
-                        if (!suggestion.empty()) {
-                            static std::unordered_set<std::string> seen_hints;
-                            auto hint_key = key + "\xe2\x86\x92" + suggestion;
-                            if (seen_hints.insert(hint_key).second) {
-                                fprintf(stderr, "[hint] dict.get(\"%s\") returned null — did you mean \"%s\"?\n",
-                                        key.c_str(), suggestion.c_str());
-                            }
-                        } else if (keys.size() <= 8) {
-                            static std::unordered_set<std::string> seen_avail;
-                            auto avail_key = key + "\xe2\x86\x92?";
-                            if (seen_avail.insert(avail_key).second) {
-                                std::string avail;
-                                for (size_t j = 0; j < keys.size(); ++j) {
-                                    if (j > 0) avail += ", ";
-                                    avail += "\"" + keys[j] + "\"";
-                                }
-                                fprintf(stderr, "[hint] dict.get(\"%s\") returned null — available keys: %s\n",
-                                        key.c_str(), avail.c_str());
-                            }
-                        }
+                        naab::error::hintDictGetMiss(key, keys);
                     }
                     result_ = NaabVal::makeNull();
                 }

@@ -310,6 +310,21 @@ bool Parser::check(lexer::TokenType type) const {
     return current().type == type;
 }
 
+// A '?' outside a type annotation is almost always a C/JS ternary. It reaches
+// the parser in two ways: as the start of an expression (parsePrimary), or --
+// far more often -- right after a complete operand inside a dict literal, a
+// call or parentheses, where expect() used to report "Expected '}'" and, for a
+// brace, a missing-brace diagnosis that had nothing to do with it.
+static std::string ternaryHint() {
+    return "\n\n  NAAb does not support the C/JS ternary operator (cond ? a : b).\n"
+           "  Use NAAb's if-expression instead:\n"
+           "    \xE2\x9C\x97 Wrong: condition ? value_a : value_b\n"
+           "    \xE2\x9C\x93 Right: if condition { value_a } else { value_b }\n\n"
+           "  The if-expression IS a value \xe2\x80\x94 assign it directly:\n"
+           "    let result = if x > 0 { x } else { 0 }\n\n"
+           "  Note: '?' is only valid in type annotations (e.g., string? for nullable).\n";
+}
+
 const lexer::Token& Parser::expect(lexer::TokenType type, const std::string& msg) {
     if (check(type)) {
         // Track brace positions for better error messages
@@ -325,6 +340,9 @@ const lexer::Token& Parser::expect(lexer::TokenType type, const std::string& msg
 
     // Phase 2.1: Use enhanced error hints for better error messages
     const auto& token = current();
+    if (token.type == lexer::TokenType::QUESTION && type != lexer::TokenType::QUESTION) {
+        throw ParseError(formatError(msg, token) + ternaryHint());
+    }
     error_reporter_.error(msg, token.line, token.column);
 
     // Get context-aware hints
@@ -3196,13 +3214,7 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         }
     }
     else if (tok.type == lexer::TokenType::QUESTION) {
-        hint = "\n\n  NAAb does not support the C/JS ternary operator (cond ? a : b).\n"
-               "  Use NAAb's if-expression instead:\n"
-               "    \xE2\x9C\x97 Wrong: condition ? value_a : value_b\n"
-               "    \xE2\x9C\x93 Right: if condition { value_a } else { value_b }\n\n"
-               "  The if-expression IS a value \xe2\x80\x94 assign it directly:\n"
-               "    let result = if x > 0 { x } else { 0 }\n\n"
-               "  Note: '?' is only valid in type annotations (e.g., string? for nullable).\n";
+        hint = ternaryHint();
     }
 
     throw ParseError(formatError("Unexpected token in expression", tok) + hint);

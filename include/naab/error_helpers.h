@@ -58,6 +58,15 @@ std::string suggestDictKey(
     const std::string& requested_key,
     const std::vector<std::string>& actual_keys);
 
+// Print the "[hint] dict.get(...) returned null" diagnostic for a miss with
+// no default. Shared by both engines (three call sites). Capped per run: the
+// hint exists for typos, but building a map from data -- counting files from
+// git log -- misses on every new key, and one hint per distinct key buried
+// real output under hundreds of lines. Thread-safe.
+void hintDictGetMiss(
+    const std::string& requested_key,
+    const std::vector<std::string>& actual_keys);
+
 } // namespace error
 } // namespace naab
 

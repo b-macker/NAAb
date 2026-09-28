@@ -147,10 +147,28 @@ static void apply_posix_containment(const SubprocessContainment& c) {
     // space even for trivial programs like /usr/bin/echo. RLIMIT_AS < 12 GB
     // causes every child exec to SIGABRT (dynamic linker OOM). Actual RSS
     // remains small — the virtual size is just address-space reservation.
+    //
+    // The memory budget is enforced on the DATA segment (private writable
+    // memory: heap, anonymous mmap, thread stacks), not on address space.
+    // RLIMIT_AS at the budget counted reservations that are never touched, and
+    // modern runtimes reserve far more than they use: node 22 needs 512-768 MB
+    // of address space just to START (V8's code range and pointer cage), so
+    // under the 512 MB budget process.run("node", ...) died with "Failed to
+    // reserve virtual memory" before running a line. Measured: RLIMIT_DATA at
+    // 256 MB lets node start and still stops it at 192 MB of real allocation.
+    //
+    // RLIMIT_DATA does not count SHARED anonymous mappings, so an address-space
+    // ceiling stays as a backstop against that route: 4x the budget, at least
+    // 2 GB -- loose enough for runtime reservations, still finite.
 #ifndef __ANDROID__
     if (c.max_memory_bytes > 0) {
-        struct rlimit rl = {(rlim_t)c.max_memory_bytes, (rlim_t)c.max_memory_bytes};
-        setrlimit(RLIMIT_AS, &rl);
+        struct rlimit data = {(rlim_t)c.max_memory_bytes, (rlim_t)c.max_memory_bytes};
+        setrlimit(RLIMIT_DATA, &data);
+        const uint64_t kMinAsCeiling = 2048ULL * 1024ULL * 1024ULL;
+        uint64_t as_ceiling = c.max_memory_bytes * 4ULL;
+        if (as_ceiling < kMinAsCeiling) as_ceiling = kMinAsCeiling;
+        struct rlimit as = {(rlim_t)as_ceiling, (rlim_t)as_ceiling};
+        setrlimit(RLIMIT_AS, &as);
     }
 #endif
 
