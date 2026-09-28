@@ -1,5 +1,6 @@
 #include "naab/resource_limits.h"
 #include <cstdio>
+#include <memory>
 #include <cstring>
 #include <stdexcept>
 
@@ -33,17 +34,38 @@ thread_local volatile bool ResourceLimiter::timeout_triggered_ = false;
 // threads — including ThreadPool workers that never receive SIGALRM directly.
 // Cleared by setExecutionTimeout() (new request) and clearTimeout() (RAII cleanup).
 std::atomic<bool> ResourceLimiter::global_shutdown_{false};
+// Generation counter for cancellable timer threads: each arm bumps it and the
+// timer fires only if its captured value still matches, so a stale timer from
+// execution N cannot poison execution N+1 (R1). File-local to avoid a header
+// ABI change.
+//
+// PER THREAD: a process-wide counter let one thread's clearTimeout() cancel
+// another thread's timer -- a block run off the main thread removed the
+// script's --timeout, and one REST request could cancel a concurrent
+// request's. The timer thread holds a reference, so the counter outlives the
+// thread that armed it.
+static const std::shared_ptr<std::atomic<uint64_t>>& timerGeneration() {
+    static thread_local const std::shared_ptr<std::atomic<uint64_t>> gen =
+        std::make_shared<std::atomic<uint64_t>>(0);
+    return gen;
+}
 #ifdef _WIN32
 std::atomic<bool> ResourceLimiter::win_timer_cancel_{false};
-// R1 fix: generation counter for cancellable Windows timer threads.
-// File-local to avoid a header ABI change.
-static std::atomic<uint64_t> g_win_timer_generation{0};
 #else
 // V-RT-007: cancel flag for the POSIX timer thread (set by clearTimeout()).
 std::atomic<bool> ResourceLimiter::posix_timer_cancel_{false};
-// Generation counter for cancellable POSIX timer threads (matches Windows pattern).
-static std::atomic<uint64_t> g_posix_timer_generation{0};
 #endif
+
+// File-local to avoid a header ABI change (same reason as the generation counters).
+static std::atomic<ResourceLimiter::TimeoutInterruptHook> g_timeout_interrupt_hook{nullptr};
+
+void ResourceLimiter::setTimeoutInterruptHook(TimeoutInterruptHook hook) {
+    g_timeout_interrupt_hook.store(hook, std::memory_order_release);
+}
+
+static void fireTimeoutInterruptHook() {
+    if (auto hook = g_timeout_interrupt_hook.load(std::memory_order_acquire)) hook();
+}
 
 void ResourceLimiter::installSignalHandlers() {
     if (initialized_) {
@@ -81,10 +103,26 @@ bool ResourceLimiter::isInitialized() {
     return initialized_;
 }
 
+// Deadline of the innermost active timeout on this thread. ScopedTimeout
+// reads it to nest: see resource_limits.h.
+static thread_local bool t_has_deadline = false;
+static thread_local std::chrono::steady_clock::time_point t_deadline;
+
+bool ResourceLimiter::currentDeadline(std::chrono::steady_clock::time_point& out) {
+    if (t_has_deadline) out = t_deadline;
+    return t_has_deadline;
+}
+
 void ResourceLimiter::setExecutionTimeout(unsigned int seconds) {
+    setDeadline(std::chrono::steady_clock::now() + std::chrono::seconds(seconds));
+}
+
+void ResourceLimiter::setDeadline(std::chrono::steady_clock::time_point deadline) {
     if (!initialized_) {
         installSignalHandlers();
     }
+    t_has_deadline = true;
+    t_deadline = deadline;
 
     // V-ASYNC-001: reset both flags at the start of each new execution budget.
     global_shutdown_.store(false, std::memory_order_relaxed);
@@ -94,46 +132,48 @@ void ResourceLimiter::setExecutionTimeout(unsigned int seconds) {
     // V-RT-007: capture the calling thread's id by value so the timer thread
     // can call pthread_kill() on the exact thread, not a random one in the pool.
     // tid is NOT stored as a static — it lives in the lambda closure so each
-    // concurrent call to setExecutionTimeout() has its own independent timer.
+    // concurrent call to setDeadline() has its own independent timer.
     pthread_t tid = pthread_self();
     posix_timer_cancel_.store(false, std::memory_order_relaxed);
-    uint64_t my_gen = ++g_posix_timer_generation;
-    std::thread([seconds, tid, my_gen]() {
+    auto gen = timerGeneration();
+    uint64_t my_gen = ++*gen;
+    std::thread([deadline, tid, gen, my_gen]() {
         using clock = std::chrono::steady_clock;
-        auto deadline = clock::now() + std::chrono::seconds(seconds);
         while (clock::now() < deadline) {
-            if (g_posix_timer_generation.load(std::memory_order_relaxed) != my_gen) return;
+            if (gen->load(std::memory_order_relaxed) != my_gen) return;
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-        if (g_posix_timer_generation.load(std::memory_order_relaxed) == my_gen) {
+        if (gen->load(std::memory_order_relaxed) == my_gen) {
             // Set global_shutdown_ first so isTimeoutTriggered() returns true
             // even if the signal is not delivered immediately (e.g. tight loops
             // on Android/Termux where SIGALRM may stay pending).
             ResourceLimiter::global_shutdown_.store(true, std::memory_order_relaxed);
             pthread_kill(tid, SIGALRM);
+            fireTimeoutInterruptHook();
         }
     }).detach();
     alarm(0);  // cancel any prior system-level alarm
 #else
     // Windows has no alarm(). Spawn a detached timer thread that sets
-    // global_shutdown_ after the deadline.
+    // global_shutdown_ at the deadline.
     //
     // R1 fix: generation counter prevents a stale timer from execution N
-    // from poisoning execution N+1. Each new setExecutionTimeout() bumps the
+    // from poisoning execution N+1. Each new setDeadline() bumps the
     // counter; the timer thread captures the pre-bump value; before setting
     // global_shutdown_ it verifies the counter still matches. clearTimeout()
     // also bumps, so normal completion invalidates the in-flight timer.
-    uint64_t my_gen = ++g_win_timer_generation;
+    auto gen = timerGeneration();
+    uint64_t my_gen = ++*gen;
     win_timer_cancel_.store(false, std::memory_order_relaxed);  // kept for compat
-    std::thread([seconds, my_gen]() {
+    std::thread([deadline, gen, my_gen]() {
         using clock = std::chrono::steady_clock;
-        auto deadline = clock::now() + std::chrono::seconds(seconds);
         while (clock::now() < deadline) {
-            if (g_win_timer_generation.load(std::memory_order_relaxed) != my_gen) return;
+            if (gen->load(std::memory_order_relaxed) != my_gen) return;
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-        if (g_win_timer_generation.load(std::memory_order_relaxed) == my_gen) {
+        if (gen->load(std::memory_order_relaxed) == my_gen) {
             ResourceLimiter::global_shutdown_.store(true, std::memory_order_relaxed);
+            fireTimeoutInterruptHook();
         }
     }).detach();
 #endif
@@ -144,18 +184,19 @@ void ResourceLimiter::clearTimeout() {
     // V-RT-007: cancel the posix timer thread and any residual system alarm.
     // Bump generation counter to invalidate any in-flight timer thread
     // (matches Windows pattern — stale timer sees mismatched generation and exits).
-    ++g_posix_timer_generation;
+    ++*timerGeneration();
     posix_timer_cancel_.store(true, std::memory_order_relaxed);
     alarm(0);
 #else
     // R1 fix: bumping the generation counter invalidates any in-flight timer
     // thread — when it wakes, its captured my_gen no longer matches and it
     // returns without touching global_shutdown_.
-    ++g_win_timer_generation;
+    ++*timerGeneration();
     win_timer_cancel_.store(true, std::memory_order_relaxed);  // kept for compat
 #endif
     timeout_triggered_ = false;
     global_shutdown_.store(false, std::memory_order_relaxed);  // V-ASYNC-001
+    t_has_deadline = false;
 }
 
 void ResourceLimiter::setMemoryLimit(size_t megabytes) {

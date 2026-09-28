@@ -46,6 +46,16 @@ jobs:
           # binary and reports UNMEASURABLE rather than passing without it.
           ninja -C build naab-lang libnaab naab-verify-audit naab-gov -j$(nproc)
 
+      # naab_unit_tests (GoogleTest) was the same kind of unbuilt target: five
+      # of its nineteen files had stopped compiling before anyone ran it.
+      # Exclusions are in tests/unit/known_failures.txt, each tied to
+      # docs/unit-test-findings.md; the runner also fails if an excluded test
+      # starts passing, so the list cannot outlive its reasons.
+      - name: Unit tests
+        run: |
+          ninja -C build naab_unit_tests -j$(nproc)
+          bash tests/unit/run_unit_tests.sh
+
       - name: Run tests
         run: bash run-all-tests.sh
 

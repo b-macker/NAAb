@@ -1,0 +1,43 @@
+# Unit tests excluded from tests/unit/run_unit_tests.sh.
+#
+# Every entry is a test that fails for a reason recorded in
+# docs/unit-test-findings.md -- nothing here is excluded because it was
+# inconvenient. Format:  Suite.Test  <kind>  <reason / doc section>
+#
+#   fails  -- run separately; the runner FAILS if it starts passing, so a fix
+#             must also remove the entry (the list cannot quietly go stale).
+#   hang   -- not run at all: it deadlocks or crashes the process.
+#
+# Stale tests: the code changed on purpose (section 1).
+LexerTest.MultipleStatementsOnOneLine          fails  stale: newline tokens are now emitted
+LexerTest.PipeOperator                         fails  stale: |> is PIPELINE, not PIPE
+LexerTest.SingleLineComment                    fails  stale: newline tokens are now emitted
+LexerTest.Whitespace                           fails  stale: newline tokens are now emitted
+ParserTest.DictLiteral                         fails  stale: `{` at statement start is a block
+ParserTest.TryFinallyBlock                     fails  stale: try requires catch
+InterpreterTest.Division                       fails  stale: DIV-001, division is always double
+InterpreterTest.FinallyBlock                   fails  stale: try requires catch
+StdLibTest.AllModulesAvailable                 fails  stale: 13 modules became 25
+MathModuleTest.Abs                             fails  stale: math.abs returns float
+MathModuleTest.Ceil                            fails  stale: math.ceil returns int
+MathModuleTest.Floor                           fails  stale: math.floor returns int
+MathModuleTest.Round                           fails  stale: math.round returns int
+StructRegistryTest.DuplicateThrows             fails  stale: ISS-036 made identical re-registration idempotent
+PolyglotAsyncTest.CppSimpleExecution           fails  stale: C++ snippet uses the pre-NaabVal ABI
+PolyglotAsyncTest.CppBlockingExecution         fails  stale: C++ snippet uses the pre-NaabVal ABI
+PolyglotAsyncTest.ShellBlockingExecution       fails  fixture: callback thread has no sandbox, so fail-closed denies it
+PolyglotAsyncTest.ShellConcurrentExecutions    fails  fixture: callback thread has no sandbox, so fail-closed denies it
+#
+# Real defects, not reachable from the CLI today (section 3).
+PolyglotAsyncTest.PythonTimeout                fails  async executors ignore timeout
+PolyglotAsyncTest.ShellWithTimeout             fails  async executors ignore timeout
+FFICallbackValidatorTest.GetTypeNameReturnsCorrectNames  fails  FFI callback validator is a stub
+FFICallbackValidatorTest.GuardDetectsSignatureMismatch   fails  FFI callback validator is a stub
+FFICallbackValidatorTest.RejectsIncorrectReturnType      fails  FFI callback validator is a stub
+FFICallbackValidatorTest.RejectsSignatureMismatch        fails  FFI callback validator is a stub
+FFICallbackValidatorTest.RejectsTypeMismatch             fails  FFI callback validator is a stub
+FFIAsyncCallbackTest.CancelDuringExecution     fails  AsyncCallbackPool / deferred launch
+FFIAsyncCallbackTest.ExecuteRaceFirstWins      fails  AsyncCallbackPool / deferred launch
+FFIAsyncCallbackTest.PoolConcurrencyLimit      hang   AsyncCallbackPool deadlock (deferred launch)
+FFIAsyncCallbackTest.PoolCancelAll             hang   AsyncCallbackPool deadlock (deferred launch)
+FFIAsyncCallbackTest.PoolThreadSafety          hang   AsyncCallbackPool use-after-free (segfaults)

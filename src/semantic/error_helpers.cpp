@@ -6,6 +6,8 @@
 #include <vector>
 #include <string>
 #include <unordered_set>
+#include <mutex>
+#include <cstdio>
 #include <fmt/core.h>
 
 namespace naab {
@@ -291,6 +293,49 @@ std::string suggestDictKey(
     }
 
     return "";
+}
+
+void hintDictGetMiss(
+    const std::string& requested_key,
+    const std::vector<std::string>& actual_keys) {
+
+    if (actual_keys.empty()) return;
+    // Small enough to show every key only; otherwise a "did you mean" or nothing.
+    std::string suggestion = suggestDictKey(requested_key, actual_keys);
+    if (suggestion.empty() && actual_keys.size() > 8) return;
+
+    static constexpr int kMaxHints = 3;
+    static std::mutex mu;
+    static std::unordered_set<std::string> seen;
+    static int shown = 0;
+    static bool capped = false;
+    std::lock_guard<std::mutex> lock(mu);
+
+    // Each (key, suggestion) pair once per run, as before.
+    if (!seen.insert(requested_key + "\xe2\x86\x92" + suggestion).second) return;
+    if (shown >= kMaxHints) {
+        if (!capped) {
+            capped = true;
+            std::fprintf(stderr,
+                "[hint] more dict.get() misses; further hints suppressed. If a miss is\n"
+                "       expected, say so: d.get(key, 0) or d.get(key, null) with a default,\n"
+                "       or check d.has(key) first -- neither prints a hint.\n");
+        }
+        return;
+    }
+    ++shown;
+    if (!suggestion.empty()) {
+        std::fprintf(stderr, "[hint] dict.get(\"%s\") returned null \xe2\x80\x94 did you mean \"%s\"?\n",
+                     requested_key.c_str(), suggestion.c_str());
+    } else {
+        std::string avail;
+        for (size_t j = 0; j < actual_keys.size(); ++j) {
+            if (j > 0) avail += ", ";
+            avail += "\"" + actual_keys[j] + "\"";
+        }
+        std::fprintf(stderr, "[hint] dict.get(\"%s\") returned null \xe2\x80\x94 available keys: %s\n",
+                     requested_key.c_str(), avail.c_str());
+    }
 }
 
 } // namespace error

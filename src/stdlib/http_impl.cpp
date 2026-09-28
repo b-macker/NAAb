@@ -5,10 +5,12 @@
 #include "naab/governance.h"
 #include "naab/interpreter.h"
 #include "naab/sandbox.h"
+#include "naab/resource_limits.h"
 #include "naab/utils/string_utils.h"
 #include <curl/curl.h>
 #include <fmt/core.h>
 #include <stdexcept>
+#include <chrono>
 #include <sstream>
 #ifdef _WIN32
 #include <winsock2.h>
@@ -123,6 +125,16 @@ struct BoundedResponseSink {
     std::string* buffer;
     size_t max_size;
 };
+
+// --timeout is a flag the interpreter polls, and curl_easy_perform() never
+// returns to the interpreter mid-transfer, so a request ran for its own
+// timeout_ms however long that was -- and timeout_ms = 0 is libcurl's "never".
+// Measured: http.get(url, {}, 0) to an address that drops SYNs was still
+// connecting 20s into a --timeout 3 run. curl calls this at least once a
+// second, including while connecting; a non-zero return aborts the transfer.
+static int TimeoutProgressCallback(void*, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
+    return naab::security::ResourceLimiter::isTimeoutTriggered() ? 1 : 0;
+}
 
 static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     size_t total_size = size * nmemb;
@@ -312,10 +324,29 @@ interpreter::NaabVal performRequest(
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response_headers);
 
-    // Set timeout (in milliseconds)
+    // Set timeout (in milliseconds). 0 or negative is libcurl's "no timeout";
+    // a script cannot opt out of a bound, so it gets the default instead.
+    if (timeout_ms <= 0) timeout_ms = 30000;
+    // Never let a request outlast the script's own deadline. The progress
+    // callback below also aborts on timeout, but curl does not reliably call
+    // it while connecting on every platform: on the Windows runner a connect
+    // to a SYN-dropping host ran to the 10s connect timeout. Capping curl's
+    // own timeouts at the time remaining is exact everywhere.
+    {
+        std::chrono::steady_clock::time_point deadline;
+        if (naab::security::ResourceLimiter::currentDeadline(deadline)) {
+            auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
+                deadline - std::chrono::steady_clock::now()).count();
+            if (left < 1) left = 1;
+            if (left < timeout_ms) timeout_ms = static_cast<int>(left);
+        }
+    }
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(timeout_ms));
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, std::min(static_cast<long>(timeout_ms), 10000L));
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    // Stop the transfer when --timeout fires (see TimeoutProgressCallback).
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, TimeoutProgressCallback);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
 
     // Follow redirects. Safe only because naabCurlOpenSocketCallback below
     // re-adjudicates every hop -- the URL-level isPrivateHost() check never
@@ -362,6 +393,15 @@ interpreter::NaabVal performRequest(
     }
 
     // Check for errors (curl_guard handles cleanup on any exit path)
+    if (res == CURLE_ABORTED_BY_CALLBACK ||
+        (res == CURLE_OPERATION_TIMEDOUT &&
+         naab::security::ResourceLimiter::isTimeoutTriggered())) {
+        throw std::runtime_error(
+            "HTTP request stopped: the script's execution time limit was reached\n\n"
+            "  Help:\n"
+            "  - The request was still in progress when the run's time limit expired\n"
+            "  - Pass a smaller timeout_ms to http.* so a slow server fails fast\n");
+    }
     if (res != CURLE_OK) {
         throw std::runtime_error(fmt::format(
             "HTTP request failed: {} ({})",
