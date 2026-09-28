@@ -8232,6 +8232,24 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                                                  const std::string& error) {
     if (!cdd_enabled_.load(std::memory_order_acquire)) return "";
 
+    // A retry-exhausted API failure must not take the turn's analysis slot.
+    // agentSend reports it at the SAME turn number the next real response will
+    // carry (a failed call does not advance the turn), so analysing it here set
+    // last_checked_turn and recordTurn then skipped that response on the
+    // interval check: the response after any failed call was never scored by
+    // any signal, while its CDD_TURN still read analyzed:"true". Measured with
+    // a stubbed 500 inside agent.pipeline: the next response escaped CDD.
+    //
+    // With exclude_infrastructure_errors (default) the error feeds no signal
+    // at all, so there is nothing to analyse: return before the event feed is
+    // touched, so the since_last_check watermark does not swallow this turn's
+    // events either. With it off the error still feeds repeated_failures, so
+    // the analysis runs -- and the slot is handed back afterwards.
+    const bool infra_error = error.rfind("infrastructure:", 0) == 0;
+    if (infra_error && rules().context_drift.signals.exclude_infrastructure_errors)
+        return "";
+    const int slot_before = infra_error ? drift_analyzer_.getLastCheckedTurn(handle_id) : 0;
+
     // Gather events from this turn
     // Event feed selection. "turn_bucket" is the historical default and is
     // byte-identical to it. "since_last_check" selects on sequence_id instead,
@@ -8288,6 +8306,7 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
     }
 
     bool drifted = drift_analyzer_.recordTurn(handle_id, turn, turn_events, error);
+    if (infra_error) drift_analyzer_.setLastCheckedTurn(handle_id, slot_before);
 
     // --- Composite pressure detection + circuit breaker + pulse ---
     // Pressure factors, pulse verdict, and governance level updates run

@@ -195,6 +195,11 @@ struct DriftState {
 
     // Rate normalization
     int turns_analyzed = 0;
+    // Incremented only when recordTurn gets past the interval check, i.e. when
+    // a turn was actually analyzed. CDD_TURN's `analyzed` compares this before
+    // and after its own check; comparing turn numbers could not tell a skipped
+    // analysis from one an earlier call made at the same turn number.
+    unsigned long long analysis_seq = 0;
 
     // Pipeline pressure inheritance
     double inherited_pressure = 0.0;  // pressure inherited from prior pipeline stage
@@ -286,6 +291,23 @@ struct DriftState {
     // pump coherence.
     bool last_consumed_validation_failed = false;  // most recently CONSUMED outcome was a failure
     double last_validation_recovery = 0.0;         // recovery credit applied this turn (telemetry)
+    // Every other movement of coherence_score, so an analyzed CDD_TURN row can
+    // be reconciled from telemetry alone:
+    //   coherence = previous analyzed coherence - temporal_decay - penalties
+    //               + validation_recovery + natural_healing + floor_absorbed
+    //               + recovery
+    // Without these the listed penalties never matched the drop (healing was
+    // silent), and a repo-sentinel investigation reported CDD as broken.
+    // Decay and external recovery happen OUTSIDE analyzed turns (decay also
+    // runs on interval-skipped turns; recovery on a passed step-up or a
+    // pipeline boundary), so they accumulate in pending_* and are reported on
+    // the next analyzed turn.
+    double last_natural_heal = 0.0;       // healing received this analyzed turn
+    double last_floor_absorbed = 0.0;     // penalty beyond 0 that the clamp discarded
+    double last_temporal_decay = 0.0;     // decay since the previous analyzed turn
+    double last_external_recovery = 0.0;  // recoverCoherence() since the previous analyzed turn
+    double pending_temporal_decay = 0.0;
+    double pending_external_recovery = 0.0;
     // Evidence mass behind the recorded outcome — how many checks actually ran
     // (test count, assertion count, whatever the caller reports). -1 = never
     // reported, which leaves every behaviour below inert. A "pass" whose
@@ -703,6 +725,9 @@ public:
     void setAgentConfigName(int handle_id, const std::string& name);
     size_t getLastEventSeq(int handle_id) const;
     void setLastEventSeq(int handle_id, size_t seq);
+    unsigned long long getAnalysisSeq(int handle_id) const;
+    int getLastCheckedTurn(int handle_id) const;
+    void setLastCheckedTurn(int handle_id, int turn);
 
     // Bind per-agent signal overrides (context_drift_signals) to a handle.
     // Unknown keys are ignored (config parse already warns on them).

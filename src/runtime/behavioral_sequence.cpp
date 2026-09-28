@@ -882,6 +882,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             double decay = config_->temporal_decay_per_minute *
                 (elapsed_min - config_->temporal_decay_grace_minutes);
             state.coherence_score -= decay;
+            state.pending_temporal_decay += decay;
         }
         state.last_activity_time = now;
     }
@@ -899,6 +900,17 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         return false;
     }
     state.last_checked_turn = turn_number;
+    state.analysis_seq++;
+
+    // Movements outside the penalty loop, reported on this analyzed row (see
+    // DriftState). Decay and external recovery that landed since the previous
+    // analyzed turn are flushed here, so they are counted exactly once.
+    state.last_temporal_decay = state.pending_temporal_decay;
+    state.pending_temporal_decay = 0.0;
+    state.last_external_recovery = state.pending_external_recovery;
+    state.pending_external_recovery = 0.0;
+    state.last_natural_heal = 0.0;
+    state.last_floor_absorbed = 0.0;
 
     // Track gate-passing turns after baseline completes (for adaptive penalty rate)
     if (state.baseline_complete) {
@@ -1734,8 +1746,11 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             state.last_consumed_validation_failed = false;
             double credit = config_->validation_recovery_amount;
             if (credit > 0.0) {
+                // Report what was received, not the nominal credit: the cap at
+                // 1.0 can cut it, and telemetry must reconcile.
+                const double before = state.coherence_score;
                 state.coherence_score = std::min(1.0, state.coherence_score + credit);
-                state.last_validation_recovery = credit;
+                state.last_validation_recovery = state.coherence_score - before;
             }
         }
         // Consume the latched result — one validation outcome per turn.
@@ -2326,6 +2341,10 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // >= 0 and the ledger becomes pumpable -- and it would be pumpable on every
     // profile at once, which is strictly worse than the constant it replaces.
     // The clamp is belt-and-braces behind the ratchet, not a substitute for it.
+    // Snapshot for the telemetry split below: healing RECEIVED is measured on
+    // the clamped scale, and whatever the penalties took below 0 is reported
+    // as floor_absorbed, so the two sum exactly to the clamp's effect.
+    const double pre_heal = state.coherence_score;
     double heal_base = config_->coherence_natural_healing;
     if (config_->coherence_healing_damage_fraction > 0.0 &&
         !state.damage_history.empty()) {
@@ -2376,6 +2395,9 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             if (realized > 0.0) state.coherence_healed_total += realized;
         }
     }
+    state.last_natural_heal =
+        std::max(0.0, state.coherence_score) - std::max(0.0, pre_heal);
+    state.last_floor_absorbed = std::max(0.0, -pre_heal);
 
     // Clamp coherence score to [0.0, 1.0]
     state.coherence_score = std::max(0.0, std::min(1.0, state.coherence_score));
@@ -2782,6 +2804,8 @@ void ContextDriftAnalyzer::resetCoherence(int handle_id, double amount) {
             it->second.coherence_score = std::min(cap, old + granted);
             it->second.coherence_healed_total +=
                 (it->second.coherence_score - before);
+            it->second.pending_external_recovery +=
+                (it->second.coherence_score - before);
         }
         // Clear history and derivatives to prevent false velocity/acceleration signals
         it->second.coherence_history.clear();
@@ -2887,6 +2911,24 @@ void ContextDriftAnalyzer::setLastEventSeq(int handle_id, size_t seq) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = drift_states_.find(handle_id);
     if (it != drift_states_.end()) it->second.last_event_seq = seq;
+}
+
+unsigned long long ContextDriftAnalyzer::getAnalysisSeq(int handle_id) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = drift_states_.find(handle_id);
+    return it == drift_states_.end() ? 0 : it->second.analysis_seq;
+}
+
+int ContextDriftAnalyzer::getLastCheckedTurn(int handle_id) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = drift_states_.find(handle_id);
+    return it == drift_states_.end() ? -1 : it->second.last_checked_turn;
+}
+
+void ContextDriftAnalyzer::setLastCheckedTurn(int handle_id, int turn) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = drift_states_.find(handle_id);
+    if (it != drift_states_.end()) it->second.last_checked_turn = turn;
 }
 
 // Compute override bitmasks from a context_drift_signals map. Unknown keys
