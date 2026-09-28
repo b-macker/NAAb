@@ -238,6 +238,7 @@ examples/hivemind_governed/src/hive-r-*.txt
 # (which invokes the examples from the repo root) drops these at the top level
 # rather than beside the script.
 /hivemind-telemetry.jsonl
+examples/hivemind/src/hivemind-telemetry.jsonl
 /hivemind-governed-telemetry.jsonl
 /hivemind-governed-transcript.jsonl
 /hivemind-audit.jsonl

@@ -3121,6 +3121,8 @@ public:
     // handle has no drift state). Attached to telemetry events when
     // telemetry.decision_snapshots is enabled.
     std::string snapshotCddState(int handle_id) const;
+    // Count of turns CDD actually analyzed for this handle (see DriftState::analysis_seq)
+    unsigned long long cddAnalysisSeq(int handle_id) const { return drift_analyzer_.getAnalysisSeq(handle_id); }
 
     // --- Agent interaction transcript ---
     void writeAgentTranscript(const std::string& json_line);

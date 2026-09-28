@@ -606,6 +606,39 @@ static std::unordered_set<std::string> entityContextUnion(
     return u;
 }
 
+// CDD_TURN's penalties_detail carries the signal penalties (plus the historical
+// validation_recovery credit). Shared by both CDD_TURN emit sites.
+static void appendValidationRecovery(std::string& detail, const governance::DriftState& ds) {
+    if (ds.last_validation_recovery <= 0.0) return;
+    char b[64];
+    snprintf(b, sizeof(b), "validation_recovery=+%.4f", ds.last_validation_recovery);
+    if (!detail.empty()) detail += ",";
+    detail += b;
+}
+
+// Every OTHER movement of coherence on an analyzed row, so it reconciles from
+// telemetry alone (see DriftState):
+//   coherence = previous analyzed coherence - penalties + validation_recovery
+//               + sum(coherence_adjustments)
+// A separate field on purpose: consumers read a non-empty penalties_detail as
+// "a signal paid this turn", and healing lands on nearly every turn after
+// damage, so folding it in would have miscounted every one of them.
+static std::string coherenceAdjustments(const governance::DriftState& ds) {
+    std::string out;
+    auto add = [&](const char* name, char sign, double v) {
+        if (v < 0.00005) return;  // below the printed precision
+        char b[64];
+        snprintf(b, sizeof(b), "%s=%c%.4f", name, sign, v);
+        if (!out.empty()) out += ",";
+        out += b;
+    };
+    add("temporal_decay", '-', ds.last_temporal_decay);
+    add("natural_healing", '+', ds.last_natural_heal);
+    add("floor_absorbed", '+', ds.last_floor_absorbed);
+    add("recovery", '+', ds.last_external_recovery);
+    return out;
+}
+
 // Build a mechanical summary preamble from DriftState metadata for challenge context.
 // Returns empty string if no metadata is available.
 static std::string buildChallengeSummary(const governance::DriftState& ds, int current_turn) {
@@ -4356,8 +4389,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         std::string cdd_error = agent_resp.success ? json_error_signal : agent_resp.error;
         // Read governance level before CDD (for change detection)
         int level_before = static_cast<int>(gov_engine->getGovernanceLevel());
+        const unsigned long long cdd_seq_before = gov_engine->cddAnalysisSeq(handle_id);
         std::string drift_err = gov_engine->checkContextDrift(
             handle_id, event_turn, cdd_error);
+        const bool cdd_analyzed = gov_engine->cddAnalysisSeq(handle_id) != cdd_seq_before;
         // CDD_TURN: emit BEFORE potential throw so it's always in the audit trail
         {
             auto drift_state = gov_engine->getDriftState(handle_id);
@@ -4387,13 +4422,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         penalty_detail += pbuf;
                     }
                 }
-                if (drift_state->last_validation_recovery > 0.0) {
-                    if (!penalty_detail.empty()) penalty_detail += ",";
-                    char rbuf[64];
-                    snprintf(rbuf, sizeof(rbuf), "validation_recovery=+%.4f",
-                             drift_state->last_validation_recovery);
-                    penalty_detail += rbuf;
-                }
+                appendValidationRecovery(penalty_detail, *drift_state);
                 // Pressure decomposition. `pressure` alone is a conclusion with
                 // its inputs discarded, so explaining an escalation meant
                 // re-deriving the weighting from outside -- which was done for
@@ -4531,6 +4560,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
                     {"signals_detail",   fired_names},
                     {"penalties_detail", penalty_detail},
+                    {"coherence_adjustments", coherenceAdjustments(*drift_state)},
                     // Calibration state, declared per turn.
                     //
                     // While a handle is inside its adaptive baseline window,
@@ -4592,8 +4622,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     // false = interval-skipped: recordTurn did NOT analyze this
                     // turn, so coherence/signals_detail above are STALE state
                     // from the last analyzed check (a display artifact that has
-                    // misled multiple forensic passes — see check_interval_turns)
-                    {"analyzed", drift_state->last_checked_turn == event_turn ? "true" : "false"}
+                    // misled multiple forensic passes — see check_interval_turns).
+                    // Read from the analysis counter, not by comparing turn
+                    // numbers: a turn number can be analyzed by an EARLIER call.
+                    {"analyzed", cdd_analyzed ? "true" : "false"}
                 });
             } else {
                 // CDD ran but drift analyzer has no state yet (before first check_interval_turns)
@@ -5868,7 +5900,9 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
             "agent.response('" + config_name + "', tokens=" +
             std::to_string(selected.output_tokens) + ")", "", 0, cfp,
             selected.output_tokens, 0, response_keywords, selected.input_tokens);
+        const unsigned long long cdd_seq_before = gov_engine->cddAnalysisSeq(handle_id);
         std::string drift_err = gov_engine->checkContextDrift(handle_id, event_turn, "");
+        const bool cdd_analyzed = gov_engine->cddAnalysisSeq(handle_id) != cdd_seq_before;
         {
             auto drift_state = gov_engine->getDriftState(handle_id);
             if (drift_state) {
@@ -5888,13 +5922,7 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                         c_penalty += pb;
                     }
                 }
-                if (drift_state->last_validation_recovery > 0.0) {
-                    if (!c_penalty.empty()) c_penalty += ",";
-                    char rb[64];
-                    snprintf(rb, sizeof(rb), "validation_recovery=+%.4f",
-                             drift_state->last_validation_recovery);
-                    c_penalty += rb;
-                }
+                appendValidationRecovery(c_penalty, *drift_state);
                 if (drift_state->last_validation_credit_withheld) {
                     if (!c_penalty.empty()) c_penalty += ",";
                     c_penalty += "validation_credit_withheld=evidence_shrank";
@@ -5914,10 +5942,11 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
                     {"signals_detail",   c_fired},
                     {"penalties_detail", c_penalty},
+                    {"coherence_adjustments", coherenceAdjustments(*drift_state)},
                     {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
                     {"governance_level", c_level_str},
                     {"drift_detected",   drift_err.empty() ? "false" : "true"},
-                    {"analyzed", drift_state->last_checked_turn == event_turn ? "true" : "false"},
+                    {"analyzed", cdd_analyzed ? "true" : "false"},
                     {"source",           "agent.commit"}
                 });
             }

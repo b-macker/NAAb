@@ -1666,6 +1666,23 @@ else
     echo "  test_process_run_inline_gate.sh: not found, skipping"
 fi
 
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  CDD Coherence Reconciliation (telemetry accounts for every move)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RECONCILE_SCRIPT="tests/governance_v4/test_coherence_reconcile.sh"
+if [ -f "$RECONCILE_SCRIPT" ]; then
+    if run_shell_test "$RECONCILE_SCRIPT" 2>&1; then
+        echo "  test_coherence_reconcile.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_coherence_reconcile.sh")
+    fi
+else
+    echo "  test_coherence_reconcile.sh: not found, skipping"
+fi
+
 # --- Signed govern.json vs Package Operations (F39) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
