@@ -160,8 +160,12 @@ Measured once an address that drops SYNs was found (`8.8.8.8:81`):
 curl never returns to the interpreter mid-transfer, and `timeout_ms = 0` is
 libcurl's "never". **Fixed:** a progress callback aborts the transfer when the
 timeout fires (curl calls it at least once a second, including while
-connecting), and a non-positive `timeout_ms` falls back to the 30 s default.
-Stops at 3 s now.
+connecting), a non-positive `timeout_ms` falls back to the 30 s default, and
+curl's own timeouts are capped at the time left before the script's deadline.
+The cap is what holds on Windows: there the progress callback was not called
+during connect, and the first CI run stopped at curl's 10 s connect timeout
+instead of 3 s. With the callback disabled locally, the cap alone stops the
+request at 3 s.
 
 Regression suite for 2a, 2c and 2d: `tests/security/test_timeout_reach.sh`,
 9 arms. Against the old code, all 8 non-control arms fail and the control passes.
