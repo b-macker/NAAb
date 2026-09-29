@@ -243,3 +243,10 @@ examples/hivemind/src/hivemind-telemetry.jsonl
 /hivemind-governed-transcript.jsonl
 /hivemind-audit.jsonl
 /hivemind-governed-audit.jsonl
+
+# Vigilant (docs/book) compiles these from gateway.go / shield.rs at run time
+# (modules/synthesizer.naab builds into Vigilant/bin/). The two copies that were
+# committed were Android/aarch64 builds nothing read -- ~9.4 MB of executables.
+docs/book/verification/ch0_full_projects/Vigilant/bin/
+docs/book/verification/ch0_full_projects/Vigilant/proxy/gateway_vessel
+docs/book/verification/ch0_full_projects/Vigilant/scanner/shield_vessel

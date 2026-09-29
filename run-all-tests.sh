@@ -2824,9 +2824,11 @@ GOVV4_SWEEP_SKIP=(
     # It states what "fixed" means for the semantic signals: no signal may fire
     # as often on correct work as on drift (C1), correct work must not exhaust
     # the coherence budget (C2), restating the mandate must not outscore doing
-    # the task (C3), and every drift arm must still be caught (C4). On the
-    # engine as of this entry it fails all four while all five of its own
-    # vacuity checks pass, so the failures are about the engine.
+    # the task (C3), and every drift arm must still be caught (C4). When this
+    # entry was written it failed all four while all five of its own vacuity
+    # checks passed, so the failures are about the engine. As of 80c8cd9
+    # (2026-09-29) C1 and C2 pass and C3/C4 still fail -- the gate stays out of
+    # the sweep until all four pass.
     #
     # Deleting this line is the act of wiring it in. Do that in the SAME commit
     # that makes it pass -- not before, or the suite stops being a signal.
