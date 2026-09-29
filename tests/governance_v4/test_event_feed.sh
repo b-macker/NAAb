@@ -40,6 +40,11 @@
 #          control asserts there is a non-trivial amount to compare
 #   EF-06  an unrecognised event_feed value warns, names the valid values, and
 #          keeps the default rather than silently disabling (the A1c shape)
+#
+# S5 on its FROZEN baseline is this suite's instrument for what each feed
+# delivers, so every arm pins context_drift.thresholds.entropy_baseline_adaptive
+# false. The default flipped to true (C1f); left unpinned, EF-01/03/06 would be
+# measuring the re-derived baseline instead of the feed.
 # ============================================================
 set -uo pipefail
 
@@ -102,6 +107,7 @@ run_case() {
   "behavioral_sequences": { "enabled": true${5:-} },
   "context_drift": { "enabled": true, "level": "advisory", "check_interval_turns": 1,
     "event_feed": "$2",
+    "thresholds": { "entropy_baseline_adaptive": false },
     "reality_checkpoint": { "enabled": false } },
   "circuit_breaker": { "enabled": true, "critical_threshold": 0.99 },
   "agents": { "worker": { "provider": "gemini", "model": "stub-model",

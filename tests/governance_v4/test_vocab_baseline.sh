@@ -77,16 +77,25 @@
 #          (2.000 frozen vs 1.918 adaptive). Without it "detection unchanged" is
 #          indistinguishable from "the mechanism never engaged".
 #
-# WHY IT SHIPS OFF
+# WHY IT NOW SHIPS ON (it shipped OFF until 2026-09-29)
 #
 # The detection cost measured here is zero, which is the standard #176 used to
-# default S17's equivalent ON. Two things argue for waiting. This is ONE
-# narrowing fixture where #176 measured eight arms at different drift rates. And
-# under the DEFAULT feed the re-derived baseline converges to 1.000, at which
-# point S5 can never fire again — so defaulting this on would silently retire S5
-# for every existing config. That is defensible (under the default feed S5 can
-# only ever fire on the startup artifact) but it is too big a claim for one
-# fixture.
+# default S17's equivalent ON. It was held off because this is ONE narrowing
+# fixture where #176 measured eight arms, and because under the DEFAULT feed the
+# re-derived baseline converges to 1.000, at which point S5 can never fire again
+# -- defaulting it on retires S5 for every config on that feed. What settled it
+# was a real-world case: the repo-sentinel reviewer, doing git and file work
+# before its first send, reached OUTPUT_INADMISSIBLE at turn 8 in all four runs
+# of one arm, clean and adversarial alike, identical to six decimals. Under the
+# default feed that startup artifact is the only firing S5 can reach
+# (VC-05/VC-06), so what the flip retires is the false positive.
+#
+# The frozen-mechanism arms (VC-00..VC-07, narrow_frozen) therefore pin
+# entropy_baseline_adaptive:false explicitly, and VC-11 pins the default.
+#
+#   VC-11  the default equals the explicit-ON arm (same firing turns, same
+#          coherence) and differs from the explicit-OFF arm -- the second half
+#          is what stops it passing on an engine that ignores the key.
 #
 #   VC-07  the frozen baseline is READABLE from preserved evidence, and carries
 #          the value the arithmetic above predicts. Until this shipped it was
@@ -238,11 +247,15 @@ echo -e "${CYAN}+==============================================================+
 echo ""
 
 OK_STEADY=0; OK_K1=0; OK_K2=0; OK_EVERY=0; OK_LATE=0
-run_case steady      "$(mk_prog ''          '')"        && OK_STEADY=1
-run_case k1_startup  "$(mk_prog "$OPS_K1"   '')"        && OK_K1=1
-run_case k2_startup  "$(mk_prog "$OPS_K2"   '')"        && OK_K2=1
-run_case k2_everyturn "$(mk_prog ''         "$OPS_K2")" && OK_EVERY=1
-run_case k2_late     "$(mk_prog_late)"                  && OK_LATE=1
+# The frozen-baseline arms pin entropy_baseline_adaptive OFF explicitly: they
+# document the defect's mechanism, and since the default flipped ON they would
+# otherwise measure the fix. VC-11 pins the default itself.
+FROZEN='"thresholds": { "entropy_baseline_adaptive": false }'
+run_case steady      "$(mk_prog ''          '')"        "$FROZEN" && OK_STEADY=1
+run_case k1_startup  "$(mk_prog "$OPS_K1"   '')"        "$FROZEN" && OK_K1=1
+run_case k2_startup  "$(mk_prog "$OPS_K2"   '')"        "$FROZEN" && OK_K2=1
+run_case k2_everyturn "$(mk_prog ''         "$OPS_K2")" "$FROZEN" && OK_EVERY=1
+run_case k2_late     "$(mk_prog_late)"                  "$FROZEN" && OK_LATE=1
 
 # C1f arms. ADAPT re-derives initial_entropy on any turn clean apart from S5.
 ADAPT='"thresholds": { "entropy_baseline_adaptive": true }'
@@ -250,8 +263,10 @@ ADAPT='"thresholds": { "entropy_baseline_adaptive": true }'
 # every post-turn-0 event is invisible (B6/VC-05/VC-06), so "genuine narrowing"
 # cannot be expressed at all and an arm claiming to test it would be vacuous.
 ADAPT_FEED='"event_feed": "since_last_check", "thresholds": { "entropy_baseline_adaptive": true }'
-FEED_ONLY='"event_feed": "since_last_check"'
+FEED_ONLY='"event_feed": "since_last_check", "thresholds": { "entropy_baseline_adaptive": false }'
 run_case k2_adapt    "$(mk_prog "$OPS_K2" '')" "$ADAPT"      && OK_ADAPT=1
+# VC-11: no key at all -- whatever the engine default is.
+run_case k2_default  "$(mk_prog "$OPS_K2" '')"               && OK_DEFAULT=1
 run_case narrow_frozen "$(mk_prog_early)"      "$FEED_ONLY"  && OK_NF=1
 run_case narrow_adapt  "$(mk_prog_early)"      "$ADAPT_FEED" && OK_NA=1
 
@@ -448,6 +463,25 @@ if [ -f "$T_NF" ] && [ -f "$T_NA" ]; then
     fi
 else
     fail "VC-10" "narrowing arms produced no telemetry"
+fi
+
+# VC-11: the default. With no key in govern.json the k=2 startup artifact must
+# behave like the explicit-ON arm (same firing turns, same final coherence),
+# and unlike the explicit-OFF arm -- the second half is what stops this passing
+# for an engine where the key is simply ignored.
+T_DEF="$TEST_TMP/k2_default/tele.jsonl"
+if [ -f "$T_DEF" ] && [ -f "$T_ADAPT" ] && [ -f "$T_K2" ]; then
+    D_TURNS="$(s5_fire_turns "$T_DEF")"; A_TURNS="$(s5_fire_turns "$T_ADAPT")"
+    F_TURNS="$(s5_fire_turns "$T_K2")"
+    D_COH="$(final_coherence "$T_DEF")"; A_COH="$(final_coherence "$T_ADAPT")"
+    if [ "$D_TURNS" = "$A_TURNS" ] && [ "$D_COH" = "$A_COH" ] && [ "$D_TURNS" != "$F_TURNS" ]; then
+        pass "VC-11" "default is the adaptive baseline: fires [$D_TURNS], coherence $D_COH (frozen fires [$F_TURNS])"
+    else
+        fail "VC-11" "default does not match entropy_baseline_adaptive: true" \
+             "default=[$D_TURNS] $D_COH  adaptive=[$A_TURNS] $A_COH  frozen=[$F_TURNS]"
+    fi
+else
+    fail "VC-11" "default/adaptive/frozen arms produced no telemetry"
 fi
 
 echo ""
