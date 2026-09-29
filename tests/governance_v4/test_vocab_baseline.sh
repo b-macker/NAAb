@@ -77,16 +77,25 @@
 #          (2.000 frozen vs 1.918 adaptive). Without it "detection unchanged" is
 #          indistinguishable from "the mechanism never engaged".
 #
-# WHY IT SHIPS OFF
+# WHY IT NOW SHIPS ON (it shipped OFF until 2026-09-29)
 #
 # The detection cost measured here is zero, which is the standard #176 used to
-# default S17's equivalent ON. Two things argue for waiting. This is ONE
-# narrowing fixture where #176 measured eight arms at different drift rates. And
-# under the DEFAULT feed the re-derived baseline converges to 1.000, at which
-# point S5 can never fire again — so defaulting this on would silently retire S5
-# for every existing config. That is defensible (under the default feed S5 can
-# only ever fire on the startup artifact) but it is too big a claim for one
-# fixture.
+# default S17's equivalent ON. It was held off because this is ONE narrowing
+# fixture where #176 measured eight arms, and because under the DEFAULT feed the
+# re-derived baseline converges to 1.000, at which point S5 can never fire again
+# -- defaulting it on retires S5 for every config on that feed. What settled it
+# was a real-world case: the repo-sentinel reviewer, doing git and file work
+# before its first send, reached OUTPUT_INADMISSIBLE at turn 8 in all four runs
+# of one arm, clean and adversarial alike, identical to six decimals. Under the
+# default feed that startup artifact is the only firing S5 can reach
+# (VC-05/VC-06), so what the flip retires is the false positive.
+#
+# The frozen-mechanism arms (VC-00..VC-07, narrow_frozen) therefore pin
+# entropy_baseline_adaptive:false explicitly, and VC-11 pins the default.
+#
+#   VC-11  the default equals the explicit-ON arm (same firing turns, same
+#          coherence) and differs from the explicit-OFF arm -- the second half
+#          is what stops it passing on an engine that ignores the key.
 #
 #   VC-07  the frozen baseline is READABLE from preserved evidence, and carries
 #          the value the arithmetic above predicts. Until this shipped it was
