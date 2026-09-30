@@ -2679,7 +2679,7 @@ each twice: eight runs, raw telemetry handed over in full.
 |---|---|---|---|
 | Coherence never matched the listed penalties (reported as F-008) | Natural healing, temporal decay, the clamp at 0 and `recoverCoherence()` moved coherence with no telemetry | #263 (`coherence_adjustments`) | **confirmed** — 171 analyzed rows across 8 runs, 0 that fail to reconcile. Counted by the dogfood's own reconciler; the reviewer rows of one run were re-derived by hand here and match (1.0 − 0.15 + 0.015 = 0.865, then 0.730, 0.5567) |
 | The response after a retry-exhausted API call was never analyzed | The failure took the turn's analysis slot | #263 | **stub-only** — round 5 retried on 503s (73 retry/skip events) but no send was shown to exhaust its retries, which is the case the fix covers |
-| A clean reviewer was quarantined at turn 8 (C1f) | S5's entropy baseline frozen from startup turns; see `open-investigations.md` C1f | #265 (`entropy_baseline_adaptive` default true) | defect **confirmed** (4 of 4 runs of one arm, clean and adversarial alike, 0.556667 at turn 8 to six decimals); fix at its new default **stub-only** until a round runs on `ffb0108` or later |
+| A clean reviewer was quarantined at turn 8 (C1f) | S5's entropy baseline frozen from startup turns; see `open-investigations.md` C1f | #265 (`entropy_baseline_adaptive` default true) | defect **confirmed** (4 of 4 runs of one arm, clean and adversarial alike, 0.556667 at turn 8 to six decimals). #265's adaptive default was then **confirmed NOT to fix it** in round 6 (on `ffb0108`): 3 of 3 clean runs still quarantined at turn 8, reference entropy frozen at 2.113 on turns 6-8. The fix is `vocab_contraction_agent_events_only` (S5 counts only the agent's own events) — **stub-only** until a live round runs on it |
 
 ### A result that did not reproduce
 
@@ -2702,3 +2702,14 @@ so it was most likely misreported. The fix was procedural, not in the engine:
 move each stage's telemetry into `out/` instead of deleting it, and cite only
 files `ls` shows to exist after the script finishes. Round 5's handoff did both,
 which is the only reason C1f could be traced to six decimals.
+
+### Round 6: two engine defects the dogfood surfaced, and a claim that did not hold
+
+| Finding | Mechanism | Test | Live status |
+|---|---|---|---|
+| #265 did not remove the clean-run quarantine | The adaptive baseline re-derives from an early half that still contains turn 0 until the window slides past it; an 8-turn agent never gets there | `test_vocab_baseline.sh` VC-08 (the 20 → 5 residual was always there; it was misread as a fix) | **confirmed live** — 3 of 3 clean runs, identical coherence to four decimals |
+| A run-ending secret block missing from telemetry | Agent-path checks inherited the script's last check location; with `deduplicate_checks` on, the violation shared a (rule, file, line) key with an earlier pass and was dropped | `test_agent_check_location.sh` | **confirmed live** (repo-sentinel's blocked clean run: exit 3, no violation row); fix **stub-only** |
+| An escalated advisory said "execution will continue" while terminating the run | The message was formatted at ADVISORY; the escalation note never said the run stops | `test_escalation_message.sh` | **confirmed live** (two adversarial runs); fix **stub-only** |
+
+The dogfood's own summary script reported "no quarantine" for every run: it matched `result == "inadmissible"`, a value the engine never writes (`"fail"`). Five of six runs had in fact been quarantined. A two-valued probe that cannot match reports "absent", not "error" — `docs/investigation-method.md`, *A broken probe reports a finding, not an error*.
+
