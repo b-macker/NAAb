@@ -1357,8 +1357,14 @@ std::string GovernanceEngine::enforce(
             if (esc.enabled && occurrence >= esc.soft_after) {
                 g_governance_hard_block = true;
                 check_results_.back().escalated = true;
+                // violation_message was formatted at ADVISORY and so ends
+                // "execution will continue" -- the opposite of what the throw
+                // below does. Say so plainly, as the level-promotion path above
+                // does; repo-sentinel round 6 lost two runs to this path with
+                // the only explanation on screen claiming the run continued.
                 std::string escalation_msg = violation_message +
-                    "\n\n  This advisory was escalated after repeated occurrences.\n";
+                    "\n\n  This advisory was escalated after repeated occurrences.\n"
+                    "  It is now enforced as a block. Execution stops here.\n";
                 int occ_copy = occurrence;
                 fprintf(stderr, "[governance] ESCALATED %s (occurrence %d >= %d)\n",
                     rule_name.c_str(), occ_copy, esc.soft_after);
