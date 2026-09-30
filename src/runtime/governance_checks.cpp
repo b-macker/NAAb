@@ -6700,7 +6700,7 @@ std::string GovernanceEngine::checkPolyglotBlock(
     err = checkPluginRules("polyglot_block", {
         {"code", interpreter::NaabVal::makeString(code)},
         {"language", interpreter::NaabVal::makeString(lang)},
-        {"source_file", interpreter::NaabVal::makeString(current_check_file_)},
+        {"source_file", interpreter::NaabVal::makeString(checkFile())},
         {"line", interpreter::NaabVal::makeInt(line)},
     }, line);
     if (!err.empty()) return err;

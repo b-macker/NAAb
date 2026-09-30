@@ -3143,6 +3143,11 @@ public:
 
     // --- Check context (for report file/line tracking) ---
     void setCheckContext(const std::string& file, int line = 0);
+    // Per-thread location stamped on check results (see setCheckContext()).
+    const std::string& checkFile() const;
+    int checkLine() const;
+    // Swap this thread's location, returning the previous one (ScopedCheckContext).
+    static std::pair<std::string, int> exchangeThreadCheckContext(std::string file, int line);
 
     // --- Per-language getters ---
     int getTimeoutForLanguage(const std::string& lang) const;
@@ -3773,8 +3778,6 @@ private:
     std::string agent_id_ = "anonymous";
     std::string run_id_;  // Unique per-execution ID for telemetry run separation
     std::string active_env_;            // Set by applyEnvironment()
-    std::string current_check_file_;    // Set by setCheckContext() for report tracking
-    int current_check_line_ = 0;        // Set by setCheckContext() for report tracking
     std::unordered_map<std::string, int> emitted_advisories_;  // Advisory occurrence counts (escalation)
     void decayAdvisoryHistory();  // halve occurrence counts on epoch boundary (caller must hold results_mutex_)
     bool preflight_mode_ = false;  // F8: marks results as preflight during preflightIntentCheck
@@ -4074,6 +4077,24 @@ private:
 // `return` out of a `try`, or an exception unwinding through the call, would
 // otherwise leak a frame and attribute later effects to the wrong function.
 // ScopedToolContext (agent_impl.cpp) is the precedent this copies.
+// Stamps every check result recorded on this thread, for the scope's lifetime,
+// with `file`/`line` -- then restores the previous location, including on an
+// exception. Agent entry points open one with "<agent:NAME>" so that response,
+// prompt and tool scans and CDD are attributed to the agent rather than to
+// whatever the script checked last.
+class ScopedCheckContext {
+public:
+    explicit ScopedCheckContext(std::string file, int line = 0)
+        : prev_(GovernanceEngine::exchangeThreadCheckContext(std::move(file), line)) {}
+    ~ScopedCheckContext() {
+        GovernanceEngine::exchangeThreadCheckContext(std::move(prev_.first), prev_.second);
+    }
+    ScopedCheckContext(const ScopedCheckContext&) = delete;
+    ScopedCheckContext& operator=(const ScopedCheckContext&) = delete;
+private:
+    std::pair<std::string, int> prev_;
+};
+
 class ScopedFunctionContext {
 public:
     ScopedFunctionContext(GovernanceEngine* eng, const std::string& fn)

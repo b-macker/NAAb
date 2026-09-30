@@ -1561,6 +1561,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
     // Validate handle (checks __agent_handle marker + HMAC nonce)
     auto [config_name, validated_id] = validateHandle(args[0]);
+    // Every check recorded during this send is the agent's, not the script's:
+    // see ScopedCheckContext (governance.h).
+    governance::ScopedCheckContext agent_check_ctx("<agent:" + config_name + ">");
     auto& handle = args[0].asDict();
 
     std::string message;
@@ -3502,6 +3505,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 {
                     // Gap A: Scoped agent context — per-agent restrictions apply during tool execution
                     ScopedToolContext tool_ctx(config);
+                    // The tool's own checks (a polyglot block in the tool body)
+                    // set their source location; restore the agent's when the
+                    // tool returns, so the result/response scans that follow
+                    // are not stamped with the tool's last line.
+                    governance::ScopedCheckContext tool_check_ctx("<agent:" + config_name + ">");
 
                     // Gap O: Guard against recursive agent.send() on same handle
                     int prev_handle = t_in_tool_execution_for_handle;
@@ -5264,6 +5272,9 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
     }
 
     auto [config_name, handle_id] = validateHandle(args[0]);
+    // Every check recorded during this propose is the agent's, not the script's:
+    // see ScopedCheckContext (governance.h).
+    governance::ScopedCheckContext agent_check_ctx("<agent:" + config_name + ">");
     auto& handle = args[0].asDict();
     std::string message = args[1].asString();
 
@@ -5735,6 +5746,9 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
     }
 
     auto [config_name, handle_id] = validateHandle(args[0]);
+    // Every check recorded during this commit is the agent's, not the script's:
+    // see ScopedCheckContext (governance.h).
+    governance::ScopedCheckContext agent_check_ctx("<agent:" + config_name + ">");
     auto& handle = args[0].asDict();
     auto& proposal = args[1].asDictConst();
 
