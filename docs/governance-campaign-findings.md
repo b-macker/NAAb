@@ -2667,3 +2667,38 @@ identical scenario with the effect off and gets 7/21. LE-03 shows the run
 blocked at HIGH with exit 3; LE-04 runs the identical scenario with promotion
 off and it completes. A behaviour change is not credited to an effect unless it
 disappears when the effect does.
+
+## Repo-sentinel dogfood, rounds 3–5 (live Gemini, Sep 2026)
+
+A second project written in NAAb (`examples/repo_sentinel`, outside this
+repository) run against live Gemini by a separate session. Round 5 ran on
+`80c8cd9` in two config arms, each with a clean and an adversarial fixture,
+each twice: eight runs, raw telemetry handed over in full.
+
+| Finding | Mechanism | Fix | Live status |
+|---|---|---|---|
+| Coherence never matched the listed penalties (reported as F-008) | Natural healing, temporal decay, the clamp at 0 and `recoverCoherence()` moved coherence with no telemetry | #263 (`coherence_adjustments`) | **confirmed** — 171 analyzed rows across 8 runs, 0 that fail to reconcile. Counted by the dogfood's own reconciler; the reviewer rows of one run were re-derived by hand here and match (1.0 − 0.15 + 0.015 = 0.865, then 0.730, 0.5567) |
+| The response after a retry-exhausted API call was never analyzed | The failure took the turn's analysis slot | #263 | **stub-only** — round 5 retried on 503s (73 retry/skip events) but no send was shown to exhaust its retries, which is the case the fix covers |
+| A clean reviewer was quarantined at turn 8 (C1f) | S5's entropy baseline frozen from startup turns; see `open-investigations.md` C1f | #265 (`entropy_baseline_adaptive` default true) | defect **confirmed** (4 of 4 runs of one arm, clean and adversarial alike, 0.556667 at turn 8 to six decimals); fix at its new default **stub-only** until a round runs on `ffb0108` or later |
+
+### A result that did not reproduce
+
+Round 4 reported the adversarial reviewer caught two turns earlier than the
+clean one, carried by `validation_outcome`. Round 5 did not reproduce it: across
+all eight runs there were two failed validations, both in one run, and
+`validation_outcome` paid once. The adversarial reviewer mostly produced valid
+findings — the injection was not taking — so these fixtures cannot currently
+tell injection from its absence. Round 4's difference rested on two failures in
+a single run. One run is an anecdote; it needs repeats before it is a result,
+and the same applies to anything round 6 reports.
+
+### Evidence that was destroyed before it was read
+
+Round 3's F-008 table cited two telemetry extracts that were never written, and
+the underlying events were gone: the project's `run.sh` deleted `telemetry.jsonl`
+between stages. The table could not be checked, and its one anomaly (a coherence
+drop with no penalty) was never explained — under that config it cannot happen,
+so it was most likely misreported. The fix was procedural, not in the engine:
+move each stage's telemetry into `out/` instead of deleting it, and cite only
+files `ls` shows to exist after the script finishes. Round 5's handoff did both,
+which is the only reason C1f could be traced to six decimals.
