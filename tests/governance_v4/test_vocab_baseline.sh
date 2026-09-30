@@ -77,6 +77,13 @@
 #          (2.000 frozen vs 1.918 adaptive). Without it "detection unchanged" is
 #          indistinguishable from "the mechanism never engaged".
 #
+# EVERY ARM PINS vocab_contraction_agent_events_only:false. This suite documents
+# how S5 behaves on SCRIPT events (the startup artifact and its baseline); since
+# that flag defaults true, S5 no longer counts script events at all and every
+# arm here would be vacuous without the pin. test_vocab_agent_events.sh covers
+# the default. VC-11 compares entropy_baseline_adaptive's default against its
+# explicit settings, on the legacy event mix.
+#
 # WHY IT NOW SHIPS ON (it shipped OFF until 2026-09-29)
 #
 # The detection cost measured here is zero, which is the standard #176 used to
@@ -89,6 +96,13 @@
 # of one arm, clean and adversarial alike, identical to six decimals. Under the
 # default feed that startup artifact is the only firing S5 can reach
 # (VC-05/VC-06), so what the flip retires is the false positive.
+#
+# CORRECTION (round 6): that last sentence was wrong for short-lived agents.
+# The flip trims the tail (VC-08: 20 firings -> 5); the first ~5 post-window
+# firings remain, and an 8-turn agent lives entirely inside them. The sentinel
+# reviewer was still quarantined at turn 8 in 3 of 3 clean runs with it ON.
+# What removes the artifact is vocab_contraction_agent_events_only (S5 stops
+# counting script events at all) -- test_vocab_agent_events.sh.
 #
 # The frozen-mechanism arms (VC-00..VC-07, narrow_frozen) therefore pin
 # entropy_baseline_adaptive:false explicitly, and VC-11 pins the default.
@@ -250,7 +264,7 @@ OK_STEADY=0; OK_K1=0; OK_K2=0; OK_EVERY=0; OK_LATE=0
 # The frozen-baseline arms pin entropy_baseline_adaptive OFF explicitly: they
 # document the defect's mechanism, and since the default flipped ON they would
 # otherwise measure the fix. VC-11 pins the default itself.
-FROZEN='"thresholds": { "entropy_baseline_adaptive": false }'
+FROZEN='"thresholds": { "entropy_baseline_adaptive": false, "vocab_contraction_agent_events_only": false }'
 run_case steady      "$(mk_prog ''          '')"        "$FROZEN" && OK_STEADY=1
 run_case k1_startup  "$(mk_prog "$OPS_K1"   '')"        "$FROZEN" && OK_K1=1
 run_case k2_startup  "$(mk_prog "$OPS_K2"   '')"        "$FROZEN" && OK_K2=1
@@ -258,15 +272,15 @@ run_case k2_everyturn "$(mk_prog ''         "$OPS_K2")" "$FROZEN" && OK_EVERY=1
 run_case k2_late     "$(mk_prog_late)"                  "$FROZEN" && OK_LATE=1
 
 # C1f arms. ADAPT re-derives initial_entropy on any turn clean apart from S5.
-ADAPT='"thresholds": { "entropy_baseline_adaptive": true }'
+ADAPT='"thresholds": { "entropy_baseline_adaptive": true, "vocab_contraction_agent_events_only": false }'
 # The positive control needs the since_last_check feed: under the default feed
 # every post-turn-0 event is invisible (B6/VC-05/VC-06), so "genuine narrowing"
 # cannot be expressed at all and an arm claiming to test it would be vacuous.
-ADAPT_FEED='"event_feed": "since_last_check", "thresholds": { "entropy_baseline_adaptive": true }'
-FEED_ONLY='"event_feed": "since_last_check", "thresholds": { "entropy_baseline_adaptive": false }'
+ADAPT_FEED='"event_feed": "since_last_check", "thresholds": { "entropy_baseline_adaptive": true, "vocab_contraction_agent_events_only": false }'
+FEED_ONLY='"event_feed": "since_last_check", "thresholds": { "entropy_baseline_adaptive": false, "vocab_contraction_agent_events_only": false }'
 run_case k2_adapt    "$(mk_prog "$OPS_K2" '')" "$ADAPT"      && OK_ADAPT=1
 # VC-11: no key at all -- whatever the engine default is.
-run_case k2_default  "$(mk_prog "$OPS_K2" '')"               && OK_DEFAULT=1
+run_case k2_default  "$(mk_prog "$OPS_K2" '')" '"thresholds": { "vocab_contraction_agent_events_only": false }' && OK_DEFAULT=1
 run_case narrow_frozen "$(mk_prog_early)"      "$FEED_ONLY"  && OK_NF=1
 run_case narrow_adapt  "$(mk_prog_early)"      "$ADAPT_FEED" && OK_NA=1
 
