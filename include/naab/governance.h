@@ -1760,13 +1760,37 @@ struct ContextDriftConfig {
         // file work before its first send reached 0.556667 and OUTPUT_INADMISSIBLE
         // at turn 8 in all four runs of one arm, clean and adversarial fixtures
         // alike, identical to six decimals -- S5 on the startup artifact alone.
-        // The known cost stands: under the default event feed the re-derived
-        // baseline converges to 1.000 and S5 stops firing, but under that feed
-        // S5's only reachable firing was that artifact (test_vocab_baseline.sh
-        // VC-05/VC-06), so what is retired is the false positive. Genuine
-        // narrowing under since_last_check is detected on identical turns
-        // (VC-09/VC-10). Set false to restore the frozen baseline.
+        // CORRECTED after round 6: this does NOT retire the false positive for
+        // a short-lived agent. It trims the TAIL -- 20 firings to 5 on a
+        // 25-turn fixture (VC-08) -- because turn 0 stays in the early half it
+        // re-derives from until the window slides past it. The sentinel
+        // reviewer lives 8 turns, entirely inside those 5, and was still
+        // quarantined at turn 8 in 3 of 3 clean runs with this ON (reference
+        // entropy 2.113 on turns 6-8). vocab_contraction_agent_events_only
+        // below is what removes the artifact. Genuine narrowing under
+        // since_last_check is detected on identical turns (VC-09/VC-10).
+        // Set false to restore the frozen baseline.
         bool entropy_baseline_adaptive = true;
+        // C1f, second half. S5's per-turn types used to be built from EVERY
+        // event in the agent's turn bucket, and under the default feed turn 0's
+        // bucket holds everything the orchestration script did before the first
+        // send (git, file, process, env, encode...). That startup variety became
+        // S5's frozen reference entropy, so any agent that only sends and
+        // receives "contracted" from it and paid on every turn once the window
+        // filled. The adaptive baseline above cannot help a short-lived agent:
+        // turn 0 stays in the early half it re-derives from. Measured live
+        // (repo-sentinel round 6): reference entropy 2.113 on turns 6-8, the
+        // reviewer quarantined at turn 8 in 3 of 3 clean runs.
+        //
+        // When true, S5 counts only events the AGENT caused: AGENT_SEND,
+        // AGENT_RESPONSE and the TOOL_* events of its own tool loop. Script
+        // events are the orchestrator's actions -- the same category error
+        // S1's fingerprint already excludes. Consequence, stated plainly: a
+        // tool-less agent is {send, response} every turn and S5 never fires for
+        // it; S5 now measures an agent narrowing its OWN actions (e.g. it stops
+        // using tools). S3 (scope creep) still sees every event type.
+        // Set false to restore the old event mix.
+        bool vocab_contraction_agent_events_only = true;
         // 0.15: at least 15% of tool result keywords should appear in the agent's response
         // when it references that tool. Below this the agent may be fabricating results.
         double tool_result_recall_min = 0.15;
@@ -3143,6 +3167,11 @@ public:
 
     // --- Check context (for report file/line tracking) ---
     void setCheckContext(const std::string& file, int line = 0);
+    // Per-thread location stamped on check results (see setCheckContext()).
+    const std::string& checkFile() const;
+    int checkLine() const;
+    // Swap this thread's location, returning the previous one (ScopedCheckContext).
+    static std::pair<std::string, int> exchangeThreadCheckContext(std::string file, int line);
 
     // --- Per-language getters ---
     int getTimeoutForLanguage(const std::string& lang) const;
@@ -3773,8 +3802,6 @@ private:
     std::string agent_id_ = "anonymous";
     std::string run_id_;  // Unique per-execution ID for telemetry run separation
     std::string active_env_;            // Set by applyEnvironment()
-    std::string current_check_file_;    // Set by setCheckContext() for report tracking
-    int current_check_line_ = 0;        // Set by setCheckContext() for report tracking
     std::unordered_map<std::string, int> emitted_advisories_;  // Advisory occurrence counts (escalation)
     void decayAdvisoryHistory();  // halve occurrence counts on epoch boundary (caller must hold results_mutex_)
     bool preflight_mode_ = false;  // F8: marks results as preflight during preflightIntentCheck
@@ -4074,6 +4101,24 @@ private:
 // `return` out of a `try`, or an exception unwinding through the call, would
 // otherwise leak a frame and attribute later effects to the wrong function.
 // ScopedToolContext (agent_impl.cpp) is the precedent this copies.
+// Stamps every check result recorded on this thread, for the scope's lifetime,
+// with `file`/`line` -- then restores the previous location, including on an
+// exception. Agent entry points open one with "<agent:NAME>" so that response,
+// prompt and tool scans and CDD are attributed to the agent rather than to
+// whatever the script checked last.
+class ScopedCheckContext {
+public:
+    explicit ScopedCheckContext(std::string file, int line = 0)
+        : prev_(GovernanceEngine::exchangeThreadCheckContext(std::move(file), line)) {}
+    ~ScopedCheckContext() {
+        GovernanceEngine::exchangeThreadCheckContext(std::move(prev_.first), prev_.second);
+    }
+    ScopedCheckContext(const ScopedCheckContext&) = delete;
+    ScopedCheckContext& operator=(const ScopedCheckContext&) = delete;
+private:
+    std::pair<std::string, int> prev_;
+};
+
 class ScopedFunctionContext {
 public:
     ScopedFunctionContext(GovernanceEngine* eng, const std::string& fn)

@@ -45,6 +45,9 @@
 # delivers, so every arm pins context_drift.thresholds.entropy_baseline_adaptive
 # false. The default flipped to true (C1f); left unpinned, EF-01/03/06 would be
 # measuring the re-derived baseline instead of the feed.
+# vocab_contraction_agent_events_only is pinned false for the same reason: the
+# feed's whole effect on S5 is WHICH SCRIPT EVENTS it delivers, and with the
+# default (agent events only) S5 would see none of them.
 # ============================================================
 set -uo pipefail
 
@@ -107,7 +110,7 @@ run_case() {
   "behavioral_sequences": { "enabled": true${5:-} },
   "context_drift": { "enabled": true, "level": "advisory", "check_interval_turns": 1,
     "event_feed": "$2",
-    "thresholds": { "entropy_baseline_adaptive": false },
+    "thresholds": { "entropy_baseline_adaptive": false, "vocab_contraction_agent_events_only": false },
     "reality_checkpoint": { "enabled": false } },
   "circuit_breaker": { "enabled": true, "critical_threshold": 0.99 },
   "agents": { "worker": { "provider": "gemini", "model": "stub-model",

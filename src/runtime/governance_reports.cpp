@@ -564,8 +564,8 @@ void GovernanceEngine::emitRefusalAttestation(
     ev["result"] = "refused";
     ev["binding_status"] = "non-binding";
     ev["execution_prevented"] = true;
-    ev["file"] = error::ErrorSanitizer::sanitizeFilePaths(current_check_file_);
-    ev["line"] = current_check_line_;
+    ev["file"] = error::ErrorSanitizer::sanitizeFilePaths(checkFile());
+    ev["line"] = checkLine();
     // Cap violation message to prevent telemetry bloat
     ev["violation_message"] = violation_message.size() > 500
         ? violation_message.substr(0, 500) + "..."
@@ -1502,7 +1502,7 @@ void GovernanceEngine::writeTelemetry() const {
         // Fix 4B: skip duplicate (rule_name, file, line) entries.
         //
         // Only entries that HAVE a source site. enforce() fills file/line from
-        // current_check_file_/current_check_line_, which the static scanners
+        // checkFile()/checkLine(), which the static scanners
         // set; runtime checks (BSD, CDD, admission, output admissibility)
         // leave them empty -- measured: file="" line=0 on every runtime row.
         // For those the key degenerates to the rule name alone and the whole
@@ -1516,9 +1516,19 @@ void GovernanceEngine::writeTelemetry() const {
         // result and an unlocated static result look alike. Runtime results
         // are always distinct events and are never collapsed.
         if (rules().telemetry_output.deduplicate_checks) {
-            const bool has_source_site = !(r.file.empty() && r.line == 0);
+            // Agent-path checks are stamped "<agent:NAME>" (ScopedCheckContext)
+            // and are runtime events like the unlocated ones above: never
+            // collapsed.
+            const bool has_source_site = !(r.file.empty() && r.line == 0) &&
+                                         r.file.rfind("<agent:", 0) != 0;
             if (has_source_site) {
-                std::string key = r.rule_name + "|" + r.file + "|" + std::to_string(r.line);
+                // The result is part of the key: a violation must never be
+                // collapsed into an earlier PASS at the same site. Without it,
+                // a site that passed first and blocked later was reported as
+                // having only passed -- the run-ending block vanished from
+                // telemetry while the process exited 3.
+                std::string key = r.rule_name + "|" + r.file + "|" + std::to_string(r.line) +
+                                  (r.passed ? "|pass" : "|fail");
                 if (!telemetry_dedup_seen_.insert(key).second) { dedup_count++; continue; }
             } else {
                 runtime_exempt_count++;
@@ -2001,7 +2011,7 @@ std::string GovernanceEngine::checkPolyglotOptimization(
         check.severity = result.improvement_percent > 50 ? "high" :
                         result.improvement_percent > 30 ? "medium" : "low";
         check.line = line;
-        check.file = current_check_file_;
+        check.file = checkFile();
         {
             std::lock_guard<std::mutex> lock(results_mutex_);
             check_results_.push_back(check);

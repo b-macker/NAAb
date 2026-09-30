@@ -899,9 +899,32 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
 // Core Enforcement Logic
 // ============================================================================
 
+// The location a check result is stamped with is PER THREAD. It used to be a
+// plain member, so every check inherited whatever location the last check on
+// ANY thread left behind -- and agent-path checks (prompt/response/tool scans,
+// CDD, output admissibility) never set one at all. A secret found in an agent
+// RESPONSE was recorded as if it sat in the script's last polyglot block, and
+// with telemetry.deduplicate_checks on, the run-ending violation then shared a
+// (rule, file, line) key with an earlier pass and was dropped from telemetry
+// entirely (repo-sentinel round 6). Agent code now scopes its own location with
+// ScopedCheckContext("<agent:NAME>"); see agentSend().
+static thread_local std::string t_check_file;
+static thread_local int t_check_line = 0;
+
 void GovernanceEngine::setCheckContext(const std::string& file, int line) {
-    current_check_file_ = file;
-    current_check_line_ = line;
+    t_check_file = file;
+    t_check_line = line;
+}
+
+const std::string& GovernanceEngine::checkFile() const { return t_check_file; }
+int GovernanceEngine::checkLine() const { return t_check_line; }
+
+std::pair<std::string, int> GovernanceEngine::exchangeThreadCheckContext(
+        std::string file, int line) {
+    std::pair<std::string, int> prev{std::move(t_check_file), t_check_line};
+    t_check_file = std::move(file);
+    t_check_line = line;
+    return prev;
 }
 
 // --- Decision trace accumulator ---
@@ -1030,7 +1053,7 @@ void GovernanceEngine::recordPass(const std::string& rule_name,
     // V-CONC-007: mutex-guard concurrent access from async threads
     std::lock_guard<std::mutex> lock(results_mutex_);
     check_results_.push_back({rule_name, level, true, "", cat, "",
-                              current_check_line_, current_check_file_, cwes, owasps,
+                              checkLine(), checkFile(), cwes, owasps,
                               false, rationale, std::move(t_current_decision_trace), ""});
     t_current_decision_trace.clear();
     // V-GOV-024: cap telemetry to prevent unbounded memory growth
@@ -1132,7 +1155,7 @@ std::string GovernanceEngine::enforce(
         // V-CONC-007: mutex-guard concurrent access from async threads
         std::lock_guard<std::mutex> lock(results_mutex_);
         check_results_.push_back({rule_name, level, false, violation_message, cat, sev,
-                                  current_check_line_, current_check_file_, cwes, owasps,
+                                  checkLine(), checkFile(), cwes, owasps,
                                   preflight_mode_, rationale, std::move(t_current_decision_trace),
                                   explanation});
         t_current_decision_trace.clear();
@@ -1251,8 +1274,8 @@ std::string GovernanceEngine::enforce(
             emitRefusalAttestation(rule_name, level, "hard", violation_message);
             fireHook(rules().hooks.on_violation, {
                 {"rule_name", rule_name}, {"level", "hard"},
-                {"file", current_check_file_},
-                {"line", std::to_string(current_check_line_)},
+                {"file", checkFile()},
+                {"line", std::to_string(checkLine())},
                 {"category", cat}
             });
             throw GovernanceHardError(violation_message);
@@ -1264,8 +1287,8 @@ std::string GovernanceEngine::enforce(
             emitRefusalAttestation(rule_name, level, "detect", violation_message);
             fireHook(rules().hooks.on_violation, {
                 {"rule_name", rule_name}, {"level", "detect"},
-                {"file", current_check_file_},
-                {"line", std::to_string(current_check_line_)},
+                {"file", checkFile()},
+                {"line", std::to_string(checkLine())},
                 {"category", cat}
             });
             throw std::runtime_error(violation_message);
@@ -1282,8 +1305,8 @@ std::string GovernanceEngine::enforce(
             emitRefusalAttestation(rule_name, level, "approval_denied", violation_message);
             fireHook(rules().hooks.on_violation, {
                 {"rule_name", rule_name}, {"level", "approval_denied"},
-                {"file", current_check_file_},
-                {"line", std::to_string(current_check_line_)},
+                {"file", checkFile()},
+                {"line", std::to_string(checkLine())},
                 {"category", cat}
             });
             throw GovernanceHardError(violation_message +
@@ -1312,8 +1335,8 @@ std::string GovernanceEngine::enforce(
                     {"rule_name", rule_name},
                     {"agent_id", agent_id_},
                     {"override_reason", override_reason_},
-                    {"file", current_check_file_},
-                    {"line", std::to_string(current_check_line_)}
+                    {"file", checkFile()},
+                    {"line", std::to_string(checkLine())}
                 });
                 fprintf(stderr, "[governance] OVERRIDE %s\n", rule_name.c_str());
                 return "";  // Don't block
@@ -1338,8 +1361,8 @@ std::string GovernanceEngine::enforce(
                 fireHook(rules().hooks.on_violation, {
                     {"rule_name", rule_name},
                     {"level", level_promoted ? "soft_promoted" : "soft"},
-                    {"file", current_check_file_},
-                    {"line", std::to_string(current_check_line_)},
+                    {"file", checkFile()},
+                    {"line", std::to_string(checkLine())},
                     {"category", cat}
                 });
                 throw GovernanceHardError(soft_msg);
@@ -1357,8 +1380,14 @@ std::string GovernanceEngine::enforce(
             if (esc.enabled && occurrence >= esc.soft_after) {
                 g_governance_hard_block = true;
                 check_results_.back().escalated = true;
+                // violation_message was formatted at ADVISORY and so ends
+                // "execution will continue" -- the opposite of what the throw
+                // below does. Say so plainly, as the level-promotion path above
+                // does; repo-sentinel round 6 lost two runs to this path with
+                // the only explanation on screen claiming the run continued.
                 std::string escalation_msg = violation_message +
-                    "\n\n  This advisory was escalated after repeated occurrences.\n";
+                    "\n\n  This advisory was escalated after repeated occurrences.\n"
+                    "  It is now enforced as a block. Execution stops here.\n";
                 int occ_copy = occurrence;
                 fprintf(stderr, "[governance] ESCALATED %s (occurrence %d >= %d)\n",
                     rule_name.c_str(), occ_copy, esc.soft_after);
@@ -2151,8 +2180,8 @@ std::string GovernanceEngine::checkFunctionCapability(
             {"effective",        listed.empty() ? "(nothing)" : listed},
             {"call_stack",       chain_str},
             {"level",            levelToString(fn_level)},
-            {"file",             current_check_file_},
-            {"line",             std::to_string(current_check_line_)},
+            {"file",             checkFile()},
+            {"line",             std::to_string(checkLine())},
         });
     }
     if (fn_level == EnforcementLevel::ADVISORY) {

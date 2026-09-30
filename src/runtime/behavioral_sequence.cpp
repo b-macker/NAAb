@@ -1239,8 +1239,28 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
     // Signal 5: Vocabulary contraction (action diversity shrinking over time)
     // Detects "narrowing paths that still appear formally open"
-    if (sig_on(config_->signals.vocabulary_contraction, SIG_VOCAB_CONTRACTION) && !turn_types.empty()) {
-        state.per_turn_types.push_back(turn_types);
+    // S5's own type set. By default only the agent's actions count -- see
+    // thresholds.vocab_contraction_agent_events_only in governance.h. TOOL_*
+    // get distinct codes here; in turn_types they all fall into "XX".
+    std::unordered_set<std::string> s5_types;
+    if (config_->thresholds.vocab_contraction_agent_events_only) {
+        for (const auto& ev : turn_events) {
+            switch (ev.type) {
+                case RuntimeEventType::AGENT_SEND:     s5_types.insert("AS"); break;
+                case RuntimeEventType::AGENT_RESPONSE: s5_types.insert("AR"); break;
+                case RuntimeEventType::TOOL_CALL:      s5_types.insert("TC"); break;
+                case RuntimeEventType::TOOL_RESULT:    s5_types.insert("TR"); break;
+                case RuntimeEventType::TOOL_ERROR:     s5_types.insert("TE"); break;
+                case RuntimeEventType::TOOL_BLOCKED:   s5_types.insert("TB"); break;
+                default: break;
+            }
+        }
+    } else {
+        s5_types = turn_types;
+    }
+
+    if (sig_on(config_->signals.vocabulary_contraction, SIG_VOCAB_CONTRACTION) && !s5_types.empty()) {
+        state.per_turn_types.push_back(s5_types);
         if (static_cast<int>(state.per_turn_types.size()) > config_->fingerprint_window) {
             state.per_turn_types.pop_front();
         }
