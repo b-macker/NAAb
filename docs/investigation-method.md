@@ -107,6 +107,73 @@ helper sat five lines above. The absence was in the filter, not the file.
 Before reporting that something is missing, list the names the mechanism could go
 by — helpers, wrappers, aliases — and check that your pattern contains them.
 
+
+### Code shows what happens now; history shows what was meant
+
+Tracing the code end to end tells you what the system does today. It cannot
+tell you what it was meant to do, whether it ever worked, or whether someone
+already found and fixed the problem you are looking at. That story is in the
+history, and it has to be read before a change, not after. The precedent: a
+mid-run config-swap helper was built and debugged through two wrong theories.
+Only afterwards did `git log --grep` turn up `cd70a29b`, which had found the same
+race months earlier, fixed the engine for it, and recorded the workaround in
+living-script's operator. The knowledge existed, in a commit message and an
+example's comment; nothing pointed at it, so nobody looked.
+
+The history pass, before changing anything:
+
+- `git log -S'<identifier>'` (and `-G'<regex>'`) on every name the change
+  touches. Pickaxe lists each commit that ADDED or REMOVED the string, which is
+  how a deletion buried in an unrelated-looking commit shows up.
+- `git log --follow -- <file>` and `git blame` on the lines you will edit; read
+  the full message of each commit that shaped them.
+- `git log --grep` on the subject's nouns (the feature, the symptom, the
+  config key). In a squash-merging repo the PR body IS the commit message, so
+  this also searches the PR descriptions.
+- The PR on GitHub for review threads and design discussion, which never reach
+  git.
+- The docs that record decisions (`docs/open-investigations.md`,
+  `docs/governance-campaign-findings.md`, `docs/security-decisions.md`, the
+  `docs/plan-*.md` files) and comments in examples, not only CLAUDE.md.
+
+Then classify what you are looking at, because each calls for a different
+action:
+
+| state | what the history shows | what to do |
+|---|---|---|
+| never built | planned or described, no implementing commit | build it, or correct the doc that claims it |
+| working | introduced with a test that still fails when it is removed | leave it; your premise is probably wrong |
+| regressed | worked at a commit you can name, broken by a later one | read the breaking commit's intent before reverting it |
+| removed on purpose | deleted with a stated reason | do not restore it without answering that reason |
+| lost | deleted or orphaned by an unrelated change, no reason given | restore it, and say how it was lost |
+| decided | a recorded decision with reasoning | quote it; reopen only with new evidence |
+
+"I traced it and it doesn't work" is a fact about now. Without the history it
+is not yet a finding: it could be any row of that table.
+
+### Existing tests are claims too
+
+A test that already exists has the same standing as a doc: someone's assertion
+that the behaviour holds, which may never have been checked. Before a change
+leans on an old test, or before reporting "the existing tests pass", establish
+that the test is real:
+
+- It FAILS when the mechanism it protects is removed. The old
+  `test_signature_staleness.sh` backdated the `.sig` file's modification time,
+  which the engine never reads, so it passed for as long as the age limit never
+  fired at startup.
+- It actually RUNS. `tests/api/test_platform_fixes.sh` carried a real failure
+  and was referenced nowhere in `run-all-tests.sh`; 28 of 71 suites in
+  `tests/security/` were unregistered when counted. The unit tests went months
+  with about 115 stale failures because nothing ran them.
+- It does not SKIP its way to green. An UNMEASURABLE skip on the runner that
+  matters is not a pass there.
+- It covers the case the claim covers. A doc said sandbox `standard` "refuses
+  Python outright"; the test behind the claim only ran `elevated`.
+
+A test that cannot fail is evidence of nothing, and an old one is easier to
+believe than a new one because nobody is watching it.
+
 ---
 ## Investigating
 
@@ -829,6 +896,35 @@ earlier. A question with a recorded answer spends the user's attention to
 recover your context. Search commits, docs and prior write-ups first, and when
 you do ask, quote what the record says and why it does not settle the question.
 
+
+### Code, docs and tests must tell the same story
+
+A change is not finished when the code is right. Afterwards, grep the docs, the
+tests and the comments for the mechanism's names, and make all three agree with
+what the code now does. When two of them disagree, do not pick the code by
+default: the code is current behaviour, but the doc may be the intent and the
+code the bug. The history pass decides which. Disagreements found in this
+repository's own record include:
+
+- CLAUDE.md's claim that `standard` refuses Python, which the code did not do;
+- prose still saying adaptive baselining is "default off" after the default
+  flipped;
+- a test helper's comment asserting a reload rule that `cd70a29b` had
+  deliberately reversed;
+- template keys documented as live that nothing reads.
+
+Each one would have sent the next reader in the wrong direction with full
+confidence.
+
+### Promote what the history taught you
+
+When the history pass finds knowledge the reference docs lack — a race, a
+decision, a reason something was removed — copy a pointer to it into the doc a
+future reader will actually search, beside the thing it explains. Finding it was
+expensive; leaving it in a commit message means the next session pays the same
+price. The pointer to `cd70a29b` and living-script's operator went into
+CLAUDE.md's reload section only after the helper had been built without it.
+
 ---
 ## Acting and reporting
 
@@ -1169,3 +1265,24 @@ Before saying "done":
 - [ ] Walked the plan's item list and found each item's artifact in the tree
 - [ ] Everything built that the tests load
 - [ ] Work committed and pushed
+
+Before changing code — the history pass:
+
+- [ ] `git log -S` / `-G` on every identifier the change touches; each add and remove read
+- [ ] `git blame` / `git log --follow` on the edited lines; full commit messages read
+- [ ] `git log --grep` on the subject's nouns (PR bodies included, in a squash-merging repo)
+- [ ] GitHub PR review threads and the decision docs checked, not only CLAUDE.md
+- [ ] State classified: never built / working / regressed / removed on purpose / lost / decided
+- [ ] What the history taught copied into the doc a future reader will search
+
+Before relying on an existing test:
+
+- [ ] It fails when the mechanism it protects is removed (made red once, deliberately)
+- [ ] It is registered, and runs on the runners that matter
+- [ ] It does not reach green by skipping
+- [ ] Its fixture exercises the case the claim is about (level, platform, direction)
+
+After any change:
+
+- [ ] Code, docs, tests and comments grepped for the mechanism's names and made to agree
+- [ ] Where they disagreed, the history decided which was right, not the code by default
