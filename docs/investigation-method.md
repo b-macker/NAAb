@@ -398,6 +398,42 @@ discoveries and are larger than anything the change could explain. If a result
 is surprising, ask what else was touching the same state during the run before
 believing it.
 
+
+### Inspect the failed state before theorising
+
+When something fails intermittently, capture the artifacts at the moment of
+failure — files, timestamps, the process list — before forming a mechanism.
+Two theories in a row "fixed" a flaky mid-run reload test: the copy order, then
+the request granularity. Each was plausible, and each was followed by a passing
+loop. The third failure, captured on disk, showed the `.sig` swapped and
+`govern.json` untouched while the program had been told both swaps happened —
+the signature of a second, stale operator answering the same request. Neither
+theory predicted that file state; one look at it did.
+
+The probe can lie here too: `pgrep -f run-all-tests` counted its own command
+line and read as "still running" after the run had stopped.
+
+### The branch you read is not the branch you hit
+
+A function with several failure paths can treat them differently on purpose.
+Reading `loaded_mtime_ns_ = current_mtime` in `reloadIfChanged()`'s
+unreadable-file branch produced the claim "a rejected reload is final for that
+mtime". It is false for the signature-failure branch, which deliberately leaves
+the mtime uncached so a later valid `.sig` is retried (`cd70a29b`). Follow the
+path the failing input actually takes, not the first line that matches what you
+expected.
+
+### Read the runner's build flags before the code
+
+A test that fails on one platform may be measuring a different build. PR-07b
+("embedded Python is held at the audit hook") failed only on Windows, where
+`windows.yml` configures with `-DCMAKE_DISABLE_FIND_PACKAGE_Python3=TRUE`: there
+is no embedded Python on that runner, `<<python>>` runs as a subprocess, and the
+read was CONTRA-013's documented boundary. The code was right; the test's
+subject did not exist there. Check the CI configuration before reading a
+platform-only failure as a code defect, and give such tests a probe for the
+subject's existence.
+
 ---
 ## Forming conclusions
 
@@ -563,6 +599,38 @@ State the phenomena your setup is blind to, beside the results. If a claim
 matters and is unmeasurable, say so instead of omitting it — an acknowledged
 blind spot can be closed, an unmentioned one cannot.
 
+
+### A flake fix needs runs scaled to the failure rate
+
+"0 failures in 15" after a fix for a flake observed at 1 in 12 is weak
+evidence: the unfixed flake passes 15 straight runs about 27% of the time
+(computed, `(11/12)^15`). It was reported as "0/15 (was 1/12)" without that
+arithmetic. Before calling a flake fixed, compute what the unfixed rate would
+produce over your loop and run enough to make that unlikely — or rest the claim
+on a stronger instrument, such as the captured state that showed the mechanism,
+and say that is what it rests on.
+
+### Check which commit a result is about
+
+CI results arrive late and out of order. In one campaign, at least eight failure
+notifications for superseded heads (observed: two heads, four checks each)
+arrived after their fixes were pushed, and each was only interpretable once its
+head SHA was matched against the branch.
+Attribute every result to a commit before acting on it: a failure for a
+superseded commit is history, not a regression, and a pass for one is not a
+pass for HEAD.
+
+### A template is a claim
+
+A shipped config template asserts that every key in it does something.
+`govern-template.json` carries keys that are parsed and never consumed
+(`trust_policy.check_key_expiry`, `filesystem.allowed_extensions`, ...); the
+evidence that they are inert lives in a table row in
+`docs/open-investigations.md` and a baseline file, not beside the key. The
+owner read the template as checked and verified. Where the liveness evidence is
+not adjacent to the claim, readers believe the claim. Put the status where the
+claim is, or expect it to be re-derived — and contradicted — by every reader.
+
 ---
 ## Making changes
 
@@ -633,6 +701,58 @@ attractive, which is exactly why it gets skipped.
 
 Never accept a green new test without making it red once, deliberately.
 
+
+### Search the history before building
+
+"Check whether this was already decided" covers changing behaviour. It applies
+equally to building infrastructure. A mid-run config-swap helper was written,
+debugged through two wrong theories and documented before `git log --grep`
+found `cd70a29b` and living-script's operator: the same race, already found,
+fixed and worked around, recorded in a commit message and an example's comment
+that no reference doc pointed to. Run `git log --grep` and `git log -S` on the
+subject's nouns before writing machinery for it. Commit messages hold knowledge
+the reference docs never absorbed — and when you find it there, copy a pointer
+into the reference doc.
+
+### When a correct fix breaks a test, ask whether the test depended on the bug
+
+Closing the Python audit-hook hole failed six reload suites. They swapped
+`govern.json` from a `<<python>>` block — through the hole. The first repair
+widened the fixtures' `languages.allowed` to admit shell. That changes the
+configuration under test (several suites test LOOSENING shell from a shell-off
+base), and it still failed wherever the base disabled shell. Do not loosen a
+fixture to restore green: the configuration is the subject. Move the test's
+privileged action outside the program instead, and say in the test why.
+
+### A workaround in a test is an unreported finding
+
+While converting those suites, a Python write to a bare new filename was
+refused while `./name` passed, and the obvious move was to write `./` and carry
+on. Asking why instead found the fail-OPEN half of the same defect: an unsigned
+project's `govern.json.sig`, protected but not yet on disk, was writable by its
+bare name. Whenever a test needs a spelling, an ordering or a flag to make
+something that should work work, explain the need before using it.
+
+### A documented trap is not an avoided one
+
+The `pipefail` plus `grep -q` inversion was documented in CLAUDE.md, with its
+fix, before a new suite in the same campaign reproduced it in its probe — which
+reported "executor unavailable" while the executor worked. The shell-path
+handoff pattern recurred in two new tests the same week. Reading the gotchas
+list does not apply it. After writing a test, check the new code for the shapes
+of the documented traps; they are mechanical and cheap to find.
+
+### Arms that share a directory share everything left running in it
+
+Background helpers outlive the scope that started them unless something outside
+that scope tracks them. A swap operator's PID was kept in a shell variable
+inside `$( ... )`; the variable died with the subshell and the operator did
+not, so every later arm in the same directory had two operators answering one
+request — a flake observed at 1 in 3 and 1 in 12 over two loops as a non-root
+user, and not seen in 5 root runs. Isolation between arms means no surviving processes, markers or locks from
+the arm before, not just separate inputs. Track anything you spawn in a file
+that outlives the scope, and kill it there.
+
 ---
 ## Acting and reporting
 
@@ -689,6 +809,16 @@ get less scrutiny because they feel like diligence.
 Notice which direction your errors have been running lately, and spend the extra
 check there.
 
+
+
+### State the denominator, or the scope gets rounded up
+
+"About half of what looks usable does nothing for this harness" was scoped to
+one harness, and mostly meant polyglot-only checks with every language blocked.
+It came back as "a lot of the template is not working". A scoped claim loses
+its scope when it is retold. Put the denominator and the reason in the same
+sentence as the fraction, and keep "inapplicable here" separate from "inert
+everywhere" — they call for opposite actions.
 
 ---
 
@@ -798,6 +928,26 @@ The discriminator is already above: an understood mechanism FORBIDS something.
 Name what yours forbids, go and look for it, and report what you found —
 including when you did not look.
 
+
+### Do not write the cause into the code until it is confirmed
+
+Twice in one fix, a test helper's comment recorded a cause nobody had
+established: "the other order flaked 1 run in 3", then "a rejected reload is
+final for that mtime". Each was written at the moment the change seemed to work,
+both were contradicted within the hour, and the comment had to be rewritten to
+say "precaution, not a measured fix". A comment written at the moment of relief
+is a guess with a line number. Write the cause after the mechanism is
+confirmed, and label a precaution as a precaution.
+
+### A rule you already hold is broken under load
+
+"Do not mutate what you are observing" is above. In the same campaign it was
+broken twice in one afternoon: suites were edited and re-run while a full-suite
+run was reading them, which invalidated that run. Nothing in the moment flagged
+it, because the rule is easy to agree with and easy to forget while busy. When a
+long measurement is running, write down that it is running and what it reads,
+and check that note before touching anything it reads.
+
 ---
 
 ## Checklist
@@ -849,3 +999,19 @@ Before publishing a write-up:
 - [ ] "I don't know" used where it is true
 - [ ] Direction of error stated
 - [ ] Adversarial pass performed, and its findings included
+
+Before calling a flake or a CI failure fixed:
+
+- [ ] The failed state was captured and inspected, not only the pass after the fix
+- [ ] Loop length justified against the observed failure rate (or the claim rests on a stronger instrument, named)
+- [ ] Every CI result matched to its head SHA before acting on it
+- [ ] Platform-only failures checked against the runner's build flags
+- [ ] No background measurement was reading the files you changed
+
+Before building test infrastructure:
+
+- [ ] Searched `git log --grep` / `git log -S` for prior work on the same subject
+- [ ] A test broken by a correct fix was moved off the bug, not given a looser fixture
+- [ ] Every workaround the test needed is explained or reported as a finding
+- [ ] New code checked for the documented traps' shapes
+- [ ] Everything spawned is tracked outside the scope that started it, and killed between arms
