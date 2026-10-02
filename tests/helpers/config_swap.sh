@@ -10,14 +10,19 @@
 # denied -- correctly -- and a <<shell>> cp is no substitute either, because
 # several of these suites test LOOSENING shell, so their base config has it off.
 #
+# The established IN-program route is examples/living-script's operator:
+# process.run("mv", ...) then re-sign, through the governed SYS_EXEC path
+# (cd70a29b records the stale-.sig race it has to step around). It needs
+# capabilities.shell, which these bases switch off, so the swap moves outside.
+#
 # What these tests model is an operator editing the config of a running
 # program, so that is what this is: a background process outside the program.
 # The program asks for a swap and waits for it to happen, so the timing stays
 # deterministic:
 #
 #   bash:    start_swap_operator "$run_dir"      # before each naab run
-#   python:  _swap("<src>", "<dst>")   # one round trip per call: swap the
-#                                        # .sig BEFORE govern.json
+#   python:  _swap("<src>", "<dst>")   # one round trip per call; by
+#                                        # convention the .sig goes first
 #
 # The request travels through marker files in the program's cwd (the run dir),
 # which every fixture's path policy permits.
@@ -58,12 +63,13 @@ start_swap_operator() {  # $1 = directory the program runs in
         end=$((SECONDS + 180))
         while [ "$SECONDS" -lt "$end" ]; do
             if [ -f "$d/.swap_req.ready" ]; then
-                # Precaution, not a measured fix: reloadIfChanged() watches ONLY
-                # govern.json's mtime, and a rejected reload is final for that
-                # mtime. So govern.json lands last and by rename (atomic within
-                # a directory), and callers swap the .sig BEFORE govern.json --
-                # each _swap() is its own request, and a reload check between
-                # two requests must never see new content under an old .sig.
+                # Precaution, not a measured fix. A reload that fires between
+                # the two files sees new content under the old .sig and is
+                # rejected; that rejection is NOT cached (cd70a29b: the mtime is
+                # deliberately left uncached on signature failure so a later
+                # valid .sig is retried), so the order is not load-bearing -- it
+                # only avoids a spurious "Reload rejected" line. govern.json
+                # lands last, by rename (atomic within a directory).
                 while IFS=$'\t' read -r s t; do
                     case "$t" in */govern.json|govern.json) ;; *) [ -n "$s" ] && cp "$s" "$t" ;; esac
                 done < "$d/.swap_req"
