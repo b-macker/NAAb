@@ -2798,8 +2798,9 @@ pins today's behaviour so a deliberate change flips a named arm):
 | every agent persistent, escalation off, no admissibility gate | **completes at coherence 0, `Governance: PASS`** |
 | every agent persistent, escalation off, quarantine streak (corroboration 2) | killed by the streak at turn 7 |
 
-The shared count makes the kill depend on team size — the property "escalation
-requires evidence, not longevity" (above) measured as absent for pressure.
+The shared count makes the kill depend on team size. "Escalation requires
+evidence, not longevity" (above) was measured to hold for pressure; it does
+not hold for this count.
 Halving on a self-caused level change triples the firings an oscillating
 drifter gets. And where no admissibility gate is configured, escalation is the
 only thing that stops drift at all, so any change to its scope must keep the
