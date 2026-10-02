@@ -3821,10 +3821,24 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             // govern.json. Propagate it, same as the agent batch/fan_out pool does.
             auto async_sandbox_config =
                 security::ScopedSandbox::effectiveConfig();
+            // The governance engine pointer is thread_local too. Without it the
+            // embedded Python audit hook on the worker had no project path
+            // policy to ask, so a <<python>> block inside an async fn read
+            // files blocked_paths denies on the main thread (measured on the VM;
+            // the tree-walker's async path loads its own governance and was
+            // already denied). Same capture-and-reactivate as the sandbox.
+            auto* async_governance = governance::GovernanceEngine::getCurrent();
             auto shared_future = std::async(std::launch::async,
                 [closure_copy, args, async_stdlib, file, globals_copy, async_sandbox_config,
+                 async_governance,
                  owned_fns = std::move(async_owned_fns)]() mutable -> interpreter::NaabVal {
                     security::ScopedSandbox async_sandbox(async_sandbox_config);
+                    struct GovernanceScope {
+                        explicit GovernanceScope(governance::GovernanceEngine* e) {
+                            governance::GovernanceEngine::setCurrent(e);
+                        }
+                        ~GovernanceScope() { governance::GovernanceEngine::setCurrent(nullptr); }
+                    } async_governance_scope(async_governance);
                     interpreter::NaabVal safe_result;
                     {
                         VM async_vm;

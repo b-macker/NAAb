@@ -136,6 +136,23 @@ it protects so that it starts red.
    That is the hole a real stage 4 has to close, and it is narrower than
    "polyglot bypasses the path policy".
 
+   *In-process half closed.* The embedded executor is not across a process
+   edge, and since #209 it has an in-process call site: the audit hook. It now
+   asks the stage-3 decision function (`pathPolicyDenial()` -- `checkPathAccess()`
+   with enforcement off) as well as the sandbox, and the VM's async worker
+   inherits the governance engine it needs to. Re-measured with every language:
+
+   | sandbox level | shell / ruby / node | PHP | in-process Python | JavaScript |
+   |---|---|---|---|---|
+   | `restricted` | refused | refused | refused | refused |
+   | `standard` | contained | **reads the file** | held | held (no filesystem API) |
+   | `elevated` | **reads the file** | **reads the file** | held | held |
+
+   PHP reading at `standard` is new information: its executor escapes
+   `SubprocessContainment` there. It is open, and it is why `CONTRA-013` still
+   fires at `standard`. Tests: `test_python_path_policy.sh`,
+   `test_path_policy_reach.sh` PR-07/PR-07b.
+
 Stages 1 and 2 close the class. Stage 3 made the precedence one decision, and
 stage 4's reporting half makes the file state its own boundary. The file is now
 truthful about what it covers; making it cover MORE is unfinished work, not a

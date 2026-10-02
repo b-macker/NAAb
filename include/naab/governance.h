@@ -3152,6 +3152,12 @@ public:
 
     // --- Path access control ---
     std::string checkPathAccess(const std::string& filepath, const std::string& mode);
+    // The same path decision without enforcement: "" when allowed, otherwise a
+    // short reason. Never throws, records nothing -- for callers that cannot
+    // let a GovernanceHardError propagate (the embedded Python audit hook).
+    std::string pathPolicyDenial(const std::string& filepath, bool write);
+    std::string checkPathAccessImpl(const std::string& filepath, const std::string& mode,
+                                    bool decide_only);
 
     // --- Telemetry ---
     void writeTelemetry() const;

@@ -2419,7 +2419,31 @@ PathVerdict decidePathAccess(const std::string& canonical_path,
 }  // namespace
 
 std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const std::string& mode) {
-    clearTrace();
+    return checkPathAccessImpl(filepath, mode, /*decide_only=*/false);
+}
+
+// The project path policy as a plain verdict: "" when allowed, otherwise a
+// one-line reason. Same decision as checkPathAccess() -- it IS that function,
+// run with enforcement switched off -- but it never calls enforce(), records
+// nothing and never throws. That is what the embedded Python audit hook needs:
+// it runs inside CPython's C frames, where a C++ exception (GovernanceHardError
+// from a HARD enforce()) must not propagate, so it asks for the verdict and
+// raises PermissionError in Python instead.
+std::string GovernanceEngine::pathPolicyDenial(const std::string& filepath, bool write) {
+    return checkPathAccessImpl(filepath, write ? "write" : "read", /*decide_only=*/true);
+}
+
+std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
+                                                  const std::string& mode,
+                                                  bool decide_only) {
+    if (!decide_only) clearTrace();
+    // Every refusal below goes through deny(): enforcing callers get enforce()
+    // exactly as before; decide_only callers get the short reason instead.
+    auto deny = [&](const std::string& rule, EnforcementLevel lvl,
+                    const std::string& formatted, const std::string& reason) -> std::string {
+        if (decide_only) return reason;
+        return enforce(rule, lvl, formatted);
+    };
 
     // Bound the input BEFORE weakly_canonical() below, which is linear in the
     // path length (~26us/byte measured). Nothing upstream caps this: a path is
@@ -2429,7 +2453,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     // violation rather than passed through, so the run gets an audit record and
     // exit 3 instead of stalling.
     if (filepath.size() > naab::limits::MAX_GOVERNED_PATH_LENGTH) {
-        return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
+        return deny("capabilities.filesystem.path", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 fmt::format("Path length {} exceeds the maximum governed path length of {}",
                             filepath.size(), naab::limits::MAX_GOVERNED_PATH_LENGTH),
@@ -2438,7 +2462,8 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                 "A filesystem path this long cannot name a real file - POSIX allows 4096 bytes.\n"
                 "This usually means a path was built by concatenation in a loop.",
                 "let p = base\n  while i < 20 { p = p + p }\n  file.read(p)",
-                "file.read(path.join(dir, name))"));
+                "file.read(path.join(dir, name))"),
+            "path exceeds the maximum governed length");
     }
 
     // Canonicalize path for consistent prefix matching
@@ -2513,14 +2538,15 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
         std::string example_path = fs_paths.allowed_paths.empty()
             ? "allowed/path/file.txt"
             : fs_paths.allowed_paths[0] + "file.txt";
-        return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
+        return deny("capabilities.filesystem.path", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 "File path not in allowed paths: " + filepath,
                 "Resolved to: " + canon_n + "\n  Allowed (resolved): " + resolved_list,
                 "capabilities.filesystem.allowed_paths does not match",
                 "Only paths under these directories are accessible: " + raw_list,
                 "file." + mode + "(\"" + filepath + "\", ...)",
-                "file." + mode + "(\"" + example_path + "\", ...)"));
+                "file." + mode + "(\"" + example_path + "\", ...)"),
+            "not in allowed paths: " + filepath);
     }
 
     if (project.result == PathVerdict::Result::Blocked) {
@@ -2531,7 +2557,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
         const std::string& fn_at = currentFunction();
         std::string where = fn_at.empty() ? std::string()
                                           : ("in function '" + fn_at + "'");
-        return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
+        return deny("capabilities.filesystem.path", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 "File path blocked by governance: " + filepath,
                 where,
@@ -2539,7 +2565,8 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                 "This path is blocked by the project's governance configuration.\n"
                 "Use a path under an allowed directory (e.g., ./data or ./output).",
                 "file." + mode + "(\"" + filepath + "\", ...)",
-                "file." + mode + "(\"./data/my_file.txt\", ...)"));
+                "file." + mode + "(\"./data/my_file.txt\", ...)"),
+            "blocked by governance: " + filepath);
     }
 
     // Layer 3+4: Agent role path restrictions
@@ -2552,7 +2579,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                 PathPrecedence::DenyWins, canonAndNorm);
 
             if (overlay.result == PathVerdict::Result::Blocked) {
-                return enforce("agent_role.path", EnforcementLevel::HARD,
+                return deny("agent_role.path", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
                         "Agent '" + effectiveAgentId() + "' blocked from path: " + filepath,
                         "",
@@ -2562,10 +2589,11 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                         "file." + mode + "(\"" + filepath + "\", ...)",
                         !role.allowed_paths.empty()
                             ? "file." + mode + "(\"" + role.allowed_paths[0] + "/my_file.txt\", ...)"
-                            : "file." + mode + "(\"./data/my_file.txt\", ...)"));
+                            : "file." + mode + "(\"./data/my_file.txt\", ...)"),
+                    "blocked for this agent role: " + filepath);
             }
             if (overlay.result == PathVerdict::Result::NotAllowlisted) {
-                return enforce("agent_role.path", EnforcementLevel::HARD,
+                return deny("agent_role.path", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
                         "Agent '" + effectiveAgentId() + "' not allowed to access: " + filepath,
                         "",
@@ -2574,13 +2602,14 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                             [&]() { std::string l; for (const auto& p : role.allowed_paths) {
                                 if (!l.empty()) l += ", "; l += p; } return l; }()),
                         "file." + mode + "(\"" + filepath + "\", ...)",
-                        "file." + mode + "(\"" + role.allowed_paths[0] + "/my_file.txt\", ...)"));
+                        "file." + mode + "(\"" + role.allowed_paths[0] + "/my_file.txt\", ...)"),
+                    "not in this agent role's allowed paths: " + filepath);
             }
             break;
         }
     }
 
-    recordPass("capabilities.filesystem.path", EnforcementLevel::HARD);
+    if (!decide_only) recordPass("capabilities.filesystem.path", EnforcementLevel::HARD);
     return "";
 }
 
@@ -6842,20 +6871,25 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
     // checkPathAccess(), which is called from NAAb's own standard library. A
     // polyglot block opens files through its own language runtime and never
     // passes through it, so the same path that file.read() is HARD-blocked on is
-    // readable from inside <<python>> in the SAME program, and governance reports
-    // PASS. Measured on fb1e4bd, per sandbox level:
+    // readable from inside a polyglot block in the SAME program, and governance
+    // reports PASS.
     //
-    //     restricted    shell refused      python refused
-    //     standard      shell contained    python READ THE FILE
-    //     elevated      shell READ         python READ
-    //     unrestricted  shell READ         python READ
+    // The embedded Python executor is now the exception: its audit hook asks
+    // pathPolicyDenial() -- the same decision file.read() gets -- on every
+    // open(), so in-process Python is held at every level
+    // (tests/governance_v4/test_python_path_policy.sh). JavaScript (QuickJS)
+    // has no filesystem API at all. What is left is the SUBPROCESS languages,
+    // which open files in a child process no in-process check can see.
+    // Re-measured per sandbox level after that change:
     //
-    // Two separate mechanisms produce that table. The #222 registry gate refuses
-    // every language at "restricted". SubprocessContainment then blocks fork and
-    // exec at "standard", which stops the subprocess languages — but the embedded
-    // Python executor runs IN-PROCESS when the build has pybind11, so it never
-    // forks and there is nothing for containment to contain. That is why the
-    // default enforce posture, which upgrades to "standard", still leaks.
+    //     restricted    every language refused (#222 registry gate)
+    //     standard      shell/ruby/node contained (no fork/exec); PHP READ
+    //     elevated      shell/ruby/node/PHP READ;  python, javascript held
+    //     unrestricted  as elevated
+    //
+    // PHP reading at "standard" means its executor escapes SubprocessContainment
+    // there -- a separate defect, recorded, not fixed by this warning. Because of
+    // it the warning still fires at "standard".
     //
     // ADVISORY is hardcoded rather than taking `level`, unlike its siblings. Every
     // other CONTRA names two config keys that disagree, so escalating one to a
@@ -6871,7 +6905,7 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
         const bool has_path_policy =
             !fs_cfg.allowed_paths.empty() || !fs_cfg.blocked_paths.empty();
         // Empty means unset, which enforce mode resolves to "standard" — still a
-        // level where the in-process Python executor reads through the policy.
+        // level where a subprocess language (PHP, measured) reads through it.
         const bool polyglot_reachable = rules().sandbox_level_config != "restricted";
 
         if (has_path_policy && polyglot_reachable) {
@@ -6879,16 +6913,18 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
             c.pattern_id = "CONTRA-013";
             c.description =
                 "capabilities.filesystem path rules are enforced inside NAAb's "
-                "standard library only. A polyglot block reaches the filesystem "
-                "through its own language runtime, so code in <<python>> and "
-                "similar blocks can read and write paths that file.read() and "
-                "file.write() are blocked on. Path enforcement is in-process; no "
-                "operating-system path enforcement is implemented";
+                "standard library and the embedded Python executor only. A "
+                "polyglot block that runs as a separate process (shell, ruby, "
+                "node, php and similar) reaches the filesystem through its own "
+                "runtime, so it can read and write paths that file.read() and "
+                "file.write() are blocked on. No operating-system path "
+                "enforcement is implemented";
             c.level = governance::EnforcementLevel::ADVISORY;
             c.resolution =
-                "Treat these rules as covering NAAb code only, or set "
-                "security.sandbox_level to \"restricted\", which refuses polyglot "
-                "execution outright";
+                "Treat these rules as covering NAAb code and embedded Python "
+                "only, block the subprocess languages in languages.blocked, or "
+                "set security.sandbox_level to \"restricted\", which refuses "
+                "polyglot execution outright";
             results.push_back(c);
         }
     }

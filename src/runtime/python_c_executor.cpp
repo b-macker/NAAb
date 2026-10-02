@@ -41,15 +41,30 @@ namespace runtime {
 // declared reach the one path that evaded it.
 extern "C" int naabPythonAuditPolicy(const char* event, const char* target, int is_write) {
     auto* sandbox = security::ScopedSandbox::getCurrent();
-    if (!sandbox) return 1;   // no policy active -- same as every other call site
-
     const std::string ev = event ? event : "";
     const std::string tgt = target ? target : "";
 
     if (ev == "open") {
         if (tgt.empty()) return 1;            // bare fd: no path to adjudicate
-        return (is_write ? sandbox->canWrite(tgt) : sandbox->canRead(tgt)) ? 1 : 0;
+        if (sandbox && !(is_write ? sandbox->canWrite(tgt) : sandbox->canRead(tgt))) return 0;
+        // The project path policy (capabilities.filesystem.allowed_paths /
+        // blocked_paths, the auto-protected govern.json/.sig/trusted keys, and
+        // the agent-role overlay). The sandbox above is an allowlist with no
+        // notion of blocked_paths, so asking only it let a <<python>> block read
+        // -- and WRITE -- files NAAb's own file.* is HARD-blocked on (measured:
+        // a blocked path read back under Governance: PASS at sandbox standard).
+        // This is the same decision file.read/file.write get, from the same
+        // function, so the two cannot disagree. pathPolicyDenial() never
+        // throws: a C++ exception must not cross CPython's frames, so a denial
+        // is returned and surfaces as PermissionError, like a sandbox denial.
+        // Interpreter self-loads never get here (runtime-path carve-out in the
+        // C hook), so allowed_paths does not break imports.
+        auto* gov = governance::GovernanceEngine::getCurrent();
+        if (gov && gov->isActive() && !gov->pathPolicyDenial(tgt, is_write != 0).empty()) return 0;
+        return 1;
     }
+
+    if (!sandbox) return 1;   // no policy active -- same as every other call site
 
     if (ev == "os.system" || ev == "subprocess.Popen" ||
         ev == "os.posix_spawn" || ev.rfind("os.exec", 0) == 0) {
