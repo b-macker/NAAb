@@ -60,7 +60,7 @@ def section_vocab(src_text):
         top.add(sec)
         end = starts[k + 1][0] if k + 1 < len(starts) else min(len(lines), ln + 400)
         txt = "\n".join(lines[ln:end])
-        keys = set(re.findall(r'(?:contains|value|count)\(\s*"([A-Za-z0-9_]+)"', txt))
+        keys = set(re.findall(r'(?:contains|value|count|loadSimpleCheck)\(\s*"([A-Za-z0-9_]+)"', txt))
         keys |= set(re.findall(r'\[\s*"([A-Za-z0-9_]+)"\s*\]', txt))
         vocab.setdefault(sec, set()).update(keys)
     # agents_key resolves to "agents" at runtime; its block is keyed off that variable.
@@ -71,7 +71,7 @@ def section_vocab(src_text):
         start = src_text[:m.start()].count("\n")
         block = "\n".join(lines[start:start + 400])
         vocab.setdefault("agents", set()).update(
-            re.findall(r'(?:contains|value|count)\(\s*"([A-Za-z0-9_]+)"', block))
+            re.findall(r'(?:contains|value|count|loadSimpleCheck)\(\s*"([A-Za-z0-9_]+)"', block))
         vocab["agents"] |= set(re.findall(r'\[\s*"([A-Za-z0-9_]+)"\s*\]', block))
         top.add("agents")
     return top, vocab
