@@ -539,6 +539,18 @@ test whose `mktemp` failed — and never on the user's machine. In a session tha
 spans a remote container, CI runners and the user's own box, every observed
 state belongs to one of them. Name it before telling anyone to act on it.
 
+
+### Use an instrument that does not share your assumptions
+
+Everyone tuning the engine also writes its tests, so the suite checks what its
+authors thought of and is blind in the same places. An outside agent (Gemini,
+given a release-notes pipeline and told that defects were the deliverable) found
+four real defects in one pass, F-01 to F-04, while the suite was green. The
+repo-sentinel dogfood rounds did the same over a longer run. Schedule outside
+use as an instrument, not as a demo: a different model, a different author, a
+workload nobody on the team wrote. Then verify what it reports like any other
+claim.
+
 ---
 ## Forming conclusions
 
@@ -755,6 +767,19 @@ against APIs that had since changed on purpose. A vivid mechanism crowds out a
 dull majority. When explaining a population of failures, lead with the
 breakdown by cause and count, then the interesting one.
 
+
+### A pinned list is a holding pen, not a resolution
+
+The inert-key sweep (open-investigations A2) pinned its findings in
+`test_inert_key_sweep.sh` and a baseline file, so a NEW unenforced key fails CI.
+That stopped the list from growing. It did nothing about the list itself: the
+row still ends "Remaining: decide per key whether to wire or delete", and the
+keys still ship in the template, documented as though they work. A pinned
+baseline makes a debt visible to CI and invisible to everyone else, because it
+reads as managed. When you pin a list, record who will resolve each entry and
+when. When you meet one, treat its open entries as open defects, not settled
+facts.
+
 ---
 ## Making changes
 
@@ -925,6 +950,34 @@ expensive; leaving it in a commit message means the next session pays the same
 price. The pointer to `cd70a29b` and living-script's operator went into
 CLAUDE.md's reload section only after the helper had been built without it.
 
+
+### A fix lands in one copy
+
+Where an implementation is duplicated, a fix reaches the copy you were looking
+at. This repository has had four copies of the string functions, which disagreed
+(`replace` replaced only the first match on the VM; the tree-walker's had no
+empty-pattern guard and hung); sixteen per-executor capability checks, several
+missing; two independent taint implementations that only one parity test
+compares; and a VM attribution stack synced at stdlib calls but not at polyglot
+sites. Before fixing, enumerate every copy: grep for the behaviour, not just the
+function name, and check both engines. Fix all of them, or collapse them into one
+implementation, as `string_ops.h` and `LanguageRegistry::getExecutor()` did. A
+fix that lands in one copy turns a consistent bug into an inconsistency, which
+is harder to see.
+
+### Pair every expected refusal with an expected success
+
+An arm that expects a refusal passes for free whenever the fixture is broken: an
+invalid config, a missing executor or a wrong path all produce a refusal. A
+`${var:+...}` heredoc that dropped the quotes from a JSON key made every
+generated config invalid (exit 4), and every refusal-expecting arm in the suite
+passed. What caught it was the positive control (PP-07 in
+`test_path_precedence.sh`). The standing rule
+("every gate must fail when removed") is the same idea from the other side. For
+each refusal you assert, assert a nearby success through the same fixture and
+harness (as FG-09, PP-07 and RN-06/07 do), and validate generated fixtures
+before trusting a single verdict.
+
 ---
 ## Acting and reporting
 
@@ -1030,6 +1083,23 @@ learn something a local check could have shown. Before pushing, run the cheap
 local reproductions of the slow loop's known failure shapes
 (`tests/helpers/encoding_controls.sh`, the build-flag check above), and bundle
 changes so one CI round answers several questions.
+
+
+### A claim that cannot fail will go stale
+
+Prose does not break when the code changes under it. This campaign corrected
+several CLAUDE.md claims ("standard refuses Python", adaptive baselining "default
+off") that had been true, or believed, when written. Nothing flagged them,
+because no test was attached to them. A reference-doc claim with no test behind
+it is screened tier at best, however confidently it is written. When you write a
+claim into a reference doc, cite the test that pins it. When you find one with
+none, write the test or mark the claim unverified.
+
+The same goes for lists that look authoritative. A template that ships inert
+keys next to live ones is a document making claims nothing checks. The remedy is
+to make the honesty mechanical: a test that requires every template key either
+to have a behavioural test that fails when the key is removed, or to appear in
+the inert baseline AND be marked inert in the template itself.
 
 ---
 
@@ -1286,3 +1356,11 @@ After any change:
 
 - [ ] Code, docs, tests and comments grepped for the mechanism's names and made to agree
 - [ ] Where they disagreed, the history decided which was right, not the code by default
+
+Before adding a feature:
+
+- [ ] Every copy of the code you are extending enumerated (both engines, every executor, every module variant)
+- [ ] Open entries in any pinned baseline that covers this area resolved, or named as open in the plan
+- [ ] Every claim you will write into a reference doc has a test that pins it
+- [ ] Every refusal you will assert is paired with a success through the same fixture
+- [ ] An outside instrument (a different model, author or workload) is planned to exercise it
