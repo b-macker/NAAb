@@ -3216,7 +3216,39 @@ void GovernanceEngine::emitAdvisory(const std::string& msg) {
     fmt::print(stderr, "{}\n", msg);
 }
 
+void GovernanceEngine::scoreUnconsumedValidations() {
+    if (!rules().context_drift.enabled) return;
+    for (const auto& r : drift_analyzer_.scoreUnconsumedValidationsAtExit()) {
+        // A finding, not enforce(): the run is over, and an advisory that
+        // escalated to HARD here would throw from an exit path -- possibly from
+        // inside main()'s own error handler. A failed check result is what the
+        // report, the summary and quality_gate count.
+        std::string who = r.config_name.empty()
+            ? "handle " + std::to_string(r.handle_id)
+            : "'" + r.config_name + "' (handle " + std::to_string(r.handle_id) + ")";
+        check_results_.push_back({"context_drift.validation_outcome", EnforcementLevel::ADVISORY,
+            false,
+            fmt::format("A failed validation for agent {} was recorded after its last turn, "
+                        "so it was scored at the end of the run: coherence {:.4f} -> {:.4f}",
+                        who, r.coherence_before, r.coherence_after),
+            "context_drift", "medium", 0, "<agent:" + r.config_name + ">", {}, {}});
+        if (rules().telemetry_output.enabled) {
+            writeAgentTelemetry("VALIDATION_SCORED_AT_EXIT", {
+                {"handle_id",        std::to_string(r.handle_id)},
+                {"config_name",      r.config_name},
+                {"coherence_before", fmt::format("{:.4f}", r.coherence_before)},
+                {"coherence_after",  fmt::format("{:.4f}", r.coherence_after)},
+                {"penalty",          fmt::format("{:.4f}", r.penalty)},
+            });
+        }
+        fprintf(stderr, "[governance] Validation failure for agent %s was recorded after "
+                        "its last turn; scored at exit (coherence %.4f -> %.4f)\n",
+                who.c_str(), r.coherence_before, r.coherence_after);
+    }
+}
+
 void GovernanceEngine::flushGroupedAdvisories() {
+    scoreUnconsumedValidations();
     // 1. Grouped duplicate call warnings
     if (!dup_call_summary_.empty()) {
         std::string msg = "[ADVISORY] Duplicate calls (store results in variables):";

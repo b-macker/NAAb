@@ -3162,6 +3162,46 @@ void ContextDriftAnalyzer::recordPressureContributions(
     state.last_pressure_valid = true;
 }
 
+std::vector<ContextDriftAnalyzer::ExitScoredValidation>
+ContextDriftAnalyzer::scoreUnconsumedValidationsAtExit() {
+    // The latch is consumed by the NEXT recordTurn, and recordTurn runs only on
+    // an AGENT_RESPONSE. A pipeline validates a handle's output after that
+    // handle's last send -- the natural place to check a final answer -- so the
+    // last result for every handle was never scored: coherence stayed 1.0000
+    // through a recorded ground-truth failure (Gemini dogfood F-02, 5/5
+    // adversarial runs; examples/agent_harness's planner and final worker step
+    // the same way). Scored here with the penalty recordTurn would have
+    // charged, so the final coherence, the report and the quality gate see it.
+    std::vector<ExitScoredValidation> out;
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto& [hid, state] : drift_states_) {
+        if (!state.has_validation_result) continue;
+        state.has_validation_result = false;
+        const bool enabled = (state.signal_override_mask & (1u << SIG_VALIDATION))
+            ? (((state.signal_override_values >> SIG_VALIDATION) & 1u) != 0)
+            : config_->signals.validation_outcome;
+        const bool failed = !state.last_validation_passed ||
+                            (state.last_validation_passed && state.last_validation_shrank);
+        if (!enabled || !failed) continue;
+        state.validation_failure_count++;
+        state.last_consumed_validation_failed = true;
+        double p = config_->weights.validation_outcome;
+        if (config_->rate_normalized && state.turns_analyzed > 1) {
+            double rate = static_cast<double>(state.validation_failure_count) / state.turns_analyzed;
+            p = std::max(rate, config_->rate_normalized_floor) * p;
+        }
+        ExitScoredValidation r;
+        r.handle_id = hid;
+        r.config_name = state.config_name;
+        r.coherence_before = state.coherence_score;
+        state.coherence_score = std::max(0.0, state.coherence_score - p);
+        r.coherence_after = state.coherence_score;
+        r.penalty = r.coherence_before - r.coherence_after;
+        out.push_back(r);
+    }
+    return out;
+}
+
 bool ContextDriftAnalyzer::recordValidationOutcome(int handle_id, bool passed,
     const std::unordered_set<std::string>& detail_keywords, int evidence_count) {
     std::lock_guard<std::mutex> lock(mutex_);

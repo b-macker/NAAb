@@ -3537,6 +3537,10 @@ public:
     // --- Advisory Output Control ---
     void emitAdvisory(const std::string& msg);
     void flushGroupedAdvisories();
+    // End of run: score validation failures recorded after a handle's last turn
+    // (see ContextDriftAnalyzer::scoreUnconsumedValidationsAtExit). Called from
+    // flushGroupedAdvisories(), which every exit path already calls.
+    void scoreUnconsumedValidations();
 
     // Report generation
     std::string generateJsonReport() const;
