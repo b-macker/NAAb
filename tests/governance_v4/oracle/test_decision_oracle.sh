@@ -29,6 +29,7 @@ TMPBASE="$_SYSTMP/test_oracle_$$"
 mkdir -p "$TMPBASE"
 
 source "$SCRIPT_DIR/../../helpers/trust_setup.sh"
+source "$SCRIPT_DIR/../../helpers/config_swap.sh"
 setup_isolated_trust
 "$NAAB" --keygen "$TMPBASE/test-key.pem" 2>/dev/null
 "$NAAB" --trust-key "$TMPBASE/test-key.pem.pub" 2>/dev/null
@@ -47,7 +48,7 @@ sign_dir() {
     (cd "$dir" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB" --sign-governance 2>/dev/null) || true
 }
 
-cleanup() { teardown_isolated_trust; rm -rf "$TMPBASE"; }
+cleanup() { stop_swap_operators; teardown_isolated_trust; rm -rf "$TMPBASE"; }
 trap cleanup EXIT
 
 skip() {
@@ -875,7 +876,7 @@ echo ""
 
 # =====================================================================
 # CATEGORY 6: Ratchet Enforcement (5 tests)
-# Ratchet tests use shutil.copy() to swap govern.json mid-run.
+# Ratchet tests use _swap() to swap govern.json mid-run.
 # On Windows, file locking prevents this — skip.
 # =====================================================================
 echo "--- Category 6: Ratchet Enforcement ---"
@@ -920,10 +921,21 @@ sign_dir "$RDIR/tight"
 cat > "$RDIR/test.naab" << NAABEOF
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$RDIR/tight/govern.json", "$RDIR/govern.json")
-shutil.copy("$RDIR/tight/govern.json.sig", "$RDIR/govern.json.sig")
+_swap("$RDIR/tight/govern.json", "$RDIR/govern.json")
+_swap("$RDIR/tight/govern.json.sig", "$RDIR/govern.json.sig")
 print("config tightened")
 >>
     print(r1)
@@ -937,6 +949,7 @@ echo "should be blocked"
     print(r3)
 }
 NAABEOF
+start_swap_operator "$RDIR"
 ORACLE_OUT=$(cd "$RDIR" && timeout 30s "$NAAB" test.naab 2>&1) && ORACLE_RC=$? || ORACLE_RC=$?
 check "O-RATCH-01" "tighten shell capability mid-run → blocked (exit 3)" "3" "$ORACLE_RC"
 
@@ -965,10 +978,21 @@ sign_dir "$RDIR/loose"
 cat > "$RDIR/test.naab" << NAABEOF
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$RDIR/loose/govern.json", "$RDIR/govern.json")
-shutil.copy("$RDIR/loose/govern.json.sig", "$RDIR/govern.json.sig")
+_swap("$RDIR/loose/govern.json", "$RDIR/govern.json")
+_swap("$RDIR/loose/govern.json.sig", "$RDIR/govern.json.sig")
 print("config loosened")
 >>
     print(r1)
@@ -978,6 +1002,7 @@ print("still strict")
     print(r2)
 }
 NAABEOF
+start_swap_operator "$RDIR"
 ORACLE_OUT=$(cd "$RDIR" && timeout 30s "$NAAB" test.naab 2>&1) && ORACLE_RC=$? || ORACLE_RC=$?
 check_contains "O-RATCH-02" "ratchet rejected capability loosening" "$ORACLE_OUT" "ratchet"
 
@@ -1005,10 +1030,21 @@ sign_dir "$RDIR/tight"
 cat > "$RDIR/test.naab" << NAABEOF
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$RDIR/tight/govern.json", "$RDIR/govern.json")
-shutil.copy("$RDIR/tight/govern.json.sig", "$RDIR/govern.json.sig")
+_swap("$RDIR/tight/govern.json", "$RDIR/govern.json")
+_swap("$RDIR/tight/govern.json.sig", "$RDIR/govern.json.sig")
 print("limits tightened")
 >>
     print(r1)
@@ -1023,6 +1059,7 @@ print("reload triggered")
     print("loop done: " + string(i))
 }
 NAABEOF
+start_swap_operator "$RDIR"
 ORACLE_OUT=$(cd "$RDIR" && timeout 30s "$NAAB" test.naab 2>&1) && ORACLE_RC=$? || ORACLE_RC=$?
 check "O-RATCH-03" "numeric limit tightened → loop blocked (exit 3)" "3" "$ORACLE_RC"
 
@@ -1050,10 +1087,21 @@ sign_dir "$RDIR/tight"
 cat > "$RDIR/test.naab" << NAABEOF
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$RDIR/tight/govern.json", "$RDIR/govern.json")
-shutil.copy("$RDIR/tight/govern.json.sig", "$RDIR/govern.json.sig")
+_swap("$RDIR/tight/govern.json", "$RDIR/govern.json")
+_swap("$RDIR/tight/govern.json.sig", "$RDIR/govern.json.sig")
 print("shell tightened")
 >>
     print(r1)
@@ -1063,6 +1111,7 @@ print("python still works after tightening")
     print(r2)
 }
 NAABEOF
+start_swap_operator "$RDIR"
 ORACLE_OUT=$(cd "$RDIR" && timeout 30s "$NAAB" test.naab 2>&1) && ORACLE_RC=$? || ORACLE_RC=$?
 check "O-RATCH-04" "tighten shell, python unaffected" "0" "$ORACLE_RC"
 check_contains "O-RATCH-04b" "python ran after capability tightening" "$ORACLE_OUT" "python still works after tightening"
@@ -1092,10 +1141,21 @@ sign_dir "$RDIR/loose"
 cat > "$RDIR/test.naab" << NAABEOF
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$RDIR/loose/govern.json", "$RDIR/govern.json")
-shutil.copy("$RDIR/loose/govern.json.sig", "$RDIR/govern.json.sig")
+_swap("$RDIR/loose/govern.json", "$RDIR/govern.json")
+_swap("$RDIR/loose/govern.json.sig", "$RDIR/govern.json.sig")
 print("tried to loosen limits")
 >>
     print(r1)
@@ -1105,6 +1165,7 @@ print("still strict")
     print(r2)
 }
 NAABEOF
+start_swap_operator "$RDIR"
 ORACLE_OUT=$(cd "$RDIR" && timeout 30s "$NAAB" test.naab 2>&1) && ORACLE_RC=$? || ORACLE_RC=$?
 check_contains "O-RATCH-05" "numeric limit loosening rejected" "$ORACLE_OUT" "ratchet"
 

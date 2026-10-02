@@ -100,7 +100,7 @@ prog '  agent.send(h, "write notes")
   agent.record_validation(h, false, "notes announce v9.0 but truth says v1.0.0")'
 out=$(run); rc=$?
 read -r before after <<<"$(exit_drop)"
-finding=$(python3 -c "import json;r=json.load(open('$W/report.json'));print(sum(1 for c in (r.get('results') or []) if c.get('rule')=='context_drift.validation_outcome' or c.get('rule_name')=='context_drift.validation_outcome'))" 2>/dev/null)
+finding=$(python3 -c "import json,sys;r=json.load(sys.stdin);print(sum(1 for c in (r.get('results') or []) if c.get('rule')=='context_drift.validation_outcome' or c.get('rule_name')=='context_drift.validation_outcome'))" < "$W/report.json" 2>/dev/null)
 if [ "$(events VALIDATION_SCORED_AT_EXIT)" = 1 ] && python3 -c "import sys; sys.exit(0 if float('$after') < float('$before') else 1)" 2>/dev/null \
    && [ "${finding:-0}" -ge 1 ] && grep -q 'scored at exit' <<<"$out"; then
     ok "VX-01" "a failure after the last send is scored at exit ($before -> $after) and reported"

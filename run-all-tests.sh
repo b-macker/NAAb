@@ -1593,6 +1593,23 @@ else
     echo "  test_path_precedence.sh: not found, skipping"
 fi
 
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Path Policy: bare relative paths to new files"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RELNEW_SCRIPT="tests/security/test_relative_new_path.sh"
+if [ -f "$RELNEW_SCRIPT" ]; then
+    if run_shell_test "$RELNEW_SCRIPT" 2>&1; then
+        echo "  test_relative_new_path.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_relative_new_path.sh")
+    fi
+else
+    echo "  test_relative_new_path.sh: not found, skipping"
+fi
+
 # --- naab-gov check: one output shape for both verdicts ---
 # The JSON builder in cmdCheck was reachable only on a PASS; a HARD block threw
 # past it to main()'s plain-text handler. Exit codes were always right, so this

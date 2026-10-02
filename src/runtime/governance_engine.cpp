@@ -2482,9 +2482,22 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
     }
 
     // Canonicalize path for consistent prefix matching
+    // A relative target is made absolute against the PROCESS cwd first, because
+    // that is what the OS resolves it against when the file is opened -- the
+    // point of effect. weakly_canonical() alone returns a relative path
+    // unchanged when its first component does not exist yet, so a bare name
+    // for a NEW file ("out.txt") stayed relative while every policy entry is
+    // absolute, and no prefix ever matched. Both directions were wrong:
+    // allowed_paths ["."] refused file.write("out.txt") (while "./out.txt"
+    // passed), and the auto-protected govern.json.sig of an UNSIGNED project
+    // -- blocked, but not yet on disk -- was writable as "govern.json.sig".
+    // Policy ENTRIES stay project-relative (canonAndNorm below); this is the
+    // target, which the program opens from its own cwd.
     std::string canon;
     try {
-        canon = std::filesystem::weakly_canonical(filepath).string();
+        std::filesystem::path target(filepath);
+        if (!filepath.empty() && target.is_relative()) target = std::filesystem::absolute(target);
+        canon = std::filesystem::weakly_canonical(target).string();
     } catch (...) {
         canon = filepath;
     }
@@ -3226,12 +3239,16 @@ void GovernanceEngine::scoreUnconsumedValidations() {
         std::string who = r.config_name.empty()
             ? "handle " + std::to_string(r.handle_id)
             : "'" + r.config_name + "' (handle " + std::to_string(r.handle_id) + ")";
-        check_results_.push_back({"context_drift.validation_outcome", EnforcementLevel::ADVISORY,
-            false,
-            fmt::format("A failed validation for agent {} was recorded after its last turn, "
-                        "so it was scored at the end of the run: coherence {:.4f} -> {:.4f}",
-                        who, r.coherence_before, r.coherence_after),
-            "context_drift", "medium", 0, "<agent:" + r.config_name + ">", {}, {}});
+        {
+            std::lock_guard<std::mutex> lock(results_mutex_);
+            check_results_.push_back({"context_drift.validation_outcome", EnforcementLevel::ADVISORY,
+                false,
+                fmt::format("A failed validation for agent {} was recorded after its last turn, "
+                            "so it was scored at the end of the run: coherence {:.4f} -> {:.4f}",
+                            who, r.coherence_before, r.coherence_after),
+                "context_drift", "medium", 0, "<agent:" + r.config_name + ">", {}, {}});
+            capCheckResultsLocked();
+        }
         if (rules().telemetry_output.enabled) {
             writeAgentTelemetry("VALIDATION_SCORED_AT_EXIT", {
                 {"handle_id",        std::to_string(r.handle_id)},

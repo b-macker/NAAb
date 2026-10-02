@@ -73,8 +73,9 @@ read_block() {  # $1 = path expression (python)
     cat <<EOF
 main {
   let r = <<python
+target = $1
 try:
-    r = open($1).read().strip()
+    r = open(target).read().strip()
 except PermissionError:
     r = "DENIED"
 r
