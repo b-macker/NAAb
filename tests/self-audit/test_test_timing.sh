@@ -22,6 +22,9 @@
 #   TT-06c CONTROL: the same calls without the enclosing suite ARE counted, so
 #          TT-06's exclusion is structural, not a blanket drop
 #   TT-07  report output is ASCII and the JSON parses
+#   TT-08  a RELATIVE NAAB_TIMING_DIR still records calls made after a suite
+#          cd's away (the shim's directory goes on PATH; a relative PATH entry
+#          stops resolving once the cwd changes)
 # ============================================================
 set -uo pipefail
 
@@ -49,7 +52,7 @@ for d in "${_dirs[@]}"; do
     if ! grep -q "timeout-shim" "$d/timeout" 2>/dev/null; then REAL="$d/timeout"; break; fi
 done
 if [ -z "$REAL" ]; then
-    for id in TT-01 TT-02 TT-03 TT-03c TT-04 TT-05; do skip "$id" "no real 'timeout' on this platform (UNMEASURABLE)"; done
+    for id in TT-01 TT-02 TT-03 TT-03c TT-04 TT-05 TT-08; do skip "$id" "no real 'timeout' on this platform (UNMEASURABLE)"; done
 else
     SHIM="$W/bin/timeout"; mkdir -p "$W/bin"; cp "$TOOLS/timeout-shim" "$SHIM"; chmod +x "$SHIM"
     export NAAB_REAL_TIMEOUT="$REAL"
@@ -125,6 +128,15 @@ else
     if [ "$rc" = 3 ] && [ "${rows:-0}" -ge 1 ] && [ -s "$W/timed/timing.md" ]; then
         ok "TT-05" "run_timed.sh returns the suite's exit status (3) and still writes the report"
     else bad "TT-05" "exit status or report wrong" "rc=$rc rows=${rows:-none}"; fi
+
+    # TT-08: the stand-in suite leaves the repo before its timed call. The
+    # Windows job passes a relative NAAB_TIMING_DIR per phase.
+    printf '#!/usr/bin/env bash\ncd /\ntimeout 5s true\nexit 0\n' > "$F/run-all-tests.sh"
+    rm -rf "$W/rel"
+    ( cd "$W" && PATH="$(dirname "$REAL"):$PATH" NAAB_TIMING_DIR=rel bash "$F/tools/testtiming/run_timed.sh" > "$W/rel.out" 2>&1 )
+    rows=$(wc -l < "$W/rel/calls.tsv" 2>/dev/null | tr -d ' ')
+    if [ "${rows:-0}" -ge 1 ]; then ok "TT-08" "a relative timing dir still records a suite that cd's away"
+    else bad "TT-08" "the shim dropped out after cd" "rows=${rows:-none}"; fi
 fi
 
 # TT-06 / TT-06c / TT-07: the report alone, on an authored log.

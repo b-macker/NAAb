@@ -21,6 +21,11 @@ set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 OUT="${NAAB_TIMING_DIR:-$REPO/test-timing}"
+# Absolute, always: $OUT/bin goes on PATH, and a RELATIVE PATH entry stops
+# resolving the moment a suite cd's elsewhere -- the shim would silently drop
+# out of every suite that changes directory, and the report would show their
+# work as unattributed instead of failing.
+mkdir -p "$OUT" && OUT="$(cd "$OUT" && pwd)" || { echo "run_timed: cannot use $OUT" >&2; cd "$REPO" && exec bash run-all-tests.sh "$@"; }
 
 REAL_TIMEOUT="$(command -v timeout 2>/dev/null || true)"
 if [ -z "$REAL_TIMEOUT" ]; then
