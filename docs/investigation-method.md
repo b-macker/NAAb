@@ -88,6 +88,92 @@ When an investigation reverses, do not patch the conclusion — re-derive the
 whole chain. A chain of four conclusions where each was built on the last is
 one error repeated four times, not four findings.
 
+
+### Another agent's report of an artifact is a claim, not the artifact
+
+A peer agent's FINDINGS.md said two extracts had been "saved"
+(`out/f008_clean_cdd.jsonl`, `out/f008_adv_cdd.jsonl`). A `find` over the whole
+home directory returned nothing: they were never written. The table built "from"
+them could not be checked until the raw telemetry was pulled again. When another
+agent, session or tool says it produced a file, ask for the listing (path, size,
+line count) before building on it, and ask for raw events rather than its summary
+of them.
+
+### A filter's vocabulary bounds what it can find
+
+Another session reported a suite's `--trust-key` as unisolated, because its grep
+pattern did not include `setup_isolated_trust`, the helper that isolates it. The
+helper sat five lines above. The absence was in the filter, not the file.
+Before reporting that something is missing, list the names the mechanism could go
+by — helpers, wrappers, aliases — and check that your pattern contains them.
+
+
+### Code shows what happens now; history shows what was meant
+
+Tracing the code end to end tells you what the system does today. It cannot
+tell you what it was meant to do, whether it ever worked, or whether someone
+already found and fixed the problem you are looking at. That story is in the
+history, and it has to be read before a change, not after. The precedent: a
+mid-run config-swap helper was built and debugged through two wrong theories.
+Only afterwards did `git log --grep` turn up `cd70a29b`, which had found the same
+race months earlier, fixed the engine for it, and recorded the workaround in
+living-script's operator. The knowledge existed, in a commit message and an
+example's comment; nothing pointed at it, so nobody looked.
+
+The history pass, before changing anything:
+
+- `git log -S'<identifier>'` (and `-G'<regex>'`) on every name the change
+  touches. Pickaxe lists each commit that ADDED or REMOVED the string, which is
+  how a deletion buried in an unrelated-looking commit shows up.
+- `git log --follow -- <file>` and `git blame` on the lines you will edit; read
+  the full message of each commit that shaped them.
+- `git log --grep` on the subject's nouns (the feature, the symptom, the
+  config key). In a squash-merging repo the PR body IS the commit message, so
+  this also searches the PR descriptions.
+- The PR on GitHub for review threads and design discussion, which never reach
+  git.
+- The docs that record decisions (`docs/open-investigations.md`,
+  `docs/governance-campaign-findings.md`, `docs/security-decisions.md`, the
+  `docs/plan-*.md` files) and comments in examples, not only CLAUDE.md.
+
+Then classify what you are looking at, because each calls for a different
+action:
+
+| state | what the history shows | what to do |
+|---|---|---|
+| never built | planned or described, no implementing commit | build it, or correct the doc that claims it |
+| working | introduced with a test that still fails when it is removed | leave it; your premise is probably wrong |
+| regressed | worked at a commit you can name, broken by a later one | read the breaking commit's intent before reverting it |
+| removed on purpose | deleted with a stated reason | do not restore it without answering that reason |
+| lost | deleted or orphaned by an unrelated change, no reason given | restore it, and say how it was lost |
+| decided | a recorded decision with reasoning | quote it; reopen only with new evidence |
+
+"I traced it and it doesn't work" is a fact about now. Without the history it
+is not yet a finding: it could be any row of that table.
+
+### Existing tests are claims too
+
+A test that already exists has the same standing as a doc: someone's assertion
+that the behaviour holds, which may never have been checked. Before a change
+leans on an old test, or before reporting "the existing tests pass", establish
+that the test is real:
+
+- It FAILS when the mechanism it protects is removed. The old
+  `test_signature_staleness.sh` backdated the `.sig` file's modification time,
+  which the engine never reads, so it passed for as long as the age limit never
+  fired at startup.
+- It actually RUNS. `tests/api/test_platform_fixes.sh` carried a real failure
+  and was referenced nowhere in `run-all-tests.sh`; 28 of 71 suites in
+  `tests/security/` were unregistered when counted. The unit tests went months
+  with about 115 stale failures because nothing ran them.
+- It does not SKIP its way to green. An UNMEASURABLE skip on the runner that
+  matters is not a pass there.
+- It covers the case the claim covers. A doc said sandbox `standard` "refuses
+  Python outright"; the test behind the claim only ran `elevated`.
+
+A test that cannot fail is evidence of nothing, and an old one is easier to
+believe than a new one because nobody is watching it.
+
 ---
 ## Investigating
 
@@ -398,6 +484,73 @@ discoveries and are larger than anything the change could explain. If a result
 is surprising, ask what else was touching the same state during the run before
 believing it.
 
+
+### Inspect the failed state before theorising
+
+When something fails intermittently, capture the artifacts at the moment of
+failure — files, timestamps, the process list — before forming a mechanism.
+Two theories in a row "fixed" a flaky mid-run reload test: the copy order, then
+the request granularity. Each was plausible, and each was followed by a passing
+loop. The third failure, captured on disk, showed the `.sig` swapped and
+`govern.json` untouched while the program had been told both swaps happened —
+the signature of a second, stale operator answering the same request. Neither
+theory predicted that file state; one look at it did.
+
+The probe can lie here too: `pgrep -f run-all-tests` counted its own command
+line and read as "still running" after the run had stopped.
+
+### The branch you read is not the branch you hit
+
+A function with several failure paths can treat them differently on purpose.
+Reading `loaded_mtime_ns_ = current_mtime` in `reloadIfChanged()`'s
+unreadable-file branch produced the claim "a rejected reload is final for that
+mtime". It is false for the signature-failure branch, which deliberately leaves
+the mtime uncached so a later valid `.sig` is retried (`cd70a29b`). Follow the
+path the failing input actually takes, not the first line that matches what you
+expected.
+
+### Read the runner's build flags before the code
+
+A test that fails on one platform may be measuring a different build. PR-07b
+("embedded Python is held at the audit hook") failed only on Windows, where
+`windows.yml` configures with `-DCMAKE_DISABLE_FIND_PACKAGE_Python3=TRUE`: there
+is no embedded Python on that runner, `<<python>>` runs as a subprocess, and the
+read was CONTRA-013's documented boundary. The code was right; the test's
+subject did not exist there. Check the CI configuration before reading a
+platform-only failure as a code defect, and give such tests a probe for the
+subject's existence.
+
+
+### Build everything the test touches before trusting its failure
+
+A suite reported "3 failed of 13" against another session's "1 of 24". The
+difference was the local build: only `naab-lang` had been built, so the Python
+binding could not find `libnaab-governance` / `naab-gov` and two arms died on a
+`FileNotFoundError`. The tell was that one arm, which never instantiates the
+binding, passed while its siblings failed. A failure from an unbuilt artifact
+reads exactly like a failure from the code; list the artifacts the test loads
+and build them before counting.
+
+### Say which machine the state lives on
+
+A stray `/govern.json` was breaking two local tests, and the advice given was to
+`rm /govern.json`. That file existed only in the remote container — created by a
+test whose `mktemp` failed — and never on the user's machine. In a session that
+spans a remote container, CI runners and the user's own box, every observed
+state belongs to one of them. Name it before telling anyone to act on it.
+
+
+### Use an instrument that does not share your assumptions
+
+Everyone tuning the engine also writes its tests, so the suite checks what its
+authors thought of and is blind in the same places. An outside agent (Gemini,
+given a release-notes pipeline and told that defects were the deliverable) found
+four real defects in one pass, F-01 to F-04, while the suite was green. The
+repo-sentinel dogfood rounds did the same over a longer run. Schedule outside
+use as an instrument, not as a demo: a different model, a different author, a
+workload nobody on the team wrote. Then verify what it reports like any other
+claim.
+
 ---
 ## Forming conclusions
 
@@ -563,6 +716,70 @@ State the phenomena your setup is blind to, beside the results. If a claim
 matters and is unmeasurable, say so instead of omitting it — an acknowledged
 blind spot can be closed, an unmentioned one cannot.
 
+
+### A flake fix needs runs scaled to the failure rate
+
+"0 failures in 15" after a fix for a flake observed at 1 in 12 is weak
+evidence: the unfixed flake passes 15 straight runs about 27% of the time
+(computed, `(11/12)^15`). It was reported as "0/15 (was 1/12)" without that
+arithmetic. Before calling a flake fixed, compute what the unfixed rate would
+produce over your loop and run enough to make that unlikely — or rest the claim
+on a stronger instrument, such as the captured state that showed the mechanism,
+and say that is what it rests on.
+
+### Check which commit a result is about
+
+CI results arrive late and out of order. In one campaign, at least eight failure
+notifications for superseded heads (observed: two heads, four checks each)
+arrived after their fixes were pushed, and each was only interpretable once its
+head SHA was matched against the branch.
+Attribute every result to a commit before acting on it: a failure for a
+superseded commit is history, not a regression, and a pass for one is not a
+pass for HEAD.
+
+### A template is a claim
+
+A shipped config template asserts that every key in it does something.
+`govern-template.json` carries keys that are parsed and never consumed
+(`trust_policy.check_key_expiry`, `filesystem.allowed_extensions`, ...); the
+evidence that they are inert lives in a table row in
+`docs/open-investigations.md` and a baseline file, not beside the key. The
+owner read the template as checked and verified. Where the liveness evidence is
+not adjacent to the claim, readers believe the claim. Put the status where the
+claim is, or expect it to be re-derived — and contradicted — by every reader.
+
+
+### Judge a finding against the product's purpose
+
+"Most of what's wrong in these files is repo-sentinel's own bugs, not NAAb's"
+was offered as a reason to set the findings aside. NAAb's governance is sold
+partly on catching bad code, especially code an LLM wrote. For a product like
+that, a defect in governed code that passed governance is a finding about the
+governor. Before classifying a finding as someone else's problem, ask which
+component's stated purpose it falls under.
+
+### The interesting cause is not the main cause
+
+A unit-test investigation reported a striking defect (timeouts that do not
+fire) and moved on. The user had to ask whether that was the main cause of the
+failures. It accounted for 2 of about 133; about 115 were stale tests written
+against APIs that had since changed on purpose. A vivid mechanism crowds out a
+dull majority. When explaining a population of failures, lead with the
+breakdown by cause and count, then the interesting one.
+
+
+### A pinned list is a holding pen, not a resolution
+
+The inert-key sweep (open-investigations A2) pinned its findings in
+`test_inert_key_sweep.sh` and a baseline file, so a NEW unenforced key fails CI.
+That stopped the list from growing. It did nothing about the list itself: the
+row still ends "Remaining: decide per key whether to wire or delete", and the
+keys still ship in the template, documented as though they work. A pinned
+baseline makes a debt visible to CI and invisible to everyone else, because it
+reads as managed. When you pin a list, record who will resolve each entry and
+when. When you meet one, treat its open entries as open defects, not settled
+facts.
+
 ---
 ## Making changes
 
@@ -633,6 +850,134 @@ attractive, which is exactly why it gets skipped.
 
 Never accept a green new test without making it red once, deliberately.
 
+
+### Search the history before building
+
+"Check whether this was already decided" covers changing behaviour. It applies
+equally to building infrastructure. A mid-run config-swap helper was written,
+debugged through two wrong theories and documented before `git log --grep`
+found `cd70a29b` and living-script's operator: the same race, already found,
+fixed and worked around, recorded in a commit message and an example's comment
+that no reference doc pointed to. Run `git log --grep` and `git log -S` on the
+subject's nouns before writing machinery for it. Commit messages hold knowledge
+the reference docs never absorbed — and when you find it there, copy a pointer
+into the reference doc.
+
+### When a correct fix breaks a test, ask whether the test depended on the bug
+
+Closing the Python audit-hook hole failed six reload suites. They swapped
+`govern.json` from a `<<python>>` block — through the hole. The first repair
+widened the fixtures' `languages.allowed` to admit shell. That changes the
+configuration under test (several suites test LOOSENING shell from a shell-off
+base), and it still failed wherever the base disabled shell. Do not loosen a
+fixture to restore green: the configuration is the subject. Move the test's
+privileged action outside the program instead, and say in the test why.
+
+### A workaround in a test is an unreported finding
+
+While converting those suites, a Python write to a bare new filename was
+refused while `./name` passed, and the obvious move was to write `./` and carry
+on. Asking why instead found the fail-OPEN half of the same defect: an unsigned
+project's `govern.json.sig`, protected but not yet on disk, was writable by its
+bare name. Whenever a test needs a spelling, an ordering or a flag to make
+something that should work work, explain the need before using it.
+
+### A documented trap is not an avoided one
+
+The `pipefail` plus `grep -q` inversion was documented in CLAUDE.md, with its
+fix, before a new suite in the same campaign reproduced it in its probe — which
+reported "executor unavailable" while the executor worked. The shell-path
+handoff pattern recurred in two new tests the same week. Reading the gotchas
+list does not apply it. After writing a test, check the new code for the shapes
+of the documented traps; they are mechanical and cheap to find.
+
+### Arms that share a directory share everything left running in it
+
+Background helpers outlive the scope that started them unless something outside
+that scope tracks them. A swap operator's PID was kept in a shell variable
+inside `$( ... )`; the variable died with the subshell and the operator did
+not, so every later arm in the same directory had two operators answering one
+request — a flake observed at 1 in 3 and 1 in 12 over two loops as a non-root
+user, and not seen in 5 root runs. Isolation between arms means no surviving processes, markers or locks from
+the arm before, not just separate inputs. Track anything you spawn in a file
+that outlives the scope, and kill it there.
+
+
+### When the request specifies an order, the order is the requirement
+
+The user asked for govern.json first, then signing, then a harness built to fit.
+The harness came first and the config was sized to it. That produced a working
+harness and the opposite of what was asked: governance shaped to the code instead
+of code shaped by governance. When a request names a sequence, the sequence
+usually carries the point. Check the order before starting, not only the
+deliverables at the end.
+
+### Search before asking
+
+Three design questions were put to the user ("should drift escalation kill an
+agent at all? should the count be shared across agents? should epoch boundaries
+halve it?"). The user had to point out that they had been decided, with reasons,
+earlier. A question with a recorded answer spends the user's attention to
+recover your context. Search commits, docs and prior write-ups first, and when
+you do ask, quote what the record says and why it does not settle the question.
+
+
+### Code, docs and tests must tell the same story
+
+A change is not finished when the code is right. Afterwards, grep the docs, the
+tests and the comments for the mechanism's names, and make all three agree with
+what the code now does. When two of them disagree, do not pick the code by
+default: the code is current behaviour, but the doc may be the intent and the
+code the bug. The history pass decides which. Disagreements found in this
+repository's own record include:
+
+- CLAUDE.md's claim that `standard` refuses Python, which the code did not do;
+- prose still saying adaptive baselining is "default off" after the default
+  flipped;
+- a test helper's comment asserting a reload rule that `cd70a29b` had
+  deliberately reversed;
+- template keys documented as live that nothing reads.
+
+Each one would have sent the next reader in the wrong direction with full
+confidence.
+
+### Promote what the history taught you
+
+When the history pass finds knowledge the reference docs lack — a race, a
+decision, a reason something was removed — copy a pointer to it into the doc a
+future reader will actually search, beside the thing it explains. Finding it was
+expensive; leaving it in a commit message means the next session pays the same
+price. The pointer to `cd70a29b` and living-script's operator went into
+CLAUDE.md's reload section only after the helper had been built without it.
+
+
+### A fix lands in one copy
+
+Where an implementation is duplicated, a fix reaches the copy you were looking
+at. This repository has had four copies of the string functions, which disagreed
+(`replace` replaced only the first match on the VM; the tree-walker's had no
+empty-pattern guard and hung); sixteen per-executor capability checks, several
+missing; two independent taint implementations that only one parity test
+compares; and a VM attribution stack synced at stdlib calls but not at polyglot
+sites. Before fixing, enumerate every copy: grep for the behaviour, not just the
+function name, and check both engines. Fix all of them, or collapse them into one
+implementation, as `string_ops.h` and `LanguageRegistry::getExecutor()` did. A
+fix that lands in one copy turns a consistent bug into an inconsistency, which
+is harder to see.
+
+### Pair every expected refusal with an expected success
+
+An arm that expects a refusal passes for free whenever the fixture is broken: an
+invalid config, a missing executor or a wrong path all produce a refusal. A
+`${var:+...}` heredoc that dropped the quotes from a JSON key made every
+generated config invalid (exit 4), and every refusal-expecting arm in the suite
+passed. What caught it was the positive control (PP-07 in
+`test_path_precedence.sh`). The standing rule
+("every gate must fail when removed") is the same idea from the other side. For
+each refusal you assert, assert a nearby success through the same fixture and
+harness (as FG-09, PP-07 and RN-06/07 do), and validate generated fixtures
+before trusting a single verdict.
+
 ---
 ## Acting and reporting
 
@@ -689,6 +1034,72 @@ get less scrutiny because they feel like diligence.
 Notice which direction your errors have been running lately, and spend the extra
 check there.
 
+
+
+### State the denominator, or the scope gets rounded up
+
+"About half of what looks usable does nothing for this harness" was scoped to
+one harness, and mostly meant polyglot-only checks with every language blocked.
+It came back as "a lot of the template is not working". A scoped claim loses
+its scope when it is retold. Put the denominator and the reason in the same
+sentence as the fraction, and keep "inapplicable here" separate from "inert
+everywhere" — they call for opposite actions.
+
+
+### Check "done" against the plan, not your memory of it
+
+A feature was summarised as complete with 83 assertions behind it. Asked "so the
+feature wasn't done?", a check found that one planned item, F10 (telemetry), had
+never been built: `CAPABILITY_VIOLATION` appeared nowhere in `src/`, and the plan
+document still listed F10 without a SHIPPED marker. Before saying "done", walk
+the plan's own item list and grep for each item's artifact. Recall is not
+evidence; the summary is written from recall.
+
+### Instructions for another machine must run from a cold start
+
+Commands handed to the user for their machine assumed a working directory they
+were not in, so `examples/repo_sentinel` did not resolve and every step failed.
+The second version opened by finding the project (`find ~ -name sentinel.naab`),
+created its output directory, and stopped with a clear message when a file was
+missing. Write handoff commands, and prompts for other agents, as though nothing
+about the receiving environment is known: locate, guard, then act, and print
+enough to diagnose a failure without a second round trip.
+
+### Unpushed work in an ephemeral container does not exist
+
+The stop hook reported uncommitted or unpushed work 31 times in one session
+(counted from the transcript). The container is reclaimed when the session
+ends, so anything not pushed is lost, and anything pushed late lands after
+decisions were made without it. Commit and push at each point where the work
+is coherent, not when reminded.
+
+### Spend the slowest feedback loop last
+
+`build-windows` was checked by request 21 times in one session, and it went red
+repeatedly for a small set of recurring platform shapes (output encoding, CRLF,
+path vocabulary, a missing embedded executor), most of them already documented
+in CLAUDE.md by the time they recurred. Each red round cost a full CI cycle to
+learn something a local check could have shown. Before pushing, run the cheap
+local reproductions of the slow loop's known failure shapes
+(`tests/helpers/encoding_controls.sh`, the build-flag check above), and bundle
+changes so one CI round answers several questions.
+
+
+### A claim that cannot fail will go stale
+
+Prose does not break when the code changes under it. This campaign corrected
+several CLAUDE.md claims ("standard refuses Python", adaptive baselining "default
+off") that had been true, or believed, when written. Nothing flagged them,
+because no test was attached to them. A reference-doc claim with no test behind
+it is screened tier at best, however confidently it is written. When you write a
+claim into a reference doc, cite the test that pins it. When you find one with
+none, write the test or mark the claim unverified.
+
+The same goes for lists that look authoritative. A template that ships inert
+keys next to live ones is a document making claims nothing checks. The remedy is
+to make the honesty mechanical: a test that requires every template key either
+to have a behavioural test that fails when the key is removed, or to appear in
+the inert baseline AND be marked inert in the template itself.
 
 ---
 
@@ -798,6 +1209,44 @@ The discriminator is already above: an understood mechanism FORBIDS something.
 Name what yours forbids, go and look for it, and report what you found —
 including when you did not look.
 
+
+### Do not write the cause into the code until it is confirmed
+
+Twice in one fix, a test helper's comment recorded a cause nobody had
+established: "the other order flaked 1 run in 3", then "a rejected reload is
+final for that mtime". Each was written at the moment the change seemed to work,
+both were contradicted within the hour, and the comment had to be rewritten to
+say "precaution, not a measured fix". A comment written at the moment of relief
+is a guess with a line number. Write the cause after the mechanism is
+confirmed, and label a precaution as a precaution.
+
+### A rule you already hold is broken under load
+
+"Do not mutate what you are observing" is above. In the same campaign it was
+broken twice in one afternoon: suites were edited and re-run while a full-suite
+run was reading them, which invalidated that run. Nothing in the moment flagged
+it, because the rule is easy to agree with and easy to forget while busy. When a
+long measurement is running, write down that it is running and what it reads,
+and check that note before touching anything it reads.
+
+
+### Requirements the user repeats are requirements you skipped
+
+"Don't weaken governance", "check git and docs for the original intent", "what
+is the blast radius", "have you traced it end to end" — the user restated these
+across many requests. Each restatement marks a time they were not done
+unprompted. A requirement the user has to repeat belongs on your own checklist,
+run before the proposal reaches them (see "Before proposing a change" below).
+
+### An agent asked to make it work will make the test pass
+
+Agents used for dogfooding tailor code until it passes, which hides exactly
+what the run exists to find. The prompt that produced four confirmed defects (Gemini, F-01 to F-04) made
+defects the deliverable ("a run that works earns nothing"), named every forbidden
+workaround, and asked for raw evidence files. When an agent is the instrument,
+its incentive is part of the instrument. Set it so that a finding, not a green
+run, is success.
+
 ---
 
 ## Checklist
@@ -849,3 +1298,69 @@ Before publishing a write-up:
 - [ ] "I don't know" used where it is true
 - [ ] Direction of error stated
 - [ ] Adversarial pass performed, and its findings included
+
+Before calling a flake or a CI failure fixed:
+
+- [ ] The failed state was captured and inspected, not only the pass after the fix
+- [ ] Loop length justified against the observed failure rate (or the claim rests on a stronger instrument, named)
+- [ ] Every CI result matched to its head SHA before acting on it
+- [ ] Platform-only failures checked against the runner's build flags
+- [ ] No background measurement was reading the files you changed
+
+Before building test infrastructure:
+
+- [ ] Searched `git log --grep` / `git log -S` for prior work on the same subject
+- [ ] A test broken by a correct fix was moved off the bug, not given a looser fixture
+- [ ] Every workaround the test needed is explained or reported as a finding
+- [ ] New code checked for the documented traps' shapes
+- [ ] Everything spawned is tracked outside the scope that started it, and killed between arms
+
+Before proposing a change:
+
+- [ ] Original intent found in git history and docs, and quoted
+- [ ] Blast radius traced: callers, guards, threads, configs that rely on current behaviour
+- [ ] Path traced end to end, through the branch the input actually takes
+- [ ] Direction stated: tightening, correctness, or loosening — and no loosening of governance without saying so
+- [ ] Questions for the user checked against the record first
+
+Before handing work to another agent or machine:
+
+- [ ] Commands locate the project, guard every input, and run from a cold start
+- [ ] It is clear which machine each instruction runs on
+- [ ] Deliverables requested as files with listings (path, size, line count), plus raw evidence
+- [ ] The receiver's incentive rewards findings, not a passing run
+
+Before saying "done":
+
+- [ ] Walked the plan's item list and found each item's artifact in the tree
+- [ ] Everything built that the tests load
+- [ ] Work committed and pushed
+
+Before changing code — the history pass:
+
+- [ ] `git log -S` / `-G` on every identifier the change touches; each add and remove read
+- [ ] `git blame` / `git log --follow` on the edited lines; full commit messages read
+- [ ] `git log --grep` on the subject's nouns (PR bodies included, in a squash-merging repo)
+- [ ] GitHub PR review threads and the decision docs checked, not only CLAUDE.md
+- [ ] State classified: never built / working / regressed / removed on purpose / lost / decided
+- [ ] What the history taught copied into the doc a future reader will search
+
+Before relying on an existing test:
+
+- [ ] It fails when the mechanism it protects is removed (made red once, deliberately)
+- [ ] It is registered, and runs on the runners that matter
+- [ ] It does not reach green by skipping
+- [ ] Its fixture exercises the case the claim is about (level, platform, direction)
+
+After any change:
+
+- [ ] Code, docs, tests and comments grepped for the mechanism's names and made to agree
+- [ ] Where they disagreed, the history decided which was right, not the code by default
+
+Before adding a feature:
+
+- [ ] Every copy of the code you are extending enumerated (both engines, every executor, every module variant)
+- [ ] Open entries in any pinned baseline that covers this area resolved, or named as open in the plan
+- [ ] Every claim you will write into a reference doc has a test that pins it
+- [ ] Every refusal you will assert is paired with a success through the same fixture
+- [ ] An outside instrument (a different model, author or workload) is planned to exercise it
