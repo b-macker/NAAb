@@ -214,7 +214,7 @@ did not survive contact.
 
 - **E4's central risk did not exist.** The plan called it "the gate on the whole
   plan" because contradictions reach `enforce()` and advisory escalation hardens
-  repeats into SOFT blocks. `detectContradictions()` has one caller inside
+  repeats into blocks (HARD, despite the `soft_after` name). `detectContradictions()` has one caller inside
   `loadFromFile`, so it runs once per process, and `reloadIfChanged()` calls
   `loadFromJson` instead — the advisory cannot repeat, so it cannot escalate.
 - **E4's rotation premise was wrong.** "Six keys with `max_attempts: 1` makes

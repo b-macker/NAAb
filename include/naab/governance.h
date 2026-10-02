@@ -12,6 +12,7 @@
 // Every rule is configurable and can be turned off.
 
 #include <cstdio>
+#include <deque>
 #include <string>
 #include <vector>
 #include <unordered_set>
@@ -2054,17 +2055,20 @@ struct CircuitBreakerConfig {
 };
 
 // Advisory Escalation — repeated advisories harden over time
-// 1st occurrence: ADVISORY (warn). 2nd: increased weight. 3rd+: escalate to SOFT (block)
+// 1st occurrence: ADVISORY (warn). 2nd: increased weight. soft_after-th: escalate to a
+// HARD block (GovernanceHardError -- uncatchable, no override). Despite the key's name the
+// block was never SOFT. Occurrences are counted per RULE NAME for the whole engine (every
+// agent shares one count), cumulatively, and halved at each evidence-epoch boundary.
 // Mirrors OSHA violation escalation: first informal warning, then formal, then citation.
 struct AdvisoryEscalationConfig {
     bool enabled = false;
     std::string rationale;
     // 3 occurrences: mirrors "three strikes" enforcement pattern (OSHA progressive
     // discipline). First advisory is informational, second shows persistence, third
-    // demonstrates the agent is ignoring warnings — warranting escalation to SOFT block.
+    // demonstrates the agent is ignoring warnings — warranting escalation to a block (HARD -- see above).
     int soft_after = 3;
     // 1.5x multiplier: moderate weight increase on repeated advisories. Additive with
-    // each occurrence (2nd = 1.5x, 3rd = 1.5x again before SOFT escalation). Increases
+    // each occurrence (2nd = 1.5x, 3rd = 1.5x again before escalation). Increases
     // cumulative risk score pressure without immediately blocking.
     double weight_multiplier = 1.5;
 };
@@ -3808,6 +3812,11 @@ private:
     std::string run_id_;  // Unique per-execution ID for telemetry run separation
     std::string active_env_;            // Set by applyEnvironment()
     std::unordered_map<std::string, int> emitted_advisories_;  // Advisory occurrence counts (escalation)
+    // Where each COUNTED occurrence came from (checkFile[:line], i.e. <agent:NAME>
+    // for agent-path checks), oldest first, trimmed to the count. The count is
+    // per rule name for the whole engine, so without this an escalation cannot
+    // say whose occurrences ended the run. Guarded by results_mutex_.
+    std::unordered_map<std::string, std::deque<std::string>> advisory_sites_;
     void decayAdvisoryHistory();  // halve occurrence counts on epoch boundary (caller must hold results_mutex_)
     bool preflight_mode_ = false;  // F8: marks results as preflight during preflightIntentCheck
     std::unordered_set<std::string> taint_set_;

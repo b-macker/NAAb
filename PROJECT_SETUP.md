@@ -281,7 +281,7 @@ Add these sections to govern.json for advanced agent governance:
 
 - **Standing Lease** (`standing_lease_turns`/`standing_lease_seconds`): TTL on agent authorization. 0 = unlimited.
 - **Output Contracts** (`output_contract` in agent config): validate LLM response structure against a schema.
-- **Advisory Escalation**: repeated advisories escalate — 2nd+ occurrence gets weight multiplied, N-th becomes SOFT block.
+- **Advisory Escalation**: repeated advisories escalate — 2nd+ occurrence gets weight multiplied, N-th becomes a HARD block (uncatchable, cannot be overridden).
 - **Governance Pulse**: `governance.health()` (requires `use governance`) returns health verdict and instrumentation status.
 - **Evidence Epoch**: monotonic counter incremented on governance state changes. Prior-epoch evidence discounted.
 

@@ -1375,9 +1375,22 @@ std::string GovernanceEngine::enforce(
             std::unique_lock<std::mutex> adv_lock(results_mutex_);
             int& occurrence = emitted_advisories_[rule_name];
             occurrence++;
+            {
+                // Attribution for escalation: the count is shared by every caller
+                // of this rule, so record where this occurrence came from.
+                std::string site = checkFile().empty() ? std::string("<unattributed>")
+                    : (checkLine() > 0 ? checkFile() + ":" + std::to_string(checkLine())
+                                       : checkFile());
+                auto& sites = advisory_sites_[rule_name];
+                sites.push_back(std::move(site));
+                while (static_cast<int>(sites.size()) > occurrence) sites.pop_front();
+            }
 
             // Advisory Escalation: repeated advisories harden
-            // 1st: warn. 2nd+: increase weight. N-th (soft_after): escalate to SOFT block
+            // 1st: warn. 2nd+: increase weight. N-th (soft_after): block.
+            // The block is HARD (GovernanceHardError: uncatchable, no override), not
+            // the SOFT the feature was first described as -- see the level-promotion
+            // comment above, which contrasts the two.
             const auto& esc = rules().advisory_escalation;
             if (esc.enabled && occurrence >= esc.soft_after) {
                 g_governance_hard_block = true;
@@ -1387,9 +1400,31 @@ std::string GovernanceEngine::enforce(
                 // below does. Say so plainly, as the level-promotion path above
                 // does; repo-sentinel round 6 lost two runs to this path with
                 // the only explanation on screen claiming the run continued.
+                // Which locations the count came from. One count is shared by every
+                // agent and call site for this rule, so a kill message that only gave
+                // the count could not say whose drift (or whose findings) ended it.
+                std::string counted;
+                {
+                    std::vector<std::pair<std::string, int>> tally;
+                    for (const auto& site : advisory_sites_[rule_name]) {
+                        auto it = std::find_if(tally.begin(), tally.end(),
+                            [&](const auto& p) { return p.first == site; });
+                        if (it == tally.end()) tally.emplace_back(site, 1);
+                        else it->second++;
+                    }
+                    for (const auto& [site, n] : tally) {
+                        if (!counted.empty()) counted += ", ";
+                        counted += site + " x" + std::to_string(n);
+                    }
+                }
                 std::string escalation_msg = violation_message +
                     "\n\n  This advisory was escalated after repeated occurrences.\n"
                     "  It is now enforced as a block. Execution stops here.\n";
+                if (!counted.empty()) {
+                    escalation_msg += "  Occurrences counted: " + counted + "\n";
+                    check_results_.back().decision_trace.push_back(
+                        "escalation: occurrences counted: " + counted);
+                }
                 int occ_copy = occurrence;
                 fprintf(stderr, "[governance] ESCALATED %s (occurrence %d >= %d)\n",
                     rule_name.c_str(), occ_copy, esc.soft_after);
@@ -1399,6 +1434,7 @@ std::string GovernanceEngine::enforce(
                 fireHook(rules().hooks.on_violation, {
                     {"rule_name", rule_name}, {"level", "advisory_escalated"},
                     {"occurrence", std::to_string(occ_copy)},
+                    {"counted_sites", counted},
                     {"category", cat}
                 });
                 throw GovernanceHardError(escalation_msg);
@@ -3235,6 +3271,7 @@ void GovernanceEngine::flushGroupedAdvisories() {
         undeclared_effects_.clear();
         undeclared_effects_seen_.clear();
         emitted_advisories_.clear();
+        advisory_sites_.clear();
         advisory_count_ = 0;
         advisory_suppressed_ = 0;
     }
@@ -8177,9 +8214,14 @@ void GovernanceEngine::decayAdvisoryHistory() {
     // Halve occurrence counts on epoch boundary — prior-epoch advisory evidence discounted
     for (auto it = emitted_advisories_.begin(); it != emitted_advisories_.end(); ) {
         it->second /= 2;
+        auto sit = advisory_sites_.find(it->first);
         if (it->second == 0) {
+            if (sit != advisory_sites_.end()) advisory_sites_.erase(sit);
             it = emitted_advisories_.erase(it);
         } else {
+            // Keep the most recent sites, matching the surviving count.
+            if (sit != advisory_sites_.end())
+                while (static_cast<int>(sit->second.size()) > it->second) sit->second.pop_front();
             ++it;
         }
     }

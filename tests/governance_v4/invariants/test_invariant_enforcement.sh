@@ -396,7 +396,7 @@ else
     fail "I-ESC-02" "2nd advisory blocked (exit $RC)"
 fi
 
-# I-ESC-03: N-th advisory escalates to SOFT (exit 3 when >= soft_after)
+# I-ESC-03: N-th advisory escalates to a block (HARD; exit 3 when >= soft_after)
 E3DIR="$TMPBASE/esc03"
 mkdir -p "$E3DIR"
 cat > "$E3DIR/govern.json" << 'EOF'
@@ -434,7 +434,7 @@ main {
 EOF
 OUT=$(cd "$E3DIR" && "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
 if [ $RC -eq 3 ] && echo "$OUT" | grep -qi "ESCALATED"; then
-    ok "I-ESC-03" "N-th advisory escalates to SOFT (exit 3, ESCALATED)"
+    ok "I-ESC-03" "N-th advisory escalates to a block (exit 3, ESCALATED)"
 else
     fail "I-ESC-03" "expected exit 3 + ESCALATED, got exit $RC"
     echo "    output: ${OUT:0:300}"
