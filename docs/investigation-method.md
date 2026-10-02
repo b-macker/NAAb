@@ -88,6 +88,25 @@ When an investigation reverses, do not patch the conclusion — re-derive the
 whole chain. A chain of four conclusions where each was built on the last is
 one error repeated four times, not four findings.
 
+
+### Another agent's report of an artifact is a claim, not the artifact
+
+A peer agent's FINDINGS.md said two extracts had been "saved"
+(`out/f008_clean_cdd.jsonl`, `out/f008_adv_cdd.jsonl`). A `find` over the whole
+home directory returned nothing: they were never written. The table built "from"
+them could not be checked until the raw telemetry was pulled again. When another
+agent, session or tool says it produced a file, ask for the listing (path, size,
+line count) before building on it, and ask for raw events rather than its summary
+of them.
+
+### A filter's vocabulary bounds what it can find
+
+Another session reported a suite's `--trust-key` as unisolated, because its grep
+pattern did not include `setup_isolated_trust`, the helper that isolates it. The
+helper sat five lines above. The absence was in the filter, not the file.
+Before reporting that something is missing, list the names the mechanism could go
+by — helpers, wrappers, aliases — and check that your pattern contains them.
+
 ---
 ## Investigating
 
@@ -434,6 +453,25 @@ subject did not exist there. Check the CI configuration before reading a
 platform-only failure as a code defect, and give such tests a probe for the
 subject's existence.
 
+
+### Build everything the test touches before trusting its failure
+
+A suite reported "3 failed of 13" against another session's "1 of 24". The
+difference was the local build: only `naab-lang` had been built, so the Python
+binding could not find `libnaab-governance` / `naab-gov` and two arms died on a
+`FileNotFoundError`. The tell was that one arm, which never instantiates the
+binding, passed while its siblings failed. A failure from an unbuilt artifact
+reads exactly like a failure from the code; list the artifacts the test loads
+and build them before counting.
+
+### Say which machine the state lives on
+
+A stray `/govern.json` was breaking two local tests, and the advice given was to
+`rm /govern.json`. That file existed only in the remote container — created by a
+test whose `mktemp` failed — and never on the user's machine. In a session that
+spans a remote container, CI runners and the user's own box, every observed
+state belongs to one of them. Name it before telling anyone to act on it.
+
 ---
 ## Forming conclusions
 
@@ -631,6 +669,25 @@ owner read the template as checked and verified. Where the liveness evidence is
 not adjacent to the claim, readers believe the claim. Put the status where the
 claim is, or expect it to be re-derived — and contradicted — by every reader.
 
+
+### Judge a finding against the product's purpose
+
+"Most of what's wrong in these files is repo-sentinel's own bugs, not NAAb's"
+was offered as a reason to set the findings aside. NAAb's governance is sold
+partly on catching bad code, especially code an LLM wrote. For a product like
+that, a defect in governed code that passed governance is a finding about the
+governor. Before classifying a finding as someone else's problem, ask which
+component's stated purpose it falls under.
+
+### The interesting cause is not the main cause
+
+A unit-test investigation reported a striking defect (timeouts that do not
+fire) and moved on. The user had to ask whether that was the main cause of the
+failures. It accounted for 2 of about 133; about 115 were stale tests written
+against APIs that had since changed on purpose. A vivid mechanism crowds out a
+dull majority. When explaining a population of failures, lead with the
+breakdown by cause and count, then the interesting one.
+
 ---
 ## Making changes
 
@@ -753,6 +810,25 @@ user, and not seen in 5 root runs. Isolation between arms means no surviving pro
 the arm before, not just separate inputs. Track anything you spawn in a file
 that outlives the scope, and kill it there.
 
+
+### When the request specifies an order, the order is the requirement
+
+The user asked for govern.json first, then signing, then a harness built to fit.
+The harness came first and the config was sized to it. That produced a working
+harness and the opposite of what was asked: governance shaped to the code instead
+of code shaped by governance. When a request names a sequence, the sequence
+usually carries the point. Check the order before starting, not only the
+deliverables at the end.
+
+### Search before asking
+
+Three design questions were put to the user ("should drift escalation kill an
+agent at all? should the count be shared across agents? should epoch boundaries
+halve it?"). The user had to point out that they had been decided, with reasons,
+earlier. A question with a recorded answer spends the user's attention to
+recover your context. Search commits, docs and prior write-ups first, and when
+you do ask, quote what the record says and why it does not settle the question.
+
 ---
 ## Acting and reporting
 
@@ -819,6 +895,45 @@ It came back as "a lot of the template is not working". A scoped claim loses
 its scope when it is retold. Put the denominator and the reason in the same
 sentence as the fraction, and keep "inapplicable here" separate from "inert
 everywhere" — they call for opposite actions.
+
+
+### Check "done" against the plan, not your memory of it
+
+A feature was summarised as complete with 83 assertions behind it. Asked "so the
+feature wasn't done?", a check found that one planned item, F10 (telemetry), had
+never been built: `CAPABILITY_VIOLATION` appeared nowhere in `src/`, and the plan
+document still listed F10 without a SHIPPED marker. Before saying "done", walk
+the plan's own item list and grep for each item's artifact. Recall is not
+evidence; the summary is written from recall.
+
+### Instructions for another machine must run from a cold start
+
+Commands handed to the user for their machine assumed a working directory they
+were not in, so `examples/repo_sentinel` did not resolve and every step failed.
+The second version opened by finding the project (`find ~ -name sentinel.naab`),
+created its output directory, and stopped with a clear message when a file was
+missing. Write handoff commands, and prompts for other agents, as though nothing
+about the receiving environment is known: locate, guard, then act, and print
+enough to diagnose a failure without a second round trip.
+
+### Unpushed work in an ephemeral container does not exist
+
+The stop hook reported uncommitted or unpushed work 31 times in one session
+(counted from the transcript). The container is reclaimed when the session
+ends, so anything not pushed is lost, and anything pushed late lands after
+decisions were made without it. Commit and push at each point where the work
+is coherent, not when reminded.
+
+### Spend the slowest feedback loop last
+
+`build-windows` was checked by request 21 times in one session, and it went red
+repeatedly for a small set of recurring platform shapes (output encoding, CRLF,
+path vocabulary, a missing embedded executor), most of them already documented
+in CLAUDE.md by the time they recurred. Each red round cost a full CI cycle to
+learn something a local check could have shown. Before pushing, run the cheap
+local reproductions of the slow loop's known failure shapes
+(`tests/helpers/encoding_controls.sh`, the build-flag check above), and bundle
+changes so one CI round answers several questions.
 
 ---
 
@@ -948,6 +1063,24 @@ it, because the rule is easy to agree with and easy to forget while busy. When a
 long measurement is running, write down that it is running and what it reads,
 and check that note before touching anything it reads.
 
+
+### Requirements the user repeats are requirements you skipped
+
+"Don't weaken governance", "check git and docs for the original intent", "what
+is the blast radius", "have you traced it end to end" — the user restated these
+across many requests. Each restatement marks a time they were not done
+unprompted. A requirement the user has to repeat belongs on your own checklist,
+run before the proposal reaches them (see "Before proposing a change" below).
+
+### An agent asked to make it work will make the test pass
+
+Agents used for dogfooding tailor code until it passes, which hides exactly
+what the run exists to find. The prompt that produced four confirmed defects (Gemini, F-01 to F-04) made
+defects the deliverable ("a run that works earns nothing"), named every forbidden
+workaround, and asked for raw evidence files. When an agent is the instrument,
+its incentive is part of the instrument. Set it so that a finding, not a green
+run, is success.
+
 ---
 
 ## Checklist
@@ -1015,3 +1148,24 @@ Before building test infrastructure:
 - [ ] Every workaround the test needed is explained or reported as a finding
 - [ ] New code checked for the documented traps' shapes
 - [ ] Everything spawned is tracked outside the scope that started it, and killed between arms
+
+Before proposing a change:
+
+- [ ] Original intent found in git history and docs, and quoted
+- [ ] Blast radius traced: callers, guards, threads, configs that rely on current behaviour
+- [ ] Path traced end to end, through the branch the input actually takes
+- [ ] Direction stated: tightening, correctness, or loosening — and no loosening of governance without saying so
+- [ ] Questions for the user checked against the record first
+
+Before handing work to another agent or machine:
+
+- [ ] Commands locate the project, guard every input, and run from a cold start
+- [ ] It is clear which machine each instruction runs on
+- [ ] Deliverables requested as files with listings (path, size, line count), plus raw evidence
+- [ ] The receiver's incentive rewards findings, not a passing run
+
+Before saying "done":
+
+- [ ] Walked the plan's item list and found each item's artifact in the tree
+- [ ] Everything built that the tests load
+- [ ] Work committed and pushed
