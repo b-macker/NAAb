@@ -157,15 +157,28 @@ jobs:
       # single hung suite would take the whole step down as a timeout and hide
       # which suite it was — the wrapper's failure line is the more specific
       # evidence, so it must be allowed to print.
+      #
+      # Both phases run through tools/testtiming/run_timed.sh (report-only, as
+      # in ci.yml): it returns run-all-tests.sh's exit status unchanged and
+      # records per-suite / per-test durations, one directory per phase.
       - name: CLI tests — NAAb programs
         shell: msys2 {0}
         timeout-minutes: 15
-        run: NAAB_TEST_PHASE=naab bash run-all-tests.sh
+        run: NAAB_TEST_PHASE=naab NAAB_TIMING_DIR=test-timing/naab bash tools/testtiming/run_timed.sh
 
       - name: CLI tests — shell suites
         shell: msys2 {0}
         timeout-minutes: 25
-        run: NAAB_TEST_PHASE=shell bash run-all-tests.sh
+        run: NAAB_TEST_PHASE=shell NAAB_TIMING_DIR=test-timing/shell bash tools/testtiming/run_timed.sh
+
+      - name: Upload test timing
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-timing-windows
+          path: test-timing/
+          if-no-files-found: ignore
+          retention-days: 14
 
   build-linux:
     runs-on: ubuntu-latest
