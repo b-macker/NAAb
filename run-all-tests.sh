@@ -256,6 +256,7 @@ SHELL_TEST_CAPTURE_DIR="${SHELL_TEST_CAPTURE_DIR:-$(mktemp -d 2>/dev/null || ech
 # so call sites keep their existing shape and exit status. Output still streams
 # live; tee only copies it aside in case the summary needs to quote it.
 run_shell_test() {
+    if [ -n "${NAAB_TEST_LIST:-}" ]; then list_unit shell "$SHELL_TEST_TIMEOUT" "$@"; return; fi
     local rc=0
     local cap=""
     [ -n "$SHELL_TEST_CAPTURE_DIR" ] && cap="$SHELL_TEST_CAPTURE_DIR/$(basename "$1").log"
@@ -271,6 +272,35 @@ run_shell_test() {
         echo "  TIMEOUT: $(basename "$1") exceeded $SHELL_TEST_TIMEOUT — counted as a failure"
     fi
     return "$rc"
+}
+
+# --- List mode ----------------------------------------------------------------
+#
+# NAAB_TEST_LIST=FILE (with NAAB_TEST_PHASE=shell) writes every shell-phase unit
+# to FILE instead of running it, one per line, tab-separated:
+#
+#   kind <TAB> timeout <TAB> argv...
+#
+#   shell          run_shell_test's policy: bash argv under the timeout above;
+#                  124/137 is a failure
+#   shell-skip124  bash argv under its own timeout; 124 is a SKIP (the absorb
+#                  suite's deliberate policy, see above)
+#   python         python3 argv, no timeout
+#
+# This file stays the only place a suite is registered: anything that runs the
+# suites another way (tools/testrunner/parallel.py) asks this file which units
+# exist and under which conditions, so the two can never drift apart. Listing
+# runs no tests -- every unit reports success and the summary is meaningless.
+list_unit() {
+    local a
+    for a in "$@"; do
+        case "$a" in
+            *$'\t'*|*$'\n'*)
+                echo "Error: list mode cannot encode an argument containing a tab or newline: $a" >&2
+                exit 1 ;;
+        esac
+    done
+    (IFS=$'\t'; printf '%s\n' "$*") >> "$NAAB_TEST_LIST"
 }
 
 # --- Phase selection ----------------------------------------------------------
@@ -297,6 +327,10 @@ case "$NAAB_TEST_PHASE" in
         exit 1 ;;
 esac
 phase_runs() { [ "$NAAB_TEST_PHASE" = "all" ] || [ "$NAAB_TEST_PHASE" = "$1" ]; }
+if [ -n "${NAAB_TEST_LIST:-}" ] && [ "$NAAB_TEST_PHASE" != "shell" ]; then
+    echo "Error: NAAB_TEST_LIST lists shell-phase units only; set NAAB_TEST_PHASE=shell" >&2
+    exit 1
+fi
 
 # Function to check if a path should be skipped
 should_skip() {
@@ -2295,7 +2329,8 @@ fi
 # Nothing could reach the merger while it was inline in the workflow YAML.
 SARIFMERGE_SCRIPT=".github/scripts/merge_sarif.py"
 if [ -f "$SARIFMERGE_SCRIPT" ]; then
-    if python3 "$SARIFMERGE_SCRIPT" --selftest > /dev/null 2>&1; then
+    if { [ -n "${NAAB_TEST_LIST:-}" ] && list_unit python - "$SARIFMERGE_SCRIPT" --selftest; } \
+       || python3 "$SARIFMERGE_SCRIPT" --selftest > /dev/null 2>&1; then
         echo "  merge_sarif.py --selftest: ALL PASSED"
     else
         python3 "$SARIFMERGE_SCRIPT" --selftest 2>&1 | tail -20
@@ -2607,7 +2642,8 @@ fi
 # S23 response_degenerate + adaptive absorption cap + propose diversity (stub-backed)
 ABSORB_SCRIPT="tests/governance_v4/test_absorption_degenerate.sh"
 if [ -f "$ABSORB_SCRIPT" ]; then
-    if timeout 120s bash "$ABSORB_SCRIPT" 2>&1; then
+    if { [ -n "${NAAB_TEST_LIST:-}" ] && list_unit shell-skip124 120s "$ABSORB_SCRIPT"; } \
+       || timeout 120s bash "$ABSORB_SCRIPT" 2>&1; then
         echo "  test_absorption_degenerate.sh: ALL PASSED"
     else
         ABSORB_EXIT=$?
@@ -3520,6 +3556,22 @@ if [ -f "$TIMING_SCRIPT" ]; then
     fi
 else
     echo "  test_test_timing.sh: not found, skipping"
+fi
+
+PARALLEL_SCRIPT="tests/self-audit/test_parallel_runner.sh"
+if [ -f "$PARALLEL_SCRIPT" ]; then
+    # tools/testrunner/parallel.py runs these suites concurrently (report-only)
+    # and asks THIS file which units exist. This checks it counts every unit,
+    # applies this file's verdict policy, isolates units, and keeps exclusive
+    # units alone -- each with a control proving the check can fail.
+    if run_shell_test "$PARALLEL_SCRIPT" 2>&1; then
+        echo "  test_parallel_runner.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_parallel_runner.sh")
+    fi
+else
+    echo "  test_parallel_runner.sh: not found, skipping"
 fi
 fi  # phase_runs shell
 
