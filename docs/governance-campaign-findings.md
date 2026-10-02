@@ -2781,7 +2781,30 @@ says otherwise, and the three questions it raises have different standing:
   (`3cd561e`, "prior-epoch evidence discounted"; `8b8d1085`), and its effect on
   escalation was recorded above (counter peaked at 5 of 8). Not discussed
   anywhere: a boundary the drift itself causes — an agent whose drift raises
-  the governance level halves its own count. No test pins the halving.
+  the governance level halves its own count.
+
+**Measured** (stub, authored ground truth; `test_escalation_scope.sh`, which
+pins today's behaviour so a deliberate change flips a named arm):
+
+| Scenario | Today |
+|---|---|
+| 2 agents, one recovered dip each | completes |
+| 3 agents, one recovered dip each | **killed** — each counted x1; nobody repeated anything |
+| 1 persistent drifter, level static | killed at analyzed turn 3 |
+| same drifter, its drift moves the level | killed at turn **4** (NORMAL→ELEVATED halved its first occurrence) |
+| fail/pass alternating drifter, level static | killed after 3 firings |
+| same drifter, its drift moves the level both ways | **10 firings**, 9 level changes, before it stops |
+| every agent persistent, shared count | killed by turn 2 |
+| every agent persistent, escalation off, no admissibility gate | **completes at coherence 0, `Governance: PASS`** |
+| every agent persistent, escalation off, quarantine streak (corroboration 2) | killed by the streak at turn 7 |
+
+The shared count makes the kill depend on team size — the property "escalation
+requires evidence, not longevity" (above) measured as absent for pressure.
+Halving on a self-caused level change triples the firings an oscillating
+drifter gets. And where no admissibility gate is configured, escalation is the
+only thing that stops drift at all, so any change to its scope must keep the
+all-agents case killed. Undecided; the decision rules are recorded with the
+suite's arms.
 
 The documentation called the escalation a SOFT block; it has always thrown
 `GovernanceHardError` (uncatchable, no override). Corrected in the same PR.
