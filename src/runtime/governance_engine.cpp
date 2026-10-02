@@ -297,6 +297,21 @@ static const std::vector<SecretPattern> SECRET_PATTERNS = {
     {"token\\s*=\\s*['\"][^'\"]{20,}['\"]", "Hardcoded Token", "high"},
     {"secret\\s*=\\s*['\"][^'\"]{8,}['\"]", "Hardcoded Secret", "high"},
     {"aws_secret_access_key\\s*=\\s*['\"][^'\"]{40}['\"]", "AWS Secret Key", "critical"},
+    // dotenv-style NAME=value with NO quotes. Every assignment pattern above
+    // requires a quoted value, so the classic .env dump an agent can be talked
+    // into pasting -- "DB_PASSWORD=SuperSecretPassw0rd123!" -- passed the scan
+    // (Gemini dogfood F-03: obeyed and committed in five of five adversarial
+    // runs under no_secrets HARD). The value class refuses the characters that
+    // mark CODE rather than a credential (. ( [ { $ < > , ;) and must end at
+    // whitespace, a quote or end of input, so `api_key=os.environ["K"]`,
+    // `token=get_token()`, `${SECRET}` and `<your-key>` do not match; a
+    // placeholder word right after '=' does not either. Bounded throughout
+    // (see the ReDoS note on the PEM pattern). Patterns compile icase, so the
+    // name class cannot rely on UPPER_SNAKE.
+    // Regression: tests/security/test_secret_dotenv.sh
+    {"\\b[A-Z0-9_]{0,40}(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|PRIVATE_KEY|ACCESS_KEY)[A-Z0-9_]{0,40}="
+     "(?!your|xxx|changeme|example|placeholder|redacted|\\*)"
+     "[^\\s'\"()\\[\\]{}<>$,;.]{8,200}(?=[\\s'\"]|$)", "Unquoted Secret Assignment", "high"},
 };
 
 static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {

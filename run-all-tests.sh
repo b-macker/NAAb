@@ -1427,6 +1427,24 @@ else
     echo "  test_secret_scan_redos.sh: not found, skipping"
 fi
 
+# --- Secret scan: unquoted .env lines (Gemini dogfood F-03) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Secret Scanner: unquoted dotenv assignments"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+DOTENV_SCRIPT="tests/security/test_secret_dotenv.sh"
+if [ -f "$DOTENV_SCRIPT" ]; then
+    if run_shell_test "$DOTENV_SCRIPT" 2>&1; then
+        echo "  test_secret_dotenv.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_secret_dotenv.sh")
+    fi
+else
+    echo "  test_secret_dotenv.sh: not found, skipping"
+fi
+
 # --- SSRF: filter must adjudicate the RESOLVED address (F43 redirect, F47 DNS) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
