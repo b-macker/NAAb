@@ -18,7 +18,11 @@
 #
 #   PR-01..04  the advisory fires where the bypass is reachable
 #   PR-05..06  controls: it stays silent where it would be false
-#   PR-07      the CLAIM is true -- the bypass really happens
+#   PR-07      the CLAIM is true -- the bypass really happens (a SUBPROCESS
+#              language: shell)
+#   PR-07b     the claim's carve-out is true too -- embedded Python is held,
+#              because its audit hook asks the same path decision file.read()
+#              does (test_python_path_policy.sh is the full suite for that)
 #   PR-08      the positive control for PR-07: the same path IS blocked for
 #              NAAb code, so PR-07 is measuring the boundary and not a config
 #              that permits everything
@@ -29,13 +33,14 @@
 # might be wrong in either direction. Without PR-08, PR-07 passes on a build
 # where blocked_paths does nothing at all.
 #
-# WHY "standard" IS IN THE FIRING SET. Two mechanisms shape the real table. The
-# #222 registry gate refuses every language at "restricted". SubprocessContainment
-# then blocks fork and exec at "standard", which stops the subprocess languages.
-# The embedded Python executor runs IN-PROCESS when the build carries pybind11,
-# so it never forks and containment has nothing to contain -- which is why the
-# default enforce posture still leaks. PR-07 therefore uses python, and its skip
-# condition is the absence of that executor rather than a platform name.
+# WHY "standard" IS IN THE FIRING SET. The #222 registry gate refuses every
+# language at "restricted". SubprocessContainment blocks fork and exec at
+# "standard", which stops shell/ruby/node -- but PHP was measured reading a
+# blocked path at "standard" (its executor escapes containment there), so the
+# default enforce posture still leaks. It used to be the embedded Python executor
+# that leaked at "standard"; its audit hook now consults the path policy, which
+# is why PR-07 uses shell (at "elevated", where fork is allowed) and PR-07b pins
+# that Python is held.
 # ============================================================
 set -uo pipefail
 
@@ -148,6 +153,33 @@ cfg "elevated" "\"blocked_paths\": [\"./secret.txt\"]"
 rm -f "$W/leaked.txt"
 cat > "$W/bypass.naab" <<EOF
 main {
+  <<sh
+cat secret.txt > leaked.txt
+>>
+  print("block ran")
+}
+EOF
+LAST_OUTPUT=$( (cd "$W" && timeout 60s "$NAAB" bypass.naab) 2>&1 )
+if grep -q POLICY_REACH_SECRET "$W/leaked.txt" 2>/dev/null; then
+    ok "PR-07" "the advisory tells the truth: a <<sh>> block read a blocked path"
+elif ! echo "$LAST_OUTPUT" | grep -q "block ran"; then
+    skip "PR-07" "the shell block did not execute here -- UNMEASURABLE, not a pass"
+else
+    bad "PR-07" "the block ran but did not read the blocked path -- CONTRA-013 may now be false"
+fi
+
+# --- PR-07b: embedded Python is the carve-out ------------------------------
+# Only where Python IS embedded. A build without the in-process executor (the
+# Windows CI build disables Python3 discovery) runs <<python>> as a subprocess
+# with no audit hook -- i.e. as one of the subprocess languages PR-07 covers --
+# so a read there is CONTRA-013's documented boundary, not a regression. The
+# probe: an embedded block yields its value; the subprocess fallback yields null.
+printf 'main { let v = <<python\n1+1\n>>\nprint("PYVAL=" + string(v)) }\n' > "$W/pyprobe.naab"
+PY_PROBE=$( (cd "$W" && timeout 60s "$NAAB" --no-governance pyprobe.naab) 2>/dev/null )
+case "$PY_PROBE" in *PYVAL=2*) PY_EMBEDDED=1 ;; *) PY_EMBEDDED=0 ;; esac
+rm -f "$W/leaked.txt"
+cat > "$W/pybypass.naab" <<EOF
+main {
   <<python
 with open("secret.txt") as src:
     open("leaked.txt", "w").write(src.read())
@@ -155,13 +187,15 @@ with open("secret.txt") as src:
   print("block ran")
 }
 EOF
-LAST_OUTPUT=$( (cd "$W" && timeout 60s "$NAAB" bypass.naab) 2>&1 )
-if grep -q POLICY_REACH_SECRET "$W/leaked.txt" 2>/dev/null; then
-    ok "PR-07" "the advisory tells the truth: <<python>> read a blocked path"
-elif ! echo "$LAST_OUTPUT" | grep -q "block ran"; then
-    skip "PR-07" "the python block did not execute here -- UNMEASURABLE, not a pass"
+LAST_OUTPUT=$( (cd "$W" && timeout 60s "$NAAB" pybypass.naab) 2>&1 )
+if [ "$PY_EMBEDDED" -ne 1 ]; then
+    skip "PR-07b" "no embedded Python executor in this build (subprocess fallback has no audit hook) -- UNMEASURABLE"
+elif grep -q POLICY_REACH_SECRET "$W/leaked.txt" 2>/dev/null; then
+    bad "PR-07b" "embedded Python read a blocked path -- the audit hook does not consult the path policy"
+elif echo "$LAST_OUTPUT" | grep -q "denied by sandbox policy"; then
+    ok "PR-07b" "embedded Python is held: the open() was refused at the audit hook"
 else
-    bad "PR-07" "the block ran but did not read the blocked path -- CONTRA-013 may now be false"
+    skip "PR-07b" "the python block did not reach open() here -- UNMEASURABLE, not a pass"
 fi
 
 # --- PR-08: positive control for PR-07 -----------------------------------

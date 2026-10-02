@@ -60,8 +60,9 @@ if [ "$IS_WINDOWS" -eq 1 ]; then
 fi
 
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+source "$SCRIPT_DIR/../helpers/config_swap.sh"
 setup_isolated_trust
-cleanup() { teardown_isolated_trust; rm -rf "$TEST_TMP"; }
+cleanup() { stop_swap_operators; teardown_isolated_trust; rm -rf "$TEST_TMP"; }
 trap cleanup EXIT
 mkdir -p "$TEST_TMP/loose"
 
@@ -93,10 +94,21 @@ cat > "$TEST_TMP/t.naab" << EOF
 use agent
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$TEST_TMP/loose/govern.json", "$TEST_TMP/govern.json")
-shutil.copy("$TEST_TMP/loose/govern.json.sig", "$TEST_TMP/govern.json.sig")
+_swap("$TEST_TMP/loose/govern.json.sig", "$TEST_TMP/govern.json.sig")
+_swap("$TEST_TMP/loose/govern.json", "$TEST_TMP/govern.json")
 print("swapped")
 >>
     print(r1)
@@ -113,6 +125,7 @@ EOF
 run_swap() {  # $1=base_optin $2=loose_optin $3=add_agent $4=loose_max_turns
     mkcfg "$TEST_TMP/govern.json"       "$1" false "$4"; sign_dir "$TEST_TMP"
     mkcfg "$TEST_TMP/loose/govern.json" "$2" "$3"  "$4"; sign_dir "$TEST_TMP/loose"
+    start_swap_operator "$TEST_TMP"
     local o; o=$(cd "$TEST_TMP" && FK=x timeout 90s "$NAAB" t.naab 2>&1)
     local c r
     c=$(echo "$o" | grep -aoE 'POST_CREATE_(OK|DENIED)' | head -1)

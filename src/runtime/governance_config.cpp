@@ -5558,8 +5558,8 @@ bool GovernanceEngine::loadWithExtends(const std::string& path, int depth,
     GovernanceRules base_rules;
     loadFromJson(j, base_rules);
 
-    // Verify signature on base config
-    if (!verifyFileSignature(path)) {
+    // Verify signature on base config (its age judged by its own trust policy)
+    if (!verifyFileSignature(path, base_rules.trust_policy)) {
         fmt::print(stderr, "[governance] extends base signature verification failed: {}\n", path);
         g_governance_hard_block = true;
         return false;
@@ -5606,7 +5606,7 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
 
         // H4: verify child signature BEFORE resolving extends chain —
         // reject untrusted children before touching anything they reference
-        if (!verifyFileSignature(path)) {
+        if (!verifyFileSignature(path, new_rules->trust_policy)) {
             g_governance_hard_block = true;
             return false;
         }

@@ -1350,7 +1350,7 @@ interpreter::NaabVal VM::run() {
                 // Local's taint is at the same offset in the taint stack
                 size_t slot_offset = static_cast<size_t>(frame->slots - stack_.get()) + arg;
                 push(frame->slots[arg]);
-                peekTaint(0) = taint_stack_[slot_offset];
+                peekTaint(0) = taint_stack_[slot_offset] || containerTainted(frame->slots[arg]);
                 // Lineage: copy from local slot to TOS
                 if (peekTaint(0) && !taint_lineage_map_.empty()) {
                     auto lit = taint_lineage_map_.find(slot_offset);
@@ -1386,7 +1386,7 @@ interpreter::NaabVal VM::run() {
                     push(*upvalue->location);
                     // Get taint from the upvalue's stack position
                     size_t uv_offset = static_cast<size_t>(upvalue->location - stack_.get());
-                    peekTaint(0) = taint_stack_[uv_offset];
+                    peekTaint(0) = taint_stack_[uv_offset] || containerTainted(*upvalue->location);
                     // Copy lineage from upvalue's stack slot to TOS
                     if (peekTaint(0) && !taint_lineage_map_.empty()) {
                         auto lit = taint_lineage_map_.find(uv_offset);
@@ -1455,7 +1455,7 @@ interpreter::NaabVal VM::run() {
                 }
                 push(it->second);
                 if (governance_ && governance_->isActive()) {
-                    bool tainted = governance_->isTainted(name);
+                    bool tainted = governance_->isTainted(name) || containerTainted(it->second);
                     peekTaint(0) = tainted;
                     // Restore lineage from governance engine's per-variable metadata
                     if (tainted && governance_->getRules().taint_tracking.lineage) {
@@ -2250,6 +2250,13 @@ interpreter::NaabVal VM::run() {
 
                     interpreter::NaabVal* args_ptr = stack_top_ - argc;
                     interpreter::NaabVal result = callBuiltinMethod(obj, method, argc, args_ptr);
+                    // `obj` is a REFERENCE into the stack (peek(argc)), and the loop
+                    // below nulls that slot -- so the V-VM-003 bookkeeping after it
+                    // read a null and never recorded a tainted container: held.push(x)
+                    // with x tainted left held clean (measured: a pushed agent
+                    // response reached javascript_exec and file.write). Hold the
+                    // container before the slots are cleared.
+                    const interpreter::NaabVal obj_held = obj;
                     // Clear stale slots, then pop args + object
                     for (int si = 0; si < argc + 1; si++)
                         *(stack_top_ - 1 - si) = interpreter::NaabVal();
@@ -2263,14 +2270,14 @@ interpreter::NaabVal VM::run() {
                                             method == "append" || method == "add" ||
                                             method == "insert" || method == "set");
                         bool is_read = (method == "get");
-                        if (is_mutation && val_arg_tainted && (obj.isList() || obj.isDict())) {
-                            tainted_containers_.insert_or_assign(obj.toLegacy().get(), obj);
+                        if (is_mutation && val_arg_tainted && (obj_held.isList() || obj_held.isDict())) {
+                            tainted_containers_.insert_or_assign(obj_held.toLegacy().get(), obj_held);
                         }
-                        if (is_read && tainted_containers_.count(obj.toLegacy().get()) > 0) {
+                        if (is_read && containerTainted(obj_held)) {
                             peekTaint(0) = true;
                         } else {
                             // Built-in methods propagate taint from object
-                            peekTaint(0) = obj_tainted || (tainted_containers_.count(obj.toLegacy().get()) > 0);
+                            peekTaint(0) = obj_tainted || containerTainted(obj_held);
                         }
                     }
                 }
@@ -3821,10 +3828,24 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             // govern.json. Propagate it, same as the agent batch/fan_out pool does.
             auto async_sandbox_config =
                 security::ScopedSandbox::effectiveConfig();
+            // The governance engine pointer is thread_local too. Without it the
+            // embedded Python audit hook on the worker had no project path
+            // policy to ask, so a <<python>> block inside an async fn read
+            // files blocked_paths denies on the main thread (measured on the VM;
+            // the tree-walker's async path loads its own governance and was
+            // already denied). Same capture-and-reactivate as the sandbox.
+            auto* async_governance = governance::GovernanceEngine::getCurrent();
             auto shared_future = std::async(std::launch::async,
                 [closure_copy, args, async_stdlib, file, globals_copy, async_sandbox_config,
+                 async_governance,
                  owned_fns = std::move(async_owned_fns)]() mutable -> interpreter::NaabVal {
                     security::ScopedSandbox async_sandbox(async_sandbox_config);
+                    struct GovernanceScope {
+                        explicit GovernanceScope(governance::GovernanceEngine* e) {
+                            governance::GovernanceEngine::setCurrent(e);
+                        }
+                        ~GovernanceScope() { governance::GovernanceEngine::setCurrent(nullptr); }
+                    } async_governance_scope(async_governance);
                     interpreter::NaabVal safe_result;
                     {
                         VM async_vm;

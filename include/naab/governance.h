@@ -3152,6 +3152,12 @@ public:
 
     // --- Path access control ---
     std::string checkPathAccess(const std::string& filepath, const std::string& mode);
+    // The same path decision without enforcement: "" when allowed, otherwise a
+    // short reason. Never throws, records nothing -- for callers that cannot
+    // let a GovernanceHardError propagate (the embedded Python audit hook).
+    std::string pathPolicyDenial(const std::string& filepath, bool write);
+    std::string checkPathAccessImpl(const std::string& filepath, const std::string& mode,
+                                    bool decide_only);
 
     // --- Telemetry ---
     void writeTelemetry() const;
@@ -3500,6 +3506,11 @@ public:
 
     // Integrity: Ed25519 + legacy HMAC signature verification (V-SC-009)
     bool verifyFileSignature(const std::string& file_path) const;
+    // Same, judging signature AGE by `policy` -- the trust section of the
+    // config being verified, for callers that verify a file before installing
+    // the rules parsed from it (startup load, extends bases).
+    bool verifyFileSignature(const std::string& file_path,
+                             const TrustPolicyConfig& policy) const;
     // Same verification, but the failure reason is returned in `diagnostics`
     // instead of being printed. For the mid-run reload path, where a failure
     // keeps the current config rather than blocking the run.
@@ -3526,6 +3537,10 @@ public:
     // --- Advisory Output Control ---
     void emitAdvisory(const std::string& msg);
     void flushGroupedAdvisories();
+    // End of run: score validation failures recorded after a handle's last turn
+    // (see ContextDriftAnalyzer::scoreUnconsumedValidationsAtExit). Called from
+    // flushGroupedAdvisories(), which every exit path already calls.
+    void scoreUnconsumedValidations();
 
     // Report generation
     std::string generateJsonReport() const;
@@ -4015,6 +4030,10 @@ private:
     mutable std::mutex audit_mutex_;
     std::atomic<int> audit_write_failures_{0};
     mutable std::atomic<int> telemetry_write_failures_{0};
+    // Telemetry lines written live (agent events, chain anchors, attestations)
+    // rather than in the exit dump -- for the exit summary's count.
+    mutable std::atomic<long long> agent_events_written_{0};
+    mutable long long agent_events_reported_ = 0;
 
     // Telemetry forwarding (webhook/SIEM)
     mutable std::shared_ptr<TelemetryForwarder> telemetry_forwarder_;

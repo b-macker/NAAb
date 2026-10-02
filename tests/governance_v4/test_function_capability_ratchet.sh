@@ -75,8 +75,9 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+source "$SCRIPT_DIR/../helpers/config_swap.sh"
 setup_isolated_trust
-cleanup() { teardown_isolated_trust; rm -rf "$TEST_TMP"; }
+cleanup() { stop_swap_operators; teardown_isolated_trust; rm -rf "$TEST_TMP"; }
 trap cleanup EXIT
 mkdir -p "$TEST_TMP/loose"
 
@@ -117,10 +118,21 @@ fn writer() {
 }
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$TEST_TMP/loose/govern.json", "$TEST_TMP/govern.json")
-shutil.copy("$TEST_TMP/loose/govern.json.sig", "$TEST_TMP/govern.json.sig")
+_swap("$TEST_TMP/loose/govern.json.sig", "$TEST_TMP/govern.json.sig")
+_swap("$TEST_TMP/loose/govern.json", "$TEST_TMP/govern.json")
 print("swapped")
 >>
     print(r1)
@@ -140,6 +152,7 @@ run_swap() {
     mkcfg "$TEST_TMP/govern.json"       "$1"; sign_dir "$TEST_TMP"
     mkcfg "$TEST_TMP/loose/govern.json" "$2"; sign_dir "$TEST_TMP/loose"
     rm -f "$TEST_TMP/out.txt"
+    start_swap_operator "$TEST_TMP"
     local o; o=$(cd "$TEST_TMP" && timeout 90s "$NAAB" t.naab 2>&1)
     local r a
     case "$o" in

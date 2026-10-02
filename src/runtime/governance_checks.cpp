@@ -3682,6 +3682,42 @@ std::string GovernanceEngine::checkFunctionBehavioralContract(
 
 // --- Execution-Based Contract Infrastructure (v6) ---
 
+// must_produce equality. It used to compare toString() renderings, and a dict
+// renders in its unordered_map iteration order -- so {"a":1,"b":2} returned by
+// the function and the same dict parsed from the fixture could render in
+// different orders and fail, depending on how each map happened to be built
+// (measured: a verifier returning exactly the expected dict was blocked
+// HARD). Containers are now compared structurally: lists element by element,
+// dicts key by key regardless of order. Scalars keep the old comparison --
+// their rendering -- so nothing that matched before stops matching; the
+// top-level type-strict check in checkMustProduce is unchanged.
+static bool contractValuesEqual(const interpreter::NaabVal& a,
+                                const interpreter::NaabVal& b) {
+    if (a.isList() || b.isList()) {
+        if (!a.isList() || !b.isList()) return false;
+        const auto& la = a.asListConst();
+        const auto& lb = b.asListConst();
+        if (la.size() != lb.size()) return false;
+        for (size_t i = 0; i < la.size(); ++i)
+            if (!contractValuesEqual(la[i], lb[i])) return false;
+        return true;
+    }
+    if (a.isDict() || b.isDict()) {
+        if (!a.isDict() || !b.isDict()) return false;
+        const auto& da = a.asDictConst();
+        const auto& db = b.asDictConst();
+        if (da.size() != db.size()) return false;
+        for (const auto& [k, v] : da) {
+            auto it = db.find(k);
+            if (it == db.end() || !contractValuesEqual(v, it->second)) return false;
+        }
+        return true;
+    }
+    std::string sa = a.isNull() ? "null" : a.toString();
+    std::string sb = b.isNull() ? "null" : b.toString();
+    return sa == sb;
+}
+
 interpreter::NaabVal GovernanceEngine::jsonStringToNaabVal(const std::string& json_str) {
     try {
         auto j = nlohmann::json::parse(json_str);
@@ -3886,7 +3922,7 @@ std::string GovernanceEngine::checkMustProduce(
         std::string result_str = result.isNull() ? "null" : result.toString();
         std::string expect_str = expected.isNull() ? "null" : expected.toString();
 
-        if (type_mismatch || result_str != expect_str) {
+        if (type_mismatch || !contractValuesEqual(result, expected)) {
             addTrace(fmt::format("must_produce test #{}: args={}, expected={} ({}), got={} ({})",
                 i + 1, args_display, expect_str, naabTypeName(expected),
                 result_str, naabTypeName(result)));

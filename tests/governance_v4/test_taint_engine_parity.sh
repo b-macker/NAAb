@@ -90,6 +90,8 @@ concat|tainted
 interp|tainted
 interp_escaped|clean
 list_elem|tainted
+list_push_get|tainted
+list_push_whole|tainted
 dict_val|tainted
 if_expr|tainted
 try_expr|tainted
@@ -129,6 +131,21 @@ w list_elem     <<'EOF'
 use env
 use file
 main { let t = env.get("HOME") let l = [t, "c"] file.write("o.txt", l[0]) }
+EOF
+# A value pushed into a list taints the LIST. The VM recorded that in a side
+# table keyed by the container, but read the container through a stack
+# reference it had already nulled, so it never recorded anything: the pushed
+# value came back clean through .get() and the whole list was clean at a sink.
+w list_push_get <<'EOF'
+use env
+use file
+main { let t = env.get("HOME") let l = [] l.push(t) file.write("o.txt", l.get(0)) }
+EOF
+w list_push_whole <<'EOF'
+use env
+use file
+use json
+main { let t = env.get("HOME") let l = [] l.push(t) file.write("o.txt", json.stringify(l)) }
 EOF
 w dict_val      <<'EOF'
 use env

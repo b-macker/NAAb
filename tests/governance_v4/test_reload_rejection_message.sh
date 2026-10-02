@@ -55,8 +55,9 @@ if [ "$IS_WINDOWS" -eq 1 ]; then
 fi
 
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+source "$SCRIPT_DIR/../helpers/config_swap.sh"
 setup_isolated_trust
-cleanup() { teardown_isolated_trust; [ -n "${KEEP_TMP:-}" ] || rm -rf "${TEST_TMP:?}"; }
+cleanup() { stop_swap_operators; teardown_isolated_trust; [ -n "${KEEP_TMP:-}" ] || rm -rf "${TEST_TMP:?}"; }
 trap cleanup EXIT
 mkdir -p "$TEST_TMP/run" "$TEST_TMP/tight" "$TEST_TMP/startup"
 
@@ -84,15 +85,26 @@ PY
 # then five env reads each run reloadIfChanged().
 mkscript() {  # $1=copy_sig(true|false)
     local sig_line=""
-    [ "$1" = "true" ] && sig_line='shutil.copy("'"$TEST_TMP"'/tight/govern.json.sig", "'"$TEST_TMP"'/run/govern.json.sig")'
+    [ "$1" = "true" ] && sig_line='_swap("'"$TEST_TMP"'/tight/govern.json.sig", "'"$TEST_TMP"'/run/govern.json.sig")'
     cat > "$TEST_TMP/run/t.naab" << EOF
 use env
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$TEST_TMP/tight/govern.json", "$TEST_TMP/run/govern.json")
 $sig_line
+_swap("$TEST_TMP/tight/govern.json", "$TEST_TMP/run/govern.json")
 print("swapped")
 >>
     print(r1)
@@ -110,6 +122,7 @@ EOF
 mkcfg "$TEST_TMP/run/govern.json" 10; sign_dir "$TEST_TMP/run"
 mkcfg "$TEST_TMP/tight/govern.json" 5   # unsigned: its old .sig no longer matches
 mkscript false
+start_swap_operator "$TEST_TMP/run"
 OUT=$(cd "$TEST_TMP/run" && FK=x timeout 90s "$NAAB" t.naab 2>&1); RC=$?
 
 case "$OUT" in
@@ -157,6 +170,7 @@ fi
 mkcfg "$TEST_TMP/run/govern.json" 10; sign_dir "$TEST_TMP/run"
 mkcfg "$TEST_TMP/tight/govern.json" 5; sign_dir "$TEST_TMP/tight"
 mkscript true
+start_swap_operator "$TEST_TMP/run"
 VOUT=$(cd "$TEST_TMP/run" && FK=x timeout 90s "$NAAB" t.naab 2>&1); VRC=$?
 case "$VOUT" in
     *"reloaded mid-run"*) vok=1 ;;

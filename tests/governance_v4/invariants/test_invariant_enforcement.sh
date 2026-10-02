@@ -26,6 +26,7 @@ TMPBASE="$_SYSTMP/test_invariant_$$"
 mkdir -p "$TMPBASE"
 
 source "$SCRIPT_DIR/../../helpers/trust_setup.sh"
+source "$SCRIPT_DIR/../../helpers/config_swap.sh"
 setup_isolated_trust
 "$NAAB" --keygen "$TMPBASE/test-key.pem" 2>/dev/null
 "$NAAB" --trust-key "$TMPBASE/test-key.pem.pub" 2>/dev/null
@@ -33,7 +34,7 @@ SIGNING_KEY="$TMPBASE/test-key.pem"
 
 PASS=0; FAIL=0; SKIP=0
 
-cleanup() { teardown_isolated_trust; rm -rf "$TMPBASE"; }
+cleanup() { stop_swap_operators; teardown_isolated_trust; rm -rf "$TMPBASE"; }
 trap cleanup EXIT
 
 ok()   { PASS=$((PASS + 1)); echo "  PASS [$1] $2"; }
@@ -61,7 +62,7 @@ echo ""
 
 # =====================================================================
 # RATCHET ENFORCEMENT (5 tests)
-# Ratchet tests use shutil.copy() to swap govern.json mid-run.
+# Ratchet tests use _swap() to swap govern.json mid-run.
 # On Windows, file locking prevents replacing a file that's open,
 # so the config swap silently fails and ratchet behavior isn't testable.
 # =====================================================================
@@ -105,10 +106,21 @@ sign_dir "$R1DIR/tight"
 cat > "$R1DIR/test.naab" << NAABEOF
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$R1DIR/tight/govern.json", "$R1DIR/govern.json")
-shutil.copy("$R1DIR/tight/govern.json.sig", "$R1DIR/govern.json.sig")
+_swap("$R1DIR/tight/govern.json.sig", "$R1DIR/govern.json.sig")
+_swap("$R1DIR/tight/govern.json", "$R1DIR/govern.json")
 print("capability tightened")
 >>
     print(r1)
@@ -122,6 +134,7 @@ echo "should be blocked"
     print(r3)
 }
 NAABEOF
+start_swap_operator "$R1DIR"
 OUT=$(cd "$R1DIR" && timeout 30s "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
 if [ $RC -eq 3 ]; then
     ok "I-RATCH-01" "capability tightening accepted → shell blocked (exit 3)"
@@ -154,10 +167,21 @@ sign_dir "$R2DIR/loose"
 cat > "$R2DIR/test.naab" << NAABEOF
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$R2DIR/loose/govern.json", "$R2DIR/govern.json")
-shutil.copy("$R2DIR/loose/govern.json.sig", "$R2DIR/govern.json.sig")
+_swap("$R2DIR/loose/govern.json.sig", "$R2DIR/govern.json.sig")
+_swap("$R2DIR/loose/govern.json", "$R2DIR/govern.json")
 print("tried to loosen capability")
 >>
     print(r1)
@@ -167,6 +191,7 @@ print("still strict")
     print(r2)
 }
 NAABEOF
+start_swap_operator "$R2DIR"
 OUT=$(cd "$R2DIR" && timeout 30s "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
 if echo "$OUT" | grep -qi "ratchet"; then
     ok "I-RATCH-02" "capability loosening rejected with ratchet message"
@@ -198,10 +223,21 @@ sign_dir "$R3DIR/tight"
 cat > "$R3DIR/test.naab" << NAABEOF
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$R3DIR/tight/govern.json", "$R3DIR/govern.json")
-shutil.copy("$R3DIR/tight/govern.json.sig", "$R3DIR/govern.json.sig")
+_swap("$R3DIR/tight/govern.json.sig", "$R3DIR/govern.json.sig")
+_swap("$R3DIR/tight/govern.json", "$R3DIR/govern.json")
 print("limits tightened")
 >>
     print(r1)
@@ -216,6 +252,7 @@ print("reload triggered")
     print("loop done: " + string(i))
 }
 NAABEOF
+start_swap_operator "$R3DIR"
 OUT=$(cd "$R3DIR" && timeout 30s "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
 if [ $RC -eq 3 ]; then
     ok "I-RATCH-03" "numeric limit tightened → loop blocked (exit 3)"
@@ -248,10 +285,21 @@ sign_dir "$R4DIR/tight"
 cat > "$R4DIR/test.naab" << NAABEOF
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$R4DIR/tight/govern.json", "$R4DIR/govern.json")
-shutil.copy("$R4DIR/tight/govern.json.sig", "$R4DIR/govern.json.sig")
+_swap("$R4DIR/tight/govern.json.sig", "$R4DIR/govern.json.sig")
+_swap("$R4DIR/tight/govern.json", "$R4DIR/govern.json")
 print("network disabled")
 >>
     print(r1)
@@ -261,6 +309,7 @@ print("python still works after network tightening")
     print(r2)
 }
 NAABEOF
+start_swap_operator "$R4DIR"
 OUT=$(cd "$R4DIR" && timeout 30s "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
 if [ $RC -eq 0 ] && echo "$OUT" | grep -q "python still works after network tightening"; then
     ok "I-RATCH-04" "network tightened → python unaffected"
@@ -293,10 +342,21 @@ sign_dir "$R5DIR/loose"
 cat > "$R5DIR/test.naab" << NAABEOF
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$R5DIR/loose/govern.json", "$R5DIR/govern.json")
-shutil.copy("$R5DIR/loose/govern.json.sig", "$R5DIR/govern.json.sig")
+_swap("$R5DIR/loose/govern.json.sig", "$R5DIR/govern.json.sig")
+_swap("$R5DIR/loose/govern.json", "$R5DIR/govern.json")
 print("tried to loosen limits")
 >>
     print(r1)
@@ -306,6 +366,7 @@ print("still strict")
     print(r2)
 }
 NAABEOF
+start_swap_operator "$R5DIR"
 OUT=$(cd "$R5DIR" && timeout 30s "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
 if echo "$OUT" | grep -qi "ratchet"; then
     ok "I-RATCH-05" "numeric limit loosening rejected with ratchet message"

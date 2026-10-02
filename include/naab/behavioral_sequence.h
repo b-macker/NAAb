@@ -696,6 +696,20 @@ public:
     // omit it: repo-sentinel round 7 paid four S22 failures per 10 turns on a
     // reviewer whose every validation passed, because per-file finding counts
     // (6, 5, 4, ...) read as shrinking evidence.
+    // A validation result still latched when the run ends was recorded after
+    // that handle's last turn, so recordTurn() never scored it. Scores the
+    // FAILURES (same flat S22 penalty recordTurn applies), consumes them, and
+    // returns what changed. Passes are consumed without credit: a recovery
+    // earned after the last turn has nothing left to steer. Idempotent.
+    struct ExitScoredValidation {
+        int handle_id = 0;
+        std::string config_name;
+        double coherence_before = 1.0;
+        double coherence_after = 1.0;
+        double penalty = 0.0;
+    };
+    std::vector<ExitScoredValidation> scoreUnconsumedValidationsAtExit();
+
     bool recordValidationOutcome(int handle_id, bool passed,
         const std::unordered_set<std::string>& detail_keywords = {},
         int evidence_count = -1);

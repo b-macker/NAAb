@@ -289,7 +289,8 @@ std::string GovernanceEngine::chainPrevLocked(FILE* fp) const {
         rs["prev_hash"] = prev;
         last_telemetry_hash_ = computeHash(rs.dump(), te);
         rs["hash"] = last_telemetry_hash_;
-        checkedWrite(fp, rs.dump() + "\n", telemetry_write_failures_);
+        if (checkedWrite(fp, rs.dump() + "\n", telemetry_write_failures_))
+            agent_events_written_.fetch_add(1, std::memory_order_relaxed);
         chained_events_this_run_++;
         prev = last_telemetry_hash_;
     }
@@ -324,7 +325,8 @@ void GovernanceEngine::emitRunEnd(FILE* fp, const std::string& timestamp) const 
     re["chained_events"] = chained_events_this_run_ + 1;
     last_telemetry_hash_ = computeHash(re.dump(), te);
     re["hash"] = last_telemetry_hash_;
-    checkedWrite(fp, re.dump() + "\n", telemetry_write_failures_);
+    if (checkedWrite(fp, re.dump() + "\n", telemetry_write_failures_))
+        agent_events_written_.fetch_add(1, std::memory_order_relaxed);
     chained_events_this_run_++;
     run_end_declared_ = chained_events_this_run_;
 }
@@ -616,7 +618,8 @@ void GovernanceEngine::emitRefusalAttestation(
     }
 
     std::string line = ev.dump() + "\n";
-    checkedWrite(fp.get(), line, telemetry_write_failures_);
+    if (checkedWrite(fp.get(), line, telemetry_write_failures_))
+        agent_events_written_.fetch_add(1, std::memory_order_relaxed);
 
     // Forward to SIEM/webhook if configured
     {
@@ -707,7 +710,8 @@ void GovernanceEngine::emitOutputAdmissibilityAttestation(
     }
 
     std::string line = ev.dump() + "\n";
-    checkedWrite(fp.get(), line, telemetry_write_failures_);
+    if (checkedWrite(fp.get(), line, telemetry_write_failures_))
+        agent_events_written_.fetch_add(1, std::memory_order_relaxed);
 
     // Forward to SIEM/webhook if configured
     {
@@ -1668,14 +1672,29 @@ void GovernanceEngine::writeTelemetry() const {
 
     // fp_deleter handles flock(LOCK_UN) + fclose automatically.
 
-    if (events_written > 0) {
+    // This line used to report only events_written -- the check results dumped
+    // here at exit -- while every agent event (AGENT_SEND, CDD_TURN,
+    // VALIDATION_RECORDED, ...) is written live by writeAgentTelemetry(), as
+    // are the chain anchors and attestations. An
+    // agent run therefore printed "30 events written" over a file of 112
+    // lines, which reads as telemetry loss (an outside dogfood run spent time
+    // investigating flushing because of it). Both counts are reported now.
+    const long long agent_events = agent_events_written_.load(std::memory_order_relaxed);
+    // writeTelemetry() runs more than once per run (writeReports has many call
+    // sites), so print only when something new was written since the last line.
+    if (events_written > 0 || agent_events != agent_events_reported_) {
+        agent_events_reported_ = agent_events;
         int failures = telemetry_write_failures_.load(std::memory_order_relaxed);
-        if (failures > 0)
-            fprintf(stderr, "[governance] Telemetry: %zu events written to %s (%d write failures)\n",
-                    events_written, rules().telemetry_output.output_file.c_str(), failures);
-        else
-            fprintf(stderr, "[governance] Telemetry: %zu events written to %s\n",
-                    events_written, rules().telemetry_output.output_file.c_str());
+        std::string breakdown = agent_events > 0
+            ? fmt::format(" ({} check results + {} agent, anchor and health events)",
+                          events_written, agent_events)
+            : std::string();
+        std::string failure_note = failures > 0
+            ? fmt::format(" ({} write failures)", failures) : std::string();
+        fprintf(stderr, "[governance] Telemetry: %lld events written to %s%s%s\n",
+                static_cast<long long>(events_written) + agent_events,
+                rules().telemetry_output.output_file.c_str(),
+                breakdown.c_str(), failure_note.c_str());
     }
 }
 
@@ -1741,7 +1760,8 @@ void GovernanceEngine::writeAgentTelemetry(
     }
 
     std::string line = ev.dump() + "\n";
-    checkedWrite(fp.get(), line, telemetry_write_failures_);
+    if (checkedWrite(fp.get(), line, telemetry_write_failures_))
+        agent_events_written_.fetch_add(1, std::memory_order_relaxed);
 
     // C2: local shared_ptr copy prevents use-after-free during reload/destruction
     {

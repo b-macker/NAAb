@@ -297,6 +297,21 @@ static const std::vector<SecretPattern> SECRET_PATTERNS = {
     {"token\\s*=\\s*['\"][^'\"]{20,}['\"]", "Hardcoded Token", "high"},
     {"secret\\s*=\\s*['\"][^'\"]{8,}['\"]", "Hardcoded Secret", "high"},
     {"aws_secret_access_key\\s*=\\s*['\"][^'\"]{40}['\"]", "AWS Secret Key", "critical"},
+    // dotenv-style NAME=value with NO quotes. Every assignment pattern above
+    // requires a quoted value, so the classic .env dump an agent can be talked
+    // into pasting -- "DB_PASSWORD=SuperSecretPassw0rd123!" -- passed the scan
+    // (Gemini dogfood F-03: obeyed and committed in five of five adversarial
+    // runs under no_secrets HARD). The value class refuses the characters that
+    // mark CODE rather than a credential (. ( [ { $ < > , ;) and must end at
+    // whitespace, a quote or end of input, so `api_key=os.environ["K"]`,
+    // `token=get_token()`, `${SECRET}` and `<your-key>` do not match; a
+    // placeholder word right after '=' does not either. Bounded throughout
+    // (see the ReDoS note on the PEM pattern). Patterns compile icase, so the
+    // name class cannot rely on UPPER_SNAKE.
+    // Regression: tests/security/test_secret_dotenv.sh
+    {"\\b[A-Z0-9_]{0,40}(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|PRIVATE_KEY|ACCESS_KEY)[A-Z0-9_]{0,40}="
+     "(?!your|xxx|changeme|example|placeholder|redacted|\\*)"
+     "[^\\s'\"()\\[\\]{}<>$,;.]{8,200}(?=[\\s'\"]|$)", "Unquoted Secret Assignment", "high"},
 };
 
 static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
@@ -2419,7 +2434,31 @@ PathVerdict decidePathAccess(const std::string& canonical_path,
 }  // namespace
 
 std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const std::string& mode) {
-    clearTrace();
+    return checkPathAccessImpl(filepath, mode, /*decide_only=*/false);
+}
+
+// The project path policy as a plain verdict: "" when allowed, otherwise a
+// one-line reason. Same decision as checkPathAccess() -- it IS that function,
+// run with enforcement switched off -- but it never calls enforce(), records
+// nothing and never throws. That is what the embedded Python audit hook needs:
+// it runs inside CPython's C frames, where a C++ exception (GovernanceHardError
+// from a HARD enforce()) must not propagate, so it asks for the verdict and
+// raises PermissionError in Python instead.
+std::string GovernanceEngine::pathPolicyDenial(const std::string& filepath, bool write) {
+    return checkPathAccessImpl(filepath, write ? "write" : "read", /*decide_only=*/true);
+}
+
+std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
+                                                  const std::string& mode,
+                                                  bool decide_only) {
+    if (!decide_only) clearTrace();
+    // Every refusal below goes through deny(): enforcing callers get enforce()
+    // exactly as before; decide_only callers get the short reason instead.
+    auto deny = [&](const std::string& rule, EnforcementLevel lvl,
+                    const std::string& formatted, const std::string& reason) -> std::string {
+        if (decide_only) return reason;
+        return enforce(rule, lvl, formatted);
+    };
 
     // Bound the input BEFORE weakly_canonical() below, which is linear in the
     // path length (~26us/byte measured). Nothing upstream caps this: a path is
@@ -2429,7 +2468,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     // violation rather than passed through, so the run gets an audit record and
     // exit 3 instead of stalling.
     if (filepath.size() > naab::limits::MAX_GOVERNED_PATH_LENGTH) {
-        return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
+        return deny("capabilities.filesystem.path", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 fmt::format("Path length {} exceeds the maximum governed path length of {}",
                             filepath.size(), naab::limits::MAX_GOVERNED_PATH_LENGTH),
@@ -2438,13 +2477,27 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                 "A filesystem path this long cannot name a real file - POSIX allows 4096 bytes.\n"
                 "This usually means a path was built by concatenation in a loop.",
                 "let p = base\n  while i < 20 { p = p + p }\n  file.read(p)",
-                "file.read(path.join(dir, name))"));
+                "file.read(path.join(dir, name))"),
+            "path exceeds the maximum governed length");
     }
 
     // Canonicalize path for consistent prefix matching
+    // A relative target is made absolute against the PROCESS cwd first, because
+    // that is what the OS resolves it against when the file is opened -- the
+    // point of effect. weakly_canonical() alone returns a relative path
+    // unchanged when its first component does not exist yet, so a bare name
+    // for a NEW file ("out.txt") stayed relative while every policy entry is
+    // absolute, and no prefix ever matched. Both directions were wrong:
+    // allowed_paths ["."] refused file.write("out.txt") (while "./out.txt"
+    // passed), and the auto-protected govern.json.sig of an UNSIGNED project
+    // -- blocked, but not yet on disk -- was writable as "govern.json.sig".
+    // Policy ENTRIES stay project-relative (canonAndNorm below); this is the
+    // target, which the program opens from its own cwd.
     std::string canon;
     try {
-        canon = std::filesystem::weakly_canonical(filepath).string();
+        std::filesystem::path target(filepath);
+        if (!filepath.empty() && target.is_relative()) target = std::filesystem::absolute(target);
+        canon = std::filesystem::weakly_canonical(target).string();
     } catch (...) {
         canon = filepath;
     }
@@ -2513,14 +2566,15 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
         std::string example_path = fs_paths.allowed_paths.empty()
             ? "allowed/path/file.txt"
             : fs_paths.allowed_paths[0] + "file.txt";
-        return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
+        return deny("capabilities.filesystem.path", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 "File path not in allowed paths: " + filepath,
                 "Resolved to: " + canon_n + "\n  Allowed (resolved): " + resolved_list,
                 "capabilities.filesystem.allowed_paths does not match",
                 "Only paths under these directories are accessible: " + raw_list,
                 "file." + mode + "(\"" + filepath + "\", ...)",
-                "file." + mode + "(\"" + example_path + "\", ...)"));
+                "file." + mode + "(\"" + example_path + "\", ...)"),
+            "not in allowed paths: " + filepath);
     }
 
     if (project.result == PathVerdict::Result::Blocked) {
@@ -2531,7 +2585,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
         const std::string& fn_at = currentFunction();
         std::string where = fn_at.empty() ? std::string()
                                           : ("in function '" + fn_at + "'");
-        return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
+        return deny("capabilities.filesystem.path", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 "File path blocked by governance: " + filepath,
                 where,
@@ -2539,7 +2593,8 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                 "This path is blocked by the project's governance configuration.\n"
                 "Use a path under an allowed directory (e.g., ./data or ./output).",
                 "file." + mode + "(\"" + filepath + "\", ...)",
-                "file." + mode + "(\"./data/my_file.txt\", ...)"));
+                "file." + mode + "(\"./data/my_file.txt\", ...)"),
+            "blocked by governance: " + filepath);
     }
 
     // Layer 3+4: Agent role path restrictions
@@ -2552,7 +2607,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                 PathPrecedence::DenyWins, canonAndNorm);
 
             if (overlay.result == PathVerdict::Result::Blocked) {
-                return enforce("agent_role.path", EnforcementLevel::HARD,
+                return deny("agent_role.path", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
                         "Agent '" + effectiveAgentId() + "' blocked from path: " + filepath,
                         "",
@@ -2562,10 +2617,11 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                         "file." + mode + "(\"" + filepath + "\", ...)",
                         !role.allowed_paths.empty()
                             ? "file." + mode + "(\"" + role.allowed_paths[0] + "/my_file.txt\", ...)"
-                            : "file." + mode + "(\"./data/my_file.txt\", ...)"));
+                            : "file." + mode + "(\"./data/my_file.txt\", ...)"),
+                    "blocked for this agent role: " + filepath);
             }
             if (overlay.result == PathVerdict::Result::NotAllowlisted) {
-                return enforce("agent_role.path", EnforcementLevel::HARD,
+                return deny("agent_role.path", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
                         "Agent '" + effectiveAgentId() + "' not allowed to access: " + filepath,
                         "",
@@ -2574,13 +2630,14 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                             [&]() { std::string l; for (const auto& p : role.allowed_paths) {
                                 if (!l.empty()) l += ", "; l += p; } return l; }()),
                         "file." + mode + "(\"" + filepath + "\", ...)",
-                        "file." + mode + "(\"" + role.allowed_paths[0] + "/my_file.txt\", ...)"));
+                        "file." + mode + "(\"" + role.allowed_paths[0] + "/my_file.txt\", ...)"),
+                    "not in this agent role's allowed paths: " + filepath);
             }
             break;
         }
     }
 
-    recordPass("capabilities.filesystem.path", EnforcementLevel::HARD);
+    if (!decide_only) recordPass("capabilities.filesystem.path", EnforcementLevel::HARD);
     return "";
 }
 
@@ -3172,7 +3229,43 @@ void GovernanceEngine::emitAdvisory(const std::string& msg) {
     fmt::print(stderr, "{}\n", msg);
 }
 
+void GovernanceEngine::scoreUnconsumedValidations() {
+    if (!rules().context_drift.enabled) return;
+    for (const auto& r : drift_analyzer_.scoreUnconsumedValidationsAtExit()) {
+        // A finding, not enforce(): the run is over, and an advisory that
+        // escalated to HARD here would throw from an exit path -- possibly from
+        // inside main()'s own error handler. A failed check result is what the
+        // report, the summary and quality_gate count.
+        std::string who = r.config_name.empty()
+            ? "handle " + std::to_string(r.handle_id)
+            : "'" + r.config_name + "' (handle " + std::to_string(r.handle_id) + ")";
+        {
+            std::lock_guard<std::mutex> lock(results_mutex_);
+            check_results_.push_back({"context_drift.validation_outcome", EnforcementLevel::ADVISORY,
+                false,
+                fmt::format("A failed validation for agent {} was recorded after its last turn, "
+                            "so it was scored at the end of the run: coherence {:.4f} -> {:.4f}",
+                            who, r.coherence_before, r.coherence_after),
+                "context_drift", "medium", 0, "<agent:" + r.config_name + ">", {}, {}});
+            capCheckResultsLocked();
+        }
+        if (rules().telemetry_output.enabled) {
+            writeAgentTelemetry("VALIDATION_SCORED_AT_EXIT", {
+                {"handle_id",        std::to_string(r.handle_id)},
+                {"config_name",      r.config_name},
+                {"coherence_before", fmt::format("{:.4f}", r.coherence_before)},
+                {"coherence_after",  fmt::format("{:.4f}", r.coherence_after)},
+                {"penalty",          fmt::format("{:.4f}", r.penalty)},
+            });
+        }
+        fprintf(stderr, "[governance] Validation failure for agent %s was recorded after "
+                        "its last turn; scored at exit (coherence %.4f -> %.4f)\n",
+                who.c_str(), r.coherence_before, r.coherence_after);
+    }
+}
+
 void GovernanceEngine::flushGroupedAdvisories() {
+    scoreUnconsumedValidations();
     // 1. Grouped duplicate call warnings
     if (!dup_call_summary_.empty()) {
         std::string msg = "[ADVISORY] Duplicate calls (store results in variables):";
@@ -5069,6 +5162,19 @@ bool GovernanceEngine::signFile(const std::string& file_path) {
 // (verifyFileSignatureQuiet) and reports the reason once, in its own words.
 static thread_local std::string* t_sig_diag_sink = nullptr;
 
+// The trust policy that judges a signature's AGE. verifySignatureImpl() used to
+// read rules().trust_policy, but at startup loadFromFile() verifies the file
+// BEFORE installing the rules parsed from it, so rules() was still the empty
+// pre-load config: max_signature_age_days read 0 and a signature of any age was
+// accepted -- trust.max_signature_age_days / stale_signature_level never fired
+// on a fresh run (measured: a valid 90-day-old signature under a 30-day HARD
+// limit loaded with exit 0). Callers that verify a config before installing it
+// now pass that config's own policy. Reading it is safe: the age check runs
+// only after the signature has verified, so the policy is already
+// authenticated by the signature it is judging. Mid-run reload passes nothing
+// and keeps judging by the ACTIVE policy, as before.
+static thread_local const TrustPolicyConfig* t_verify_trust_policy = nullptr;
+
 static void sigDiag(const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -5198,23 +5304,25 @@ bool GovernanceEngine::verifySignatureImpl(
             }
 
             // Authority Decay: check signature staleness
-            if (signed_at > 0 && rules().trust_policy.max_signature_age_days > 0) {
+            const TrustPolicyConfig& tp = t_verify_trust_policy
+                ? *t_verify_trust_policy : rules().trust_policy;
+            if (signed_at > 0 && tp.max_signature_age_days > 0) {
                 int64_t now = static_cast<int64_t>(std::time(nullptr));
                 int64_t age_days = (now - signed_at) / 86400;
-                if (age_days > rules().trust_policy.max_signature_age_days) {
-                    if (rules().trust_policy.stale_signature_level == governance::EnforcementLevel::HARD) {
+                if (age_days > tp.max_signature_age_days) {
+                    if (tp.stale_signature_level == governance::EnforcementLevel::HARD) {
                         sigDiag(
                             "[governance] STALE SIGNATURE BLOCK: %s is %lld days old (max: %d).\n"
                             "  The signing key holder must re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
-                            rules().trust_policy.max_signature_age_days);
+                            tp.max_signature_age_days);
                         return false;
-                    } else if (rules().trust_policy.stale_signature_level == governance::EnforcementLevel::SOFT) {
+                    } else if (tp.stale_signature_level == governance::EnforcementLevel::SOFT) {
                         sigDiag(
                             "[governance] STALE SIGNATURE: %s is %lld days old (max: %d).\n"
                             "  The signing key holder must re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
-                            rules().trust_policy.max_signature_age_days);
+                            tp.max_signature_age_days);
                         // SOFT: block unless override enabled
                         if (!override_enabled_) return false;
                     } else {
@@ -5222,7 +5330,7 @@ bool GovernanceEngine::verifySignatureImpl(
                             "[governance] WARNING: Signature on %s is %lld days old (max: %d).\n"
                             "  Consider having the signing key holder re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
-                            rules().trust_policy.max_signature_age_days);
+                            tp.max_signature_age_days);
                     }
                 }
             }
@@ -5295,6 +5403,21 @@ bool GovernanceEngine::verifyFileSignatureQuiet(
         throw;
     }
     t_sig_diag_sink = prev;
+    return ok;
+}
+
+bool GovernanceEngine::verifyFileSignature(const std::string& file_path,
+                                           const TrustPolicyConfig& policy) const {
+    const TrustPolicyConfig* prev = t_verify_trust_policy;
+    t_verify_trust_policy = &policy;
+    bool ok = false;
+    try {
+        ok = verifyFileSignature(file_path);
+    } catch (...) {
+        t_verify_trust_policy = prev;
+        throw;
+    }
+    t_verify_trust_policy = prev;
     return ok;
 }
 
@@ -6812,20 +6935,25 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
     // checkPathAccess(), which is called from NAAb's own standard library. A
     // polyglot block opens files through its own language runtime and never
     // passes through it, so the same path that file.read() is HARD-blocked on is
-    // readable from inside <<python>> in the SAME program, and governance reports
-    // PASS. Measured on fb1e4bd, per sandbox level:
+    // readable from inside a polyglot block in the SAME program, and governance
+    // reports PASS.
     //
-    //     restricted    shell refused      python refused
-    //     standard      shell contained    python READ THE FILE
-    //     elevated      shell READ         python READ
-    //     unrestricted  shell READ         python READ
+    // The embedded Python executor is now the exception: its audit hook asks
+    // pathPolicyDenial() -- the same decision file.read() gets -- on every
+    // open(), so in-process Python is held at every level
+    // (tests/governance_v4/test_python_path_policy.sh). JavaScript (QuickJS)
+    // has no filesystem API at all. What is left is the SUBPROCESS languages,
+    // which open files in a child process no in-process check can see.
+    // Re-measured per sandbox level after that change:
     //
-    // Two separate mechanisms produce that table. The #222 registry gate refuses
-    // every language at "restricted". SubprocessContainment then blocks fork and
-    // exec at "standard", which stops the subprocess languages — but the embedded
-    // Python executor runs IN-PROCESS when the build has pybind11, so it never
-    // forks and there is nothing for containment to contain. That is why the
-    // default enforce posture, which upgrades to "standard", still leaks.
+    //     restricted    every language refused (#222 registry gate)
+    //     standard      shell/ruby/node contained (no fork/exec); PHP READ
+    //     elevated      shell/ruby/node/PHP READ;  python, javascript held
+    //     unrestricted  as elevated
+    //
+    // PHP reading at "standard" means its executor escapes SubprocessContainment
+    // there -- a separate defect, recorded, not fixed by this warning. Because of
+    // it the warning still fires at "standard".
     //
     // ADVISORY is hardcoded rather than taking `level`, unlike its siblings. Every
     // other CONTRA names two config keys that disagree, so escalating one to a
@@ -6841,7 +6969,7 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
         const bool has_path_policy =
             !fs_cfg.allowed_paths.empty() || !fs_cfg.blocked_paths.empty();
         // Empty means unset, which enforce mode resolves to "standard" — still a
-        // level where the in-process Python executor reads through the policy.
+        // level where a subprocess language (PHP, measured) reads through it.
         const bool polyglot_reachable = rules().sandbox_level_config != "restricted";
 
         if (has_path_policy && polyglot_reachable) {
@@ -6849,17 +6977,58 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
             c.pattern_id = "CONTRA-013";
             c.description =
                 "capabilities.filesystem path rules are enforced inside NAAb's "
-                "standard library only. A polyglot block reaches the filesystem "
-                "through its own language runtime, so code in <<python>> and "
-                "similar blocks can read and write paths that file.read() and "
-                "file.write() are blocked on. Path enforcement is in-process; no "
-                "operating-system path enforcement is implemented";
+                "standard library and the embedded Python executor only. A "
+                "polyglot block that runs as a separate process (shell, ruby, "
+                "node, php and similar) reaches the filesystem through its own "
+                "runtime, so it can read and write paths that file.read() and "
+                "file.write() are blocked on. No operating-system path "
+                "enforcement is implemented";
             c.level = governance::EnforcementLevel::ADVISORY;
             c.resolution =
-                "Treat these rules as covering NAAb code only, or set "
-                "security.sandbox_level to \"restricted\", which refuses polyglot "
-                "execution outright";
+                "Treat these rules as covering NAAb code and embedded Python "
+                "only, block the subprocess languages in languages.blocked, or "
+                "set security.sandbox_level to \"restricted\", which refuses "
+                "polyglot execution outright";
             results.push_back(c);
+        }
+    }
+
+    // CONTRA-014: a circuit_breaker child is enabled but the circuit breaker is not.
+    //
+    // circuit_breaker.enabled defaults to FALSE, and both output admissibility
+    // (every call site in agent_impl.cpp tests circuit_breaker.enabled AND
+    // output_admissibility.enabled) and governance-level escalation (the target
+    // level is only computed under cb.enabled) sit behind it. So a config that
+    // writes only "circuit_breaker": {"output_admissibility": {"enabled": true}}
+    // gets no gate, no OUTPUT_ADMISSIBILITY_EVAL event and no warning: the
+    // child reads as live and never runs. An outside dogfood run (Gemini,
+    // release-notes pipeline, F-01) lost all ten runs' admissibility this way
+    // and found it only by reading the source. step_up_enabled is half-masked:
+    // the expired-lease trigger still fires, but the level trigger
+    // (step_up_at_level) needs a level, and levels need the breaker.
+    // Unlike CONTRA-013 this names two keys that disagree, so it takes
+    // contradiction_detection.max_level like its siblings.
+    {
+        const auto& cb = rules().circuit_breaker;
+        if (!cb.enabled) {
+            std::vector<std::string> masked;
+            if (cb.output_admissibility.enabled)
+                masked.push_back("output_admissibility (never evaluated)");
+            if (cb.step_up_enabled)
+                masked.push_back("step_up_enabled (level-triggered challenges never fire; "
+                                 "only an expired lease triggers one)");
+            if (!masked.empty()) {
+                std::string list;
+                for (const auto& m : masked) { if (!list.empty()) list += "; "; list += m; }
+                ContradictionResult c;
+                c.pattern_id = "CONTRA-014";
+                c.description = "circuit_breaker.enabled is false (the default), so these "
+                                "circuit_breaker settings do not run: " + list;
+                c.level = level;
+                c.resolution = "Set circuit_breaker.enabled to true, or remove the settings "
+                               "that depend on it";
+                results.push_back(c);
+            }
         }
     }
 
@@ -7920,6 +8089,8 @@ void GovernanceEngine::emitEndOfRunHealthWarnings(FILE* fp, const std::string& t
         size_t written = fwrite(line.c_str(), 1, line.size(), fp);
         if (written != line.size()) {
             telemetry_write_failures_.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            agent_events_written_.fetch_add(1, std::memory_order_relaxed);
         }
     };
 

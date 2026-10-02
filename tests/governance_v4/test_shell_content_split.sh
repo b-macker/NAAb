@@ -43,8 +43,9 @@ case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
 [ -n "${WINDIR:-}" ] && IS_WINDOWS=1
 
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+source "$SCRIPT_DIR/../helpers/config_swap.sh"
 setup_isolated_trust
-cleanup() { teardown_isolated_trust; rm -rf "$TEST_TMP"; }
+cleanup() { stop_swap_operators; teardown_isolated_trust; rm -rf "$TEST_TMP"; }
 trap cleanup EXIT
 mkdir -p "$TEST_TMP"
 
@@ -109,6 +110,7 @@ main {
 }
 NAABEOF
         local out
+        start_swap_operator "$d"
         out=$(cd "$d" && FAKEKEY=stub timeout 60s "$NAAB" t.naab 2>/dev/null \
               | grep -aoE "ALLOWED|BLOCKED" | head -1)
         stop_stub
@@ -169,6 +171,7 @@ NAABEOF
     # the producer takes SIGPIPE, and the pipeline reports failure — so a run that
     # DID print EXEC_ALLOWED scores as BLOCKED. That inverts this probe silently,
     # and it makes SC-04 (which expects BLOCKED) pass while SC-05 fails.
+    start_swap_operator "$d"
     local _o; _o=$(cd "$d" && timeout 60s "$NAAB" --agent-id runbook_author t.naab 2>&1)
     if echo "$_o" | grep -q "EXEC_ALLOWED"; then echo ALLOWED; else echo BLOCKED; fi
 }
@@ -212,10 +215,21 @@ else
         cat > "$d/t.naab" << NAABEOF
 main {
     let r1 = <<python
-import time, shutil
+import time, os
+def _swap(src, dst):
+    if os.path.exists(".swap_done"):
+        os.remove(".swap_done")
+    with open(".swap_req", "w") as f:
+        f.write(src + "\t" + dst + "\n")
+    open(".swap_req.ready", "w").close()
+    for _ in range(1200):
+        if os.path.exists(".swap_done"):
+            return
+        time.sleep(0.05)
+    raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-shutil.copy("$d/loose/govern.json", "$d/govern.json")
-shutil.copy("$d/loose/govern.json.sig", "$d/govern.json.sig")
+_swap("$d/loose/govern.json.sig", "$d/govern.json.sig")
+_swap("$d/loose/govern.json", "$d/govern.json")
 print("swapped")
 >>
     print(r1)
@@ -226,6 +240,7 @@ print("second block")
 }
 NAABEOF
         local out
+        start_swap_operator "$d"
         out=$(cd "$d" && timeout 60s "$NAAB" --agent-id runbook_author t.naab 2>&1)
         if echo "$out" | grep -qi "ratchet\|loosen"; then
             pass "$1" "$4"

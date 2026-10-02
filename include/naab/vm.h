@@ -451,6 +451,17 @@ private:
     // The map stores NaabVal copies as values to prevent the underlying Value from
     // being freed (which would leave stale raw pointers as keys).
     std::unordered_map<const void*, interpreter::NaabVal> tainted_containers_;
+    // A list/dict a tainted value was pushed/put into is recorded in
+    // tainted_containers_ by IDENTITY, because the mutation does not go
+    // through the variable's taint slot. Only .get() used to consult it, so
+    // loading the container -- into a polyglot binding, a function argument,
+    // a sink -- read it as clean: `held.push(agent_output)` laundered the
+    // taint (measured: a pushed agent response reached javascript_exec).
+    // Every load opcode now ORs this in. Free when nothing was ever tainted.
+    bool containerTainted(const interpreter::NaabVal& v) const {
+        if (tainted_containers_.empty() || !(v.isList() || v.isDict())) return false;
+        return tainted_containers_.count(v.toLegacy().get()) > 0;
+    }
 
     // V-RT-008: GC cycle detector + instruction-count trigger
     // gc_detector_ runs mark-and-sweep on the VM stack + globals as roots.

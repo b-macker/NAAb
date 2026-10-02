@@ -461,6 +461,8 @@ for dir in "${TEST_DIRS[@]}"; do
         # Exclude codebase_qa (interactive Q&A tool, requires stdin + live API key)
         # Exclude governed_codegen (LLM codegen orchestrator, requires live API key)
         # Exclude runtime-boundary-demo (requires run.sh for govern.json setup)
+        # Exclude agent_harness (requires run.sh to start the agent stub; its
+        #   behaviour is covered by tests/governance_v4/test_agent_harness_example.sh)
         while IFS= read -r -d '' test_file; do
             run_test "$test_file" "$timeout"
         done < <(find "$dir" -name "*.naab" -type f \
@@ -469,6 +471,7 @@ for dir in "${TEST_DIRS[@]}"; do
             -not -path "*/governed_codegen/*" \
             -not -path "*/governed_codegen_py/*" \
             -not -path "*/runtime-boundary-demo/*" \
+            -not -path "*/agent_harness/*" \
             -print0 | sort -z)
     else
         while IFS= read -r -d '' test_file; do
@@ -1424,6 +1427,24 @@ else
     echo "  test_secret_scan_redos.sh: not found, skipping"
 fi
 
+# --- Secret scan: unquoted .env lines (Gemini dogfood F-03) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Secret Scanner: unquoted dotenv assignments"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+DOTENV_SCRIPT="tests/security/test_secret_dotenv.sh"
+if [ -f "$DOTENV_SCRIPT" ]; then
+    if run_shell_test "$DOTENV_SCRIPT" 2>&1; then
+        echo "  test_secret_dotenv.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_secret_dotenv.sh")
+    fi
+else
+    echo "  test_secret_dotenv.sh: not found, skipping"
+fi
+
 # --- SSRF: filter must adjudicate the RESOLVED address (F43 redirect, F47 DNS) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -1570,6 +1591,23 @@ if [ -f "$PATH_PRECEDENCE_SCRIPT" ]; then
     fi
 else
     echo "  test_path_precedence.sh: not found, skipping"
+fi
+
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Path Policy: bare relative paths to new files"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RELNEW_SCRIPT="tests/security/test_relative_new_path.sh"
+if [ -f "$RELNEW_SCRIPT" ]; then
+    if run_shell_test "$RELNEW_SCRIPT" 2>&1; then
+        echo "  test_relative_new_path.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_relative_new_path.sh")
+    fi
+else
+    echo "  test_relative_new_path.sh: not found, skipping"
 fi
 
 # --- naab-gov check: one output shape for both verdicts ---
@@ -3396,6 +3434,19 @@ if [ -f "$PARSER_STRING_INTERP_ESCAPE_SCRIPT" ]; then
     fi
 else
     echo "  test_string_interp_escape.sh: not found, skipping"
+fi
+
+PARSER_POLYGLOT_LINES_SCRIPT="tests/parser/test_polyglot_line_numbers.sh"
+if [ -f "$PARSER_POLYGLOT_LINES_SCRIPT" ]; then
+    if run_shell_test "$PARSER_POLYGLOT_LINES_SCRIPT" 2>&1; then
+        echo "  test_polyglot_line_numbers.sh: ALL PASSED"
+    else
+        echo "  test_polyglot_line_numbers.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_polyglot_line_numbers.sh")
+    fi
+else
+    echo "  test_polyglot_line_numbers.sh: not found, skipping"
 fi
 
 PLATFORM_FIXES_SCRIPT="tests/api/test_platform_fixes.sh"
