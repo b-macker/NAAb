@@ -86,10 +86,12 @@ EXCLUSIVE = {
         "its control degrades to SKIP when the child is slow to start under load",
 }
 
-# Every NAAb process creates these under HOME at startup: the engine's own
-# caches, not something a suite left behind. Reported apart so they cannot bury
-# a real leftover.
-ENGINE_CACHE_PREFIXES = (".naab_cpp_cache", ".naab/cache")
+# State the ENGINE or a TOOLCHAIN writes under HOME, not something a suite
+# left behind: NAAb's caches, its append-only security log and REPL history,
+# and Go's telemetry counters. Reported apart so they cannot bury a real
+# leftover (a first isolated run listed security.log for 27 suites).
+HOME_STATE_PREFIXES = (".naab_cpp_cache", ".naab/cache", ".naab/logs", ".naab_history",
+                       ".config/go")
 
 SKIP_RE = re.compile(rb"\b(SKIP|SKIPPED|UNMEASURABLE|XFAIL)\b")
 TOOLCHAIN_DIRS = {  # env var -> path under the real HOME
@@ -269,8 +271,8 @@ class Runner:
         }
         if home is not None:
             left = tree(home)
-            res["engine_cache_in_home"] = [x for x in left if x.startswith(ENGINE_CACHE_PREFIXES)]
-            res["left_in_home"] = [x for x in left if not x.startswith(ENGINE_CACHE_PREFIXES)]
+            res["home_state"] = [x for x in left if x.startswith(HOME_STATE_PREFIXES)]
+            res["left_in_home"] = [x for x in left if not x.startswith(HOME_STATE_PREFIXES)]
             res["left_in_tmpdir"] = tree(tmp)
             if not res["left_in_home"] and not res["left_in_tmpdir"]:
                 shutil.rmtree(os.path.dirname(home), ignore_errors=True)

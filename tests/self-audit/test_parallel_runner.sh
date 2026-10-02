@@ -19,8 +19,8 @@
 #   PR-03  isolation: a file one unit writes to $HOME does not reach a later one
 #   PR-03c CONTROL: the same pair under --shared --jobs 1 DOES leak, so PR-03
 #          can fail
-#   PR-04  a file a unit leaves in its HOME is reported; engine caches are not
-#          reported as leftovers
+#   PR-04  a file a unit leaves in its HOME is reported; engine and toolchain
+#          state (caches, security log) is reported apart, not as a leftover
 #   PR-05  an EXCLUSIVE unit overlaps no other unit
 #   PR-05c CONTROL: two ordinary units under --jobs 2 DO overlap, so PR-05's
 #          "no overlap" is not true of every schedule
@@ -58,8 +58,10 @@ W="$(mktemp -d "${TMPDIR:-/tmp}/naab-prunner.XXXXXX")" || exit 1
 trap 'rm -rf "$W"' EXIT
 
 # The runner's own HOME: --shared runs units in it, so it must never be the
-# real one.
+# real one. TMPDIR too: the runner keeps a unit's leftovers for inspection and
+# list mode creates a capture dir, so both must land inside $W to be removed.
 export HOME="$W/realhome"; mkdir -p "$HOME"
+export TMPDIR="$W/tmp"; mkdir -p "$TMPDIR"
 
 F="$W/fake"
 mkdir -p "$F/tools" "$F/u" "$F/tests/self-audit"
@@ -119,9 +121,9 @@ rm -f "$HOME/marker"
 mk u/litter.sh 'echo x > "$HOME/junk.txt"; mkdir -p "$HOME/.naab/cache"; echo m > "$HOME/.naab/cache/metadata.txt"'
 write_plan "shell${T}60s${T}u/litter.sh"
 runp --jobs 1
-got=$(jq_py "r=d['results'][0];print(','.join(r['left_in_home'])+'|'+','.join(r['engine_cache_in_home']))" 2>/dev/null)
+got=$(jq_py "r=d['results'][0];print(','.join(r['left_in_home'])+'|'+','.join(r['home_state']))" 2>/dev/null)
 case "$got" in
-    "junk.txt|"*metadata.txt*) ok "PR-04" "a unit's leftover is reported; the engine cache is kept apart" ;;
+    "junk.txt|"*metadata.txt*) ok "PR-04" "a unit's leftover is reported; engine/toolchain state is kept apart" ;;
     *) bad "PR-04" "leftovers misreported" "got: '$got'" ;;
 esac
 
