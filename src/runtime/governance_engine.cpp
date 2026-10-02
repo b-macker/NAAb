@@ -5069,6 +5069,19 @@ bool GovernanceEngine::signFile(const std::string& file_path) {
 // (verifyFileSignatureQuiet) and reports the reason once, in its own words.
 static thread_local std::string* t_sig_diag_sink = nullptr;
 
+// The trust policy that judges a signature's AGE. verifySignatureImpl() used to
+// read rules().trust_policy, but at startup loadFromFile() verifies the file
+// BEFORE installing the rules parsed from it, so rules() was still the empty
+// pre-load config: max_signature_age_days read 0 and a signature of any age was
+// accepted -- trust.max_signature_age_days / stale_signature_level never fired
+// on a fresh run (measured: a valid 90-day-old signature under a 30-day HARD
+// limit loaded with exit 0). Callers that verify a config before installing it
+// now pass that config's own policy. Reading it is safe: the age check runs
+// only after the signature has verified, so the policy is already
+// authenticated by the signature it is judging. Mid-run reload passes nothing
+// and keeps judging by the ACTIVE policy, as before.
+static thread_local const TrustPolicyConfig* t_verify_trust_policy = nullptr;
+
 static void sigDiag(const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -5198,23 +5211,25 @@ bool GovernanceEngine::verifySignatureImpl(
             }
 
             // Authority Decay: check signature staleness
-            if (signed_at > 0 && rules().trust_policy.max_signature_age_days > 0) {
+            const TrustPolicyConfig& tp = t_verify_trust_policy
+                ? *t_verify_trust_policy : rules().trust_policy;
+            if (signed_at > 0 && tp.max_signature_age_days > 0) {
                 int64_t now = static_cast<int64_t>(std::time(nullptr));
                 int64_t age_days = (now - signed_at) / 86400;
-                if (age_days > rules().trust_policy.max_signature_age_days) {
-                    if (rules().trust_policy.stale_signature_level == governance::EnforcementLevel::HARD) {
+                if (age_days > tp.max_signature_age_days) {
+                    if (tp.stale_signature_level == governance::EnforcementLevel::HARD) {
                         sigDiag(
                             "[governance] STALE SIGNATURE BLOCK: %s is %lld days old (max: %d).\n"
                             "  The signing key holder must re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
-                            rules().trust_policy.max_signature_age_days);
+                            tp.max_signature_age_days);
                         return false;
-                    } else if (rules().trust_policy.stale_signature_level == governance::EnforcementLevel::SOFT) {
+                    } else if (tp.stale_signature_level == governance::EnforcementLevel::SOFT) {
                         sigDiag(
                             "[governance] STALE SIGNATURE: %s is %lld days old (max: %d).\n"
                             "  The signing key holder must re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
-                            rules().trust_policy.max_signature_age_days);
+                            tp.max_signature_age_days);
                         // SOFT: block unless override enabled
                         if (!override_enabled_) return false;
                     } else {
@@ -5222,7 +5237,7 @@ bool GovernanceEngine::verifySignatureImpl(
                             "[governance] WARNING: Signature on %s is %lld days old (max: %d).\n"
                             "  Consider having the signing key holder re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
-                            rules().trust_policy.max_signature_age_days);
+                            tp.max_signature_age_days);
                     }
                 }
             }
@@ -5295,6 +5310,21 @@ bool GovernanceEngine::verifyFileSignatureQuiet(
         throw;
     }
     t_sig_diag_sink = prev;
+    return ok;
+}
+
+bool GovernanceEngine::verifyFileSignature(const std::string& file_path,
+                                           const TrustPolicyConfig& policy) const {
+    const TrustPolicyConfig* prev = t_verify_trust_policy;
+    t_verify_trust_policy = &policy;
+    bool ok = false;
+    try {
+        ok = verifyFileSignature(file_path);
+    } catch (...) {
+        t_verify_trust_policy = prev;
+        throw;
+    }
+    t_verify_trust_policy = prev;
     return ok;
 }
 

@@ -3500,6 +3500,11 @@ public:
 
     // Integrity: Ed25519 + legacy HMAC signature verification (V-SC-009)
     bool verifyFileSignature(const std::string& file_path) const;
+    // Same, judging signature AGE by `policy` -- the trust section of the
+    // config being verified, for callers that verify a file before installing
+    // the rules parsed from it (startup load, extends bases).
+    bool verifyFileSignature(const std::string& file_path,
+                             const TrustPolicyConfig& policy) const;
     // Same verification, but the failure reason is returned in `diagnostics`
     // instead of being printed. For the mid-run reload path, where a failure
     // keeps the current config rather than blocking the run.
