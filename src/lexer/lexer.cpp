@@ -697,12 +697,16 @@ std::vector<Token> Lexer::tokenize() {
             }
 
             // Skip only newlines after language name (or var list, or return type)
-            // Don't skip spaces/tabs - they're part of the code's indentation
+            // Don't skip spaces/tabs - they're part of the code's indentation.
+            // advance() already counts the newline. This loop used to ALSO
+            // do line_++, so every polyglot block added one phantom line and
+            // every line number after it was off by one per block -- error
+            // locations, and the line-keyed governance lookups
+            // (extractFunctionWithDecl for intent validation, contracts),
+            // which then read the WRONG function's body: a function after a
+            // <<python>> block was reported as a "rubber stamp" with no
+            // branches. Test: tests/parser/test_polyglot_line_numbers.sh
             while (currentChar() && (*currentChar() == '\n' || *currentChar() == '\r')) {
-                if (*currentChar() == '\n') {
-                    line_++;
-                    column_ = 1;
-                }
                 advance();
             }
 

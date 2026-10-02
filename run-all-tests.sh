@@ -3419,6 +3419,19 @@ else
     echo "  test_string_interp_escape.sh: not found, skipping"
 fi
 
+PARSER_POLYGLOT_LINES_SCRIPT="tests/parser/test_polyglot_line_numbers.sh"
+if [ -f "$PARSER_POLYGLOT_LINES_SCRIPT" ]; then
+    if run_shell_test "$PARSER_POLYGLOT_LINES_SCRIPT" 2>&1; then
+        echo "  test_polyglot_line_numbers.sh: ALL PASSED"
+    else
+        echo "  test_polyglot_line_numbers.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_polyglot_line_numbers.sh")
+    fi
+else
+    echo "  test_polyglot_line_numbers.sh: not found, skipping"
+fi
+
 PLATFORM_FIXES_SCRIPT="tests/api/test_platform_fixes.sh"
 if [ -f "$PLATFORM_FIXES_SCRIPT" ]; then
     # 24 assertions over the platform/binding fixes, including the REST route
