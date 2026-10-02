@@ -79,7 +79,7 @@ echo "run directory: $RUN"
     "$NAAB" harness.naab > out/stdout.txt 2> out/stderr.txt)
 RC=$?
 echo "exit code: $RC"
-grep -E '^(PLAN|STEP|REVIEW|VERDICT|REPORT)\|' "$RUN/out/stdout.txt" || true
+grep -E '^(STATIC|PLAN|STEP|REVIEW|VERDICT|SUMMARY|REPORT)\|' "$RUN/out/stdout.txt" || true
 if [ "$RC" -ne 0 ]; then
     echo "--- stdout (last 15 lines) ---"; tail -15 "$RUN/out/stdout.txt"
     echo "--- stderr (last 15 lines) ---"; tail -15 "$RUN/out/stderr.txt"

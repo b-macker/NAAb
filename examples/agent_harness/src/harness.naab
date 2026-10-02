@@ -19,6 +19,17 @@
 //   judge    gives the final verdict
 //   (script) redacts and bounds the report, then writes it
 //
+// Two polyglot steps, both bound explicitly and both governed per language:
+//   python      analyze_sources() parses the workspace with `ast` and finds the
+//               defect shapes mechanically -- a second ground truth that
+//               check_fixture() holds truth.json against before any model runs.
+//               It receives file CONTENTS; it never opens a file (open( is a
+//               banned function, and the audit hook would refuse a path the
+//               policy denies anyway).
+//   javascript  render_summary() turns sanitized counts into a markdown table.
+//               Model-derived numbers reach it only through sanitize_stats():
+//               python_exec / javascript_exec are taint sinks.
+//
 // ONE file on purpose: function-body checks are skipped for code loaded as a
 // module, so moving functions into an import would quietly exempt them.
 // Every effect lives in a named function: main {} runs under the "default"
@@ -64,6 +75,87 @@ fn read_file(path) {
 
 fn load_json(path) {
     return json.parse(file.read(path))
+}
+
+fn load_sources(truth) {
+    // Contents of every Python file the ground truth names, keyed by name.
+    let sources = {}
+    let names = truth.get("files")
+    let i = 0
+    while i < names.length() {
+        let name = names.get(i)
+        if string.ends_with(name, ".py") {
+            sources[name] = file.read("workspace/" + name)
+        }
+        i = i + 1
+    }
+    return sources
+}
+
+// --------------------------------------------------------------- static ----
+// A second, mechanical ground truth. Pure on the NAAb side: the default
+// capability entry grants nothing, and the block gets data, not paths.
+
+fn analyze_sources(sources) {
+    let found = <<python[sources]
+import ast
+import json
+findings = []
+for name in sorted(sources):
+    tree = ast.parse(sources[name])
+    in_with = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.With):
+            for item in node.items:
+                in_with.add(id(item.context_expr))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Div, ast.FloorDiv, ast.Mod)):
+            d = node.right
+            if isinstance(d, ast.Call) and isinstance(d.func, ast.Name) and d.func.id == "len":
+                findings.append({"file": name, "line": node.lineno, "kind": "division_by_zero"})
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            fn_name = node.func.id
+            if fn_name == "range" and len(node.args) == 2:
+                lo, hi = node.args
+                if isinstance(lo, ast.Constant) and lo.value == 1 and isinstance(hi, ast.Call) \
+                        and isinstance(hi.func, ast.Name) and hi.func.id == "len":
+                    findings.append({"file": name, "line": node.lineno, "kind": "off_by_one"})
+            if fn_name == "open" and id(node) not in in_with:
+                findings.append({"file": name, "line": node.lineno, "kind": "resource_leak"})
+findings.sort(key=lambda f: (f["file"], f["line"], f["kind"]))
+json.dumps(findings)
+>>
+    return json.parse(found)
+}
+
+fn check_fixture(findings, truth) {
+    // Every defect in truth.json must be one the analyzer found. A truth file
+    // that names a defect the code does not contain would make every honest
+    // worker "fail" -- the verifier is only as good as its fixture.
+    let tolerance = truth.get("line_tolerance")
+    let defects = truth.get("defects")
+    let missing = []
+    let i = 0
+    while i < defects.length() {
+        let known = defects.get(i)
+        let seen = false
+        let j = 0
+        while j < findings.length() {
+            let f = findings.get(j)
+            if f.get("file") == known.get("file") && f.get("kind") == known.get("kind") {
+                let delta = f.get("line") - known.get("line")
+                if delta <= tolerance && delta >= 0 - tolerance {
+                    seen = true
+                }
+            }
+            j = j + 1
+        }
+        if !seen {
+            missing.push(string(known.get("file")) + ":" + string(known.get("line")) + " " + string(known.get("kind")))
+        }
+        i = i + 1
+    }
+    return {"agree": missing.length() == 0, "missing": missing}
 }
 
 // ----------------------------------------------------------------- plan ----
@@ -202,6 +294,52 @@ fn adjudicate(judge, summary, tally) {
     return json.parse(response.get("content"))
 }
 
+// -------------------------------------------------------------- summary ----
+
+fn sanitize_stats(results) {
+    // Model-derived results become plain integers here, the only form allowed
+    // into the JavaScript block (javascript_exec is a taint sink).
+    let steps = []
+    let passed = 0
+    let i = 0
+    while i < results.length() {
+        let r = results.get(i)
+        let v = r.get("verification")
+        let step_id = r.get("step")
+        let verified = v.get("verified")
+        // Only non-negative integers cross into the block. A model can put
+        // anything in "step"; a string here would reach JavaScript as code text.
+        if type(step_id) != "int" || step_id < 0 {
+            throw "step id is not a non-negative integer: " + string(step_id)
+        }
+        if type(verified) != "int" || verified < 0 {
+            throw "verified count is not a non-negative integer: " + string(verified)
+        }
+        let ok = 0
+        if v.get("passed") == true {
+            ok = 1
+            passed = passed + 1
+        }
+        steps.push({"step": step_id, "passed": ok, "verified": verified,
+                    "rejected": v.get("rejected").length()})
+        i = i + 1
+    }
+    return {"steps": steps, "total": results.length(), "passed": passed}
+}
+
+fn render_summary(stats) {
+    let table = <<javascript[stats]
+const rows = ["| step | passed | verified | rejected |", "|---|---|---|---|"];
+for (const s of stats.steps) {
+  rows.push("| " + s.step + " | " + (s.passed === 1 ? "yes" : "no") + " | " + s.verified + " | " + s.rejected + " |");
+}
+rows.push("");
+rows.push(stats.passed + " of " + stats.total + " steps verified against ground truth");
+rows.join("\n");
+>>
+    return string(table)
+}
+
 // --------------------------------------------------------------- output ----
 // Model output is untrusted: it reaches a file only through sanitize_report,
 // which taint_tracking requires and contracts.functions enforces.
@@ -218,9 +356,10 @@ fn sanitize_report(text) {
     return clean
 }
 
-fn write_report(report) {
+fn write_report(report, summary) {
     let text = sanitize_report(json.stringify(report))
     file.write("out/report.json", text)
+    file.write("out/summary.md", sanitize_report(summary))
     return text.length()
 }
 
@@ -229,6 +368,14 @@ fn write_report(report) {
 main {
     let task = load_json("fixtures/task.json")
     let truth = load_json("fixtures/truth.json")
+
+    // The fixture is checked before any model runs.
+    let findings = analyze_sources(load_sources(truth))
+    let fixture = check_fixture(findings, truth)
+    print("STATIC|findings=" + string(findings.length()) + "|agree=" + string(fixture.get("agree")))
+    if fixture.get("agree") != true {
+        throw "ground truth names defects the code does not contain: " + string(fixture.get("missing"))
+    }
 
     agent.register_tool("list_files", list_files, {
         "description": "List the files in the audit workspace.",
@@ -263,7 +410,10 @@ main {
     let ruling = adjudicate(judge, summary, tally)
     print("VERDICT|" + string(ruling.get("verdict")))
 
-    let size = write_report({"task": task.get("id"), "plan": plan, "steps": results,
-                             "review": tally, "verdict": ruling})
+    let stats = sanitize_stats(results)
+    let summary_md = render_summary(stats)
+    print("SUMMARY|" + string(stats.get("passed")) + "/" + string(stats.get("total")))
+    let size = write_report({"task": task.get("id"), "static_findings": findings, "plan": plan,
+                             "steps": results, "review": tally, "verdict": ruling}, summary_md)
     print("REPORT|bytes=" + string(size))
 }

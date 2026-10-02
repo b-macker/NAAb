@@ -46,11 +46,29 @@
     ]
   },
 
-  "_comment_languages": "No polyglot code anywhere: every registered language is blocked (HARD). This also closes the CONTRA-013 hole -- an in-process <<python>> block reads paths file.read() is denied. languages.allowed: [] would mean ALLOW-ALL (empty = unused).",
+  "_comment_languages": "Two polyglot steps, nothing else. python: an AST cross-check of the workspace (a second, mechanical ground truth beside truth.json). javascript: renders the summary table. Everything else is blocked, PHP included -- it reads blocked paths even at sandbox standard (measured). Both allowed runtimes are in-process: an embedded <<python>> open() is checked against capabilities.filesystem by the audit hook (the same decision file.read() gets), and QuickJS has no filesystem API. per_language: only keys an engine check reads are set -- timeout, max_lines, banned_functions, imports.blocked, no_var. imports.mode 'allowlist' / imports.allowed are parsed but NOT enforced (only the blocked list is checked), so the blocklist is explicit. per_language imports.blocked is ALSO installed as a runtime __import__ hook, which sees the standard library's own imports -- ast and json import os, sys, builtins and importlib internally (measured), so those four are blocked statically in restrictions.imports instead -- and so is io, which the executor's OWN stdout capture imports (blocking it at runtime breaks every later block: measured, 'Failed to get __main__ module').",
   "languages": {
-    "blocked": ["bash", "cpp", "cs", "csharp", "go", "golang", "javascript", "julia", "nim", "node",
-                "php", "python", "ruby", "rust", "sh", "shell", "ts", "typescript", "zig"]
+    "allowed": ["python", "javascript"],
+    "blocked": ["bash", "cpp", "cs", "csharp", "go", "golang", "julia", "nim", "node",
+                "php", "ruby", "rust", "sh", "shell", "ts", "typescript", "zig"],
+    "per_language": {
+      "python": {
+        "timeout": 10,
+        "max_lines": 60,
+        "banned_functions": ["eval(", "exec(", "compile(", "__import__(", "open(", "getattr(", "globals(", "vars("],
+        "imports": { "blocked": ["subprocess", "socket", "ctypes", "shutil", "pathlib", "pickle", "marshal", "urllib", "http", "threading", "multiprocessing"] }
+      },
+      "javascript": {
+        "timeout": 5,
+        "max_lines": 30,
+        "banned_functions": ["eval(", "Function(", "setTimeout(", "setInterval("],
+        "no_var": true
+      }
+    }
   },
+
+  "_comment_polyglot": "Every NAAb value a block uses must be bound explicitly (<<python[name]), so what crosses into a block is visible in the source and reaches taint tracking. The other polyglot.* keys in the template (max_bound_variables, require_json_pipe, max_output_lines, context_isolation, ...) have no engine consumer and are omitted.",
+  "polyglot": { "variable_binding": { "require_explicit": "hard" } },
 
   "_comment_codegen": "No runtime code execution: model output is data, never code.",
   "codegen": { "enabled": false },
@@ -74,6 +92,7 @@
       "level": "hard",
       "default":      { "allowed_actions": [] },
       "load_json":    { "allowed_actions": ["FS_READ"] },
+      "load_sources": { "allowed_actions": ["FS_READ"] },
       "list_files":   { "allowed_actions": ["FS_READ"] },
       "read_file":    { "allowed_actions": ["FS_READ"] },
       "make_plan":    { "allowed_actions": ["AGENT_SEND"] },
@@ -86,10 +105,11 @@
 
   "_comment_limits": "Bounds on the NAAb program itself. Only enforced limits are set (limits.data.string_length/dict_size/nesting_depth and execution.total_executions are parsed but read by nothing).",
   "limits": {
-    "timeout": { "global": 600 },
-    "execution": { "call_depth": 64, "loop_iterations": 100000 },
+    "timeout": { "global": 600, "per_block": 10, "total_polyglot": 30 },
+    "execution": { "call_depth": 64, "loop_iterations": 100000, "polyglot_blocks": 8 },
     "data": { "array_size": 10000, "max_json_depth": 32 },
-    "rate": { "max_stdlib_calls_per_second": 5000, "max_file_ops_per_second": 50 }
+    "code": { "max_lines_per_block": 60, "max_total_polyglot_lines": 120 },
+    "rate": { "max_stdlib_calls_per_second": 5000, "max_file_ops_per_second": 50, "max_polyglot_per_second": 5 }
   },
 
   "_comment_requirements": "The program must have a main block. (naming_conventions is omitted: no check reads it for NAAb source -- measured, a camelCase variable passes.)",
@@ -97,19 +117,27 @@
     "main_block": { "level": "hard" }
   },
 
-  "_comment_restrictions": "The two restriction families that run on this harness's own calls (both appear in its governance report). The rest of restrictions.* scan polyglot blocks only, which are all blocked above. NOTE: dangerous_calls is enabled by PRESENCE -- writing 'enabled: false' would not turn it off.",
+  "_comment_restrictions": "Pattern restrictions on the polyglot source (dangerous calls, injection, obfuscation, exfiltration shapes, resource abuse, privilege escalation, weak crypto) plus the two families that also run on NAAb's own calls. Static, so evadable by construction -- the runtime half is the audit hook and the in-process runtimes' lack of other capabilities. NOTE: dangerous_calls, privilege_escalation, code_injection and crypto are enabled by PRESENCE; 'enabled: false' would not turn them off.",
   "restrictions": {
     "dangerous_calls": { "level": "hard" },
+    "imports": { "level": "hard", "blocked": { "python": ["os", "sys", "builtins", "importlib", "io"] } },
+    "code_injection": { "level": "hard" },
+    "privilege_escalation": { "level": "hard" },
+    "crypto": { "level": "hard" },
+    "obfuscation": { "enabled": true, "level": "hard" },
+    "data_exfiltration": { "enabled": true, "level": "hard" },
+    "resource_abuse": { "enabled": true, "level": "hard" },
+    "vcs_secret_extraction": { "enabled": true, "level": "hard" },
     "information_disclosure": { "enabled": true, "level": "hard" }
   },
 
-  "_comment_taint": "Model output is untrusted. It reaches a file only through a sanitize_ function. Agent output is tainted whenever taint is on, whatever 'sources' lists; a dict holding ANY tainted value is tainted as a whole. lineage records where each taint came from (shows in the violation).",
+  "_comment_taint": "Model output is untrusted. It reaches a file -- or a polyglot block (python_exec/javascript_exec sinks) -- only through a sanitize_ function. Agent output is tainted whenever taint is on, whatever 'sources' lists; a dict holding ANY tainted value is tainted as a whole. lineage records where each taint came from (shows in the violation).",
   "taint_tracking": {
     "enabled": true,
     "level": "hard",
     "lineage": true,
     "sources": ["agent.send", "agent.commit", "agent.fan_out", "agent.propose"],
-    "sinks": ["file.write", "file.append", "io.write_file"],
+    "sinks": ["file.write", "file.append", "io.write_file", "python_exec", "javascript_exec"],
     "sanitizers": ["sanitize_"]
   },
 
@@ -131,6 +159,14 @@
       ]
     },
     "duplicate_calls": { "enabled": true, "threshold": 3 },
+    "_comment_polyglot_checks": "These scan the polyglot blocks (the Python analyzer and the JavaScript renderer); they do not read NAAb source. semantic_checks adds the object-graph escape patterns (__subclasses__ and friends) on top of banned_functions.",
+    "no_dead_code": { "enabled": true, "level": "soft" },
+    "no_debug_artifacts": { "enabled": true, "level": "soft" },
+    "no_unsafe_deserialization": { "enabled": true, "level": "hard" },
+    "no_path_traversal": { "enabled": true, "level": "hard" },
+    "no_hallucinated_apis": { "enabled": true, "level": "hard" },
+    "encoding": { "enabled": true, "level": "hard" },
+    "semantic_checks": { "level": "hard", "check_dangerous_eval": true, "check_imports": true, "check_api_signatures": true },
     "intent_validation": {
       "level": "soft",
       "missing_level": "soft",
@@ -140,13 +176,18 @@
         "read_file": "read a workspace file path and number its lines",
         "load_json": "read and parse a json file path",
         "plan_problems": "check the plan steps count and that each step has an id and a goal; return the problems",
+        "load_sources": "read each python file named in truth files from the workspace into sources",
+        "analyze_sources": "parse sources with python ast and find division by len, range from one, and open outside with",
+        "check_fixture": "check every truth defect is among the static findings within line tolerance; return agree and missing",
+        "sanitize_stats": "sanitize step results into integer counts per step and totals",
+        "render_summary": "render the stats as a markdown table with javascript",
         "make_plan": "propose plan candidates, select_admissible steps, commit the selected plan",
         "verify_claims": "verify claimed files and defects against truth within line tolerance; return passed, verified, rejected",
         "run_step": "send the step goal to the worker, parse claims, verify_claims against truth, record_validation",
         "review": "fan_out the summary to critics, parse each verdict, consensus_vote the votes",
         "adjudicate": "send the summary and tally to the judge and parse the verdict",
         "sanitize_report": "sanitize report text by bounding its length",
-        "write_report": "stringify the report, sanitize_report it, write the file"
+        "write_report": "stringify the report, sanitize_report it, write the report and the summary files"
       }
     }
   },
@@ -166,7 +207,40 @@
       "write_report": {
         "description": "Reports are sanitized before they are written",
         "must_call": ["sanitize_report"],
-        "min_arity": 1, "max_arity": 1
+        "min_arity": 2, "max_arity": 2
+      },
+      "analyze_sources": {
+        "description": "The Python analyzer finds each defect shape, and nothing in clean code",
+        "min_arity": 1, "max_arity": 1,
+        "return_type": "array",
+        "must_produce": [
+          { "args": [{"a.py": "def f(x):\n    return sum(x) / len(x)\n"}], "expect": [{"file": "a.py", "line": 2, "kind": "division_by_zero"}] },
+          { "args": [{"b.py": "def g(x):\n    for i in range(1, len(x)):\n        pass\n"}], "expect": [{"file": "b.py", "line": 2, "kind": "off_by_one"}] },
+          { "args": [{"c.py": "def h(p):\n    with open(p) as f:\n        return f.read()\n"}], "expect": [] }
+        ]
+      },
+      "check_fixture": {
+        "description": "Ground truth must agree with the static analysis, or the fixture is wrong",
+        "min_arity": 2, "max_arity": 2,
+        "return_type": "dict",
+        "return_keys": ["agree", "missing"],
+        "must_produce": [
+          { "args": [[{"file": "a.py", "line": 8, "kind": "division_by_zero"}], {"line_tolerance": 1, "defects": [{"file": "a.py", "line": 8, "kind": "division_by_zero"}]}],
+            "expect": {"agree": true, "missing": []} },
+          { "args": [[], {"line_tolerance": 1, "defects": [{"file": "a.py", "line": 8, "kind": "division_by_zero"}]}],
+            "expect": {"agree": false, "missing": ["a.py:8 division_by_zero"]} }
+        ]
+      },
+      "sanitize_stats": {
+        "description": "Only integer counts leave the sanitizer",
+        "min_arity": 1, "max_arity": 1,
+        "return_type": "dict",
+        "return_keys": ["steps", "total", "passed"]
+      },
+      "render_summary": {
+        "description": "The JavaScript renderer returns the summary text",
+        "min_arity": 1, "max_arity": 1,
+        "return_type": "string"
       },
       "make_plan": {
         "description": "Plans are selected from candidates and committed, never taken raw",

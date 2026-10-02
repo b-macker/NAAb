@@ -36,6 +36,7 @@ NAMED_MAPS = {
     ("agents",): "agents",
     ("capabilities", "functions"): "capabilities",
     ("contracts", "functions"): "contracts",
+    ("languages", "per_language"): "languages",
     ("environments",): None,
     ("scopes",): None,
 }
@@ -43,7 +44,7 @@ NAMED_MAPS = {
 # Keys whose value is a map of user-chosen names (field -> regex, signal ->
 # bool, ...). The key itself is checked; its children are names, not keys.
 NAME_VALUED = {"regex_checks", "field_types", "rule_weights", "context_drift_signals",
-               "must_derive_from", "function_intents", "expect"}
+               "must_derive_from", "function_intents", "expect", "blocked", "allowed"}
 
 
 def section_vocab(src_text):

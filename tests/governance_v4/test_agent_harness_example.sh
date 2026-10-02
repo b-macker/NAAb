@@ -71,7 +71,7 @@ skip() { SKIP_COUNT=$((SKIP_COUNT + 1)); echo "  SKIP [$1] $2"; }
 
 echo "=== examples/agent_harness: locked, runs, and every relied-on setting bites ==="
 
-RUN_ARMS="AH-01 AH-02 AH-03 AH-03c AH-04 AH-05 AH-06 AH-07 AH-08 AH-09 AH-11 AH-12 AH-13 AH-14 AH-15 AH-16 AH-17 AH-18"
+RUN_ARMS="AH-01 AH-02 AH-03 AH-03c AH-04 AH-05 AH-06 AH-07 AH-08 AH-09 AH-11 AH-12 AH-13 AH-14 AH-15 AH-16 AH-17 AH-18 AH-19 AH-20 AH-21 AH-21c AH-22 AH-23 AH-24 AH-25 AH-26"
 ALL="AH-L1 AH-L2 AH-L3 AH-L4 $RUN_ARMS AH-10"
 IS_WINDOWS=0
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
@@ -256,8 +256,10 @@ fi
 run_variant ah04 'H = H.replace("fn verify_claims(claims, truth) {\n", "fn verify_claims(claims, truth) {\n    let peek = file.read(\"fixtures/task.json\")\n")'
 expect_block "AH-04" "the pure verifier (default entry, no actions) reading a file is a HARD block naming it" "Undeclared action in 'verify_claims'"
 
-run_variant ah05 'H = H.replace("main {\n", "main {\n    let probe = <<python\n1 + 1\n>>\n", 1)'
-expect_block "AH-05" "a <<python>> block is refused (HARD)" 'Language "python" is blocked'
+# Bound, so polyglot.variable_binding.require_explicit (which fires first on an
+# unbound block) cannot be the reason it is refused.
+run_variant ah05 'H = H.replace("    let task = load_json(\"fixtures/task.json\")\n", "    let task = load_json(\"fixtures/task.json\")\n    let probe = <<ruby[task]\n1 + 1\n>>\n", 1)'
+expect_block "AH-05" "a language outside languages.allowed (ruby) is refused (HARD)" 'Language "ruby"'
 
 run_variant ah06 'F["routes"]["AH-WORKER"]["responses"][1]["content"] = "{\"step\": 1, \"files\": [\"README.md\"], \"defects\": [], \"note\": \"key AKIAIOSFODNN7EXAMPLE\"}"'
 expect_block "AH-06" "a worker response carrying an AWS-shaped key ends the run (HARD)" "no_secrets"
@@ -341,6 +343,85 @@ expect_block "AH-17" "http.* is a HARD block even for a function granted NET_CON
 
 run_variant ah18 'G["prerequisites"]["checks"][0]["name"] = "AH_REQUIRED_BUT_UNSET"'
 expect_block "AH-18" "a missing required environment variable stops the run" "Prerequisite failed: env_var 'AH_REQUIRED_BUT_UNSET'"
+
+# ---- polyglot ----
+# Patches insert lines right after the analyzer's `findings = []`.
+py_insert() {  # $1 = python lines to insert (literal) -> prints a run_variant patch
+    printf 'H = H.replace("findings = []\\n", "findings = []\\n" + %s, 1)\n' "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1")"
+}
+
+run_variant ah19 "$(py_insert 'leak = open("fixtures/truth.json").read()
+')"
+expect_block "AH-19" "a banned function (open() in the Python analyzer is refused before it runs" "open("
+
+run_variant ah20 "$(py_insert 'import socket
+')"
+expect_block "AH-20" "a blocked import (socket) in the Python analyzer is refused" "socket"
+
+# AH-21: the audit hook. The write is spelled so no static gate sees it (no
+# open(, no getattr(, no os/io import), and the static checks that would see
+# other spellings are switched off IN THIS ARM ONLY -- what is left to refuse
+# it is the runtime path policy. The target is the harness's own telemetry
+# file, which blocked_paths protects.
+OBF_TARGET='_b = __builtins__ if isinstance(__builtins__, dict) else __builtins__.__dict__
+_w = _b["op" + "en"]("out/" + "TARGET", "a")
+_w.write("forged")
+_w.close()
+'
+STATIC_OFF='
+G["languages"]["per_language"]["python"]["banned_functions"] = []
+G["code_quality"].pop("semantic_checks", None)
+for k in ("obfuscation", "dangerous_calls", "code_injection"):
+    G["restrictions"].pop(k, None)'
+run_variant ah21 "$(py_insert "${OBF_TARGET//TARGET/telemetry.jsonl}")$STATIC_OFF"
+if [ "$RC" -ge 1 ] && has "denied by sandbox policy" && ! grep -q forged "$D/out/telemetry.jsonl" 2>/dev/null; then
+    pass "AH-21" "an obfuscated Python write to the protected telemetry file is refused at the audit hook"
+else
+    fail "AH-21" "the write was not refused at runtime (rc=$RC)" "$(grep -m2 -iE 'denied|error' <<<"$OUT")"
+fi
+# Control: the same block aimed at an ALLOWED path writes -- the hook decides
+# on policy, not on the spelling.
+run_variant ah21c "$(py_insert "${OBF_TARGET//TARGET/scratch.txt}")$STATIC_OFF"
+if grep -q forged "$D/out/scratch.txt" 2>/dev/null; then
+    pass "AH-21c" "control: the same write to an allowed path goes through, so AH-21 is the policy"
+else
+    fail "AH-21c" "the allowed write did not happen (rc=$RC) -- AH-21 proves nothing" "$(grep -m2 -iE 'denied|error' <<<"$OUT")"
+fi
+
+run_variant ah22 'H = H.replace("    let summary_md = render_summary(stats)\n", "    let summary_md = render_summary(results)\n", 1)'
+if [ "$RC" -ne 0 ] && [ "$RC" -ge 0 ] && has "aint" && ! has "SUMMARY|"; then
+    pass "AH-22" "model-derived results passed to the JavaScript block without sanitize_stats are refused (taint)"
+else
+    fail "AH-22" "unsanitized model output reached the JavaScript block (rc=$RC)" "$(grep -m2 -iE 'taint|error' <<<"$OUT")"
+fi
+
+run_variant ah23 'H = H.replace("    let table = <<javascript[stats]\n", "    let table = <<javascript\n", 1)'
+expect_block "AH-23" "a polyglot block using a NAAb value without binding it is refused" "require_explicit"
+
+run_variant ah24 'T = json.load(open(d + "/fixtures/truth.json"))
+T["defects"].append({"file": "inventory.py", "line": 14, "kind": "off_by_one"})
+json.dump(T, open(d + "/fixtures/truth.json", "w"))'
+SENDS=$(grep -c 'AGENT_RESPONSE' "$D/out/telemetry.jsonl" 2>/dev/null)
+if [ "$RC" -ne 0 ] && [ "$RC" -ge 0 ] && has "STATIC|findings=3|agree=false" && [ "${SENDS:-0}" -eq 0 ]; then
+    pass "AH-24" "a truth file naming a defect the code does not contain stops the run before any model call"
+else
+    fail "AH-24" "fixture disagreement not caught before the agents (rc=$RC sends=$SENDS)" "$(grep -m2 'STATIC' <<<"$OUT")"
+fi
+
+# A hollow analyzer is caught at RUN time, before any agent: check_fixture finds
+# truth.json's defects missing from its (empty) output. The golden tests would
+# also catch it post-run, but the run never gets that far.
+run_variant ah25 "$(py_insert 'sources = {}
+')"
+SENDS=$(grep -c 'AGENT_RESPONSE' "$D/out/telemetry.jsonl" 2>/dev/null)
+if [ "$RC" -ne 0 ] && [ "$RC" -ge 0 ] && has "STATIC|findings=0|agree=false" && [ "${SENDS:-0}" -eq 0 ]; then
+    pass "AH-25" "an analyzer that finds nothing stops the run before any model call"
+else
+    fail "AH-25" "a hollow analyzer was not caught before the agents (rc=$RC sends=$SENDS)" "$(grep -m2 'STATIC' <<<"$OUT")"
+fi
+
+run_variant ah26 'H = H.replace("const rows = [", "var unused = 0;\nconst rows = [", 1)'
+expect_block "AH-26" "JavaScript var is refused (per_language.javascript.no_var)" "var"
 
 fi  # control ok
 
