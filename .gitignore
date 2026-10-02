@@ -250,3 +250,6 @@ examples/hivemind/src/hivemind-telemetry.jsonl
 docs/book/verification/ch0_full_projects/Vigilant/bin/
 docs/book/verification/ch0_full_projects/Vigilant/proxy/gateway_vessel
 docs/book/verification/ch0_full_projects/Vigilant/scanner/shield_vessel
+
+# agent_harness run directories (run.sh writes one per run)
+examples/agent_harness/out/

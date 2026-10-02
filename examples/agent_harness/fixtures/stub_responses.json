@@ -1,0 +1,25 @@
+{
+  "_comment": "Scripted model responses for run.sh --stub. Routed per agent by the AH-<ROLE> token in each system_prompt; each route keeps its own counter and repeats its last entry when exhausted. Tool calls are served as Gemini functionCall parts.",
+  "routes": {
+    "AH-PLANNER": {"responses": [
+      {"content": "{\"steps\": [{\"id\": 1, \"goal\": \"List the workspace files\"}, {\"id\": 2, \"goal\": \"Audit inventory.py for defects\"}, {\"id\": 3, \"goal\": \"Audit report.py for defects\"}]}", "output_tokens": 60},
+      {"content": "{\"steps\": [{\"id\": 1, \"goal\": \"List every file in the workspace\"}, {\"id\": 2, \"goal\": \"Audit inventory.py and report.py for defects\"}]}", "output_tokens": 50},
+      {"content": "{\"steps\": [{\"id\": 1, \"goal\": \"Audit all workspace files for defects\"}]}", "output_tokens": 30}
+    ]},
+    "AH-WORKER": {"responses": [
+      {"tool_calls": [{"name": "list_files", "args": {}}]},
+      {"content": "{\"step\": 1, \"files\": [\"README.md\", \"inventory.py\", \"report.py\"], \"defects\": []}", "output_tokens": 40},
+      {"tool_calls": [{"name": "read_file", "args": {"path": "inventory.py"}}]},
+      {"content": "{\"step\": 2, \"files\": [\"inventory.py\"], \"defects\": [{\"file\": \"inventory.py\", \"line\": 8, \"explanation\": \"average_daily_sales divides by len(sales) and fails on an empty list.\"}, {\"file\": \"inventory.py\", \"line\": 21, \"explanation\": \"low_stock starts at index 1 and never checks the first item.\"}]}", "output_tokens": 90},
+      {"tool_calls": [{"name": "read_file", "args": {"path": "report.py"}}]},
+      {"content": "{\"step\": 3, \"files\": [\"report.py\"], \"defects\": [{\"file\": \"report.py\", \"line\": 5, \"explanation\": \"write_summary opens the output file and never closes it.\"}]}", "output_tokens": 70}
+    ]},
+    "AH-CRITIC": {"responses": [
+      {"content": "{\"verdict\": \"APPROVED\", \"issues\": []}", "output_tokens": 20}
+    ]},
+    "AH-JUDGE": {"responses": [
+      {"content": "{\"verdict\": \"APPROVED\", \"reason\": \"Every reported defect names a file and line that the critics accepted.\"}", "output_tokens": 30}
+    ]}
+  },
+  "responses": [{"content": "{\"error\": \"unrouted request\"}", "output_tokens": 10}]
+}

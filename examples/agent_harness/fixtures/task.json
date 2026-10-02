@@ -1,0 +1,5 @@
+{
+  "id": "audit-inventory-service",
+  "goal": "Audit the inventory-service workspace. List every file it contains, then report each defect you can find with the file, the line number and a one-sentence explanation.",
+  "workspace": "workspace"
+}

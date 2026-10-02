@@ -461,6 +461,8 @@ for dir in "${TEST_DIRS[@]}"; do
         # Exclude codebase_qa (interactive Q&A tool, requires stdin + live API key)
         # Exclude governed_codegen (LLM codegen orchestrator, requires live API key)
         # Exclude runtime-boundary-demo (requires run.sh for govern.json setup)
+        # Exclude agent_harness (requires run.sh to start the agent stub; its
+        #   behaviour is covered by tests/governance_v4/test_agent_harness_example.sh)
         while IFS= read -r -d '' test_file; do
             run_test "$test_file" "$timeout"
         done < <(find "$dir" -name "*.naab" -type f \
@@ -469,6 +471,7 @@ for dir in "${TEST_DIRS[@]}"; do
             -not -path "*/governed_codegen/*" \
             -not -path "*/governed_codegen_py/*" \
             -not -path "*/runtime-boundary-demo/*" \
+            -not -path "*/agent_harness/*" \
             -print0 | sort -z)
     else
         while IFS= read -r -d '' test_file; do

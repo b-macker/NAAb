@@ -1,0 +1,247 @@
+// agent_harness -- a governed multi-agent harness, as a skeleton to build on.
+//
+// Pipeline:  plan -> work (tool loop, per step) -> verify -> review -> judge -> report
+//
+//   planner  proposes 3 candidate plans; the harness selects an admissible one
+//            and commits it (agent.propose / orchestra.select_admissible /
+//            agent.commit)
+//   worker   executes each plan step with two read-only tools (list_files,
+//            read_file) and returns structured claims
+//   (script) verifies every claim against fixtures/truth.json and reports the
+//            result to governance with agent.record_validation -- ground truth,
+//            not an agent's opinion
+//   critic   two independent handles review the assembled draft (fan_out),
+//            tallied with orchestra.consensus_vote
+//   judge    gives the final verdict
+//
+// Every function here is named in govern.json: capabilities.functions decides
+// which effects it may have, and contracts.functions decides what it must call.
+// Renaming a function drops it to the "default" entry, which grants nothing --
+// so a rename is a governance change and shows up as a refusal, not silently.
+//
+// The file is deliberately ONE file. Function-body governance checks are
+// skipped while a module is being imported, so splitting the harness into
+// imported modules would quietly exempt the moved code from contracts.
+//
+// SKELETON STATUS: every stage runs end to end against the local stub
+// (run.sh --stub). Places marked BUILD: are where a real harness needs more
+// than the skeleton provides; see README.md for the build rules.
+
+use agent
+use file
+use json
+use orchestra
+use string
+use array
+
+// ---------------------------------------------------------------- tools ----
+// Called by the model inside the worker's tool loop. Read-only by policy:
+// capabilities.functions grants these FS_READ and nothing else.
+
+fn list_files() {
+    let names = file.list_dir("workspace")
+    return {"files": names, "count": names.length()}
+}
+
+fn read_file(path) {
+    // The model chooses `path`. Confine it to the workspace by construction;
+    // capabilities.filesystem.allowed_paths is the backstop, not the first line.
+    if string.contains(path, "..") || string.starts_with(path, "/") {
+        return {"error": "path outside the workspace", "path": path}
+    }
+    let full = "workspace/" + path
+    if !file.exists(full) {
+        return {"error": "no such file", "path": path}
+    }
+    let text = file.read(full)
+    // Number the lines, so line claims in the answer can be checked.
+    let lines = string.split(text, "\n")
+    let numbered = ""
+    let i = 0
+    while i < lines.length() {
+        numbered = numbered + string(i + 1) + ": " + lines.get(i) + "\n"
+        i = i + 1
+    }
+    return {"path": path, "content": numbered}
+}
+
+// --------------------------------------------------------------- inputs ----
+
+fn load_json(path) {
+    return json.parse(file.read(path))
+}
+
+// ----------------------------------------------------------------- plan ----
+
+fn make_plan(planner, task) {
+    let prompt = "Plan the audit task below as a short list of steps. Each step names one goal for the worker.\n\nTask: " + task.get("goal")
+    let p = agent.propose(planner, prompt, 3)
+    // Ranking needs a spec, or an unparseable plan can be selected.
+    let pick = orchestra.select_admissible(p, {"required_fields": ["steps"]})
+    let chosen = pick.get("selected")
+    if chosen == null {
+        throw "planner produced no admissible plan"
+    }
+    let committed = agent.commit(planner, chosen)
+    let plan = json.parse(committed.get("content"))
+    // BUILD: reject plans with no steps or more than the step budget, and
+    // record that outcome with agent.record_validation(planner, ...).
+    return plan
+}
+
+// --------------------------------------------------------------- verify ----
+// Pure: no effects. Runs under the "default" capability entry, which grants
+// nothing, so it cannot read or write even by accident.
+
+fn verify_claims(claims, truth) {
+    let known_files = truth.get("files")
+    let defects = truth.get("defects")
+    let tol = truth.get("line_tolerance")
+    let verified = 0
+    let rejected = []
+
+    let files = claims.get("files")
+    if files != null {
+        let i = 0
+        while i < files.length() {
+            let f = files.get(i)
+            if array.contains(known_files, f) {
+                verified = verified + 1
+            } else {
+                rejected.push("file not in workspace: " + string(f))
+            }
+            i = i + 1
+        }
+    }
+
+    let found = claims.get("defects")
+    if found != null {
+        let j = 0
+        while j < found.length() {
+            let d = found.get(j)
+            let d_file = d.get("file")
+            let d_line = d.get("line")
+            let ok = false
+            let k = 0
+            while k < defects.length() {
+                let t = defects.get(k)
+                if t.get("file") == d_file {
+                    let delta = t.get("line") - d_line
+                    if delta <= tol && delta >= 0 - tol {
+                        ok = true
+                    }
+                }
+                k = k + 1
+            }
+            if ok {
+                verified = verified + 1
+            } else {
+                rejected.push("defect not in ground truth: " + string(d_file) + ":" + string(d_line))
+            }
+            j = j + 1
+        }
+    }
+    return {"passed": rejected.length() == 0, "verified": verified, "rejected": rejected}
+}
+
+// ----------------------------------------------------------------- work ----
+
+fn run_step(worker, step, truth) {
+    let step_id = step.get("id")
+    let prompt = "Audit step " + string(step_id) + ": " + step.get("goal") + "\nUse the list_files and read_file tools on the workspace. Report the files and the defects you found with file and line."
+    let r = agent.send(worker, prompt)
+    let claims = json.parse(r.get("content"))
+    let v = verify_claims(claims, truth)
+    let passed = v.get("passed")
+    // Ground truth goes to governance. This is the S22 signal's only input,
+    // and contracts.functions requires this call in this function.
+    let detail = "verified " + string(v.get("verified")) + "; rejected: " + string(v.get("rejected"))
+    agent.record_validation(worker, passed, detail)
+    return {"step": step_id, "claims": claims, "verification": v,
+            "admissible": r.get("admissibility").get("admissible")}
+}
+
+// --------------------------------------------------------------- review ----
+
+fn review(critics, draft) {
+    let prompt = "Review this audit draft for accuracy and completeness. Every defect must name a file and line in the workspace.\n\n" + draft
+    let rs = agent.fan_out(critics, prompt)
+    let votes = []
+    let i = 0
+    while i < rs.length() {
+        let v = json.parse(rs.get(i).get("content"))
+        votes.push(v.get("verdict"))
+        i = i + 1
+    }
+    return orchestra.consensus_vote({"votes": votes})
+}
+
+fn adjudicate(judge, draft, tally) {
+    let summary = string(tally.get("verdict")) + " (" + string(tally.get("approved")) + " approved of " + string(tally.get("total")) + ")"
+    let prompt = "Critics returned " + summary + ". Give the final verdict on this audit draft.\n\n" + draft
+    let r = agent.send(judge, prompt)
+    return json.parse(r.get("content"))
+}
+
+// --------------------------------------------------------------- output ----
+// Model output is untrusted. Everything that reaches a file passes through a
+// sanitizer, which taint_tracking requires and contracts.functions enforces.
+
+fn sanitize_report(text) {
+    // BUILD: real redaction (secrets, paths outside the workspace, control
+    // characters). The skeleton only bounds the size.
+    if text.length() > 20000 {
+        return string.substring(text, 0, 20000)
+    }
+    return text
+}
+
+fn write_report(report) {
+    let clean = sanitize_report(json.stringify(report))
+    file.write("out/report.json", clean)
+    return clean.length()
+}
+
+// ----------------------------------------------------------------- main ----
+
+main {
+    let task = load_json("fixtures/task.json")
+    let truth = load_json("fixtures/truth.json")
+
+    agent.register_tool("list_files", list_files, {
+        "description": "List the files in the audit workspace.",
+        "parameters": {}
+    })
+    agent.register_tool("read_file", read_file, {
+        "description": "Read one workspace file. Lines are numbered.",
+        "parameters": {"path": {"type": "string", "description": "File name relative to the workspace, e.g. inventory.py"}}
+    })
+
+    let planner = agent.create("planner")
+    let worker = agent.create("worker")
+    let critics = [agent.create("critic"), agent.create("critic")]
+    let judge = agent.create("judge")
+
+    let plan = make_plan(planner, task)
+    print("PLAN|steps=" + string(plan.get("steps").length()))
+
+    let results = []
+    let steps = plan.get("steps")
+    let i = 0
+    while i < steps.length() {
+        let r = run_step(worker, steps.get(i), truth)
+        results.push(r)
+        print("STEP|" + string(r.get("step")) + "|passed=" + string(r.get("verification").get("passed")))
+        i = i + 1
+    }
+
+    let draft = json.stringify(results)
+    let tally = review(critics, draft)
+    print("REVIEW|" + string(tally.get("verdict")))
+    let verdict = adjudicate(judge, draft, tally)
+    print("VERDICT|" + string(verdict.get("verdict")))
+
+    let n = write_report({"task": task.get("id"), "plan": plan, "steps": results,
+                          "review": tally, "verdict": verdict})
+    print("REPORT|bytes=" + string(n))
+}

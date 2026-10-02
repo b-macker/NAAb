@@ -1,0 +1,10 @@
+{
+  "_comment": "Ground truth for fixtures/task.json. Authored with the workspace, never shown to an agent. A claim is verified when its file is listed here and, for a defect, its line is within line_tolerance of a listed defect in that file.",
+  "files": ["README.md", "inventory.py", "report.py"],
+  "line_tolerance": 1,
+  "defects": [
+    {"file": "inventory.py", "line": 8,  "kind": "division_by_zero", "summary": "average_daily_sales divides by len(sales) with no empty-list guard"},
+    {"file": "inventory.py", "line": 21, "kind": "off_by_one",       "summary": "low_stock starts at index 1 and never checks the first item"},
+    {"file": "report.py",    "line": 5,  "kind": "resource_leak",    "summary": "write_summary opens the file and never closes it"}
+  ]
+}

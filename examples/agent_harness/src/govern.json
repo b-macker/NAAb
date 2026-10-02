@@ -1,0 +1,190 @@
+{
+  "_comment": "agent_harness governance. Every key below is read by the engine (checked with tools/check_govern_keys.py against src/runtime/governance_config.cpp). Section comments say what each setting is FOR in this harness; README.md maps them to pipeline stages.",
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "Governed multi-agent audit harness: planner -> worker (tools) -> verify -> critics -> judge",
+
+  "_comment_security": "standard sandbox: no absolute paths, no fork/exec. NOT restricted: restricted removes FS_READ outright, and the harness reads its fixtures and workspace.",
+  "security": { "sandbox_level": "standard" },
+
+  "_comment_languages": "The harness runs no polyglot code, so every registered language is blocked (HARD). This is what closes the CONTRA-013 gap at standard: an embedded <<python>> block reads paths that file.read() is denied (measured on b0a7c8d). NOTE: languages.allowed: [] would allow EVERYTHING (empty = unused), and CONTRA-013 still prints with this blocklist because it only consults sandbox_level.",
+  "languages": {
+    "blocked": ["bash", "cpp", "cs", "csharp", "go", "golang", "javascript", "julia", "nim", "node", "php", "python", "ruby", "rust", "sh", "shell", "ts", "typescript", "zig"]
+  },
+
+  "_comment_capabilities": "Shell off at the SANDBOX layer (the only containment that survives a renamed binary). Filesystem confined to the three directories the harness uses. functions: least privilege per function, intersected down the call stack; default grants nothing. Code written directly in main {} runs under default (the main block is not on the function stack, and no entry name targets it -- measured on both engines), so main only orchestrates and every effect goes through a named function below.",
+  "capabilities": {
+    "shell": { "enabled": false },
+    "filesystem": {
+      "mode": "write",
+      "allowed_paths": ["./workspace", "./fixtures", "./out"]
+    },
+    "functions": {
+      "level": "hard",
+      "default":    { "allowed_actions": [] },
+      "load_json":  { "allowed_actions": ["FS_READ"] },
+      "list_files": { "allowed_actions": ["FS_READ"] },
+      "read_file":  { "allowed_actions": ["FS_READ"] },
+      "make_plan":  { "allowed_actions": ["AGENT_SEND"] },
+      "run_step":   { "allowed_actions": ["AGENT_SEND", "FS_READ"] },
+      "review":     { "allowed_actions": ["AGENT_SEND"] },
+      "adjudicate": { "allowed_actions": ["AGENT_SEND"] },
+      "write_report": { "allowed_actions": ["FS_WRITE"] }
+    }
+  },
+
+  "_comment_taint": "Model output is untrusted. It may reach a file only through a function whose name starts with sanitize_. Agent output is tainted whenever taint tracking is on -- every send/propose/commit result, tool result and tool argument -- regardless of this sources list; the agent entries below document that rather than enable it. A dict holding ANY tainted value is tainted as a whole.",
+  "taint_tracking": {
+    "enabled": true,
+    "level": "hard",
+    "sources": ["agent.send", "agent.commit", "agent.fan_out"],
+    "sinks": ["file.write", "file.append"],
+    "sanitizers": ["sanitize_"]
+  },
+
+  "_comment_code_quality": "Response secret/PII scanning is OFF unless enabled here. HARD: a response carrying a secret ends the run.",
+  "code_quality": {
+    "no_secrets": { "enabled": true, "level": "hard" },
+    "no_pii": { "enabled": true, "level": "hard" }
+  },
+
+  "_comment_contracts": "Structural guarantees on the harness code itself: ground truth must reach governance, and nothing reaches a file unsanitized.",
+  "contracts": {
+    "level": "hard",
+    "functions": {
+      "run_step":     { "description": "Every worker step reports its ground-truth result to governance", "must_call": ["record_validation"] },
+      "write_report": { "description": "Reports are sanitized before they are written", "must_call": ["sanitize_report"] },
+      "make_plan":    { "description": "Plans are selected from candidates and committed, never taken raw", "must_call": ["select_admissible", "commit"] }
+    }
+  },
+
+  "_comment_agents": "Each system_prompt opens with a unique AH-<ROLE> token: the local stub routes on it (run.sh --stub). allowed_actions is the per-role action matrix; tools are dual-gated (listed here AND registered in harness.naab).",
+  "agents": {
+    "planner": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "api_key_env": "GEMINI_API_KEY",
+      "system_prompt": "AH-PLANNER You plan code audit tasks. Given an audit task, return ONLY JSON: {\"steps\": [{\"id\": 1, \"goal\": \"...\"}]} with at most 4 steps. Each step goal names the files or the defect type the worker must audit.",
+      "temperature": 0.2,
+      "max_tokens": 1024,
+      "max_turns": 6,
+      "propose_candidates_max": 3,
+      "allowed_actions": ["AGENT_SEND"],
+      "shell_allowed": false,
+      "standing_lease_turns": 6,
+      "retry": { "max_attempts": 3, "backoff_ms": 500 }
+    },
+    "worker": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "api_key_env": "GEMINI_API_KEY",
+      "system_prompt": "AH-WORKER You audit code in a workspace using the list_files and read_file tools. For each audit step, read the files, then return ONLY JSON: {\"step\": N, \"files\": [\"name\"], \"defects\": [{\"file\": \"name\", \"line\": N, \"explanation\": \"one sentence\"}]}. Report only defects you saw in the file content, with the exact line number.",
+      "temperature": 0.1,
+      "max_tokens": 2048,
+      "max_turns": 12,
+      "tools_enabled": true,
+      "tools": ["list_files", "read_file"],
+      "max_tool_calls_per_turn": 4,
+      "max_tool_loop_turns": 4,
+      "tool_result_max_chars": 6000,
+      "tool_result_max_total_chars": 20000,
+      "tool_timeout_seconds": 10,
+      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC", "FS_READ"],
+      "shell_allowed": false,
+      "context_window": 12,
+      "context_strategy": "recent",
+      "output_contract": { "format": "json", "required_fields": ["step", "files", "defects"] },
+      "retry": { "max_attempts": 3, "backoff_ms": 500 }
+    },
+    "critic": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "api_key_env": "GEMINI_API_KEY",
+      "system_prompt": "AH-CRITIC You review code audit drafts for accuracy and completeness. Return ONLY JSON: {\"verdict\": \"APPROVED\" or \"REJECTED\", \"issues\": [\"...\"]}. Reject an audit draft if any defect lacks a file and line.",
+      "temperature": 0.3,
+      "max_tokens": 1024,
+      "max_turns": 4,
+      "allowed_actions": ["AGENT_SEND"],
+      "shell_allowed": false,
+      "output_contract": {
+        "format": "json",
+        "required_fields": ["verdict", "issues"],
+        "regex_checks": { "verdict": "^(APPROVED|REJECTED)$" }
+      },
+      "retry": { "max_attempts": 3, "backoff_ms": 500 }
+    },
+    "judge": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "api_key_env": "GEMINI_API_KEY",
+      "system_prompt": "AH-JUDGE You give the final verdict on a code audit draft after the critics' review. Return ONLY JSON: {\"verdict\": \"APPROVED\" or \"REJECTED\", \"reason\": \"one sentence\"}.",
+      "temperature": 0.0,
+      "max_tokens": 512,
+      "max_turns": 2,
+      "allowed_actions": ["AGENT_SEND"],
+      "shell_allowed": false,
+      "output_contract": {
+        "format": "json",
+        "required_fields": ["verdict", "reason"],
+        "regex_checks": { "verdict": "^(APPROVED|REJECTED)$" }
+      },
+      "retry": { "max_attempts": 3, "backoff_ms": 500 }
+    }
+  },
+
+  "_comment_dispatch": "Run-level budgets: the hard stop ends the run before it can spend past these, whatever the script does.",
+  "agent_dispatch": {
+    "max_concurrent": 2,
+    "pool_size": 2,
+    "hard_stop": { "max_calls_per_run": 60, "max_tokens_per_run": 300000 }
+  },
+
+  "_comment_exposure": "max_unique_agents counts HANDLES, not configured roles: planner + worker + 2 critics + judge = 5. A sixth agent.create() is refused.",
+  "exposure_tracking": { "enabled": true, "max_unique_agents": 5, "max_autonomous_actions": 60 },
+
+  "_comment_bsd": "Behavioural sequence detection with the built-in patterns (tool exfiltration, env harvest, shell escape, cross-agent relay). Also feeds CDD: with this off, context drift scores nothing.",
+  "behavioral_sequences": { "enabled": true },
+
+  "_comment_drift": "Analyse every turn (roles are short-lived). Baseline window 3, not 5: a 2-turn judge would otherwise never leave calibration and its pass would never be a judgement.",
+  "context_drift": {
+    "enabled": true,
+    "check_interval_turns": 1,
+    "coherence_threshold": 0.70,
+    "adaptive_baseline_enabled": true,
+    "adaptive_baseline_window": 3
+  },
+
+  "_comment_circuit_breaker": "Output admissibility quarantines low-coherence responses; the streak ends an agent that keeps producing them, but only on corroborated evidence. Step-up challenges at ELEVATED re-verify a drifting agent; two consecutive failures end it.",
+  "circuit_breaker": {
+    "enabled": true,
+    "output_admissibility": {
+      "enabled": true,
+      "threshold": 0.60,
+      "action": "quarantine",
+      "inadmissible_history": "exclude",
+      "max_quarantine_streak": 3,
+      "require_corroboration": 2,
+      "gate_tool_calls": true
+    },
+    "step_up_enabled": true,
+    "step_up_contextual": true,
+    "max_challenge_failures": 2,
+    "mandate_reinforcement_enabled": true,
+    "mandate_reinforcement_interval": 5
+  },
+
+  "_comment_escalation": "A repeated advisory becomes a HARD block (uncatchable). The count is per rule name across ALL agents (see tests/governance_v4/test_escalation_scope.sh).",
+  "advisory_escalation": { "enabled": true, "soft_after": 3 },
+
+  "_comment_health": "Pulse verdict and health warnings. check_after_turns 5 (default 10): a stub run has 7 agent turns, and at 10 the per-turn health check never ran.",
+  "governance_health": { "enabled": true, "check_after_turns": 5 },
+
+  "_comment_telemetry": "Tamper-evident chain, replayable decision snapshots, and a full transcript (prompts, responses, tool calls) committed into the chain.",
+  "telemetry": {
+    "enabled": true,
+    "output_file": "out/telemetry.jsonl",
+    "decision_snapshots": true,
+    "tamper_evidence": { "enabled": true },
+    "transcript": { "enabled": true, "output_file": "out/transcript.jsonl", "agents": [] }
+  }
+}
