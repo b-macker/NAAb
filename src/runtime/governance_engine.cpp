@@ -7986,6 +7986,8 @@ void GovernanceEngine::emitEndOfRunHealthWarnings(FILE* fp, const std::string& t
         size_t written = fwrite(line.c_str(), 1, line.size(), fp);
         if (written != line.size()) {
             telemetry_write_failures_.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            agent_events_written_.fetch_add(1, std::memory_order_relaxed);
         }
     };
 

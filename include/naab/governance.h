@@ -4026,6 +4026,10 @@ private:
     mutable std::mutex audit_mutex_;
     std::atomic<int> audit_write_failures_{0};
     mutable std::atomic<int> telemetry_write_failures_{0};
+    // Telemetry lines written live (agent events, chain anchors, attestations)
+    // rather than in the exit dump -- for the exit summary's count.
+    mutable std::atomic<long long> agent_events_written_{0};
+    mutable long long agent_events_reported_ = 0;
 
     // Telemetry forwarding (webhook/SIEM)
     mutable std::shared_ptr<TelemetryForwarder> telemetry_forwarder_;
