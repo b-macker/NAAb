@@ -60,7 +60,7 @@ echo ""
 # =====================================================================
 echo "--- Group B: Advisory Escalation ---"
 
-# B1: Advisory escalation to SOFT block (exit 3)
+# B1: Advisory escalation to a block (HARD, exit 3)
 B1DIR="$WORKDIR/b1"
 mkdir -p "$B1DIR"
 cat > "$B1DIR/govern.json" << 'EOF'
@@ -105,7 +105,7 @@ main {
 EOF
 OUT_B1=$("$NAAB" "$B1DIR/test.naab" 2>&1) && RC_B1=$? || RC_B1=$?
 if [ $RC_B1 -eq 3 ] && echo "$OUT_B1" | grep -q "ESCALATED"; then
-    ok "B1: advisory escalation to SOFT block (exit $RC_B1, ESCALATED in output)"
+    ok "B1: advisory escalation to a block (exit $RC_B1, ESCALATED in output)"
 else
     fail "B1: expected exit 3 + ESCALATED, got exit $RC_B1"
     echo "    output: ${OUT_B1:0:300}"

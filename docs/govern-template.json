@@ -1968,7 +1968,7 @@
     "rationale": "Graduated system-wide governance levels based on sustained composite pressure"
   },
 
-  "_comment_advisory_escalation": "Advisory Escalation — repeated advisory findings harden over time. 1st occurrence: warn. 2nd+: increase scoring weight by multiplier. N-th (soft_after): escalate to SOFT block. OSHA violation escalation analog: informal warning → formal → citation.",
+  "_comment_advisory_escalation": "Advisory Escalation — repeated advisory findings harden over time. 1st occurrence: warn. 2nd+: increase scoring weight by multiplier. N-th (soft_after): escalate to a HARD block (uncatchable, cannot be overridden). Occurrences are counted per rule name across the whole run (all agents together), and halved at each evidence-epoch boundary. OSHA violation escalation analog: informal warning → formal → citation.",
   "advisory_escalation": {
     "enabled": false,
     "soft_after": 3,

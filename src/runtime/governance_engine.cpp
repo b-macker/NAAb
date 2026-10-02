@@ -7,6 +7,7 @@
 //   ADVISORY  - Warn only. Execution continues.
 
 #include "naab/governance.h"
+#include <cstdarg>
 #include "naab/paths.h"
 #include "naab/limits.h"
 #include "naab/stdlib_new_modules.h"
@@ -19,6 +20,7 @@
 #include "naab/ast.h"
 #include "naab/interpreter.h"
 #include "naab/analyzer/syntactic_analyzer.h"
+#include <cstdarg>
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <functional>
@@ -1373,9 +1375,22 @@ std::string GovernanceEngine::enforce(
             std::unique_lock<std::mutex> adv_lock(results_mutex_);
             int& occurrence = emitted_advisories_[rule_name];
             occurrence++;
+            {
+                // Attribution for escalation: the count is shared by every caller
+                // of this rule, so record where this occurrence came from.
+                std::string site = checkFile().empty() ? std::string("<unattributed>")
+                    : (checkLine() > 0 ? checkFile() + ":" + std::to_string(checkLine())
+                                       : checkFile());
+                auto& sites = advisory_sites_[rule_name];
+                sites.push_back(std::move(site));
+                while (static_cast<int>(sites.size()) > occurrence) sites.pop_front();
+            }
 
             // Advisory Escalation: repeated advisories harden
-            // 1st: warn. 2nd+: increase weight. N-th (soft_after): escalate to SOFT block
+            // 1st: warn. 2nd+: increase weight. N-th (soft_after): block.
+            // The block is HARD (GovernanceHardError: uncatchable, no override), not
+            // the SOFT the feature was first described as -- see the level-promotion
+            // comment above, which contrasts the two.
             const auto& esc = rules().advisory_escalation;
             if (esc.enabled && occurrence >= esc.soft_after) {
                 g_governance_hard_block = true;
@@ -1385,9 +1400,31 @@ std::string GovernanceEngine::enforce(
                 // below does. Say so plainly, as the level-promotion path above
                 // does; repo-sentinel round 6 lost two runs to this path with
                 // the only explanation on screen claiming the run continued.
+                // Which locations the count came from. One count is shared by every
+                // agent and call site for this rule, so a kill message that only gave
+                // the count could not say whose drift (or whose findings) ended it.
+                std::string counted;
+                {
+                    std::vector<std::pair<std::string, int>> tally;
+                    for (const auto& site : advisory_sites_[rule_name]) {
+                        auto it = std::find_if(tally.begin(), tally.end(),
+                            [&](const auto& p) { return p.first == site; });
+                        if (it == tally.end()) tally.emplace_back(site, 1);
+                        else it->second++;
+                    }
+                    for (const auto& [site, n] : tally) {
+                        if (!counted.empty()) counted += ", ";
+                        counted += site + " x" + std::to_string(n);
+                    }
+                }
                 std::string escalation_msg = violation_message +
                     "\n\n  This advisory was escalated after repeated occurrences.\n"
                     "  It is now enforced as a block. Execution stops here.\n";
+                if (!counted.empty()) {
+                    escalation_msg += "  Occurrences counted: " + counted + "\n";
+                    check_results_.back().decision_trace.push_back(
+                        "escalation: occurrences counted: " + counted);
+                }
                 int occ_copy = occurrence;
                 fprintf(stderr, "[governance] ESCALATED %s (occurrence %d >= %d)\n",
                     rule_name.c_str(), occ_copy, esc.soft_after);
@@ -1397,6 +1434,7 @@ std::string GovernanceEngine::enforce(
                 fireHook(rules().hooks.on_violation, {
                     {"rule_name", rule_name}, {"level", "advisory_escalated"},
                     {"occurrence", std::to_string(occ_copy)},
+                    {"counted_sites", counted},
                     {"category", cat}
                 });
                 throw GovernanceHardError(escalation_msg);
@@ -3233,6 +3271,7 @@ void GovernanceEngine::flushGroupedAdvisories() {
         undeclared_effects_.clear();
         undeclared_effects_seen_.clear();
         emitted_advisories_.clear();
+        advisory_sites_.clear();
         advisory_count_ = 0;
         advisory_suppressed_ = 0;
     }
@@ -5023,6 +5062,26 @@ bool GovernanceEngine::signFile(const std::string& file_path) {
     return true;
 }
 
+// Signature-verification diagnostics. At startup a failed verification ends
+// the run, so its reason is printed as an INTEGRITY BLOCK. A mid-run reload is
+// different: a failure there only keeps the current config, and reload is
+// retried before every agent send. The reload path therefore installs a sink
+// (verifyFileSignatureQuiet) and reports the reason once, in its own words.
+static thread_local std::string* t_sig_diag_sink = nullptr;
+
+static void sigDiag(const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    if (t_sig_diag_sink) {
+        char buf[2048];
+        vsnprintf(buf, sizeof(buf), fmt, ap);
+        *t_sig_diag_sink += buf;
+    } else {
+        vfprintf(stderr, fmt, ap);
+    }
+    va_end(ap);
+}
+
 // V-SC-009: Unified signature verification (Ed25519 trust-anchored + HMAC legacy)
 bool GovernanceEngine::verifySignatureImpl(
     const std::string& file_path, const std::string& content) const
@@ -5034,7 +5093,7 @@ bool GovernanceEngine::verifySignatureImpl(
 
     // Detect mid-process trust store deletion (keys existed at startup, now gone)
     if (trustStoreTampered()) {
-        fprintf(stderr,
+        sigDiag(
             "[governance] INTEGRITY BLOCK: trust store keys removed during execution\n");
         return false;
     }
@@ -5047,7 +5106,7 @@ bool GovernanceEngine::verifySignatureImpl(
     if (!sig_exists) {
         // Trust store has keys → BLOCK (core V-SC-009 security fix)
         if (have_trust_keys) {
-            fprintf(stderr,
+            sigDiag(
                 "[governance] INTEGRITY BLOCK: %s.sig missing but trusted Ed25519 keys are installed.\n"
                 "  When trusted keys exist in %s,\n"
                 "  all governance files must be signed.\n"
@@ -5057,7 +5116,7 @@ bool GovernanceEngine::verifySignatureImpl(
         }
         // V-SC-008 legacy: HMAC key set → BLOCK
         if (have_hmac_key) {
-            fprintf(stderr,
+            sigDiag(
                 "[governance] INTEGRITY BLOCK: %s.sig missing but signing key is configured.\n"
                 "  When a signing key is present, all governance files must be signed.\n",
                 file_path.c_str());
@@ -5105,7 +5164,7 @@ bool GovernanceEngine::verifySignatureImpl(
             auto keys = security::TrustStore::loadKeys();
             if (keys.empty()) {
                 // Trust store was populated at hasTrustStoreKeys() but loadKeys() returned empty
-                fprintf(stderr,
+                sigDiag(
                     "[governance] INTEGRITY BLOCK: trust store directory emptied during verification\n");
                 return false;
             }
@@ -5119,7 +5178,7 @@ bool GovernanceEngine::verifySignatureImpl(
                 // Reject keys added after startup (mid-execution injection)
                 if (!s_initial_fingerprints.empty() &&
                     s_initial_fingerprints.count(fingerprint) == 0) {
-                    fprintf(stderr,
+                    sigDiag(
                         "[governance] INTEGRITY BLOCK: key %s was not present at startup"
                         " — rejecting.\n", fingerprint.c_str());
                     return false;
@@ -5130,7 +5189,7 @@ bool GovernanceEngine::verifySignatureImpl(
                 }
             }
             if (!verified) {
-                fprintf(stderr,
+                sigDiag(
                     "[governance] INTEGRITY BLOCK: %s signature does not match any trusted key.\n"
                     "  The Ed25519 signature was checked against %zu trusted key(s) — none matched.\n"
                     "  This file may have been signed with an untrusted key or tampered with.\n",
@@ -5144,14 +5203,14 @@ bool GovernanceEngine::verifySignatureImpl(
                 int64_t age_days = (now - signed_at) / 86400;
                 if (age_days > rules().trust_policy.max_signature_age_days) {
                     if (rules().trust_policy.stale_signature_level == governance::EnforcementLevel::HARD) {
-                        fprintf(stderr,
+                        sigDiag(
                             "[governance] STALE SIGNATURE BLOCK: %s is %lld days old (max: %d).\n"
                             "  The signing key holder must re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
                             rules().trust_policy.max_signature_age_days);
                         return false;
                     } else if (rules().trust_policy.stale_signature_level == governance::EnforcementLevel::SOFT) {
-                        fprintf(stderr,
+                        sigDiag(
                             "[governance] STALE SIGNATURE: %s is %lld days old (max: %d).\n"
                             "  The signing key holder must re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
@@ -5159,7 +5218,7 @@ bool GovernanceEngine::verifySignatureImpl(
                         // SOFT: block unless override enabled
                         if (!override_enabled_) return false;
                     } else {
-                        fprintf(stderr,
+                        sigDiag(
                             "[governance] WARNING: Signature on %s is %lld days old (max: %d).\n"
                             "  Consider having the signing key holder re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
@@ -5176,7 +5235,7 @@ bool GovernanceEngine::verifySignatureImpl(
         // If keys were never present → unconfigured environment, warn and proceed.
         if (signature_warned_files_.find(file_path) == signature_warned_files_.end()) {
             signature_warned_files_.insert(file_path);
-            fprintf(stderr,
+            sigDiag(
                 "[governance] WARNING: %s is Ed25519-signed but no trusted keys are installed.\n"
                 "  Signature cannot be verified.\n",
                 file_path.c_str());
@@ -5187,7 +5246,7 @@ bool GovernanceEngine::verifySignatureImpl(
     // HMAC signature (tagged or legacy)
     if (have_trust_keys) {
         // Trust store has Ed25519 keys but sig is HMAC → must re-sign
-        fprintf(stderr,
+        sigDiag(
             "[governance] INTEGRITY BLOCK: %s has legacy HMAC signature but Ed25519 trusted keys are installed.\n"
             "  Re-sign with Ed25519 to match the trust store.\n",
             file_path.c_str());
@@ -5197,7 +5256,7 @@ bool GovernanceEngine::verifySignatureImpl(
     // Legacy HMAC verification (no trust store)
     if (!have_hmac_key) {
         // V-SC-007: .sig exists but no HMAC key → fail closed
-        fprintf(stderr,
+        sigDiag(
             "[governance] INTEGRITY BLOCK: %s.sig exists but the signing key is not available.\n"
             "  This file is HMAC-signed. Without the key, the signature cannot be verified.\n",
             file_path.c_str());
@@ -5210,7 +5269,7 @@ bool GovernanceEngine::verifySignatureImpl(
 
     std::string expected = security::CryptoUtils::hmacSha256(content, hmac_key);
     if (!security::CryptoUtils::constantTimeCompare(expected, raw_sig)) {
-        fprintf(stderr,
+        sigDiag(
             "[governance] INTEGRITY BLOCK: %s has been modified since it was signed.\n"
             "  The HMAC signature does not match the file contents. This file is protected —\n"
             "  any modification without the signing key is detected and blocked. Do not attempt\n"
@@ -5221,6 +5280,22 @@ bool GovernanceEngine::verifySignatureImpl(
     }
 
     return true;
+}
+
+bool GovernanceEngine::verifyFileSignatureQuiet(
+    const std::string& file_path, std::string& diagnostics) const
+{
+    std::string* prev = t_sig_diag_sink;
+    t_sig_diag_sink = &diagnostics;
+    bool ok = false;
+    try {
+        ok = verifyFileSignature(file_path);
+    } catch (...) {
+        t_sig_diag_sink = prev;
+        throw;
+    }
+    t_sig_diag_sink = prev;
+    return ok;
 }
 
 bool GovernanceEngine::verifyFileSignature(const std::string& file_path) const {
@@ -8139,9 +8214,14 @@ void GovernanceEngine::decayAdvisoryHistory() {
     // Halve occurrence counts on epoch boundary — prior-epoch advisory evidence discounted
     for (auto it = emitted_advisories_.begin(); it != emitted_advisories_.end(); ) {
         it->second /= 2;
+        auto sit = advisory_sites_.find(it->first);
         if (it->second == 0) {
+            if (sit != advisory_sites_.end()) advisory_sites_.erase(sit);
             it = emitted_advisories_.erase(it);
         } else {
+            // Keep the most recent sites, matching the surviving count.
+            if (sit != advisory_sites_.end())
+                while (static_cast<int>(sit->second.size()) > it->second) sit->second.pop_front();
             ++it;
         }
     }

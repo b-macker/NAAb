@@ -7127,8 +7127,11 @@ static NaabVal agentRecordValidation(std::vector<NaabVal>& args) {
             "    failure lines) — grounds step-up challenges in the defect\n"
             "  - evidence_count: optional int — how many checks actually ran\n"
             "    (test count, assertion count). A pass carrying less evidence\n"
-            "    than the previous one earns no recovery credit: deleting the\n"
-            "    failing test also makes the suite pass\n\n"
+            "    than the previous one is scored as a failure: deleting the\n"
+            "    failing test also makes the suite pass\n"
+            "  - Report evidence_count only when every call counts the SAME\n"
+            "    suite. Calls that validate different subjects (one file, then\n"
+            "    another) must omit it, or a smaller subject reads as a shrink\n\n"
             "  Example:\n"
             "    let v = validate_code(...)\n"
             "    agent.record_validation(dev, v.get(\"pytest_passed\"), v.get(\"pytest_output\"), v.get(\"test_func_count\"))\n");

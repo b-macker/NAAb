@@ -189,7 +189,7 @@ NAAb's governance engine is what sets it apart. Drop a `govern.json` in your pro
 
 - **HARD** — Block execution. Code does not run. No override. Throws uncatchable `GovernanceHardError` (NAAb `try/catch` cannot intercept it). Process exits with code 3.
 - **SOFT** — Block execution. Code does not run unless `--governance-override` is passed.
-- **ADVISORY** — Warn and continue. Logged in audit trail. Repeated advisories escalate to SOFT via advisory escalation.
+- **ADVISORY** — Warn and continue. Logged in audit trail. With advisory escalation enabled, a repeated advisory escalates to a HARD block.
 - **DETECT** — Same detection as HARD but throws catchable exception. Used in test configurations where scripts verify violations via `try/catch`.
 
 ### govern.json Example

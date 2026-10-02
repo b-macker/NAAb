@@ -1667,7 +1667,7 @@ assert 'refinement_iterations' in d
         fi
 
         # Context only, deliberately not the pass condition. advisory_escalation
-        # would harden a repeated advisory into a SOFT block at soft_after, but
+        # would harden a repeated advisory into a (HARD) block at soft_after, but
         # the keyed run showed epoch boundaries resetting the occurrence counter
         # (it peaked at 5/8 with zero ESCALATED lines), so the total sitting
         # above soft_after does not by itself mean escalation fired.
