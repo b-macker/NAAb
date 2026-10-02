@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# timeout-shim -- records every `timeout` call made during a test run, then
+# defers to the real `timeout` with nothing changed.
+#
+# Installed as `timeout` at the front of PATH by run_timed.sh. It exists to
+# MEASURE the suite, so it must not alter what it measures:
+#
+#   * exit status    -- the real timeout's status is returned unchanged
+#                       (0, 1, 124 on expiry, 125-127, 128+N on a signal);
+#   * stdin          -- passed through explicitly: a bare background job in a
+#                       non-interactive shell gets /dev/null as stdin instead;
+#   * signals        -- forwarded. Without this, an enclosing timeout that
+#                       TERMs this wrapper would leave the real timeout and its
+#                       command running, orphaned;
+#   * output         -- untouched; the record goes to a separate log file.
+#
+# Env: NAAB_REAL_TIMEOUT (required, absolute path of the real binary),
+#      NAAB_TIMING_LOG   (optional; nothing is recorded when unset).
+REAL="${NAAB_REAL_TIMEOUT:-}"
+if [ -z "$REAL" ] || [ ! -x "$REAL" ]; then
+    echo "timeout-shim: NAAB_REAL_TIMEOUT is not an executable" >&2
+    exit 125
+fi
+t0=$(date +%s.%N 2>/dev/null || date +%s)
+"$REAL" "$@" <&0 &
+child=$!
+trap 'kill -TERM "$child" 2>/dev/null' TERM INT HUP
+# `wait` returns early (status > 128) when a trapped signal arrives; keep
+# waiting until the child has really exited so its status is the one returned.
+while :; do
+    wait "$child"
+    rc=$?
+    kill -0 "$child" 2>/dev/null || break
+done
+t1=$(date +%s.%N 2>/dev/null || date +%s)
+if [ -n "${NAAB_TIMING_LOG:-}" ]; then
+    # One printf = one write(2) to an O_APPEND file: concurrent records do not
+    # interleave. Tabs and newlines in arguments are flattened so a record is
+    # always exactly one line.
+    args="$*"
+    args="${args//$'\t'/ }"
+    args="${args//$'\n'/ }"
+    printf '%s\t%s\t%s\t%s\t%s\n' "$t0" "$t1" "$rc" "$PWD" "$args" >> "$NAAB_TIMING_LOG" 2>/dev/null || true
+fi
+exit "$rc"

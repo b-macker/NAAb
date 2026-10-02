@@ -56,8 +56,22 @@ jobs:
           ninja -C build naab_unit_tests -j$(nproc)
           bash tests/unit/run_unit_tests.sh
 
+      # Report-only timing: run_timed.sh runs run-all-tests.sh unchanged and
+      # returns its exit status, so the verdict is the suite's own. A shim in
+      # front of `timeout` records how long each suite and .naab test took; the
+      # summary lands on the job page and the raw data in the artifact.
+      # Self-test: tests/self-audit/test_test_timing.sh.
       - name: Run tests
-        run: bash run-all-tests.sh
+        run: bash tools/testtiming/run_timed.sh
+
+      - name: Upload test timing
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-timing-linux
+          path: test-timing/
+          if-no-files-found: ignore
+          retention-days: 14
 
   # Run the suite as a NON-ROOT user.
   #

@@ -3507,6 +3507,20 @@ if [ -f "$HANDOFF_SCRIPT" ]; then
 else
     echo "  test_shell_path_handoff.sh: not found, skipping"
 fi
+
+TIMING_SCRIPT="tests/self-audit/test_test_timing.sh"
+if [ -f "$TIMING_SCRIPT" ]; then
+    # tools/testtiming wraps this whole run in CI (report-only). This checks the
+    # wrapper is invisible to what it wraps: exit status, stdin, signals.
+    if run_shell_test "$TIMING_SCRIPT" 2>&1; then
+        echo "  test_test_timing.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_test_timing.sh")
+    fi
+else
+    echo "  test_test_timing.sh: not found, skipping"
+fi
 fi  # phase_runs shell
 
 # Print summary
