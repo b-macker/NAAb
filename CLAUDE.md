@@ -36,6 +36,14 @@ Expected breakdown: ~374 pass, ~51 error-behavior (intentional failures), ~12 ne
 
 Run a single test: `./build/naab-lang tests/path/to/test.naab`
 
+### Test timing (report-only)
+
+```bash
+bash tools/testtiming/run_timed.sh   # = run-all-tests.sh, plus test-timing/timing.{md,json}
+```
+
+CI's Build & Test runs the suite through this wrapper. It returns `run-all-tests.sh`'s exit status unchanged; a shim placed ahead of `timeout` on PATH records every suite and `.naab` test start (both are launched through `timeout`), and `report.py` attributes time to top-level calls only — a call inside a suite's time window is that suite's own work. The shim must stay invisible: exit status, stdin and signals pass through, which `tests/self-audit/test_test_timing.sh` checks with controls proving each arm can fail. **Local timings are not CI timings**: a default local build has no `CMAKE_BUILD_TYPE` (unoptimised) while CI builds `Release`, so CPU-heavy suites dominate locally — `test_r22_fixes.sh` took 480 s here against roughly 26 s for its 15 MB scan in CI. First local measurement (unoptimised, 2026-10-02): 39.8 min wall, 95% in 258 shell suites, 192 of them under 5 s, top 10 = 60% of suite time. Mutation testing was tried for test strength and deliberately reverted (#240: no consumer, ~19 job-hours, a misread headline number) — answer those reasons before reviving it.
+
 ### Differential / Oracle / Fuzz pipeline
 
 ```bash

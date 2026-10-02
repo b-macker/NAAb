@@ -1,6 +1,7 @@
 # Build directories
 build/
 build-*/
+test-timing/
 cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
