@@ -253,3 +253,5 @@ docs/book/verification/ch0_full_projects/Vigilant/scanner/shield_vessel
 
 # agent_harness run directories (run.sh writes one per run)
 examples/agent_harness/out/
+# ...but its signature IS the lock it ships with (the private key never is)
+!examples/agent_harness/src/govern.json.sig

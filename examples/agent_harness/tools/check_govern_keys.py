@@ -9,10 +9,12 @@ Exit 1: one or more keys are UNREAD -- a typo, or a key from a template or a
 Exit 2: usage error, or the parser source could not be read (UNMEASURABLE --
         never reported as a pass).
 
-Why this exists: nothing in the engine rejects an unknown key, and
-meta.schema_validation.warn_unknown_keys, which reads as though it would, is
-parsed and never consulted. A misspelled key is therefore indistinguishable
-from a working one until something fails to happen.
+Why this exists: the engine warns about unknown TOP-LEVEL keys only
+(validateSchema); a misspelled key inside a section is silently ignored, and
+meta.schema_validation.warn_unknown_keys, which reads as though it would
+change that, is parsed and never consulted. A misspelled nested key is
+therefore indistinguishable from a working one until something fails to
+happen.
 
 Scope: only src/runtime/governance_config.cpp is scanned. A section parsed in
 another file reports its keys as UNREAD, so on a large config treat a hit as
@@ -41,7 +43,7 @@ NAMED_MAPS = {
 # Keys whose value is a map of user-chosen names (field -> regex, signal ->
 # bool, ...). The key itself is checked; its children are names, not keys.
 NAME_VALUED = {"regex_checks", "field_types", "rule_weights", "context_drift_signals",
-               "must_derive_from"}
+               "must_derive_from", "function_intents", "expect"}
 
 
 def section_vocab(src_text):
