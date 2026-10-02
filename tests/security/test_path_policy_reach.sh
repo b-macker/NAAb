@@ -169,6 +169,14 @@ else
 fi
 
 # --- PR-07b: embedded Python is the carve-out ------------------------------
+# Only where Python IS embedded. A build without the in-process executor (the
+# Windows CI build disables Python3 discovery) runs <<python>> as a subprocess
+# with no audit hook -- i.e. as one of the subprocess languages PR-07 covers --
+# so a read there is CONTRA-013's documented boundary, not a regression. The
+# probe: an embedded block yields its value; the subprocess fallback yields null.
+printf 'main { let v = <<python\n1+1\n>>\nprint("PYVAL=" + string(v)) }\n' > "$W/pyprobe.naab"
+PY_PROBE=$( (cd "$W" && timeout 60s "$NAAB" --no-governance pyprobe.naab) 2>/dev/null )
+case "$PY_PROBE" in *PYVAL=2*) PY_EMBEDDED=1 ;; *) PY_EMBEDDED=0 ;; esac
 rm -f "$W/leaked.txt"
 cat > "$W/pybypass.naab" <<EOF
 main {
@@ -180,7 +188,9 @@ with open("secret.txt") as src:
 }
 EOF
 LAST_OUTPUT=$( (cd "$W" && timeout 60s "$NAAB" pybypass.naab) 2>&1 )
-if grep -q POLICY_REACH_SECRET "$W/leaked.txt" 2>/dev/null; then
+if [ "$PY_EMBEDDED" -ne 1 ]; then
+    skip "PR-07b" "no embedded Python executor in this build (subprocess fallback has no audit hook) -- UNMEASURABLE"
+elif grep -q POLICY_REACH_SECRET "$W/leaked.txt" 2>/dev/null; then
     bad "PR-07b" "embedded Python read a blocked path -- the audit hook does not consult the path policy"
 elif echo "$LAST_OUTPUT" | grep -q "denied by sandbox policy"; then
     ok "PR-07b" "embedded Python is held: the open() was refused at the audit hook"
