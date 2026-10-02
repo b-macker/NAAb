@@ -4550,12 +4550,29 @@ bool GovernanceEngine::reloadIfChanged() {
         loadFromJson(j, new_rules);
 
         // Verify signature — reject unsigned changes
-        if (!verifyFileSignature(loaded_path_)) {
+        // Quiet variant: verification's own diagnostics are worded for startup,
+        // where a failure is an INTEGRITY BLOCK that ends the run. Here a failure
+        // only keeps the current config, and this runs before every agent send,
+        // so the reason is reported once per mtime, in the reload's own words.
+        std::string sig_diag;
+        const bool sig_ok = verifyFileSignatureQuiet(loaded_path_, sig_diag);
+        if (sig_ok && !sig_diag.empty()) {
+            fmt::print(stderr, "{}", sig_diag);  // e.g. a stale-signature warning
+        }
+        if (!sig_ok) {
             // Suppress duplicate log/telemetry when the same mtime fails repeatedly.
             // The retry is still attempted (verification re-runs each call) but
             // we only emit diagnostics once per mtime to prevent log flooding.
             if (current_mtime != last_sig_fail_mtime_) {
-                fmt::print(stderr, "[governance] Reload rejected: signature verification failed\n");
+                std::string reason = sig_diag;
+                const std::string kBlockPrefix = "[governance] INTEGRITY BLOCK: ";
+                if (reason.rfind(kBlockPrefix, 0) == 0) reason.erase(0, kBlockPrefix.size());
+                auto nl = reason.find('\n');
+                if (nl != std::string::npos) reason.erase(nl);
+                fmt::print(stderr,
+                    "[governance] Reload rejected: signature verification failed{}{}\n"
+                    "  The run continues under the configuration already loaded.\n",
+                    reason.empty() ? "" : " - ", reason);
                 logAuditEvent("governance_reload_rejected", "governance_config",
                     "Signature verification failed on govern.json reload");
                 writeAgentTelemetry("CONFIG_ADJUSTMENT", {

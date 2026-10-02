@@ -3496,6 +3496,11 @@ public:
 
     // Integrity: Ed25519 + legacy HMAC signature verification (V-SC-009)
     bool verifyFileSignature(const std::string& file_path) const;
+    // Same verification, but the failure reason is returned in `diagnostics`
+    // instead of being printed. For the mid-run reload path, where a failure
+    // keeps the current config rather than blocking the run.
+    bool verifyFileSignatureQuiet(const std::string& file_path,
+                                  std::string& diagnostics) const;
     bool verifyContentSignature(const std::string& file_path,
                                  const std::string& content) const;
     bool verifySignatureImpl(const std::string& file_path,

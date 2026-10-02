@@ -2762,6 +2762,13 @@ reviewed file had a finding.
 - A passed step-up challenge restores 0.25 coherence; a failed validation costs
   0.15. An adversarial reviewer passed a `validation` challenge (state what
   failed and how to fix it) and failed validation again on the next turn.
-- A rejected mid-run reload prints `INTEGRITY BLOCK` (from signature
-  verification) beside "Reload rejected", while the run continues on the old
-  config.
+
+**Fixed in the same PR:** a rejected mid-run reload printed `INTEGRITY BLOCK`
+while the run continued on the old config, and printed it on EVERY retry (five
+lines for five governed calls in the regression fixture) although its own
+"Reload rejected" line was already once per change. The reload path now
+verifies through `verifyFileSignatureQuiet()` and reports the reason once, in
+its own words. Startup verification is unchanged. Test:
+`tests/governance_v4/test_reload_rejection_message.sh` (RR-04 and RR-05 are the
+controls: the same config at startup must still be an INTEGRITY BLOCK, and a
+validly re-signed change must still be accepted mid-run).
