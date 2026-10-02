@@ -690,6 +690,12 @@ public:
     // failure output) ground the "validation" step-up challenge type.
     // evidence_count: how many checks backed this outcome (test count, assertion
     // count, ...). -1 = not measured, which leaves shrink detection inert.
+    // The count is compared with the previous call's, with no notion of WHAT
+    // was counted, so it is only meaningful when every call counts the same
+    // suite. A caller validating different subjects (per-file reviews) must
+    // omit it: repo-sentinel round 7 paid four S22 failures per 10 turns on a
+    // reviewer whose every validation passed, because per-file finding counts
+    // (6, 5, 4, ...) read as shrinking evidence.
     bool recordValidationOutcome(int handle_id, bool passed,
         const std::unordered_set<std::string>& detail_keywords = {},
         int evidence_count = -1);

@@ -2679,7 +2679,7 @@ each twice: eight runs, raw telemetry handed over in full.
 |---|---|---|---|
 | Coherence never matched the listed penalties (reported as F-008) | Natural healing, temporal decay, the clamp at 0 and `recoverCoherence()` moved coherence with no telemetry | #263 (`coherence_adjustments`) | **confirmed** — 171 analyzed rows across 8 runs, 0 that fail to reconcile. Counted by the dogfood's own reconciler; the reviewer rows of one run were re-derived by hand here and match (1.0 − 0.15 + 0.015 = 0.865, then 0.730, 0.5567) |
 | The response after a retry-exhausted API call was never analyzed | The failure took the turn's analysis slot | #263 | **stub-only** — round 5 retried on 503s (73 retry/skip events) but no send was shown to exhaust its retries, which is the case the fix covers |
-| A clean reviewer was quarantined at turn 8 (C1f) | S5's entropy baseline frozen from startup turns; see `open-investigations.md` C1f | #265 (`entropy_baseline_adaptive` default true) | defect **confirmed** (4 of 4 runs of one arm, clean and adversarial alike, 0.556667 at turn 8 to six decimals). #265's adaptive default was then **confirmed NOT to fix it** in round 6 (on `ffb0108`): 3 of 3 clean runs still quarantined at turn 8, reference entropy frozen at 2.113 on turns 6-8. The fix is `vocab_contraction_agent_events_only` (S5 counts only the agent's own events) — **stub-only** until a live round runs on it |
+| A clean reviewer was quarantined at turn 8 (C1f) | S5's entropy baseline frozen from startup turns; see `open-investigations.md` C1f | #265 (`entropy_baseline_adaptive` default true) | defect **confirmed** (4 of 4 runs of one arm, clean and adversarial alike, 0.556667 at turn 8 to six decimals). #265's adaptive default was then **confirmed NOT to fix it** in round 6 (on `ffb0108`): 3 of 3 clean runs still quarantined at turn 8, reference entropy frozen at 2.113 on turns 6-8. The fix is `vocab_contraction_agent_events_only` (S5 counts only the agent's own events) — **confirmed live** in round 7 (on `3125c49`): 0 S5 firings across three 10-turn clean reviewer runs, and a control run with the key off fired S5 on turns 6–9 |
 
 ### A result that did not reproduce
 
@@ -2708,8 +2708,60 @@ which is the only reason C1f could be traced to six decimals.
 | Finding | Mechanism | Test | Live status |
 |---|---|---|---|
 | #265 did not remove the clean-run quarantine | The adaptive baseline re-derives from an early half that still contains turn 0 until the window slides past it; an 8-turn agent never gets there | `test_vocab_baseline.sh` VC-08 (the 20 → 5 residual was always there; it was misread as a fix) | **confirmed live** — 3 of 3 clean runs, identical coherence to four decimals |
-| A run-ending secret block missing from telemetry | Agent-path checks inherited the script's last check location; with `deduplicate_checks` on, the violation shared a (rule, file, line) key with an earlier pass and was dropped | `test_agent_check_location.sh` | **confirmed live** (repo-sentinel's blocked clean run: exit 3, no violation row); fix **stub-only** |
-| An escalated advisory said "execution will continue" while terminating the run | The message was formatted at ADVISORY; the escalation note never said the run stops | `test_escalation_message.sh` | **confirmed live** (two adversarial runs); fix **stub-only** |
+| A run-ending secret block missing from telemetry | Agent-path checks inherited the script's last check location; with `deduplicate_checks` on, the violation shared a (rule, file, line) key with an earlier pass and was dropped | `test_agent_check_location.sh` | **confirmed live** (repo-sentinel's blocked clean run: exit 3, no violation row); fix **confirmed live** in round 7 (adv1's `no_secrets` violation recorded at `<agent:fixer>`) |
+| An escalated advisory said "execution will continue" while terminating the run | The message was formatted at ADVISORY; the escalation note never said the run stops | `test_escalation_message.sh` | **confirmed live** (two adversarial runs); fix **confirmed live** in round 7 (two escalation kills, both printing "Execution stops here") |
 
 The dogfood's own summary script reported "no quarantine" for every run: it matched `result == "inadmissible"`, a value the engine never writes (`"fail"`). Five of six runs had in fact been quarantined. A two-valued probe that cannot match reports "absent", not "error" — `docs/investigation-method.md`, *A broken probe reports a finding, not an error*.
 
+### Round 7: the round-6 fixes confirmed, and a misread caller contract
+
+Round 7 ran on `3125c49` (#267) with round 6's config: three clean and three
+adversarial runs, then three extended clean runs (reviewer at 10 turns), a
+control with `vocab_contraction_agent_events_only: false`, and a rerun to
+isolate one variable.
+
+| Finding | Evidence | Live status |
+|---|---|---|
+| S5 counts only the agent's own events | Default: 0 S5 firings in every run, including three 10-turn clean reviewers. Control (key `false`): S5 fired on turns 6–9, 0.15 per turn, and the run died by escalation | **confirmed** |
+| Agent-path checks keep their location | Every agent check reads `<agent:NAME>`; script checks keep `sentinel.naab:NNN` / `<process.run:…>`; adv1's run-ending `no_secrets` row is present; dedup still collapsed 70 passes | **confirmed** |
+| Escalation says execution stops | adv2 and adv3 killed at occurrence 3 of 3, message ends "Execution stops here." | **confirmed** |
+| A clean reviewer, every validation passing, paid S22 four times per 10 turns | See below | caller error, not an engine defect |
+| Response after a retry-exhausted call is analyzed (#263) | One send exhausted 3/3 attempts (all 503); no later send on that handle | **still stub-only** |
+
+**The first clean runs could not answer the question.** The clean reviewer took
+one turn in each, against the turn-8 quarantine under test. Round 6's clean runs
+had executed the eight-prompt loop of the adversarial stage; round 7's did not.
+An absent defect on a run that never reaches turn 6 says nothing about S5, so
+the reviewer was extended to 10 turns before the result was accepted.
+
+**The extended tables were cumulative.** The project's telemetry file is
+appended across runs (the chain is file-anchored), and the dogfood's parser
+did not filter on `run_id`: "run4: 20 turns" was run3 plus run4, and per-turn
+admissibility results were overwritten between runs. Per-run figures had to be
+recovered by differencing.
+
+**S22 was scored on a count that was not evidence.** The reviewer's
+`agent.record_validation()` calls passed the number of FINDINGS as
+`evidence_count`, per file and then per narrowing follow-up question. Every
+validation passed, but the counts ran 6, 5, 4, 4, 4, 10, 4, 3, 4: each fall is a
+shrink, and a shrink is scored as a failure. Coherence fell to 0.56 in one run,
+failing admissibility and raising two of the three `coherence_loss` advisories
+that would escalate to a kill. Omitting the count from the per-file calls
+removed exactly the per-file penalties and left the follow-up ones. The engine
+behaved as designed; the contract it assumes (every call counts the same suite)
+was written nowhere, so the help text, the header and CLAUDE.md now state it.
+The same calls also set `passed = findings > 0`, which would score a correct
+"nothing found" on a clean file as a failure — not yet observed, because every
+reviewed file had a finding.
+
+**Open design questions raised, not changed:**
+- Advisory escalation of `context_drift.coherence_loss` kills an agent after
+  N advisories regardless of `output_admissibility.require_corroboration`; every
+  round-7 quarantine was uncorroborated (one distinct signal), so the streak
+  never advanced and every kill came through escalation instead.
+- A passed step-up challenge restores 0.25 coherence; a failed validation costs
+  0.15. An adversarial reviewer passed a `validation` challenge (state what
+  failed and how to fix it) and failed validation again on the next turn.
+- A rejected mid-run reload prints `INTEGRITY BLOCK` (from signature
+  verification) beside "Reload rejected", while the run continues on the old
+  config.
