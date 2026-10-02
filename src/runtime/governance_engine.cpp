@@ -6929,6 +6929,45 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
         }
     }
 
+    // CONTRA-014: a circuit_breaker child is enabled but the circuit breaker is not.
+    //
+    // circuit_breaker.enabled defaults to FALSE, and both output admissibility
+    // (every call site in agent_impl.cpp tests circuit_breaker.enabled AND
+    // output_admissibility.enabled) and governance-level escalation (the target
+    // level is only computed under cb.enabled) sit behind it. So a config that
+    // writes only "circuit_breaker": {"output_admissibility": {"enabled": true}}
+    // gets no gate, no OUTPUT_ADMISSIBILITY_EVAL event and no warning: the
+    // child reads as live and never runs. An outside dogfood run (Gemini,
+    // release-notes pipeline, F-01) lost all ten runs' admissibility this way
+    // and found it only by reading the source. step_up_enabled is half-masked:
+    // the expired-lease trigger still fires, but the level trigger
+    // (step_up_at_level) needs a level, and levels need the breaker.
+    // Unlike CONTRA-013 this names two keys that disagree, so it takes
+    // contradiction_detection.max_level like its siblings.
+    {
+        const auto& cb = rules().circuit_breaker;
+        if (!cb.enabled) {
+            std::vector<std::string> masked;
+            if (cb.output_admissibility.enabled)
+                masked.push_back("output_admissibility (never evaluated)");
+            if (cb.step_up_enabled)
+                masked.push_back("step_up_enabled (level-triggered challenges never fire; "
+                                 "only an expired lease triggers one)");
+            if (!masked.empty()) {
+                std::string list;
+                for (const auto& m : masked) { if (!list.empty()) list += "; "; list += m; }
+                ContradictionResult c;
+                c.pattern_id = "CONTRA-014";
+                c.description = "circuit_breaker.enabled is false (the default), so these "
+                                "circuit_breaker settings do not run: " + list;
+                c.level = level;
+                c.resolution = "Set circuit_breaker.enabled to true, or remove the settings "
+                               "that depend on it";
+                results.push_back(c);
+            }
+        }
+    }
+
     // Record each contradiction as a governance finding.
     //
     // rule_name goes to formatError as well as to enforce(). It used to be ""
