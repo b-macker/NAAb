@@ -2,6 +2,7 @@
 build/
 build-*/
 test-timing/
+test-parallel/
 cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
