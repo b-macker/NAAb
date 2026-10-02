@@ -2754,11 +2754,39 @@ The same calls also set `passed = findings > 0`, which would score a correct
 "nothing found" on a clean file as a failure — not yet observed, because every
 reviewed file had a finding.
 
-**Open design questions raised, not changed:**
-- Advisory escalation of `context_drift.coherence_loss` kills an agent after
-  N advisories regardless of `output_admissibility.require_corroboration`; every
-  round-7 quarantine was uncorroborated (one distinct signal), so the streak
-  never advanced and every kill came through escalation instead.
+**Raised, then found already settled — escalation of drift advisories.**
+Every round-7 quarantine was uncorroborated (one distinct signal), so the
+quarantine streak never advanced and every kill came through advisory
+escalation of `context_drift.coherence_loss`, which ignores
+`require_corroboration`. That looked like a bypass of corroboration. The record
+says otherwise, and the three questions it raises have different standing:
+
+- *Is drift escalation an intended kill path?* **Decided, yes.** `e3d443ec`
+  classified it as "a by-design termination" (a third kill kind in the
+  living-script harness) and raised `soft_after` 3 → 8 rather than exempting
+  drift, because "8 still hardens on genuinely repeated drift"; `9f63c4e`
+  (run 22) called the same kill "the ratchet working as designed". The
+  level-promotion exemption for `context_drift.*` (#169) is a different
+  argument — the governance level is derived from coherence, so promoting the
+  advisory would make HIGH terminal — and it does not carry over to a count.
+  Exempting drift from escalation would be a loosening; not proposed.
+- *Should agents share one count?* **Accepted, never reasoned about.** The
+  count is keyed by rule name for the whole engine; `e3d443ec` noted "occurrence
+  is counted per rule" and worked around it by raising the threshold, reasoning
+  only about developer turns although living-script feeds several agents into
+  the one count. Pinned as current behaviour by `test_escalation_message.sh`
+  EM-05/06, and the kill message now names whose occurrences were counted.
+- *Should epoch boundaries halve it?* **Decided in general, the specific case
+  undiscussed.** Halving at an evidence-epoch boundary is deliberate
+  (`3cd561e`, "prior-epoch evidence discounted"; `8b8d1085`), and its effect on
+  escalation was recorded above (counter peaked at 5 of 8). Not discussed
+  anywhere: a boundary the drift itself causes — an agent whose drift raises
+  the governance level halves its own count. No test pins the halving.
+
+The documentation called the escalation a SOFT block; it has always thrown
+`GovernanceHardError` (uncatchable, no override). Corrected in the same PR.
+
+**Still open:**
 - A passed step-up challenge restores 0.25 coherence; a failed validation costs
   0.15. An adversarial reviewer passed a `validation` challenge (state what
   failed and how to fix it) and failed validation again on the next turn.
