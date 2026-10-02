@@ -16,30 +16,59 @@
 # deterministic:
 #
 #   bash:    start_swap_operator "$run_dir"      # before each naab run
-#   python:  _swap("<src>", "<dst>")             # see SWAP_PY_PRELUDE
+#   python:  _swap("<src>", "<dst>")   # one round trip per call: swap the
+#                                        # .sig BEFORE govern.json
 #
 # The request travels through marker files in the program's cwd (the run dir),
 # which every fixture's path policy permits.
 
-SWAP_OPERATOR_PIDS=""
+# Operators are tracked in FILES, not a shell variable: callers commonly start
+# one inside $( ... ), a subshell whose variables die with it, and an operator
+# that outlived its run kept serving the SAME directory. Two operators on one
+# request race: a stale one finishing an earlier request deletes the next
+# request's files and touches .swap_done, so the program is told a swap
+# happened that never did (measured: .sig swapped, govern.json not, about 1
+# run in 12 as a non-root user). One operator per directory (a pidfile there),
+# plus a registry keyed by the top-level shell's $$ -- unchanged in subshells --
+# so cleanup can reach every operator this test started.
+_swap_registry() { echo "${TMPDIR:-/tmp}/.naab-swap-ops.$$"; }
+
+_swap_kill() {  # $1 = pid
+    kill "$1" 2>/dev/null || true
+    # `|| true`: callers may run under `set -e`.
+    for _ in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$1" 2>/dev/null || return 0; sleep 0.05; done
+    kill -9 "$1" 2>/dev/null || true
+}
 
 stop_swap_operators() {
-    local p
-    # `|| true`: callers may run under `set -e`, and wait reports the kill (143).
-    for p in $SWAP_OPERATOR_PIDS; do kill "$p" 2>/dev/null || true; wait "$p" 2>/dev/null || true; done
-    SWAP_OPERATOR_PIDS=""
+    local reg p
+    reg=$(_swap_registry)
+    [ -f "$reg" ] || return 0
+    while read -r p; do [ -n "$p" ] && _swap_kill "$p"; done < "$reg"
+    rm -f "$reg"
 }
 
 start_swap_operator() {  # $1 = directory the program runs in
-    local d="$1"
-    stop_swap_operators
+    local d="$1" old
+    if [ -f "$d/.swap_operator.pid" ]; then
+        read -r old < "$d/.swap_operator.pid" && _swap_kill "$old"
+    fi
     rm -f "$d/.swap_req" "$d/.swap_req.ready" "$d/.swap_done"
     (
         end=$((SECONDS + 180))
         while [ "$SECONDS" -lt "$end" ]; do
             if [ -f "$d/.swap_req.ready" ]; then
+                # Precaution, not a measured fix: reloadIfChanged() watches ONLY
+                # govern.json's mtime, and a rejected reload is final for that
+                # mtime. So govern.json lands last and by rename (atomic within
+                # a directory), and callers swap the .sig BEFORE govern.json --
+                # each _swap() is its own request, and a reload check between
+                # two requests must never see new content under an old .sig.
                 while IFS=$'\t' read -r s t; do
-                    [ -n "$s" ] && cp "$s" "$t"
+                    case "$t" in */govern.json|govern.json) ;; *) [ -n "$s" ] && cp "$s" "$t" ;; esac
+                done < "$d/.swap_req"
+                while IFS=$'\t' read -r s t; do
+                    case "$t" in */govern.json|govern.json) cp "$s" "$t.swaptmp" && mv -f "$t.swaptmp" "$t" ;; esac
                 done < "$d/.swap_req"
                 rm -f "$d/.swap_req" "$d/.swap_req.ready"
                 touch "$d/.swap_done"
@@ -47,5 +76,6 @@ start_swap_operator() {  # $1 = directory the program runs in
             sleep 0.05
         done
     ) >/dev/null 2>&1 &
-    SWAP_OPERATOR_PIDS="$!"
+    echo "$!" > "$d/.swap_operator.pid"
+    echo "$!" >> "$(_swap_registry)"
 }

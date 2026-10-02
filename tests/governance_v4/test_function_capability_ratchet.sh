@@ -131,8 +131,8 @@ def _swap(src, dst):
         time.sleep(0.05)
     raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-_swap("$TEST_TMP/loose/govern.json", "$TEST_TMP/govern.json")
 _swap("$TEST_TMP/loose/govern.json.sig", "$TEST_TMP/govern.json.sig")
+_swap("$TEST_TMP/loose/govern.json", "$TEST_TMP/govern.json")
 print("swapped")
 >>
     print(r1)

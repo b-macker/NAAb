@@ -934,8 +934,8 @@ def _swap(src, dst):
         time.sleep(0.05)
     raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-_swap("$RDIR/tight/govern.json", "$RDIR/govern.json")
 _swap("$RDIR/tight/govern.json.sig", "$RDIR/govern.json.sig")
+_swap("$RDIR/tight/govern.json", "$RDIR/govern.json")
 print("config tightened")
 >>
     print(r1)
@@ -991,8 +991,8 @@ def _swap(src, dst):
         time.sleep(0.05)
     raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-_swap("$RDIR/loose/govern.json", "$RDIR/govern.json")
 _swap("$RDIR/loose/govern.json.sig", "$RDIR/govern.json.sig")
+_swap("$RDIR/loose/govern.json", "$RDIR/govern.json")
 print("config loosened")
 >>
     print(r1)
@@ -1043,8 +1043,8 @@ def _swap(src, dst):
         time.sleep(0.05)
     raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-_swap("$RDIR/tight/govern.json", "$RDIR/govern.json")
 _swap("$RDIR/tight/govern.json.sig", "$RDIR/govern.json.sig")
+_swap("$RDIR/tight/govern.json", "$RDIR/govern.json")
 print("limits tightened")
 >>
     print(r1)
@@ -1100,8 +1100,8 @@ def _swap(src, dst):
         time.sleep(0.05)
     raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-_swap("$RDIR/tight/govern.json", "$RDIR/govern.json")
 _swap("$RDIR/tight/govern.json.sig", "$RDIR/govern.json.sig")
+_swap("$RDIR/tight/govern.json", "$RDIR/govern.json")
 print("shell tightened")
 >>
     print(r1)
@@ -1154,8 +1154,8 @@ def _swap(src, dst):
         time.sleep(0.05)
     raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-_swap("$RDIR/loose/govern.json", "$RDIR/govern.json")
 _swap("$RDIR/loose/govern.json.sig", "$RDIR/govern.json.sig")
+_swap("$RDIR/loose/govern.json", "$RDIR/govern.json")
 print("tried to loosen limits")
 >>
     print(r1)

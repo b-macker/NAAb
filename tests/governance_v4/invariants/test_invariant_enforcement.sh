@@ -119,8 +119,8 @@ def _swap(src, dst):
         time.sleep(0.05)
     raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-_swap("$R1DIR/tight/govern.json", "$R1DIR/govern.json")
 _swap("$R1DIR/tight/govern.json.sig", "$R1DIR/govern.json.sig")
+_swap("$R1DIR/tight/govern.json", "$R1DIR/govern.json")
 print("capability tightened")
 >>
     print(r1)
@@ -180,8 +180,8 @@ def _swap(src, dst):
         time.sleep(0.05)
     raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-_swap("$R2DIR/loose/govern.json", "$R2DIR/govern.json")
 _swap("$R2DIR/loose/govern.json.sig", "$R2DIR/govern.json.sig")
+_swap("$R2DIR/loose/govern.json", "$R2DIR/govern.json")
 print("tried to loosen capability")
 >>
     print(r1)
@@ -236,8 +236,8 @@ def _swap(src, dst):
         time.sleep(0.05)
     raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-_swap("$R3DIR/tight/govern.json", "$R3DIR/govern.json")
 _swap("$R3DIR/tight/govern.json.sig", "$R3DIR/govern.json.sig")
+_swap("$R3DIR/tight/govern.json", "$R3DIR/govern.json")
 print("limits tightened")
 >>
     print(r1)
@@ -298,8 +298,8 @@ def _swap(src, dst):
         time.sleep(0.05)
     raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-_swap("$R4DIR/tight/govern.json", "$R4DIR/govern.json")
 _swap("$R4DIR/tight/govern.json.sig", "$R4DIR/govern.json.sig")
+_swap("$R4DIR/tight/govern.json", "$R4DIR/govern.json")
 print("network disabled")
 >>
     print(r1)
@@ -355,8 +355,8 @@ def _swap(src, dst):
         time.sleep(0.05)
     raise RuntimeError("config swap operator did not respond")
 time.sleep(1)
-_swap("$R5DIR/loose/govern.json", "$R5DIR/govern.json")
 _swap("$R5DIR/loose/govern.json.sig", "$R5DIR/govern.json.sig")
+_swap("$R5DIR/loose/govern.json", "$R5DIR/govern.json")
 print("tried to loosen limits")
 >>
     print(r1)
