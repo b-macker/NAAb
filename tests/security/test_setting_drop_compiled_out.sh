@@ -40,7 +40,12 @@ fi
 
 W="$(mktemp -d "${TMPDIR:-/tmp}/naab-sdrop.XXXXXX")" || exit 1
 [ -n "$W" ] && [ -d "$W" ] || { echo "FATAL: no work dir" >&2; exit 1; }
-trap 'rm -rf "$W"' EXIT
+# The configs below are unsigned. With a populated trust store an unsigned
+# govern.json is an INTEGRITY BLOCK (exit 3) -- which is exactly the exit SD-02
+# expects, so the store must be isolated or SD-02 could pass for the wrong reason.
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
+trap 'teardown_isolated_trust; rm -rf "$W"' EXIT
 
 for d in off on; do
     mkdir -p "$W/$d"
