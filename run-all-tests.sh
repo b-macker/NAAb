@@ -2476,6 +2476,32 @@ else
     echo "  test_block_dlopen_error.sh: not found, skipping"
 fi
 
+# api_base: plain http only for a real loopback host (not a string prefix).
+API_BASE_LOOPBACK_SCRIPT="tests/security/test_api_base_loopback.sh"
+if [ -f "$API_BASE_LOOPBACK_SCRIPT" ]; then
+    if run_shell_test "$API_BASE_LOOPBACK_SCRIPT" 2>&1; then
+        echo "  test_api_base_loopback.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_api_base_loopback.sh")
+    fi
+else
+    echo "  test_api_base_loopback.sh: not found, skipping"
+fi
+
+# A long line in a polyglot block cannot crash the analyzers.
+ANALYZER_LONG_LINE_SCRIPT="tests/security/test_analyzer_long_line.sh"
+if [ -f "$ANALYZER_LONG_LINE_SCRIPT" ]; then
+    if run_shell_test "$ANALYZER_LONG_LINE_SCRIPT" 2>&1; then
+        echo "  test_analyzer_long_line.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_analyzer_long_line.sh")
+    fi
+else
+    echo "  test_analyzer_long_line.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then
