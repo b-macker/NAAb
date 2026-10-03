@@ -18,7 +18,13 @@
 #          but does not fail the gate (skips depend on the machine's tools)
 #   DG-04  an incomplete run fails the gate even with nothing flagged
 #   DG-05  an allowlist line without a valid kind or a reason is refused
-#   DG-06  every entry in the real allowlist names a unit run-all-tests.sh lists
+#   DG-06  every entry in the real allowlist names a REGISTERED unit: listed now,
+#          or its script exists and run-all-tests.sh names it. Some units are
+#          registered conditionally (the prescan canaries only when src/ is
+#          clean), so "listed on this machine right now" is the wrong test --
+#          it failed build-windows and would fail any developer with
+#          uncommitted src/ changes.
+#   DG-06c CONTROL: an entry naming a suite that does not exist IS reported
 # ============================================================
 set -uo pipefail
 
@@ -34,7 +40,7 @@ skip() { SKIP=$((SKIP+1)); echo "  SKIP [$1] $2"; }
 echo "=== The dead-interpreter gate decides correctly ==="
 
 if ! command -v python3 >/dev/null 2>&1; then
-    for id in DG-01 DG-01c DG-02 DG-03 DG-04 DG-05 DG-06; do skip "$id" "python3 unavailable (UNMEASURABLE)"; done
+    for id in DG-01 DG-01c DG-02 DG-03 DG-04 DG-05 DG-06 DG-06c; do skip "$id" "python3 unavailable (UNMEASURABLE)"; done
     echo ""; echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"; exit 0
 fi
 
@@ -106,17 +112,35 @@ if [ ! -f "$REPO/build/naab-lang" ]; then
     skip "DG-06" "no build/naab-lang -- run-all-tests.sh list mode refuses to start (UNMEASURABLE)"
 else
     ( cd "$REPO" && NAAB_TEST_PHASE=shell NAAB_TEST_LIST="$W/plan.tsv" bash run-all-tests.sh > "$W/list.out" 2>&1 )
-    missing=$(python3 - "$REPO/tests/self-audit/dead_interpreter_allowlist.txt" "$W/plan.tsv" <<'PY'
-import sys
-allow = [l.split("\t")[0] for l in open(sys.argv[1], encoding="utf-8").read().splitlines()
-         if l.strip() and not l.startswith("#")]
-units = {" ".join(l.split("\t")[2:]) for l in open(sys.argv[2], encoding="utf-8").read().splitlines()}
-print(" ".join(k for k in allow if k not in units))
-PY
-)
+    # unregistered <allowlist> -> entries naming no registered unit. Bytes in on
+    # stdin and paths relative to the repo, never a shell path handed to python.
+    unregistered() {
+        ( cd "$REPO" && python3 -c '
+import os, sys
+plan, allow = sys.argv[1], sys.argv[2]
+units = {" ".join(l.split("\t")[2:]) for l in open(plan, encoding="utf-8").read().splitlines()}
+ras = open("run-all-tests.sh", encoding="utf-8", errors="replace").read()
+bad = []
+for l in open(allow, encoding="utf-8").read().splitlines():
+    if not l.strip() or l.startswith("#"):
+        continue
+    key = l.split("\t")[0]
+    path = key.split(" ")[0]
+    if key in units or (os.path.isfile(path) and os.path.basename(path) in ras):
+        continue
+    bad.append(key)
+print(" ".join(bad))' "$1" "$2" )
+    }
+    missing=$(unregistered "$W/plan.tsv" "tests/self-audit/dead_interpreter_allowlist.txt")
     if [ ! -s "$W/plan.tsv" ]; then bad "DG-06" "list mode produced no units -- cannot check the allowlist"
-    elif [ -z "$missing" ]; then ok "DG-06" "every allowlist entry names a unit run-all-tests.sh lists"
-    else bad "DG-06" "allowlist names units run-all-tests.sh does not list" "$missing"; fi
+    elif [ -z "$missing" ]; then ok "DG-06" "every allowlist entry names a registered unit"
+    else bad "DG-06" "allowlist names units that are not registered" "$missing"; fi
+    printf 'tests/no/such_suite.sh\ttool\tcontrol entry\n' > "$W/ghost.txt"
+    ghost=$(unregistered "$W/plan.tsv" "$W/ghost.txt")
+    case "$ghost" in
+        *no/such_suite.sh*) ok "DG-06c" "CONTROL: an entry naming a non-existent suite is reported" ;;
+        *) bad "DG-06c" "a non-existent suite passed the registration check -- DG-06 cannot fail" "got: '$ghost'" ;;
+    esac
 fi
 
 echo ""
