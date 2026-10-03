@@ -11,6 +11,12 @@
 #          without a report there is no line to check
 #   TL-01  the tree-walker names the call's own line, not 0
 #   TL-02  both engines name the same line
+#   TL-03  "print" listed as a sink is enforced on BOTH engines. The VM's print
+#          check passed an unmarked label to checkTaintedSink, which looks the
+#          name up in the taint set, so it could never fire: the secret was
+#          printed under Governance: PASS while the tree-walker blocked it
+#   TL-03c CONTROL: the same config prints a clean string on both engines, so
+#          TL-03 is not passing because print itself is broken
 # ============================================================
 set -uo pipefail
 
@@ -86,6 +92,30 @@ else
     bad "TL-02" "the engines disagree on the line" \
         "http vm=${L_http_vm:-} tw=${L_http_tw:-}; file vm=${L_file_vm:-} tw=${L_file_tw:-}"
 fi
+
+# --- TL-03 / TL-03c: the print sink -------------------------------------------------
+mkdir -p "$W/p"
+cat > "$W/p/govern.json" <<'EOF'
+{ "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "elevated" },
+  "taint_tracking": { "enabled": true, "level": "hard", "sources": ["env.get"], "sinks": ["print"] } }
+EOF
+printf 'use env\nmain {\n    let s = env.get("TL_SECRET")\n    print(s)\n}\n' > "$W/p/tainted.naab"
+printf 'use env\nmain {\n    let s = env.get("TL_SECRET")\n    print("CLEAN_OUTPUT")\n}\n' > "$W/p/clean.naab"
+t3=""; c3=""
+for flag in "" "--tree-walk"; do
+    out=$(cd "$W/p" && TL_SECRET=LEAKED_SECRET timeout 20 "$NAAB" tainted.naab $flag 2>&1); rc=$?
+    case "$out" in
+        *LEAKED_SECRET*) t3="$t3 ${flag:-vm}:printed" ;;
+        *"reached sink 'print'"*) [ "$rc" -eq 3 ] || t3="$t3 ${flag:-vm}:rc=$rc" ;;
+        *) t3="$t3 ${flag:-vm}:no-report(rc=$rc)" ;;
+    esac
+    out=$(cd "$W/p" && TL_SECRET=x timeout 20 "$NAAB" clean.naab $flag 2>&1); rc=$?
+    case "$out" in *CLEAN_OUTPUT*) [ "$rc" -eq 0 ] || c3="$c3 ${flag:-vm}:rc=$rc" ;; *) c3="$c3 ${flag:-vm}:silent(rc=$rc)" ;; esac
+done
+if [ -z "$t3" ]; then ok "TL-03" "a tainted print is blocked on both engines (exit 3)"
+else bad "TL-03" "the print sink is not enforced on every engine" "$t3"; fi
+if [ -z "$c3" ]; then ok "TL-03c" "CONTROL: a clean print still prints on both engines"
+else bad "TL-03c" "a clean print did not print -- TL-03 proves nothing" "$c3"; fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"
