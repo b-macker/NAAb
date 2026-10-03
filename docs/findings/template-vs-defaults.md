@@ -10,8 +10,11 @@ leaving the key out. Where those give different governance, which side is intend
 and why did they diverge?
 
 **Measured on** `fecb13e` (master at session start), Linux container, Debug build.
-Tool: `tools/template_defaults/run.sh` (report-only, not in CI). Raw tables:
-`docs/template-default-audit/`.
+Re-checked against master `c6a648fc`: its only new commit changes neither
+template, `governance.h`, `governance_config.cpp` nor `main.cpp`, so the results
+stand. Raw tables: `docs/findings/template-vs-defaults/`. The comparison tool is
+code and is kept out of this PR; it is proposed separately (linked from the PR
+description), report-only and not wired into CI.
 
 ---
 
@@ -113,8 +116,8 @@ Every row also records the **empty-config** value, because a loader fallback
 differ from "section omitted" — five rows in §5.3 do.
 
 **Positive controls.** The dumper reports `adaptive_baseline_enabled` default
-`true` and a one-key config flips it (`run.sh` step 4 refuses to report without
-this). Each behavioural verification ran matched arms on the identical program
+`true` and a one-key config flips it (the tool's run script refuses to report
+without this). Each behavioural verification ran matched arms on the identical program
 with the omitted-key arm required to fire.
 
 **Tiers used below.** **verified** = behaviour run with matched arms and a control
@@ -273,7 +276,7 @@ recommendations.
   unless a comment says otherwise.
 
 **Proposed guard (for the follow-up, not built here):** a test that runs the
-deletion + masking passes of `tools/template_defaults/compare.py` over both copies
+deletion + masking passes of the comparison tool over both copies
 and fails on any field difference not listed in a *deviation register*, each entry
 naming the template comment that justifies it. It would have failed on all four
 flips above, and on every doc-sync commit that wrote a non-default value. Plus an
@@ -314,7 +317,7 @@ equality check between the two copies, or generate the docs copy from the root.
   commit messages that describe documenting keys; what would settle each one is the
   author's statement of intent — none was found in `docs/`.
 - **Not covered:** `naab-lang init`'s config is a third setup with its own
-  differences (`docs/template-default-audit/init_leaf_diffs.tsv`, 141 rows). It
+  differences (`docs/findings/template-vs-defaults/init_leaf_diffs.tsv`, 141 rows). It
   does **not** carry rows #1–#4 or #6, but shares #5 (timeout 60), #8 (taint
   `soft`, and enables taint), and the BSD window from #12.
 
@@ -335,13 +338,17 @@ equality check between the two copies, or generate the docs copy from the root.
 
 ## Reproduce
 
+With the separate tool PR checked out and naab-lang built (needs clang++ and
+python3):
+
 ```bash
-# from the repo root, after building naab-lang (needs clang++ and python3)
 bash tools/template_defaults/run.sh                          # root copy
 bash tools/template_defaults/run.sh docs/govern-template.json # docs copy
 ```
 Outputs: `leaf_diffs.tsv` (template / key omitted / empty-config value per field),
-`masked.tsv`, `isolate.json` (shadowed / unread / skipped / scanner), `scanner.tsv`.
-The behavioural arms (§3 #1, #2, #4, #5) are small programs under a two-line
-`govern.json`; their configs are given in the rows and were run with an isolated
-`HOME` so no trusted key in `~/.naab` could turn every arm into an integrity block.
+`masked.tsv`, `isolate.json` (shadowed / unread / skipped / scanner), `scanner.tsv`
+-- the files saved in `docs/findings/template-vs-defaults/` (`isolate.json` saved
+as `*_no_rules_effect.json`). The behavioural arms (§3 #1, #2, #4, #5) are small
+programs under a two-line `govern.json`; their configs are given in the rows and
+were run with an isolated `HOME` so no trusted key in `~/.naab` could turn every
+arm into an integrity block.
