@@ -26,6 +26,8 @@
 #          "no overlap" is not true of every schedule
 #   PR-06  compare flags an exit-status difference and a skip-marker difference
 #   PR-06c CONTROL: compare of a result with itself is EQUIVALENT
+#   PR-08  a SKIP marker is counted when the suite colours it (a colour code
+#          directly before the word defeats a word-boundary match)
 #   PR-07  the real run-all-tests.sh list mode refuses any phase but shell, and
 #          lists the units this suite is registered among (itself included)
 # ============================================================
@@ -42,13 +44,13 @@ skip() { SKIP=$((SKIP+1)); echo "  SKIP [$1] $2"; }
 echo "=== The parallel runner reports what ran, faithfully ==="
 
 if ! command -v python3 >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1; then
-    for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07; do
+    for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08; do
         skip "$id" "python3 or timeout unavailable (UNMEASURABLE)"; done
     echo ""; echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"; exit 0
 fi
 case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*)
-        for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07; do
+        for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08; do
             skip "$id" "the runner is POSIX-only (UNMEASURABLE here)"; done
         echo ""; echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"; exit 0 ;;
 esac
@@ -151,6 +153,14 @@ else bad "PR-05" "an exclusive unit ran alongside another" "excl/A=$e1 excl/B=$e
 if [ "$ab" = yes ]; then ok "PR-05c" "CONTROL: ordinary units under --jobs 3 DO overlap, so PR-05 can fail"
 else bad "PR-05c" "ordinary units never overlapped -- PR-05 proves nothing" "A/B=$ab"; fi
 unset PR_STAMP
+
+# --- PR-08 ----------------------------------------------------------------------------
+mk u/colour.sh 'printf "  \033[1;33mSKIP\033[0m [X-01] coloured\n  SKIP [X-02] plain\n"'
+write_plan "shell${T}60s${T}u/colour.sh"
+runp --jobs 1
+got=$(jq_py "print(d['results'][0]['skip_markers'])" 2>/dev/null)
+if [ "$got" = "2" ]; then ok "PR-08" "a coloured SKIP is counted alongside a plain one"
+else bad "PR-08" "skip markers miscounted" "expected 2, got '$got'"; fi
 
 # --- PR-06 / PR-06c -------------------------------------------------------------------------
 mkj() {  # $1 file, $2 rc of u/a.sh, $3 skips of u/b.sh

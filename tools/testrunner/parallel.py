@@ -94,6 +94,10 @@ HOME_STATE_PREFIXES = (".naab_cpp_cache", ".naab/cache", ".naab/logs", ".naab_hi
                        ".config/go")
 
 SKIP_RE = re.compile(rb"\b(SKIP|SKIPPED|UNMEASURABLE|XFAIL)\b")
+# Colour codes are stripped before counting: in "\x1b[33mSKIP" the "m" is a word
+# character, so \b never matches and a coloured marker went uncounted (7 suites,
+# 34 markers on the first full run).
+ANSI_RE = re.compile(rb"\x1b\[[0-9;]*[A-Za-z]")
 TOOLCHAIN_DIRS = {  # env var -> path under the real HOME
     "CARGO_HOME": ".cargo",
     "RUSTUP_HOME": ".rustup",
@@ -266,7 +270,7 @@ class Runner:
             "rc": rc, "verdict": "PASS" if (u["kind"] == "naab-phase" and rc == 0)
             else ("FAIL" if u["kind"] == "naab-phase" else verdict_for(u, rc)),
             "seconds": round(t1 - t0, 3), "start": round(t0 - self.t_start, 3),
-            "skip_markers": len(SKIP_RE.findall(body)),
+            "skip_markers": len(SKIP_RE.findall(ANSI_RE.sub(b"", body))),
             "log": os.path.relpath(log, self.out),
         }
         if home is not None:
