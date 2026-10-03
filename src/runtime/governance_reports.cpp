@@ -934,18 +934,30 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
         std::vector<char> cmdline_buf(cmdline.begin(), cmdline.end());
         cmdline_buf.push_back('\0');
 
+        // The hook runs in a job object so a timeout can end everything it
+        // started, as the POSIX path does with a process group. TerminateProcess
+        // alone ended only the hook itself: `cmd /c ping -n 60 ...` "timed out"
+        // while ping ran on. It starts suspended so it cannot spawn anything
+        // before it is in the job. No KILL_ON_JOB_CLOSE: like POSIX, only a
+        // TIMEOUT kills the tree; a hook that exits normally keeps whatever it
+        // deliberately left running. If the process cannot join the job (an
+        // outer job forbidding nesting), the old single-process kill remains.
+        HANDLE job = ::CreateJobObjectA(nullptr, nullptr);
         BOOL ok = ::CreateProcessA(nullptr, cmdline_buf.data(),
                                    nullptr, nullptr,
                                    hNul != INVALID_HANDLE_VALUE,
-                                   0, env_ptr, nullptr, &si, &pi);
+                                   CREATE_SUSPENDED, env_ptr, nullptr, &si, &pi);
         if (hNul != INVALID_HANDLE_VALUE) ::CloseHandle(hNul);
 
         if (ok) {
+            const bool in_job = job && ::AssignProcessToJobObject(job, pi.hProcess);
+            ::ResumeThread(pi.hThread);
             DWORD timeout_ms = static_cast<DWORD>(
                 (hook.timeout > 0 ? hook.timeout : 5) * 1000);
             DWORD waitRc = ::WaitForSingleObject(pi.hProcess, timeout_ms);
             if (waitRc == WAIT_TIMEOUT) {
-                ::TerminateProcess(pi.hProcess, 1);
+                if (in_job) ::TerminateJobObject(job, 1);
+                else ::TerminateProcess(pi.hProcess, 1);
                 ::WaitForSingleObject(pi.hProcess, 1000);
                 fprintf(stderr, "[governance] Hook killed (timeout)\n");
             } else {
@@ -957,6 +969,7 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
             ::CloseHandle(pi.hThread);
             ::CloseHandle(pi.hProcess);
         }
+        if (job) ::CloseHandle(job);
 #endif
     } catch (...) {
         // Hook failures must NEVER mask governance enforcement
