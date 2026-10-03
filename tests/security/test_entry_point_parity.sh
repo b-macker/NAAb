@@ -88,9 +88,9 @@ WDIR="$(mktemp -d)"
 SRV_PID=""
 STOPPED=0; SURVIVED=0
 cleanup() {
-    # wait reaps the server, so it no longer holds $WDIR/naab.db open when the
-    # rm below runs (Windows refuses to delete an open file).
-    [ -n "${SRV_PID:-}" ] && { kill -9 "$SRV_PID" 2>/dev/null; wait "$SRV_PID" 2>/dev/null; }
+    # kill_server waits, so the server no longer holds $WDIR/naab.db open when
+    # the rm below runs (Windows refuses to delete an open file).
+    kill_server
     teardown_isolated_trust
     rm -rf "$WDIR"
 }
@@ -132,11 +132,17 @@ start_server() {  # $1 = cfg ; sets SRV_PID and SRV_PORT
     done
     return 1
 }
-stop_server() {
+kill_server() {
     [ -n "${SRV_PID:-}" ] || return 0
     kill -9 "$SRV_PID" 2>/dev/null; wait "$SRV_PID" 2>/dev/null
     SRV_PID=""
-    # EP-05's evidence: the port, not the pid we hold.
+}
+# For a server whose /health answered: kill it, then gather EP-05's evidence --
+# the port, not the pid we hold. A server that never answered is killed with
+# kill_server instead and not counted, since its silence afterwards proves nothing.
+stop_server() {
+    [ -n "${SRV_PID:-}" ] || return 0
+    kill_server
     STOPPED=$((STOPPED+1))
     curl -sS --max-time 2 "http://127.0.0.1:$SRV_PORT/health" >/dev/null 2>&1 && SURVIVED=$((SURVIVED+1))
     return 0
@@ -156,7 +162,7 @@ json_escape() { python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))
 
 rest_probe() {  # $1=cfg $2=naab source $3=marker ; returns 0 if it EXECUTED
     rm -f "$3"
-    start_server "$1" || { REST_UP=0; return 1; }
+    start_server "$1" || { kill_server; REST_UP=0; return 1; }
     REST_UP=1
     local payload
     payload="$(printf '%s\n' "$2" | json_escape)"
