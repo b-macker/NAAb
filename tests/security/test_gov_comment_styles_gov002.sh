@@ -16,6 +16,12 @@ fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 # the suite could only say PASS or FAIL, so "SQL executor not available" was
 # recorded as a pass — a green result standing in for an unrun check.
 skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
+# The custom pattern is ADVISORY at this config's level: it warns, it never
+# changes the exit code. So "exit 0" cannot tell a stripped comment from a
+# detected one, and "output mentions governance" matches the [governance]
+# Loaded banner on every run. Each arm asserts on the detection message itself;
+# T2 is the positive control that the message appears for ACTIVE code.
+DETECTED="Hallucinated API pattern"
 
 WORK_DIR="${HOME}/.naab/gov002_$$"
 mkdir -p "$WORK_DIR"
@@ -67,7 +73,9 @@ if [[ "$ec" -ne 0 ]]; then
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/t1.naab" 2>&1) || ec2=$?
-    if [[ "$ec2" -eq 0 ]]; then
+    if [[ "$out2" == *"$DETECTED"* ]]; then
+        fail "False positive: SQL -- comment triggered custom pattern: ${out2:0:120}"
+    elif [[ "$ec2" -eq 0 ]]; then
         ok "SQL -- comment with FORBIDDEN_KEYWORD not blocked — comment properly stripped"
     elif echo "$out2" | grep -qi "FORBIDDEN\|hallucinated\|custom.*rule\|governance\|blocked"; then
         fail "False positive: SQL -- comment triggered custom pattern: ${out2:0:120}"
@@ -86,25 +94,36 @@ echo "[T2] SQL block: FORBIDDEN_KEYWORD in active SQL code must be blocked"
 cat > "$WORK_DIR/t2.naab" << 'NAAB'
 main {
     let result = <<sql
-SELECT FORBIDDEN_KEYWORD FROM table1
+SELECT 1 AS FORBIDDEN_KEYWORD
 >>
     print(string(result))
 }
 NAAB
 
+# The query is valid SQL on its own (FORBIDDEN_KEYWORD is an active column
+# alias, not a string or comment), so the probe below measures the executor and
+# nothing else. It was SELECT ... FROM table1, a table that never exists, so
+# the probe always failed. The probe runs from a directory with NO project
+# config: since #244 --no-governance cannot switch off the govern.json beside
+# t2.naab, whose whole point is to block this query.
+T2_PROBE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gov002_t2probe.XXXXXX")"
+cp "$WORK_DIR/t2.naab" "$T2_PROBE_DIR/t2.naab"
 ec=0
-out=$("$NAAB" "$WORK_DIR/t2.naab" --no-governance 2>&1) || ec=$?
+out=$("$NAAB" "$T2_PROBE_DIR/t2.naab" --no-governance 2>&1) || ec=$?
+rm -rf "$T2_PROBE_DIR"
 if [[ "$ec" -ne 0 ]]; then
     skip "T2 skipped — SQL executor not available: ${out:0:80}"
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/t2.naab" 2>&1) || ec2=$?
-    if echo "$out2" | grep -qi "FORBIDDEN\|hallucinated\|custom.*rule\|governance\|blocked\|denied"; then
+    if [[ "$out2" == *"$DETECTED in sql block: \"FORBIDDEN_KEYWORD\""* ]]; then
         ok "Real FORBIDDEN_KEYWORD in SQL correctly blocked — custom pattern active"
     elif [[ "$ec2" -ne 0 ]]; then
         skip "SQL block with forbidden keyword produced non-zero exit (exit $ec2)"
     else
-        skip "SQL executor ran without block (governance may not apply to SQL blocks without executor)"
+        # The probe just proved the executor runs this query, so running it
+        # unblocked under the governed config is the custom pattern failing.
+        fail "SQL with active FORBIDDEN_KEYWORD ran unblocked -- the custom pattern did not apply: ${out2:0:120}"
     fi
 fi
 
@@ -177,7 +196,9 @@ if [[ "$ec" -ne 0 ]] || ! echo "$out" | grep -q "clean"; then
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/t4.naab" 2>&1) || ec2=$?
-    if [[ "$ec2" -eq 0 ]] && echo "$out2" | grep -q "clean"; then
+    if [[ "$out2" == *"$DETECTED"* ]]; then
+        fail "False positive: Python # comment triggered custom pattern: ${out2:0:120}"
+    elif [[ "$ec2" -eq 0 ]] && echo "$out2" | grep -q "clean"; then
         ok "Python # comment with FORBIDDEN_KEYWORD not blocked — # comments properly stripped"
     elif echo "$out2" | grep -qi "FORBIDDEN\|hallucinated\|governance\|blocked"; then
         fail "False positive: Python # comment triggered custom pattern: ${out2:0:120}"
