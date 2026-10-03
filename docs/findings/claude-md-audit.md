@@ -1,7 +1,13 @@
 # CLAUDE.md audit — claims checked against commit `fecb13e7`
 
-**Audited commit:** `fecb13e700e7de268b220baffc990452a1b95d67` (main, 2026-10-03, #276).
+**Audited commit:** `fecb13e700e7de268b220baffc990452a1b95d67` (master, 2026-10-03, #276).
 Re-check a finding by checking out that SHA. Line numbers `Lnnn` refer to CLAUDE.md **at that commit**.
+
+**Status against later master** (updated as master moves):
+
+| master | CLAUDE.md change since `fecb13e7` | Effect on these findings |
+|---|---|---|
+| `c6a648fc` (#277) | +12 lines after L45 (new "Parallel runner and the dead-interpreter gate" section) | None addressed: #277 touches no `src/` file and none of the cited suites. On this master, add 12 to every `Lnnn` ≥ 47. #277 registers one more suite (`test_dead_interpreter_gate.sh`), so A2's counts were not re-measured for it. The new CLAUDE.md section itself was not audited. |
 
 **Report only.** Nothing in CLAUDE.md or the code was changed. Corrections are
 deferred until the concurrent CLAUDE.md edits settle. Section B lists findings to
