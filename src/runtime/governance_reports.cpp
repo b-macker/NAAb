@@ -780,6 +780,12 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
         if (pid == 0) {
             // === CHILD (only async-signal-safe calls below) ===
 
+            // Own process group, so a timeout can kill everything the hook
+            // started. Killing only this pid left `sh -c "sleep 60"`'s sleep
+            // running after the hook "timed out" -- the timeout bounded the
+            // shell, not the hook.
+            setpgid(0, 0);
+
             // V-SC-006: scrub governance keys from child environment.
             // unsetenv is technically not async-signal-safe, but these 3 calls
             // on constant strings have near-zero practical risk (no allocation in glibc).
@@ -804,6 +810,8 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
             _exit(127);  // exec failed
         }
 
+        setpgid(pid, pid);  // also from the parent: whichever runs first wins the race
+
         // Parent: poll waitpid with wall-clock timeout
         auto start = std::chrono::steady_clock::now();
         int timeout_ms = (hook.timeout > 0 ? hook.timeout : 5) * 1000;
@@ -816,7 +824,7 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
             if (w == -1) {
                 if (errno == EINTR) continue;
                 // ECHILD or other fatal error — kill and reap to prevent orphan/zombie
-                kill(pid, SIGKILL);
+                kill(-pid, SIGKILL);
                 waitpid(pid, &status, 0);
                 status = -1;
                 break;
@@ -824,12 +832,16 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
 
             auto elapsed = std::chrono::steady_clock::now() - start;
             if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() > timeout_ms) {
-                kill(pid, SIGKILL);
+                kill(-pid, SIGKILL);
                 waitpid(pid, &status, 0);
                 timed_out = true;
                 break;
             }
             usleep(50000);  // 50ms poll
+        }
+        // The child's own alarm() fired: the leader is gone, its group may not be.
+        if (!timed_out && status != -1 && WIFSIGNALED(status) && WTERMSIG(status) == SIGALRM) {
+            kill(-pid, SIGKILL);
         }
 
         // Diagnostic to stderr (generic — never include command or args)
