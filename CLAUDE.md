@@ -44,6 +44,18 @@ bash tools/testtiming/run_timed.sh   # = run-all-tests.sh, plus test-timing/timi
 
 CI's Build & Test runs the suite through this wrapper. It returns `run-all-tests.sh`'s exit status unchanged; a shim placed ahead of `timeout` on PATH records every suite and `.naab` test start (both are launched through `timeout`), and `report.py` attributes time to top-level calls only — a call inside a suite's time window is that suite's own work. The shim must stay invisible: exit status, stdin and signals pass through, which `tests/self-audit/test_test_timing.sh` checks with controls proving each arm can fail. **Local timings are not CI timings**: a default local build has no `CMAKE_BUILD_TYPE` (unoptimised) while CI builds `Release`, so CPU-heavy suites dominate locally — `test_r22_fixes.sh` took 480 s here against roughly 26 s for its 15 MB scan in CI. First local measurement (unoptimised, 2026-10-02): 39.8 min wall, 95% in 258 shell suites, 192 of them under 5 s, top 10 = 60% of suite time. Mutation testing was tried for test strength and deliberately reverted (#240: no consumer, ~19 job-hours, a misread headline number) — answer those reasons before reviving it.
 
+### Parallel runner and the dead-interpreter gate
+
+```bash
+python3 tools/testrunner/parallel.py run --jobs 4      # report-only; run-all-tests.sh stays the verdict
+python3 tools/testrunner/parallel.py compare A.json B.json
+python3 tools/testrunner/dead_gate.py run             # every suite vs an interpreter that does nothing
+```
+
+`parallel.py` never keeps its own suite list: it asks `run-all-tests.sh` (`NAAB_TEST_PHASE=shell NAAB_TEST_LIST=FILE` list mode), so a suite is registered in one place only. Each unit gets its own HOME/TMPDIR; units that cannot share the machine (the prescan canaries edit `src/`, libnaab builds in `build/`, wall-clock timeout bounds) run alone in an exclusive lane. Measured 2026-10-02: 4 jobs = 473 s vs 1202 s serial, and every unit's verdict and skip count matched the serial run in plan, shuffled and reversed order (#275).
+
+**Dead-interpreter gate** (CI job of the same name): `dead_gate.py` swaps `build/naab-lang` in a scratch copy for a script that prints nothing and exits 0. A suite that still passes CLEAN -- no failure, no SKIP/UNMEASURABLE -- cannot tell a working interpreter from a dead one, so the gate fails on it unless `tests/self-audit/dead_interpreter_allowlist.txt` gives a reason (`tool`: tests another binary; `structural`: checks source text; `weak`: runs naab-lang but cannot fail -- needs a positive control and leaves the list when it gets one). **A new suite that fails this gate needs a positive control** -- proof the program ran and produced its expected output -- not an allowlist entry. Do not add an entry without reading the suite. Its first run found two suites that printed FAIL and exited 0 (#276) and seven weak ones, inside a green suite.
+
 ### Differential / Oracle / Fuzz pipeline
 
 ```bash
