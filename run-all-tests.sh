@@ -1609,6 +1609,24 @@ else
     echo "  test_polyglot_gate_coverage.sh: not found, skipping"
 fi
 
+# --- Compiled-language temp directories (ScopedTempDir, every exit path) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Compile Temp Directories (none left in TMPDIR, incl. on timeout)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+TEMPDIR_CLEANUP_SCRIPT="tests/robustness/test_compile_tempdir_cleanup.sh"
+if [ -f "$TEMPDIR_CLEANUP_SCRIPT" ]; then
+    if run_shell_test "$TEMPDIR_CLEANUP_SCRIPT" 2>&1; then
+        echo "  test_compile_tempdir_cleanup.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_compile_tempdir_cleanup.sh")
+    fi
+else
+    echo "  test_compile_tempdir_cleanup.sh: not found, skipping"
+fi
+
 # --- Path policy precedence (F9) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

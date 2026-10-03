@@ -1,13 +1,13 @@
 #include "naab/interpreter.h"
 #include "naab/julia_executor.h"
 #include "naab/subprocess_helpers.h"
+#include "naab/scoped_temp_dir.h"
 #include "naab/sandbox.h"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <thread>
 #include <fmt/core.h>
-#include <sys/stat.h>  // V-RCE-010: chmod
 #include <unistd.h>
 
 namespace naab {
@@ -104,16 +104,13 @@ bool JuliaExecutor::execute(const std::string& code) {
         throw std::runtime_error("Julia execution denied by sandbox");
     }
 
-    // V-RCE-010: mkdtemp for secure temp directory
-    std::string tmpl = (std::filesystem::temp_directory_path() / "naab_julia_XXXXXX").string();
-    char* raw_dir = mkdtemp(tmpl.data());
-    if (!raw_dir) {
+    // V-RCE-010: mkdtemp for secure temp directory, removed on every exit
+    ScopedTempDir compile_dir(std::filesystem::temp_directory_path(), "naab_julia_");
+    if (!compile_dir.valid()) {
         fmt::print("[ERROR] Failed to create secure temp directory\n");
         return false;
     }
-    chmod(raw_dir, 0700);
-    std::filesystem::path compile_dir(raw_dir);
-    std::filesystem::path temp_jl = compile_dir / "src.jl";
+    std::filesystem::path temp_jl = compile_dir.path() / "src.jl";
 
     try {
         std::string julia_code = wrapJuliaCode(code, false);
@@ -140,9 +137,6 @@ bool JuliaExecutor::execute(const std::string& code) {
             stderr_buffer_.append(exec_stderr);
         }
 
-        // Clean up
-        std::filesystem::remove(temp_jl);
-
         if (exec_exit != 0) {
             fmt::print("[ERROR] Julia program failed (exit code {})\n", exec_exit);
         }
@@ -151,7 +145,6 @@ bool JuliaExecutor::execute(const std::string& code) {
 
     } catch (const std::exception& e) {
         fmt::print("[ERROR] Julia execution failed: {}\n", e.what());
-        std::filesystem::remove(temp_jl);
         return false;
     }
 }
@@ -167,15 +160,12 @@ interpreter::NaabVal JuliaExecutor::executeWithReturn(
         throw std::runtime_error("Julia execution denied by sandbox");
     }
 
-    // V-RCE-010: mkdtemp for secure temp directory
-    std::string tmpl2 = (std::filesystem::temp_directory_path() / "naab_julia_XXXXXX").string();
-    char* raw_dir2 = mkdtemp(tmpl2.data());
-    if (!raw_dir2) {
+    // V-RCE-010: mkdtemp for secure temp directory, removed on every exit
+    ScopedTempDir compile_dir(std::filesystem::temp_directory_path(), "naab_julia_");
+    if (!compile_dir.valid()) {
         return interpreter::NaabVal::makeString("Error: Failed to create secure temp directory");
     }
-    chmod(raw_dir2, 0700);
-    std::filesystem::path compile_dir2(raw_dir2);
-    std::filesystem::path temp_jl = compile_dir2 / "src.jl";
+    std::filesystem::path temp_jl = compile_dir.path() / "src.jl";
 
     try {
         std::string julia_code = wrapJuliaCode(code, true);
@@ -197,7 +187,6 @@ interpreter::NaabVal JuliaExecutor::executeWithReturn(
 
         if (exec_exit != 0) {
             std::string error_msg = exec_stderr;
-            std::filesystem::remove(temp_jl);
 
             // Add helpful hints for common Julia errors
             if (error_msg.find("UndefVarError") != std::string::npos ||
@@ -247,9 +236,6 @@ interpreter::NaabVal JuliaExecutor::executeWithReturn(
         }
         if (!exec_stderr.empty()) stderr_buffer_.append(exec_stderr);
 
-        // Cleanup
-        std::filesystem::remove(temp_jl);
-
         // Trim trailing whitespace/newlines
         std::string result = exec_stdout;
         while (!result.empty() && (result.back() == '\n' || result.back() == '\r' ||
@@ -265,9 +251,8 @@ interpreter::NaabVal JuliaExecutor::executeWithReturn(
         // Polyglot output is always a string — no implicit type coercion
         return interpreter::NaabVal::makeString(result);
 
-    } catch (const std::exception& e) {
-        std::filesystem::remove(temp_jl);
-        throw;
+    } catch (const std::exception&) {
+        throw;  // compile_dir's destructor removes the directory during unwinding
     }
 }
 
