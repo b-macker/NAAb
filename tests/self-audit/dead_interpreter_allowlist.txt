@@ -1,0 +1,48 @@
+# Units that pass CLEAN against a dead interpreter (prints nothing, exits 0),
+# and why that is acceptable -- read by tools/testrunner/dead_gate.py.
+#
+# <unit, as run-all-tests.sh list mode names it> TAB <kind> TAB <reason>
+#
+#   tool        tests something other than naab-lang
+#   structural  checks source text, headers or files, not behaviour
+#   weak        runs naab-lang but CANNOT FAIL on a dead one. Not acceptable,
+#               only known: each needs a positive control (proof the program
+#               ran and produced its expected output) and leaves this list when
+#               it gets one.
+#
+# Every reason was checked against the suite, not inferred from its name: two
+# suites that define $NAAB never run it, and say so below. Do not add an entry
+# without reading the suite -- an allowlist entry is the one way to make this
+# gate stop asking.
+
+tests/cli/test_naab_gov.sh	tool	tests the naab-gov CLI (the real binary is kept), not naab-lang
+tests/security/test_gov_output_shape.sh	tool	tests naab-gov's JSON output shape
+tests/security/test_code_injection_imports.sh	tool	tests naab-gov's import-injection verdicts
+tests/security/test_audit_hmac_required.sh	tool	tests naab-verify-audit, the audit-log verifier
+.github/scripts/merge_sarif.py --selftest	tool	self-test of the CI SARIF merger (Python)
+tests/governance_v4/test_gatelib.sh	tool	self-test of the shared gate library tests/helpers/gatelib.sh
+tests/governance_v4/test_stub_routing.sh	tool	tests the agent stub server's request routing (Python)
+examples/living-script_v3/run.sh --self-test	tool	each living-script gate against its own pass and fail fixture; no interpreter
+tests/self-audit/test_prescan_canaries.sh	tool	tests the stage-0 prescan scanner by injecting canaries into src/
+tests/self-audit/test_shell_path_handoff.sh	tool	checks shell-to-Python path handoff in the test tooling
+tests/self-audit/test_test_timing.sh	tool	tests tools/testtiming against a stand-in repo
+tests/self-audit/test_parallel_runner.sh	tool	tests tools/testrunner/parallel.py against a stand-in repo
+tests/self-audit/test_dead_interpreter_gate.sh	tool	tests this gate's classification on authored results
+tests/self-audit/test_state_field_screen.sh	tool	tests tools/screen_state_fields.py, a static source screen
+
+tests/embedding/test_libnaab_build.sh	structural	public headers exist and compile, libnaab is built
+tests/platform/test_platform_posix.sh	structural	platform files exist, platform.h compiles, the binary file exists
+tests/agent/test_agent_governance_symmetry.sh	structural	greps agent_impl.cpp; defines $NAAB but never runs it
+tests/agent/test_agent_governance_depth.sh	structural	greps source for governance call sites
+tests/security/test_r34_fixes.sh	structural	greps source for cycle detection; defines $NAAB but never runs it
+tests/security/test_error_msg_leaks.sh	structural	scans error strings in src/ for leaked bypass flags
+tests/governance_v4/test_inert_key_sweep.sh	structural	static sweep: config keys that no code reads
+tests/self-audit/test_coverage_visibility.sh	structural	every test directory and suite is registered and tracked
+
+tests/security/test_alarm_delivery_rt007.sh	weak	'infinite loop terminated in 0s': nothing checks the loop started
+tests/cli/test_async_timeout_async001.sh	weak	'finished within budget' also holds when nothing ran
+tests/security/test_marshal_depth_rt005.sh	weak	the only assertion is 'did not crash'
+tests/security/test_queue_cap_async002.sh	weak	the only assertion is 'did not crash'
+tests/differential/run_differential.sh	weak	VM and tree-walker 'agree' when both print nothing
+tests/fuzzing/run_fuzz_smoke.sh	weak	engines 'agree' on empty output; oracle gaps do not fail it
+tests/security/test_govern_json_fuzz.sh	weak	exit 0 on a malformed config counts as 'handled gracefully'

@@ -3573,6 +3573,21 @@ if [ -f "$PARALLEL_SCRIPT" ]; then
 else
     echo "  test_parallel_runner.sh: not found, skipping"
 fi
+
+DEADGATE_SCRIPT="tests/self-audit/test_dead_interpreter_gate.sh"
+if [ -f "$DEADGATE_SCRIPT" ]; then
+    # tools/testrunner/dead_gate.py runs every suite against an interpreter that
+    # does nothing (CI job "Dead-interpreter gate"). This checks its DECISION on
+    # authored results -- seconds, not the full run -- each arm with a control.
+    if run_shell_test "$DEADGATE_SCRIPT" 2>&1; then
+        echo "  test_dead_interpreter_gate.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_dead_interpreter_gate.sh")
+    fi
+else
+    echo "  test_dead_interpreter_gate.sh: not found, skipping"
+fi
 fi  # phase_runs shell
 
 # Print summary

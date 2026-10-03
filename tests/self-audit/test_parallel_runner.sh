@@ -159,7 +159,7 @@ mk u/colour.sh 'printf "  \033[1;33mSKIP\033[0m [X-01] coloured\n  SKIP [X-02] p
 write_plan "shell${T}60s${T}u/colour.sh"
 runp --jobs 1
 got=$(jq_py "print(d['results'][0]['skip_markers'])" 2>/dev/null)
-if [ "$got" = "2" ]; then ok "PR-08" "a coloured SKIP is counted alongside a plain one"
+if [ "$got" = "2" ]; then ok "PR-08" "a coloured skip marker is counted alongside a plain one"
 else bad "PR-08" "skip markers miscounted" "expected 2, got '$got'"; fi
 
 # --- PR-06 / PR-06c -------------------------------------------------------------------------
