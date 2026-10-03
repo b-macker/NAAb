@@ -349,8 +349,13 @@ bool CppExecutor::loadCompiledBlock(const std::string& block_id) {
     // Load shared library (dlopen should be fast, no timeout needed)
     void* handle = dlopen(canonical_path.c_str(), RTLD_LAZY);
     if (!handle) {
-        fmt::print("[ERROR] Failed to load library: {}\n", dlerror());
-        security::AuditLogger::logSecurityViolation("dlopen() failed: " + std::string(dlerror()));
+        // dlerror() returns the message once and then NULL, so read it once.
+        // Calling it twice handed NULL to std::string, which threw, and the
+        // real error was reported as "basic_string: construction from null".
+        const char* err = dlerror();
+        const std::string reason = err ? err : "unknown dlopen error";
+        fmt::print("[ERROR] Failed to load library: {}\n", reason);
+        security::AuditLogger::logSecurityViolation("dlopen() failed: " + reason);
         return false;
     }
 
@@ -404,8 +409,9 @@ interpreter::NaabVal CppExecutor::executeBlock(
     ExecuteFunc execute = (ExecuteFunc)dlsym(block->handle, block->entry_point.c_str());
 
     if (!execute) {
+        const char* err = dlerror();  // NULL when the symbol exists but is NULL
         fmt::print("[ERROR] Failed to find entry point '{}': {}\n",
-                   block->entry_point, dlerror());
+                   block->entry_point, err ? err : "symbol is null");
         return interpreter::NaabVal::makeNull();
     }
 

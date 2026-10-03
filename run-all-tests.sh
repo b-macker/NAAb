@@ -2463,6 +2463,19 @@ else
     echo "  test_async_engine_semantics.sh: not found, skipping"
 fi
 
+# A C++ block library that fails to dlopen() reports the loader's reason.
+DLERR_SCRIPT="tests/robustness/test_block_dlopen_error.sh"
+if [ -f "$DLERR_SCRIPT" ]; then
+    if run_shell_test "$DLERR_SCRIPT" 2>&1; then
+        echo "  test_block_dlopen_error.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_block_dlopen_error.sh")
+    fi
+else
+    echo "  test_block_dlopen_error.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then
