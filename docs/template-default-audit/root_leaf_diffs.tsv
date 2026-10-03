@@ -1,0 +1,421 @@
+template_key	template_value	field	template	key_omitted	empty_config
+version	"5.0"	version	"5.0"	""	""
+languages.allowed	["python", "javascript", "shell", "go", "nim", "ruby", "php"]	allowed_languages	["go","javascript","nim","php","python","ruby","shell"]	[]	[]
+languages.allowed	["python", "javascript", "shell", "go", "nim", "ruby", "php"]	languages.allowed	["go","javascript","nim","php","python","ruby","shell"]	[]	[]
+languages.per_language.python.version_hint	"3.8+"	languages.per_language["python"].version_hint	"3.8+"	""	None
+languages.per_language.python.timeout	15	languages.per_language["python"].timeout	15	0	None
+languages.per_language.python.max_lines	200	languages.per_language["python"].max_lines	200	0	None
+languages.per_language.python.banned_functions	["eval(", "exec(", "compile(", "__import__("]	languages.per_language["python"].banned_functions	["eval(","exec(","compile(","__import__("]	[]	None
+languages.per_language.python.imports.blocked	["subprocess", "ctypes", "os.system"]	languages.per_language["python"].imports.blocked	["subprocess","ctypes","os.system"]	[]	None
+languages.per_language.javascript.timeout	10	languages.per_language["javascript"].timeout	10	0	None
+languages.per_language.javascript.max_lines	150	languages.per_language["javascript"].max_lines	150	0	None
+languages.per_language.javascript.banned_functions	["eval(", "Function(", "setTimeout("]	languages.per_language["javascript"].banned_functions	["eval(","Function(","setTimeout("]	[]	None
+languages.per_language.javascript.imports.blocked	["child_process", "fs", "net"]	languages.per_language["javascript"].imports.blocked	["child_process","fs","net"]	[]	None
+languages.per_language.javascript.strict_mode	true	languages.per_language["javascript"].strict_mode	true	false	None
+languages.per_language.javascript.strict_mode	true	languages.per_language["javascript"].strict_mode_level	enum:1	enum:4	None
+languages.per_language.javascript.no_var	true	languages.per_language["javascript"].no_var	true	false	None
+languages.per_language.javascript.no_var	true	languages.per_language["javascript"].no_var_level	enum:1	enum:4	None
+languages.per_language.javascript.no_console_log	false	languages.per_language["javascript"].no_console_log_level	enum:1	enum:4	None
+languages.per_language.shell.timeout	10	languages.per_language["shell"].timeout	10	0	None
+languages.per_language.shell.max_lines	50	languages.per_language["shell"].max_lines	50	0	None
+languages.per_language.shell.banned_commands	["rm -rf /", "mkfs", "dd if=/dev/zero"]	languages.per_language["shell"].banned_commands	["rm -rf /","mkfs","dd if=/dev/zero"]	[]	None
+languages.per_language.shell.require_set_e	false	languages.per_language["shell"].require_set_e_level	enum:1	enum:3	None
+languages.per_language.shell.no_curl_pipe_sh	true	languages.per_language["shell"].no_curl_pipe_sh	true	false	None
+languages.per_language.shell.no_wget_pipe_bash	true	languages.per_language["shell"].no_wget_pipe_bash	true	false	None
+languages.per_language.go.timeout	30	languages.per_language["go"].timeout	30	0	None
+languages.per_language.go.max_lines	200	languages.per_language["go"].max_lines	200	0	None
+languages.per_language.go.banned_imports	["unsafe", "syscall"]	languages.per_language["go"].banned_imports	["unsafe","syscall"]	[]	None
+languages.per_language.go.require_package_main	true	languages.per_language["go"].require_package_main	true	false	None
+languages.per_language.nim.timeout	30	languages.per_language["nim"].timeout	30	0	None
+languages.per_language.nim.max_lines	200	languages.per_language["nim"].max_lines	200	0	None
+languages.per_language.ruby.timeout	10	languages.per_language["ruby"].timeout	10	0	None
+languages.per_language.ruby.max_lines	100	languages.per_language["ruby"].max_lines	100	0	None
+languages.per_language.ruby.banned_functions	["eval(", "system(", "exec("]	languages.per_language["ruby"].banned_functions	["eval(","system(","exec("]	[]	None
+languages.per_language.ruby.banned_globals	["$SAFE"]	languages.per_language["ruby"].banned_globals	["$SAFE"]	[]	None
+languages.per_language.php.timeout	10	languages.per_language["php"].timeout	10	0	None
+languages.per_language.php.max_lines	100	languages.per_language["php"].max_lines	100	0	None
+languages.per_language.php.banned_functions	["eval(", "exec(", "system(", "shell_exec(", "passthru("]	languages.per_language["php"].banned_functions	["eval(","exec(","system(","shell_exec(","passthru("]	[]	None
+languages.per_language.rust.timeout	60	languages.per_language["rust"].timeout	60	0	None
+languages.per_language.rust.max_lines	300	languages.per_language["rust"].max_lines	300	0	None
+languages.per_language.cpp.timeout	60	languages.per_language["cpp"].timeout	60	0	None
+languages.per_language.cpp.max_lines	300	languages.per_language["cpp"].max_lines	300	0	None
+languages.per_language.cpp.banned_functions	["system(", "exec("]	languages.per_language["cpp"].banned_functions	["system(","exec("]	[]	None
+languages.per_language.csharp.timeout	60	languages.per_language["csharp"].timeout	60	0	None
+languages.per_language.csharp.max_lines	300	languages.per_language["csharp"].max_lines	300	0	None
+languages.per_language.csharp.banned_namespaces	["System.Diagnostics.Process"]	languages.per_language["csharp"].banned_namespaces	["System.Diagnostics.Process"]	[]	None
+capabilities.network.blocked_hosts	["169.254.169.254", "metadata.google.internal"]	capabilities.network.blocked_hosts	["169.254.169.254","metadata.google.internal"]	[]	[]
+capabilities.network.allow_raw_sockets	false	capabilities.network.allow_raw_sockets	false	true	true
+capabilities.filesystem.blocked_paths	["/etc/shadow", "/etc/passwd"]	capabilities.filesystem.blocked_paths	["/etc/shadow","/etc/passwd"]	[]	[]
+capabilities.shell.blocked_commands	["sudo", "su", "chmod +s"]	capabilities.shell.blocked_commands	["sudo","su","chmod +s"]	[]	[]
+capabilities.env_vars.write	false	capabilities.env_vars.write	false	true	true
+capabilities.env_vars.blocked_read	["AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN"]	capabilities.env_vars.blocked_read	["AWS_SECRET_ACCESS_KEY","GITHUB_TOKEN"]	[]	[]
+capabilities.env_vars.blocked_write	["PATH", "HOME", "LD_PRELOAD"]	capabilities.env_vars.blocked_write	["PATH","HOME","LD_PRELOAD"]	[]	[]
+taint_tracking.level	"soft"	taint_tracking.level	"soft"	"hard"	"hard"
+taint_tracking.sources	["env.get", "io.read_line", "file.read", "polyglot_output"]	taint_tracking.sources	["env.get","io.read_line","file.read","polyglot_output"]	[]	[]
+taint_tracking.sinks	["shell_exec", "python_exec", "go_exec", "javascript_exec", "nim_exec", "file.write", "file.append", "http.", "env.set_var"]	taint_tracking.sinks	["shell_exec","python_exec","go_exec","javascript_exec","nim_exec","file.write","file.append","http.","env.set_var"]	[]	[]
+taint_tracking.sanitizers	["validate_", "sanitize_", "escape_"]	taint_tracking.sanitizers	["validate_","sanitize_","escape_"]	[]	[]
+limits.timeout.global	60	limits.timeout.global	60	0	0
+limits.timeout.global	60	runtime.timeout	60	30	30
+limits.timeout.global	60	timeout_seconds	60	0	0
+limits.timeout.per_block	30	limits.timeout.per_block	30	0	0
+limits.timeout.total_polyglot	120	limits.timeout.total_polyglot	120	0	0
+limits.memory.per_block_mb	256	limits.memory.per_block_mb	256	0	0
+limits.memory.total_mb	1024	limits.memory.total_mb	1024	0	0
+limits.memory.total_mb	1024	memory_limit_mb	1024	0	0
+limits.execution.call_depth	100	limits.execution.call_depth	100	0	0
+limits.execution.call_depth	100	max_call_depth	100	0	0
+limits.execution.loop_iterations	1000000	limits.execution.loop_iterations	1000000	0	0
+limits.execution.polyglot_blocks	50	limits.execution.polyglot_blocks	50	0	0
+limits.execution.parallel_blocks	4	limits.execution.parallel_blocks	4	0	0
+limits.execution.total_executions	200	limits.execution.total_executions	200	0	0
+limits.data.array_size	100000	limits.data.array_size	100000	0	0
+limits.data.array_size	100000	max_array_size	100000	0	0
+limits.data.dict_size	50000	limits.data.dict_size	50000	0	0
+limits.data.string_length	1000000	limits.data.string_length	1000000	0	0
+limits.data.output_size	1000000	limits.data.output_size	1000000	0	0
+limits.data.input_size	1000000	limits.data.input_size	1000000	0	0
+limits.code.max_lines_per_block	500	limits.code.max_lines_per_block	500	0	0
+limits.code.max_total_polyglot_lines	5000	limits.code.max_total_polyglot_lines	5000	0	0
+limits.code.max_nesting_depth	10	limits.code.max_nesting_depth	10	0	0
+limits.rate.max_polyglot_per_second	10	limits.rate.max_polyglot_per_second	10	0	0
+limits.rate.max_stdlib_calls_per_second	100	limits.rate.max_stdlib_calls_per_second	100	0	0
+limits.rate.max_file_ops_per_second	20	limits.rate.max_file_ops_per_second	20	0	0
+requirements.main_block.level	"soft"	main_block_level	enum:3	enum:1	enum:1
+requirements.main_block.level	"soft"	require_main_block	true	false	false
+requirements.main_block.level	"soft"	requirements.main_block.enabled	true	false	false
+requirements.main_block.level	"soft"	requirements.main_block.level	enum:3	enum:1	enum:1
+requirements.error_handling.level	"advisory"	error_handling_level	enum:4	enum:1	enum:1
+requirements.error_handling.level	"advisory"	require_error_handling	true	false	false
+restrictions.vcs_secret_extraction.enabled	false	restrictions.vcs_secret_extraction.enabled	false	true	true
+restrictions.vcs_secret_extraction.level	"hard"	restrictions.vcs_secret_extraction.level	enum:1	enum:3	enum:3
+restrictions.obfuscation.enabled	false	restrictions.obfuscation.enabled	false	true	true
+restrictions.obfuscation.level	"hard"	restrictions.obfuscation.level	enum:1	enum:3	enum:3
+restrictions.resource_abuse.enabled	true	restrictions.resource_abuse.enabled	true	false	false
+restrictions.crypto.weak_hashes	["md5", "sha1"]	restrictions.crypto.weak_hashes	["md5","sha1"]	[]	[]
+restrictions.crypto.weak_ciphers	["des", "rc4", "3des"]	restrictions.crypto.weak_ciphers	["des","rc4","3des"]	[]	[]
+code_quality.no_secrets.suspicious_variable_names.enabled	true	code_quality.no_secrets.suspicious_variable_names.enabled	true	false	false
+code_quality.no_secrets.suspicious_variable_names.names	["password", "secret", "api_key", "token", "private_key"]	code_quality.no_secrets.suspicious_variable_names.names	["password","secret","api_key","token","private_key"]	[]	[]
+code_quality.no_secrets.allowlist	["example.com", "localhost", "127.0.0.1"]	code_quality.no_secrets.allowlist	["example.com","localhost","127.0.0.1"]	[]	[]
+code_quality.no_placeholders.level	"soft"	no_placeholders_level	enum:3	enum:1	enum:3
+code_quality.no_placeholders.markers	["TODO", "FIXME", "STUB", "PLACEHOLDER", "HACK", "XXX", "TEMP"]	code_quality.no_placeholders.markers	["TODO","FIXME","STUB","PLACEHOLDER","HACK","XXX","TEMP"]	[]	[]
+code_quality.no_hardcoded_results.level	"advisory"	no_hardcoded_results_level	enum:4	enum:1	enum:4
+code_quality.no_mock_data.variable_prefixes	["mock_", "fake_", "dummy_", "test_"]	code_quality.no_mock_data.variable_prefixes	["mock_","fake_","dummy_","test_"]	[]	[]
+code_quality.no_mock_data.function_prefixes	["mock_", "fake_", "stub_"]	code_quality.no_mock_data.function_prefixes	["mock_","fake_","stub_"]	[]	[]
+code_quality.max_complexity.max_lines_per_block	100	code_quality.max_complexity.max_lines_per_block	100	0	0
+code_quality.max_complexity.max_nesting_depth	5	code_quality.max_complexity.max_nesting_depth	5	0	0
+code_quality.max_complexity.max_parameters	6	code_quality.max_complexity.max_parameters	6	0	0
+code_quality.complexity_floor.check_polyglot	false	code_quality.complexity_floor.check_polyglot	false	true	true
+code_quality.complexity_floor.rules.0.names	["test_"]	code_quality.complexity_floor.rules[0].names	["test_"]	[]	None
+code_quality.complexity_floor.rules.0.min_score	3	code_quality.complexity_floor.rules[0].min_score	3	10	None
+code_quality.complexity_floor.rules.1.names	["analyze", "compute", "calculate", "process", "transform", "evaluate", "optimize", "classify", "detect", "predict"]	code_quality.complexity_floor.rules[1].names	["analyze","compute","calculate","process","transform","evaluate","optimize","classify","detect","predict"]	[]	None
+code_quality.complexity_floor.rules.1.min_score	25	code_quality.complexity_floor.rules[1].min_score	25	10	None
+code_quality.complexity_floor.rules.1.require_branching_or_loops	true	code_quality.complexity_floor.rules[1].require_branching_or_loops	true	false	None
+code_quality.complexity_floor.rules.2.names	["sort", "search", "filter", "merge", "parse", "serialize", "encode", "decode", "compress", "encrypt"]	code_quality.complexity_floor.rules[2].names	["sort","search","filter","merge","parse","serialize","encode","decode","compress","encrypt"]	[]	None
+code_quality.complexity_floor.rules.2.min_score	20	code_quality.complexity_floor.rules[2].min_score	20	10	None
+code_quality.complexity_floor.rules.2.require_branching_or_loops	true	code_quality.complexity_floor.rules[2].require_branching_or_loops	true	false	None
+code_quality.complexity_floor.rules.3.names	["get", "set", "is_", "has_", "to_", "from_", "format", "wrap", "apply_", "move_", "check_", "destroy_", "find_", "render_", "load_", "spawn_", "format_", "make_"]	code_quality.complexity_floor.rules[3].names	["get","set","is_","has_","to_","from_","format","wrap","apply_","move_","check_","destroy_","find_","render_","load_","spawn_","format_","make_"]	[]	None
+code_quality.complexity_floor.rules.3.min_score	3	code_quality.complexity_floor.rules[3].min_score	3	10	None
+code_quality.intent_validation.enabled	false	code_quality.intent_validation.enabled	false	true	false
+code_quality.intent_validation.missing_level	"soft"	code_quality.intent_validation.missing_level	enum:3	enum:4	enum:4
+code_quality.no_oversimplification.level	"hard"	code_quality.no_oversimplification.level	enum:1	enum:3	enum:3
+code_quality.no_incomplete_logic.level	"hard"	code_quality.no_incomplete_logic.level	enum:1	enum:3	enum:3
+code_quality.no_hallucinated_apis.level	"soft"	code_quality.no_hallucinated_apis.level	enum:3	enum:4	enum:4
+code_quality.drift_detection.max_function_gain	0	code_quality.drift_detection.max_function_gain	0	0.5	0.5
+code_quality.drift_detection.max_comment_only_ratio	0.8	code_quality.drift_detection.max_comment_only_ratio	0.8	0.7	0.7
+code_quality.drift_detection.min_complexity_baseline	0	code_quality.drift_detection.min_complexity_baseline	0	10	10
+code_quality.drift_detection.min_hollow_export_complexity	3	code_quality.drift_detection.min_hollow_export_complexity	3	5	5
+integrity.blocked_flags	["--drift-baseline-save", "--governance-override"]	integrity.blocked_flags	["--drift-baseline-save","--governance-override"]	[]	[]
+trust.max_signature_age_days	90	trust_policy.max_signature_age_days	90	0	0
+prerequisites.checks.0.type	"python_version"	prerequisites.checks[0].type	"python_version"	""	None
+prerequisites.checks.0.name	"python3"	prerequisites.checks[0].name	"python3"	""	None
+prerequisites.checks.0.required	">=3.10"	prerequisites.checks[0].required	">=3.10"	""	None
+prerequisites.checks.1.type	"tool"	prerequisites.checks[1].type	"tool"	""	None
+prerequisites.checks.1.name	"jq"	prerequisites.checks[1].name	"jq"	""	None
+prerequisites.checks.1.required	"exists"	prerequisites.checks[1].required	"exists"	""	None
+prerequisites.checks.2.type	"env_var"	prerequisites.checks[2].type	"env_var"	""	None
+prerequisites.checks.2.name	"DATABASE_URL"	prerequisites.checks[2].name	"DATABASE_URL"	""	None
+prerequisites.checks.2.required	"exists"	prerequisites.checks[2].required	"exists"	""	None
+prerequisites.checks.2.level	"soft"	prerequisites.checks[2].level	enum:3	enum:4	None
+contracts.validate_inputs	true	contracts.validate_inputs	true	false	false
+contracts.functions.compute_area.params	["width:float", "height:float"]	contracts.functions["compute_area"].params	["width:float","height:float"]	[]	None
+contracts.functions.compute_area.return_type	"float"	contracts.functions["compute_area"].return_type	"float"	""	None
+contracts.functions.compute_area.return_min	0	contracts.functions["compute_area"].has_return_min	true	false	None
+contracts.functions.classify_text.params	["text:string"]	contracts.functions["classify_text"].params	["text:string"]	[]	None
+contracts.functions.classify_text.return_type	"string"	contracts.functions["classify_text"].return_type	"string"	""	None
+contracts.functions.classify_text.return_one_of	["positive", "negative", "neutral"]	contracts.functions["classify_text"].return_one_of	["positive","negative","neutral"]	[]	None
+contracts.functions.count_words.params	["text:string"]	contracts.functions["count_words"].params	["text:string"]	[]	None
+contracts.functions.count_words.return_type	"int"	contracts.functions["count_words"].return_type	"int"	""	None
+contracts.functions.count_words.return_min	0	contracts.functions["count_words"].has_return_min	true	false	None
+contracts.functions.fetch_users.return_type	"array"	contracts.functions["fetch_users"].return_type	"array"	""	None
+contracts.functions.fetch_users.return_non_empty	true	contracts.functions["fetch_users"].return_non_empty	true	false	None
+contracts.functions.parse_config.params	["path:string"]	contracts.functions["parse_config"].params	["path:string"]	[]	None
+contracts.functions.parse_config.return_type	"dict"	contracts.functions["parse_config"].return_type	"dict"	""	None
+contracts.functions.parse_config.return_keys	["host", "port", "database"]	contracts.functions["parse_config"].return_keys	["host","port","database"]	[]	None
+contracts.functions.process_order.params	["order_id:string", "items:array"]	contracts.functions["process_order"].params	["order_id:string","items:array"]	[]	None
+contracts.functions.process_order.return_type	"dict"	contracts.functions["process_order"].return_type	"dict"	""	None
+contracts.functions.normalize_severity.must_call	["string.lower"]	contracts.functions["normalize_severity"].must_call	["string.lower"]	[]	None
+contracts.functions.normalize_severity.must_contain	["match"]	contracts.functions["normalize_severity"].must_contain	["match"]	[]	None
+contracts.functions.compute_score.must_produce.0.args	["CRITICAL"]	contracts.functions["compute_score"].must_produce[0].args_json	[""CRITICAL""]	[]	None
+contracts.functions.compute_score.must_produce.0.expect	0	contracts.functions["compute_score"].must_produce[0].expect_json	"0"	""	None
+contracts.functions.compute_score.must_produce.1.args	["Error"]	contracts.functions["compute_score"].must_produce[1].args_json	[""Error""]	[]	None
+contracts.functions.compute_score.must_produce.1.expect	0	contracts.functions["compute_score"].must_produce[1].expect_json	"0"	""	None
+contracts.functions.compute_score.must_produce.2.args	["warning"]	contracts.functions["compute_score"].must_produce[2].args_json	[""warning""]	[]	None
+contracts.functions.compute_score.must_produce.2.expect	2	contracts.functions["compute_score"].must_produce[2].expect_json	"2"	""	None
+contracts.functions.compute_event_frequency.must_derive_from.events_per_minute	["events"]	contracts.functions["compute_event_frequency"].must_derive_from[0].params	["events"]	["events","window_seconds"]	None
+contracts.functions.compute_event_frequency.must_derive_from.events_per_minute	["events"]	contracts.functions["compute_event_frequency"].must_derive_from[0].return_key	"events_per_minute"	"peak_rate"	None
+contracts.functions.compute_alert_statistics.must_vary.0.key	"escalation_rate"	contracts.functions["compute_alert_statistics"].must_vary[0].key	"escalation_rate"	""	None
+contracts.functions.compute_alert_statistics.must_vary.0.across	"alerts"	contracts.functions["compute_alert_statistics"].must_vary[0].across	"alerts"	""	None
+contracts.functions.classify_event.must_differentiate.0.key	"category"	contracts.functions["classify_event"].must_differentiate[0].key	"category"	""	None
+contracts.functions.is_security_event.must_handle_case.0.expect	"consistent"	contracts.functions["is_security_event"].must_handle_case[0].expect	"consistent"	""	None
+contracts.functions.calculate_sla_compliance.must_satisfy	["result.compliance_rate >= 0", "result.compliance_rate <= 1"]	contracts.functions["calculate_sla_compliance"].must_satisfy	["result.compliance_rate >= 0","result.compliance_rate <= 1"]	[]	None
+contracts.functions.calculate_sla_compliance.must_satisfy_args	[[{"severity": "high"}, {"severity": "low"}]]	contracts.functions["calculate_sla_compliance"].must_satisfy_args_json	["[{"severity":"high"},{"severity":"low"}]"]	[]	None
+contracts.functions.validate_input.min_arity	1	contracts.functions["validate_input"].min_arity	1	-1	None
+contracts.functions.validate_input.max_arity	3	contracts.functions["validate_input"].max_arity	3	-1	None
+contracts.functions.validate_input.return_type	"bool"	contracts.functions["validate_input"].return_type	"bool"	""	None
+contracts.functions.fetch_data.return_type	"dict"	contracts.functions["fetch_data"].return_type	"dict"	""	None
+contracts.functions.fetch_data.return_keys	["data", "status"]	contracts.functions["fetch_data"].return_keys	["data","status"]	[]	None
+contracts.functions.fetch_data.return_not_null	true	contracts.functions["fetch_data"].return_not_null	true	false	None
+contracts.functions.fetch_data.return_keys_non_null	true	contracts.functions["fetch_data"].return_keys_non_null	true	false	None
+contracts.functions.fetch_data.return_keys_non_empty	true	contracts.functions["fetch_data"].return_keys_non_empty	true	false	None
+contracts.functions.format_output.return_type	"string"	contracts.functions["format_output"].return_type	"string"	""	None
+contracts.functions.format_output.return_length_min	1	contracts.functions["format_output"].return_length_min	1	-1	None
+contracts.functions.format_output.return_length_max	1000	contracts.functions["format_output"].return_length_max	1000	-1	None
+contracts.functions.format_output.return_matches	"^[A-Z].*\\.$"	contracts.functions["format_output"].return_matches	"^[A-Z].*\.$"	""	None
+contracts.functions.compute_bounded.return_type	"float"	contracts.functions["compute_bounded"].return_type	"float"	""	None
+contracts.functions.compute_bounded.return_range	[0.0, 100.0]	contracts.functions["compute_bounded"].has_return_range	true	false	None
+contracts.functions.compute_bounded.return_range	[0.0, 100.0]	contracts.functions["compute_bounded"].return_range_max	100	0	None
+contracts.functions.compute_bounded.return_max	100.0	contracts.functions["compute_bounded"].has_return_max	true	false	None
+contracts.functions.compute_bounded.return_max	100.0	contracts.functions["compute_bounded"].return_max	100	0	None
+contracts.functions.process_items.arity.min	1	contracts.functions["process_items"].min_arity	1	-1	None
+contracts.functions.process_items.arity.max	4	contracts.functions["process_items"].max_arity	4	-1	None
+contracts.functions.process_items.return_type	"array"	contracts.functions["process_items"].return_type	"array"	""	None
+custom_rules.0.id	"CUSTOM-001"	custom_rules[0].id	"CUSTOM-001"	""	None
+custom_rules.0.name	"no_eval_python"	custom_rules[0].name	"no_eval_python"	""	None
+custom_rules.0.pattern	"\\beval\\s*\\("	custom_rules[0].pattern	"\beval\s*\("	""	None
+custom_rules.0.pattern	"\\beval\\s*\\("	custom_rules[0].pattern_valid	true	false	None
+custom_rules.0.languages	["python"]	custom_rules[0].languages	["python"]	[]	None
+custom_rules.0.help	"eval() executes arbitrary code and is a security risk"	custom_rules[0].help	"eval() executes arbitrary code and is a security risk"	""	None
+custom_rules.0.good_example	"import json; data = json.loads(input_str)"	custom_rules[0].good_example	"import json; data = json.loads(input_str)"	""	None
+custom_rules.0.bad_example	"data = eval(input_str)"	custom_rules[0].bad_example	"data = eval(input_str)"	""	None
+custom_rules.0.tags	["security", "injection"]	custom_rules[0].tags	["security","injection"]	[]	None
+custom_rules.1.id	"CUSTOM-002"	custom_rules[1].id	"CUSTOM-002"	""	None
+custom_rules.1.name	"no_debug_prints"	custom_rules[1].name	"no_debug_prints"	""	None
+custom_rules.1.pattern	"print\\(.*[Dd]ebug"	custom_rules[1].pattern	"print\(.*[Dd]ebug"	""	None
+custom_rules.1.pattern	"print\\(.*[Dd]ebug"	custom_rules[1].pattern_valid	true	false	None
+custom_rules.1.level	"advisory"	custom_rules[1].level	enum:4	enum:1	None
+custom_rules.1.tags	["cleanup"]	custom_rules[1].tags	["cleanup"]	[]	None
+audit.level	"basic"	audit.level	"basic"	"none"	"none"
+audit.level	"basic"	audit_level	"basic"	"none"	"none"
+audit.log_events.polyglot_timing	true	audit.log_events.polyglot_timing	true	false	false
+audit.log_events.taint_decisions	true	audit.log_events.taint_decisions	true	false	false
+audit.log_events.contract_checks	true	audit.log_events.contract_checks	true	false	false
+telemetry.output_file	"telemetry.jsonl"	telemetry_output.output_file	"telemetry.jsonl"	""	""
+telemetry.tamper_evidence.enabled	false	telemetry_output.tamper_evidence.enabled	false	true	false
+telemetry.tamper_evidence.algorithm	"hmac-sha256"	telemetry_output.tamper_evidence.algorithm	"hmac-sha256"	"sha256"	"sha256"
+telemetry.tamper_evidence.chain_genesis	""	telemetry_output.tamper_evidence.chain_genesis	""	"NAAB-GOVERNANCE-GENESIS"	"NAAB-GOVERNANCE-GENESIS"
+telemetry.forward_retry_count	3	telemetry_output.forward_retry_count	3	2	2
+telemetry.forward_shutdown_drain_ms	3000	telemetry_output.forward_shutdown_drain_ms	3000	5000	5000
+telemetry.transcript.output_file	"transcript.jsonl"	transcript.output_file	"transcript.jsonl"	""	""
+agents.researcher.model	"claude-sonnet-4-20250514"	agents[1].model	"claude-sonnet-4-20250514"	""	None
+agents.researcher.model	"claude-sonnet-4-20250514"	agents[1].model_chain	["claude-sonnet-4-20250514"]	[]	None
+agents.researcher.api_key_env	"ANTHROPIC_API_KEY"	agents[1].api_key_envs	["ANTHROPIC_API_KEY"]	[]	None
+agents.researcher.system_prompt	"You are a research assistant."	agents[1].system_prompt	"You are a research assistant."	""	None
+agents.researcher.max_turns	20	agents[1].max_turns	20	50	None
+agents.researcher.max_total_tokens	50000	agents[1].max_total_tokens	50000	100000	None
+agents.researcher.response_format	"json"	agents[1].response_format	"json"	""	None
+agents.researcher.tools	["search", "read_file"]	agents[1].tools	["search","read_file"]	[]	None
+agents.researcher.allowed_languages	["python"]	agents[1].allowed_languages	["python"]	[]	None
+agents.researcher.allowed_paths	["./src", "./data"]	agents[1].allowed_paths	["./src","./data"]	[]	None
+agents.researcher.blocked_paths	["./secrets", "./.env"]	agents[1].blocked_paths	["./secrets","./.env"]	[]	None
+agents.researcher.shell_allowed	false	agents[1].shell_allowed	false	true	None
+agents.researcher.shell_allowed	false	agents[1].shell_allowed_set	true	false	None
+agents.researcher.shell_content_allowed	false	agents[1].shell_content_allowed_set	true	false	None
+agents.researcher.network_allowed	true	agents[1].network_allowed_set	true	false	None
+agents.researcher.stop_reason_action	""	agents[1].stop_reason_action	""	"end"	None
+agents.coder.provider	"gemini"	agents[0].provider	"gemini"	"anthropic"	None
+agents.coder.model	["gemma-3-4b-it", "gemini-2.5-flash"]	agents[0].model	"gemma-3-4b-it"	""	None
+agents.coder.model	["gemma-3-4b-it", "gemini-2.5-flash"]	agents[0].model_chain	["gemma-3-4b-it","gemini-2.5-flash"]	[]	None
+agents.coder.api_key_env	["GEMINI_API_KEY"]	agents[0].api_key_env	"GEMINI_API_KEY"	"ANTHROPIC_API_KEY"	None
+agents.coder.api_key_env	["GEMINI_API_KEY"]	agents[0].api_key_envs	["GEMINI_API_KEY"]	[]	None
+agents.coder.max_tokens	8192	agents[0].max_tokens	8192	4096	None
+agents.coder.system_prompt	"You are a coding assistant."	agents[0].system_prompt	"You are a coding assistant."	""	None
+agents.coder.max_total_tokens	200000	agents[0].max_total_tokens	200000	100000	None
+agents.coder.allowed_languages	["python", "shell"]	agents[0].allowed_languages	["python","shell"]	[]	None
+agents.coder.allowed_paths	["./src", "./tests"]	agents[0].allowed_paths	["./src","./tests"]	[]	None
+agents.coder.shell_allowed	true	agents[0].shell_allowed_set	true	false	None
+agents.coder.shell_content_allowed	false	agents[0].shell_content_allowed_set	true	false	None
+agents.coder.network_allowed	true	agents[0].network_allowed_set	true	false	None
+agents.coder.retry.max_attempts	3	agents[0].retry.max_attempts	3	1	None
+polyglot.variable_binding.require_explicit	false	polyglot.variable_binding.require_explicit_level	enum:1	enum:4	enum:4
+polyglot.parallel.max_parallel_blocks	4	polyglot.parallel.max_parallel_blocks	4	0	0
+polyglot.parallel.timeout_per_block	30	polyglot.parallel.timeout_per_block	30	0	0
+polyglot.persistent_runtime.max_sessions	5	polyglot.persistent_runtime.max_sessions	5	0	0
+polyglot.persistent_runtime.session_timeout	300	polyglot.persistent_runtime.session_timeout	300	0	0
+polyglot.persistent_runtime.max_memory_per_session_mb	256	polyglot.persistent_runtime.max_memory_per_session_mb	256	0	0
+polyglot_optimization.enforcement_level	"advisory"	polyglot_optimization.enforcement_level	"advisory"	"soft"	"soft"
+polyglot_optimization.pattern_detection.task_inference.numerical_operations.patterns	["\\bnp\\.", "\\bnumpy\\.", "matrix", "\\bsum\\(", "\\bmean\\(", "\\blinspace\\(", "\\beigenval", "\\bdet\\(", "\\bfft\\("]	polyglot_optimization.pattern_detection.task_inference["numerical_operations"].patterns	["\bnp\.","\bnumpy\.","matrix","\bsum\(","\bmean\(","\blinspace\(","\beigenval","\bdet\(","\bfft\("]	[]	None
+polyglot_optimization.pattern_detection.task_inference.numerical_operations.optimal_languages	["python", "nim"]	polyglot_optimization.pattern_detection.task_inference["numerical_operations"].optimal_languages	["python","nim"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.numerical_operations.suboptimal_languages	["javascript", "shell"]	polyglot_optimization.pattern_detection.task_inference["numerical_operations"].suboptimal_languages	["javascript","shell"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.string_processing.patterns	["\\bsplit\\(", "\\bjoin\\(", "\\breplace\\(", "\\bregex\\b", "\\bmatch\\(", "\\bsearch\\(", "\\bfindall\\(", "\\bstrip\\(", "\\btrim\\("]	polyglot_optimization.pattern_detection.task_inference["string_processing"].patterns	["\bsplit\(","\bjoin\(","\breplace\(","\bregex\b","\bmatch\(","\bsearch\(","\bfindall\(","\bstrip\(","\btrim\("]	[]	None
+polyglot_optimization.pattern_detection.task_inference.string_processing.optimal_languages	["python", "ruby", "nim"]	polyglot_optimization.pattern_detection.task_inference["string_processing"].optimal_languages	["python","ruby","nim"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.string_processing.suboptimal_languages	["go", "shell"]	polyglot_optimization.pattern_detection.task_inference["string_processing"].suboptimal_languages	["go","shell"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.file_operations.patterns	["\\bfind\\b", "\\bgrep\\b", "\\bsed\\b", "\\bawk\\b", "\\bls\\b", "\\bcat\\b", "\\bwc\\b", "\\bsort\\b", "\\bglob\\b", "\\bwalk\\b"]	polyglot_optimization.pattern_detection.task_inference["file_operations"].patterns	["\bfind\b","\bgrep\b","\bsed\b","\bawk\b","\bls\b","\bcat\b","\bwc\b","\bsort\b","\bglob\b","\bwalk\b"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.file_operations.optimal_languages	["shell"]	polyglot_optimization.pattern_detection.task_inference["file_operations"].optimal_languages	["shell"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.file_operations.suboptimal_languages	["javascript"]	polyglot_optimization.pattern_detection.task_inference["file_operations"].suboptimal_languages	["javascript"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.systems_calls.patterns	["\\bmalloc\\b", "\\bfree\\b", "pointer", "\\bunsafe\\b", "\\bsyscall\\b", "\\bmmap\\b"]	polyglot_optimization.pattern_detection.task_inference["systems_calls"].patterns	["\bmalloc\b","\bfree\b","pointer","\bunsafe\b","\bsyscall\b","\bmmap\b"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.systems_calls.optimal_languages	["nim", "go", "rust", "cpp"]	polyglot_optimization.pattern_detection.task_inference["systems_calls"].optimal_languages	["nim","go","rust","cpp"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.systems_calls.suboptimal_languages	["python", "javascript", "ruby"]	polyglot_optimization.pattern_detection.task_inference["systems_calls"].suboptimal_languages	["python","javascript","ruby"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.web_apis.patterns	["\\bfetch\\(", "\\bhttp\\.", "\\burl\\.", "\\bapi\\b", "\\brequest\\(", "XMLHttpRequest"]	polyglot_optimization.pattern_detection.task_inference["web_apis"].patterns	["\bfetch\(","\bhttp\.","\burl\.","\bapi\b","\brequest\(","XMLHttpRequest"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.web_apis.optimal_languages	["javascript", "python", "go"]	polyglot_optimization.pattern_detection.task_inference["web_apis"].optimal_languages	["javascript","python","go"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.web_apis.suboptimal_languages	["shell", "nim"]	polyglot_optimization.pattern_detection.task_inference["web_apis"].suboptimal_languages	["shell","nim"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.json_processing.patterns	["JSON\\.parse", "JSON\\.stringify", "json\\.", "\\bparse_json\\b", "json\\.dumps", "json\\.loads"]	polyglot_optimization.pattern_detection.task_inference["json_processing"].patterns	["JSON\.parse","JSON\.stringify","json\.","\bparse_json\b","json\.dumps","json\.loads"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.json_processing.optimal_languages	["javascript", "python", "nim"]	polyglot_optimization.pattern_detection.task_inference["json_processing"].optimal_languages	["javascript","python","nim"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.json_processing.suboptimal_languages	["cpp", "shell"]	polyglot_optimization.pattern_detection.task_inference["json_processing"].suboptimal_languages	["cpp","shell"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.concurrency.patterns	["\\bgoroutine\\b", "\\basync\\b", "\\bawait\\b", "\\bthread\\b", "\\bparallel\\b", "sync\\.WaitGroup", "\\bchannel\\b", "Promise\\."]	polyglot_optimization.pattern_detection.task_inference["concurrency"].patterns	["\bgoroutine\b","\basync\b","\bawait\b","\bthread\b","\bparallel\b","sync\.WaitGroup","\bchannel\b","Promise\."]	[]	None
+polyglot_optimization.pattern_detection.task_inference.concurrency.optimal_languages	["go", "javascript"]	polyglot_optimization.pattern_detection.task_inference["concurrency"].optimal_languages	["go","javascript"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.concurrency.suboptimal_languages	["python", "ruby"]	polyglot_optimization.pattern_detection.task_inference["concurrency"].suboptimal_languages	["python","ruby"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.data_parsing.patterns	["\\bcsv\\.", "\\bxml\\.", "\\byaml\\.", "BeautifulSoup", "\\bparse\\(", "DictReader"]	polyglot_optimization.pattern_detection.task_inference["data_parsing"].patterns	["\bcsv\.","\bxml\.","\byaml\.","BeautifulSoup","\bparse\(","DictReader"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.data_parsing.optimal_languages	["python", "javascript"]	polyglot_optimization.pattern_detection.task_inference["data_parsing"].optimal_languages	["python","javascript"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.data_parsing.suboptimal_languages	["shell", "go"]	polyglot_optimization.pattern_detection.task_inference["data_parsing"].suboptimal_languages	["shell","go"]	[]	None
+polyglot_optimization.profiling.enabled	true	polyglot_optimization.profiling.enabled	true	false	false
+polyglot_optimization.verification.consensus_languages	["python", "javascript", "go"]	polyglot_optimization.verification.consensus_languages	["python","javascript","go"]	[]	[]
+polyglot_optimization.verification.verify_task_types	["numerical_computation", "string_manipulation", "data_parsing", "file_operations", "cli_tool", "web_service", "async_operations", "systems_programming"]	polyglot_optimization.verification.verify_task_types	["numerical_computation","string_manipulation","data_parsing","file_operations","cli_tool","web_service","async_operations","systems_programming"]	[]	[]
+polyglot_optimization.language_diversity.max_single_language_percent	80	polyglot_optimization.language_diversity.max_single_language_percent	80	70	70
+polyglot_optimization.task_language_matrix.numerical_computation.python.score	85	polyglot_optimization.task_language_matrix["numerical_computation"]["python"].score	85	0	None
+polyglot_optimization.task_language_matrix.numerical_computation.python.reason	"NumPy/SciPy excellent for math"	polyglot_optimization.task_language_matrix["numerical_computation"]["python"].reason	"NumPy/SciPy excellent for math"	""	None
+polyglot_optimization.task_language_matrix.numerical_computation.nim.score	90	polyglot_optimization.task_language_matrix["numerical_computation"]["nim"].score	90	0	None
+polyglot_optimization.task_language_matrix.numerical_computation.nim.reason	"Compiled speed, good math libs"	polyglot_optimization.task_language_matrix["numerical_computation"]["nim"].reason	"Compiled speed, good math libs"	""	None
+polyglot_optimization.task_language_matrix.numerical_computation.go.score	50	polyglot_optimization.task_language_matrix["numerical_computation"]["go"].score	50	0	None
+polyglot_optimization.task_language_matrix.numerical_computation.go.reason	"No operator overloading, limited math"	polyglot_optimization.task_language_matrix["numerical_computation"]["go"].reason	"No operator overloading, limited math"	""	None
+polyglot_optimization.task_language_matrix.numerical_computation.javascript.score	35	polyglot_optimization.task_language_matrix["numerical_computation"]["javascript"].score	35	0	None
+polyglot_optimization.task_language_matrix.numerical_computation.javascript.reason	"Slow, limited numerical precision"	polyglot_optimization.task_language_matrix["numerical_computation"]["javascript"].reason	"Slow, limited numerical precision"	""	None
+polyglot_optimization.task_language_matrix.numerical_computation.shell.score	10	polyglot_optimization.task_language_matrix["numerical_computation"]["shell"].score	10	0	None
+polyglot_optimization.task_language_matrix.numerical_computation.shell.reason	"Not designed for computation"	polyglot_optimization.task_language_matrix["numerical_computation"]["shell"].reason	"Not designed for computation"	""	None
+polyglot_optimization.task_language_matrix.numerical_computation.ruby.score	40	polyglot_optimization.task_language_matrix["numerical_computation"]["ruby"].score	40	0	None
+polyglot_optimization.task_language_matrix.numerical_computation.ruby.reason	"Slow for heavy math"	polyglot_optimization.task_language_matrix["numerical_computation"]["ruby"].reason	"Slow for heavy math"	""	None
+polyglot_optimization.task_language_matrix.string_manipulation.python.score	100	polyglot_optimization.task_language_matrix["string_manipulation"]["python"].score	100	0	None
+polyglot_optimization.task_language_matrix.string_manipulation.python.reason	"Rich string API, regex built-in"	polyglot_optimization.task_language_matrix["string_manipulation"]["python"].reason	"Rich string API, regex built-in"	""	None
+polyglot_optimization.task_language_matrix.string_manipulation.ruby.score	95	polyglot_optimization.task_language_matrix["string_manipulation"]["ruby"].score	95	0	None
+polyglot_optimization.task_language_matrix.string_manipulation.ruby.reason	"Excellent string handling"	polyglot_optimization.task_language_matrix["string_manipulation"]["ruby"].reason	"Excellent string handling"	""	None
+polyglot_optimization.task_language_matrix.string_manipulation.nim.score	85	polyglot_optimization.task_language_matrix["string_manipulation"]["nim"].score	85	0	None
+polyglot_optimization.task_language_matrix.string_manipulation.nim.reason	"Fast + good stdlib"	polyglot_optimization.task_language_matrix["string_manipulation"]["nim"].reason	"Fast + good stdlib"	""	None
+polyglot_optimization.task_language_matrix.string_manipulation.javascript.score	80	polyglot_optimization.task_language_matrix["string_manipulation"]["javascript"].score	80	0	None
+polyglot_optimization.task_language_matrix.string_manipulation.javascript.reason	"Good string methods"	polyglot_optimization.task_language_matrix["string_manipulation"]["javascript"].reason	"Good string methods"	""	None
+polyglot_optimization.task_language_matrix.string_manipulation.go.score	65	polyglot_optimization.task_language_matrix["string_manipulation"]["go"].score	65	0	None
+polyglot_optimization.task_language_matrix.string_manipulation.go.reason	"Decent but verbose"	polyglot_optimization.task_language_matrix["string_manipulation"]["go"].reason	"Decent but verbose"	""	None
+polyglot_optimization.task_language_matrix.string_manipulation.shell.score	70	polyglot_optimization.task_language_matrix["string_manipulation"]["shell"].score	70	0	None
+polyglot_optimization.task_language_matrix.string_manipulation.shell.reason	"sed/awk/tr for simple transforms"	polyglot_optimization.task_language_matrix["string_manipulation"]["shell"].reason	"sed/awk/tr for simple transforms"	""	None
+polyglot_optimization.task_language_matrix.file_operations.shell.score	100	polyglot_optimization.task_language_matrix["file_operations"]["shell"].score	100	0	None
+polyglot_optimization.task_language_matrix.file_operations.shell.reason	"Built for file ops: find/grep/sed/awk"	polyglot_optimization.task_language_matrix["file_operations"]["shell"].reason	"Built for file ops: find/grep/sed/awk"	""	None
+polyglot_optimization.task_language_matrix.file_operations.python.score	80	polyglot_optimization.task_language_matrix["file_operations"]["python"].score	80	0	None
+polyglot_optimization.task_language_matrix.file_operations.python.reason	"Good pathlib, os modules"	polyglot_optimization.task_language_matrix["file_operations"]["python"].reason	"Good pathlib, os modules"	""	None
+polyglot_optimization.task_language_matrix.file_operations.nim.score	75	polyglot_optimization.task_language_matrix["file_operations"]["nim"].score	75	0	None
+polyglot_optimization.task_language_matrix.file_operations.nim.reason	"Fast filesystem access"	polyglot_optimization.task_language_matrix["file_operations"]["nim"].reason	"Fast filesystem access"	""	None
+polyglot_optimization.task_language_matrix.file_operations.go.score	70	polyglot_optimization.task_language_matrix["file_operations"]["go"].score	70	0	None
+polyglot_optimization.task_language_matrix.file_operations.go.reason	"Good os/filepath stdlib"	polyglot_optimization.task_language_matrix["file_operations"]["go"].reason	"Good os/filepath stdlib"	""	None
+polyglot_optimization.task_language_matrix.file_operations.ruby.score	70	polyglot_optimization.task_language_matrix["file_operations"]["ruby"].score	70	0	None
+polyglot_optimization.task_language_matrix.file_operations.ruby.reason	"File and Dir classes"	polyglot_optimization.task_language_matrix["file_operations"]["ruby"].reason	"File and Dir classes"	""	None
+polyglot_optimization.task_language_matrix.file_operations.javascript.score	40	polyglot_optimization.task_language_matrix["file_operations"]["javascript"].score	40	0	None
+polyglot_optimization.task_language_matrix.file_operations.javascript.reason	"Node.js fs module limited in polyglot"	polyglot_optimization.task_language_matrix["file_operations"]["javascript"].reason	"Node.js fs module limited in polyglot"	""	None
+polyglot_optimization.task_language_matrix.web_apis.javascript.score	100	polyglot_optimization.task_language_matrix["web_apis"]["javascript"].score	100	0	None
+polyglot_optimization.task_language_matrix.web_apis.javascript.reason	"fetch API, JSON native"	polyglot_optimization.task_language_matrix["web_apis"]["javascript"].reason	"fetch API, JSON native"	""	None
+polyglot_optimization.task_language_matrix.web_apis.python.score	90	polyglot_optimization.task_language_matrix["web_apis"]["python"].score	90	0	None
+polyglot_optimization.task_language_matrix.web_apis.python.reason	"requests/urllib excellent"	polyglot_optimization.task_language_matrix["web_apis"]["python"].reason	"requests/urllib excellent"	""	None
+polyglot_optimization.task_language_matrix.web_apis.go.score	85	polyglot_optimization.task_language_matrix["web_apis"]["go"].score	85	0	None
+polyglot_optimization.task_language_matrix.web_apis.go.reason	"net/http in stdlib"	polyglot_optimization.task_language_matrix["web_apis"]["go"].reason	"net/http in stdlib"	""	None
+polyglot_optimization.task_language_matrix.web_apis.ruby.score	75	polyglot_optimization.task_language_matrix["web_apis"]["ruby"].score	75	0	None
+polyglot_optimization.task_language_matrix.web_apis.ruby.reason	"net/http available"	polyglot_optimization.task_language_matrix["web_apis"]["ruby"].reason	"net/http available"	""	None
+polyglot_optimization.task_language_matrix.web_apis.nim.score	65	polyglot_optimization.task_language_matrix["web_apis"]["nim"].score	65	0	None
+polyglot_optimization.task_language_matrix.web_apis.nim.reason	"httpclient available"	polyglot_optimization.task_language_matrix["web_apis"]["nim"].reason	"httpclient available"	""	None
+polyglot_optimization.task_language_matrix.web_apis.shell.score	50	polyglot_optimization.task_language_matrix["web_apis"]["shell"].score	50	0	None
+polyglot_optimization.task_language_matrix.web_apis.shell.reason	"curl/wget work but limited"	polyglot_optimization.task_language_matrix["web_apis"]["shell"].reason	"curl/wget work but limited"	""	None
+polyglot_optimization.task_language_matrix.json_processing.javascript.score	100	polyglot_optimization.task_language_matrix["json_processing"]["javascript"].score	100	0	None
+polyglot_optimization.task_language_matrix.json_processing.javascript.reason	"JSON.parse/stringify native"	polyglot_optimization.task_language_matrix["json_processing"]["javascript"].reason	"JSON.parse/stringify native"	""	None
+polyglot_optimization.task_language_matrix.json_processing.python.score	95	polyglot_optimization.task_language_matrix["json_processing"]["python"].score	95	0	None
+polyglot_optimization.task_language_matrix.json_processing.python.reason	"json module excellent"	polyglot_optimization.task_language_matrix["json_processing"]["python"].reason	"json module excellent"	""	None
+polyglot_optimization.task_language_matrix.json_processing.go.score	85	polyglot_optimization.task_language_matrix["json_processing"]["go"].score	85	0	None
+polyglot_optimization.task_language_matrix.json_processing.go.reason	"encoding/json good"	polyglot_optimization.task_language_matrix["json_processing"]["go"].reason	"encoding/json good"	""	None
+polyglot_optimization.task_language_matrix.json_processing.nim.score	80	polyglot_optimization.task_language_matrix["json_processing"]["nim"].score	80	0	None
+polyglot_optimization.task_language_matrix.json_processing.nim.reason	"json module fast"	polyglot_optimization.task_language_matrix["json_processing"]["nim"].reason	"json module fast"	""	None
+polyglot_optimization.task_language_matrix.json_processing.ruby.score	75	polyglot_optimization.task_language_matrix["json_processing"]["ruby"].score	75	0	None
+polyglot_optimization.task_language_matrix.json_processing.ruby.reason	"JSON class built-in"	polyglot_optimization.task_language_matrix["json_processing"]["ruby"].reason	"JSON class built-in"	""	None
+polyglot_optimization.task_language_matrix.json_processing.shell.score	30	polyglot_optimization.task_language_matrix["json_processing"]["shell"].score	30	0	None
+polyglot_optimization.task_language_matrix.json_processing.shell.reason	"jq external tool"	polyglot_optimization.task_language_matrix["json_processing"]["shell"].reason	"jq external tool"	""	None
+polyglot_optimization.task_language_matrix.concurrency.go.score	100	polyglot_optimization.task_language_matrix["concurrency"]["go"].score	100	0	None
+polyglot_optimization.task_language_matrix.concurrency.go.reason	"Goroutines and channels built-in"	polyglot_optimization.task_language_matrix["concurrency"]["go"].reason	"Goroutines and channels built-in"	""	None
+polyglot_optimization.task_language_matrix.concurrency.javascript.score	75	polyglot_optimization.task_language_matrix["concurrency"]["javascript"].score	75	0	None
+polyglot_optimization.task_language_matrix.concurrency.javascript.reason	"async/await, event loop"	polyglot_optimization.task_language_matrix["concurrency"]["javascript"].reason	"async/await, event loop"	""	None
+polyglot_optimization.task_language_matrix.concurrency.nim.score	70	polyglot_optimization.task_language_matrix["concurrency"]["nim"].score	70	0	None
+polyglot_optimization.task_language_matrix.concurrency.nim.reason	"async/await support"	polyglot_optimization.task_language_matrix["concurrency"]["nim"].reason	"async/await support"	""	None
+polyglot_optimization.task_language_matrix.concurrency.python.score	50	polyglot_optimization.task_language_matrix["concurrency"]["python"].score	50	0	None
+polyglot_optimization.task_language_matrix.concurrency.python.reason	"asyncio exists but GIL limits"	polyglot_optimization.task_language_matrix["concurrency"]["python"].reason	"asyncio exists but GIL limits"	""	None
+polyglot_optimization.task_language_matrix.concurrency.ruby.score	40	polyglot_optimization.task_language_matrix["concurrency"]["ruby"].score	40	0	None
+polyglot_optimization.task_language_matrix.concurrency.ruby.reason	"Threads limited by GIL"	polyglot_optimization.task_language_matrix["concurrency"]["ruby"].reason	"Threads limited by GIL"	""	None
+polyglot_optimization.task_language_matrix.concurrency.shell.score	55	polyglot_optimization.task_language_matrix["concurrency"]["shell"].score	55	0	None
+polyglot_optimization.task_language_matrix.concurrency.shell.reason	"& and pipes for simple parallelism"	polyglot_optimization.task_language_matrix["concurrency"]["shell"].reason	"& and pipes for simple parallelism"	""	None
+polyglot_optimization.task_language_matrix.cli_tools.shell.score	100	polyglot_optimization.task_language_matrix["cli_tools"]["shell"].score	100	0	None
+polyglot_optimization.task_language_matrix.cli_tools.shell.reason	"Purpose-built for CLI"	polyglot_optimization.task_language_matrix["cli_tools"]["shell"].reason	"Purpose-built for CLI"	""	None
+polyglot_optimization.task_language_matrix.cli_tools.python.score	85	polyglot_optimization.task_language_matrix["cli_tools"]["python"].score	85	0	None
+polyglot_optimization.task_language_matrix.cli_tools.python.reason	"argparse, sys.argv"	polyglot_optimization.task_language_matrix["cli_tools"]["python"].reason	"argparse, sys.argv"	""	None
+polyglot_optimization.task_language_matrix.cli_tools.go.score	80	polyglot_optimization.task_language_matrix["cli_tools"]["go"].score	80	0	None
+polyglot_optimization.task_language_matrix.cli_tools.go.reason	"Fast binaries, flag package"	polyglot_optimization.task_language_matrix["cli_tools"]["go"].reason	"Fast binaries, flag package"	""	None
+polyglot_optimization.task_language_matrix.cli_tools.nim.score	70	polyglot_optimization.task_language_matrix["cli_tools"]["nim"].score	70	0	None
+polyglot_optimization.task_language_matrix.cli_tools.nim.reason	"Compiled CLI tools"	polyglot_optimization.task_language_matrix["cli_tools"]["nim"].reason	"Compiled CLI tools"	""	None
+polyglot_optimization.task_language_matrix.cli_tools.ruby.score	65	polyglot_optimization.task_language_matrix["cli_tools"]["ruby"].score	65	0	None
+polyglot_optimization.task_language_matrix.cli_tools.ruby.reason	"OptionParser available"	polyglot_optimization.task_language_matrix["cli_tools"]["ruby"].reason	"OptionParser available"	""	None
+polyglot_optimization.task_language_matrix.cli_tools.javascript.score	45	polyglot_optimization.task_language_matrix["cli_tools"]["javascript"].score	45	0	None
+polyglot_optimization.task_language_matrix.cli_tools.javascript.reason	"Node.js works but slow startup"	polyglot_optimization.task_language_matrix["cli_tools"]["javascript"].reason	"Node.js works but slow startup"	""	None
+polyglot_optimization.task_language_matrix.data_parsing.python.score	100	polyglot_optimization.task_language_matrix["data_parsing"]["python"].score	100	0	None
+polyglot_optimization.task_language_matrix.data_parsing.python.reason	"pandas, csv, BeautifulSoup, lxml"	polyglot_optimization.task_language_matrix["data_parsing"]["python"].reason	"pandas, csv, BeautifulSoup, lxml"	""	None
+polyglot_optimization.task_language_matrix.data_parsing.javascript.score	80	polyglot_optimization.task_language_matrix["data_parsing"]["javascript"].score	80	0	None
+polyglot_optimization.task_language_matrix.data_parsing.javascript.reason	"cheerio, JSON native"	polyglot_optimization.task_language_matrix["data_parsing"]["javascript"].reason	"cheerio, JSON native"	""	None
+polyglot_optimization.task_language_matrix.data_parsing.ruby.score	75	polyglot_optimization.task_language_matrix["data_parsing"]["ruby"].score	75	0	None
+polyglot_optimization.task_language_matrix.data_parsing.ruby.reason	"Nokogiri, CSV stdlib"	polyglot_optimization.task_language_matrix["data_parsing"]["ruby"].reason	"Nokogiri, CSV stdlib"	""	None
+polyglot_optimization.task_language_matrix.data_parsing.go.score	70	polyglot_optimization.task_language_matrix["data_parsing"]["go"].score	70	0	None
+polyglot_optimization.task_language_matrix.data_parsing.go.reason	"encoding/* packages"	polyglot_optimization.task_language_matrix["data_parsing"]["go"].reason	"encoding/* packages"	""	None
+polyglot_optimization.task_language_matrix.data_parsing.nim.score	65	polyglot_optimization.task_language_matrix["data_parsing"]["nim"].score	65	0	None
+polyglot_optimization.task_language_matrix.data_parsing.nim.reason	"parsers available"	polyglot_optimization.task_language_matrix["data_parsing"]["nim"].reason	"parsers available"	""	None
+polyglot_optimization.task_language_matrix.data_parsing.shell.score	45	polyglot_optimization.task_language_matrix["data_parsing"]["shell"].score	45	0	None
+polyglot_optimization.task_language_matrix.data_parsing.shell.reason	"awk/sed for simple parsing"	polyglot_optimization.task_language_matrix["data_parsing"]["shell"].reason	"awk/sed for simple parsing"	""	None
+quality_gate.conditions.0.metric	"hard_violations"	quality_gate.conditions[0].metric	"hard_violations"	""	None
+quality_gate.conditions.0.operator	">"	quality_gate.conditions[0].op	">"	""	None
+quality_gate.conditions.1.metric	"soft_violations"	quality_gate.conditions[1].metric	"soft_violations"	""	None
+quality_gate.conditions.1.operator	">"	quality_gate.conditions[1].op	">"	""	None
+quality_gate.conditions.1.threshold	5	quality_gate.conditions[1].threshold	5	0	None
+quality_gate.conditions.2.metric	"advisory_violations"	quality_gate.conditions[2].metric	"advisory_violations"	""	None
+quality_gate.conditions.2.operator	">"	quality_gate.conditions[2].op	">"	""	None
+quality_gate.conditions.2.threshold	20	quality_gate.conditions[2].threshold	20	0	None
+quality_gate.conditions.3.metric	"security_findings"	quality_gate.conditions[3].metric	"security_findings"	""	None
+quality_gate.conditions.3.operator	">"	quality_gate.conditions[3].op	">"	""	None
+quality_gate.conditions.4.metric	"total_violations"	quality_gate.conditions[4].metric	"total_violations"	""	None
+quality_gate.conditions.4.operator	">"	quality_gate.conditions[4].op	">"	""	None
+quality_gate.conditions.4.threshold	10	quality_gate.conditions[4].threshold	10	0	None
+behavioral_sequences.window_size	100	behavioral_sequences.window_size	100	200	200
+behavioral_sequences.patterns.0.name	"credential_harvesting"	behavioral_sequences.patterns[0].name	"credential_harvesting"	""	None
+behavioral_sequences.patterns.0.max_gap	5	behavioral_sequences.patterns[0].max_gap	5	10	None
+context_drift.fingerprint_window	10	context_drift.fingerprint_window	10	20	20
+context_drift.coherence_natural_healing	0.02	context_drift.coherence_natural_healing	0.02	0	0
+context_drift.adaptive_baseline_enabled	false	context_drift.adaptive_baseline_enabled	false	true	true
+context_drift.weights.circular	0.15	context_drift.weights.circular	0.15	0.1	0.1
+context_drift.weights.scope_creep	0.1	context_drift.weights.scope_creep	0.1	0.15	0.15
+context_drift.weights.repeated_failure	0.1	context_drift.weights.repeated_failure	0.1	0.05	0.05
+context_drift.weights.vocabulary_contraction	0.1	context_drift.weights.vocabulary_contraction	0.1	0.15	0.15
+agent_review.detection	["redteam", "testing"]	agent_review.detection	["redteam","testing"]	[]	[]
+agent_review.validation	"analyst"	agent_review.validation	"analyst"	""	""
+agent_review.voice	"voice"	agent_review.voice	"voice"	""	""
+agent_review.scorer	"security"	agent_review.scorer	"security"	""	""
+agent_review.cache	true	agent_review.cache	true	false	false
+governance.agent_id	"anonymous"	agent_id_config	"anonymous"	""	""
+api.keys.0.key	""	api.keys[0].name	"ci-runner"	"admin"	None
+api.keys.0.key	""	api.keys[0].scopes	["run","health"]	["run","scan","health","config"]	None
+api.keys.0.name	"ci-runner"	api.keys[0].name	"ci-runner"	""	None
+api.keys.0.scopes	["run", "health"]	api.keys[0].scopes	["run","health"]	[]	None
+api.keys.1.name	"admin"	api.keys[1].name	"admin"	""	None
+api.keys.1.scopes	["run", "scan", "health", "config"]	api.keys[1].scopes	["run","scan","health","config"]	[]	None
+runtime_versions.0.language	"python"	runtime_versions[0].language	"python"	"javascript"	None
+runtime_versions.0.language	"python"	runtime_versions[0].required_version	"3.10"	"18"	None
+runtime_versions.0.required	"3.10"	runtime_versions[0].language	"python"	"javascript"	None
+runtime_versions.0.required	"3.10"	runtime_versions[0].required_version	"3.10"	"18"	None
+exposure_tracking.max_autonomous_actions	50	exposure_tracking.max_autonomous_actions	50	0	0
+exposure_tracking.max_unique_agents	10	exposure_tracking.max_unique_agents	10	0	0
+exposure_tracking.coherence_floor	0.3	exposure_tracking.coherence_floor	0.3	0	0

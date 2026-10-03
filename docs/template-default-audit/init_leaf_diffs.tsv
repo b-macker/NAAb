@@ -1,0 +1,142 @@
+template_key	template_value	field	template	key_omitted	empty_config
+audit.level	"basic"	audit.level	"basic"	"none"	"none"
+audit.level	"basic"	audit_level	"basic"	"none"	"none"
+audit.log_events.checks_passed	false	audit.log_events.checks_passed	false	true	true
+audit.log_events.polyglot_executed	false	audit.log_events.polyglot_executed	false	true	true
+behavioral_sequences.enabled	true	behavioral_sequences.enabled	true	false	false
+behavioral_sequences.window_size	100	behavioral_sequences.window_size	100	200	200
+capabilities.env_vars.blocked_read	["AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN"]	capabilities.env_vars.blocked_read	["AWS_SECRET_ACCESS_KEY","GITHUB_TOKEN"]	[]	[]
+capabilities.env_vars.blocked_write	["PATH", "HOME", "LD_PRELOAD"]	capabilities.env_vars.blocked_write	["PATH","HOME","LD_PRELOAD"]	[]	[]
+capabilities.env_vars.write	false	capabilities.env_vars.write	false	true	true
+capabilities.filesystem.blocked_paths	["/etc/shadow", "/etc/passwd"]	capabilities.filesystem.blocked_paths	["/etc/shadow","/etc/passwd"]	[]	[]
+capabilities.filesystem.mode	"read"	capabilities.filesystem.mode	"read"	"write"	"write"
+capabilities.filesystem.mode	"read"	filesystem_mode	"read"	"write"	"write"
+capabilities.network.allow_raw_sockets	false	capabilities.network.allow_raw_sockets	false	true	true
+capabilities.network.allow_websockets	false	capabilities.network.allow_websockets	false	true	true
+capabilities.network.blocked_hosts	["169.254.169.254", "metadata.google.internal"]	capabilities.network.blocked_hosts	["169.254.169.254","metadata.google.internal"]	[]	[]
+capabilities.network.enabled	false	capabilities.network.enabled	false	true	true
+capabilities.network.enabled	false	network_allowed	false	true	true
+capabilities.shell.blocked_commands	["sudo", "su", "chmod +s"]	capabilities.shell.blocked_commands	["sudo","su","chmod +s"]	[]	[]
+code_quality.complexity_floor.check_polyglot	false	code_quality.complexity_floor.check_polyglot	false	true	true
+code_quality.complexity_floor.level	"off"	code_quality.complexity_floor.level	enum:1	enum:3	enum:3
+code_quality.max_complexity.level	"off"	code_quality.max_complexity.level	enum:1	enum:4	enum:4
+code_quality.max_complexity.max_lines_per_block	100	code_quality.max_complexity.max_lines_per_block	100	0	0
+code_quality.max_complexity.max_nesting_depth	5	code_quality.max_complexity.max_nesting_depth	5	0	0
+code_quality.max_complexity.max_parameters	6	code_quality.max_complexity.max_parameters	6	0	0
+code_quality.no_apologetic_language.level	"off"	code_quality.no_apologetic_language.level	enum:1	enum:3	enum:4
+code_quality.no_hallucinated_apis.check_wrong_syntax	false	code_quality.no_hallucinated_apis.check_wrong_syntax	false	true	true
+code_quality.no_hallucinated_apis.level	"soft"	code_quality.no_hallucinated_apis.level	enum:3	enum:4	enum:4
+code_quality.no_hardcoded_ips.level	"off"	code_quality.no_hardcoded_ips.level	enum:1	enum:4	enum:4
+code_quality.no_hardcoded_results.level	"advisory"	no_hardcoded_results_level	enum:4	enum:1	enum:4
+code_quality.no_hardcoded_urls.level	"off"	code_quality.no_hardcoded_urls.level	enum:1	enum:4	enum:4
+code_quality.no_incomplete_logic.check_generic_errors	false	code_quality.no_incomplete_logic.check_generic_errors	false	true	true
+code_quality.no_incomplete_logic.check_missing_validation	false	code_quality.no_incomplete_logic.check_missing_validation	false	true	true
+code_quality.no_incomplete_logic.check_vague_error_messages	false	code_quality.no_incomplete_logic.check_vague_error_messages	false	true	true
+code_quality.no_incomplete_logic.level	"hard"	code_quality.no_incomplete_logic.level	enum:1	enum:3	enum:3
+code_quality.no_mock_data.function_prefixes	["mock_", "fake_", "stub_"]	code_quality.no_mock_data.function_prefixes	["mock_","fake_","stub_"]	[]	[]
+code_quality.no_mock_data.variable_prefixes	["mock_", "fake_", "dummy_", "test_"]	code_quality.no_mock_data.variable_prefixes	["mock_","fake_","dummy_","test_"]	[]	[]
+code_quality.no_oversimplification.level	"hard"	code_quality.no_oversimplification.level	enum:1	enum:3	enum:3
+code_quality.no_path_traversal.level	"soft"	code_quality.no_path_traversal.level	enum:3	enum:1	enum:1
+code_quality.no_placeholders.level	"soft"	no_placeholders_level	enum:3	enum:1	enum:3
+code_quality.no_placeholders.markers	["TODO", "FIXME", "STUB", "PLACEHOLDER", "HACK", "XXX", "TEMP"]	code_quality.no_placeholders.markers	["TODO","FIXME","STUB","PLACEHOLDER","HACK","XXX","TEMP"]	[]	[]
+code_quality.no_secrets.allowlist	["example.com", "localhost", "127.0.0.1"]	code_quality.no_secrets.allowlist	["example.com","localhost","127.0.0.1"]	[]	[]
+code_quality.no_secrets.suspicious_variable_names.enabled	true	code_quality.no_secrets.suspicious_variable_names.enabled	true	false	false
+code_quality.no_secrets.suspicious_variable_names.names	["password", "secret", "api_key", "token", "private_key"]	code_quality.no_secrets.suspicious_variable_names.names	["password","secret","api_key","token","private_key"]	[]	[]
+code_quality.no_sql_injection.level	"soft"	code_quality.no_sql_injection.level	enum:3	enum:1	enum:1
+code_quality.no_unsafe_deserialization.level	"soft"	code_quality.no_unsafe_deserialization.level	enum:3	enum:1	enum:1
+languages.allowed	["python", "shell"]	allowed_languages	["python","shell"]	[]	[]
+languages.allowed	["python", "shell"]	languages.allowed	["python","shell"]	[]	[]
+languages.per_language.python.banned_functions	["eval(", "exec(", "compile(", "__import__("]	languages.per_language["python"].banned_functions	["eval(","exec(","compile(","__import__("]	[]	None
+languages.per_language.python.imports.blocked	["subprocess", "ctypes", "os.system"]	languages.per_language["python"].imports.blocked	["subprocess","ctypes","os.system"]	[]	None
+languages.per_language.python.max_lines	200	languages.per_language["python"].max_lines	200	0	None
+languages.per_language.python.timeout	15	languages.per_language["python"].timeout	15	0	None
+languages.per_language.shell.banned_commands	["rm -rf /", "mkfs", "dd if=/dev/zero"]	languages.per_language["shell"].banned_commands	["rm -rf /","mkfs","dd if=/dev/zero"]	[]	None
+languages.per_language.shell.max_lines	50	languages.per_language["shell"].max_lines	50	0	None
+languages.per_language.shell.no_curl_pipe_sh	true	languages.per_language["shell"].no_curl_pipe_sh	true	false	None
+languages.per_language.shell.no_wget_pipe_bash	true	languages.per_language["shell"].no_wget_pipe_bash	true	false	None
+languages.per_language.shell.require_set_e	false	languages.per_language["shell"].require_set_e_level	enum:1	enum:3	None
+languages.per_language.shell.timeout	10	languages.per_language["shell"].timeout	10	0	None
+limits.code.max_lines_per_block	500	limits.code.max_lines_per_block	500	0	0
+limits.code.max_nesting_depth	10	limits.code.max_nesting_depth	10	0	0
+limits.code.max_total_polyglot_lines	5000	limits.code.max_total_polyglot_lines	5000	0	0
+limits.data.array_size	100000	limits.data.array_size	100000	0	0
+limits.data.array_size	100000	max_array_size	100000	0	0
+limits.data.dict_size	50000	limits.data.dict_size	50000	0	0
+limits.data.input_size	1000000	limits.data.input_size	1000000	0	0
+limits.data.nesting_depth	20	limits.data.nesting_depth	20	0	0
+limits.data.output_size	1000000	limits.data.output_size	1000000	0	0
+limits.data.string_length	1000000	limits.data.string_length	1000000	0	0
+limits.execution.call_depth	100	limits.execution.call_depth	100	0	0
+limits.execution.call_depth	100	max_call_depth	100	0	0
+limits.execution.loop_iterations	1000000	limits.execution.loop_iterations	1000000	0	0
+limits.execution.parallel_blocks	4	limits.execution.parallel_blocks	4	0	0
+limits.execution.polyglot_blocks	50	limits.execution.polyglot_blocks	50	0	0
+limits.execution.total_executions	200	limits.execution.total_executions	200	0	0
+limits.memory.per_block_mb	256	limits.memory.per_block_mb	256	0	0
+limits.memory.total_mb	1024	limits.memory.total_mb	1024	0	0
+limits.memory.total_mb	1024	memory_limit_mb	1024	0	0
+limits.rate.max_file_ops_per_second	20	limits.rate.max_file_ops_per_second	20	0	0
+limits.rate.max_polyglot_per_second	10	limits.rate.max_polyglot_per_second	10	0	0
+limits.rate.max_stdlib_calls_per_second	100	limits.rate.max_stdlib_calls_per_second	100	0	0
+limits.timeout.global	60	limits.timeout.global	60	0	0
+limits.timeout.global	60	runtime.timeout	60	30	30
+limits.timeout.global	60	timeout_seconds	60	0	0
+limits.timeout.per_block	30	limits.timeout.per_block	30	0	0
+limits.timeout.total_polyglot	120	limits.timeout.total_polyglot	120	0	0
+polyglot.parallel.max_parallel_blocks	4	polyglot.parallel.max_parallel_blocks	4	0	0
+polyglot.parallel.timeout_per_block	30	polyglot.parallel.timeout_per_block	30	0	0
+polyglot.persistent_runtime.max_memory_per_session_mb	256	polyglot.persistent_runtime.max_memory_per_session_mb	256	0	0
+polyglot.persistent_runtime.max_sessions	5	polyglot.persistent_runtime.max_sessions	5	0	0
+polyglot.persistent_runtime.session_timeout	300	polyglot.persistent_runtime.session_timeout	300	0	0
+polyglot.variable_binding.require_explicit	false	polyglot.variable_binding.require_explicit_level	enum:1	enum:4	enum:4
+polyglot_optimization.enforcement_level	"advisory"	polyglot_optimization.enforcement_level	"advisory"	"soft"	"soft"
+polyglot_optimization.language_diversity.max_single_language_percent	80	polyglot_optimization.language_diversity.max_single_language_percent	80	70	70
+polyglot_optimization.pattern_detection.task_inference.concurrency.optimal_languages	["go", "javascript"]	polyglot_optimization.pattern_detection.task_inference["concurrency"].optimal_languages	["go","javascript"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.concurrency.patterns	["\\bgoroutine\\b", "\\basync\\b", "\\bawait\\b", "\\bthread\\b"]	polyglot_optimization.pattern_detection.task_inference["concurrency"].patterns	["\bgoroutine\b","\basync\b","\bawait\b","\bthread\b"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.concurrency.suboptimal_languages	["python", "ruby"]	polyglot_optimization.pattern_detection.task_inference["concurrency"].suboptimal_languages	["python","ruby"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.data_parsing.optimal_languages	["python", "javascript"]	polyglot_optimization.pattern_detection.task_inference["data_parsing"].optimal_languages	["python","javascript"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.data_parsing.patterns	["\\bcsv\\.", "\\bxml\\.", "BeautifulSoup", "DictReader"]	polyglot_optimization.pattern_detection.task_inference["data_parsing"].patterns	["\bcsv\.","\bxml\.","BeautifulSoup","DictReader"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.data_parsing.suboptimal_languages	["shell", "go"]	polyglot_optimization.pattern_detection.task_inference["data_parsing"].suboptimal_languages	["shell","go"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.file_operations.optimal_languages	["shell"]	polyglot_optimization.pattern_detection.task_inference["file_operations"].optimal_languages	["shell"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.file_operations.patterns	["\\bfind\\b", "\\bgrep\\b", "\\bsed\\b", "\\bawk\\b"]	polyglot_optimization.pattern_detection.task_inference["file_operations"].patterns	["\bfind\b","\bgrep\b","\bsed\b","\bawk\b"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.file_operations.suboptimal_languages	["javascript"]	polyglot_optimization.pattern_detection.task_inference["file_operations"].suboptimal_languages	["javascript"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.json_processing.optimal_languages	["javascript", "python", "nim"]	polyglot_optimization.pattern_detection.task_inference["json_processing"].optimal_languages	["javascript","python","nim"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.json_processing.patterns	["JSON\\.parse", "json\\.", "json\\.dumps"]	polyglot_optimization.pattern_detection.task_inference["json_processing"].patterns	["JSON\.parse","json\.","json\.dumps"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.json_processing.suboptimal_languages	["cpp", "shell"]	polyglot_optimization.pattern_detection.task_inference["json_processing"].suboptimal_languages	["cpp","shell"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.numerical_operations.optimal_languages	["python", "nim"]	polyglot_optimization.pattern_detection.task_inference["numerical_operations"].optimal_languages	["python","nim"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.numerical_operations.patterns	["\\bnp\\.", "\\bnumpy\\.", "matrix", "\\bsum\\(", "\\bmean\\("]	polyglot_optimization.pattern_detection.task_inference["numerical_operations"].patterns	["\bnp\.","\bnumpy\.","matrix","\bsum\(","\bmean\("]	[]	None
+polyglot_optimization.pattern_detection.task_inference.numerical_operations.suboptimal_languages	["javascript", "shell"]	polyglot_optimization.pattern_detection.task_inference["numerical_operations"].suboptimal_languages	["javascript","shell"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.string_processing.optimal_languages	["python", "ruby", "nim"]	polyglot_optimization.pattern_detection.task_inference["string_processing"].optimal_languages	["python","ruby","nim"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.string_processing.patterns	["\\bsplit\\(", "\\bjoin\\(", "\\breplace\\(", "\\bregex\\b"]	polyglot_optimization.pattern_detection.task_inference["string_processing"].patterns	["\bsplit\(","\bjoin\(","\breplace\(","\bregex\b"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.string_processing.suboptimal_languages	["go", "shell"]	polyglot_optimization.pattern_detection.task_inference["string_processing"].suboptimal_languages	["go","shell"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.systems_calls.optimal_languages	["nim", "go", "rust", "cpp"]	polyglot_optimization.pattern_detection.task_inference["systems_calls"].optimal_languages	["nim","go","rust","cpp"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.systems_calls.patterns	["\\bmalloc\\b", "\\bfree\\b", "pointer", "\\bunsafe\\b"]	polyglot_optimization.pattern_detection.task_inference["systems_calls"].patterns	["\bmalloc\b","\bfree\b","pointer","\bunsafe\b"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.systems_calls.suboptimal_languages	["python", "javascript", "ruby"]	polyglot_optimization.pattern_detection.task_inference["systems_calls"].suboptimal_languages	["python","javascript","ruby"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.web_apis.optimal_languages	["javascript", "python", "go"]	polyglot_optimization.pattern_detection.task_inference["web_apis"].optimal_languages	["javascript","python","go"]	[]	None
+polyglot_optimization.pattern_detection.task_inference.web_apis.patterns	["\\bfetch\\(", "\\bhttp\\.", "\\brequest\\("]	polyglot_optimization.pattern_detection.task_inference["web_apis"].patterns	["\bfetch\(","\bhttp\.","\brequest\("]	[]	None
+polyglot_optimization.pattern_detection.task_inference.web_apis.suboptimal_languages	["shell", "nim"]	polyglot_optimization.pattern_detection.task_inference["web_apis"].suboptimal_languages	["shell","nim"]	[]	None
+polyglot_optimization.profiling.enabled	true	polyglot_optimization.profiling.enabled	true	false	false
+requirements.error_handling.level	"off"	require_error_handling	true	false	false
+requirements.error_handling.require_catch_body	false	requirements.error_handling.require_catch_body	false	true	true
+requirements.error_handling.require_try_catch	false	requirements.error_handling.require_try_catch	false	true	true
+requirements.main_block.level	"soft"	main_block_level	enum:3	enum:1	enum:1
+requirements.main_block.level	"soft"	require_main_block	true	false	false
+requirements.main_block.level	"soft"	requirements.main_block.enabled	true	false	false
+requirements.main_block.level	"soft"	requirements.main_block.level	enum:3	enum:1	enum:1
+requirements.naming_conventions.level	"off"	requirements.naming_conventions.level	enum:1	enum:4	enum:4
+restrictions.code_injection.block_template_injection	false	restrictions.code_injection.block_template_injection	false	true	true
+restrictions.code_injection.level	"soft"	restrictions.code_injection.level	enum:3	enum:1	enum:1
+restrictions.crypto.level	"off"	restrictions.crypto.level	enum:1	enum:4	enum:4
+restrictions.crypto.weak_hashes	["md5", "sha1"]	restrictions.crypto.weak_hashes	["md5","sha1"]	[]	[]
+restrictions.information_disclosure.level	"off"	restrictions.information_disclosure.level	enum:1	enum:3	enum:3
+restrictions.resource_abuse.enabled	true	restrictions.resource_abuse.enabled	true	false	false
+restrictions.resource_abuse.level	"soft"	restrictions.resource_abuse.level	enum:3	enum:1	enum:1
+taint_tracking.enabled	true	taint_tracking.enabled	true	false	false
+taint_tracking.level	"soft"	taint_tracking.level	"soft"	"hard"	"hard"
+taint_tracking.sanitizers	["validate_", "sanitize_", "escape_"]	taint_tracking.sanitizers	["validate_","sanitize_","escape_"]	[]	[]
+taint_tracking.sinks	["shell_exec", "python_exec", "file.write", "file.append", "agent.send"]	taint_tracking.sinks	["shell_exec","python_exec","file.write","file.append","agent.send"]	[]	[]
+taint_tracking.sources	["env.get", "file.read", "io.read_line", "agent.send", "agent.run"]	taint_tracking.sources	["env.get","file.read","io.read_line","agent.send","agent.run"]	[]	[]
+telemetry.output_file	"telemetry.jsonl"	telemetry_output.output_file	"telemetry.jsonl"	""	""
+telemetry.tamper_evidence.chain_genesis	"NAAB-TELEMETRY-GENESIS"	telemetry_output.tamper_evidence.chain_genesis	"NAAB-TELEMETRY-GENESIS"	"NAAB-GOVERNANCE-GENESIS"	"NAAB-GOVERNANCE-GENESIS"
+telemetry.tamper_evidence.enabled	false	telemetry_output.tamper_evidence.enabled	false	true	false
+version	"4.0"	version	"4.0"	""	""
