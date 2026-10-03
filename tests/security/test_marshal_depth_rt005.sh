@@ -120,6 +120,30 @@ else
     fi
 fi
 
+# ---------------------------------------------------------------------------
+# Controls. T1 and T2 each accept "exited 0" -- which an interpreter that ran
+# nothing also does. C1: the 30-level program must print Python's result, so
+# the structure really was marshalled and the block really ran. C2: the
+# 70-level program must report the depth limit, so T1's no-crash verdict was
+# reached by the guard and not by the block never running.
+# ---------------------------------------------------------------------------
+echo "[C1] CONTROL: the 30-level block ran and returned its value"
+out=$(timeout 10s "$NAAB" --no-governance "$WORKDIR/test_t2.naab" 2>&1) || true
+if echo "$out" | grep -qx "ok"; then
+    ok "30-level structure marshalled and the Python block returned \"ok\""
+else
+    fail "30-level block produced no result -- T2 proves nothing: ${out:0:120}"
+fi
+
+echo "[C2] CONTROL: the 70-level structure is stopped by the depth limit"
+ec=0
+out=$(timeout 10s "$NAAB" --no-governance "$WORKDIR/test_t1.naab" 2>&1) || ec=$?
+if [[ "$ec" -ne 0 ]] && echo "$out" | grep -qi "maximum depth"; then
+    ok "70-level structure refused with a depth error (exit $ec)"
+else
+    fail "70-level structure was not refused by the depth limit (exit $ec): ${out:0:120}"
+fi
+
 echo ""
 TOTAL=$(( PASS + FAIL + SKIP ))
 echo "Results: ${PASS}/${TOTAL} passed, ${SKIP} skipped (unverified)"
