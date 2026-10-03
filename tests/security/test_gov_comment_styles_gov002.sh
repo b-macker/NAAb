@@ -150,6 +150,9 @@ fi
 
 echo ""
 
+# The block ends with a bare `result`: a block's value is its LAST EXPRESSION,
+# and an assignment is not one, so a block ending in `result = "clean"`
+# returned null and the probe skipped T4 as "Python not available".
 # ---------------------------------------------------------------------------
 # T4: Python block sanity — # comments in Python are already handled.
 #     Verify that Python block with a # comment containing a forbidden pattern
@@ -161,6 +164,7 @@ main {
     let result = <<python
 # FORBIDDEN_KEYWORD is mentioned only in this comment
 result = "clean"
+result
 >>
     print(result)
 }
