@@ -147,23 +147,50 @@ remove working features.
 - The rest are deliberate fixtures (misspellings that test the unknown-key
   warning) or entries in maps where the user chooses the names.
 
-### 3. Tests that set keys the engine ignores
+### 3. Tests that set keys the engine ignores (fixed)
 
-| Key a test sets | Why it does nothing | Suites |
-|---|---|---|
-| `taint_sources`, `sinks` (top level), `mode: "HARD"` | Wrong location (`taint_tracking.sources` / `sinks`) and an invalid mode; the whole config is ignored | `test_container_taint_vm003.sh`, `test_taint_polyglot_vm001.sh` |
-| `capabilities.process.allow_spawn` | Not a key (the real one is `spawn`, itself inert) | `test_drift_detection.sh`, `test_bsd_cdd_fixes.sh` |
-| `capabilities.env_access` | Not a key | `run_differential.sh` |
-| `limits.code.max_functions` | Deliberately removed (it duplicated a scanner check) | `test_multiagent_governance.sh`, `run_differential.sh` |
-| `meta.require_signature` | Deliberately removed (V-SC-008) | `test_hivemind_governed.sh` |
-| `restrictions.max_string_length` | Wrong place (only `languages.python`) | `test_hivemind_governed.sh` |
-| `scanner.code_quality.complex_boolean_expr.max_operators` | Not read | `test_multiagent_governance.sh` |
+The first version of this table named the suite that LOADED each key. Several
+keys were not in those suites at all: they sat in a config file a suite's
+programs discover by walking up from their own directory. The table below
+names the file, and every row has since been fixed.
 
-The two taint tests fail against the dead interpreter, but that does not mean
-they test taint. Taint tracking is off by default, and enforce mode upgrades
-the sandbox to `standard`, which refuses `env.get` itself. Their broad greps
-("denied", "governance") matched that sandbox refusal, so taint tracking was
-never reached: an outer gate masking the inner one.
+| Key | Why it does nothing | Where it was | Fix |
+|---|---|---|---|
+| `taint_sources`, `sinks` (top level), `mode: "HARD"` | Wrong location (`taint_tracking.sources` / `sinks`) and an invalid mode | `test_container_taint_vm003.sh`, `test_taint_polyglot_vm001.sh` | Rewritten to `taint_tracking.*`; exact arms now prove taint decides |
+| `capabilities.process.allow_spawn` (and the rest of that block) | Nothing under `capabilities.process` is read (A16; `allowed_commands` and `spawn` included) | `test_drift_detection.sh` T51, `test_bsd_cdd_fixes.sh` | Removed |
+| `capabilities.env_access` | Not a key | `tests/robustness/govern.json` (loaded via `run_differential.sh`) | Removed |
+| `limits.code.max_functions` | Deliberately removed (it duplicated a scanner check) | `tests/robustness/govern.json`; `tools/agent-governance/govern.json` (loaded via `test_multiagent_governance.sh`) | Removed |
+| `meta.require_signature` | Deliberately removed (V-SC-008) | `examples/hivemind_governed/src/govern.json` | Removed |
+| `restrictions.max_string_length` | Not read anywhere: `max_string_length` is a struct field nothing parses or reads (`governance.h`). The earlier "only `languages.python`" was wrong | same | Removed |
+| `scanner.code_quality.complex_boolean_expr.max_operators` | Not read; the scanner reads `max_conditions` | `tools/agent-governance/govern.json` | Removed |
+
+Every fix is a deletion, never a rename to the real key. That was deliberate:
+a dead key changes nothing, so deleting it changes nothing (the five affected
+suites produced identical output before and after), while a rename can
+LOOSEN. `max_operators: 4` renamed to `max_conditions: 4` would raise the
+scanner's limit above the default of 3 that is in force today. Where an intent
+to restrict had no real key to land on (`env_access`, `max_string_length`),
+inventing enforcement in a test fixture is not the fix either.
+
+Checked and NOT a defect: the shorthand forms some older configs use. The
+loader accepts top-level `sandbox_level`, `capabilities.network` as a
+boolean, `capabilities.filesystem` as a string and `capabilities.shell` as a
+boolean (`governance_config.cpp`, the legacy block before the object forms),
+and each feeds a field the engine enforces (`network_allowed`,
+`filesystem_mode`, `shell_allowed`, `sandbox_level_config`).
+`capabilities.env_vars.read` is a real HARD master switch. Measured, not just
+traced: with `test_bsd_cdd_fixes.sh`'s shorthand config, `"network": false`
+turns an `http.get` into a governance HARD block (exit 3, citing
+`capabilities.network`); without it the call is refused at a different layer
+(exit 1). An earlier draft of this section listed these as wrong-type values
+that do nothing -- that was an assumption about the type, made without
+reading which forms the loader accepts.
+
+The two taint tests had failed against the dead interpreter, but that did not
+mean they tested taint. Taint tracking is off by default, and enforce mode
+upgrades the sandbox to `standard`, which refuses `env.get` itself. Their
+broad greps ("denied", "governance") matched that sandbox refusal, so taint
+tracking was never reached: an outer gate masking the inner one.
 
 ## Limits
 
