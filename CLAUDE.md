@@ -367,6 +367,7 @@ All settings belong in govern.json first. CLI flags are overrides only. Never ad
 5. Add rule_name mapping in `lookupRationale()` in `governance_engine.cpp`
 6. Run security test after: `bash tests/security/test_error_msg_leaks.sh`
 7. Never include bypass instructions in the error message
+8. Add the key to `govern-template.json` at the path the loader reads it, with its real default (struct initialiser or loader fallback) and a `_comment_<key>`, then `cp govern-template.json docs/govern-template.json`. `tests/governance_v4/test_template_coverage.sh` fails on a loader leaf missing from the template or on the two copies differing. `python3 tools/template_coverage.py` prints what is missing; `--unread` prints the reverse direction (screened). Writing a key at its default is not always neutral: a presence-enabled key (`semantic_checks`, `restrictions.*`, the simple `code_quality` objects) is switched ON by an example object block, and a key with its own `explicitly_set` entry that `mergeRules()` consults overrides an `extends` parent once present (why `semantic_checks` is only described in a comment). A key that is read but consulted by nothing goes in `template_coverage_baseline.txt` under READ BUT INERT, not in the template.
 
 ### Modifying Error Messages
 Always run `bash tests/security/test_error_msg_leaks.sh` after changing any error text. The test scans all error strings for leaked bypass flags like `--no-governance`, `--governance-override`, sanitizer function names, etc.
