@@ -191,6 +191,13 @@ else
     skip "CB-02" "pressure never landed between elevated_threshold and the checkpoint gate [$PRESSURES] — CB-03..05 cannot discriminate"
     echo ""
     echo "  Total: $((PASS_COUNT + FAIL_COUNT + SKIP_COUNT)) | Pass: $PASS_COUNT | Fail: $FAIL_COUNT | Skip: $SKIP_COUNT"
+    # The skip covers CB-03..05 only. A failure already recorded (CB-01: the
+    # sends did not complete) must still fail the suite -- an unconditional
+    # exit 0 here let a run with no working sends go green.
+    if [ "$FAIL_COUNT" -gt 0 ]; then
+        echo -e "${RED}Failures:${NC}$FAILURES"
+        exit 1
+    fi
     exit 0
 fi
 
