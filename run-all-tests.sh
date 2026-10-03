@@ -2450,6 +2450,19 @@ else
     echo "  test_try_handler_leak.sh: not found, skipping"
 fi
 
+# async fn semantics per engine (ASYNC-001): results agree, VM concurrent, tree-walker pinned synchronous.
+ASYNCSEM_SCRIPT="tests/vm/test_async_engine_semantics.sh"
+if [ -f "$ASYNCSEM_SCRIPT" ]; then
+    if run_shell_test "$ASYNCSEM_SCRIPT" 2>&1; then
+        echo "  test_async_engine_semantics.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_async_engine_semantics.sh")
+    fi
+else
+    echo "  test_async_engine_semantics.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then
