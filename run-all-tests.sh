@@ -2502,6 +2502,19 @@ else
     echo "  test_analyzer_long_line.sh: not found, skipping"
 fi
 
+# <<sql>> blocks: results, parameters, and containment (in-memory, no file reach).
+SQLEXEC_SCRIPT="tests/security/test_sql_executor.sh"
+if [ -f "$SQLEXEC_SCRIPT" ]; then
+    if run_shell_test "$SQLEXEC_SCRIPT" 2>&1; then
+        echo "  test_sql_executor.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_sql_executor.sh")
+    fi
+else
+    echo "  test_sql_executor.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then

@@ -521,6 +521,7 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/type_marshaller.cpp
     src/runtime/semver.cpp
     src/runtime/js_executor.cpp
+    src/runtime/sql_executor.cpp  # <<sql>> blocks: in-process, in-memory SQLite
     src/runtime/language_registry.cpp
     src/runtime/cpp_executor_adapter.cpp
     src/runtime/js_executor_adapter.cpp

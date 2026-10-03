@@ -275,6 +275,7 @@ include/naab/       All headers
 
 ### Polyglot Execution
 - `src/runtime/*_executor.cpp` — 12 language executors (Python, JS, Go, Rust, C++, C#, Nim, Shell, Ruby, PHP, Julia, Zig)
+- **SQL** (`<<sql>>` / `<<sqlite>>`, `src/runtime/sql_executor.cpp`): in-process SQLite (already a required dependency), ONE in-memory database per process shared by both tags. Contained by construction, and do not loosen it: an authorizer refuses ATTACH/DETACH (VACUUM INTO attaches its target, so it is refused too), extension loading is off, temp storage stays in memory -- a block has no filesystem reach, so `capabilities.filesystem` has nothing to gate. Bound variables become SQLite PARAMETERS (`<<sql[x]>>` ... `:x`), never text: every other language gets bound variables as generated declaration code (`buildVarDeclarations` in vm.cpp, the loop in polyglot.cpp), which for SQL would be injection by construction, so both engines skip that for sql and call `setPendingSqlBindings()` right before the executor runs. `--timeout` reaches a running query through a progress handler. Result: the rows of the last row-returning statement as a list of dicts, else null. It cannot write a marker file, so `test_polyglot_gate_coverage.sh` observes it by the value it returns. Test: `tests/security/test_sql_executor.sh` (SQ-05..07 are the containment arms).
 - `src/runtime/language_registry.cpp` — executor registration
 - `<<python ... >>` syntax — `>>` must be at line start to close block
 - Executor base: `executeWithReturn()`/`callFunction()` use NaabVal
