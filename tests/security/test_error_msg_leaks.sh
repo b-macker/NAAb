@@ -105,6 +105,47 @@ BANNED_IN_STRINGS=(
     'telemetry_connected|pulse telemetry field leaked in error string'
 )
 
+# Only match inside string literals that are likely error messages.
+# Exclude: comments, variable declarations, comparisons, unsetenv/setenv,
+# blocklist array entries, and enum-style string constants.
+# Reads `grep -n` output on stdin. ONE copy, shared by the screening pass and
+# the per-pattern loop below, so the two cannot drift apart.
+# Known: the first filter cannot match -- every input line starts with "N:" --
+# so comment lines are scanned as live (docs/governance-campaign-findings.md).
+# Kept as is: a speed change must not move a verdict.
+string_literal_filter() {
+    grep -v '^\s*//' \
+        | grep -v 'static const char\*' \
+        | grep -v 'unsetenv(' \
+        | grep -v 'setenv(' \
+        | grep -v '== "' \
+        | grep -v '{".*,' \
+        | grep -v 'blocked_env_vars' \
+        | grep -v 'NAAB_INTERNAL_ENV_VARS' \
+        | grep -v '^\s*[0-9]*:\s*"[A-Z_]*",'
+}
+
+# SCREENING PASS -- speed only; it never decides a FAIL.
+#
+# The per-pattern loop is 45 patterns x 19 files, each a pipeline of ten greps:
+# ~8,600 processes. fork+exec is cheap on Linux and ~15 ms under MSYS2, which is
+# why this suite took ~7 s on build-linux and ~130 s on build-windows.
+#
+# `grep -e A -e B` selects a line iff A or B matches it, so one grep with all 45
+# patterns selects exactly the UNION of the lines the 45 per-pattern greps
+# select, numbered identically. string_literal_filter judges each line on its
+# own, so the filtered union is empty iff every per-pattern pipeline's output
+# would be empty. A file that screens clean therefore earns exactly the 45
+# PASSes the loop would have given it. Anything else -- any surviving line, or
+# a grep error (exit 2, e.g. a pattern that does not compile) -- runs the
+# original per-pattern loop, which is the only thing that prints a FAIL. A
+# screen that errored must never read as clean: the loop then reproduces the
+# old behaviour exactly, including its per-pattern 2>/dev/null.
+SCREEN_ARGS=()
+for entry in "${BANNED_IN_STRINGS[@]}"; do
+    SCREEN_ARGS+=(-e "\".*${entry%%|*}")
+done
+
 echo "=== Error Message Leak Check ==="
 echo ""
 
@@ -112,23 +153,19 @@ for src in "${SECURITY_FILES[@]}"; do
     filepath="$LANG_DIR/$src"
     [ -f "$filepath" ] || continue
 
+    screen=$(grep -n "${SCREEN_ARGS[@]}" "$filepath" 2>/dev/null)
+    screen_rc=$?
+    if [ "$screen_rc" -eq 1 ] || { [ "$screen_rc" -eq 0 ] &&
+            [ -z "$(printf '%s\n' "$screen" | string_literal_filter)" ]; }; then
+        PASS=$((PASS + ${#BANNED_IN_STRINGS[@]}))
+        continue
+    fi
+
     for entry in "${BANNED_IN_STRINGS[@]}"; do
         pattern="${entry%%|*}"
         desc="${entry##*|}"
 
-        # Only match inside string literals that are likely error messages.
-        # Exclude: comments, variable declarations, comparisons, unsetenv/setenv,
-        # blocklist array entries, and enum-style string constants.
-        matches=$(grep -n "\".*${pattern}" "$filepath" 2>/dev/null \
-            | grep -v '^\s*//' \
-            | grep -v 'static const char\*' \
-            | grep -v 'unsetenv(' \
-            | grep -v 'setenv(' \
-            | grep -v '== "' \
-            | grep -v '{".*,' \
-            | grep -v 'blocked_env_vars' \
-            | grep -v 'NAAB_INTERNAL_ENV_VARS' \
-            | grep -v '^\s*[0-9]*:\s*"[A-Z_]*",' )
+        matches=$(grep -n "\".*${pattern}" "$filepath" 2>/dev/null | string_literal_filter)
         if [ -n "$matches" ]; then
             echo "  FAIL: $src — $desc"
             echo "        Pattern: $pattern"
