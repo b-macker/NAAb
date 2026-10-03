@@ -569,3 +569,7 @@ else
 fi
 
 gate_print_summary
+
+# gate_print_summary only prints. #138 ended with gate_exit as well; #153 moved
+# the summary below BH-09 and dropped it, so every FAIL here exited 0.
+gate_exit
