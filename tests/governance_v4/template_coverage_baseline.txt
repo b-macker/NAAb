@@ -1,0 +1,120 @@
+# Settings the govern.json loader reads that govern-template.json deliberately
+# does NOT show as keys.
+#
+# Generated and checked by test_template_coverage.sh (tools/template_coverage.py).
+# Every other leaf loadFromJson() reads must appear in the template. A NEW loader
+# key fails the gate until it is added to both template copies -- or, if it
+# belongs here, added below under the category that says why.
+#
+# HOW TO CHANGE IT
+#
+# Adding a line is a claim that a setting should stay out of the reference
+# template. Put it under its category and be able to say which of the reasons
+# applies. "It was easier than adding it" is not one of them.
+#
+# Removing a line is normal: the setting was added to the template, deleted from
+# the loader, or moved. Confirm which.
+#
+# Not listed here, and filtered by the tool instead: per-block "rationale"
+# (documented once by the template's top-level _comment_rationale), and the
+# .enabled/.level paths parseEnforcementLevel() statically "reads" under a
+# "level" string, which apply only if a level were an object.
+
+# --- ALIAS: a second spelling writing the SAME field as a key the template shows.
+# Documented in the template's _comment_aliases, with which spelling wins. Not
+# added as keys: two spellings invite editing one while the other wins.
+agents.<name>.capabilities.shell.enabled
+limits.array_size
+limits.call_depth
+limits.execution.timeout_seconds
+output.no_color
+output.quiet
+restrictions.no_hardcoded_results.enabled
+restrictions.no_hardcoded_results.level
+restrictions.no_placeholders.enabled
+restrictions.no_placeholders.level
+restrictions.no_secrets.enabled
+restrictions.no_secrets.level
+sandbox_level
+
+# --- OBJECT FORM of a key the template shows in scalar form. The scalar sets the
+# same field; the object spelling is parseEnforcementLevel's {enabled, level}.
+languages.per_language.<lang_name>.dangerous_calls.enabled
+languages.per_language.<lang_name>.dangerous_calls.level
+languages.per_language.<lang_name>.no_console_log.enabled
+languages.per_language.<lang_name>.no_console_log.level
+languages.per_language.<lang_name>.no_curl_pipe_sh.enabled
+languages.per_language.<lang_name>.no_curl_pipe_sh.level
+languages.per_language.<lang_name>.no_var.enabled
+languages.per_language.<lang_name>.no_var.level
+languages.per_language.<lang_name>.no_wget_pipe_bash.enabled
+languages.per_language.<lang_name>.no_wget_pipe_bash.level
+languages.per_language.<lang_name>.require_set_e.enabled
+languages.per_language.<lang_name>.require_set_e.level
+languages.per_language.<lang_name>.strict_mode.enabled
+languages.per_language.<lang_name>.strict_mode.level
+polyglot.variable_binding.require_explicit.enabled
+polyglot.variable_binding.require_explicit.level
+# capabilities.functions."level" is a STRING entry in the same map as function
+# entries; these two are parseEnforcementLevel's object reads on it.
+capabilities.functions.<fn_name>.enabled
+capabilities.functions.<fn_name>.level
+# semantic_checks is not written at all. The object form ENABLES the check by its
+# presence (its inner "enabled" is not read), and even the scalar default false
+# is not neutral: the key has its own explicitly_set entry, so once present it
+# stops mergeRules() inheriting an extends parent's enabled checks -- a
+# loosening. Both forms are described in _comment_semantic_checks.
+code_quality.semantic_checks.check_api_signatures
+code_quality.semantic_checks.check_dangerous_eval
+code_quality.semantic_checks.check_imports
+code_quality.semantic_checks.check_shell_syntax
+code_quality.semantic_checks.enabled
+
+# --- ENTRY SHAPE documented in a _comment: any example entry would switch the
+# feature on (a function entry activates function-scope capabilities; a plugin
+# entry makes the loader load its file).
+capabilities.functions.<fn_name>.allowed_actions
+governance_plugins.[].file
+governance_plugins.[].rules.[].bad_example
+governance_plugins.[].rules.[].description
+governance_plugins.[].rules.[].enabled
+governance_plugins.[].rules.[].function
+governance_plugins.[].rules.[].good_example
+governance_plugins.[].rules.[].help
+governance_plugins.[].rules.[].id
+governance_plugins.[].rules.[].languages
+governance_plugins.[].rules.[].message
+governance_plugins.[].rules.[].trigger
+
+# --- READ BUT INERT: parsed into the rules struct and consulted by nothing that
+# decides anything. Kept out of the template because a reference that lists a
+# key asserts it works. Each is OPEN, not settled: wire it or delete it.
+# no_hallucinated_apis.*_patterns: checkHallucinatedApis() uses built-in
+# per-language tables; only custom_patterns reaches it. Verified: the same
+# marker blocks via custom_patterns and passes via python_/shell_/
+# cross_language_patterns on the same block.
+code_quality.no_hallucinated_apis.cross_language_patterns
+code_quality.no_hallucinated_apis.go_patterns
+code_quality.no_hallucinated_apis.javascript_patterns
+code_quality.no_hallucinated_apis.python_patterns
+code_quality.no_hallucinated_apis.ruby_patterns
+code_quality.no_hallucinated_apis.shell_patterns
+# loadSimpleCheck fills config.patterns for every simple check, but
+# checkHardcodedUrls/Ips use a fixed regex. Verified against the sibling
+# no_sql_injection.patterns, which blocks on the same marker.
+code_quality.no_hardcoded_ips.custom_patterns
+code_quality.no_hardcoded_ips.patterns
+code_quality.no_hardcoded_urls.custom_patterns
+code_quality.no_hardcoded_urls.patterns
+# S6 is detection-only; governance.h marks the weight INERT ("kept for config
+# compatibility"). No reader of weights.coherence_velocity exists.
+context_drift.weights.coherence_velocity
+# Copied into the scorer config and echoed back by governance.scorer(), but
+# ScoreAccumulator::zone() compares only yellow and red. (scoring.green_threshold,
+# already in the template, has the same status.)
+scorers.<name>.green_threshold
+
+# --- WARN-ONLY: read solely to warn that the key has no effect.
+code_quality.complexity_floor.enabled
+security.blocked_commands
+security.blocked_paths
