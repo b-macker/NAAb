@@ -157,10 +157,11 @@ remove working features.
 | `restrictions.max_string_length` | Wrong place (only `languages.python`) | `test_hivemind_governed.sh` |
 | `scanner.code_quality.complex_boolean_expr.max_operators` | Not read | `test_multiagent_governance.sh` |
 
-The two taint tests still check real behaviour, since both fail against the
-dead interpreter. They pass only because the engine's *default* taint
-settings happen to cover `env.get` to `http.post`, so they do not test what
-their config claims.
+The two taint tests fail against the dead interpreter, but that does not mean
+they test taint. Taint tracking is off by default, and enforce mode upgrades
+the sandbox to `standard`, which refuses `env.get` itself. Their broad greps
+("denied", "governance") matched that sandbox refusal, so taint tracking was
+never reached: an outer gate masking the inner one.
 
 ## Limits
 
