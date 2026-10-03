@@ -6,19 +6,24 @@
 # governance setting from every config it loads, so tools/testrunner/
 # setting_drop.py can ask whether any test notices a setting stop working. In a
 # shipped binary the same variable would be a governance bypass: set it, and
-# capabilities.shell.enabled:false is gone. So the hook must be compiled out of
-# every normal build, and this suite checks that on the build CI ships.
+# a blocked path is readable. So the hook must be compiled out of every normal
+# build, and this suite checks that on the build CI ships.
+#
+# The subject is capabilities.filesystem.blocked_paths + file.read, decided
+# inside NAAb's standard library. It was a <<sh>> block under
+# capabilities.shell.enabled, which build-windows cannot run at all -- so the
+# control failed there for a reason that had nothing to do with the drop.
 #
 #   SD-01  normal build: the variable's name is not in the binary at all, so no
 #          code can be reading it
-#   SD-02  normal build: shell disabled + NAAB_DROP_SETTING naming exactly that
-#          setting -> still blocked (exit 3), shell did not run, nothing dropped
-#   SD-02c CONTROL: the same program with shell ENABLED runs the shell block,
-#          so SD-02's block is the setting's doing and a drop would be visible
+#   SD-02  normal build: secret.txt blocked + NAAB_DROP_SETTING naming exactly
+#          that setting -> still blocked (exit 3), not read, nothing dropped
+#   SD-02c CONTROL: the same program with nothing blocked reads the file, so
+#          SD-02's block is the setting's doing and a drop would be visible
 #   SD-03  test build (when one is given): it DOES honour the variable -- the
-#          same drop lets the block run and logs one drop. Proves the harness's
-#          probe is real. UNMEASURABLE without a test build (normal on CI).
-#          Give one with NAAB_MUT_BINARY=/path/to/naab-lang.
+#          same drop lets the read through and logs one drop. Proves the
+#          harness's probe is real. UNMEASURABLE without a test build (normal
+#          on CI). Give one with NAAB_MUT_BINARY=/path/to/naab-lang.
 # ============================================================
 set -uo pipefail
 
@@ -47,12 +52,15 @@ source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 trap 'teardown_isolated_trust; rm -rf "$W"' EXIT
 
+# off = secret.txt blocked, on = nothing blocked
 for d in off on; do
     mkdir -p "$W/$d"
-    v=false; [ "$d" = on ] && v=true
-    printf '{"mode":"enforce","security":{"sandbox_level":"elevated"},"capabilities":{"shell":{"enabled":%s}}}\n' "$v" > "$W/$d/govern.json"
-    printf 'main {\n  let r = <<sh\necho SHELL_RAN\n>>\n  print("r=" + string(r))\n}\n' > "$W/$d/p.naab"
+    b='["secret.txt"]'; [ "$d" = on ] && b='[]'
+    printf '{"mode":"enforce","security":{"sandbox_level":"elevated"},"capabilities":{"filesystem":{"mode":"read","blocked_paths":%s}}}\n' "$b" > "$W/$d/govern.json"
+    echo "POLICY_SECRET" > "$W/$d/secret.txt"
+    printf 'use file\nmain {\n  print("r=" + file.read("secret.txt"))\n}\n' > "$W/$d/p.naab"
 done
+DROP=capabilities.filesystem.blocked_paths
 # run <binary> <dir> [drop] -> sets RC, OUT; drop log in $W/<dir>.drop
 run() {
     local bin="$1" dir="$2" drop="${3:-}"
@@ -68,28 +76,28 @@ else
 fi
 
 # --- SD-02 / SD-02c -------------------------------------------------------------
-run "$NAAB" off capabilities.shell.enabled
-case "$OUT" in *SHELL_RAN*) ran=yes ;; *) ran=no ;; esac
+run "$NAAB" off "$DROP"
+case "$OUT" in *r=POLICY_SECRET*) ran=yes ;; *) ran=no ;; esac
 if [ "$RC" -eq 3 ] && [ "$ran" = no ] && [ ! -s "$W/off.drop" ]; then
-    ok "SD-02" "with the drop requested, shell stays blocked (exit 3) and nothing was dropped"
+    ok "SD-02" "with the drop requested, the path stays blocked (exit 3) and nothing was dropped"
 else
-    bad "SD-02" "the normal build honoured NAAB_DROP_SETTING" "rc=$RC shell_ran=$ran drops=$(wc -l < "$W/off.drop" 2>/dev/null || echo 0)"
+    bad "SD-02" "the normal build honoured NAAB_DROP_SETTING" "rc=$RC read=$ran drops=$(wc -l < "$W/off.drop" 2>/dev/null || echo 0)"
 fi
 run "$NAAB" on
 case "$OUT" in
-    *SHELL_RAN*) ok "SD-02c" "CONTROL: with shell enabled the block runs, so SD-02's block is the setting's" ;;
-    *) bad "SD-02c" "the shell block did not run even when enabled -- SD-02 cannot tell a drop from a broken program" "rc=$RC" ;;
+    *r=POLICY_SECRET*) ok "SD-02c" "CONTROL: with nothing blocked the file is read, so SD-02's block is the setting's" ;;
+    *) bad "SD-02c" "the file was not read even with nothing blocked -- SD-02 cannot tell a drop from a broken program" "rc=$RC" ;;
 esac
 
 # --- SD-03 -------------------------------------------------------------------------
 if [ -z "$MUT" ] || [ ! -x "$MUT" ]; then
     skip "SD-03" "no test build given (NAAB_MUT_BINARY) -- UNMEASURABLE, expected on CI"
 else
-    run "$MUT" off capabilities.shell.enabled
+    run "$MUT" off "$DROP"
     drops=$(wc -l < "$W/off.drop" 2>/dev/null | tr -d ' ')
     case "$OUT" in
-        *SHELL_RAN*) [ "${drops:-0}" -ge 1 ] && ok "SD-03" "the test build honours the drop: shell ran and $drops drop(s) logged" \
-                                         || bad "SD-03" "shell ran but no drop was logged" ;;
+        *r=POLICY_SECRET*) [ "${drops:-0}" -ge 1 ] && ok "SD-03" "the test build honours the drop: the file was read and $drops drop(s) logged" \
+                                               || bad "SD-03" "the file was read but no drop was logged" ;;
         *) bad "SD-03" "the test build did not honour NAAB_DROP_SETTING" "rc=$RC drops=${drops:-0}" ;;
     esac
 fi

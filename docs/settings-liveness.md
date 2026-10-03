@@ -23,8 +23,10 @@ In a normal build none of this code exists. An environment variable that can
 delete a governance setting would be a bypass, so
 `tests/security/test_setting_drop_compiled_out.sh` checks the shipped build:
 the variable's name is not in the binary, and a requested drop of
-`capabilities.shell.enabled` leaves shell blocked. Pointed at a test build,
-both arms fail, which is the proof the check can fail.
+`capabilities.filesystem.blocked_paths` leaves the path blocked. Pointed at a
+test build, both arms fail, which is the proof the check can fail. (The
+subject is a `file.read`, decided in the standard library; a `<<sh>>` block
+cannot run on build-windows at all.)
 
 `tools/testrunner/setting_drop.py` drives it:
 
