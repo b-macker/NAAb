@@ -1693,6 +1693,16 @@ endif()
 # Fuzzing Infrastructure (libFuzzer + ASAN + UBSAN)
 # ============================================================================
 option(ENABLE_FUZZING "Enable libFuzzer fuzz targets (requires Clang)" OFF)
+
+# TEST BUILD ONLY: lets NAAB_DROP_SETTING remove one governance setting from
+# every loaded config (tools/testrunner/setting_drop.py). Never enable it in a
+# build anyone runs for real -- an environment variable that deletes a governance
+# setting is a bypass. See loadFromJson in src/runtime/governance_config.cpp.
+option(NAAB_CONFIG_MUTATION "Test-only: NAAB_DROP_SETTING deletes a governance setting at load" OFF)
+if(NAAB_CONFIG_MUTATION)
+    message(WARNING "NAAB_CONFIG_MUTATION is ON: this build honours NAAB_DROP_SETTING and is for setting-liveness tests only")
+    add_compile_definitions(NAAB_CONFIG_MUTATION=1)
+endif()
 add_subdirectory(fuzz)
 
 # ============================================================================

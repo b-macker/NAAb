@@ -3606,6 +3606,22 @@ if [ -f "$DEADGATE_SCRIPT" ]; then
 else
     echo "  test_dead_interpreter_gate.sh: not found, skipping"
 fi
+
+SDROP_SCRIPT="tests/security/test_setting_drop_compiled_out.sh"
+if [ -f "$SDROP_SCRIPT" ]; then
+    # A TEST build (-DNAAB_CONFIG_MUTATION=ON) lets NAAB_DROP_SETTING delete a
+    # governance setting at load, for tools/testrunner/setting_drop.py. In a
+    # shipped binary that variable would be a governance bypass: this checks
+    # the hook is compiled out of the normal build CI ships.
+    if run_shell_test "$SDROP_SCRIPT" 2>&1; then
+        echo "  test_setting_drop_compiled_out.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_setting_drop_compiled_out.sh")
+    fi
+else
+    echo "  test_setting_drop_compiled_out.sh: not found, skipping"
+fi
 fi  # phase_runs shell
 
 # Print summary

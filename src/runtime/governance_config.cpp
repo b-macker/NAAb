@@ -331,7 +331,102 @@ static void warnIgnoredEnableFlag(const nlohmann::json& blk, const char* section
     }
 }
 
+#ifdef NAAB_CONFIG_MUTATION
+// ---------------------------------------------------------------------------
+// TEST BUILD ONLY (cmake -DNAAB_CONFIG_MUTATION=ON). Compiled out of every
+// normal build: in a shipped binary an environment variable able to delete a
+// governance setting would be a bypass.
+//
+// NAAB_DROP_SETTING=a.b.c[,d.e] removes those settings from every config this
+// process loads -- file, extends chain, inline string, mid-run reload all pass
+// through loadFromJson -- so the engine falls back to its default. '*' matches
+// any key at that level (agents.*.shell_allowed). tools/testrunner/
+// setting_drop.py drops one setting at a time and asks whether any test that
+// sets it notices: a setting no test notices is dead or untested.
+//
+// Every drop actually performed is appended to NAAB_DROP_LOG as one line,
+// "<path><TAB><value as JSON>". A run that logs nothing never loaded the
+// setting, and must be read as UNMEASURABLE, not as "the setting does nothing".
+// ---------------------------------------------------------------------------
+#include <cstdio>
+#include <cstdlib>
+#include <vector>
+
+static void dropSettingAt(nlohmann::json& node, const std::vector<std::string>& parts,
+                          size_t i, std::string& path, FILE* log) {
+    if (!node.is_object() || i >= parts.size()) return;
+    auto visit = [&](const std::string& key) {
+        if (!node.contains(key)) return;
+        size_t mark = path.size();
+        path += (path.empty() ? "" : ".") + key;
+        if (i + 1 == parts.size()) {
+            if (log) fprintf(log, "%s\t%s\n", path.c_str(), node[key].dump().c_str());
+            node.erase(key);
+        } else {
+            dropSettingAt(node[key], parts, i + 1, path, log);
+        }
+        path.resize(mark);
+    };
+    if (parts[i] == "*") {
+        std::vector<std::string> keys;
+        for (auto it = node.begin(); it != node.end(); ++it) keys.push_back(it.key());
+        for (const auto& k : keys) visit(k);
+    } else {
+        visit(parts[i]);
+    }
+}
+
+static void logLoadedSettings(const nlohmann::json& node, std::string& path, FILE* log) {
+    if (!node.is_object() || node.empty()) {
+        if (!path.empty()) fprintf(log, "%s\n", path.c_str());
+        return;
+    }
+    for (auto it = node.begin(); it != node.end(); ++it) {
+        size_t mark = path.size();
+        path += (path.empty() ? "" : ".") + it.key();
+        logLoadedSettings(it.value(), path, log);
+        path.resize(mark);
+    }
+}
+
+static nlohmann::json applySettingDrop(const nlohmann::json& j) {
+    // NAAB_SETTINGS_LOG: every setting path this config contains, one per line
+    // -- measured, so the harness knows which settings each test really loads.
+    if (const char* p = std::getenv("NAAB_SETTINGS_LOG"); p && *p) {
+        if (FILE* f = fopen(p, "a")) { std::string path; logLoadedSettings(j, path, f); fclose(f); }
+    }
+    const char* spec = std::getenv("NAAB_DROP_SETTING");
+    if (!spec || !*spec) return j;
+    nlohmann::json copy = j;
+    const char* log_path = std::getenv("NAAB_DROP_LOG");
+    FILE* log = (log_path && *log_path) ? fopen(log_path, "a") : nullptr;
+    // Comma-separated: several settings may be dropped together, so a group
+    // that shows no effect can be cleared in one run.
+    std::stringstream all(spec);
+    for (std::string one; std::getline(all, one, ',');) {
+        if (one.empty()) continue;
+        std::vector<std::string> parts;
+        std::stringstream ss(one);
+        for (std::string part; std::getline(ss, part, '.');) parts.push_back(part);
+        std::string path;
+        dropSettingAt(copy, parts, 0, path, log);
+    }
+    if (log) fclose(log);
+    return copy;
+}
+#endif
+
+static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_);
+
 static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
+#ifdef NAAB_CONFIG_MUTATION
+    loadFromJsonImpl(applySettingDrop(j), rules_);
+#else
+    loadFromJsonImpl(j, rules_);
+#endif
+}
+
+static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
     // Mode
     if (j.contains("mode") && j["mode"].is_string()) {
         std::string mode = j["mode"].get<std::string>();
