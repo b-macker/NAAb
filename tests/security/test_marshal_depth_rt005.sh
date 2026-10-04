@@ -129,8 +129,14 @@ fi
 # ---------------------------------------------------------------------------
 echo "[C1] CONTROL: the 30-level block ran and returned its value"
 out=$(timeout 10s "$NAAB" --no-governance "$WORKDIR/test_t2.naab" 2>&1) || true
+# A build without the embedded Python executor (the Windows runner) says so,
+# and its blocks return nothing to look at: UNMEASURABLE, not a pass and not a
+# failure. Only that self-declared limitation skips -- anything else that
+# produces no result still fails.
 if echo "$out" | grep -qx "ok"; then
     ok "30-level structure marshalled and the Python block returned \"ok\""
+elif [[ "$out" == *"Python support not available"* ]]; then
+    skip "C1: this build has no embedded Python executor -- UNMEASURABLE, T2 unverified here"
 else
     fail "30-level block produced no result -- T2 proves nothing: ${out:0:120}"
 fi

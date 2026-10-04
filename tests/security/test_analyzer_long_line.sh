@@ -71,6 +71,15 @@ check() {
     else bad "$1" "$4" "$bad_engines (139 = SIGSEGV)"; fi
 }
 
+# A build without the embedded Python executor (the Windows runner) says so,
+# and its blocks return no value, so no arm can see LEN=. That self-declared
+# limitation is UNMEASURABLE; any other control failure still fails below.
+probe=$(cd "$W" && timeout 60 "$NAAB" short.naab 2>&1)
+case "$probe" in
+    *LEN=100*) ;;
+    *"Python support not available"*) skip_all "this build has no embedded Python executor (UNMEASURABLE)" ;;
+esac
+
 check LL-00 short 100    "CONTROL: a 100-character line runs on both engines"
 check LL-01 l40k  40000  "a 40 KB line runs on both engines, block sees all of it"
 check LL-02 l200k 200000 "a 200 KB line runs on both engines"
