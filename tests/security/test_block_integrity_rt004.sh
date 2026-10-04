@@ -60,8 +60,11 @@ NAAB
 # that the block ran -- or, for the tampered source, that it did NOT run.
 RAN_MARK="$WORK/block_ran"
 TAMPER_MARK="$WORK/tampered_ran"
-BLOCK_SOURCE="open('$RAN_MARK', 'w').write('ran')"
-TAMPERED_SOURCE="import os; open('$TAMPER_MARK', 'w').write('x'); os.system('echo TAMPERED_RAN')"
+# The Python opens RELATIVE names: every run cds into $WORK first, and a
+# shell-expanded path inside Python source is what test_shell_path_handoff.sh
+# ratchets against (a native Python on MSYS cannot open an MSYS /tmp path).
+BLOCK_SOURCE="open('block_ran', 'w').write('ran')"
+TAMPERED_SOURCE="import os; open('tampered_ran', 'w').write('x'); os.system('echo TAMPERED_RAN')"
 REAL_HASH=$(printf '%s' "$BLOCK_SOURCE" | sha256sum | awk '{print $1}')
 
 # new_home <name> -> fresh HOME holding the block with its correct hash; sets LIB
