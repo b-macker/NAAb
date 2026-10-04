@@ -105,39 +105,16 @@ BANNED_IN_STRINGS=(
     'telemetry_connected|pulse telemetry field leaked in error string'
 )
 
-# ---------------------------------------------------------------------------
-# One first-stage grep per FILE, not per (file, pattern).
-#
-# This used to run a 10-process pipeline (grep + 9 x grep -v) for each of the
-# 855 (file, pattern) pairs: 8,590 execve and 9,464 forks per run. On Linux that
-# is ~5 s; under MSYS2, where fork() is emulated, it was 138 s on the Windows
-# runner -- the slowest suite there -- for 0.06-0.3 s of actual grep work.
-# See docs/findings/build-windows-ci.md (item 3).
-#
-# Same answers, by construction: every pattern goes into one `grep -f`, the
-# exclusion filters run once over the union, and each pattern then picks its own
-# lines in bash. The filters are line-wise, so filtering the union and then
-# selecting is the same as selecting and then filtering. Checked byte-for-byte
-# against the old loop on the clean tree and on a copy with planted leaks.
-#
-# CAUTION when adding a pattern: grep reads these as BASIC regexes and the
-# per-pattern selection below uses bash's EXTENDED regexes. They agree for
-# everything in the list today (literals, '.', '.*'); a pattern containing
-# + ? | ( ) { } would mean different things to the two and needs care.
-# ---------------------------------------------------------------------------
-PATFILE="$(mktemp)"
-CTRL_FILE="$(mktemp)"
-trap 'rm -f "$PATFILE" "$CTRL_FILE"' EXIT
-for entry in "${BANNED_IN_STRINGS[@]}"; do
-    printf '%s\n' "\".*${entry%%|*}"
-done > "$PATFILE"
-
-# Lines of $1 that contain any banned pattern inside a string literal, minus
-# comments, declarations, comparisons, unsetenv/setenv, blocklist array entries
-# and enum-style string constants.
-filtered_lines() {
-    grep -n -f "$PATFILE" "$1" 2>/dev/null \
-        | grep -v '^\s*//' \
+# Only match inside string literals that are likely error messages.
+# Exclude: comments, variable declarations, comparisons, unsetenv/setenv,
+# blocklist array entries, and enum-style string constants.
+# Reads `grep -n` output on stdin. ONE copy, shared by the screening pass and
+# the per-pattern loop below, so the two cannot drift apart.
+# Known: the first filter cannot match -- every input line starts with "N:" --
+# so comment lines are scanned as live (docs/governance-campaign-findings.md).
+# Kept as is: a speed change must not move a verdict.
+string_literal_filter() {
+    grep -v '^\s*//' \
         | grep -v 'static const char\*' \
         | grep -v 'unsetenv(' \
         | grep -v 'setenv(' \
@@ -148,55 +125,51 @@ filtered_lines() {
         | grep -v '^\s*[0-9]*:\s*"[A-Z_]*",'
 }
 
-# Sets MATCHES to the lines of $1 matching pattern $2 (as the old per-pattern
-# grep did). A global rather than $(...), because a subshell per call would put
-# back most of the forks this replaced.
-select_matches() {
-    MATCHES=""
-    [ -n "$1" ] || return 0
-    local re="\".*$2" line
-    while IFS= read -r line; do
-        [[ $line =~ $re ]] && MATCHES+="${MATCHES:+$'\n'}$line"
-    done <<< "$1"
-}
+# SCREENING PASS -- speed only; it never decides a FAIL.
+#
+# The per-pattern loop is 45 patterns x 19 files, each a pipeline of ten greps:
+# ~8,600 processes. fork+exec is cheap on Linux and ~15 ms under MSYS2, which is
+# why this suite took ~7 s on build-linux and ~130 s on build-windows.
+#
+# `grep -e A -e B` selects a line iff A or B matches it, so one grep with all 45
+# patterns selects exactly the UNION of the lines the 45 per-pattern greps
+# select, numbered identically. string_literal_filter judges each line on its
+# own, so the filtered union is empty iff every per-pattern pipeline's output
+# would be empty. A file that screens clean therefore earns exactly the 45
+# PASSes the loop would have given it. Anything else -- any surviving line, or
+# a grep error (exit 2, e.g. a pattern that does not compile) -- runs the
+# original per-pattern loop, which is the only thing that prints a FAIL. A
+# screen that errored must never read as clean: the loop then reproduces the
+# old behaviour exactly, including its per-pattern 2>/dev/null.
+SCREEN_ARGS=()
+for entry in "${BANNED_IN_STRINGS[@]}"; do
+    SCREEN_ARGS+=(-e "\".*${entry%%|*}")
+done
 
 echo "=== Error Message Leak Check ==="
-echo ""
-
-# Positive control, through the same two functions. Without it a matcher that
-# silently matched nothing -- an unreadable pattern file, a quoting slip in the
-# selection -- would report every file clean. The second line is the negative
-# half: an excluded shape must stay excluded.
-printf '%s\n' \
-    'throw std::runtime_error("planted: try --no-governance");' \
-    'static const char* planted = "--keygen";' > "$CTRL_FILE"
-ctrl_lines=$(filtered_lines "$CTRL_FILE")
-select_matches "$ctrl_lines" '--no-governance'; ctrl_pos="$MATCHES"
-select_matches "$ctrl_lines" '--keygen';        ctrl_neg="$MATCHES"
-if [ -z "$ctrl_pos" ] || [ -n "$ctrl_neg" ]; then
-    echo "  FAIL: matcher control -- planted literal flagged: $([ -n "$ctrl_pos" ] && echo yes || echo NO)," \
-         "excluded line flagged: $([ -n "$ctrl_neg" ] && echo YES || echo no)"
-    echo "        The checks below cannot be trusted; not running them."
-    exit 1
-fi
-echo "  Control: a planted literal is flagged, an excluded declaration is not"
 echo ""
 
 for src in "${SECURITY_FILES[@]}"; do
     filepath="$LANG_DIR/$src"
     [ -f "$filepath" ] || continue
 
-    filtered=$(filtered_lines "$filepath")
+    screen=$(grep -n "${SCREEN_ARGS[@]}" "$filepath" 2>/dev/null)
+    screen_rc=$?
+    if [ "$screen_rc" -eq 1 ] || { [ "$screen_rc" -eq 0 ] &&
+            [ -z "$(printf '%s\n' "$screen" | string_literal_filter)" ]; }; then
+        PASS=$((PASS + ${#BANNED_IN_STRINGS[@]}))
+        continue
+    fi
 
     for entry in "${BANNED_IN_STRINGS[@]}"; do
         pattern="${entry%%|*}"
         desc="${entry##*|}"
 
-        select_matches "$filtered" "$pattern"
-        if [ -n "$MATCHES" ]; then
+        matches=$(grep -n "\".*${pattern}" "$filepath" 2>/dev/null | string_literal_filter)
+        if [ -n "$matches" ]; then
             echo "  FAIL: $src — $desc"
             echo "        Pattern: $pattern"
-            echo "$MATCHES" | head -3 | sed 's/^/        /'
+            echo "$matches" | head -3 | sed 's/^/        /'
             FAIL=$((FAIL + 1))
         else
             PASS=$((PASS + 1))

@@ -9,6 +9,7 @@
 #include "naab/audit_logger.h"
 #include "naab/sandbox.h"
 #include "naab/subprocess_helpers.h"
+#include "naab/scoped_temp_dir.h"
 #include "naab/stack_tracer.h"  // Phase 4.2.5: Cross-language stack traces
 #include <fmt/core.h>
 #include <fstream>
@@ -167,20 +168,16 @@ bool CppExecutor::compileBlock(
         base_tmp = fs::path("/data/data/com.termux/files/home/.cache/naab");
         fs::create_directories(base_tmp);
     }
-    std::string tmpl = (base_tmp / "naab_cpp_bl_XXXXXX").string();
-    char* raw_dir = mkdtemp(tmpl.data());
-    if (!raw_dir) {
+    ScopedTempDir compile_dir(base_tmp, "naab_cpp_bl_");  // removed on every exit
+    if (!compile_dir.valid()) {
         fmt::print("[ERROR] Failed to create secure temp directory for block compilation\n");
         return false;
     }
-    chmod(raw_dir, 0700);
-    fs::path compile_dir(raw_dir);
-    std::string temp_source_path = (compile_dir / (block_id + ".cpp")).string();
-    std::string temp_so_path     = (compile_dir / (block_id + ".so")).string();
+    std::string temp_source_path = (compile_dir.path() / (block_id + ".cpp")).string();
+    std::string temp_so_path     = (compile_dir.path() / (block_id + ".so")).string();
 
     std::ofstream source_file(temp_source_path);
     if (!source_file.is_open()) {
-        fs::remove_all(compile_dir);
         fmt::print("[ERROR] Failed to create source file in secure temp dir\n");
         return false;
     }
@@ -210,7 +207,6 @@ bool CppExecutor::compileBlock(
     // Compile to shared library inside the private temp dir
     bool compiled = compileToSharedLibrary(temp_source_path, temp_so_path, dependencies);
     if (!compiled) {
-        fs::remove_all(compile_dir);
         return false;
     }
 
@@ -221,7 +217,6 @@ bool CppExecutor::compileBlock(
         // Cross-device fallback (tmp and cache on different filesystems)
         fs::copy_file(temp_so_path, so_path, fs::copy_options::overwrite_existing, ec);
     }
-    fs::remove_all(compile_dir);
 
     if (ec) {
         fmt::print("[ERROR] Failed to install compiled block to cache: {}\n", ec.message());

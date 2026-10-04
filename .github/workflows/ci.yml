@@ -73,6 +73,63 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  # Every suite must be able to FAIL when the interpreter does nothing.
+  #
+  # tools/testrunner/dead_gate.py replaces build/naab-lang -- in a scratch copy,
+  # never this checkout's build/ -- with a script that prints nothing and exits
+  # 0, then runs every shell suite against it. A suite that still passes CLEAN
+  # (no failure, no SKIP/UNMEASURABLE) cannot tell a working interpreter from a
+  # dead one, so it would also pass against a broken one. The gate fails on any
+  # such suite unless tests/self-audit/dead_interpreter_allowlist.txt gives a
+  # reason (it tests another binary, or only checks source text, or it is a
+  # known-weak suite awaiting a positive control).
+  #
+  # Its first run found two suites that printed FAIL and exited 0, and seven
+  # that cannot fail on a dead interpreter -- all inside a green suite.
+  #
+  # naab-lang is deliberately NOT built: the gate never runs it. The binaries it
+  # does build are the ones allowlisted suites legitimately test.
+  dead-interpreter-gate:
+    name: Dead-interpreter gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            libsqlite3-dev \
+            python3-dev \
+            libssl-dev \
+            libffi-dev \
+            libcurl4-openssl-dev \
+            pkg-config
+          pip3 install pybind11
+
+      - name: Build the binaries suites may legitimately use
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
+          ninja -C build libnaab naab-verify-audit naab-gov -j$(nproc)
+
+      - name: Run every suite against a dead interpreter
+        run: python3 tools/testrunner/dead_gate.py run --out test-parallel/dead-gate
+
+      - name: Upload gate results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dead-interpreter-gate
+          path: test-parallel/dead-gate/
+          if-no-files-found: ignore
+          retention-days: 14
+
   # Run the suite as a NON-ROOT user.
   #
   # Root masks every permission-shaped portability bug, and that is not

@@ -1609,6 +1609,24 @@ else
     echo "  test_polyglot_gate_coverage.sh: not found, skipping"
 fi
 
+# --- Compiled-language temp directories (ScopedTempDir, every exit path) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Compile Temp Directories (none left in TMPDIR, incl. on timeout)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+TEMPDIR_CLEANUP_SCRIPT="tests/robustness/test_compile_tempdir_cleanup.sh"
+if [ -f "$TEMPDIR_CLEANUP_SCRIPT" ]; then
+    if run_shell_test "$TEMPDIR_CLEANUP_SCRIPT" 2>&1; then
+        echo "  test_compile_tempdir_cleanup.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_compile_tempdir_cleanup.sh")
+    fi
+else
+    echo "  test_compile_tempdir_cleanup.sh: not found, skipping"
+fi
+
 # --- Path policy precedence (F9) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -3584,6 +3602,37 @@ if [ -f "$PARALLEL_SCRIPT" ]; then
     fi
 else
     echo "  test_parallel_runner.sh: not found, skipping"
+fi
+
+DEADGATE_SCRIPT="tests/self-audit/test_dead_interpreter_gate.sh"
+if [ -f "$DEADGATE_SCRIPT" ]; then
+    # tools/testrunner/dead_gate.py runs every suite against an interpreter that
+    # does nothing (CI job "Dead-interpreter gate"). This checks its DECISION on
+    # authored results -- seconds, not the full run -- each arm with a control.
+    if run_shell_test "$DEADGATE_SCRIPT" 2>&1; then
+        echo "  test_dead_interpreter_gate.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_dead_interpreter_gate.sh")
+    fi
+else
+    echo "  test_dead_interpreter_gate.sh: not found, skipping"
+fi
+
+SDROP_SCRIPT="tests/security/test_setting_drop_compiled_out.sh"
+if [ -f "$SDROP_SCRIPT" ]; then
+    # A TEST build (-DNAAB_CONFIG_MUTATION=ON) lets NAAB_DROP_SETTING delete a
+    # governance setting at load, for tools/testrunner/setting_drop.py. In a
+    # shipped binary that variable would be a governance bypass: this checks
+    # the hook is compiled out of the normal build CI ships.
+    if run_shell_test "$SDROP_SCRIPT" 2>&1; then
+        echo "  test_setting_drop_compiled_out.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_setting_drop_compiled_out.sh")
+    fi
+else
+    echo "  test_setting_drop_compiled_out.sh: not found, skipping"
 fi
 fi  # phase_runs shell
 
