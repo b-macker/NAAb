@@ -54,8 +54,14 @@ main {
 }
 NAAB
 
-BLOCK_SOURCE="print(42)"
-TAMPERED_SOURCE="import os; os.system('echo TAMPERED_RAN')"
+# Each block leaves a MARKER FILE, and the arms assert on the file. A block's
+# stdout is captured rather than forwarded on some builds (build-linux saw no
+# "42" from print(42) while the program around it ran), so stdout cannot show
+# that the block ran -- or, for the tampered source, that it did NOT run.
+RAN_MARK="$WORK/block_ran"
+TAMPER_MARK="$WORK/tampered_ran"
+BLOCK_SOURCE="open('$RAN_MARK', 'w').write('ran')"
+TAMPERED_SOURCE="import os; open('$TAMPER_MARK', 'w').write('x'); os.system('echo TAMPERED_RAN')"
 REAL_HASH=$(printf '%s' "$BLOCK_SOURCE" | sha256sum | awk '{print $1}')
 
 # new_home <name> -> fresh HOME holding the block with its correct hash; sets LIB
@@ -76,7 +82,8 @@ new_home() {
 }
 EOF
 }
-run_prog() { (cd "$WORK" && HOME="$H" timeout 60 "$NAAB" --tree-walk prog.naab 2>&1 || true); }
+run_prog() { rm -f "$RAN_MARK" "$TAMPER_MARK"; (cd "$WORK" && HOME="$H" timeout 60 "$NAAB" --tree-walk prog.naab 2>&1 || true); }
+tamper_ran() { [ -e "$TAMPER_MARK" ] || echo "$1" | grep -q "TAMPERED_RAN"; }
 refused() { echo "$1" | grep -qi "tampered\|integrity.*check.*fail\|hash.*mismatch\|code_hash"; }
 
 # T0 CONTROL: the untampered block loads and runs -- the harness reaches the
@@ -85,8 +92,8 @@ refused() { echo "$1" | grep -qi "tampered\|integrity.*check.*fail\|hash.*mismat
 echo "[T0] CONTROL: the untampered block loads and runs"
 new_home t0
 out=$(run_prog)
-if echo "$out" | grep -qx "42" && echo "$out" | grep -q "PROGRAM_RAN"; then
-    ok "untampered block loaded, ran (42) and the program continued"
+if [ -f "$RAN_MARK" ] && echo "$out" | grep -q "PROGRAM_RAN"; then
+    ok "untampered block loaded, ran (wrote its marker) and the program continued"
 else
     fail "the untampered block did not run -- the arms below prove nothing: ${out:0:200}"
 fi
@@ -99,7 +106,7 @@ echo "[T1] Tampered block source rejected with integrity error"
 new_home t1
 echo "$TAMPERED_SOURCE" > "$LIB/python/test_integrity_block.py"
 out=$(run_prog)
-if refused "$out" && ! echo "$out" | grep -q "TAMPERED_RAN"; then
+if refused "$out" && ! tamper_ran "$out"; then
     ok "tampered block rejected with integrity error"
 else
     fail "expected integrity error, got: ${out:0:200}"
@@ -136,7 +143,7 @@ if ! echo "$out" | grep -q "PROGRAM_RAN" || [ ! -f "$LIB/.block_cache.json" ]; t
 else
     echo "$TAMPERED_SOURCE" > "$LIB/python/test_integrity_block.py"
     out=$(run_prog)
-    if refused "$out" && ! echo "$out" | grep -q "TAMPERED_RAN"; then
+    if refused "$out" && ! tamper_ran "$out"; then
         ok "tampering after a cached clean run is rejected"
     else
         fail "the tampered block ran from cached metadata (integrity check skipped): ${out:0:200}"
@@ -154,7 +161,7 @@ printf '{"version":1,"blocks":{"BLOCK-PY-INTEGRITY-TEST":{"name":"integrity_test
 touch -d '+1 minute' "$LIB/.block_cache.json" 2>/dev/null || true   # newer than the language dir
 echo "$TAMPERED_SOURCE" > "$LIB/python/test_integrity_block.py"
 out=$(run_prog)
-if refused "$out" && ! echo "$out" | grep -q "TAMPERED_RAN"; then
+if refused "$out" && ! tamper_ran "$out"; then
     ok "old-format cache discarded; tampered block rejected"
 else
     fail "an old-format cache let the tampered block run: ${out:0:200}"
