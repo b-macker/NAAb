@@ -3451,6 +3451,24 @@ else
     echo "  test_child_memory_limit.sh: not found, skipping"
 fi
 
+# --- Concurrent compiles of one C++ block (atomic cache installs) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Compile Cache Race (two processes, one block, no torn files)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+CACHE_RACE_SCRIPT="tests/robustness/test_compile_cache_race.sh"
+if [ -f "$CACHE_RACE_SCRIPT" ]; then
+    if run_shell_test "$CACHE_RACE_SCRIPT" 2>&1; then
+        echo "  test_compile_cache_race.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_compile_cache_race.sh")
+    fi
+else
+    echo "  test_compile_cache_race.sh: not found, skipping"
+fi
+
 API_REST_HARD_BLOCK_SCRIPT="tests/api/test_rest_hard_block_survives.sh"
 if [ -f "$API_REST_HARD_BLOCK_SCRIPT" ]; then
     if run_shell_test "$API_REST_HARD_BLOCK_SCRIPT" 2>&1; then

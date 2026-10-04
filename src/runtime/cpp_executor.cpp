@@ -4,6 +4,7 @@
 #include "naab/cpp_executor.h"
 #include "naab/interpreter.h"
 #include "naab/paths.h"
+#include "naab/atomic_file.h"
 #include "naab/resource_limits.h"
 #include "naab/input_validator.h"
 #include "naab/audit_logger.h"
@@ -214,8 +215,11 @@ bool CppExecutor::compileBlock(
     std::error_code ec;
     fs::rename(temp_so_path, so_path, ec);
     if (ec) {
-        // Cross-device fallback (tmp and cache on different filesystems)
-        fs::copy_file(temp_so_path, so_path, fs::copy_options::overwrite_existing, ec);
+        // Cross-device (a tmpfs /tmp): rename() cannot cross filesystems, and
+        // copying over so_path in place truncated a library another process
+        // had already dlopen()ed -- SIGBUS on its next page fault. Copy beside
+        // so_path and rename from there, which stays on one filesystem.
+        copyFileAtomically(temp_so_path, so_path, ec);
     }
 
     if (ec) {
