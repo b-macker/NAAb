@@ -37,16 +37,39 @@ echo "=== nested govern.json keys the engine never reads ==="
 # --- NK-00: the committed schema is current ---------------------------------
 # Compared as bytes the generator writes itself (ASCII, no CRLF translation),
 # against the committed file read by the shell -- no path crosses into Python.
+# Line endings are not part of the schema: a Windows checkout (core.autocrlf)
+# hands the shell the committed file with CRLF, and the first build-windows run
+# reported "stale" for a file whose paths were identical. Both sides are
+# compared with CR removed, and a real mismatch prints the first differing line
+# with control characters visible (tests/helpers/encoding_controls.sh), so a
+# platform difference can never again pass for a content difference.
+. "$REPO/tests/helpers/encoding_controls.sh"
 if command -v python3 >/dev/null 2>&1; then
     fresh="$(cd "$REPO" && python3 tools/config_known_keys.py 2>&1)"; prc=$?
     committed="$(cat "$REPO/src/runtime/governance_known_keys.inc")"
+    fresh_n="$(printf '%s' "$fresh" | enc_strip_cr)"
+    committed_n="$(printf '%s' "$committed" | enc_strip_cr)"
     if [ "$prc" -ne 0 ]; then
         bad NK-00 "the generator failed -- the schema cannot be checked" "$(printf '%s' "$fresh" | tail -1)"
-    elif [ "$fresh" == "$committed" ]; then
-        ok NK-00 "the committed schema matches the loader ($(printf '%s\n' "$committed" | grep -c '^"') paths)"
+    elif [ -z "$fresh_n" ]; then
+        bad NK-00 "the generator printed nothing -- the schema cannot be checked"
+    elif [ "$fresh_n" == "$committed_n" ]; then
+        crnote=""
+        [ "$committed" != "$committed_n" ] && crnote="; checkout has CRLF line endings"
+        ok NK-00 "the committed schema matches the loader ($(printf '%s\n' "$committed_n" | grep -c '^"') paths$crnote)"
     else
         bad NK-00 "src/runtime/governance_known_keys.inc is stale" \
             "run: python3 tools/config_known_keys.py --write"
+        i=0
+        while IFS= read -r a <&3 && IFS= read -r b <&4; do
+            i=$((i+1))
+            if [ "$a" != "$b" ]; then
+                echo "       first difference at line $i:"
+                enc_escaped_diff "generator" "$a" "committed" "$b" | sed 's/^/       /'
+                break
+            fi
+        done 3< <(printf '%s\n' "$fresh") 4< <(printf '%s\n' "$committed")
+        echo "       lines: generator $(printf '%s\n' "$fresh_n" | wc -l), committed $(printf '%s\n' "$committed_n" | wc -l)"
     fi
 else
     skip NK-00 "python3 unavailable -- schema freshness UNMEASURABLE"
