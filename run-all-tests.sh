@@ -3827,6 +3827,22 @@ else
     echo "  test_langconform.sh: not found, skipping"
 fi
 
+PROTMAP_SCRIPT="tests/self-audit/test_protection_map.sh"
+if [ -f "$PROTMAP_SCRIPT" ]; then
+    # Which layer stops each forbidden action per language (runtime, text
+    # checks only, or nothing), observed rather than inferred, pinned against
+    # tools/protmap/baseline.json. A weaker cell is a regression; a stronger
+    # one means docs/protection-map.md is out of date.
+    if run_shell_test "$PROTMAP_SCRIPT" 2>&1; then
+        echo "  test_protection_map.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_protection_map.sh")
+    fi
+else
+    echo "  test_protection_map.sh: not found, skipping"
+fi
+
 DEADGATE_SCRIPT="tests/self-audit/test_dead_interpreter_gate.sh"
 if [ -f "$DEADGATE_SCRIPT" ]; then
     # tools/testrunner/dead_gate.py runs every suite against an interpreter that

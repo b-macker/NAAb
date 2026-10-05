@@ -1,0 +1,15 @@
+# Registered runtimes the protection map has NO probes for, one per line:
+#   <runtime>  <reason>
+# test_protection_map.sh fails on a registered runtime that is neither probed
+# (SNIPPETS in protmap.py) nor listed here, so a new executor cannot be added
+# without someone deciding whether its row of the map is needed.
+#
+# These five have no toolchain on the machine the map was built on, so a
+# snippet for them could not be checked against the real runtime. Do not add
+# one you cannot run: the control would report it UNMEASURABLE forever and the
+# row would look covered.
+csharp      no C# toolchain where the map was built (dotnet/mcs absent)
+julia       no Julia toolchain where the map was built
+nim         no Nim toolchain where the map was built
+typescript  tsx absent where the map was built
+zig         no Zig toolchain where the map was built; std API also unstable across versions
