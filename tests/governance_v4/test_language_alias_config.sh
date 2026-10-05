@@ -59,6 +59,18 @@
 #          [python] refuses <<python>> (on master the empty intersection meant
 #          "unrestricted" and Python ran -- measured); AL-13c project
 #          [sql, python] + role [python] runs it. Both engines.
+#
+# Unknown names (a typo, or a language NAAb has no table entry for) are a
+# config ERROR (exit 4): on master `blocked: ["pyhton"]` loaded, matched no
+# block and let Python run -- silent, in the open direction.
+#   AL-14  "pyhton" in each of nine language lists: exit 4, the message
+#          names the list and suggests "python", the program does not run
+#   AL-14c CONTROL: the same nine fixtures with "python" load (no exit 4) --
+#          without it AL-14 passes for fixtures that are broken anyway
+#   AL-15  a name with no near match ("c") is refused without a guess
+#          (Plugin rule languages use the same helper and are not staged here.)
+#   AL-16  CONTROL: every canonical name and alias in the table, and its
+#          upper-cased spelling, loads -- the check refuses only unknowns
 # ============================================================
 set -uo pipefail
 
@@ -317,6 +329,67 @@ for eng in "" --tree-walk; do
         bad "AL-13/$e" "an agent role widened languages.allowed (exit $rr1)" "$or1"
     fi
 done
+
+# --- AL-14 / AL-14c / AL-15: unknown names are refused ---
+# One fixture per list; NAME is substituted. Each must LOAD with "python".
+fixture() {  # $1 = list id, $2 = language name
+    local n="\"$2\""
+    case "$1" in
+        allowed)    echo "{\"mode\":\"enforce\",\"languages\":{\"allowed\":[$n]}}" ;;
+        blocked)    echo "{\"mode\":\"enforce\",\"languages\":{\"blocked\":[$n]}}" ;;
+        per_lang)   echo "{\"mode\":\"enforce\",\"languages\":{\"per_language\":{$n:{\"max_lines\":500}}}}" ;;
+        custom)     echo "{\"mode\":\"enforce\",\"custom_rules\":[{\"id\":\"X\",\"pattern\":\"ZZZ_NEVER\",\"languages\":[$n],\"level\":\"advisory\",\"message\":\"m\"}]}" ;;
+        cg_allow)   echo "{\"mode\":\"enforce\",\"codegen\":{\"enabled\":true,\"allowed_languages\":[$n]}}" ;;
+        cg_block)   echo "{\"mode\":\"enforce\",\"codegen\":{\"enabled\":true,\"blocked_languages\":[$n]}}" ;;
+        ag_allow)   echo "{\"mode\":\"enforce\",\"agents\":{\"r\":{\"allowed_languages\":[$n]}}}" ;;
+        ag_block)   echo "{\"mode\":\"enforce\",\"agents\":{\"r\":{\"blocked_languages\":[$n]}}}" ;;
+        pin)        echo "{\"mode\":\"enforce\",\"runtime_versions\":[{\"language\":$n,\"required\":\">=0\"}]}" ;;
+    esac
+}
+LISTS="allowed blocked per_lang custom cg_allow cg_block ag_allow ag_block pin"
+f14=""; f14c=""; c14=0
+for L in $LISTS; do
+    mk "u_$L" "$(fixture "$L" pyhton)" "$PROG_PRINT"
+    mk "k_$L" "$(fixture "$L" python)" "$PROG_PRINT"
+    ou="$(run "$W/u_$L" "" p.naab)"; ru=$?
+    ok_="$(run "$W/k_$L" "" p.naab)"; rk=$?
+    [ $rk -ne 4 ] || f14c+=" $L(rc=4: ${ok_##*Error: })"
+    if [ $ru -eq 4 ] && [[ "$ou" == *'unknown language name "pyhton"'* ]] \
+       && [[ "$ou" == *'Did you mean "python"'* ]] && [[ "$ou" != *RAN* ]]; then
+        c14=$((c14+1))
+    else
+        f14+=" $L(rc=$ru)"
+    fi
+done
+[ -z "$f14c" ] && ok AL-14c "every fixture loads with a known name (9 lists)" \
+               || bad AL-14c "a fixture fails to load even with \"python\" -- AL-14 would prove nothing" "$f14c"
+[ -z "$f14" ] && ok AL-14 "\"pyhton\" is refused with a suggestion in every list ($c14 lists, exit 4)" \
+              || bad AL-14 "an unknown language name was accepted, or refused without the suggestion" "$f14"
+mk u_c "$(fixture blocked c)" "$PROG_PRINT"
+o15="$(run "$W/u_c" "" p.naab)"; r15=$?
+if [ $r15 -eq 4 ] && [[ "$o15" == *'unknown language name "c"'* ]] && [[ "$o15" != *"Did you mean"* ]] \
+   && [[ "$o15" == *"no language by that name"* ]]; then
+    ok AL-15 "a name with no near match (\"c\") is refused without a guess (exit 4)"
+else
+    bad AL-15 "\"c\" was accepted or given a guess (exit $r15)" "$o15"
+fi
+
+# --- AL-16: every known spelling loads (naab-gov's loader; rc 4 = refused) ---
+names16="$("$GOV" languages | python3 -c '
+import json, sys
+for d in json.load(sys.stdin):
+    for n in [d["canonical"]] + d["aliases"]:
+        sys.stdout.write(n + "\n" + n.upper() + "\n")
+' | tr -d '\r')"
+c16=0; f16=""
+while read -r n; do
+    [ -n "$n" ] || continue
+    printf 'x = 1\n' | "$GOV" check --language python \
+        --config-string "{\"mode\":\"enforce\",\"languages\":{\"blocked\":[\"$n\"]}}" >/dev/null 2>&1
+    [ $? -ne 4 ] && c16=$((c16+1)) || f16+=" $n"
+done <<< "$names16"
+[ -z "$f16" ] && [ $c16 -gt 0 ] && ok AL-16 "every table name and alias, either case, loads ($c16 spellings)" \
+              || bad AL-16 "a real language name was refused as unknown" "$f16"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"

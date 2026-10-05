@@ -5,7 +5,7 @@
 
   "languages": {
     "allowed": ["python", "javascript", "shell"],
-    "blocked": ["c", "cpp", "rust", "go"],
+    "blocked": ["cpp", "rust", "go"],
     "require_explicit": false
   },
 
