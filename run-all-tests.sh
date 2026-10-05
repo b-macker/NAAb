@@ -3739,6 +3739,20 @@ else
     echo "  test_naab_comment_apostrophe.sh: not found, skipping"
 fi
 
+CMCTX_SCRIPT="tests/governance_v4/test_comment_marker_context.sh"
+if [ -f "$CMCTX_SCRIPT" ]; then
+    # A line-comment marker is a comment only where the real lexer says: shell
+    # ${#..}/$#/a#b, ruby ?#//#/ are code, not comments (#294 regression).
+    if run_shell_test "$CMCTX_SCRIPT" 2>&1; then
+        echo "  test_comment_marker_context.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_comment_marker_context.sh")
+    fi
+else
+    echo "  test_comment_marker_context.sh: not found, skipping"
+fi
+
 LANGALIAS_SCRIPT="tests/governance_v4/test_language_alias_config.sh"
 if [ -f "$LANGALIAS_SCRIPT" ]; then
     # Every language name in govern.json (allowed/blocked, per_language,

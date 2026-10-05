@@ -34,10 +34,35 @@ struct BlockComment {
     bool line_start_only = false;
 };
 
+// A line-comment marker and the context in which it actually begins a comment.
+// Matching a bare marker anywhere was the #294 regression: shell `#` fired
+// inside ${#a[@]}, $#, a#b, so a stray `#` ate a real string's opening quote
+// and the code after that string was stripped as if it were string contents
+// -- hidden from every check. The constructors keep the plain `{"#"}` / `{"//"}`
+// table spelling working; the context flags are set only where a language needs
+// them.
+struct LineComment {
+    std::string marker;
+    // shell `#`: a comment only at a token boundary (start of input, or after
+    // whitespace/newline or a shell operator). Mid-token it is literal.
+    bool require_token_boundary = false;
+    // PHP 8 `#`: a comment unless followed by one of these ("[" -> attribute).
+    std::vector<std::string> not_if_followed_by;
+    // Ruby `#`: not a comment when preceded by `?` (a character literal, ?#).
+    bool not_after_question = false;
+
+    LineComment(const char* m) : marker(m) {}
+    LineComment(std::string m) : marker(std::move(m)) {}
+    LineComment(std::string m, bool boundary,
+                std::vector<std::string> followed = {}, bool after_q = false)
+        : marker(std::move(m)), require_token_boundary(boundary),
+          not_if_followed_by(std::move(followed)), not_after_question(after_q) {}
+};
+
 struct LanguageDescriptor {
     std::string canonical;
     std::vector<std::string> aliases;
-    std::vector<std::string> line_comments;
+    std::vector<LineComment> line_comments;
     std::vector<BlockComment> block_comments;
     // True when no executor runs this language: it is known to governance
     // (naab-gov check, the C API) but cannot be a NAAb block.
@@ -63,6 +88,12 @@ struct LanguageDescriptor {
     // Every name here must also be in `aliases`.
     std::vector<std::string> runtime_variants;
 };
+
+// Does the line comment `lc` actually BEGIN at code[i]? Checks the marker AND
+// its context flags (token boundary, not-after-?, not-if-followed-by). The one
+// place that answers this, shared by the string stripper, stripComments() and
+// markCommentsForScan() so they cannot disagree.
+bool lineCommentBegins(const std::string& code, size_t i, const LineComment& lc);
 
 // Every descriptor, in a fixed order.
 const std::vector<LanguageDescriptor>& allLanguages();

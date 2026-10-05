@@ -519,8 +519,13 @@ static int cmdLanguages() {
             blocks.push_back({{"open", b.open}, {"close", b.close},
                               {"line_start_only", b.line_start_only}});
         }
+        // Emit line-comment markers as plain strings (langconform reads them as
+        // such); the context flags that govern WHERE each begins are verified
+        // against the real interpreter, not from this JSON.
+        json line_comments = json::array();
+        for (const auto& m : d.line_comments) line_comments.push_back(m.marker);
         out.push_back({{"canonical", d.canonical}, {"aliases", d.aliases},
-                       {"line_comments", d.line_comments}, {"block_comments", blocks},
+                       {"line_comments", line_comments}, {"block_comments", blocks},
                        {"governance_only", d.governance_only},
                        {"extension", d.extension}, {"prelude", d.prelude},
                        {"syntax_checks", d.syntax_checks},
