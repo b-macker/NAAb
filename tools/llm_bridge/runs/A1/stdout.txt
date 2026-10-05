@@ -1,0 +1,10 @@
+STATIC|findings=3|agree=true
+PLAN|steps=4
+Error: JSON parse error at byte 1: [json.exception.parse_error.101] parse error at line 1, column 1: attempting to parse an empty input; check that your input string or stream contains the expected JSON
+
+  Help:
+  - The input to json.parse() is an empty string.
+  - Ensure the polyglot block produces output via cout or print().
+
+
+  Input preview: ""

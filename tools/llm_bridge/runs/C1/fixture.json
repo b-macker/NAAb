@@ -1,0 +1,139 @@
+{
+ "_comment": "Exported by tools/llm_bridge/bridge.py export-fixture from /tmp/claude-0/-home-user-NAAb/38a117e5-e21d-520a-9b98-52c8203032a2/scratchpad/runs/C1/queue. Token counts are the bridge's ESTIMATES (words*1.3); thinking unreported.",
+ "routes": {
+  "AH-PLANNER": {
+   "responses": [
+    {
+     "content": "{\"steps\": [{\"id\": 1, \"goal\": \"Enumerate the inventory-service workspace: list every file it contains (including nested directories, configs, tests, and scripts) so the audit covers the full set.\"}, {\"id\": 2, \"goal\": \"Audit the core source files for logic defects such as off-by-one errors, incorrect stock or quantity calculations, unhandled null or empty values, race conditions, and wrong return values, recording the file and line number of each.\"}, {\"id\": 3, \"goal\": \"Audit error handling, input validation, and security defects across the source and config files, such as swallowed exceptions, missing validation, unsafe queries, hardcoded secrets, and resource leaks, recording the file and line number of each.\"}, {\"id\": 4, \"goal\": \"Audit the tests, build files, and dependency or config manifests for defects such as broken or missing assertions, stale or mismatched settings, and wrong dependency versions, then compile every defect found as file, line number, and a one-sentence explanation.\"}]}",
+     "input_tokens": 120,
+     "output_tokens": 252,
+     "thinking_tokens": null,
+     "_provenance": {
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "planner",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-a0d4ac3bd9f625d2b.jsonl#1:pre-nudge-text",
+      "route": "AH-PLANNER",
+      "route_seq": 1,
+      "style": "none",
+      "written_at": "2026-10-03T19:07:49.135+00:00"
+     },
+     "_bridge_n": 1
+    },
+    {
+     "content": "{\"steps\": [{\"id\": 1, \"goal\": \"List every file in the inventory-service workspace, including nested directories, source files, configs, tests, and scripts, so the audit has a complete inventory.\"}, {\"id\": 2, \"goal\": \"Audit the core source files for logic defects such as incorrect stock or quantity arithmetic, off-by-one errors, null or empty-value handling, race conditions, and wrong return values, noting the file and line number of each.\"}, {\"id\": 3, \"goal\": \"Audit error handling, input validation, and security defects in the source and config files, such as swallowed exceptions, unvalidated input, injection-prone queries, hardcoded credentials, and resource leaks, noting the file and line number of each.\"}, {\"id\": 4, \"goal\": \"Audit the tests, build files, and dependency or settings manifests for defects such as missing or incorrect assertions and mismatched versions or settings, then compile all findings as file, line number, and a one-sentence explanation.\"}]}",
+     "input_tokens": 120,
+     "output_tokens": 244,
+     "thinking_tokens": null,
+     "_provenance": {
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "planner",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-a0d4ac3bd9f625d2b.jsonl#2:handback",
+      "route": "AH-PLANNER",
+      "route_seq": 2,
+      "style": "none",
+      "written_at": "2026-10-03T19:08:01.154+00:00"
+     },
+     "_bridge_n": 2
+    },
+    {
+     "content": "{\"steps\": [{\"id\": 1, \"goal\": \"Enumerate every file in the inventory-service workspace, including nested folders, source code, configuration, tests, and scripts, and record the complete file list.\"}, {\"id\": 2, \"goal\": \"Audit the inventory business-logic source files for functional defects such as wrong stock or quantity calculations, off-by-one errors, unhandled null or missing values, race conditions, and incorrect return values, recording file, line number, and a one-sentence explanation for each.\"}, {\"id\": 3, \"goal\": \"Audit all source and config files for error-handling, input-validation, and security defects such as swallowed exceptions, unchecked input, unsafe database queries, hardcoded secrets, and leaked resources, recording file, line number, and a one-sentence explanation for each.\"}, {\"id\": 4, \"goal\": \"Audit the test files, build scripts, and dependency or settings manifests for defects such as missing or wrong assertions, version mismatches, and misconfigured settings, then merge all findings into one report of file, line number, and explanation.\"}]}",
+     "input_tokens": 120,
+     "output_tokens": 270,
+     "thinking_tokens": null,
+     "_provenance": {
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "planner",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-a0d4ac3bd9f625d2b.jsonl#3:handback",
+      "route": "AH-PLANNER",
+      "route_seq": 3,
+      "style": "none",
+      "written_at": "2026-10-03T19:08:14.916+00:00"
+     },
+     "_bridge_n": 3
+    }
+   ]
+  },
+  "AH-WORKER": {
+   "responses": [
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "list_files",
+       "args": {}
+      }
+     ],
+     "input_tokens": 247,
+     "output_tokens": 9,
+     "thinking_tokens": null,
+     "_provenance": {
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-a1ac1ca245a464e17.jsonl#1:pre-nudge-text",
+      "route": "AH-WORKER",
+      "route_seq": 1,
+      "style": "none",
+      "written_at": "2026-10-03T19:08:33.999+00:00"
+     },
+     "_bridge_n": 4
+    },
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "read_file",
+       "args": {
+        "path": "report.py"
+       }
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "README.md"
+       }
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "inventory.py"
+       }
+      }
+     ],
+     "input_tokens": 286,
+     "output_tokens": 41,
+     "thinking_tokens": null,
+     "_provenance": {
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-a1ac1ca245a464e17.jsonl#2:handback",
+      "route": "AH-WORKER",
+      "route_seq": 2,
+      "style": "none",
+      "written_at": "2026-10-03T19:08:46.149+00:00"
+     },
+     "_bridge_n": 5
+    }
+   ]
+  }
+ },
+ "responses": [
+  {
+   "content": "{\"error\": \"unrouted request\"}"
+  }
+ ]
+}
