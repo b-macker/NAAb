@@ -181,11 +181,8 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         // FIX-DX-2 + FIX-D: Taint tracking for ALL language bindings
         checkPolyglotBoundVarTaint(language, bound_vars, node.getLocation().line);
 
-        // Phase 8.4: Runtime version pinning check
-        std::string rt_version = executor->getRuntimeVersion();
-        if (!rt_version.empty()) {
-            governance_->checkRuntimeVersions(language, rt_version);
-        }
+        // Runtime version pins are checked inside checkPolyglotBlock() above,
+        // for both engines and every execution path.
     }
 
     // Phase 2.2: Bind variables using string serialization

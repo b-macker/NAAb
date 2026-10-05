@@ -6493,6 +6493,21 @@ std::string GovernanceEngine::checkVariableBinding(size_t binding_count, int lin
                    rules().polyglot.variable_binding.require_explicit_level, msg);
 }
 
+// Set by checkPolyglotSource() for the duration of one text-only check.
+// Thread-local: polyglot blocks are checked on worker threads too.
+thread_local bool GovernanceEngine::t_text_only_check = false;
+
+std::string GovernanceEngine::checkPolyglotSource(
+    const std::string& language, const std::string& code,
+    const std::string& source_file, int line) {
+    struct Restore {
+        bool prev;
+        ~Restore() { t_text_only_check = prev; }
+    } restore{t_text_only_check};
+    t_text_only_check = true;
+    return checkPolyglotBlock(language, code, source_file, line);
+}
+
 std::string GovernanceEngine::checkPolyglotBlock(
     const std::string& language, const std::string& code,
     const std::string& source_file, int line,
@@ -6557,6 +6572,21 @@ std::string GovernanceEngine::checkPolyglotBlock(
     // lists (naab::lang::runtimeLanguage).
     err = checkLanguageAllowed(naab::lang::runtimeLanguage(language), line);
     if (!err.empty()) return err;
+
+    // Runtime version pins, for every block about to RUN. This used to be
+    // called from the tree-walker's polyglot path only, so on the VM -- the
+    // default engine since pins shipped -- and through codegen, modules and
+    // REST a pin was never consulted. Here every execution path gets it.
+    if (!t_text_only_check && !rules().runtime_versions.empty()) {
+        // The executor is registered under the tag (<<sqlite>>) or, for a
+        // spelling with no registration of its own (<<js>>), its runtime name.
+        auto& registry = runtime::LanguageRegistry::instance();
+        std::string version = registry.runtimeVersion(language);
+        if (version.empty())
+            version = registry.runtimeVersion(naab::lang::runtimeLanguage(language));
+        err = checkRuntimeVersions(language, version);
+        if (!err.empty()) return err;
+    }
 
     // Shell capability check
     if (lang == "shell") {

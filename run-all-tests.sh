@@ -3744,6 +3744,20 @@ else
     echo "  test_language_alias_config.sh: not found, skipping"
 fi
 
+RTPIN_SCRIPT="tests/governance_v4/test_runtime_pin_engines.sh"
+if [ -f "$RTPIN_SCRIPT" ]; then
+    # runtime_versions pins hold on both engines and through codegen (the VM
+    # never consulted them), and an unverifiable version is not a pass.
+    if run_shell_test "$RTPIN_SCRIPT" 2>&1; then
+        echo "  test_runtime_pin_engines.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_runtime_pin_engines.sh")
+    fi
+else
+    echo "  test_runtime_pin_engines.sh: not found, skipping"
+fi
+
 LANGCONFORM_SCRIPT="tests/self-audit/test_langconform.sh"
 if [ -f "$LANGCONFORM_SCRIPT" ]; then
     # What governance sees per language (every comment and string form, every

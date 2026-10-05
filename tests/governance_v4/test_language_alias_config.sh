@@ -33,9 +33,9 @@
 #          lets the same program run (the executor works)
 #   AL-08  codegen.blocked_languages with an alias stops codegen.run; AL-08c
 #          control: an unrelated codegen block list lets it run
-#   AL-09  runtime_versions pinned under an alias applies (tree-walker only:
-#          the VM does not call checkRuntimeVersions at all -- a separate
-#          finding, not asserted here); AL-09c: an unpinned run passes
+#   AL-09  runtime_versions pinned under an alias applies, both engines
+#          (test_runtime_pin_engines.sh covers pins in depth); AL-09c: an
+#          unpinned run passes
 #
 # Runtime variants (the table's runtime_variants: `node`) are the same
 # LANGUAGE as their canonical name but a separate EXECUTOR -- Node.js as a
@@ -262,18 +262,21 @@ else
 fi
 mk p1 '{"mode":"enforce","runtime_versions":[{"language":"sqlite","required":">=999","level":"hard"}]}' "$PROG_SQL"
 mk p2 '{"mode":"enforce"}' "$PROG_SQL"
-op2="$(run "$W/p2" --tree-walk p.naab)"; rp2=$?
-if [ $rp2 -ne 0 ] || [[ "$op2" != *RAN* ]]; then
-    skip AL-09 "<<sql>> did not run on the tree-walker (exit $rp2) -- UNMEASURABLE"
-else
-    ok AL-09c "unpinned <<sql>> runs on the tree-walker"
-    op1="$(run "$W/p1" --tree-walk p.naab)"; rp1=$?
-    if [[ "$op1" == *runtime_version* ]]; then
-        ok AL-09 "a runtime_versions pin on \"sqlite\" applies to <<sql>> (exit $rp1)"
-    else
-        bad AL-09 "a runtime pin under an alias never applied (exit $rp1)" "$op1"
+for eng in "" --tree-walk; do
+    e=${eng:-vm}; e=${e#--}
+    op2="$(run "$W/p2" "$eng" p.naab)"; rp2=$?
+    if [ $rp2 -ne 0 ] || [[ "$op2" != *RAN* ]]; then
+        skip "AL-09/$e" "<<sql>> did not run (exit $rp2) -- UNMEASURABLE"
+        continue
     fi
-fi
+    ok "AL-09c/$e" "unpinned <<sql>> runs"
+    op1="$(run "$W/p1" "$eng" p.naab)"; rp1=$?
+    if [[ "$op1" == *runtime_version* ]] && [ $rp1 -eq 3 ]; then
+        ok "AL-09/$e" "a runtime_versions pin on \"sqlite\" applies to <<sql>> (exit 3)"
+    else
+        bad "AL-09/$e" "a runtime pin under an alias never applied (exit $rp1)" "$op1"
+    fi
+done
 
 # --- AL-11: contradiction detection speaks runtimes too ---
 PROG_PRINT=$'main {\n    print("RAN")\n}'

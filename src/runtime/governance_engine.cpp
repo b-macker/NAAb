@@ -6538,11 +6538,10 @@ static bool versionSatisfies(const std::string& observed_raw,
     return obs_prefix == required;
 }
 
-void GovernanceEngine::checkRuntimeVersions(const std::string& language,
-                                             const std::string& observed_version) {
-    if (!active_) return;
-    if (rules().runtime_versions.empty()) return;
-    if (observed_version.empty()) return;
+std::string GovernanceEngine::checkRuntimeVersions(const std::string& language,
+                                                    const std::string& observed_version) {
+    if (!active_) return "";
+    if (rules().runtime_versions.empty()) return "";
 
     // Pins name a RUNTIME and are stored that way (governance_config.cpp); the
     // caller passes the block's tag as written, so <<bash>> must match a pin on
@@ -6551,29 +6550,46 @@ void GovernanceEngine::checkRuntimeVersions(const std::string& language,
     for (const auto& pin : rules().runtime_versions) {
         if (pin.language != runtime) continue;
 
-        bool ok = versionSatisfies(observed_version, pin.required_version);
-        std::string rule_name = "runtime_version." + language;
+        const std::string rule_name = "runtime_version." + runtime;
+        const std::string pin_text = fmt::format(
+            "runtime_versions[language=\"{}\"].required = \"{}\"", runtime, pin.required_version);
 
-        if (!ok) {
-            std::string msg = pin.message.empty()
-                ? fmt::format("Runtime version mismatch for {}: required '{}', got '{}'",
-                    language, pin.required_version, observed_version)
-                : pin.message;
-            enforce(rule_name, pin.level,
-                formatError(pin.level, msg,
-                    fmt::format("{}", observed_version),
-                    fmt::format("runtime_versions[language=\"{}\"].required = \"{}\"",
-                        language, pin.required_version),
-                    fmt::format("Pin your runtime: add to govern.json:\n"
-                        "  \"runtime_versions\": [{{\"language\": \"{}\", "
-                        "\"required\": \"{}\", \"level\": \"advisory\"}}]",
-                        language, pin.required_version),
+        // An executor that reports no version cannot satisfy a pin. This used
+        // to return early -- a pin on any runtime but Python or SQL passed
+        // silently on every run. It is reported at the pin's own level.
+        if (observed_version.empty()) {
+            addTrace("runtime_version: " + runtime + " reports no version -> unverifiable");
+            return enforce(rule_name, pin.level,
+                formatError(pin.level,
+                    pin.message.empty()
+                        ? fmt::format("Runtime version for {} cannot be determined: its "
+                              "executor reports no version, so the pin '{}' cannot be verified",
+                              runtime, pin.required_version)
+                        : pin.message,
+                    "", pin_text,
+                    fmt::format("NAAb cannot read the version of the runtime that runs "
+                        "{} blocks, so this pin can never be satisfied as written.", runtime),
                     "", ""));
-        } else {
-            recordPass(rule_name, pin.level);
         }
-        break;  // Only one pin per language
+
+        if (!versionSatisfies(observed_version, pin.required_version)) {
+            addTrace("runtime_version: " + runtime + " " + observed_version +
+                     " does not satisfy " + pin.required_version);
+            return enforce(rule_name, pin.level,
+                formatError(pin.level,
+                    pin.message.empty()
+                        ? fmt::format("Runtime version mismatch for {}: required '{}', got '{}'",
+                              runtime, pin.required_version, observed_version)
+                        : pin.message,
+                    observed_version, pin_text,
+                    fmt::format("Run {} blocks on a runtime that satisfies '{}'.",
+                        runtime, pin.required_version),
+                    "", ""));
+        }
+        recordPass(rule_name, pin.level);
+        return "";  // Only one pin per language
     }
+    return "";
 }
 
 // ============================================================================

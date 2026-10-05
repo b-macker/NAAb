@@ -391,7 +391,7 @@ static int cmdCheck(const std::vector<std::string>& args) {
     std::string hard_block_message;
     try {
         engine.setCheckContext(source_file, 1);
-        engine.checkPolyglotBlock(language, code, source_file, 1);
+        engine.checkPolyglotSource(language, code, source_file, 1);
     } catch (const naab::governance::GovernanceHardError& e) {
         hard_block_message = e.what();
     }
