@@ -207,9 +207,25 @@ def cmd_languages(a):
     write_out("".join(n + "\n" for n in registered_languages(a.naab)))
 
 
+def snapshot_languages(registered, table):
+    """Every name a block can be written with: the table's names (canonical
+    and aliases, governance-only entries excluded) plus whatever this binary
+    registers. naab-gov judges code without an executor, so the table's part
+    is the same on every platform; asking only the registry made the matrix
+    platform-specific (build-windows registers 4 executors, so 17 languages
+    vanished from its snapshot and LC-02 read that as a governance change).
+    The registered part keeps a name the table lacks visible -- conform then
+    fails on it (LC-06)."""
+    names = set(registered)
+    for d in table:
+        if not d.get("governance_only"):
+            names.update([d["canonical"]] + d["aliases"])
+    return sorted(names)
+
+
 def cmd_snapshot(a):
-    langs = registered_languages(a.naab)
     table = language_table(a.gov)
+    langs = snapshot_languages(registered_languages(a.naab), table)
     cfg, digest = load_config()
     jobs = []
     for lang in langs:

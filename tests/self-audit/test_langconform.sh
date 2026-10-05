@@ -25,7 +25,8 @@
 #          registered name has an entry, and every comment form an entry
 #          declares is honoured (a new language or form is covered with no
 #          edit here)
-#   LC-06  CONTROL: a registered language missing from the table FAILS
+#   LC-06  CONTROL: a registered language missing from the table FAILS (the
+#          removed entry is one this platform registers: sql, else the first)
 #   LC-07  CONTROL: a declared comment form the engine does not honour FAILS
 #          (keyword family: comments hidden from code checks)
 #   LC-08  CONTROL: the same, for the marker family (markers in comments
@@ -41,6 +42,12 @@
 #          build-windows CreateProcess refused every probe before naab-gov
 #          started. LC-13c is the control: the shim refuses the old inline
 #          form. Skipped on Windows, where the real limit applies to LC-01.
+#   LC-14  the matrix does not depend on which executors this platform
+#          registers: a stand-in naab-lang registering only build-windows'
+#          four (javascript, python, sql, sqlite) yields the committed
+#          baseline exactly. It used to come from the registry alone, so
+#          Windows lost 17 languages and LC-02 failed for no governance
+#          reason. Skipped on Windows (the stand-in is a bash script).
 #   LC-12  CONTROL: a string literal posing as a comment (Ruby %{ %}) is WRONG --
 #          the verifier cannot be fooled by a form that only starts a string
 #
@@ -167,11 +174,17 @@ fi
 
 # --- LC-06 / LC-07: planted tables ---
 build/naab-gov languages > "$W/table.json"
-python3 - "$W/table.json" "$W/no_zig.json" "$W/bogus.json" "$W/fakeblock.json" <<'PY'
+# LC-06 removes the entry of a language THIS binary registers (build-windows
+# registers 4; zig, the old choice, is not one of them, so nothing was missing).
+# sql is registered on every platform (in-process SQLite); else the first name.
+reg="$(printf '%s\n' "$langs" | tr -d '\r')"
+case $'\n'"$reg"$'\n' in *$'\nsql\n'*) gone=sql ;; *) gone="$(printf '%s\n' "$reg" | head -1)" ;; esac
+python3 - "$W/table.json" "$W/no_zig.json" "$W/bogus.json" "$W/fakeblock.json" "$gone" <<'PY'
 import json, sys
 t = json.load(open(sys.argv[1], encoding="utf-8", errors="strict"))
+gone = sys.argv[5]
 open(sys.argv[2], "w", encoding="ascii", newline="\n").write(
-    json.dumps([d for d in t if d["canonical"] != "zig"]))
+    json.dumps([d for d in t if gone not in [d["canonical"]] + d["aliases"]]))
 for d in t:
     if d["canonical"] == "python":
         d["line_comments"].append("//")   # not a Python comment; the engine must disagree
@@ -184,7 +197,7 @@ open(sys.argv[4], "w", encoding="ascii", newline="\n").write(json.dumps(t))
 PY
 c6="$(python3 "$TOOL" conform --gov build/naab-gov --naab build/naab-lang --table "$W/no_zig.json" 2>&1)"; c6rc=$?
 case "$c6" in
-  *"FAIL zig: registered, but the language table has no entry"*)
+  *"FAIL $gone: registered, but the language table has no entry"*)
       [ $c6rc -ne 0 ] && ok LC-06 "a registered language with no table entry fails (exit $c6rc)" \
                       || bad LC-06 "reported, but exit 0" "$c6" ;;
   *) bad LC-06 "a missing table entry was not reported" "$c6" ;;
@@ -296,6 +309,25 @@ SHIM
             fi
         else
             bad LC-13c "the shim did not refuse a ${#big}-character command line (exit $c13) -- LC-13 would prove nothing"
+        fi ;;
+esac
+
+# --- LC-14: the matrix is the same whatever the platform registers ---
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) skip LC-14 "Windows: measured for real by LC-02" ;;
+    *)
+        printf '#!/usr/bin/env bash\nprintf "javascript\\npython\\nsql\\nsqlite\\n"\n' > "$W/naab4"
+        chmod +x "$W/naab4"
+        o14="$(python3 "$TOOL" snapshot --gov build/naab-gov --naab "$W/naab4" --out "$W/win4.json" 2>&1)"; r14=$?
+        if [ $r14 -ne 0 ]; then
+            bad LC-14 "the snapshot under a four-executor registry did not complete (rc=$r14)" "$o14"
+        else
+            d14="$(python3 "$TOOL" diff tools/langconform/baseline.json "$W/win4.json" 2>&1)"; d14rc=$?
+            if [ $d14rc -eq 0 ]; then
+                ok LC-14 "a four-executor registry (as on build-windows) yields the baseline matrix"
+            else
+                bad LC-14 "the matrix depends on which executors are registered" "$d14"
+            fi
         fi ;;
 esac
 
