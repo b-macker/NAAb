@@ -529,6 +529,22 @@ def _user_text(content):
     return ""
 
 
+def declared_tools(director_text):
+    """Tool names the rendered request declared ('- name(...)' lines)."""
+    names = set()
+    in_block = False
+    for line in director_text.split("\n"):
+        if line.startswith("[Tools you may call]"):
+            in_block = True
+            continue
+        if in_block:
+            mm = re.match(r"^- ([A-Za-z_][A-Za-z0-9_]*)\(", line)
+            if not mm:
+                break
+            names.add(mm.group(1))
+    return names
+
+
 def transcript_replies(path):
     """One reply per director request, in order, from a subagent transcript.
 
@@ -563,7 +579,9 @@ def transcript_replies(path):
     while i < len(entries):
         m = entries[i]
         if m["role"] == "user" and REQUEST_MARK in _user_text(m.get("content")):
-            texts, handback, others = [], None, []
+            director = _user_text(m.get("content"))
+            declared = declared_tools(director)
+            texts, handback, others, native = [], None, [], []
             j = i + 1
             complete = False
             while j < len(entries):
@@ -588,15 +606,33 @@ def transcript_replies(path):
                     if b.get("type") == "text":
                         texts.append(b.get("text", ""))
                     elif b.get("type") == "tool_use":
-                        if b.get("name") == "SubagentHandback" and handback is None:
+                        name = b.get("name")
+                        if name == "SubagentHandback" and handback is None:
                             handback = (b.get("input") or {}).get("message", "")
-                        elif b.get("name") != "SubagentHandback":
-                            others.append(b.get("name"))
+                        elif name in declared and handback is None:
+                            # A NATIVE call to a tool the request declares is
+                            # what a model does through real function
+                            # calling. The persona's environment has no such
+                            # tool and answers with an error; what follows
+                            # is a reaction to that error, not to the
+                            # request -- so the reply ends here.
+                            native.append("CALL %s %s" % (
+                                name, json.dumps(b.get("input") or {})))
+                        elif name != "SubagentHandback":
+                            others.append(name)
+                if native:
+                    complete = True
+                    break
                 j += 1
-            if handback is not None:
-                replies.append((handback, others, "handback"))
+            if native:
+                replies.append(("\n".join([t for t in texts if t.strip()]
+                                          + native), others,
+                                "native-tool-call", director))
+            elif handback is not None:
+                replies.append((handback, others, "handback", director))
             elif complete:
-                replies.append(("\n".join(texts), others, "pre-nudge-text"))
+                replies.append(("\n".join(texts), others, "pre-nudge-text",
+                                director))
             else:
                 break   # trailing segment still in progress
             i = j
@@ -608,8 +644,11 @@ def transcript_replies(path):
 def take_handback(queue, path, timeout):
     """Next UNUSED reply of a persona transcript, waiting for it to appear.
 
-    Consumption is tracked per transcript in <queue>/handbacks_used.json, so
-    a stale reply can never be served for a new request."""
+    Returns (text, other_tools, source_label, director_message, commit).
+    Consumption is tracked per transcript in <queue>/handbacks_used.json and
+    is recorded only when the caller calls commit() -- after it has checked
+    the reply answers the right request -- so a stale reply can never be
+    served for a new request, and a refused one is not silently skipped."""
     state_p = os.path.join(queue, "handbacks_used.json")
     state = read_json(state_p) if os.path.exists(state_p) else {}
     used = state.get(path, 0)
@@ -618,12 +657,15 @@ def take_handback(queue, path, timeout):
         if os.path.exists(path):
             replies = transcript_replies(path)
             if len(replies) > used:
-                text, others, source = replies[used]
-                state[path] = used + 1
-                atomic_write(state_p, json.dumps(state, indent=1))
-                return text, others, "%d:%s" % (used + 1, source)
+                text, others, source, director = replies[used]
+
+                def commit():
+                    state[path] = used + 1
+                    atomic_write(state_p, json.dumps(state, indent=1))
+                return (text, others, "%d:%s" % (used + 1, source),
+                        director, commit)
         if time.time() > deadline:
-            return None, None, used
+            return None, None, used, None, None
         time.sleep(1.0)
 
 
@@ -636,12 +678,31 @@ def cmd_respond(a):
         return 2
     other_tools, handback_index = [], None
     if a.from_transcript:
-        text, other_tools, handback_index = take_handback(
+        text, other_tools, handback_index, director, commit = take_handback(
             a.queue, a.from_transcript, a.reply_timeout)
         if text is None:
             print("NO_HANDBACK: no new reply in %s within %ds" % (
                 a.from_transcript, a.reply_timeout))
             return 5
+        # DELIVERY CHECK: the persona must have been sent exactly this
+        # request. The director copies each rendering into a message by
+        # hand; a slip there would mean the persona answered a request NAAb
+        # never made, and nothing downstream could tell.
+        delivery_note = ""
+        if render_request(req) not in director and a.accept_mismatch:
+            delivery_note = "MISMATCH ACCEPTED: " + a.accept_mismatch
+        elif render_request(req) not in director:
+            print("DELIVERY_MISMATCH: the message reply #%s answers does not "
+                  "contain request %d's rendering verbatim -- NOT served" % (
+                      handback_index, a.n))
+            import difflib
+            got = director[director.find(REQUEST_MARK):] if REQUEST_MARK in director else director
+            for line in difflib.unified_diff(render_request(req).split("\n"),
+                                             got.split("\n"), "rendered",
+                                             "delivered", lineterm="", n=1):
+                print(line)
+            return 6
+        commit()
     elif a.reply_file:
         with open(a.reply_file, encoding="utf-8") as f:
             text = f.read()
@@ -661,6 +722,8 @@ def cmd_respond(a):
                                handback_index) if a.from_transcript
                                else "director-supplied text"),
                            "persona_other_tool_uses": other_tools,
+                           "delivery_check": (delivery_note or "exact")
+                           if a.from_transcript else "not checked",
                            "route": req["route"], "route_seq": req["route_seq"],
                            "written_at": now_iso()}}
     atomic_write(os.path.join(respdir, "%d.json" % a.n),
@@ -803,6 +866,9 @@ def main():
                    help="subagent transcript JSONL; serve its next unused "
                         "SubagentHandback message verbatim (waits for it)")
     s.add_argument("--reply-timeout", type=int, default=900)
+    s.add_argument("--accept-mismatch", default="",
+                   help="serve a reply whose delivered request differs from "
+                        "the rendering; REASON is recorded in provenance")
     s.add_argument("--then-next", type=int, default=None,
                    help="after responding, wait up to N s and render pending")
     s.set_defaults(fn=cmd_respond)

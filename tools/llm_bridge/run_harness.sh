@@ -5,6 +5,9 @@
 #   run_harness.sh RUN_DIR                      a director answers the queue
 #   run_harness.sh RUN_DIR --autoreply FIXTURE  answered from an agent_stub
 #                                               fixture (the CONTROL run)
+#   run_harness.sh RUN_DIR ... --deviation NAME one named deviation from the
+#                                               shipped governance (see
+#                                               patch_config.py); must come last
 #   run_harness.sh RUN_DIR --replay FIXTURE     NO bridge: tests/helpers/
 #                                               agent_stub.py serves FIXTURE
 #                                               (e.g. one written by
@@ -50,12 +53,15 @@ RUN="${1:-}"
 shift
 AUTOREPLY=""
 REPLAY=""
+DEVIATION=""
 case "${1:-}" in
     --autoreply) AUTOREPLY="$(cd "$(dirname "${2:?fixture path}")" && pwd)/$(basename "$2")" ;;
     --replay)    REPLAY="$(cd "$(dirname "${2:?fixture path}")" && pwd)/$(basename "$2")" ;;
+    --deviation) DEVIATION="${2:?deviation name}" ;;
     "") ;;
     *) echo "unknown option $1" >&2; exit 2 ;;
 esac
+case "${3:-}" in --deviation) DEVIATION="${4:?deviation name}" ;; esac
 
 [ -x "$NAAB" ] || { echo "naab-lang not found at $NAAB (build it, or set NAAB=)" >&2; exit 2; }
 if [ -e "$RUN" ] && [ -n "$(ls -A "$RUN" 2>/dev/null)" ]; then
@@ -113,7 +119,7 @@ fi
 
 # Feed the config by bytes on stdin, not by path (CLAUDE.md: a native helper
 # need not share the shell's path vocabulary).
-python3 "$HERE/patch_config.py" "$PORT" < "$H/govern.json" \
+python3 "$HERE/patch_config.py" "$PORT" $DEVIATION < "$H/govern.json" \
     > "$RUN/govern.patched.json" 2> "$RUN/config_changes.json" \
     || { echo "config patch failed" >&2; cat "$RUN/config_changes.json" >&2; exit 2; }
 cp "$RUN/govern.patched.json" "$H/govern.json"

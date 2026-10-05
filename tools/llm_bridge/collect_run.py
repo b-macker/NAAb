@@ -58,7 +58,7 @@ def persona_exchange(path):
     replies = bridge.transcript_replies(path)
     out = []
     for i, d in enumerate(directors):
-        r = replies[i] if i < len(replies) else (None, [], "no-reply")
+        r = replies[i] if i < len(replies) else (None, [], "no-reply", d)
         out.append({"seq": i + 1, "director_message": d, "reply": r[0],
                     "reply_source": r[2], "persona_other_tool_uses": r[1]})
     return out
@@ -102,7 +102,14 @@ def main():
     for i, ab in enumerate(meta.get("abandoned_personas", []), 1):
         ids["%s-abandoned%d" % (ab["persona"], i)] = ab["agent_id"]
     os.makedirs(os.path.join(dest, "personas"), exist_ok=True)
+    flat = []
     for persona, aid in sorted(ids.items()):
+        # A stateless persona (a fresh subagent per request) has a LIST.
+        if isinstance(aid, list):
+            flat += [("%s-r%d" % (persona, i), a) for i, a in enumerate(aid, 1)]
+        else:
+            flat.append((persona, aid))
+    for persona, aid in flat:
         tp = os.path.join(subdir, "agent-%s.jsonl" % aid)
         if not os.path.exists(tp):
             print("WARNING: transcript missing for %s (%s)" % (persona, aid),

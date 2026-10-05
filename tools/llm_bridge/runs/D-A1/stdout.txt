@@ -1,0 +1,10 @@
+STATIC|findings=3|agree=true
+PLAN|steps=4
+Error: Agent error: output contract violation
+
+  Agent: worker
+  Format: json
+  Violation: JSON parse failed: [json.exception.parse_error.101] parse error at line 1, column 1: syntax error while parsing value - invalid literal; last read: 'A'
+
+  The LLM response does not match the expected output schema.
+

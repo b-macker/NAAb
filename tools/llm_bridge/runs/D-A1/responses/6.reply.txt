@@ -1,0 +1,11 @@
+Audit Step 1 Complete
+
+Files in inventory-service workspace:
+- inventory.py
+- report.py
+- README.md
+
+Defects Found: 2
+
+1. inventory.py:21 - Loop starts at index 1, skipping the first item in the list.
+2. report.py:5 - File handle opened but never closed, causing a resource leak.

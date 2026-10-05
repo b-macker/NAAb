@@ -1,0 +1,128 @@
+{
+ "route": "AH-WORKER",
+ "system_prompt": "AH-WORKER You audit code in a workspace using the list_files and read_file tools. For each audit step, read the files, then return ONLY JSON: {\"step\": N, \"files\": [\"name\"], \"defects\": [{\"file\": \"name\", \"line\": N, \"explanation\": \"one sentence\"}]}. Report only defects you saw in the file content, with the exact line number.",
+ "tools": [
+  {
+   "description": "Read one workspace file. Lines are numbered.",
+   "name": "read_file",
+   "parameters": {
+    "properties": {
+     "path": {
+      "description": "File name inside the workspace, e.g. inventory.py",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   }
+  },
+  {
+   "description": "List the files in the audit workspace.",
+   "name": "list_files",
+   "parameters": {
+    "properties": {},
+    "type": "object"
+   }
+  }
+ ],
+ "messages": [
+  {
+   "parts": [
+    {
+     "text": "Audit step 1: List every file in the inventory-service workspace, including source, config, test and build files, with its path.\nUse the list_files and read_file tools on the workspace. Report the files and the defects you found with file and line."
+    }
+   ],
+   "role": "user"
+  },
+  {
+   "parts": [
+    {
+     "functionCall": {
+      "args": {},
+      "name": "list_files"
+     }
+    }
+   ],
+   "role": "model"
+  },
+  {
+   "parts": [
+    {
+     "functionResponse": {
+      "name": "list_files",
+      "response": {
+       "result": "{\"count\":3,\"files\":[\"report.py\",\"README.md\",\"inventory.py\"]}"
+      }
+     }
+    }
+   ],
+   "role": "user"
+  },
+  {
+   "parts": [
+    {
+     "functionCall": {
+      "args": {
+       "path": "inventory.py"
+      },
+      "name": "read_file"
+     }
+    },
+    {
+     "functionCall": {
+      "args": {
+       "path": "report.py"
+      },
+      "name": "read_file"
+     }
+    },
+    {
+     "functionCall": {
+      "args": {
+       "path": "README.md"
+      },
+      "name": "read_file"
+     }
+    }
+   ],
+   "role": "model"
+  },
+  {
+   "parts": [
+    {
+     "functionResponse": {
+      "name": "read_file",
+      "response": {
+       "result": "{\"content\":\"1: \\\"\\\"\\\"Inventory service: tracks stock levels and computes reorder quantities.\\\"\\\"\\\"\\n2: \\n3: \\n4: def average_daily_sales(sales):\\n5:     total = 0\\n6:     for qty in sales:\\n7:         total += qty\\n8:     return total / len(sales)\\n9: \\n10: \\n11: def reorder_quantity(stock, sales, lead_days):\\n12:     daily = average_daily_sales(sales)\\n13:     needed = daily * lead_days\\n14:     if stock > needed:\\n15:         return 0\\n16:     return needed - stock\\n17: \\n18: \\n19: def low_stock(items, threshold):\\n20:     flagged = []\\n21:     for i in range(1, len(items)):\\n22:         if items[i][\\\"stock\\\"] < threshold:\\n23:             flagged.append(items[i][\\\"sku\\\"])\\n24:     return flagged\\n25: \\n\",\"path\":\"inventory.py\"}"
+      }
+     }
+    },
+    {
+     "functionResponse": {
+      "name": "read_file",
+      "response": {
+       "result": "{\"content\":\"1: \\\"\\\"\\\"Report writer: renders an inventory summary to a text file.\\\"\\\"\\\"\\n2: \\n3: \\n4: def write_summary(path, rows):\\n5:     out = open(path, \\\"w\\\")\\n6:     for row in rows:\\n7:         out.write(f\\\"{row['sku']}: {row['stock']}\\\\n\\\")\\n8:     return len(rows)\\n9: \\n\",\"path\":\"report.py\"}"
+      }
+     }
+    },
+    {
+     "functionResponse": {
+      "name": "read_file",
+      "response": {
+       "result": "{\"content\":\"1: # inventory-service\\n2: \\n3: Two modules: `inventory.py` computes reorder quantities and low-stock flags,\\n4: `report.py` writes a plain-text summary.\\n5: \\n\",\"path\":\"README.md\"}"
+      }
+     }
+    }
+   ],
+   "role": "user"
+  }
+ ],
+ "generation_config": {
+  "maxOutputTokens": 2048,
+  "temperature": 0.1
+ },
+ "prompt_tokens_estimated": 686,
+ "n": 6,
+ "route_seq": 3,
+ "received_at": "2026-10-05T00:56:50.844+00:00",
+ "url_model": "gemini-2.5-flash"
+}

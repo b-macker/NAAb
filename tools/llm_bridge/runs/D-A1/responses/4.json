@@ -1,0 +1,21 @@
+{
+ "content": "",
+ "tool_calls": [
+  {
+   "name": "list_files",
+   "args": {}
+  }
+ ],
+ "provenance": {
+  "persona": "worker",
+  "model": "haiku",
+  "style": "none",
+  "intervention": "",
+  "director_note": "",
+  "reply_source": "transcript:agent-ae8b71b8e90dec68d.jsonl#1:native-tool-call",
+  "persona_other_tool_uses": [],
+  "route": "AH-WORKER",
+  "route_seq": 1,
+  "written_at": "2026-10-05T00:56:36.650+00:00"
+ }
+}

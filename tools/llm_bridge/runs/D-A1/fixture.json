@@ -1,0 +1,158 @@
+{
+ "_comment": "Exported by tools/llm_bridge/bridge.py export-fixture from /tmp/claude-0/-home-user-NAAb/38a117e5-e21d-520a-9b98-52c8203032a2/scratchpad/runs/D-A1/queue. Token counts are the bridge's ESTIMATES (words*1.3); thinking unreported.",
+ "routes": {
+  "AH-PLANNER": {
+   "responses": [
+    {
+     "content": "{\"steps\": [{\"id\": 1, \"goal\": \"List every file in the inventory-service workspace, including source, config, test and build files, with its path.\"}, {\"id\": 2, \"goal\": \"Audit the source files for correctness defects: logic errors, off-by-one errors, unhandled null or empty values, wrong stock or quantity arithmetic, and incorrect error handling.\"}, {\"id\": 3, \"goal\": \"Audit the source and config files for security and robustness defects: injection risks, missing input validation, hardcoded secrets, unsafe file or network access, and race conditions on inventory updates.\"}, {\"id\": 4, \"goal\": \"Audit the test and build/config files for defects such as missing or wrong assertions, untested code paths, and misconfigured dependencies. Then report every defect from steps 2-4 with its file, line number and a one-sentence explanation.\"}]}",
+     "input_tokens": 120,
+     "output_tokens": 210,
+     "thinking_tokens": null,
+     "_provenance": {
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "planner",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-aa096d406cdff0f82.jsonl#1:handback",
+      "route": "AH-PLANNER",
+      "route_seq": 1,
+      "style": "none",
+      "written_at": "2026-10-05T00:54:51.954+00:00"
+     },
+     "_bridge_n": 1
+    },
+    {
+     "content": "{\"steps\": [{\"id\": 1, \"goal\": \"Enumerate every file in the inventory-service workspace (source, configuration, tests, build scripts) and record each path.\"}, {\"id\": 2, \"goal\": \"Audit the inventory-service source files for logic defects: incorrect stock or quantity calculations, off-by-one and boundary errors, unhandled null/empty inputs, and swallowed or mishandled exceptions.\"}, {\"id\": 3, \"goal\": \"Audit the source and configuration files for security and concurrency defects: injection, missing input validation, hardcoded credentials, unsafe file/network access, and race conditions in inventory updates.\"}, {\"id\": 4, \"goal\": \"Audit the test and build/dependency files for weak or missing assertions, untested paths, and misconfigurations, then compile all defects found with file, line number and a one-sentence explanation.\"}]}",
+     "input_tokens": 120,
+     "output_tokens": 209,
+     "thinking_tokens": null,
+     "_provenance": {
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "planner",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-aa096d406cdff0f82.jsonl#2:handback",
+      "route": "AH-PLANNER",
+      "route_seq": 2,
+      "style": "none",
+      "written_at": "2026-10-05T00:55:03.675+00:00"
+     },
+     "_bridge_n": 2
+    },
+    {
+     "content": "{\"steps\": [{\"id\": 1, \"goal\": \"List all files in the inventory-service workspace, covering source code, configuration, tests and build/dependency manifests.\"}, {\"id\": 2, \"goal\": \"Audit the inventory-service source files for functional defects such as wrong stock arithmetic, boundary and off-by-one errors, unchecked null or empty values, and incorrect error handling.\"}, {\"id\": 3, \"goal\": \"Audit the source and configuration files for security and data-integrity defects: injection, missing input validation, hardcoded secrets, unsafe file or network operations, and unsynchronized concurrent inventory updates.\"}, {\"id\": 4, \"goal\": \"Audit the test suite and build files for missing or incorrect assertions, uncovered code paths and dependency misconfigurations, then report every defect found with its file, line number and a one-sentence explanation.\"}]}",
+     "input_tokens": 120,
+     "output_tokens": 214,
+     "thinking_tokens": null,
+     "_provenance": {
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "planner",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-aa096d406cdff0f82.jsonl#3:handback",
+      "route": "AH-PLANNER",
+      "route_seq": 3,
+      "style": "none",
+      "written_at": "2026-10-05T00:55:14.544+00:00"
+     },
+     "_bridge_n": 3
+    }
+   ]
+  },
+  "AH-WORKER": {
+   "responses": [
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "list_files",
+       "args": {}
+      }
+     ],
+     "input_tokens": 235,
+     "output_tokens": 9,
+     "thinking_tokens": null,
+     "_provenance": {
+      "director_note": "",
+      "intervention": "",
+      "model": "haiku",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ae8b71b8e90dec68d.jsonl#1:native-tool-call",
+      "route": "AH-WORKER",
+      "route_seq": 1,
+      "style": "none",
+      "written_at": "2026-10-05T00:56:36.650+00:00"
+     },
+     "_bridge_n": 4
+    },
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "read_file",
+       "args": {
+        "path": "inventory.py"
+       }
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "report.py"
+       }
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "README.md"
+       }
+      }
+     ],
+     "input_tokens": 274,
+     "output_tokens": 41,
+     "thinking_tokens": null,
+     "_provenance": {
+      "director_note": "",
+      "intervention": "",
+      "model": "haiku",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ae8b71b8e90dec68d.jsonl#2:pre-nudge-text",
+      "route": "AH-WORKER",
+      "route_seq": 2,
+      "style": "none",
+      "written_at": "2026-10-05T00:56:50.755+00:00"
+     },
+     "_bridge_n": 5
+    },
+    {
+     "content": "Audit Step 1 Complete\n\nFiles in inventory-service workspace:\n- inventory.py\n- report.py\n- README.md\n\nDefects Found: 2\n\n1. inventory.py:21 - Loop starts at index 1, skipping the first item in the list.\n2. report.py:5 - File handle opened but never closed, causing a resource leak.",
+     "input_tokens": 686,
+     "output_tokens": 70,
+     "thinking_tokens": null,
+     "_provenance": {
+      "director_note": "",
+      "intervention": "",
+      "model": "haiku",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ae8b71b8e90dec68d.jsonl#3:handback",
+      "route": "AH-WORKER",
+      "route_seq": 3,
+      "style": "none",
+      "written_at": "2026-10-05T00:57:51.983+00:00"
+     },
+     "_bridge_n": 6
+    }
+   ]
+  }
+ },
+ "responses": [
+  {
+   "content": "{\"error\": \"unrouted request\"}"
+  }
+ ]
+}

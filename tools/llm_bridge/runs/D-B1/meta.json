@@ -1,0 +1,59 @@
+{
+ "label": "D-B1",
+ "kind": "clean",
+ "rotation": "B",
+ "deviation": "worker-tool-budget-8",
+ "personas": {
+  "planner": {
+   "model": "haiku",
+   "style": "none",
+   "memory": "stateless: fresh subagent per request"
+  },
+  "worker": {
+   "model": "opus",
+   "style": "none",
+   "memory": "SendMessage"
+  },
+  "critic-1": {
+   "model": "opus",
+   "style": "none",
+   "memory": "SendMessage"
+  },
+  "critic-2": {
+   "model": "opus",
+   "style": "none",
+   "memory": "SendMessage"
+  },
+  "judge": {
+   "model": "sonnet",
+   "style": "none",
+   "memory": "SendMessage"
+  }
+ },
+ "routing": "AH-PLANNER->planner, AH-WORKER->worker, AH-CRITIC: 1st arrival->critic-1, 2nd->critic-2, AH-JUDGE->judge; other routes to the persona whose system prompt they carry",
+ "preamble": "v1",
+ "reply_extraction": "native declared-tool call, else handback, else pre-nudge text (all pre-nudge)",
+ "ledger": [],
+ "written_before_run": true,
+ "persona_ids": {
+  "planner": [
+   "a196c7f5de21448c0",
+   "a050995dcf4c80814",
+   "a25b49a1d111d1dc2"
+  ],
+  "worker": "a41c55e8e595d773c",
+  "critic-1": "a281e87a873a57a3c",
+  "critic-2": "ac934dad8a53a2c66",
+  "judge": "ad3a880f2a8301506"
+ },
+ "outcome": {
+  "exit_code": 0,
+  "stage_reached": "complete",
+  "stdout": "STEP 1 pass, 2-4 fail; REVIEW REJECTED; VERDICT REJECTED; SUMMARY 1/4",
+  "notes": [
+   "n=8 served with a recorded delivery mismatch (tool declaration order swapped by director)",
+   "worker turn 9 (step 4) coherence 0.52: S10 semantic_stability 0.10 + S15 entity_consistency 0.08 + S22 0.15 -> OUTPUT_INADMISSIBLE",
+   "critics and judge cited admissible=false in their REJECTED verdicts"
+  ]
+ }
+}
