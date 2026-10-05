@@ -87,6 +87,17 @@ run() {  # $1 = dir, $2 = "" or --tree-walk ; sets OUT and RC
 ran() { [[ "$OUT" == *$'\nRAN'* || "$OUT" == RAN* ]]; }
 pin() { printf '[{"language":"%s","required":"%s","level":"%s"}]' "$1" "$2" "$3"; }
 
+# Which languages this binary registers an executor for (build-windows
+# registers four). An arm about a runtime's executor is UNMEASURABLE where
+# there is none -- an installed toolchain is not a registered executor.
+mkdir -p "$W/reg"
+printf 'use codegen\nmain {\n    for x in codegen.supported_languages() { print(x) }\n}\n' > "$W/reg/r.naab"
+REGISTERED=" $(cd "$W/reg" && "$NAAB" r.naab --no-governance 2>/dev/null | tr -d '\r' | tr '\n' ' ') "
+registered() { [[ "$REGISTERED" == *" $1 "* ]]; }
+# sql is registered on every platform (in-process SQLite): if the list lacks
+# it, the probe is broken and every executor arm would skip for nothing.
+registered sql || bad RP-REG "could not list the registered languages -- executor arms would skip blindly" "$REGISTERED"
+
 mk c_sql '[]' "$PROG_SQL"
 mk c_js  '[]' "$PROG_JS"
 mk h_sql "$(pin sql '>=999' hard)" "$PROG_SQL"
@@ -129,10 +140,14 @@ for eng in "" --tree-walk; do
         ok "RP-03/$e" "an unmet advisory pin warns and runs"
     else bad "RP-03/$e" "advisory pin: expected a warning and a run (exit $RC)" "$OUT"; fi
 
+    if ! registered node; then
+        skip "RP-04/$e" "no node executor registered here -- UNMEASURABLE"
+    else
     run h_node "$eng"
     if [ $RC -eq 3 ] && ! ran && [[ "$OUT" == *"cannot be determined"* ]]; then
         ok "RP-04/$e" "a pin whose version cannot be read blocks (exit 3)"
     else bad "RP-04/$e" "an unverifiable pin passed, or was read anyway (exit $RC)" "$OUT"; fi
+    fi
 
     if [ $JS_OK -eq 1 ]; then
         run q_met "$eng"; r1=$RC; o1="$OUT"; m1=0; ran && m1=1
@@ -194,6 +209,9 @@ for spec in "node|node|--version" "ruby|ruby|--version" "shell|bash|--version" \
             "php|php|--version" "typescript|tsx|--version" "nim|nim|--version" \
             "zig|zig|version" "julia|julia|--version" "csharp|mcs|--version"; do
     IFS='|' read -r tag bin arg <<< "$spec"
+    if ! registered "$tag"; then
+        skip "RP-09/$tag" "no $tag executor registered here -- UNMEASURABLE"; continue
+    fi
     if ! command -v "$bin" >/dev/null 2>&1; then
         skip "RP-09/$tag" "$bin not installed -- UNMEASURABLE"; continue
     fi
@@ -206,14 +224,16 @@ for spec in "node|node|--version" "ruby|ruby|--version" "shell|bash|--version" \
         bad "RP-09/$tag" "the pin did not see $bin's version line '$want' (exit $RC)" "$OUT"
     fi
 done
-[ $measured -gt 0 ] || bad RP-09 "no subprocess toolchain measured -- the arm proved nothing here"
+# Nothing measurable here (no registered subprocess runtime with its
+# toolchain installed) is a SKIP, said out loud -- not a pass.
+[ $measured -gt 0 ] || skip RP-09 "no registered subprocess runtime with an installed toolchain -- UNMEASURABLE"
 
 # --- RP-10: embedded Python reports the interpreter that runs the blocks ---
 PROG_PYV=$'main {\n    let v = <<python\nimport sys\nsys.version.split()[0]\n>>\n    print("PYV=" + v)\n}'
 mk p_ver '[]' "$PROG_PYV"
 run p_ver ""
 pyv="$(printf '%s\n' "$OUT" | tr -d '\r' | sed -n 's/^PYV=//p' | head -1)"
-if [ -z "$pyv" ]; then
+if [ -z "$pyv" ] || [ "$pyv" = "null" ]; then
     skip RP-10 "the python executor did not return its version -- UNMEASURABLE"
 else
     mk p_pin "$(pin python '>=99999' hard)" $'main {\n    let r = <<python\n1\n>>\n    print("RAN")\n}'
