@@ -209,7 +209,7 @@ b = {"content": "def subtract(a, b): return a - b  # implemented subtract operat
 r = [a, b] + ([] if sys.argv[2] == "control" else [{"status": 500, "error": "internal"}]) + [dict(a)]
 json.dump({"responses": r}, open(sys.argv[1], "w"))
 EOF
-    STUB_PID=""; start_stub "$AD/fixture.json" "$AD" || { skip "IA-$arm" "stub failed to start (UNMEASURABLE)"; continue; }
+    stop_stub; start_stub "$AD/fixture.json" "$AD" || { skip "IA-$arm" "stub failed to start (UNMEASURABLE)"; continue; }
     excl=true; [ "$arm" = noexclude ] && excl=false
     cat > "$AD/govern.json" <<EOF
 {

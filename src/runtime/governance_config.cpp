@@ -1,6 +1,7 @@
 // governance_config.cpp — GovernanceEngine configuration loading
 // Extracted from governance.cpp lines 1-1727
 
+#include "naab/loopback_url.h"
 #include "naab/governance.h"
 #include "naab/paths.h"
 #include "naab/telemetry_forwarder.h"
@@ -2825,9 +2826,10 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (cfg_json.contains("api_base") && cfg_json["api_base"].is_string()) {
                     std::string base = cfg_json["api_base"].get<std::string>();
                     bool https = base.rfind("https://", 0) == 0;
-                    bool loopback_http = base.rfind("http://127.0.0.1", 0) == 0 ||
-                                         base.rfind("http://localhost", 0) == 0 ||
-                                         base.rfind("http://[::1]", 0) == 0;
+                    // The host itself, not a string prefix: a prefix accepted
+                    // "http://127.0.0.1@other-host/" (userinfo) and sent the
+                    // API key there in cleartext.
+                    bool loopback_http = naab::net::isLoopbackHttpUrl(base);
                     if (https || loopback_http) {
                         agent.api_base = base;
                     } else if (!base.empty()) {

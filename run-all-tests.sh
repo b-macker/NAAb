@@ -2450,6 +2450,71 @@ else
     echo "  test_try_handler_leak.sh: not found, skipping"
 fi
 
+# async fn semantics per engine (ASYNC-001): results agree, VM concurrent, tree-walker pinned synchronous.
+ASYNCSEM_SCRIPT="tests/vm/test_async_engine_semantics.sh"
+if [ -f "$ASYNCSEM_SCRIPT" ]; then
+    if run_shell_test "$ASYNCSEM_SCRIPT" 2>&1; then
+        echo "  test_async_engine_semantics.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_async_engine_semantics.sh")
+    fi
+else
+    echo "  test_async_engine_semantics.sh: not found, skipping"
+fi
+
+# A C++ block library that fails to dlopen() reports the loader's reason.
+DLERR_SCRIPT="tests/robustness/test_block_dlopen_error.sh"
+if [ -f "$DLERR_SCRIPT" ]; then
+    if run_shell_test "$DLERR_SCRIPT" 2>&1; then
+        echo "  test_block_dlopen_error.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_block_dlopen_error.sh")
+    fi
+else
+    echo "  test_block_dlopen_error.sh: not found, skipping"
+fi
+
+# api_base: plain http only for a real loopback host (not a string prefix).
+API_BASE_LOOPBACK_SCRIPT="tests/security/test_api_base_loopback.sh"
+if [ -f "$API_BASE_LOOPBACK_SCRIPT" ]; then
+    if run_shell_test "$API_BASE_LOOPBACK_SCRIPT" 2>&1; then
+        echo "  test_api_base_loopback.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_api_base_loopback.sh")
+    fi
+else
+    echo "  test_api_base_loopback.sh: not found, skipping"
+fi
+
+# A long line in a polyglot block cannot crash the analyzers.
+ANALYZER_LONG_LINE_SCRIPT="tests/security/test_analyzer_long_line.sh"
+if [ -f "$ANALYZER_LONG_LINE_SCRIPT" ]; then
+    if run_shell_test "$ANALYZER_LONG_LINE_SCRIPT" 2>&1; then
+        echo "  test_analyzer_long_line.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_analyzer_long_line.sh")
+    fi
+else
+    echo "  test_analyzer_long_line.sh: not found, skipping"
+fi
+
+# <<sql>> blocks: results, parameters, and containment (in-memory, no file reach).
+SQLEXEC_SCRIPT="tests/security/test_sql_executor.sh"
+if [ -f "$SQLEXEC_SCRIPT" ]; then
+    if run_shell_test "$SQLEXEC_SCRIPT" 2>&1; then
+        echo "  test_sql_executor.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_sql_executor.sh")
+    fi
+else
+    echo "  test_sql_executor.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then

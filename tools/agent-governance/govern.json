@@ -47,7 +47,6 @@
     },
     "code": {
       "max_lines_per_block": 60,
-      "max_functions": 80,
       "max_nesting_depth": 5
     }
   },
@@ -440,8 +439,7 @@
       },
       "complex_boolean_expr": {
         "enabled": true,
-        "level": "soft",
-        "max_operators": 4
+        "level": "soft"
       },
       "magic_strings": {
         "enabled": true,

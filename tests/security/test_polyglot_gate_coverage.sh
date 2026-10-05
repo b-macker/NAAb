@@ -112,6 +112,9 @@ snippet_for() {  # $1 = language, $2 = marker path
         nim)                printf 'writeFile("%s", "x")\n' "$m" ;;
         zig)                printf 'const std = @import("std");\npub fn main() !void { try std.fs.cwd().writeFile(.{ .sub_path = "%s", .data = "x" }); }\n' "$m" ;;
         julia)              printf 'write("%s", "x")\n' "$m" ;;
+        # SQL is in-memory with no filesystem reach BY DESIGN, so it cannot
+        # write a marker: run_block observes it through the value it returns.
+        sql|sqlite)         printf "SELECT 'GATE_EXECUTED' AS m\n" ;;
         *)                  return 1 ;;
     esac
 }
@@ -123,6 +126,16 @@ run_block() {  # $1=language $2=sandbox level
     rm -f "$marker"
     body="$(snippet_for "$lang" "$marker")" || return 2
     cfg "$level"
+    case "$lang" in
+        sql|sqlite)
+            # Execution observable for a language that cannot write a file:
+            # the block's result, printed by the program.
+            printf 'main {\n    let r = <<%s\n%s\n>>\n    print(r[0]["m"])\n}\n' "$lang" "$body" > "$WDIR/blk.naab"
+            local out
+            out=$(timeout 120 "$NAAB" "$WDIR/blk.naab" 2>/dev/null)
+            [[ "$out" == *GATE_EXECUTED* ]]
+            return ;;
+    esac
     {
         echo 'main {'
         echo "    <<$lang"

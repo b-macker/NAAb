@@ -1,4 +1,5 @@
 #include "naab/analyzer/task_pattern_detector.h"
+#include "naab/analyzer/bounded_input.h"
 #include <sstream>
 #include <algorithm>
 
@@ -10,9 +11,10 @@ ComprehensiveTaskDetector::ComprehensiveTaskDetector(
 ) : language_scorer_(task_language_matrix) {}
 
 DetectionResult ComprehensiveTaskDetector::analyze(
-    const std::string& code,
+    const std::string& raw_code,
     const std::string& current_lang
 ) const {
+    const std::string code = boundLineLengths(raw_code);  // see bounded_input.h
     // Layer 1: Lexical analysis
     auto lexical = analyzeLexical(code);
 

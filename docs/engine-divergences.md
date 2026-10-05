@@ -139,6 +139,35 @@ E1-E3 exist to pin that.
   (both engines: deep recursion = clean nonzero exit, no signal; depth-200
   succeeds).
 
+### ASYNC-001: `async fn` is concurrent on the VM, synchronous on the tree-walker (accepted 2026-10-03)
+
+- **Is**: the VM runs each `async fn` call on its own thread and returns a
+  `future` (`vm.cpp`, `callValue`). The tree-walker runs the body at the
+  call site and returns its value: `typeof(f())` is `future` on the VM and
+  `int` on the tree-walker, and four 1 s calls take ~1 s against ~4 s.
+  `await` on a non-future passes the value through, so both engines compute
+  the same results; ordering of side effects inside the bodies can differ.
+- **Why**: the tree-walker has a real async branch (`call_dispatch.cpp`,
+  `callFunction()`, `if (func->is_async)`) that is unreachable. The
+  declaration visitor never copies `is_async` onto the `FunctionValue`, and
+  the direct by-name call path in `visit(CallExpr)` has a generator branch
+  but no async one. Making it reachable (both one-line fixes, measured
+  2026-10-03) exposed three defects in the branch itself:
+  1. module imports do not reach the worker interpreter -- `use time` at file
+     scope gives `Import error: Module not found` inside the async fn;
+  2. a segfault (3 of 3 runs) when several worker interpreters start at once:
+     shared tree-walker state is not thread-safe;
+  3. a `GovernanceHardError` in the worker calls `_exit(3)`, which on the REST
+     path (tree-walker) would end the daemon, not the request -- the defect
+     #223 removed from `rest_api.cpp`. `await` already rethrows the error
+     uncaught (`visit(AwaitExpr)`), so `throw;` is the VM-shaped replacement.
+- **Decision**: accepted until the branch is fixed. Enabling it as-is turns a
+  correct sequential engine into one that crashes. Do not set `is_async` on
+  tree-walker functions without fixing 1-3 in the same change.
+- **Regression test / detector**: `tests/vm/test_async_engine_semantics.sh`
+  (AS-01 result parity, AS-02 VM concurrency, AS-03 pins the tree-walker
+  sequential -- it goes red the moment the branch becomes reachable).
+
 <!-- Add new entries above. Template:
 ### ID: title (status date)
 - **Was/Is**: behavior in each engine
