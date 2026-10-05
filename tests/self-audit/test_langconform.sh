@@ -19,7 +19,14 @@
 #          probe that cannot fire measures nothing
 #   LC-02  the current binary's matrix equals the committed baseline
 #   LC-03  CONTROL: diff reports a planted lost finding, and exits non-zero
-#   LC-04  CONTROL: groups reports a planted alias disagreement
+#   LC-04  CONTROL: groups reports a planted alias disagreement (alias
+#          groups come from the binary's own language table)
+#   LC-05  probes GENERATED from the binary's language table all pass: every
+#          registered name has an entry, and every comment form an entry
+#          declares is honoured (a new language or form is covered with no
+#          edit here)
+#   LC-06  CONTROL: a registered language missing from the table FAILS
+#   LC-07  CONTROL: a declared comment form the engine does not honour FAILS
 #
 # To accept a deliberate change: run
 #   python3 tools/langconform/langconform.py snapshot --gov build/naab-gov \
@@ -134,7 +141,42 @@ case "$g" in
   *) bad LC-04 "a planted alias disagreement was not reported" "$g" ;;
 esac
 
-# Report only: alias groups that disagree today (sql/sqlite on 2026-10-05).
+# --- LC-05 ---
+c5="$(python3 "$TOOL" conform --gov build/naab-gov --naab build/naab-lang 2>&1)"; c5rc=$?
+if [ $c5rc -eq 0 ]; then
+    ok LC-05 "$(printf '%s' "$c5" | tr -d '\r' | tail -1 | sed 's/^langconform conform: //')"
+else
+    bad LC-05 "the binary's language table and its governance disagree" "$c5"
+fi
+
+# --- LC-06 / LC-07: planted tables ---
+build/naab-gov languages > "$W/table.json"
+python3 - "$W/table.json" "$W/no_zig.json" "$W/bogus.json" <<'PY'
+import json, sys
+t = json.load(open(sys.argv[1], encoding="utf-8", errors="strict"))
+open(sys.argv[2], "w", encoding="ascii", newline="\n").write(
+    json.dumps([d for d in t if d["canonical"] != "zig"]))
+for d in t:
+    if d["canonical"] == "python":
+        d["line_comments"].append("//")   # not a Python comment; the engine must disagree
+open(sys.argv[3], "w", encoding="ascii", newline="\n").write(json.dumps(t))
+PY
+c6="$(python3 "$TOOL" conform --gov build/naab-gov --naab build/naab-lang --table "$W/no_zig.json" 2>&1)"; c6rc=$?
+case "$c6" in
+  *"FAIL zig: registered, but the language table has no entry"*)
+      [ $c6rc -ne 0 ] && ok LC-06 "a registered language with no table entry fails (exit $c6rc)" \
+                      || bad LC-06 "reported, but exit 0" "$c6" ;;
+  *) bad LC-06 "a missing table entry was not reported" "$c6" ;;
+esac
+c7="$(python3 "$TOOL" conform --gov build/naab-gov --naab build/naab-lang --table "$W/bogus.json" 2>&1)"; c7rc=$?
+case "$c7" in
+  *"FAIL python line //: keyword reported"*)
+      [ $c7rc -ne 0 ] && ok LC-07 "a declared comment form the engine does not honour fails (exit $c7rc)" \
+                      || bad LC-07 "reported, but exit 0" "$c7" ;;
+  *) bad LC-07 "a dishonoured comment form was not reported" "$c7" ;;
+esac
+
+# Report only: alias groups that disagree today (sql/sqlite until the language table).
 echo "  info: $(python3 "$TOOL" groups tools/langconform/baseline.json 2>&1 | tail -1)"
 
 echo ""

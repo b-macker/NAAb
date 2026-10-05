@@ -28,6 +28,9 @@ Commands:
   snapshot  --gov BIN --naab BIN --out F full matrix as JSON
   diff A B                               cells whose findings changed; exit 1 if any
   groups F                               alias groups whose members disagree; exit 1 if any
+  conform   --gov BIN --naab BIN         probes generated from the binary's language
+                                         table; exit 1 on a registered name with no
+                                         entry or a declared comment form not honoured
 
 Output is ASCII and LF-only, written as bytes (see CLAUDE.md, "A test's OUTPUT
 CHANNEL is part of the instrument").
@@ -44,7 +47,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = os.path.join(HERE, "config.json")
-SCHEMA = 1
+SCHEMA = 2
 
 # One line each. Every payload triggers at least one check when it is active
 # code in some language (checked by the harness's own positive control, see
@@ -80,19 +83,30 @@ POSITIONS = {
     "string_triple":  "s = \"\"\"{P}\"\"\"",
 }
 
-# Names that run the SAME executor class, read from the registrations in
-# src/cli/main.cpp (registerExecutor). The registry records no alias relation
-# -- each spelling is an independent registration -- so this list is AUTHORED
-# from those lines, not discovered. A descriptor table is meant to make it
-# data; until then a drifted entry here is a stale claim, not a measurement.
-ALIAS_GROUPS = [
-    ["sql", "sqlite"],
-    ["shell", "sh", "bash"],
-    ["javascript", "node"],
-    ["go", "golang"],
-    ["csharp", "cs"],
-    ["typescript", "ts"],
-]
+
+
+def language_table(gov):
+    """The binary's own language table (naab-gov languages): canonical names,
+    aliases and comment syntax. Alias groups and the conform probes come from
+    here, so this file holds no list of languages of its own."""
+    p = subprocess.run([gov, "languages"], stdin=subprocess.DEVNULL,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        table = json.loads(p.stdout.decode("utf-8", "replace"))
+    except ValueError:
+        table = None
+    if p.returncode != 0 or not isinstance(table, list) or not table:
+        raise SystemExit("langconform: %s languages gave no table (rc=%d): %s"
+                         % (gov, p.returncode, p.stderr.decode("utf-8", "replace")[-300:]))
+    return table
+
+
+def resolve(table, name):
+    n = name.lower()
+    for d in table:
+        if d["canonical"] == n or n in d["aliases"]:
+            return d
+    return None
 
 
 def write_out(text):
@@ -142,6 +156,7 @@ def cmd_languages(a):
 
 def cmd_snapshot(a):
     langs = registered_languages(a.naab)
+    table = language_table(a.gov)
     cfg, digest = load_config()
     jobs = []
     for lang in langs:
@@ -163,7 +178,7 @@ def cmd_snapshot(a):
         write_out("langconform: %d probe(s) gave no answer; no snapshot written:\n" % len(errors))
         write_out("".join("  " + e + "\n" for e in sorted(errors)[:20]))
         return 2
-    snap = {"schema": SCHEMA, "config_sha256_16": digest, "languages": langs,
+    snap = {"schema": SCHEMA, "config_sha256_16": digest, "languages": langs, "table": table,
             "positions": sorted(POSITIONS), "payloads": sorted(PAYLOADS), "cells": cells}
     data = (json.dumps(snap, sort_keys=True, indent=1) + "\n").encode("ascii")
     with open(a.out, "wb") as f:
@@ -187,6 +202,10 @@ def cmd_diff(a):
     if A["config_sha256_16"] != B["config_sha256_16"]:
         out.append("config differs (%s -> %s): cells are not comparable rule-for-rule\n"
                    % (A["config_sha256_16"], B["config_sha256_16"]))
+    if A["table"] != B["table"]:
+        out.append("language table changed (naab/language_descriptors.h): %s\n"
+                   % ", ".join(sorted({d["canonical"] for d in A["table"] if d not in B["table"]}
+                                      | {d["canonical"] for d in B["table"] if d not in A["table"]})))
     for name in ("languages", "positions", "payloads"):
         if A[name] != B[name]:
             out.append("%s: removed %s, added %s\n" % (name, sorted(set(A[name]) - set(B[name])),
@@ -207,8 +226,8 @@ def cmd_diff(a):
 def cmd_groups(a):
     S = load_snap(a.f)
     out, bad = [], 0
-    for group in ALIAS_GROUPS:
-        present = [g for g in group if g in S["languages"]]
+    for d in S["table"]:
+        present = [n for n in [d["canonical"]] + d["aliases"] if n in S["languages"]]
         if len(present) < 2:
             continue
         for pos in S["positions"]:
@@ -218,7 +237,73 @@ def cmd_groups(a):
                     bad += 1
                     out.append("  %s %s|%s: %s\n" % ("/".join(present), pos, pay,
                                "; ".join("%s=%s" % (g, ",".join(r) or "-") for g, r in rows.items())))
-    out.append("langconform groups: %d cell(s) where names for the same executor disagree\n" % bad)
+    out.append("langconform groups: %d cell(s) where names for the same language disagree\n" % bad)
+    write_out("".join(out))
+    return 1 if bad else 0
+
+
+KEYWORD_RULE = "code_quality.no_hallucinated_apis"
+
+
+def cmd_conform(a):
+    """Probes generated from the language table itself.
+
+    1. Every name the binary registers resolves to a table entry. A language
+       registered without one is a FAILURE: governance would know nothing
+       about its comments, and nobody would have decided that.
+    2. For every registered name, the keyword as active code is reported
+       (the control), and the keyword inside EACH comment form the entry
+       declares is not. Adding a language or a comment form to the table adds
+       its probes here with no edit to this file or to any test."""
+    langs = registered_languages(a.naab)
+    if a.table:
+        # Test controls only: a planted table in place of the binary's own.
+        with open(a.table, "r", encoding="utf-8", errors="strict") as f:
+            table = json.load(f)
+    else:
+        table = language_table(a.gov)
+    cfg, _ = load_config()
+    out, bad = [], 0
+    probes = []
+    for name in langs:
+        d = resolve(table, name)
+        if d is None:
+            bad += 1
+            out.append("  FAIL %s: registered, but the language table has no entry for it\n" % name)
+            continue
+        if d.get("governance_only"):
+            bad += 1
+            out.append("  FAIL %s: registered, but its entry says no executor runs it\n" % name)
+        probes.append((name, "code", "FORBIDDEN_KEYWORD\n", True))
+        for m in d["line_comments"]:
+            probes.append((name, "line %s" % m, "%s FORBIDDEN_KEYWORD\n" % m, False))
+        for b in d["block_comments"]:
+            probes.append((name, "block %s %s" % (b["open"], b["close"]),
+                           "%s\nFORBIDDEN_KEYWORD\n%s\n" % (b["open"], b["close"]), False))
+            if b["line_start_only"]:
+                # The control for line_start_only: mid-line, it is NOT a comment.
+                probes.append((name, "mid-line %s" % b["open"],
+                               "x = 1 %s FORBIDDEN_KEYWORD %s\n" % (b["open"], b["close"]), True))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as ex:
+        res = list(ex.map(lambda p: probe(a.gov, cfg, p[0], p[2]), probes))
+    for (name, what, _, expect), (rules, err) in zip(probes, res):
+        if err:
+            bad += 1
+            out.append("  UNMEASURABLE %s %s: %s\n" % (name, what, err))
+            continue
+        got = KEYWORD_RULE in rules
+        if got != expect:
+            bad += 1
+            out.append("  FAIL %s %s: keyword %s, expected %s\n"
+                       % (name, what, "reported" if got else "hidden",
+                          "reported" if expect else "hidden (it is a comment)"))
+    registered = {resolve(table, n)["canonical"] for n in langs if resolve(table, n)}
+    unused = sorted(d["canonical"] for d in table
+                    if not d.get("governance_only") and d["canonical"] not in registered)
+    if unused:
+        out.append("  info: table entries no executor registers here: %s\n" % ", ".join(unused))
+    out.append("langconform conform: %d probe(s) over %d registered name(s), %d problem(s)\n"
+               % (len(probes), len(langs), bad))
     write_out("".join(out))
     return 1 if bad else 0
 
@@ -232,6 +317,10 @@ def main(argv):
     s.add_argument("--out", required=True); s.add_argument("--jobs", type=int, default=os.cpu_count() or 2)
     s = sub.add_parser("diff"); s.add_argument("a"); s.add_argument("b")
     s = sub.add_parser("groups"); s.add_argument("f")
+    s = sub.add_parser("conform")
+    s.add_argument("--gov", required=True); s.add_argument("--naab", required=True)
+    s.add_argument("--jobs", type=int, default=os.cpu_count() or 2)
+    s.add_argument("--table", help="a planted language table instead of the binary's (test controls)")
     a = ap.parse_args(argv)
     # The binaries are run from a scratch directory (so no govern.json is
     # discovered), so a relative path must be resolved against OUR cwd first.
@@ -239,7 +328,7 @@ def main(argv):
         if getattr(a, attr, None):
             setattr(a, attr, os.path.abspath(getattr(a, attr)))
     return {"languages": cmd_languages, "snapshot": cmd_snapshot,
-            "diff": cmd_diff, "groups": cmd_groups}[a.cmd](a) or 0
+            "diff": cmd_diff, "groups": cmd_groups, "conform": cmd_conform}[a.cmd](a) or 0
 
 
 if __name__ == "__main__":

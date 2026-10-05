@@ -5932,5 +5932,259 @@
   "string_single",
   "string_triple"
  ],
- "schema": 1
+ "schema": 2,
+ "table": [
+  {
+   "aliases": [
+    "py"
+   ],
+   "block_comments": [],
+   "canonical": "python",
+   "governance_only": false,
+   "line_comments": [
+    "#"
+   ]
+  },
+  {
+   "aliases": [
+    "js",
+    "node"
+   ],
+   "block_comments": [
+    {
+     "close": "*/",
+     "line_start_only": false,
+     "open": "/*"
+    }
+   ],
+   "canonical": "javascript",
+   "governance_only": false,
+   "line_comments": [
+    "//"
+   ]
+  },
+  {
+   "aliases": [
+    "ts"
+   ],
+   "block_comments": [
+    {
+     "close": "*/",
+     "line_start_only": false,
+     "open": "/*"
+    }
+   ],
+   "canonical": "typescript",
+   "governance_only": false,
+   "line_comments": [
+    "//"
+   ]
+  },
+  {
+   "aliases": [
+    "sh",
+    "bash"
+   ],
+   "block_comments": [],
+   "canonical": "shell",
+   "governance_only": false,
+   "line_comments": [
+    "#"
+   ]
+  },
+  {
+   "aliases": [
+    "rb"
+   ],
+   "block_comments": [
+    {
+     "close": "=end",
+     "line_start_only": true,
+     "open": "=begin"
+    }
+   ],
+   "canonical": "ruby",
+   "governance_only": false,
+   "line_comments": [
+    "#"
+   ]
+  },
+  {
+   "aliases": [
+    "golang"
+   ],
+   "block_comments": [
+    {
+     "close": "*/",
+     "line_start_only": false,
+     "open": "/*"
+    }
+   ],
+   "canonical": "go",
+   "governance_only": false,
+   "line_comments": [
+    "//"
+   ]
+  },
+  {
+   "aliases": [
+    "c++"
+   ],
+   "block_comments": [
+    {
+     "close": "*/",
+     "line_start_only": false,
+     "open": "/*"
+    }
+   ],
+   "canonical": "cpp",
+   "governance_only": false,
+   "line_comments": [
+    "//"
+   ]
+  },
+  {
+   "aliases": [
+    "cs"
+   ],
+   "block_comments": [
+    {
+     "close": "*/",
+     "line_start_only": false,
+     "open": "/*"
+    }
+   ],
+   "canonical": "csharp",
+   "governance_only": false,
+   "line_comments": [
+    "//"
+   ]
+  },
+  {
+   "aliases": [],
+   "block_comments": [
+    {
+     "close": "*/",
+     "line_start_only": false,
+     "open": "/*"
+    }
+   ],
+   "canonical": "rust",
+   "governance_only": false,
+   "line_comments": [
+    "//"
+   ]
+  },
+  {
+   "aliases": [],
+   "block_comments": [
+    {
+     "close": "]#",
+     "line_start_only": false,
+     "open": "#["
+    }
+   ],
+   "canonical": "nim",
+   "governance_only": false,
+   "line_comments": [
+    "#"
+   ]
+  },
+  {
+   "aliases": [],
+   "block_comments": [
+    {
+     "close": "*/",
+     "line_start_only": false,
+     "open": "/*"
+    }
+   ],
+   "canonical": "php",
+   "governance_only": false,
+   "line_comments": [
+    "//",
+    "#"
+   ]
+  },
+  {
+   "aliases": [],
+   "block_comments": [
+    {
+     "close": "=#",
+     "line_start_only": false,
+     "open": "#="
+    }
+   ],
+   "canonical": "julia",
+   "governance_only": false,
+   "line_comments": [
+    "#"
+   ]
+  },
+  {
+   "aliases": [],
+   "block_comments": [],
+   "canonical": "zig",
+   "governance_only": false,
+   "line_comments": [
+    "//"
+   ]
+  },
+  {
+   "aliases": [
+    "sqlite"
+   ],
+   "block_comments": [
+    {
+     "close": "*/",
+     "line_start_only": false,
+     "open": "/*"
+    }
+   ],
+   "canonical": "sql",
+   "governance_only": false,
+   "line_comments": [
+    "--"
+   ]
+  },
+  {
+   "aliases": [],
+   "block_comments": [
+    {
+     "close": "]]",
+     "line_start_only": false,
+     "open": "--[["
+    }
+   ],
+   "canonical": "lua",
+   "governance_only": true,
+   "line_comments": [
+    "--"
+   ]
+  },
+  {
+   "aliases": [],
+   "block_comments": [
+    {
+     "close": "-}",
+     "line_start_only": false,
+     "open": "{-"
+    }
+   ],
+   "canonical": "haskell",
+   "governance_only": true,
+   "line_comments": [
+    "--"
+   ]
+  },
+  {
+   "aliases": [],
+   "block_comments": [],
+   "canonical": "ada",
+   "governance_only": true,
+   "line_comments": [
+    "--"
+   ]
+  }
+ ]
 }
