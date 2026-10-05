@@ -811,27 +811,8 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             governance_->writeProfileEntry(language, task_cat, hash_buf, duration_us);
         }
 
-        // ShellResult transparent handling: extract stdout or throw on failure
-        {
-            if (result_.isStructVal()) {
-                auto& struct_val = result_.asStruct();
-                if (struct_val->type_name == "ShellResult" && struct_val->field_values.size() >= 3) {
-                    auto exit_code_val = struct_val->field_values[0];
-                    auto stdout_val = struct_val->field_values[1];
-                    auto stderr_val = struct_val->field_values[2];
-                    int exit_code = exit_code_val.isInt() ? exit_code_val.asInt() : -1;
-                    if (exit_code != 0) {
-                        throw std::runtime_error(
-                            "Shell command failed with exit code " + std::to_string(exit_code) + "\n"
-                            "  stderr: " + stderr_val.toString() + "\n"
-                            "  stdout: " + stdout_val.toString()
-                        );
-                    }
-                    // Success: unwrap to just stdout value
-                    result_ = NaabVal(stdout_val);
-                }
-            }
-        }
+        // ShellResult: unwrap to stdout, or throw on failure (shared with the VM)
+        runtime::unwrapShellResult(result_);
 
         // Phase 12: Check for sentinel/JSON return values
         // Strategy 1: Check executor's captured output buffer (works for Python)

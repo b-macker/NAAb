@@ -417,6 +417,16 @@ run_test() {
             # expressions have no value channel without the embedded executor).
             MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
             echo "  XFAIL: $test_name (missing executor)"
+        elif [ -f "$output_file" ] && grep -qE "block failed(: | \(exit code 127\): )'[^']+' could not be run" "$output_file"; then
+            # A polyglot block whose runtime binary could not be STARTED (exit
+            # 127: not installed / not on PATH) -- the subprocess executors'
+            # environmental-absence message (GenericSubprocessExecutor: tsx,
+            # php, python3; CSharpExecutor: mcs, mono). Those blocks used to
+            # evaluate to null under exit 0, so tests using them "passed" with
+            # the language never run; failing loudly is the fix, and absence of
+            # the compiler is the same class as the Python case above.
+            MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
+            echo "  XFAIL: $test_name (missing executor: runtime not installed)"
         elif [ "${LIVE_AGENT_TESTS[$test_name]}" = "1" ] && [ -f "$output_file" ] && \
              grep -q "Agent error: API key not available" "$output_file"; then
             # Live-agent examples call agent.send() against a real provider and
@@ -3756,6 +3766,21 @@ if [ -f "$RTPIN_SCRIPT" ]; then
     fi
 else
     echo "  test_runtime_pin_engines.sh: not found, skipping"
+fi
+
+BFP_SCRIPT="tests/robustness/test_block_failure_parity.sh"
+if [ -f "$BFP_SCRIPT" ]; then
+    # A failed polyglot block fails the program in every registered language,
+    # both engines and forms (typescript/php/cpp/csharp swallowed failures, the
+    # VM ignored failed shell commands, and php ran only with <?php written).
+    if run_shell_test "$BFP_SCRIPT" 2>&1; then
+        echo "  test_block_failure_parity.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_block_failure_parity.sh")
+    fi
+else
+    echo "  test_block_failure_parity.sh: not found, skipping"
 fi
 
 LANGCONFORM_SCRIPT="tests/self-audit/test_langconform.sh"

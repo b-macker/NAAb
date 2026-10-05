@@ -1,3 +1,4 @@
+#include "naab/interpreter.h"  // StructValue (ShellResult)
 #include "naab/json_result_parser.h"
 #include <nlohmann/json.hpp>
 #include <fmt/core.h>
@@ -200,6 +201,24 @@ PolyglotOutput parsePolyglotOutput(const std::string& stdout_output, const std::
     }
 
     return result;
+}
+
+void unwrapShellResult(interpreter::NaabVal& result) {
+    if (!result.isStructVal()) return;
+    auto& struct_val = result.asStruct();
+    if (struct_val->type_name != "ShellResult" || struct_val->field_values.size() < 3) return;
+    auto exit_code_val = struct_val->field_values[0];
+    auto stdout_val = struct_val->field_values[1];
+    auto stderr_val = struct_val->field_values[2];
+    int exit_code = exit_code_val.isInt() ? exit_code_val.asInt() : -1;
+    if (exit_code != 0) {
+        throw std::runtime_error(
+            "Shell command failed with exit code " + std::to_string(exit_code) + "\n"
+            "  stderr: " + stderr_val.toString() + "\n"
+            "  stdout: " + stdout_val.toString()
+        );
+    }
+    result = interpreter::NaabVal(stdout_val);
 }
 
 } // namespace runtime

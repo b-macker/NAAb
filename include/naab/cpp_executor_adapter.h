@@ -55,6 +55,14 @@ public:
     const std::string& getCurrentBlockId() const { return current_block_id_; }
 
 private:
+    // See fail(): set by the inline statement path for one execute() call.
+    bool throw_on_failure_ = false;
+    bool fail(const std::string& msg);
+    struct ThrowOnFailure {
+        bool& flag; bool prev;
+        explicit ThrowOnFailure(bool& f) : flag(f), prev(f) { flag = true; }
+        ~ThrowOnFailure() { flag = prev; }
+    };
     CppExecutor executor_;
     std::string current_block_id_;
     int block_counter_;
