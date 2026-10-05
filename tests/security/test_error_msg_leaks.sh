@@ -146,34 +146,76 @@ for entry in "${BANNED_IN_STRINGS[@]}"; do
     SCREEN_ARGS+=(-e "\".*${entry%%|*}")
 done
 
-echo "=== Error Message Leak Check ==="
-echo ""
-
-for src in "${SECURITY_FILES[@]}"; do
-    filepath="$LANG_DIR/$src"
-    [ -f "$filepath" ] || continue
-
+# scan_file <path> -- sets SCAN_HITS to the patterns found in string literals
+# and prints nothing. ONE implementation for the real files and the planted
+# control below, so the control exercises exactly the path the verdicts take.
+scan_file() {
+    local filepath="$1" screen screen_rc entry pattern matches
+    SCAN_HITS=()
+    SCAN_DETAIL=()
     screen=$(grep -n "${SCREEN_ARGS[@]}" "$filepath" 2>/dev/null)
     screen_rc=$?
     if [ "$screen_rc" -eq 1 ] || { [ "$screen_rc" -eq 0 ] &&
             [ -z "$(printf '%s\n' "$screen" | string_literal_filter)" ]; }; then
-        PASS=$((PASS + ${#BANNED_IN_STRINGS[@]}))
+        return 0
+    fi
+    for entry in "${BANNED_IN_STRINGS[@]}"; do
+        pattern="${entry%%|*}"
+        matches=$(grep -n "\".*${pattern}" "$filepath" 2>/dev/null | string_literal_filter)
+        if [ -n "$matches" ]; then
+            SCAN_HITS+=("$entry")
+            SCAN_DETAIL+=("$(printf '%s\n' "$matches" | head -3)")
+        fi
+    done
+}
+
+echo "=== Error Message Leak Check ==="
+echo ""
+
+# POSITIVE CONTROL -- the matcher can still flag a leak. Every pattern is
+# planted once, inside an ordinary error string, and every one must be found.
+# Without this a matcher broken by an edit (a pattern that stopped compiling,
+# a filter that eats every line, a screen that reads an error as "clean")
+# reports 874 PASSes and proves nothing. The example text for each pattern is
+# the pattern itself with ".*" read as a space: a literal "." matches ".".
+CONTROL_FILE="$(mktemp "${TMPDIR:-/tmp}/leak_control.XXXXXX")" || exit 1
+trap 'rm -f "$CONTROL_FILE"' EXIT
+for entry in "${BANNED_IN_STRINGS[@]}"; do
+    example="${entry%%|*}"
+    example="${example//.\*/ }"
+    printf '    throw std::runtime_error("planted leak: %s here");\n' "$example" >> "$CONTROL_FILE"
+done
+scan_file "$CONTROL_FILE"
+if [ "${#SCAN_HITS[@]}" -eq "${#BANNED_IN_STRINGS[@]}" ]; then
+    echo "  PASS: CONTROL -- all ${#BANNED_IN_STRINGS[@]} planted leaks were flagged"
+    PASS=$((PASS + 1))
+else
+    echo "  FAIL: CONTROL -- only ${#SCAN_HITS[@]} of ${#BANNED_IN_STRINGS[@]} planted leaks were flagged;"
+    echo "        the matcher cannot be trusted to find a real one"
+    found=" ${SCAN_HITS[*]%%|*} "
+    for entry in "${BANNED_IN_STRINGS[@]}"; do
+        case "$found" in *" ${entry%%|*} "*) ;; *) echo "        missed: ${entry%%|*}" ;; esac
+    done
+    FAIL=$((FAIL + 1))
+fi
+
+for src in "${SECURITY_FILES[@]}"; do
+    filepath="$LANG_DIR/$src"
+    # A listed file that no longer exists used to be skipped in silence, so a
+    # rename dropped it from the check without anything turning red.
+    if [ ! -f "$filepath" ]; then
+        echo "  FAIL: $src -- listed but not found; its error strings are no longer checked"
+        FAIL=$((FAIL + 1))
         continue
     fi
 
-    for entry in "${BANNED_IN_STRINGS[@]}"; do
-        pattern="${entry%%|*}"
-        desc="${entry##*|}"
-
-        matches=$(grep -n "\".*${pattern}" "$filepath" 2>/dev/null | string_literal_filter)
-        if [ -n "$matches" ]; then
-            echo "  FAIL: $src — $desc"
-            echo "        Pattern: $pattern"
-            echo "$matches" | head -3 | sed 's/^/        /'
-            FAIL=$((FAIL + 1))
-        else
-            PASS=$((PASS + 1))
-        fi
+    scan_file "$filepath"
+    PASS=$((PASS + ${#BANNED_IN_STRINGS[@]} - ${#SCAN_HITS[@]}))
+    for i in "${!SCAN_HITS[@]}"; do
+        echo "  FAIL: $src — ${SCAN_HITS[$i]##*|}"
+        echo "        Pattern: ${SCAN_HITS[$i]%%|*}"
+        printf '%s\n' "${SCAN_DETAIL[$i]}" | sed 's/^/        /'
+        FAIL=$((FAIL + 1))
     done
 done
 
