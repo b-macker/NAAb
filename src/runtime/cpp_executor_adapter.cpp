@@ -564,8 +564,13 @@ interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
         // Detected statement (not expression), executing without return (silent)
         // A failed statement block fails the program, like an expression
         // block (it used to be reported on stdout and then ignored).
-        ThrowOnFailure scope(throw_on_failure_);
+        ScopedFlag throwing(throw_on_failure_);
         execute(code);
+        // execute() has already printed the program's output, byte for byte.
+        // Left in the capture buffer, the engine flushed it a SECOND time
+        // (through the polyglot output parser, which also drops the trailing
+        // newline): every line of a C++ statement block appeared twice.
+        captured_output_.clear();
         return interpreter::NaabVal::makeNull();  // Return null/void
     }
 

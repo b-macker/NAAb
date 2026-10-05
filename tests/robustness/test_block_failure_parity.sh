@@ -29,6 +29,17 @@
 #          statement block writes its file
 #   BF-03c CONTROL: a PHP template (text before a <?php tag) is left as
 #          written -- the opener is added only when the block has none
+#   BF-04  INCOMPLETE input (unclosed quote, paren, if/then, function) fails
+#          within 10 s in every persistent-process language (shell, ruby,
+#          node) under --timeout 60. Shell used to wait out the whole timeout
+#          (30 s without --timeout): the raw block was piped to bash, which
+#          read the sentinel lines as part of the open construct.
+#   BF-04c CONTROL: shell blocks still share state (a variable and a function
+#          defined in one block are used in the next), a quoted here-document
+#          in a block is not expanded, and bound variables arrive
+#   BF-05  a C++ statement block's output appears exactly ONCE (it printed
+#          twice: once by the executor, once more when the engine flushed the
+#          same captured buffer), both engines
 # ============================================================
 set -uo pipefail
 
@@ -130,6 +141,58 @@ else
                  || bad BF-03 "a php block without <?php did not run as PHP" "$f3"$'\n'"$OUT"
     [ -z "$f3c" ] && ok BF-03c "a PHP template keeps its leading text" \
                   || bad BF-03c "a PHP template was altered" "$f3c"$'\n'"$OUT"
+fi
+
+# --- BF-04: incomplete input fails promptly ---
+f4=""; n4=0
+for spec in 'shell|echo "unterminated' 'shell|if true; then' 'shell|foo() {' 'shell|echo ((( open' \
+            'ruby|def foo' 'ruby|puts "unterminated' 'node|function f() {' 'node|let a = (1 +'; do
+    l="${spec%%|*}"; code="${spec#*|}"
+    printf '%s\n' "$langs" | grep -qx "$l" || continue
+    for eng in "" --tree-walk; do
+        e=${eng:-vm}; e=${e#--}
+        start=$SECONDS
+        run "$eng" "main {
+    <<$l
+$code
+>>
+    print(\"AFTER_\" + \"INC\")
+}"
+        took=$((SECONDS - start)); n4=$((n4+1))
+        { [ $RC -eq 1 ] && [[ "$OUT" != *AFTER_INC* ]] && [ $took -lt 10 ]; } || f4+=" $l:'$code'/$e(rc=$RC,${took}s)"
+    done
+done
+if [ $n4 -eq 0 ]; then skip BF-04 "no persistent-process language registered -- UNMEASURABLE"
+elif [ -z "$f4" ]; then ok BF-04 "incomplete input fails promptly ($n4 cases)"
+else bad BF-04 "incomplete input waited for the timeout, or did not fail" "$f4"; fi
+
+if printf '%s\n' "$langs" | grep -qx shell; then
+    f4c=""
+    for eng in "" --tree-walk; do
+        e=${eng:-vm}; e=${e#--}
+        run "$eng" $'main {\n    let who = "bound"\n    <<shell\nCOUNTER=5\ngreet() { echo "hi $1"; }\n>>\n    let a = <<shell\ngreet there\necho "count=$COUNTER"\n>>\n    print("A=" + a)\n    let b = <<shell[who]\ncat <<\'TXT\'\nraw $NOT_EXPANDED\nTXT\necho "who=$who"\n>>\n    print("B=" + b)\n}'
+        { [ $RC -eq 0 ] && [[ "$OUT" == *"A=hi there"* ]] && [[ "$OUT" == *"count=5"* ]] \
+          && [[ "$OUT" == *'B=raw $NOT_EXPANDED'* ]] && [[ "$OUT" == *"who=bound"* ]]; } || f4c+=" $e(rc=$RC)"
+    done
+    [ -z "$f4c" ] && ok BF-04c "shell state, here-documents and bindings carry across blocks" \
+                  || bad BF-04c "shell block semantics changed" "$f4c"$'\n'"$OUT"
+else
+    skip BF-04c "no shell executor registered -- UNMEASURABLE"
+fi
+
+# --- BF-05: a C++ statement block prints once ---
+if printf '%s\n' "$langs" | grep -qx cpp && command -v g++ >/dev/null 2>&1; then
+    f5=""
+    for eng in "" --tree-walk; do
+        e=${eng:-vm}; e=${e#--}
+        run "$eng" $'main {\n    <<cpp\nstd::cout << "CPP_" << "ONCE" << std::endl;\n>>\n    print("END")\n}'
+        c=$(printf '%s\n' "$OUT" | grep -o 'CPP_ONCE' | wc -l | tr -d ' ')
+        { [ $RC -eq 0 ] && [ "$c" = 1 ]; } || f5+=" $e(rc=$RC, printed ${c}x)"
+    done
+    [ -z "$f5" ] && ok BF-05 "a C++ statement block's line appears exactly once" \
+                 || bad BF-05 "C++ statement output count is wrong" "$f5"$'\n'"$OUT"
+else
+    skip BF-05 "no cpp executor or g++ here -- UNMEASURABLE"
 fi
 
 echo ""

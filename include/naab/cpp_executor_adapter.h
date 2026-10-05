@@ -55,13 +55,13 @@ public:
     const std::string& getCurrentBlockId() const { return current_block_id_; }
 
 private:
-    // See fail(): set by the inline statement path for one execute() call.
+    // Set by the inline statement path for one execute() call: see fail().
     bool throw_on_failure_ = false;
     bool fail(const std::string& msg);
-    struct ThrowOnFailure {
+    struct ScopedFlag {
         bool& flag; bool prev;
-        explicit ThrowOnFailure(bool& f) : flag(f), prev(f) { flag = true; }
-        ~ThrowOnFailure() { flag = prev; }
+        explicit ScopedFlag(bool& f) : flag(f), prev(f) { flag = true; }
+        ~ScopedFlag() { flag = prev; }
     };
     CppExecutor executor_;
     std::string current_block_id_;
