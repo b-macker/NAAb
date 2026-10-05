@@ -4,13 +4,20 @@
 #
 # WHAT WAS FOUND
 #
-# limits.data.string_length, nesting_depth and dict_size are parsed, recorded
-# in explicitly_set (so they take part in the ratchet and in inheritance) and
+# limits.data.string_length and nesting_depth are parsed, recorded in
+# explicitly_set (so they take part in the ratchet and in inheritance) and
 # clamped -- then read by nothing. Their only readers are
-# GovernanceEngine::checkStringLength / checkNestingDepth / checkDictSize,
-# which have zero call sites anywhere in src/: defined once, declared once in
-# governance.h, never invoked. An operator can set a HARD data limit, watch it
+# GovernanceEngine::checkStringLength / checkNestingDepth, which have zero call
+# sites anywhere in src/. An operator can set a HARD data limit, watch it
 # survive validation, and get no enforcement whatsoever.
+#
+# dict_size WAS in that list when this suite was written (#137), and LD-02
+# asserted its warning. #160 then wired it -- both engines call checkDictSize()
+# on dict literals -- and the warning was never removed, so the engine printed
+# "no check reads it" immediately above the HARD block that check raised. LD-02
+# kept passing because it checked that the string was PRINTED, which is the
+# failure LD-08 exists to catch. dict_size now joins the controls (LD-02), and
+# LD-09 is its truth gate in the LD-08 mould: the limit blocks on both engines.
 #
 # Found by sweeping every enforce()/recordPass() rule name back to its
 # enclosing method and asking which methods nothing calls -- the same shape as
@@ -90,13 +97,14 @@ echo "=== limits.data: parsed, ratcheted, and unenforced ==="
 
 gate_init "inert-limits"
 gate_def LD-01 WARN    "string_length warns that nothing enforces it"
-gate_def LD-02 WARN    "dict_size warns that nothing enforces it"
+gate_def LD-02 CONTROL "dict_size stays silent — wired by #160, both engines enforce it"
 gate_def LD-03 WARN    "nesting_depth warns, and names the spelling that works"
 gate_def LD-04 CONTROL "output_size stays silent — polyglot.cpp enforces it"
 gate_def LD-05 CONTROL "array_size stays silent — mirrored to a live field"
 gate_def LD-06 CONTROL "max_json_depth stays silent — json_impl.cpp enforces it"
 gate_def LD-07 CONTROL "no warning when limits.data is absent"
 gate_def LD-08 TRUTH   "the warning is true — inert key does not block, live key does"
+gate_def LD-09 TRUTH   "dict_size's silence is true — it blocks an oversized dict on both engines"
 
 run_limits() {  # $1 = JSON object for limits.data, $2 = script
     cat > "$W/govern.json" << EOF
@@ -113,10 +121,9 @@ cat > "$W/t.naab" << 'EOF'
 main { print("ok") }
 EOF
 
-# --- LD-01..LD-03: the inert keys warn ------------------------------------
-i=0
-for key in string_length dict_size nesting_depth; do
-    i=$((i + 1)); id="LD-0$i"
+# --- LD-01, LD-03: the inert keys warn -------------------------------------
+for pair in "LD-01:string_length" "LD-03:nesting_depth"; do
+    id="${pair%%:*}"; key="${pair#*:}"
     out="$(run_limits "{\"$key\": 8}")"
     if warned_for "$key" "$out"; then
         if [ "$key" = nesting_depth ] && ! echo "$out" | grep -q 'max_json_depth'; then
@@ -130,10 +137,9 @@ for key in string_length dict_size nesting_depth; do
     fi
 done
 
-# --- LD-04..LD-06: siblings in the same block that ARE enforced ------------
-i=3
-for key in output_size array_size max_json_depth; do
-    i=$((i + 1)); id="LD-0$i"
+# --- LD-02, LD-04..LD-06: keys in the same block that ARE enforced ---------
+for pair in "LD-02:dict_size" "LD-04:output_size" "LD-05:array_size" "LD-06:max_json_depth"; do
+    id="${pair%%:*}"; key="${pair#*:}"
     out="$(run_limits "{\"$key\": 4096}")"
     if warned_for "$key" "$out"; then
         fail "$id" "$key was wrongly reported as inert" \
@@ -186,6 +192,37 @@ elif [ "$INERT_BLOCKED" -ne 0 ]; then
 else
     fail LD-08 "max_json_depth did not block deep JSON" \
          "cannot show the comparison is between two reachable paths; LD-01..03 unproven"
+fi
+
+# --- LD-09: dict_size really is enforced (so LD-02's silence is true) -------
+# A 3-entry literal under dict_size 2 must be refused on BOTH engines, and a
+# 2-entry literal must run -- without the second half a limit that refused
+# every dict would pass.
+cat > "$W/big.naab" << 'EOF'
+main {
+    let d = {"a": 1, "b": 2, "c": 3}
+    print("BIG_RAN")
+}
+EOF
+cat > "$W/small.naab" << 'EOF'
+main {
+    let d = {"a": 1, "b": 2}
+    print("SMALL_RAN")
+}
+EOF
+ld9=""
+run_limits '{"dict_size": 2}' t.naab >/dev/null   # writes the config
+for flag in "" "--tree-walk"; do
+    big="$(cd "$W" && "$NAAB" big.naab $flag 2>&1)"
+    small="$(cd "$W" && "$NAAB" small.naab $flag 2>&1)"
+    case "$big" in *BIG_RAN*) ld9="$ld9 ${flag:-vm}:oversized-dict-ran" ;; esac
+    case "$big" in *"limits.data.dict_size"*) ;; *) ld9="$ld9 ${flag:-vm}:no-dict_size-refusal" ;; esac
+    case "$small" in *SMALL_RAN*) ;; *) ld9="$ld9 ${flag:-vm}:within-limit-dict-refused" ;; esac
+done
+if [ -z "$ld9" ]; then
+    pass LD-09 "dict_size blocks an oversized dict and admits one within the limit, both engines"
+else
+    fail LD-09 "dict_size is not enforced as LD-02's silence claims" "$ld9"
 fi
 
 gate_print_summary

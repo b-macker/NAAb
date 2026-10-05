@@ -332,6 +332,19 @@ static void warnIgnoredEnableFlag(const nlohmann::json& blk, const char* section
     }
 }
 
+// A requirements.* block whose check was never built. Its keys are still
+// parsed (ratchet, inheritance and explicitly_set all see them), but nothing
+// consults the result: requiresErrorHandling() has no caller and no naming
+// checker exists (docs/findings/inert-config-keys.md). The block used to draw
+// the enable/level mismatch warnings, which told the operator the check was
+// "ON" or "OFF" -- either way implying a check exists. Say what is true.
+static void warnUnimplementedRequirement(const char* name, const char* consequence) {
+    fprintf(stderr,
+            "[governance] Warning: \"requirements.%s\" is accepted but no check "
+            "enforces it - %s. Do not rely on this block.\n",
+            name, consequence);
+}
+
 #ifdef NAAB_CONFIG_MUTATION
 // ---------------------------------------------------------------------------
 // TEST BUILD ONLY (cmake -DNAAB_CONFIG_MUTATION=ON). Compiled out of every
@@ -629,6 +642,11 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 auto [enabled, level] = parseEnforcementLevel(req["error_handling"]);
                 rules_.require_error_handling = enabled;
                 rules_.error_handling_level = level;
+                // The object form warns in the v3 pass below; the legacy
+                // string/bool form is only ever seen here.
+                if (enabled)
+                    warnUnimplementedRequirement("error_handling",
+                        "code without try/catch is not blocked");
             }
         }
         if (req.contains("main_block")) {
@@ -1061,16 +1079,20 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         if (lim.contains("data") && lim["data"].is_object()) {
             auto& d = lim["data"];
 
-            // limits.data.string_length / nesting_depth / dict_size are parsed,
-            // recorded in explicitly_set (so they take part in the ratchet and in
-            // inheritance) and clamped -- and then read by nothing. Their only
-            // readers are GovernanceEngine::checkStringLength / checkNestingDepth /
-            // checkDictSize, which have zero call sites anywhere in src/: defined
-            // once, declared once in governance.h, never invoked. So an operator
-            // can set a HARD data limit, see it survive validation, and get no
-            // enforcement at all.
+            // limits.data.string_length / nesting_depth are parsed, recorded in
+            // explicitly_set (so they take part in the ratchet and in inheritance)
+            // and clamped -- and then read by nothing. Their only readers are
+            // GovernanceEngine::checkStringLength / checkNestingDepth, which have
+            // zero call sites anywhere in src/. So an operator can set a HARD data
+            // limit, see it survive validation, and get no enforcement at all.
             //
             // NOT warned, because they are live and would be false alarms:
+            //   * dict_size      -- wired by #160: both engines call
+            //                       checkDictSize() on dict literals (vm.cpp
+            //                       OP_DICT, expressions.cpp). It used to be warned
+            //                       here as well, and the warning outlived the
+            //                       wiring -- printed immediately above the block
+            //                       it said could not happen.
             //   * output_size    -- read at polyglot.cpp:718, which enforces it
             //                       directly (as a plain runtime_error rather than
             //                       through enforce(), so it produces no finding or
@@ -1099,7 +1121,6 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 }
             };
             warnInertLimit("string_length", "");
-            warnInertLimit("dict_size", "");
             warnInertLimit("nesting_depth",
                            " Use \"limits.data.max_json_depth\" for JSON parse depth,"
                            " which is enforced.");
@@ -1181,7 +1202,13 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (req.contains("error_handling") && req["error_handling"].is_object()) {
             auto& eh = req["error_handling"];
-            warnEnableNeedsLevel(eh, "requirements", "error_handling");
+            // Asked for = the shapes that would enable it if it existed: a
+            // level, or enabled:true. {enabled:false} alone asks for nothing.
+            const bool eh_asked = eh.contains("level") ||
+                (eh.contains("enabled") && eh["enabled"].is_boolean() && eh["enabled"].get<bool>());
+            if (eh_asked)
+                warnUnimplementedRequirement("error_handling",
+                    "code without try/catch is not blocked");
             rules_.explicitly_set.insert("requirements.error_handling");
             if (eh.contains("level")) {
                 auto [en, lv] = parseEnforcementLevel(eh["level"]);
@@ -1196,7 +1223,11 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (req.contains("naming_conventions") && req["naming_conventions"].is_object()) {
             auto& nc = req["naming_conventions"];
-            warnIgnoredEnableFlag(nc, "requirements", "naming_conventions");
+            const bool nc_off = nc.contains("enabled") && nc["enabled"].is_boolean() &&
+                                !nc["enabled"].get<bool>();
+            if (!nc_off)
+                warnUnimplementedRequirement("naming_conventions",
+                    "no naming convention is checked in NAAb or polyglot code");
             rules_.requirements.naming_conventions.enabled = true;
             rules_.explicitly_set.insert("requirements.naming_conventions");
             if (nc.contains("level")) { auto [en, lv] = parseEnforcementLevel(nc["level"]); rules_.requirements.naming_conventions.level = lv; }
