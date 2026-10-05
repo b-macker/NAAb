@@ -674,6 +674,13 @@ fi
 # At step_up_contextual_threshold 0.40 the two behaviors are separated by the
 # assertion, not by a margin.
 #
+# adaptive_baseline_enabled is pinned false: this group was written when that
+# was the default. #167 flipped the default to true, and inside the 5-turn
+# baseline window S15's firings are absorbed (penalty 0, pressure 0.0000), so
+# the level never reached ELEVATED in 6 sends -- I-01..I-04 skipped every run
+# from then on while the suite printed ALL PASSED. I-05 is the control that
+# makes that failure visible instead of a skip.
+#
 # Anchoring on the FIRST sighting rather than the most recent is deliberate:
 # the challenge fires as soon as escalation completes, which is not a turn the
 # fixture can predict. A first attempt keyed to "the most recent sighting"
@@ -700,6 +707,7 @@ cat > "$WDIR/govern.json" <<EOF
   "behavioral_sequences": { "enabled": true },
   "context_drift": {
     "enabled": true, "level": "advisory", "check_interval_turns": 1,
+    "adaptive_baseline_enabled": false,
     "signals": {
       "circular_actions": false, "repeated_failures": false, "scope_creep": false,
       "intent_contradictions": false, "coherence_velocity": false,
@@ -797,6 +805,14 @@ else
         fail "I-04" "Missing expected_keyword_count / expected_set_count" \
              "keywords=${I_DENOM:-none} sets=${I_SETS:-none}"
     fi
+fi
+# I-05 CONTROL: the fixture reached step-up and an entity challenge fired.
+# Without it, a fixture that stops escalating turns I-01..I-04 into SKIPs and
+# the group reads as passing while asserting nothing (what #167 did).
+if [ "$((ENT_PASS + ENT_FAIL))" -ge 1 ]; then
+    pass "I-05" "CONTROL: an entity challenge fired ($ENT_PASS pass, $ENT_FAIL fail)"
+else
+    fail "I-05" "No entity challenge fired -- the fixture no longer reaches step-up, so I-01..I-04 assert nothing"
 fi
 fi
 

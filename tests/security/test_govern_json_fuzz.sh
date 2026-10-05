@@ -16,6 +16,11 @@ TMPDIR="${TMPDIR:-/tmp}"
 FUZZ_DIR="$TMPDIR/naab_fuzz_$$"
 
 mkdir -p "$FUZZ_DIR"
+# Every case writes an unsigned govern.json; with a populated trust store that
+# is judged differently, so the verdicts would depend on the machine.
+source "$LANG_DIR/tests/helpers/trust_setup.sh"
+setup_isolated_trust
+trap 'rm -rf "$FUZZ_DIR"; teardown_isolated_trust' EXIT
 
 # Minimal program to trigger config loading
 cat > "$FUZZ_DIR/minimal.naab" << 'NAAB'
@@ -60,6 +65,34 @@ run_fuzz() {
 }
 
 echo "=== Governance Config Fuzz Test ==="
+echo ""
+echo "--- Controls ---"
+# Every case below accepts exit 0, so an interpreter that ran nothing would
+# pass all of them. C1: under a valid config the minimal program must print
+# its output. C2: a truncated config must be reported as a config error
+# (exit 4) -- proof the parser reads the file each case writes.
+TOTAL=$((TOTAL + 1))
+echo '{ "version": "4.0", "mode": "off" }' > "$FUZZ_DIR/govern.json"
+output=$(cd "$FUZZ_DIR" && timeout 10 "$NAAB" minimal.naab 2>&1)
+rc=$?
+if [ $rc -eq 0 ] && echo "$output" | grep -qx "ok"; then
+    echo "  PASS:  C1 valid config runs the program (prints ok)"
+    PASS=$((PASS + 1))
+else
+    echo "  FAIL:  C1 valid config did not run the program (exit $rc) -- fuzz verdicts are vacuous"
+    FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+echo '{"version": "4.0", "mode": ' > "$FUZZ_DIR/govern.json"
+output=$(cd "$FUZZ_DIR" && timeout 10 "$NAAB" minimal.naab 2>&1)
+rc=$?
+if [ $rc -eq 4 ]; then
+    echo "  PASS:  C2 truncated config is a config error (exit 4)"
+    PASS=$((PASS + 1))
+else
+    echo "  FAIL:  C2 truncated config gave exit $rc, expected 4 -- the parser is not reading these files"
+    FAIL=$((FAIL + 1))
+fi
 echo ""
 echo "--- Category 1: Type Mismatches (primitives) ---"
 

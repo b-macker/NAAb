@@ -9,6 +9,7 @@
 #  define pclose _pclose
 #endif
 
+#include "naab/sql_executor.h"
 #include "repl.h"
 #include "naab/config.h"
 #include "naab/paths.h"
@@ -295,6 +296,11 @@ void initialize_executors() {
     registry.registerExecutor("javascript",
         std::make_unique<naab::runtime::JsExecutorAdapter>());
 #endif
+
+    // SQL via in-process SQLite (already a required dependency). In-memory
+    // only, no filesystem reach -- see include/naab/sql_executor.h.
+    registry.registerExecutor("sql", std::make_unique<naab::runtime::SqlExecutor>());
+    registry.registerExecutor("sqlite", std::make_unique<naab::runtime::SqlExecutor>());
 
     // Subprocess Python (when embedded Python/pybind11 not available)
     // GenericSubprocessExecutor delegates to subprocess_helpers which has

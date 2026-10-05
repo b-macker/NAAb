@@ -521,6 +521,7 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/type_marshaller.cpp
     src/runtime/semver.cpp
     src/runtime/js_executor.cpp
+    src/runtime/sql_executor.cpp  # <<sql>> blocks: in-process, in-memory SQLite
     src/runtime/language_registry.cpp
     src/runtime/cpp_executor_adapter.cpp
     src/runtime/js_executor_adapter.cpp
@@ -1662,6 +1663,7 @@ if(HAVE_GOOGLETEST)
         tests/unit/ffi_callback_validator_test.cpp  # Phase 1 Item 9: FFI callback safety tests
         tests/unit/ffi_async_callback_test.cpp  # Phase 1 Item 10 Day 4: FFI async callback safety tests
         tests/unit/polyglot_async_test.cpp  # Phase 1 Item 10 Day 5: Polyglot async integration tests
+        tests/unit/inline_code_cache_test.cpp  # cache files are installed atomically (fork + reader)
     )
 
     # Link GoogleTest and NAAb libraries

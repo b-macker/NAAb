@@ -1,6 +1,7 @@
 // NAAb Agent Provider — Shared LLM API calling layer
 // Extracted from stdlib/agent_impl.cpp for reuse by governance engine
 
+#include "naab/loopback_url.h"
 #include "naab/agent_provider.h"
 #include "naab/paths.h"
 #include <curl/curl.h>
@@ -74,11 +75,9 @@ struct HttpResult {
 
 // Plain http is permitted ONLY for loopback hosts — supports local test stubs
 // via the per-agent api_base override. All other endpoints require https.
-static bool isLoopbackHttpUrl(const std::string& url) {
-    return url.rfind("http://127.0.0.1", 0) == 0 ||
-           url.rfind("http://localhost", 0) == 0 ||
-           url.rfind("http://[::1]", 0) == 0;
-}
+// naab::net::isLoopbackHttpUrl parses the host; a string prefix let
+// "http://127.0.0.1@other-host/" through.
+using naab::net::isLoopbackHttpUrl;
 
 static HttpResult httpPostRaw(
     const std::string& url,

@@ -1706,7 +1706,7 @@ echo "$NAAB_GOVERN_KEY"
 }
 NAAB_EOF
 cat > "$WORK_DIR_27/govern.json" << 'EOF'
-{"version":"1.0.0","project_name":"t51","mode":"enforce","sandbox_level":"unrestricted","capabilities":{"process":{"allow_spawn":true,"allowed_commands":["echo","sh"]}},"code_quality":{}}
+{"version":"1.0.0","project_name":"t51","mode":"enforce","sandbox_level":"unrestricted","capabilities":{},"code_quality":{}}
 EOF
 # V-SC-008: Must sign govern.json when key is set
 export NAAB_GOVERN_KEY="test-secret-key-12345"

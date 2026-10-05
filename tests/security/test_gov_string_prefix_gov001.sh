@@ -43,6 +43,10 @@ cat > "$WORK_DIR/injection/govern.json" << 'EOF'
 }
 EOF
 
+# Each block ends with a bare `result`: a block's value is its LAST EXPRESSION,
+# and an assignment is not one, so a block ending in `result = "ok"` returned
+# null. The availability probes below then never saw "ok" and skipped every arm
+# as "Python not available" on builds where Python works.
 # ---------------------------------------------------------------------------
 # T1: f-string containing os.system — content is inside a string, must NOT block.
 #     checkCodeInjection uses stripped=stripStringLiterals(code). The f-string
@@ -54,6 +58,7 @@ main {
     let result = <<python
 bad_practice_doc = f"os.system('id') is dangerous"
 result = "ok"
+result
 >>
     print(result)
 }
@@ -89,6 +94,7 @@ main {
     let result = <<python
 warning_msg = r"Never call os.system('id') directly"
 result = "safe"
+result
 >>
     print(result)
 }
@@ -124,13 +130,21 @@ main {
 import os
 os.system("echo dangerous")
 result = "ran"
+result
 >>
     print(result)
 }
 NAAB
 
+# Probe from a directory with NO project config. Since #244 --no-governance
+# cannot switch off a discovered govern.json, so probing beside this one ran the
+# program under the very policy T3 tests -- it was blocked, and T3 skipped as
+# "Python not available" on every build.
+T3_PROBE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gov001_t3probe.XXXXXX")"
+cp "$WORK_DIR/injection/t3.naab" "$T3_PROBE_DIR/t3.naab"
 ec=0
-out=$("$NAAB" "$WORK_DIR/injection/t3.naab" --no-governance 2>&1) || ec=$?
+out=$("$NAAB" "$T3_PROBE_DIR/t3.naab" --no-governance 2>&1) || ec=$?
+rm -rf "$T3_PROBE_DIR"
 if [[ "$ec" -ne 0 ]] || ! echo "$out" | grep -qi "ran\|dangerous"; then
     skip "T3 skipped — Python not available: ${out:0:80}"
 else

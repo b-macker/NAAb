@@ -5,6 +5,7 @@
 //           VariableSnapshot::capture, executePolyglotGroupParallel,
 //           serializeValueForLanguage
 
+#include "naab/sql_executor.h"
 #include "naab/interpreter.h"
 #include "naab/governance.h"
 #include "naab/logger.h"
@@ -189,6 +190,10 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
 
     // Phase 2.2: Bind variables using string serialization
     std::string var_declarations;
+    // SQL is the exception: its bound variables become SQLite parameters, never
+    // text spliced into the SQL (that would be injection by construction).
+    const bool is_sql = (language == "sql" || language == "sqlite");
+    runtime::SqlBindings sql_bindings;
 
     for (const auto& var_name : bound_vars) {
         // Look up variable in current environment
@@ -197,6 +202,11 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
 
         auto value = current_env_->get(var_name);
+
+        if (is_sql) {
+            sql_bindings.emplace_back(var_name, value);
+            continue;
+        }
 
         // For all languages: use string serialization
         std::string serialized = serializeValueForLanguage(value, language);
@@ -714,6 +724,10 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
 
     try {
+        if (is_sql) {
+            // Same thread as the call below, so the executor consumes exactly these.
+            runtime::setPendingSqlBindings(std::move(sql_bindings));
+        }
         result_ = executor->executeWithReturn(final_code);
 
         // Finding G fix: enforce polyglot output size limits from governance config.

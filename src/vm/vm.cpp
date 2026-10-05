@@ -1,3 +1,4 @@
+#include "naab/sql_executor.h"
 #include "naab/vm.h"
 #include "naab/string_interpolation.h"
 #include "naab/compiler.h"
@@ -3042,8 +3043,11 @@ interpreter::NaabVal VM::run() {
                     runtimeError("%s", msg.c_str());
                 }
 
-                // Build variable declarations
-                std::string var_declarations = buildVarDeclarations(
+                // Build variable declarations. SQL is the exception: its bound
+                // variables become SQLite parameters, never text spliced into the
+                // SQL (injection by construction) -- handed over at the call below.
+                const bool is_sql = (language == "sql" || language == "sqlite");
+                std::string var_declarations = is_sql ? std::string() : buildVarDeclarations(
                     language, bound_var_names, bound_vals);
 
                 // Strip common indentation from code
@@ -3213,6 +3217,12 @@ interpreter::NaabVal VM::run() {
                 // Execute via language executor
                 auto polyglot_exec_start = std::chrono::steady_clock::now();
                 try {
+                    if (is_sql) {
+                        runtime::SqlBindings sql_bindings;
+                        for (size_t bi = 0; bi < bound_var_names.size() && bi < bound_vals.size(); bi++)
+                            sql_bindings.emplace_back(bound_var_names[bi], bound_vals[bi]);
+                        runtime::setPendingSqlBindings(std::move(sql_bindings));
+                    }
                     interpreter::NaabVal result = executor->executeWithReturn(final_code);
 
                     // Post-execution: parse JSON output for -> JSON blocks
@@ -3913,8 +3923,14 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             auto& cf = frames_[frame_count_-1];
             int gov_line = cf.function->chunk.getLine(
                 static_cast<int>(cf.ip - cf.function->chunk.code.data()));
+            // checkTaintedSink looks the NAME up in the taint set, so the label
+            // must be marked first -- as the method-call sink site does. Without
+            // this the check could never fire: "print" listed as a sink was
+            // enforced by the tree-walker and silently ignored by the VM.
+            governance_->markTainted("(print-arg)");
             std::string terr = governance_->checkTaintedSink(
                 "(print-arg)", "print", current_file_, gov_line);
+            governance_->clearTaint("(print-arg)");
             if (!terr.empty()) runtimeError("%s", terr.c_str());
         }
         interpreter::NaabVal* args_ptr = stack_top_ - argc;

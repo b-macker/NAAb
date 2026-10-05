@@ -1,0 +1,6 @@
+limits.data.max_json_depth	limits.data.nesting_depth	20	0
+code_quality.no_apologetic_language.level	code_quality.no_apologetic_language.level	enum:3	enum:4
+code_quality.no_oversimplification.enabled	code_quality.no_oversimplification.enabled	true	false
+code_quality.no_incomplete_logic.enabled	code_quality.no_incomplete_logic.enabled	true	false
+code_quality.no_hallucinated_apis.enabled	code_quality.no_hallucinated_apis.enabled	true	false
+security.sandbox_level	sandbox_level_config	"unrestricted"	""

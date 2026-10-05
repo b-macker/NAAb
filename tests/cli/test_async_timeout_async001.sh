@@ -73,6 +73,39 @@ fi
 
 echo ""
 
+# ---------------------------------------------------------------------------
+# C1 CONTROL: T1 passes on every outcome except a 15s hang, and its loop is not
+# async -- so neither arm shows a worker seeing the timeout. Here an async fn
+# spins forever on a worker; the run must start, report a timeout, never reach
+# the line after the await, and stop near the 3s limit (not instantly).
+# ---------------------------------------------------------------------------
+echo "[C1] An async fn spinning forever is stopped by --timeout 3"
+cat > "$WORKDIR/test_c1.naab" << 'EOF'
+async fn spin() {
+  let i = 0
+  while true {
+    i = i + 1
+  }
+  return i
+}
+main {
+  print("ASYNC_STARTED")
+  let v = await spin()
+  print("AFTER:" + string(v))
+}
+EOF
+start_ts=$(date +%s)
+ec=0; out=$(timeout 15s "$NAAB" "$WORKDIR/test_c1.naab" --vm --no-governance --timeout 3 2>&1) || ec=$?
+elapsed=$(( $(date +%s) - start_ts ))
+if [[ "$out" == *ASYNC_STARTED* ]] && [[ "$out" != *AFTER:* ]] && grep -qi "timeout" <<<"$out" \
+   && [[ "$ec" -ne 0 && "$ec" -ne 124 ]] && [[ "$elapsed" -ge 2 && "$elapsed" -le 8 ]]; then
+    ok "async worker stopped by the timeout (${elapsed}s, exit $ec)"
+else
+    fail "async worker not stopped at its timeout (exit $ec, ${elapsed}s): ${out:0:200}"
+fi
+
+echo ""
+
 TOTAL=$((PASS + FAIL))
 echo "Results: ${PASS}/${TOTAL} passed"
 [[ "$FAIL" -eq 0 ]]

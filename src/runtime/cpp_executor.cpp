@@ -4,6 +4,7 @@
 #include "naab/cpp_executor.h"
 #include "naab/interpreter.h"
 #include "naab/paths.h"
+#include "naab/atomic_file.h"
 #include "naab/resource_limits.h"
 #include "naab/input_validator.h"
 #include "naab/audit_logger.h"
@@ -214,8 +215,11 @@ bool CppExecutor::compileBlock(
     std::error_code ec;
     fs::rename(temp_so_path, so_path, ec);
     if (ec) {
-        // Cross-device fallback (tmp and cache on different filesystems)
-        fs::copy_file(temp_so_path, so_path, fs::copy_options::overwrite_existing, ec);
+        // Cross-device (a tmpfs /tmp): rename() cannot cross filesystems, and
+        // copying over so_path in place truncated a library another process
+        // had already dlopen()ed -- SIGBUS on its next page fault. Copy beside
+        // so_path and rename from there, which stays on one filesystem.
+        copyFileAtomically(temp_so_path, so_path, ec);
     }
 
     if (ec) {
@@ -345,8 +349,13 @@ bool CppExecutor::loadCompiledBlock(const std::string& block_id) {
     // Load shared library (dlopen should be fast, no timeout needed)
     void* handle = dlopen(canonical_path.c_str(), RTLD_LAZY);
     if (!handle) {
-        fmt::print("[ERROR] Failed to load library: {}\n", dlerror());
-        security::AuditLogger::logSecurityViolation("dlopen() failed: " + std::string(dlerror()));
+        // dlerror() returns the message once and then NULL, so read it once.
+        // Calling it twice handed NULL to std::string, which threw, and the
+        // real error was reported as "basic_string: construction from null".
+        const char* err = dlerror();
+        const std::string reason = err ? err : "unknown dlopen error";
+        fmt::print("[ERROR] Failed to load library: {}\n", reason);
+        security::AuditLogger::logSecurityViolation("dlopen() failed: " + reason);
         return false;
     }
 
@@ -400,8 +409,9 @@ interpreter::NaabVal CppExecutor::executeBlock(
     ExecuteFunc execute = (ExecuteFunc)dlsym(block->handle, block->entry_point.c_str());
 
     if (!execute) {
+        const char* err = dlerror();  // NULL when the symbol exists but is NULL
         fmt::print("[ERROR] Failed to find entry point '{}': {}\n",
-                   block->entry_point, dlerror());
+                   block->entry_point, err ? err : "symbol is null");
         return interpreter::NaabVal::makeNull();
     }
 

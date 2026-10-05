@@ -39,8 +39,63 @@ namespace {
     // Thread-local handle allocator: each thread gets its own 64K-handle range.
     // Freed handles are recycled only within the same thread.
     static constexpr uint32_t RANGE_SIZE = 65536;                    // handles per thread range
-    static std::atomic<uint32_t> g_next_range{0};                   // global range counter
+    static_assert(RANGE_SIZE == PAGE_SIZE, "a range id is used as a page index");
+    static std::atomic<uint32_t> g_next_range{0};                   // ranges ever created (high-water mark)
     static std::mutex g_page_mutex;                                  // protects ensurePage only
+
+    // Range recycling. Every thread takes a range on its first allocation, and
+    // every VM `async fn` call runs on a new thread -- so with ranges never
+    // returned, the 256th call in a process indexed g_pages[256] and wrote past
+    // the table (silent corruption of the statics after it, then SIGSEGV a few
+    // hundred calls later). A range is returned to the pool once its owning
+    // thread has exited AND every handle in it has been freed: the second half
+    // matters because a worker's result is allocated in the worker's range and
+    // outlives the worker. Handles are only ever re-issued by a range's owner
+    // (release() never recycles a foreign handle), so a range with no live
+    // handles and no owner can be handed out fresh.
+    enum class RangeState : uint8_t { Active, Retired, Free };
+    static std::atomic<int32_t> g_range_live[MAX_PAGES] = {};        // live handles per range
+    static RangeState g_range_state[MAX_PAGES] = {};                 // guarded by g_range_mutex
+    static std::vector<uint32_t> g_free_ranges;                      // guarded by g_range_mutex
+    static std::mutex g_range_mutex;
+
+    static uint32_t acquireRange() {
+        std::lock_guard<std::mutex> lock(g_range_mutex);
+        uint32_t id;
+        if (!g_free_ranges.empty()) {
+            id = g_free_ranges.back();
+            g_free_ranges.pop_back();
+        } else {
+            id = g_next_range.load(std::memory_order_relaxed);
+            if (id >= MAX_PAGES) {
+                throw std::runtime_error(
+                    "Runtime error: value handle space exhausted\n\n"
+                    "  Too many threads are holding live values at once.\n\n"
+                    "  Help:\n"
+                    "  - Await async calls before starting more of them\n");
+            }
+            g_next_range.store(id + 1, std::memory_order_relaxed);
+        }
+        g_range_state[id] = RangeState::Active;
+        return id;
+    }
+
+    // Caller holds g_range_mutex.
+    static void freeRangeIfDoneLocked(uint32_t id) {
+        if (g_range_state[id] == RangeState::Retired &&
+            g_range_live[id].load(std::memory_order_acquire) == 0) {
+            g_range_state[id] = RangeState::Free;
+            g_free_ranges.push_back(id);
+        }
+    }
+
+    static void handleFreed(uint32_t h) {
+        uint32_t id = h / RANGE_SIZE;
+        if (g_range_live[id].fetch_sub(1, std::memory_order_acq_rel) == 1) {
+            std::lock_guard<std::mutex> lock(g_range_mutex);
+            freeRangeIfDoneLocked(id);
+        }
+    }
 
     struct ThreadAllocator {
         uint32_t range_start;
@@ -52,14 +107,43 @@ namespace {
 
     static thread_local ThreadAllocator* tl_allocator = nullptr;
 
+    // Retires this thread's ranges when the thread exits.
+    struct AllocatorRetirer {
+        ~AllocatorRetirer() {
+            ThreadAllocator* alloc = tl_allocator;
+            if (!alloc) return;
+            tl_allocator = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(g_range_mutex);
+                for (auto& [rs, re] : alloc->all_ranges) {
+                    uint32_t id = rs / RANGE_SIZE;
+                    g_range_state[id] = RangeState::Retired;
+                    freeRangeIfDoneLocked(id);
+                }
+            }
+            delete alloc;
+        }
+    };
+    static thread_local AllocatorRetirer tl_retirer;
+
+    static void assignRange(ThreadAllocator* alloc, uint32_t range_id) {
+        alloc->range_start = range_id * RANGE_SIZE;
+        alloc->range_end = alloc->range_start + RANGE_SIZE;
+        alloc->next_handle = alloc->range_start;
+        alloc->all_ranges.push_back({alloc->range_start, alloc->range_end});
+    }
+
     static ThreadAllocator* getOrCreateAllocator() {
         if (!tl_allocator) {
-            tl_allocator = new ThreadAllocator();
-            uint32_t range_id = g_next_range.fetch_add(1, std::memory_order_relaxed);
-            tl_allocator->range_start = range_id * RANGE_SIZE;
-            tl_allocator->range_end = tl_allocator->range_start + RANGE_SIZE;
-            tl_allocator->next_handle = tl_allocator->range_start;
-            tl_allocator->all_ranges.push_back({tl_allocator->range_start, tl_allocator->range_end});
+            (void)&tl_retirer;  // odr-use: constructs it, so its destructor runs at thread exit
+            auto* alloc = new ThreadAllocator();
+            try {
+                assignRange(alloc, acquireRange());
+            } catch (...) {
+                delete alloc;
+                throw;
+            }
+            tl_allocator = alloc;
         }
         return tl_allocator;
     }
@@ -81,22 +165,19 @@ namespace {
             h = alloc->free_handles.back();
             alloc->free_handles.pop_back();
         } else {
-            h = alloc->next_handle++;
-            if (h >= alloc->range_end) {
+            if (alloc->next_handle >= alloc->range_end) {
                 // Exhausted this range, get a new one
-                uint32_t range_id = g_next_range.fetch_add(1, std::memory_order_relaxed);
-                alloc->range_start = range_id * RANGE_SIZE;
-                alloc->range_end = alloc->range_start + RANGE_SIZE;
-                alloc->next_handle = alloc->range_start + 1;
-                alloc->all_ranges.push_back({alloc->range_start, alloc->range_end});
-                h = alloc->range_start;
+                assignRange(alloc, acquireRange());
             }
+            h = alloc->next_handle++;
             ensurePage(h >> PAGE_BITS);
         }
+        g_range_live[h / RANGE_SIZE].fetch_add(1, std::memory_order_relaxed);
         g_pages[h >> PAGE_BITS][h & PAGE_MASK].store(box, std::memory_order_release);
         return h;
     }
 
+    // Frees a handle in one of the calling thread's own ranges.
     void freeHandle(uint32_t h) {
 #ifdef NAAB_HANDLE_TRACE
         fprintf(stderr, "[HANDLE-FREE] h=%u thread=%p range=%u-%u\n",
@@ -105,8 +186,8 @@ namespace {
                 tl_allocator ? tl_allocator->range_end : 0u);
 #endif
         g_pages[h >> PAGE_BITS][h & PAGE_MASK].store(nullptr, std::memory_order_release);
-        auto* alloc = getOrCreateAllocator();
-        alloc->free_handles.push_back(h);
+        tl_allocator->free_handles.push_back(h);
+        handleFreed(h);
     }
 
     inline ValueBox* resolveHandle(uint32_t h) {
@@ -195,10 +276,14 @@ void NaabVal::release() {
                                 .load(std::memory_order_acquire);
         if (current != box) return;  // Already freed/reused — don't double-free
 
-        auto* alloc = getOrCreateAllocator();
+        // No allocator yet means this thread owns no range -- do not create one
+        // (and take a range) just to answer "is it mine".
+        auto* alloc = tl_allocator;
         bool is_mine = false;
-        for (auto& [rs, re] : alloc->all_ranges) {
-            if (handle >= rs && handle < re) { is_mine = true; break; }
+        if (alloc) {
+            for (auto& [rs, re] : alloc->all_ranges) {
+                if (handle >= rs && handle < re) { is_mine = true; break; }
+            }
         }
         if (is_mine) {
             freeHandle(handle);
@@ -212,6 +297,7 @@ void NaabVal::release() {
             // range and we can't push to that thread's free_handles safely).
             g_pages[handle >> PAGE_BITS][handle & PAGE_MASK]
                 .store(nullptr, std::memory_order_release);
+            handleFreed(handle);
             delete box;
         }
     }

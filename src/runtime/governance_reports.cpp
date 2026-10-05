@@ -780,6 +780,12 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
         if (pid == 0) {
             // === CHILD (only async-signal-safe calls below) ===
 
+            // Own process group, so a timeout can kill everything the hook
+            // started. Killing only this pid left `sh -c "sleep 60"`'s sleep
+            // running after the hook "timed out" -- the timeout bounded the
+            // shell, not the hook.
+            setpgid(0, 0);
+
             // V-SC-006: scrub governance keys from child environment.
             // unsetenv is technically not async-signal-safe, but these 3 calls
             // on constant strings have near-zero practical risk (no allocation in glibc).
@@ -804,6 +810,8 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
             _exit(127);  // exec failed
         }
 
+        setpgid(pid, pid);  // also from the parent: whichever runs first wins the race
+
         // Parent: poll waitpid with wall-clock timeout
         auto start = std::chrono::steady_clock::now();
         int timeout_ms = (hook.timeout > 0 ? hook.timeout : 5) * 1000;
@@ -816,7 +824,7 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
             if (w == -1) {
                 if (errno == EINTR) continue;
                 // ECHILD or other fatal error — kill and reap to prevent orphan/zombie
-                kill(pid, SIGKILL);
+                kill(-pid, SIGKILL);
                 waitpid(pid, &status, 0);
                 status = -1;
                 break;
@@ -824,12 +832,16 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
 
             auto elapsed = std::chrono::steady_clock::now() - start;
             if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() > timeout_ms) {
-                kill(pid, SIGKILL);
+                kill(-pid, SIGKILL);
                 waitpid(pid, &status, 0);
                 timed_out = true;
                 break;
             }
             usleep(50000);  // 50ms poll
+        }
+        // The child's own alarm() fired: the leader is gone, its group may not be.
+        if (!timed_out && status != -1 && WIFSIGNALED(status) && WTERMSIG(status) == SIGALRM) {
+            kill(-pid, SIGKILL);
         }
 
         // Diagnostic to stderr (generic — never include command or args)
@@ -922,18 +934,30 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
         std::vector<char> cmdline_buf(cmdline.begin(), cmdline.end());
         cmdline_buf.push_back('\0');
 
+        // The hook runs in a job object so a timeout can end everything it
+        // started, as the POSIX path does with a process group. TerminateProcess
+        // alone ended only the hook itself: `cmd /c ping -n 60 ...` "timed out"
+        // while ping ran on. It starts suspended so it cannot spawn anything
+        // before it is in the job. No KILL_ON_JOB_CLOSE: like POSIX, only a
+        // TIMEOUT kills the tree; a hook that exits normally keeps whatever it
+        // deliberately left running. If the process cannot join the job (an
+        // outer job forbidding nesting), the old single-process kill remains.
+        HANDLE job = ::CreateJobObjectA(nullptr, nullptr);
         BOOL ok = ::CreateProcessA(nullptr, cmdline_buf.data(),
                                    nullptr, nullptr,
                                    hNul != INVALID_HANDLE_VALUE,
-                                   0, env_ptr, nullptr, &si, &pi);
+                                   CREATE_SUSPENDED, env_ptr, nullptr, &si, &pi);
         if (hNul != INVALID_HANDLE_VALUE) ::CloseHandle(hNul);
 
         if (ok) {
+            const bool in_job = job && ::AssignProcessToJobObject(job, pi.hProcess);
+            ::ResumeThread(pi.hThread);
             DWORD timeout_ms = static_cast<DWORD>(
                 (hook.timeout > 0 ? hook.timeout : 5) * 1000);
             DWORD waitRc = ::WaitForSingleObject(pi.hProcess, timeout_ms);
             if (waitRc == WAIT_TIMEOUT) {
-                ::TerminateProcess(pi.hProcess, 1);
+                if (in_job) ::TerminateJobObject(job, 1);
+                else ::TerminateProcess(pi.hProcess, 1);
                 ::WaitForSingleObject(pi.hProcess, 1000);
                 fprintf(stderr, "[governance] Hook killed (timeout)\n");
             } else {
@@ -945,6 +969,7 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
             ::CloseHandle(pi.hThread);
             ::CloseHandle(pi.hProcess);
         }
+        if (job) ::CloseHandle(job);
 #endif
     } catch (...) {
         // Hook failures must NEVER mask governance enforcement

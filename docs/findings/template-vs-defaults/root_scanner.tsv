@@ -1,0 +1,77 @@
+checks in template with no scanner implementation: 0
+
+
+rows: 73
+scanner.scan.exclude_patterns	['node_modules', '.git', '__pycache__', 'build', 'dist']	[]	
+scanner.redundancy.obvious_comments.level	advisory	soft	
+scanner.redundancy.over_abstraction.level	advisory	soft	
+scanner.redundancy.generic_variable_names.names	['data', 'temp', 'tmp', 'val', 'x', 'y', 'foo', 'bar', 'baz', 'stuff', 'thing', 'obj', 'item', 'result']	[] (call site may fall back)	list
+scanner.redundancy.excessive_comments.level	advisory	soft	
+scanner.redundancy.restating_docstrings.level	advisory	soft	
+scanner.redundancy.unnecessary_else_after_return.level	advisory	soft	
+scanner.redundancy.wrapper_classes.level	advisory	soft	
+scanner.redundancy.single_use_variable.enabled	False	True	
+scanner.redundancy.single_use_variable.level	advisory	soft	
+scanner.redundancy.copy_paste_signatures.level	advisory	soft	
+scanner.redundancy.excessive_type_checks.level	advisory	soft	
+scanner.redundancy.decorative_separators.level	advisory	soft	
+scanner.code_quality.empty_catch.level	hard	soft	
+scanner.code_quality.magic_numbers.allowed	[0, 1, -1, 2, 10, 100, 1000]	[] (call site may fall back)	list
+scanner.code_quality.dead_code_after_return.level	hard	soft	
+scanner.code_quality.dead_conditional.level	hard	soft	
+scanner.code_quality.boolean_function_returns.level	advisory	soft	
+scanner.code_quality.string_concat_in_loop.level	advisory	soft	
+scanner.complexity.function_count.level	advisory	soft	
+scanner.complexity.class_count.level	advisory	soft	
+scanner.complexity.import_count.level	advisory	soft	
+scanner.complexity.return_count.level	advisory	soft	
+scanner.style.inconsistent_naming.level	advisory	soft	
+scanner.style.inconsistent_spacing.level	advisory	soft	
+scanner.style.long_lines.level	advisory	soft	
+scanner.style.missing_final_newline.level	advisory	soft	
+scanner.style.multiple_blank_lines.level	advisory	soft	
+scanner.style.inconsistent_quotes.enabled	False	True	
+scanner.style.inconsistent_quotes.level	advisory	soft	
+scanner.style.import_ordering.level	advisory	soft	
+scanner.security.hardcoded_credentials.level	hard	soft	
+scanner.security.sql_string_concat.level	hard	soft	
+scanner.security.shell_injection.level	hard	soft	
+scanner.security.hardcoded_ip.enabled	False	True	
+scanner.security.hardcoded_ip.level	advisory	soft	
+scanner.security.hardcoded_url.level	advisory	soft	
+scanner.security.path_traversal.level	hard	soft	
+scanner.security.insecure_deserialization.level	hard	soft	
+scanner.security.exposed_stack_traces.level	advisory	soft	
+scanner.lang_rules.python.mutable_default_args.level	hard	soft	
+scanner.lang_rules.python.import_inside_function.level	advisory	soft	
+scanner.lang_rules.python.mutable_class_vars.level	advisory	soft	
+scanner.lang_rules.python.string_format_mix.level	advisory	soft	
+scanner.lang_rules.python.duplicate_dict_key.level	hard	soft	
+scanner.lang_rules.python.f_string_without_expression.level	advisory	soft	
+scanner.lang_rules.javascript.eval_usage.level	hard	soft	
+scanner.lang_rules.javascript.prototype_pollution.level	hard	soft	
+scanner.lang_rules.javascript.no_strict_mode.level	advisory	soft	
+scanner.lang_rules.naab.value_semantics_bug.level	hard	soft	
+scanner.lang_rules.naab.polyglot_no_binding.level	advisory	soft	
+scanner.lang_rules.naab.throw_raw_string.level	advisory	soft	
+scanner.lang_rules.naab.top_level_let.level	hard	soft	
+scanner.lang_rules.naab.missing_export.level	advisory	soft	
+scanner.lang_rules.naab.python_return_in_block.level	hard	soft	
+scanner.lang_rules.naab.unsafe_args_access.level	advisory	soft	
+scanner.lang_rules.naab.hardcoded_return_value.enabled	False	True	
+scanner.lang_rules.naab.hardcoded_return_value.level	advisory	soft	
+scanner.lang_rules.naab.dict_key_schema_check.enabled	False	True	
+scanner.lang_rules.naab.dict_key_schema_check.level	advisory	soft	
+scanner.lang_rules.cpp.macro_functions.level	advisory	soft	
+scanner.lang_rules.cpp.include_guard_missing.level	advisory	soft	
+scanner.lang_rules.cpp.array_decay.level	advisory	soft	
+scanner.lang_rules.go.empty_interface_abuse.level	advisory	soft	
+scanner.lang_rules.go.error_string_format.level	advisory	soft	
+scanner.lang_rules.go.naked_return.level	advisory	soft	
+scanner.lang_rules.go.init_function.level	advisory	soft	
+scanner.lang_rules.rust.string_push.level	advisory	soft	
+scanner.lang_rules.rust.needless_lifetimes.level	advisory	soft	
+scanner.lang_rules.rust.clone_abuse.level	advisory	soft	
+scanner.lang_rules.rust.manual_map.level	advisory	soft	
+scanner.lang_rules.rust.return_impl_trait.level	advisory	soft	
+scanner.lang_rules.rust.box_vec.level	advisory	soft	

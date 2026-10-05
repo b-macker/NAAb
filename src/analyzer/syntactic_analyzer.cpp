@@ -1,4 +1,5 @@
 #include "naab/analyzer/syntactic_analyzer.h"
+#include "naab/analyzer/bounded_input.h"
 #include <regex>
 #include <algorithm>
 #include <sstream>
@@ -8,8 +9,9 @@ namespace analyzer {
 
 SyntacticAnalyzer::SyntacticAnalyzer() {}
 
-SyntacticProfile SyntacticAnalyzer::analyze(const std::string& code,
+SyntacticProfile SyntacticAnalyzer::analyze(const std::string& raw_code,
                                              const std::string& function_name) const {
+    const std::string code = boundLineLengths(raw_code);  // see bounded_input.h
     SyntacticProfile profile;
 
     detectLoops(code, profile);
