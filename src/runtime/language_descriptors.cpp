@@ -22,24 +22,24 @@ std::vector<LanguageDescriptor> buildTable() {
     // Every executor registered in src/cli/main.cpp (registerExecutor) must
     // resolve here, under its canonical name or an alias.
     return {
-        {"python",     {"py"},              {"#"},  {},        false},
-        {"javascript", {"js", "node"},      {"//"}, {kCBlock}, false},
-        {"typescript", {"ts"},              {},     {},        false},
-        {"shell",      {"sh", "bash"},      {"#"},  {},        false},
-        {"ruby",       {"rb"},              {"#"},  {},        false},
-        {"go",         {"golang"},          {"//"}, {kCBlock}, false},
-        {"cpp",        {"c++"},             {"//"}, {kCBlock}, false},
-        {"csharp",     {"cs"},              {"//"}, {kCBlock}, false},
-        {"rust",       {},                  {"//"}, {kCBlock}, false},
-        {"nim",        {},                  {"#"},  {},        false},
-        {"php",        {},                  {},     {},        false},
-        {"julia",      {},                  {},     {},        false},
-        {"zig",        {},                  {},     {},        false},
-        {"sql",        {"sqlite"},          {"--"}, {},        false},
+        {"python",     {"py"},              {"#"},             {},                        false},
+        {"javascript", {"js", "node"},      {"//"},            {kCBlock},                 false},
+        {"typescript", {"ts"},              {"//"},            {kCBlock},                 false},
+        {"shell",      {"sh", "bash"},      {"#"},             {},                        false},
+        {"ruby",       {"rb"},              {"#"},             {{"=begin", "=end", true}}, false},
+        {"go",         {"golang"},          {"//"},            {kCBlock},                 false},
+        {"cpp",        {"c++"},             {"//"},            {kCBlock},                 false},
+        {"csharp",     {"cs"},              {"//"},            {kCBlock},                 false},
+        {"rust",       {},                  {"//"},            {kCBlock},                 false},
+        {"nim",        {},                  {"#"},             {{"#[", "]#", false}},     false},
+        {"php",        {},                  {"//", "#"},       {kCBlock},                 false},
+        {"julia",      {},                  {"#"},             {{"#=", "=#", false}},     false},
+        {"zig",        {},                  {"//"},            {},                        false},
+        {"sql",        {"sqlite"},          {"--"},            {kCBlock},                 false},
         // Known to governance (naab-gov check, the C API) with no executor.
-        {"lua",        {},                  {"--"}, {},        true},
-        {"haskell",    {},                  {"--"}, {},        true},
-        {"ada",        {},                  {"--"}, {},        true},
+        {"lua",        {},                  {"--"},            {{"--[[", "]]", false}},   true},
+        {"haskell",    {},                  {"--"},            {{"{-", "-}", false}},     true},
+        {"ada",        {},                  {"--"},            {},                        true},
     };
 }
 

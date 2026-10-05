@@ -1902,7 +1902,6 @@
    "languages.allowed"
   ],
   "julia|block_julia|keyword": [
-   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "julia|block_julia|placeholder": [
@@ -2012,7 +2011,6 @@
    "languages.allowed"
   ],
   "julia|line_hash|keyword": [
-   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "julia|line_hash|placeholder": [
@@ -2566,9 +2564,7 @@
    "restrictions.dangerous_calls"
   ],
   "php|block_c|import": [],
-  "php|block_c|keyword": [
-   "code_quality.no_hallucinated_apis"
-  ],
+  "php|block_c|keyword": [],
   "php|block_c|placeholder": [
    "code_quality.no_placeholders"
   ],
@@ -2622,9 +2618,7 @@
    "restrictions.dangerous_calls"
   ],
   "php|block_julia|import": [],
-  "php|block_julia|keyword": [
-   "code_quality.no_hallucinated_apis"
-  ],
+  "php|block_julia|keyword": [],
   "php|block_julia|placeholder": [
    "code_quality.no_placeholders"
   ],
@@ -2712,9 +2706,7 @@
    "restrictions.dangerous_calls"
   ],
   "php|line_hash|import": [],
-  "php|line_hash|keyword": [
-   "code_quality.no_hallucinated_apis"
-  ],
+  "php|line_hash|keyword": [],
   "php|line_hash|placeholder": [
    "code_quality.no_placeholders"
   ],
@@ -2770,9 +2762,7 @@
    "restrictions.dangerous_calls"
   ],
   "php|line_slashes|import": [],
-  "php|line_slashes|keyword": [
-   "code_quality.no_hallucinated_apis"
-  ],
+  "php|line_slashes|keyword": [],
   "php|line_slashes|placeholder": [
    "code_quality.no_oversimplification",
    "code_quality.no_placeholders"
@@ -3239,9 +3229,7 @@
    "restrictions.dangerous_calls"
   ],
   "ruby|block_ruby|import": [],
-  "ruby|block_ruby|keyword": [
-   "code_quality.no_hallucinated_apis"
-  ],
+  "ruby|block_ruby|keyword": [],
   "ruby|block_ruby|placeholder": [
    "code_quality.no_placeholders"
   ],
@@ -4218,7 +4206,6 @@
    "languages.allowed"
   ],
   "sqlite|block_c|keyword": [
-   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "sqlite|block_c|placeholder": [
@@ -4559,7 +4546,6 @@
    "languages.allowed"
   ],
   "sql|block_c|keyword": [
-   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "sql|block_c|placeholder": [
@@ -4900,7 +4886,6 @@
    "languages.allowed"
   ],
   "ts|block_c|keyword": [
-   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "ts|block_c|placeholder": [
@@ -5135,7 +5120,6 @@
    "languages.allowed"
   ],
   "ts|line_slashes|keyword": [
-   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "ts|line_slashes|placeholder": [
@@ -5232,7 +5216,6 @@
    "languages.allowed"
   ],
   "typescript|block_c|keyword": [
-   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "typescript|block_c|placeholder": [
@@ -5467,7 +5450,6 @@
    "languages.allowed"
   ],
   "typescript|line_slashes|keyword": [
-   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "typescript|line_slashes|placeholder": [
@@ -5810,7 +5792,6 @@
    "languages.allowed"
   ],
   "zig|line_slashes|keyword": [
-   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "zig|line_slashes|placeholder": [
