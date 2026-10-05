@@ -239,9 +239,23 @@ std::vector<DependencyGroup> PolyglotDependencyAnalyzer::analyze(
         return {group};
     }
 
-    // Step 2: Split blocks into batches based on statement gaps
-    // If there are 2+ non-polyglot statements between two blocks,
-    // they should be in different batches (those statements might be variable declarations)
+    // Step 2: Split blocks into batches of ADJACENT blocks. Any ordinary
+    // statement between two blocks starts a new batch.
+    //
+    // A batch runs as one group, and Interpreter::visit(CompoundStmt) runs the
+    // statements lying between a group's blocks only AFTER the whole group --
+    // so a statement inside a batch is executed out of order. This used to
+    // tolerate a gap of ONE statement ("could just be a print"). Measured on
+    // --tree-walk, while the VM (which does not group) was correct:
+    //   * `let later = 10` between two blocks: the second block, binding
+    //     `later`, ran first -- "Variable 'later' not found in scope";
+    //   * `x = x + 1` between them: the second block bound the stale x
+    //     (10 instead of 20).
+    // Any other statement there -- a print, a file write -- also ran after
+    // both blocks; that half is read off visit(CompoundStmt), not measured.
+    // Dependencies between BLOCKS are analysed below; dependencies on ordinary
+    // statements are not, so the only sound rule is that a group spans no
+    // ordinary statement at all.
     std::vector<std::vector<PolyglotBlock>> batches;
     std::vector<PolyglotBlock> current_batch;
     current_batch.push_back(blocks[0]);
@@ -249,9 +263,7 @@ std::vector<DependencyGroup> PolyglotDependencyAnalyzer::analyze(
     for (size_t i = 1; i < blocks.size(); ++i) {
         size_t gap = blocks[i].statement_index - blocks[i-1].statement_index - 1;
 
-        // If there's a gap of 2+ statements, start a new batch
-        // (1 statement could just be a print, but 2+ likely includes variable declarations)
-        if (gap >= 2) {
+        if (gap >= 1) {
             batches.push_back(current_batch);
             current_batch.clear();
         }

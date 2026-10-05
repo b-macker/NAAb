@@ -15,6 +15,8 @@
 #include <regex>
 #include <chrono>
 #include <functional>
+#include <unordered_map>
+#include <unordered_set>
 #ifndef _WIN32
 #  include <sys/file.h>
 #endif
@@ -6860,6 +6862,97 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
                 }
             }
         }
+
+        // Nested keys. The loop above sees the top level only, so a nested key
+        // the loader never reads was accepted in silence -- and the silent
+        // default was usually the WEAKER one: agent_dispatch.hard_stop.max_calls
+        // (read: max_calls_per_run) left a run with no call budget, api.auth
+        // (read: api.keys) left /execute unauthenticated. The schema is
+        // generated from the loader itself (tools/config_known_keys.py), so it
+        // cannot drift into a hand-kept list that is short.
+        //
+        // A key is reported only under a CLOSED level -- one where the loader
+        // reads named children. A level with no known children is a value the
+        // loader reads whole (contract fixtures, regex lists) and is not
+        // descended into; "*" stands for any key of an open map (agents.<name>).
+        static const std::vector<std::string> KNOWN_PATHS = {
+#include "governance_known_keys.inc"
+        };
+        static const auto schema = [] {
+            struct Schema {
+                std::unordered_set<std::string> known;
+                std::unordered_map<std::string, std::vector<std::string>> children;
+            } sc;
+            for (const auto& p : KNOWN_PATHS) {
+                sc.known.insert(p);
+                auto cut = p.rfind('\x1f');
+                std::string parent = cut == std::string::npos ? std::string() : p.substr(0, cut);
+                std::string leaf = cut == std::string::npos ? p : p.substr(cut + 1);
+                sc.children[parent].push_back(leaf);
+            }
+            return sc;
+        }();
+        auto isAnnotation = [](const std::string& k) {
+            return (!k.empty() && k[0] == '_') || k == "rationale" ||
+                   (k.size() > 10 && k.compare(k.size() - 10, 10, "_rationale") == 0);
+        };
+        auto join = [](const std::string& a, const std::string& b) {
+            return a.empty() ? b : a + '\x1f' + b;
+        };
+        auto step = [&](const std::vector<std::string>& cands, const std::string& seg) {
+            std::vector<std::string> out;
+            for (const auto& c : cands)
+                for (const std::string& s : {seg, std::string("*")})
+                    if (schema.known.count(join(c, s))) out.push_back(join(c, s));
+            return out;
+        };
+        constexpr size_t kMaxNestedWarnings = 25;
+        size_t nested_found = 0;
+        std::function<void(const nlohmann::json&, const std::vector<std::string>&,
+                           const std::string&)> walk;
+        walk = [&](const nlohmann::json& v, const std::vector<std::string>& cands,
+                   const std::string& shown) {
+            if (v.is_object()) {
+                std::vector<std::string> names;
+                for (const auto& c : cands) {
+                    auto it = schema.children.find(c);
+                    if (it != schema.children.end())
+                        for (const auto& n : it->second) if (n != "*" && n != "[]") names.push_back(n);
+                }
+                bool closed = false;
+                for (const auto& c : cands) if (schema.children.count(c)) { closed = true; break; }
+                if (!closed) return;
+                for (auto it = v.begin(); it != v.end(); ++it) {
+                    const std::string& k = it.key();
+                    if (isAnnotation(k)) continue;
+                    std::string here = shown + "." + k;
+                    auto nc = step(cands, k);
+                    if (nc.empty()) {
+                        if (++nested_found > kMaxNestedWarnings) continue;
+                        std::string suggestion = suggestKey(k, names);
+                        warnings.push_back(fmt::format(
+                            "[governance] Warning: \"{}\" is not a setting the engine reads - "
+                            "it has no effect.{}", here,
+                            suggestion.empty() ? std::string()
+                                               : fmt::format(" Did you mean \"{}\"?", suggestion)));
+                        continue;
+                    }
+                    walk(it.value(), nc, here);
+                }
+            } else if (v.is_array()) {
+                auto nc = step(cands, "[]");
+                if (nc.empty()) return;
+                for (const auto& x : v) walk(x, nc, shown + "[]");
+            }
+        };
+        for (auto& [key, val] : j.items()) {
+            if (isAnnotation(key) || !schema.known.count(key)) continue;
+            walk(val, {key}, key);
+        }
+        if (nested_found > kMaxNestedWarnings)
+            warnings.push_back(fmt::format(
+                "[governance] Warning: {} more settings the engine does not read were "
+                "not listed.", nested_found - kMaxNestedWarnings));
     } catch (const std::exception&) {}
     return warnings;
 }

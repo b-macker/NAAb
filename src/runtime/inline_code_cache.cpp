@@ -5,6 +5,7 @@
 #include "naab/inline_code_cache.h"
 #include "naab/paths.h"
 #include "naab/atomic_file.h"
+#include "naab/crypto_utils.h"
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -44,27 +45,13 @@ InlineCodeCache::~InlineCodeCache() {
 }
 
 std::string InlineCodeCache::hashCode(const std::string& code) const {
-    // Simple but effective hash using std::hash + length + first/last chars
-    // This avoids expensive crypto hashing while being collision-resistant for cache purposes
-
-    std::hash<std::string> hasher;
-    size_t hash1 = hasher(code);
-
-    // Mix in code length and content from different positions
-    size_t hash2 = code.length();
-    if (!code.empty()) {
-        hash2 ^= (size_t)code[0] << 16;
-        hash2 ^= (size_t)code[code.length() / 2] << 8;
-        hash2 ^= (size_t)code[code.length() - 1];
-    }
-
-    // Combine hashes
-    size_t final_hash = hash1 ^ (hash2 << 1);
-
-    // Convert to hex string
-    std::ostringstream oss;
-    oss << std::hex << std::setfill('0') << std::setw(16) << final_hash;
-    return oss.str();
+    // The key decides WHICH compiled binary runs for a block, so a collision
+    // runs another block's code -- code governance never checked for this
+    // block. It used to be std::hash mixed with the length and three
+    // characters: 64 bits, not collision-resistant, and std::hash makes no
+    // promise across library versions. SHA-256 of the full source costs
+    // microseconds against a compile measured in seconds.
+    return security::CryptoUtils::sha256(code);
 }
 
 bool InlineCodeCache::isCached(const std::string& language, const std::string& code) const {

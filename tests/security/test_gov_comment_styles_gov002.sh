@@ -130,14 +130,17 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# T3: Verify basic -- comment stripping behavior using NAAb's checkPolyglotBlock.
-#     A script that would ONLY fail if -- comment stripping is broken.
-#     Uses checkTemporaryCode (on stripped code) which looks for "# for now"
-#     patterns. SQL block with "-- for now" should NOT match since:
-#     - Simple stripComments doesn't handle --, but the pattern needs # or //
-#     - Language-aware stripComments (V-GOV-002) handles -- for SQL
-#     Result: neither before nor after fix would this trigger (pattern needs #//)
-#     So T3 is a sanity check: script completes without error regardless.
+# T3: a SQL block whose -- comments read like temporary-code markers runs
+#     cleanly under the governed config, and returns its value.
+#     It used to accept "exit 0" -- which an interpreter that ran nothing also
+#     gives -- and its probe ran from the governed directory (since #244
+#     --no-governance cannot switch that config off). It now requires the
+#     block's VALUE in the output and no finding, with the probe in a
+#     config-less directory, as T2's is.
+#     Known gap, recorded rather than fixed here: the temporary-code check runs
+#     on code with comments KEPT and its default patterns require a # or //
+#     prefix, so a "-- for now" marker in SQL is never detected, stripped or
+#     not. Comment syntax per language is the per-language descriptor work.
 # ---------------------------------------------------------------------------
 echo "[T3] SQL block: -- style comments don't cause unexpected governance errors"
 cat > "$WORK_DIR/t3.naab" << 'NAAB'
@@ -147,23 +150,26 @@ main {
 -- Another comment line with SELECT syntax reference
 SELECT 1 AS value
 >>
-    print("ok")
+    print("T3_VALUE=" + string(result[0]["value"]))
 }
 NAAB
 
+T3_PROBE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gov002_t3probe.XXXXXX")"
+cp "$WORK_DIR/t3.naab" "$T3_PROBE_DIR/t3.naab"
 ec=0
-out=$("$NAAB" "$WORK_DIR/t3.naab" --no-governance 2>&1) || ec=$?
-if [[ "$ec" -ne 0 ]]; then
-    skip "T3 skipped — SQL executor not available"
+out=$("$NAAB" "$T3_PROBE_DIR/t3.naab" --no-governance 2>&1) || ec=$?
+rm -rf "$T3_PROBE_DIR"
+if [[ "$out" != *"T3_VALUE=1"* ]]; then
+    skip "T3 skipped — SQL executor not available: ${out:0:80}"
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/t3.naab" 2>&1) || ec2=$?
-    if [[ "$ec2" -eq 0 ]]; then
-        ok "SQL block with -- comments completed without governance error"
-    elif echo "$out2" | grep -qi "temporary\|for now\|governance\|blocked"; then
-        fail "SQL -- comment unexpectedly triggered governance: ${out2:0:120}"
+    if [[ "$out2" == *"T3_VALUE=1"* && "$out2" != *"$DETECTED"* && "$out2" != *"Temporary code marker"* ]]; then
+        ok "SQL block with -- comments ran under governance and returned its value"
     else
-        skip "SQL executor not available or other non-governance exit (exit $ec2)"
+        # The probe just proved this block runs and returns 1, so anything
+        # else under the governed config is governance acting on comments.
+        fail "SQL -- comments changed the governed run (exit $ec2): ${out2:0:160}"
     fi
 fi
 

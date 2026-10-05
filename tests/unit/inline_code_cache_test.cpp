@@ -17,6 +17,7 @@
 
 #include <gtest/gtest.h>
 #include "naab/inline_code_cache.h"
+#include "naab/crypto_utils.h"
 
 #include <cstdlib>
 #include <filesystem>
@@ -203,6 +204,24 @@ TEST(InlineCodeCacheAtomicity, MetadataIsNeverObservedPartial) {
     std::stringstream buf;
     buf << in.rdbuf();
     EXPECT_TRUE(metadataComplete(buf.str(), kEntries));
+}
+
+// The cache key decides which compiled binary runs for a block, so two blocks
+// must never share one. It was std::hash mixed with the length and the first,
+// middle and last characters -- 64 bits, no collision resistance. It is now the
+// SHA-256 of the whole source. Two blocks equal in length, first, middle and
+// last character -- the inputs the old mixing added -- must still differ.
+TEST(InlineCodeCacheKey, IsSha256OfTheWholeSource) {
+    TempHome home;
+    InlineCodeCache cache;
+    const std::string a = "int main() { return 1; /* aa */ return 0; }";
+    const std::string b = "int main() { return 2; /* aa */ return 0; }";
+    ASSERT_EQ(a.size(), b.size());
+    ASSERT_EQ(a[a.size() / 2], b[b.size() / 2]);
+    EXPECT_EQ(cache.hashCode(a), naab::security::CryptoUtils::sha256(a));
+    EXPECT_EQ(cache.hashCode(a).size(), 64u);
+    EXPECT_NE(cache.hashCode(a), cache.hashCode(b));
+    EXPECT_EQ(cache.hashCode(a), cache.hashCode(std::string(a)));  // deterministic
 }
 
 #endif  // _WIN32
