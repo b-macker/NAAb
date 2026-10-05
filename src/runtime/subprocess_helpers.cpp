@@ -15,6 +15,7 @@
 #include <fstream>      // For std::ifstream
 #include <vector>       // For std::vector
 #include <map>          // For std::map
+#include <mutex>        // probeRuntimeVersion() cache
 #include <cstring>      // For strerror / strsignal
 #include <cstdlib>      // For mkstemp/environ (POSIX) or _putenv_s (Windows)
 #include <unordered_set> // For secret env var scrubbing
@@ -819,6 +820,56 @@ int execute_subprocess_with_pipes(
 
     return -1;
 #endif
+}
+
+namespace {
+thread_local int t_version_probe_depth = 0;
+}
+ScopedRuntimeVersionProbe::ScopedRuntimeVersionProbe() { ++t_version_probe_depth; }
+ScopedRuntimeVersionProbe::~ScopedRuntimeVersionProbe() { --t_version_probe_depth; }
+bool ScopedRuntimeVersionProbe::active() { return t_version_probe_depth > 0; }
+
+std::string probeRuntimeVersion(const std::string& binary,
+                                const std::vector<std::string>& args) {
+    static std::mutex mu;
+    static std::map<std::string, std::string> cache;
+    std::string key = binary;
+    for (const auto& a : args) key += '\x1f' + a;
+    {
+        std::lock_guard<std::mutex> lock(mu);
+        auto it = cache.find(key);
+        if (it != cache.end()) return it->second;
+    }
+    if (!ScopedRuntimeVersionProbe::active()) return "";
+    // A version probe is still a process: never start one the policy forbids.
+    if (!security::ScopedSandbox::effectiveConfig()
+             .hasCapability(security::Capability::SYS_EXEC)) {
+        return "";
+    }
+    SubprocessContainment c = SubprocessContainment::fromCurrentSandbox(binary);
+    if (c.max_cpu_ms == 0 || c.max_cpu_ms > 10000) c.max_cpu_ms = 10000;
+    std::string out, err;
+    int rc = -1;
+    try {
+        rc = execute_subprocess_with_pipes(binary, args, out, err, nullptr, &c);
+    } catch (const std::exception&) {
+        return "";
+    }
+    if (rc != 0) return "";
+    const std::string& text = out.find_first_not_of(" \t\r\n") != std::string::npos ? out : err;
+    std::istringstream lines(text);
+    std::string line;
+    while (std::getline(lines, line)) {
+        while (!line.empty() && (line.back() == '\r' || line.back() == ' ' || line.back() == '\t'))
+            line.pop_back();
+        size_t b = line.find_first_not_of(" \t");
+        if (b == std::string::npos) continue;
+        line = line.substr(b, 200);
+        std::lock_guard<std::mutex> lock(mu);
+        cache[key] = line;
+        return line;
+    }
+    return "";
 }
 
 } // namespace runtime

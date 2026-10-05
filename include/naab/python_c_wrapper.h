@@ -72,6 +72,12 @@ typedef int (*NaabPyAuditPolicyFn)(const char* event, const char* target, int is
 void python_c_set_audit_policy(NaabPyAuditPolicyFn fn);
 
 /**
+ * The version of the EMBEDDED interpreter (Py_GetVersion()), e.g.
+ * "3.11.2 (main, ...) [GCC ...]". Valid before python_c_init().
+ */
+const char* python_c_version(void);
+
+/**
  * Create a Python thread state for the current thread.
  *
  * Safe to call from any thread WITHOUT the GIL.

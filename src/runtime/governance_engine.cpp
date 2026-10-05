@@ -6511,18 +6511,38 @@ static bool semverGe(const std::string& observed, const std::string& required) {
 
 // Extract numeric version from a runtime version string.
 // e.g., "Python 3.11.2" -> "3.11.2", "go1.21.0" -> "1.21.0"
+// A date-stamped release (QuickJS "2021-03-27") compares as dotted numbers,
+// so ">=2021-01-01" and a "2021-03" prefix behave like any other version.
+static std::string dateToDotted(std::string v) {
+    // A full date or a prefix of one ("2021-03"), as a pin may write it.
+    static const std::regex date_re(R"(^\d{4}(?:-\d{2}){1,2}$)");
+    if (std::regex_match(v, date_re)) std::replace(v.begin(), v.end(), '-', '.');
+    return v;
+}
+
 static std::string extractVersionNumber(const std::string& version_str) {
-    std::regex version_re(R"((\d+\.\d+(?:\.\d+)*))");
+    static const std::regex version_re(R"((\d+\.\d+(?:\.\d+)*))");
+    static const std::regex date_re(R"((\d{4}-\d{2}-\d{2}))");
+    // Dotted first: ruby prints "ruby 3.1.2p20 (2022-04-12 revision ...)",
+    // whose release DATE must not be read as its version.
     std::smatch m;
     if (std::regex_search(version_str, m, version_re)) {
         return m[1].str();
+    }
+    if (std::regex_search(version_str, m, date_re)) {
+        return dateToDotted(m[1].str());
     }
     return version_str;
 }
 
 static bool versionSatisfies(const std::string& observed_raw,
-                              const std::string& required) {
+                              const std::string& required_raw) {
     std::string observed = extractVersionNumber(observed_raw);
+    std::string required;
+    {
+        size_t op = required_raw.find_first_not_of("<>=");
+        required = required_raw.substr(0, op) + dateToDotted(op == std::string::npos ? "" : required_raw.substr(op));
+    }
     if (required.substr(0, 2) == ">=") {
         return semverGe(observed, required.substr(2));
     }

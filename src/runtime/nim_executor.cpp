@@ -339,5 +339,9 @@ std::string NimExecutor::getCapturedOutput() {
     return output;
 }
 
+std::string NimExecutor::getRuntimeVersion() const {
+    return probeRuntimeVersion("nim", {"--version"});
+}
+
 } // namespace runtime
 } // namespace naab

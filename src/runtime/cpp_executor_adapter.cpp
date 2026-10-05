@@ -827,5 +827,9 @@ std::string CppExecutorAdapter::getCapturedOutput() {
     return output;
 }
 
+std::string CppExecutorAdapter::getRuntimeVersion() const {
+    return probeRuntimeVersion("g++", {"--version"});
+}
+
 } // namespace runtime
 } // namespace naab

@@ -86,5 +86,13 @@ int JsExecutorAdapter::getLastExitCode() const {
     return last_exit_code_;
 }
 
+std::string JsExecutorAdapter::getRuntimeVersion() const {
+#ifdef NAAB_QUICKJS_VERSION
+    return std::string("QuickJS ") + NAAB_QUICKJS_VERSION;
+#else
+    return "";
+#endif
+}
+
 } // namespace runtime
 } // namespace naab

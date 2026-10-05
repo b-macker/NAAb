@@ -108,18 +108,17 @@ std::string PyExecutorAdapter::getCapturedOutput() {
     return "";
 }
 
+// The EMBEDDED interpreter's version. This used to run `python3 --version`,
+// which reports whatever python3 is first on PATH -- not the libpython this
+// binary links and runs <<python>> blocks on, so a pin could pass or fail on
+// the wrong interpreter. Formatted "Python X.Y.Z", as `python3 --version`
+// prints it, so lockfiles written before this change compare unchanged when
+// the two interpreters agree.
 std::string PyExecutorAdapter::getRuntimeVersion() const {
     if (!cached_version_.empty()) return cached_version_;
-    FILE* pipe = popen("python3 --version 2>&1", "r");
-    if (pipe) {
-        char buf[128];
-        if (fgets(buf, sizeof(buf), pipe)) {
-            cached_version_ = std::string(buf);
-            while (!cached_version_.empty() && cached_version_.back() == '\n')
-                cached_version_.pop_back();
-        }
-        pclose(pipe);
-    }
+    std::string v = python_c_version();
+    v = v.substr(0, v.find(' '));
+    if (!v.empty()) cached_version_ = "Python " + v;
     return cached_version_;
 }
 

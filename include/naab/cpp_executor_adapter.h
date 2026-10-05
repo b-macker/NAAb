@@ -44,6 +44,8 @@ public:
 
     // Get language name
     std::string getLanguage() const override { return "cpp"; }
+    // runtime_versions pins: the version of the compiler compileBlock() invokes.
+    std::string getRuntimeVersion() const override;
 
     // Get captured output
     std::string getCapturedOutput() override;

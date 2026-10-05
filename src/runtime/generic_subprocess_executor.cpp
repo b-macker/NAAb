@@ -467,5 +467,9 @@ bool naab::runtime::GenericSubprocessExecutor::runCommand(const std::string& com
     return success;
 }
 
+std::string GenericSubprocessExecutor::getRuntimeVersion() const {
+    return probeRuntimeVersion(command_template_.substr(0, command_template_.find(' ')), {"--version"});
+}
+
 } // namespace runtime
 } // namespace naab

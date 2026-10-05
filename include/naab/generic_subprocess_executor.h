@@ -33,6 +33,8 @@ public:
     std::string getCapturedOutput() override;
     bool isInitialized() const override { return true; } // Assumed always ready if binary exists
     std::string getLanguage() const override { return language_id_; }
+    // runtime_versions pins: the version of the program named first in the command template (php, tsx, python3).
+    std::string getRuntimeVersion() const override;
 
 private:
     std::string language_id_;

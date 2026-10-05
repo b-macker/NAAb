@@ -233,5 +233,9 @@ std::string CSharpExecutor::getCapturedOutput() {
     return output;
 }
 
+std::string CSharpExecutor::getRuntimeVersion() const {
+    return probeRuntimeVersion("mcs", {"--version"});
+}
+
 } // namespace runtime
 } // namespace naab

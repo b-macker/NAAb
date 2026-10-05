@@ -554,5 +554,9 @@ std::string RustExecutor::getCapturedOutput() {
     return output;
 }
 
+std::string RustExecutor::getRuntimeVersion() const {
+    return probeRuntimeVersion("rustc", {"--version"});
+}
+
 } // namespace runtime
 } // namespace naab

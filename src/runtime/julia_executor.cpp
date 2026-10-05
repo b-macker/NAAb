@@ -279,5 +279,9 @@ std::string JuliaExecutor::getCapturedOutput() {
     return output;
 }
 
+std::string JuliaExecutor::getRuntimeVersion() const {
+    return probeRuntimeVersion("julia", {"--version"});
+}
+
 } // namespace runtime
 } // namespace naab

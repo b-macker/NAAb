@@ -3,10 +3,12 @@
 
 #include "naab/governance.h"
 #include "naab/language_registry.h"
+#include "naab/subprocess_helpers.h"  // ScopedRuntimeVersionProbe (runtime pins)
 #include "naab/interpreter.h"
 #include "naab/vm.h"
 #include "naab/analyzer/task_pattern_detector.h"
 #include "naab/language_descriptors.h"
+#include <algorithm>
 #include "naab/analyzer/syntactic_analyzer.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -6577,10 +6579,16 @@ std::string GovernanceEngine::checkPolyglotBlock(
     // called from the tree-walker's polyglot path only, so on the VM -- the
     // default engine since pins shipped -- and through codegen, modules and
     // REST a pin was never consulted. Here every execution path gets it.
-    if (!t_text_only_check && !rules().runtime_versions.empty()) {
+    const std::string pin_runtime = naab::lang::runtimeLanguage(language);
+    const bool pinned = std::any_of(rules().runtime_versions.begin(), rules().runtime_versions.end(),
+        [&](const auto& p) { return p.language == pin_runtime; });
+    if (!t_text_only_check && pinned) {
+        // Only now is the version asked for: a subprocess runtime answers by
+        // running its binary, which an unpinned block must not pay for.
         // The executor is registered under the tag (<<sqlite>>) or, for a
         // spelling with no registration of its own (<<js>>), its runtime name.
         auto& registry = runtime::LanguageRegistry::instance();
+        runtime::ScopedRuntimeVersionProbe probing;
         std::string version = registry.runtimeVersion(language);
         if (version.empty())
             version = registry.runtimeVersion(naab::lang::runtimeLanguage(language));

@@ -38,6 +38,8 @@ public:
     std::string getCapturedOutput() override;
     bool isInitialized() const override;
     std::string getLanguage() const override;
+    // runtime_versions pins: the version of the interpreter this executor keeps running (node, ruby, bash).
+    std::string getRuntimeVersion() const override;
 
     // Lifecycle management
     bool start();           // Spawn child process, open pipes, send startup code

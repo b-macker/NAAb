@@ -625,6 +625,9 @@ target_link_libraries(naab_runtime
 if(HAVE_QUICKJS)
     target_link_libraries(naab_runtime quickjs)
     target_compile_definitions(naab_runtime PRIVATE HAVE_QUICKJS=1)
+    # runtime_versions pins: the vendored QuickJS release, from its directory name.
+    string(REGEX MATCH "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]" NAAB_QUICKJS_VERSION "${QUICKJS_DIR}")
+    target_compile_definitions(naab_runtime PRIVATE NAAB_QUICKJS_VERSION="${NAAB_QUICKJS_VERSION}")
 endif()
 if(WIN32)
     target_link_libraries(naab_runtime ws2_32 shell32)

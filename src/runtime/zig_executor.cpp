@@ -318,5 +318,9 @@ std::string ZigExecutor::getCapturedOutput() {
     return output;
 }
 
+std::string ZigExecutor::getRuntimeVersion() const {
+    return probeRuntimeVersion("zig", {"version"});
+}
+
 } // namespace runtime
 } // namespace naab

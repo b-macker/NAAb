@@ -168,6 +168,10 @@ void python_c_interrupt(unsigned long key, int all) {
 // audit arguments and recognises the interpreter loading its own modules.
 static NaabPyAuditPolicyFn audit_policy = NULL;
 
+const char* python_c_version(void) {
+    return Py_GetVersion();
+}
+
 void python_c_set_audit_policy(NaabPyAuditPolicyFn fn) {
     audit_policy = fn;
 }
