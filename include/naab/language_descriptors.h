@@ -42,6 +42,16 @@ struct LanguageDescriptor {
     // True when no executor runs this language: it is known to governance
     // (naab-gov check, the C API) but cannot be a NAAb block.
     bool governance_only = false;
+
+    // --- Toolchain: how the language's OWN tools judge a file -------------
+    // Used by tools/langconform verify to prove the facts above against the
+    // real compiler/interpreter rather than trusting this table.
+    std::string extension;  // source file extension, with the dot
+    std::string prelude;    // text a file needs before any code (php: "<?php")
+    // Commands that parse a file WITHOUT running it, tried in order; the
+    // first whose program is installed is used. "{file}" is the source file,
+    // "{dir}" a scratch directory. Exit 0 = the file is valid syntax.
+    std::vector<std::vector<std::string>> syntax_checks;
 };
 
 // Every descriptor, in a fixed order.

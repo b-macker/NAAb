@@ -521,7 +521,9 @@ static int cmdLanguages() {
         }
         out.push_back({{"canonical", d.canonical}, {"aliases", d.aliases},
                        {"line_comments", d.line_comments}, {"block_comments", blocks},
-                       {"governance_only", d.governance_only}});
+                       {"governance_only", d.governance_only},
+                       {"extension", d.extension}, {"prelude", d.prelude},
+                       {"syntax_checks", d.syntax_checks}});
     }
     std::cout << out.dump(1) << "\n";
     return 0;

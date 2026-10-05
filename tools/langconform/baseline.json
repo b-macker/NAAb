@@ -6841,9 +6841,19 @@
    ],
    "block_comments": [],
    "canonical": "python",
+   "extension": ".py",
    "governance_only": false,
    "line_comments": [
     "#"
+   ],
+   "prelude": "",
+   "syntax_checks": [
+    [
+     "python3",
+     "-c",
+     "import ast,sys; ast.parse(open(sys.argv[1], encoding='utf-8').read())",
+     "{file}"
+    ]
    ]
   },
   {
@@ -6859,9 +6869,18 @@
     }
    ],
    "canonical": "javascript",
+   "extension": ".js",
    "governance_only": false,
    "line_comments": [
     "//"
+   ],
+   "prelude": "",
+   "syntax_checks": [
+    [
+     "node",
+     "--check",
+     "{file}"
+    ]
    ]
   },
   {
@@ -6876,9 +6895,19 @@
     }
    ],
    "canonical": "typescript",
+   "extension": ".ts",
    "governance_only": false,
    "line_comments": [
     "//"
+   ],
+   "prelude": "",
+   "syntax_checks": [
+    [
+     "tsc",
+     "--noEmit",
+     "--skipLibCheck",
+     "{file}"
+    ]
    ]
   },
   {
@@ -6888,9 +6917,18 @@
    ],
    "block_comments": [],
    "canonical": "shell",
+   "extension": ".sh",
    "governance_only": false,
    "line_comments": [
     "#"
+   ],
+   "prelude": "",
+   "syntax_checks": [
+    [
+     "bash",
+     "-n",
+     "{file}"
+    ]
    ]
   },
   {
@@ -6905,9 +6943,18 @@
     }
    ],
    "canonical": "ruby",
+   "extension": ".rb",
    "governance_only": false,
    "line_comments": [
     "#"
+   ],
+   "prelude": "",
+   "syntax_checks": [
+    [
+     "ruby",
+     "-c",
+     "{file}"
+    ]
    ]
   },
   {
@@ -6922,9 +6969,18 @@
     }
    ],
    "canonical": "go",
+   "extension": ".go",
    "governance_only": false,
    "line_comments": [
     "//"
+   ],
+   "prelude": "package main\n",
+   "syntax_checks": [
+    [
+     "gofmt",
+     "-e",
+     "{file}"
+    ]
    ]
   },
   {
@@ -6939,9 +6995,27 @@
     }
    ],
    "canonical": "cpp",
+   "extension": ".cpp",
    "governance_only": false,
    "line_comments": [
     "//"
+   ],
+   "prelude": "",
+   "syntax_checks": [
+    [
+     "g++",
+     "-fsyntax-only",
+     "-x",
+     "c++",
+     "{file}"
+    ],
+    [
+     "clang++",
+     "-fsyntax-only",
+     "-x",
+     "c++",
+     "{file}"
+    ]
    ]
   },
   {
@@ -6956,10 +7030,13 @@
     }
    ],
    "canonical": "csharp",
+   "extension": ".cs",
    "governance_only": false,
    "line_comments": [
     "//"
-   ]
+   ],
+   "prelude": "",
+   "syntax_checks": []
   },
   {
    "aliases": [],
@@ -6971,9 +7048,21 @@
     }
    ],
    "canonical": "rust",
+   "extension": ".rs",
    "governance_only": false,
    "line_comments": [
     "//"
+   ],
+   "prelude": "",
+   "syntax_checks": [
+    [
+     "rustc",
+     "--crate-type=lib",
+     "--emit=metadata",
+     "--out-dir",
+     "{dir}",
+     "{file}"
+    ]
    ]
   },
   {
@@ -6986,9 +7075,19 @@
     }
    ],
    "canonical": "nim",
+   "extension": ".nim",
    "governance_only": false,
    "line_comments": [
     "#"
+   ],
+   "prelude": "",
+   "syntax_checks": [
+    [
+     "nim",
+     "check",
+     "--hints:off",
+     "{file}"
+    ]
    ]
   },
   {
@@ -7001,10 +7100,19 @@
     }
    ],
    "canonical": "php",
+   "extension": ".php",
    "governance_only": false,
    "line_comments": [
     "//",
     "#"
+   ],
+   "prelude": "<?php\n",
+   "syntax_checks": [
+    [
+     "php",
+     "-l",
+     "{file}"
+    ]
    ]
   },
   {
@@ -7017,18 +7125,36 @@
     }
    ],
    "canonical": "julia",
+   "extension": ".jl",
    "governance_only": false,
    "line_comments": [
     "#"
+   ],
+   "prelude": "",
+   "syntax_checks": [
+    [
+     "julia",
+     "--startup-file=no",
+     "{file}"
+    ]
    ]
   },
   {
    "aliases": [],
    "block_comments": [],
    "canonical": "zig",
+   "extension": ".zig",
    "governance_only": false,
    "line_comments": [
     "//"
+   ],
+   "prelude": "",
+   "syntax_checks": [
+    [
+     "zig",
+     "ast-check",
+     "{file}"
+    ]
    ]
   },
   {
@@ -7043,9 +7169,19 @@
     }
    ],
    "canonical": "sql",
+   "extension": ".sql",
    "governance_only": false,
    "line_comments": [
     "--"
+   ],
+   "prelude": "",
+   "syntax_checks": [
+    [
+     "python3",
+     "-c",
+     "import sqlite3,sys; sqlite3.connect(':memory:').executescript(open(sys.argv[1], encoding='utf-8').read())",
+     "{file}"
+    ]
    ]
   },
   {
@@ -7058,9 +7194,18 @@
     }
    ],
    "canonical": "lua",
+   "extension": ".lua",
    "governance_only": true,
    "line_comments": [
     "--"
+   ],
+   "prelude": "",
+   "syntax_checks": [
+    [
+     "luac",
+     "-p",
+     "{file}"
+    ]
    ]
   },
   {
@@ -7073,19 +7218,31 @@
     }
    ],
    "canonical": "haskell",
+   "extension": ".hs",
    "governance_only": true,
    "line_comments": [
     "--"
+   ],
+   "prelude": "main = return ()\n",
+   "syntax_checks": [
+    [
+     "ghc",
+     "-fno-code",
+     "{file}"
+    ]
    ]
   },
   {
    "aliases": [],
    "block_comments": [],
    "canonical": "ada",
+   "extension": ".adb",
    "governance_only": true,
    "line_comments": [
     "--"
-   ]
+   ],
+   "prelude": "",
+   "syntax_checks": []
   }
  ]
 }

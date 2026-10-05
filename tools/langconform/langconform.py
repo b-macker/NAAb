@@ -28,6 +28,9 @@ Commands:
   snapshot  --gov BIN --naab BIN --out F full matrix as JSON
   diff A B                               cells whose findings changed; exit 1 if any
   groups F                               alias groups whose members disagree; exit 1 if any
+  verify    --gov BIN                    prove the table's comment syntax with each
+                                         language's own installed toolchain; exit 1
+                                         on a declared form the toolchain rejects
   conform   --gov BIN --naab BIN         probes generated from the binary's language
                                          table; exit 1 on a registered name with no
                                          entry or a declared comment form not honoured
@@ -41,6 +44,7 @@ import concurrent.futures
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -326,6 +330,131 @@ def cmd_conform(a):
     return 1 if bad else 0
 
 
+# --- verify: prove the table's facts with each language's OWN toolchain -----
+
+# Text that is a syntax error in every language the table describes. The
+# quotes and closing braces make any reading as a string literal fail too (an
+# unterminated quote, or a brace-delimited literal such as Ruby's %{...}
+# closing early), so a form that merely STARTS a string cannot pass for a
+# comment. It must contain no comment CLOSER the table declares (*/ ]] =# -}
+# =end --> ]#), or a real block would end early and read as WRONG.
+JUNK = ")))((( }}} \" ' ` @@ ;;"
+
+# Candidate comment forms, tried against every language whose toolchain is
+# installed. Deliberately NO quote-based forms: where a bare string literal is
+# a valid statement (Python's triple quotes), "the parser accepts it" cannot
+# tell a string from a comment, and string forms are their own probe class.
+LINE_CANDIDATES = ["#", "//", "--", ";", "%", "'", "!", "REM"]
+BLOCK_CANDIDATES = [("/*", "*/"), ("--[[", "]]"), ("#=", "=#"), ("{-", "-}"),
+                    ("=begin", "=end"), ("<!--", "-->"), ("#[", "]#"), ("(*", "*)"),
+                    ("%{", "%}"), ("#|", "|#")]
+
+
+def pick_check(entry):
+    for argv in entry.get("syntax_checks", []):
+        if argv and shutil.which(argv[0]):
+            return argv
+    return None
+
+
+def parses(entry, argv, code):
+    """True when the language's own tool accepts `code` (prelude prepended)."""
+    with tempfile.TemporaryDirectory() as d:
+        f = os.path.join(d, "probe" + entry["extension"])
+        with open(f, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(entry.get("prelude", "") + code)
+        cmd = [a.replace("{file}", f).replace("{dir}", d) for a in argv]
+        try:
+            p = subprocess.run(cmd, cwd=d, stdin=subprocess.DEVNULL,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+        except subprocess.TimeoutExpired:
+            return None
+        return p.returncode == 0
+
+
+def line_is_comment(entry, argv, m):
+    # Hides junk to the end of the line, and ENDS at the newline.
+    return parses(entry, argv, "%s %s\n" % (m, JUNK)) and \
+        parses(entry, argv, "%s %s\n%s\n" % (m, JUNK, JUNK)) is False
+
+
+def block_is_comment(entry, argv, o, c):
+    # Hides junk across lines, and ENDS at its closer.
+    return parses(entry, argv, "%s %s\n%s\n%s\n" % (o, JUNK, JUNK, c)) and \
+        parses(entry, argv, "%s %s %s\n%s\n" % (o, JUNK, c, JUNK)) is False
+
+
+def verify_entry(entry):
+    """One language: confirm every declared form, find undeclared ones."""
+    r = {"canonical": entry["canonical"], "tool": None, "status": "ok",
+         "confirmed": [], "wrong": [], "proposed": []}
+    argv = pick_check(entry)
+    if argv is None:
+        r["status"] = "UNMEASURABLE: no syntax-check tool installed (%s)" % (
+            ", ".join(a[0] for a in entry.get("syntax_checks", [])) or "none listed")
+        return r
+    r["tool"] = argv[0]
+    # Controls: an empty file must parse and the junk must not, or the tool
+    # is not answering the question asked.
+    empty, junk = parses(entry, argv, "\n"), parses(entry, argv, JUNK + "\n")
+    if empty is not True or junk is not False:
+        r["status"] = "UNMEASURABLE: %s control failed (empty file %s, junk %s)" % (
+            argv[0], "accepted" if empty else "REJECTED", "ACCEPTED" if junk else "rejected")
+        return r
+    declared_line = set(entry["line_comments"])
+    declared_block = {(b["open"], b["close"]) for b in entry["block_comments"]}
+    for m in sorted(declared_line | set(LINE_CANDIDATES)):
+        ok = line_is_comment(entry, argv, m)
+        if m in declared_line:
+            (r["confirmed"] if ok else r["wrong"]).append("line %s" % m)
+        elif ok:
+            r["proposed"].append("line %s" % m)
+    for o, c in sorted(declared_block | set(BLOCK_CANDIDATES)):
+        ok = block_is_comment(entry, argv, o, c)
+        if (o, c) in declared_block:
+            (r["confirmed"] if ok else r["wrong"]).append("block %s %s" % (o, c))
+        elif ok:
+            r["proposed"].append("block %s %s" % (o, c))
+    return r
+
+
+def cmd_verify(a):
+    """Prove the table's comment syntax with each language's own toolchain.
+
+    WRONG (exit 1): the table declares a form the language's own parser
+    rejects -- the dangerous direction: governance would treat live code as a
+    comment and hide it from every check.
+    PROPOSED (report only): the parser accepts a form the table does not
+    declare. That errs strict for the checks that read code, but hides markers
+    from the checks that read comments; it becomes a table edit only after
+    review, and the conformance baseline shows its effect.
+    UNMEASURABLE: the toolchain is not installed, or its controls failed."""
+    if a.table:
+        with open(a.table, "r", encoding="utf-8", errors="strict") as f:
+            table = json.load(f)
+    else:
+        table = language_table(a.gov)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as ex:
+        results = list(ex.map(verify_entry, table))
+    out, wrong = [], 0
+    for r in results:
+        if r["status"] != "ok":
+            out.append("  %-11s %s\n" % (r["canonical"], r["status"]))
+            continue
+        out.append("  %-11s [%s] confirmed: %s\n" % (r["canonical"], r["tool"],
+                   ", ".join(r["confirmed"]) or "-"))
+        for w in r["wrong"]:
+            wrong += 1
+            out.append("  %-11s WRONG: %s is declared, but %s rejects it\n" % ("", w, r["tool"]))
+        for pr in r["proposed"]:
+            out.append("  %-11s proposed: %s (accepted by %s, not declared)\n" % ("", pr, r["tool"]))
+    measured = sum(1 for r in results if r["status"] == "ok")
+    out.append("langconform verify: %d of %d languages measured, %d wrong fact(s), %d proposal(s)\n"
+               % (measured, len(results), wrong, sum(len(r["proposed"]) for r in results)))
+    write_out("".join(out))
+    return 1 if wrong else 0
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -339,6 +468,10 @@ def main(argv):
     s.add_argument("--gov", required=True); s.add_argument("--naab", required=True)
     s.add_argument("--jobs", type=int, default=os.cpu_count() or 2)
     s.add_argument("--table", help="a planted language table instead of the binary's (test controls)")
+    s = sub.add_parser("verify")
+    s.add_argument("--gov", required=True)
+    s.add_argument("--jobs", type=int, default=os.cpu_count() or 2)
+    s.add_argument("--table", help="a planted language table instead of the binary's (test controls)")
     a = ap.parse_args(argv)
     # The binaries are run from a scratch directory (so no govern.json is
     # discovered), so a relative path must be resolved against OUR cwd first.
@@ -346,7 +479,7 @@ def main(argv):
         if getattr(a, attr, None):
             setattr(a, attr, os.path.abspath(getattr(a, attr)))
     return {"languages": cmd_languages, "snapshot": cmd_snapshot,
-            "diff": cmd_diff, "groups": cmd_groups, "conform": cmd_conform}[a.cmd](a) or 0
+            "diff": cmd_diff, "groups": cmd_groups, "conform": cmd_conform, "verify": cmd_verify}[a.cmd](a) or 0
 
 
 if __name__ == "__main__":

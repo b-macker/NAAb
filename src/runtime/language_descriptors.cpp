@@ -18,28 +18,57 @@ std::string lower(const std::string& s) {
 
 const BlockComment kCBlock{"/*", "*/", false};
 
+// Parse-only checks run through python3, which every supported platform's
+// test environment has. SQL is checked by Python's sqlite3 module -- SQLite,
+// the same engine NAAb's own SQL executor embeds.
+const char* const kPyParse =
+    "import ast,sys; ast.parse(open(sys.argv[1], encoding='utf-8').read())";
+const char* const kPySqlite =
+    "import sqlite3,sys; sqlite3.connect(':memory:').executescript("
+    "open(sys.argv[1], encoding='utf-8').read())";
+
 std::vector<LanguageDescriptor> buildTable() {
     // Every executor registered in src/cli/main.cpp (registerExecutor) must
     // resolve here, under its canonical name or an alias.
     return {
-        {"python",     {"py"},              {"#"},             {},                        false},
-        {"javascript", {"js", "node"},      {"//"},            {kCBlock},                 false},
-        {"typescript", {"ts"},              {"//"},            {kCBlock},                 false},
-        {"shell",      {"sh", "bash"},      {"#"},             {},                        false},
-        {"ruby",       {"rb"},              {"#"},             {{"=begin", "=end", true}}, false},
-        {"go",         {"golang"},          {"//"},            {kCBlock},                 false},
-        {"cpp",        {"c++"},             {"//"},            {kCBlock},                 false},
-        {"csharp",     {"cs"},              {"//"},            {kCBlock},                 false},
-        {"rust",       {},                  {"//"},            {kCBlock},                 false},
-        {"nim",        {},                  {"#"},             {{"#[", "]#", false}},     false},
-        {"php",        {},                  {"//", "#"},       {kCBlock},                 false},
-        {"julia",      {},                  {"#"},             {{"#=", "=#", false}},     false},
-        {"zig",        {},                  {"//"},            {},                        false},
-        {"sql",        {"sqlite"},          {"--"},            {kCBlock},                 false},
+        // canonical     aliases        line comments  block comments            gov-only
+        //   extension  prelude   syntax checks (parse only, never run)
+        {"python",     {"py"},              {"#"},             {},                        false,
+         ".py",   "",        {{"python3", "-c", kPyParse, "{file}"}}},
+        {"javascript", {"js", "node"},      {"//"},            {kCBlock},                 false,
+         ".js",   "",        {{"node", "--check", "{file}"}}},
+        {"typescript", {"ts"},              {"//"},            {kCBlock},                 false,
+         ".ts",   "",        {{"tsc", "--noEmit", "--skipLibCheck", "{file}"}}},
+        {"shell",      {"sh", "bash"},      {"#"},             {},                        false,
+         ".sh",   "",        {{"bash", "-n", "{file}"}}},
+        {"ruby",       {"rb"},              {"#"},             {{"=begin", "=end", true}}, false,
+         ".rb",   "",        {{"ruby", "-c", "{file}"}}},
+        {"go",         {"golang"},          {"//"},            {kCBlock},                 false,
+         ".go",   "package main\n", {{"gofmt", "-e", "{file}"}}},
+        {"cpp",        {"c++"},             {"//"},            {kCBlock},                 false,
+         ".cpp",  "",        {{"g++", "-fsyntax-only", "-x", "c++", "{file}"},
+                              {"clang++", "-fsyntax-only", "-x", "c++", "{file}"}}},
+        {"csharp",     {"cs"},              {"//"},            {kCBlock},                 false,
+         ".cs",   "",        {}},
+        {"rust",       {},                  {"//"},            {kCBlock},                 false,
+         ".rs",   "",        {{"rustc", "--crate-type=lib", "--emit=metadata", "--out-dir", "{dir}", "{file}"}}},
+        {"nim",        {},                  {"#"},             {{"#[", "]#", false}},     false,
+         ".nim",  "",        {{"nim", "check", "--hints:off", "{file}"}}},
+        {"php",        {},                  {"//", "#"},       {kCBlock},                 false,
+         ".php",  "<?php\n", {{"php", "-l", "{file}"}}},
+        {"julia",      {},                  {"#"},             {{"#=", "=#", false}},     false,
+         ".jl",   "",        {{"julia", "--startup-file=no", "{file}"}}},
+        {"zig",        {},                  {"//"},            {},                        false,
+         ".zig",  "",        {{"zig", "ast-check", "{file}"}}},
+        {"sql",        {"sqlite"},          {"--"},            {kCBlock},                 false,
+         ".sql",  "",        {{"python3", "-c", kPySqlite, "{file}"}}},
         // Known to governance (naab-gov check, the C API) with no executor.
-        {"lua",        {},                  {"--"},            {{"--[[", "]]", false}},   true},
-        {"haskell",    {},                  {"--"},            {{"{-", "-}", false}},     true},
-        {"ada",        {},                  {"--"},            {},                        true},
+        {"lua",        {},                  {"--"},            {{"--[[", "]]", false}},   true,
+         ".lua",  "",        {{"luac", "-p", "{file}"}}},
+        {"haskell",    {},                  {"--"},            {{"{-", "-}", false}},     true,
+         ".hs",   "main = return ()\n", {{"ghc", "-fno-code", "{file}"}}},
+        {"ada",        {},                  {"--"},            {},                        true,
+         ".adb",  "",        {}},
     };
 }
 

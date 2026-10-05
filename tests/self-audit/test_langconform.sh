@@ -30,6 +30,13 @@
 #          (keyword family: comments hidden from code checks)
 #   LC-08  CONTROL: the same, for the marker family (markers in comments
 #          visible to the comment checks): a fake Python block form <<< >>>
+#   LC-09  verify: every comment form the table declares is ACCEPTED as a
+#          comment by the language's own installed parser (languages whose
+#          toolchain is absent report UNMEASURABLE; at least one must measure)
+#   LC-10  CONTROL: a planted wrong fact (Python "--" comments) is WRONG, exit 1
+#   LC-11  CONTROL: a removed real fact (Python "#") is rediscovered as proposed
+#   LC-12  CONTROL: a string literal posing as a comment (Ruby %{ %}) is WRONG --
+#          the verifier cannot be fooled by a form that only starts a string
 #
 # To accept a deliberate change: run
 #   python3 tools/langconform/langconform.py snapshot --gov build/naab-gov \
@@ -191,6 +198,68 @@ case "$c8" in
                       || bad LC-08 "reported, but exit 0" "$c8" ;;
   *) bad LC-08 "a fake block form's invisible marker was not reported" "$c8" ;;
 esac
+
+# --- LC-09..12: verify against the real toolchains ---
+v9="$(python3 "$TOOL" verify --gov build/naab-gov 2>&1)"; v9rc=$?
+measured=$(printf '%s' "$v9" | tr -d '\r' | sed -n 's/^langconform verify: \([0-9]*\) of.*/\1/p')
+if [ "${measured:-0}" -eq 0 ]; then
+    skip LC-09 "no language toolchain installed -- the table's facts are UNMEASURABLE here"
+elif [ $v9rc -eq 0 ]; then
+    ok LC-09 "$(printf '%s' "$v9" | tr -d '\r' | tail -1 | sed 's/^langconform verify: //')"
+else
+    bad LC-09 "the table declares a comment form a language's own parser rejects" "$v9"
+fi
+if ! printf '%s' "$v9" | grep -q "python .*\[python3\] confirmed"; then
+    skip LC-10 "python3 cannot parse here -- the verifier controls are UNMEASURABLE"
+    skip LC-11 "python3 cannot parse here"
+    skip LC-12 "ruby not installed or python3 cannot parse here"
+else
+    python3 - "$W/table.json" "$W/v_wrong.json" "$W/v_missing.json" "$W/v_string.json" <<'PY'
+import json, sys
+def load():
+    return json.load(open(sys.argv[1], encoding="utf-8", errors="strict"))
+def save(t, i):
+    open(sys.argv[i], "w", encoding="ascii", newline="\n").write(json.dumps(t))
+t = load()
+for d in t:
+    if d["canonical"] == "python":
+        d["line_comments"].append("--")
+save(t, 2)
+t = load()
+for d in t:
+    if d["canonical"] == "python":
+        d["line_comments"] = []
+save(t, 3)
+t = load()
+for d in t:
+    if d["canonical"] == "ruby":
+        d["block_comments"].append({"open": "%{", "close": "%}", "line_start_only": False})
+save(t, 4)
+PY
+    v10="$(python3 "$TOOL" verify --gov build/naab-gov --table "$W/v_wrong.json" 2>&1)"; v10rc=$?
+    case "$v10" in
+      *"WRONG: line -- is declared, but python3 rejects it"*)
+          [ $v10rc -ne 0 ] && ok LC-10 "a planted wrong fact is caught by the real parser (exit $v10rc)" \
+                           || bad LC-10 "caught, but exit 0" "$v10" ;;
+      *) bad LC-10 "a planted wrong fact was not caught" "$v10" ;;
+    esac
+    v11="$(python3 "$TOOL" verify --gov build/naab-gov --table "$W/v_missing.json" 2>&1)"
+    case "$v11" in
+      *"proposed: line # (accepted by python3, not declared)"*)
+          ok LC-11 "a removed real fact is rediscovered from the parser" ;;
+      *) bad LC-11 "a removed real fact was not rediscovered" "$v11" ;;
+    esac
+    if command -v ruby >/dev/null 2>&1; then
+        v12="$(python3 "$TOOL" verify --gov build/naab-gov --table "$W/v_string.json" 2>&1)"
+        case "$v12" in
+          *"WRONG: block %{ %} is declared, but ruby rejects it"*)
+              ok LC-12 "a string literal posing as a comment is rejected" ;;
+          *) bad LC-12 "a string literal passed for a comment" "$v12" ;;
+        esac
+    else
+        skip LC-12 "ruby not installed -- the string-literal control is UNMEASURABLE"
+    fi
+fi
 
 # Report only: alias groups that disagree today (sql/sqlite until the language table).
 echo "  info: $(python3 "$TOOL" groups tools/langconform/baseline.json 2>&1 | tail -1)"
