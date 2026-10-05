@@ -1,0 +1,22 @@
+```json
+{
+  "steps": [
+    {
+      "id": 1,
+      "goal": "Explore inventory-service workspace and enumerate all files by path and type"
+    },
+    {
+      "id": 2,
+      "goal": "Scan source files for correctness defects: logic errors, type mismatches, null/bounds violations"
+    },
+    {
+      "id": 3,
+      "goal": "Scan source files for security and code quality defects: injection vectors, missing validation, hardcoded secrets, resource leaks"
+    },
+    {
+      "id": 4,
+      "goal": "Compile and report all defects with file path, line number, and one-sentence explanation"
+    }
+  ]
+}
+```

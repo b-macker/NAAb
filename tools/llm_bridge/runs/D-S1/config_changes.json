@@ -1,0 +1,68 @@
+[
+ {
+  "path": "agents.planner.api_base",
+  "before": "<absent>",
+  "after": "http://127.0.0.1:37295",
+  "deviation": false
+ },
+ {
+  "path": "agents.planner.standing_lease_seconds",
+  "before": 600,
+  "after": 86400,
+  "deviation": false
+ },
+ {
+  "path": "agents.worker.api_base",
+  "before": "<absent>",
+  "after": "http://127.0.0.1:37295",
+  "deviation": false
+ },
+ {
+  "path": "agents.worker.standing_lease_seconds",
+  "before": 900,
+  "after": 86400,
+  "deviation": false
+ },
+ {
+  "path": "agents.critic.api_base",
+  "before": "<absent>",
+  "after": "http://127.0.0.1:37295",
+  "deviation": false
+ },
+ {
+  "path": "agents.judge.api_base",
+  "before": "<absent>",
+  "after": "http://127.0.0.1:37295",
+  "deviation": false
+ },
+ {
+  "path": "agent_dispatch.default_timeout_seconds",
+  "before": 120,
+  "after": 7200,
+  "deviation": false
+ },
+ {
+  "path": "agent_dispatch.hard_stop.max_agent_time_ms",
+  "before": 600000,
+  "after": 21600000,
+  "deviation": false
+ },
+ {
+  "path": "runtime.timeout",
+  "before": 600,
+  "after": 21600,
+  "deviation": false
+ },
+ {
+  "path": "limits.timeout.global",
+  "before": 600,
+  "after": 21600,
+  "deviation": false
+ },
+ {
+  "path": "agents.worker.max_tool_calls_per_turn",
+  "before": 4,
+  "after": 8,
+  "deviation": true
+ }
+]

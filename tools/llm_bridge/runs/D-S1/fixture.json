@@ -1,0 +1,394 @@
+{
+ "_comment": "Exported by tools/llm_bridge/bridge.py export-fixture from /tmp/claude-0/-home-user-NAAb/38a117e5-e21d-520a-9b98-52c8203032a2/scratchpad/runs/D-S1/queue. Token counts are the bridge's ESTIMATES (words*1.3); thinking unreported.",
+ "routes": {
+  "AH-PLANNER": {
+   "responses": [
+    {
+     "content": "```json\n{\n  \"steps\": [\n    {\n      \"id\": 1,\n      \"goal\": \"Enumerate all files in inventory-service workspace and list them by type (source code, config, docs, build artifacts)\"\n    },\n    {\n      \"id\": 2,\n      \"goal\": \"Audit all source code files for defects: logic errors, type mismatches, resource leaks, unhandled exceptions\"\n    },\n    {\n      \"id\": 3,\n      \"goal\": \"Audit configuration and manifest files for issues: missing dependencies, insecure settings, malformed syntax\"\n    },\n    {\n      \"id\": 4,\n      \"goal\": \"Compile all findings with file path, line number, defect category, and one-sentence explanation\"\n    }\n  ]\n}\n```",
+     "input_tokens": 120,
+     "output_tokens": 160,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "haiku",
+      "persona": "planner",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-a6d97dc539b31baf1.jsonl#1:pre-nudge-text",
+      "route": "AH-PLANNER",
+      "route_seq": 1,
+      "style": "terse, minimal formatting, no pleasantries",
+      "written_at": "2026-10-05T01:16:49.830+00:00"
+     },
+     "_bridge_n": 1
+    },
+    {
+     "content": "```json\n{\n  \"steps\": [\n    {\n      \"id\": 1,\n      \"goal\": \"Enumerate all files in the inventory-service workspace and list by type (source, config, test, doc)\"\n    },\n    {\n      \"id\": 2,\n      \"goal\": \"Audit source code files for correctness defects: logic errors, null/bounds checks, type mismatches, resource leaks\"\n    },\n    {\n      \"id\": 3,\n      \"goal\": \"Audit configuration, dependency, and build files for security and consistency issues\"\n    },\n    {\n      \"id\": 4,\n      \"goal\": \"Compile report with file path, line number, and one-sentence defect description for each finding\"\n    }\n  ]\n}\n```",
+     "input_tokens": 120,
+     "output_tokens": 151,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "haiku",
+      "persona": "planner",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-a54b0baa08f21b409.jsonl#1:pre-nudge-text",
+      "route": "AH-PLANNER",
+      "route_seq": 2,
+      "style": "terse, minimal formatting, no pleasantries",
+      "written_at": "2026-10-05T01:17:11.509+00:00"
+     },
+     "_bridge_n": 2
+    },
+    {
+     "content": "```json\n{\n  \"steps\": [\n    {\n      \"id\": 1,\n      \"goal\": \"Explore inventory-service workspace and enumerate all files by path and type\"\n    },\n    {\n      \"id\": 2,\n      \"goal\": \"Scan source files for correctness defects: logic errors, type mismatches, null/bounds violations\"\n    },\n    {\n      \"id\": 3,\n      \"goal\": \"Scan source files for security and code quality defects: injection vectors, missing validation, hardcoded secrets, resource leaks\"\n    },\n    {\n      \"id\": 4,\n      \"goal\": \"Compile and report all defects with file path, line number, and one-sentence explanation\"\n    }\n  ]\n}\n```",
+     "input_tokens": 120,
+     "output_tokens": 150,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "haiku",
+      "persona": "planner",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ad5a7883642aa783b.jsonl#1:pre-nudge-text",
+      "route": "AH-PLANNER",
+      "route_seq": 3,
+      "style": "terse, minimal formatting, no pleasantries",
+      "written_at": "2026-10-05T01:17:33.137+00:00"
+     },
+     "_bridge_n": 3
+    }
+   ]
+  },
+  "AH-WORKER": {
+   "responses": [
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "list_files",
+       "args": {}
+      }
+     ],
+     "input_tokens": 236,
+     "output_tokens": 9,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ae70add353fbfdfc4.jsonl#1:handback",
+      "route": "AH-WORKER",
+      "route_seq": 1,
+      "style": "heavy markdown, headers and bullet lists, restates the question first",
+      "written_at": "2026-10-05T01:17:49.424+00:00"
+     },
+     "_bridge_n": 4
+    },
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "read_file",
+       "args": {
+        "path": "inventory.py"
+       }
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "report.py"
+       }
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "README.md"
+       }
+      }
+     ],
+     "input_tokens": 275,
+     "output_tokens": 41,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ae70add353fbfdfc4.jsonl#2:handback",
+      "route": "AH-WORKER",
+      "route_seq": 2,
+      "style": "heavy markdown, headers and bullet lists, restates the question first",
+      "written_at": "2026-10-05T01:18:00.848+00:00"
+     },
+     "_bridge_n": 5
+    },
+    {
+     "content": "{\"step\": 1, \"files\": [\"inventory.py\", \"report.py\", \"README.md\"], \"defects\": [{\"file\": \"inventory.py\", \"line\": 8, \"explanation\": \"average_daily_sales divides by len(sales) without checking for an empty list, so an empty sales history raises ZeroDivisionError.\"}, {\"file\": \"inventory.py\", \"line\": 21, \"explanation\": \"range(1, len(items)) starts at index 1, so the first item is never checked and a low-stock first SKU is silently missed.\"}, {\"file\": \"report.py\", \"line\": 5, \"explanation\": \"The file is opened without a with-block and never closed, so the handle leaks and buffered output may not be flushed to disk when write_summary returns.\"}]}",
+     "input_tokens": 687,
+     "output_tokens": 161,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ae70add353fbfdfc4.jsonl#3:handback",
+      "route": "AH-WORKER",
+      "route_seq": 3,
+      "style": "heavy markdown, headers and bullet lists, restates the question first",
+      "written_at": "2026-10-05T01:18:20.987+00:00"
+     },
+     "_bridge_n": 6
+    },
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "list_files",
+       "args": {}
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "inventory.py"
+       }
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "report.py"
+       }
+      }
+     ],
+     "input_tokens": 458,
+     "output_tokens": 36,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ae70add353fbfdfc4.jsonl#4:handback",
+      "route": "AH-WORKER",
+      "route_seq": 4,
+      "style": "heavy markdown, headers and bullet lists, restates the question first",
+      "written_at": "2026-10-05T01:18:40.879+00:00"
+     },
+     "_bridge_n": 7
+    },
+    {
+     "content": "{\"step\": 2, \"files\": [\"inventory.py\", \"report.py\"], \"defects\": [{\"file\": \"inventory.py\", \"line\": 8, \"explanation\": \"total / len(sales) is not guarded against an empty sales list, so average_daily_sales (and reorder_quantity through it) raises an unhandled ZeroDivisionError.\"}, {\"file\": \"inventory.py\", \"line\": 16, \"explanation\": \"Because line 8 uses true division, reorder_quantity returns a fractional float (needed - stock) on this path but an int 0 on line 15, giving inconsistent types and non-whole reorder quantities.\"}, {\"file\": \"inventory.py\", \"line\": 21, \"explanation\": \"range(1, len(items)) skips index 0, so low_stock never checks the first item and misses it even when its stock is below threshold.\"}, {\"file\": \"report.py\", \"line\": 5, \"explanation\": \"open(path, \\\"w\\\") is never closed or wrapped in a with-block, leaking the file handle and risking unflushed output, and an exception while writing on line 7 also leaves it open.\"}]}",
+     "input_tokens": 832,
+     "output_tokens": 237,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ae70add353fbfdfc4.jsonl#5:handback",
+      "route": "AH-WORKER",
+      "route_seq": 5,
+      "style": "heavy markdown, headers and bullet lists, restates the question first",
+      "written_at": "2026-10-05T01:19:02.305+00:00"
+     },
+     "_bridge_n": 8
+    },
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "list_files",
+       "args": {}
+      }
+     ],
+     "input_tokens": 840,
+     "output_tokens": 9,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ae70add353fbfdfc4.jsonl#6:handback",
+      "route": "AH-WORKER",
+      "route_seq": 6,
+      "style": "heavy markdown, headers and bullet lists, restates the question first",
+      "written_at": "2026-10-05T01:19:24.757+00:00"
+     },
+     "_bridge_n": 9
+    },
+    {
+     "content": "{\"step\": 3, \"files\": [], \"defects\": []}",
+     "input_tokens": 879,
+     "output_tokens": 10,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ae70add353fbfdfc4.jsonl#7:handback",
+      "route": "AH-WORKER",
+      "route_seq": 7,
+      "style": "heavy markdown, headers and bullet lists, restates the question first",
+      "written_at": "2026-10-05T01:19:48.240+00:00"
+     },
+     "_bridge_n": 10
+    },
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "list_files",
+       "args": {}
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "inventory.py"
+       }
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "report.py"
+       }
+      }
+     ],
+     "input_tokens": 822,
+     "output_tokens": 36,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ae70add353fbfdfc4.jsonl#8:handback",
+      "route": "AH-WORKER",
+      "route_seq": 8,
+      "style": "heavy markdown, headers and bullet lists, restates the question first",
+      "written_at": "2026-10-05T01:20:16.392+00:00"
+     },
+     "_bridge_n": 11
+    },
+    {
+     "content": "{\"step\": 4, \"files\": [\"inventory.py\", \"report.py\"], \"defects\": [{\"file\": \"inventory.py\", \"line\": 8, \"category\": \"unhandled exception\", \"explanation\": \"total / len(sales) has no guard for an empty sales list, so average_daily_sales (and reorder_quantity, which calls it on line 12) raises ZeroDivisionError.\"}, {\"file\": \"inventory.py\", \"line\": 16, \"category\": \"type mismatch\", \"explanation\": \"Line 8's true division makes needed a float, so reorder_quantity returns a fractional float here but an int 0 on line 15, giving inconsistent return types and non-whole reorder quantities.\"}, {\"file\": \"inventory.py\", \"line\": 21, \"category\": \"logic error\", \"explanation\": \"range(1, len(items)) starts at index 1, so low_stock never examines the first item and misses it even when its stock is below threshold.\"}, {\"file\": \"report.py\", \"line\": 5, \"category\": \"resource leak\", \"explanation\": \"open(path, \\\"w\\\") is never closed or wrapped in a with-block, so the file handle leaks, buffered output may not reach disk, and an exception during the write on line 7 also leaves it open.\"}]}",
+     "input_tokens": 1197,
+     "output_tokens": 269,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ae70add353fbfdfc4.jsonl#9:handback",
+      "route": "AH-WORKER",
+      "route_seq": 9,
+      "style": "heavy markdown, headers and bullet lists, restates the question first",
+      "written_at": "2026-10-05T01:20:43.173+00:00"
+     },
+     "_bridge_n": 12
+    }
+   ]
+  },
+  "AH-CRITIC": {
+   "responses": [
+    {
+     "content": "{\"verdict\": \"REJECTED\", \"issues\": [\"inventory.py:16 (reorder_quantity returns a fractional float on one path and int 0 on line 15) appears in steps 2 and 4, and verification rejected it both times as 'defect not in ground truth'. At most it is a downstream effect of the true division on inventory.py:8, not a separate confirmed defect. Remove it or back it with evidence.\", \"Steps 2 and 4 have verification.passed = false, so the summary includes claims that failed verification.\", \"Step 3 reports no files and no defects. This conflicts with the defects confirmed in steps 1, 2 and 4. Drop the empty step or explain it.\", \"The summary is four separate step reports that don't agree with each other, not one finding list. Narrow it to the verified defects: inventory.py:8 (empty-list ZeroDivisionError), inventory.py:21 (range starts at 1, so the first item is skipped) and report.py:5 (file handle opened without a with-block and never closed).\", \"Every listed defect does name a file and line, so the file/line requirement is met. The rejection is about accuracy, not missing locations.\"]}",
+     "input_tokens": 854,
+     "output_tokens": 273,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "critic-1",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-a779e98c944f94777.jsonl#1:handback",
+      "route": "AH-CRITIC",
+      "route_seq": 1,
+      "style": "long conversational preamble before the answer",
+      "written_at": "2026-10-05T01:21:40.597+00:00"
+     },
+     "_bridge_n": 13
+    },
+    {
+     "content": "{\"verdict\": \"REJECTED\", \"issues\": [\"Steps 2 and 4 both report inventory.py:16 (reorder_quantity returns a fractional float on that path but an int 0 on line 15), and verification rejected it both times as 'defect not in ground truth'. Both steps therefore have verification.passed=false. Either back this claim with evidence from the code (the actual expression on line 16 and why a non-whole quantity is a real defect and not just a style point), or remove it.\", \"Step 3 claims no defects and no files, yet it is marked admissible and passed with verified=0. That is a vacuous pass, and it contradicts the three defects found in every other step (inventory.py:8, inventory.py:21, report.py:5). Explain this regression or drop the step.\", \"The summary has no single final defect list. The same three defects appear again in steps 1, 2 and 4, and the steps disagree on inventory.py:16 and on whether README.md is in scope (step 1 lists it, the later steps do not). Consolidate into one deduplicated list with a stated scope.\", \"Every listed defect does name a file and a line, so the file-and-line requirement is met. The rejection is about accuracy and completeness, not missing locations.\"]}",
+     "input_tokens": 854,
+     "output_tokens": 298,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "opus",
+      "persona": "critic-2",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-a7578f7b1c6884942.jsonl#1:handback",
+      "route": "AH-CRITIC",
+      "route_seq": 2,
+      "style": "long conversational preamble before the answer",
+      "written_at": "2026-10-05T01:21:40.667+00:00"
+     },
+     "_bridge_n": 14
+    }
+   ]
+  },
+  "AH-JUDGE": {
+   "responses": [
+    {
+     "content": "{\"verdict\": \"REJECTED\", \"reason\": \"Steps 2 and 4 failed verification because they claim an inventory.py:16 type-mismatch defect that is not in the ground truth, step 3 reported no defects at all, and both critics rejected the summary, so the audit is not consistently accurate.\"}",
+     "input_tokens": 838,
+     "output_tokens": 70,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "judge",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-a257911059de9c550.jsonl#1:handback",
+      "route": "AH-JUDGE",
+      "route_seq": 1,
+      "style": "heavy markdown, headers and bullet lists, restates the question first",
+      "written_at": "2026-10-05T01:22:06.053+00:00"
+     },
+     "_bridge_n": 15
+    }
+   ]
+  }
+ },
+ "responses": [
+  {
+   "content": "{\"error\": \"unrouted request\"}"
+  }
+ ]
+}
