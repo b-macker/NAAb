@@ -3715,6 +3715,22 @@ else
     echo "  test_skip_tally.sh: not found, skipping"
 fi
 
+LANGCONFORM_SCRIPT="tests/self-audit/test_langconform.sh"
+if [ -f "$LANGCONFORM_SCRIPT" ]; then
+    # What governance sees per language (every comment and string form, every
+    # registered name) against a committed baseline. Consolidating per-language
+    # knowledge moves findings in both directions; this makes each move a
+    # reviewed baseline edit instead of a silent loosening.
+    if run_shell_test "$LANGCONFORM_SCRIPT" 2>&1; then
+        echo "  test_langconform.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_langconform.sh")
+    fi
+else
+    echo "  test_langconform.sh: not found, skipping"
+fi
+
 DEADGATE_SCRIPT="tests/self-audit/test_dead_interpreter_gate.sh"
 if [ -f "$DEADGATE_SCRIPT" ]; then
     # tools/testrunner/dead_gate.py runs every suite against an interpreter that
