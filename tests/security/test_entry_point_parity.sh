@@ -111,7 +111,7 @@ cli_probe() {  # $1=cfg $2=naab source $3=marker ; returns 0 if it EXECUTED
     write_cfg "$1"
     printf '%s\n' "$2" > "$WDIR/probe.naab"
     rm -f "$3"
-    ( cd "$WDIR" && timeout 120 "$NAAB" run probe.naab >/dev/null 2>&1 )
+    ( cd "$WDIR" && timeout 120 "$NAAB" run probe.naab >"$WDIR/cli.log" 2>&1 )
     [ -f "$3" ]
 }
 
@@ -174,21 +174,27 @@ rest_probe() {  # $1=cfg $2=naab source $3=marker ; returns 0 if it EXECUTED
     [ -f "$3" ]
 }
 
+# The programs name their markers RELATIVELY. Both doors run inside $WDIR (the
+# CLI arm cds there, the server is started there), and an absolute "$WDIR/..."
+# is an MSYS path on the Windows runner -- /tmp/... -- that the native binary
+# cannot open: the write failed on both doors, EP-00 found no marker, and every
+# Windows run skipped the whole suite as UNMEASURABLE. The shell still checks
+# "$WDIR/marker_*", in its own path vocabulary.
 POLY_SRC='main {
     <<python
-open("'"$WDIR"'/marker_poly.txt","w").write("x")
+open("marker_poly.txt","w").write("x")
 >>
 }'
 PATH_SRC='main {
     let c = file.read("./workspace/secret.txt")
-    file.write("'"$WDIR"'/marker_path.txt", c)
+    file.write("marker_path.txt", c)
 }'
 
 # ---- EP-00: both doors must work at all --------------------------------
 # Without this every "refused" below is unfalsifiable: a REST arm that cannot
 # execute anything reports perfect compliance.
 BENIGN_SRC='main {
-    file.write("'"$WDIR"'/marker_benign.txt", "ok")
+    file.write("marker_benign.txt", "ok")
 }'
 OPEN_CFG='{ "version": "4.0", "mode": "enforce", "security": { "sandbox_level": "elevated" } }'
 
@@ -198,6 +204,10 @@ if [ "$CLI_OK" = 1 ] && [ "$REST_OK" = 1 ]; then
     ok "EP-00" "both entry points execute a permitted program"
 else
     skip "EP-00" "cli=$CLI_OK rest=$REST_OK -- cannot drive both doors, UNMEASURABLE"
+    # Say WHY, so the next run of an unmeasurable platform is diagnosable
+    # instead of a bare skip.
+    [ "$CLI_OK" = 1 ]  || { echo "    cli said:";    tail -5 "$WDIR/cli.log"    2>/dev/null | sed 's/^/      | /'; }
+    [ "$REST_OK" = 1 ] || { echo "    server said:"; tail -5 "$WDIR/server.log" 2>/dev/null | sed 's/^/      | /'; }
     # The REST probe above may still have started (and stopped) a server, and
     # this early exit is the path the Windows runner takes -- the one orphan its
     # job cleanup reported came from here. EP-05 does not need both doors.
