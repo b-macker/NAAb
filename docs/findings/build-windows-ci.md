@@ -4,6 +4,21 @@ Investigation of three symptoms on the `build-windows` job (`.github/workflows/w
 Investigation only: nothing here changes code. Proposed fixes are listed per item; any
 that are implemented live in a separate PR.
 
+## Status (updated 2026-10-05)
+
+| Item | Fix | Verified on CI |
+|---|---|---|
+| 1. Canary skipped on Windows | b-macker/NAAb#288 only makes the skip honest (`a7e4619a`). Whether the canaries should *run* on Windows is still undecided (proposal (b) below). | **Hypothesis confirmed (observed).** #288's Windows job printed `test_prescan_canaries.sh: SKIPPED (git cannot answer here: exit 127)`. Exit 127 is bash's "command not found", so git is absent from the MSYS2 PATH, not refusing. This closes item 1's weakest link. Master `9a5f776c` still prints the old "uncommitted changes" message. |
+| 2. Orphan `naab-lang` | b-macker/NAAb#288 (`12d5ecdb`, `4e555fe1`): `exec`, `wait`, and EP-05. | **Fixed in that run (observed, one run per platform).** On #288's Windows job, EP-05 reported `PASS … (1 stopped, none still answering)`. Job cleanup listed no `Terminate orphan process`, and the busy-`naab.db` line was gone. On its Linux Build & Test job, no `naab-lang` orphan was left (one `python3` remains; not investigated). Master `9a5f776c` still orphans one on Windows, the third Windows sample to do so. |
+| 3. Slow leak suite | Fixed on master by b-macker/NAAb#278 (`6e80ef30`), written independently. It screens each file's union with one grep and falls back to the original per-pattern loop. #288's own rewrite of the same file was dropped in the merge in favour of #278. | **Fixed (observed).** Master `9a5f776c` on Windows ran it in about 2.6 s by log timestamps (874 passed), against 137.7 s on `fecb13e`. #288's earlier Windows run measured this doc's prototype design at 3.5 s. The suite still has **no in-suite positive control**, so a screen that silently matched nothing would report every file clean. That remains an open proposal. |
+| Incidental: r11 T5 | b-macker/NAAb#288 (`e0e0cff4`): the body goes on stdin, and no response counts as no measurement. | **Fixed in that run (observed, one run).** #288's Windows job printed `PASS: V-API-001: oversized body returns 413`, with no `Argument list too long`. |
+
+CI references:
+- #288's run: Windows Build run 37146869666 (job 111272534757) and CI run 37146869645, at head `4e555fe1`.
+- Master `9a5f776c`: Windows Build run 37201279178 (job 111433311989).
+
+---
+
 **Evidence base.** Unless stated otherwise, CI evidence is from master `fecb13e`:
 Windows job `111252413961` and Linux CI "Build & Test" job `111252414146`
 ([Windows Build run 37140050538](https://github.com/b-macker/NAAb/actions/runs/37140050538),
@@ -71,6 +86,8 @@ Evidence, in decreasing order of decisiveness:
   local reproduction.
   - **Would falsify this:** a `command -v git` on the runner, inside the MSYS2 shell,
     printing a path.
+  - *Update (2026-10-05):* closed. #288's split gate printed `exit 127` on the runner
+    (see Status).
 
 **Second layer (screened, matters only if git is installed).**
 - `actions/runner-images`' `Install-Git.ps1` installs Git for Windows with no CRLF
@@ -149,6 +166,9 @@ documents exactly this shape and uses `exec` to avoid it.
 - **Not verified:** the orphan's command line on the runner. **Would falsify this:** a
   job-end process listing showing anything other than `naab-lang.exe api <port>`
   created around 17:32:03.
+  - *Update (2026-10-05):* still no command line, but there is a stronger
+    intervention result. Changing only this suite (#288) removed the Windows orphan
+    and the busy-`naab.db` line in the same run (see Status).
 
 **Proposed fix:**
 - `exec "$NAAB" api` at line 110, and `wait` after the `kill -9`.
@@ -190,6 +210,10 @@ every run, so this suite measures nothing there.
   fork+exec**. That is an estimate from the arithmetic above, not measured on the runner.
 - History: no design reason for one pipeline per pattern. The suite grew by appending
   patterns (now 45) and files (now 19), and the cost multiplies.
+
+*Update (2026-10-05):* fixed on master by #278, a different design that reaches the
+same answers (see Status). The prototype below is kept as the record of what was
+measured; it is not what shipped.
 
 **Proposed fix: one first-stage grep per file, with the same filters.**
 
