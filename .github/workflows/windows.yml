@@ -169,7 +169,7 @@ jobs:
       - name: CLI tests — shell suites
         shell: msys2 {0}
         timeout-minutes: 25
-        run: NAAB_TEST_PHASE=shell NAAB_TIMING_DIR=test-timing/shell bash tools/testtiming/run_timed.sh
+        run: NAAB_TEST_PHASE=shell NAAB_TIMING_DIR=test-timing/shell NAAB_SKIP_REPORT=test-timing/skips-windows.tsv bash tools/testtiming/run_timed.sh
 
       - name: Upload test timing
         if: always()

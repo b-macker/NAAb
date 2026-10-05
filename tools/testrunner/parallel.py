@@ -98,6 +98,25 @@ SKIP_RE = re.compile(rb"\b(SKIP|SKIPPED|UNMEASURABLE|XFAIL)\b")
 # character, so \b never matches and a coloured marker went uncounted (7 suites,
 # 34 markers on the first full run).
 ANSI_RE = re.compile(rb"\x1b\[[0-9;]*[A-Za-z]")
+# A counter line reporting zero ("PASS: 4  FAIL: 0  SKIP: 0") names the marker
+# without anything having been skipped. Counting it let a suite's own summary
+# line read as an honest skip -- in the dead-interpreter gate that would excuse
+# a suite that skipped nothing (none did on 2026-10-05: 0 of the 26 excused
+# units relied on such a line). tests/helpers/skip_tally.sh applies the same
+# rule; tests/self-audit/test_skip_tally.sh ST-04 checks they agree.
+ZERO_COUNT_RE = re.compile(rb"\b(SKIP|SKIPPED|UNMEASURABLE|XFAIL)\W{0,3}[:=] *0\b")
+
+
+def count_skip_markers(body):
+    """Skip markers in a unit's output: colour stripped, zero counters ignored.
+
+    The one definition every tool uses (parallel runner, dead-interpreter gate,
+    setting_drop.py), so they cannot disagree on what counts as a skip."""
+    n = 0
+    for line in ANSI_RE.sub(b"", body).split(b"\n"):
+        if not ZERO_COUNT_RE.search(line):
+            n += len(SKIP_RE.findall(line))
+    return n
 TOOLCHAIN_DIRS = {  # env var -> path under the real HOME
     "CARGO_HOME": ".cargo",
     "RUSTUP_HOME": ".rustup",
@@ -316,7 +335,7 @@ class Runner:
             "rc": rc, "verdict": "PASS" if (u["kind"] == "naab-phase" and rc == 0)
             else ("FAIL" if u["kind"] == "naab-phase" else verdict_for(u, rc)),
             "seconds": round(t1 - t0, 3), "start": round(t0 - self.t_start, 3),
-            "skip_markers": len(SKIP_RE.findall(ANSI_RE.sub(b"", body))),
+            "skip_markers": count_skip_markers(body),
             "log": os.path.relpath(log, self.out),
         }
         if home is not None:

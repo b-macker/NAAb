@@ -3700,6 +3700,21 @@ else
     echo "  test_parallel_runner.sh: not found, skipping"
 fi
 
+SKIPTALLY_SCRIPT="tests/self-audit/test_skip_tally.sh"
+if [ -f "$SKIPTALLY_SCRIPT" ]; then
+    # The end-of-run skip tally (tests/helpers/skip_tally.sh) is what makes a
+    # platform's untested arms visible under a green verdict. A tally that
+    # silently counted nothing would read as "nothing is off".
+    if run_shell_test "$SKIPTALLY_SCRIPT" 2>&1; then
+        echo "  test_skip_tally.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_skip_tally.sh")
+    fi
+else
+    echo "  test_skip_tally.sh: not found, skipping"
+fi
+
 DEADGATE_SCRIPT="tests/self-audit/test_dead_interpreter_gate.sh"
 if [ -f "$DEADGATE_SCRIPT" ]; then
     # tools/testrunner/dead_gate.py runs every suite against an interpreter that
@@ -3731,6 +3746,40 @@ else
     echo "  test_setting_drop_compiled_out.sh: not found, skipping"
 fi
 fi  # phase_runs shell
+
+# Report-only: interpreters a suite left running. A python3 was still alive at
+# the end of one Linux CI job (master run 37204130521) and never again in the
+# runs examined since, so the leak could not be attributed after the fact.
+# This names the next one -- pid, parent and full arguments -- while the
+# process still exists. It never changes the verdict: nothing below touches
+# FAILED or the exit status. Linux only (ps -o etimes is procps). Only
+# processes younger than this run are listed, so a python3 the caller started
+# beforehand is not reported as a leak.
+if [ "$(uname -s)" = "Linux" ] && command -v ps >/dev/null 2>&1; then
+    LEFTOVER=$(ps -eo pid=,ppid=,etimes=,stat=,comm=,args= 2>/dev/null | awk -v age="$SECONDS" -v self="$$" '
+        $1 != self && $3 <= age && $4 !~ /^Z/ && ($5 == "python3" || $5 ~ /^python3\./ || $5 == "naab-lang") {
+            cmd = $0
+            for (i = 1; i <= 5; i++) sub(/^[ \t]*[^ \t]+/, "", cmd)
+            sub(/^[ \t]+/, "", cmd)
+            print "    pid=" $1 " ppid=" $2 " age=" $3 "s  " cmd
+        }')
+    if [ -n "$LEFTOVER" ]; then
+        echo ""
+        echo "  Report only (verdict unchanged): interpreters started during this run are still running:"
+        echo "$LEFTOVER"
+    fi
+fi
+
+# Report-only: every arm a suite said it could not measure (SKIP/UNMEASURABLE/
+# XFAIL), per suite, with its reason. A platform missing a tool turns arms into
+# skips under a passing verdict, so a green job alone cannot say how much ran.
+# NAAB_SKIP_REPORT=FILE also writes a sorted suite<TAB>line list, so two
+# platforms' lists can be diffed. Never changes FAILED or the exit status.
+if phase_runs shell && [ -z "${NAAB_TEST_LIST:-}" ] && [ -n "${SHELL_TEST_CAPTURE_DIR:-}" ] \
+   && [ -f "tests/helpers/skip_tally.sh" ]; then
+    . tests/helpers/skip_tally.sh
+    skip_tally "$SHELL_TEST_CAPTURE_DIR" "${NAAB_SKIP_REPORT:-}"
+fi
 
 # Print summary
 echo ""

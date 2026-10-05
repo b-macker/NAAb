@@ -40,3 +40,4 @@ tests/governance_v4/test_inert_key_sweep.sh	structural	static sweep: config keys
 tests/governance_v4/test_template_coverage.sh	structural	static check: key paths loadFromJson() reads vs govern-template.json; never runs naab-lang
 tests/self-audit/test_coverage_visibility.sh	structural	every test directory and suite is registered and tracked
 
+tests/self-audit/test_skip_tally.sh	tool	tests the skip-tally helper on planted suite output; never runs naab-lang

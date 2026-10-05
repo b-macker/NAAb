@@ -172,7 +172,7 @@ def run_unit(copy, unit, drop=None, slot="x"):
     p = subprocess.run(parallel.command_for(unit), cwd=copy.root, env=env, stdin=subprocess.DEVNULL,
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
     body = ANSI_RE.sub(b"", p.stdout)
-    skips = len(parallel.SKIP_RE.findall(body))
+    skips = parallel.count_skip_markers(body)
     loaded = set()
     if os.path.exists(env["NAAB_SETTINGS_LOG"]):
         with open(env["NAAB_SETTINGS_LOG"], "rb") as f:

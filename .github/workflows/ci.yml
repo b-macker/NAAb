@@ -61,8 +61,11 @@ jobs:
       # front of `timeout` records how long each suite and .naab test took; the
       # summary lands on the job page and the raw data in the artifact.
       # Self-test: tests/self-audit/test_test_timing.sh.
+      # NAAB_SKIP_REPORT: the per-suite list of SKIP/UNMEASURABLE arms
+      # (tests/helpers/skip_tally.sh), uploaded with the timing data so it can
+      # be diffed against build-windows' skips-windows.tsv.
       - name: Run tests
-        run: bash tools/testtiming/run_timed.sh
+        run: NAAB_SKIP_REPORT=test-timing/skips-linux.tsv bash tools/testtiming/run_timed.sh
 
       - name: Upload test timing
         if: always()
