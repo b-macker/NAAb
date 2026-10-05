@@ -86,6 +86,13 @@ POSITIONS = {
     "string_single":  "s = '{P}'",
     "string_back":    "s = `{P}`",
     "string_triple":  "s = \"\"\"{P}\"\"\"",
+    # The payload is ACTIVE CODE between two comments that each carry an
+    # apostrophe. A string stripper that does not know the language's comment
+    # syntax reads the first apostrophe as the start of a string and hides
+    # the code up to the second.
+    "between_apos_hash":    "# don't\n{P}\n# it's",
+    "between_apos_slashes": "// don't\n{P}\n// it's",
+    "between_apos_dashes":  "-- don't\n{P}\n-- it's",
 }
 
 

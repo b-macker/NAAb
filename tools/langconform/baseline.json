@@ -1,5 +1,34 @@
 {
  "cells": {
+  "bash|between_apos_dashes|eval": [],
+  "bash|between_apos_dashes|import": [],
+  "bash|between_apos_dashes|keyword": [],
+  "bash|between_apos_dashes|oversimplified": [],
+  "bash|between_apos_dashes|placeholder": [],
+  "bash|between_apos_dashes|system": [],
+  "bash|between_apos_dashes|temporary": [],
+  "bash|between_apos_hash|eval": [],
+  "bash|between_apos_hash|import": [],
+  "bash|between_apos_hash|keyword": [],
+  "bash|between_apos_hash|oversimplified": [],
+  "bash|between_apos_hash|placeholder": [],
+  "bash|between_apos_hash|system": [],
+  "bash|between_apos_hash|temporary": [],
+  "bash|between_apos_slashes|eval": [
+   "restrictions.code_injection"
+  ],
+  "bash|between_apos_slashes|import": [
+   "capabilities.shell.blocked_commands"
+  ],
+  "bash|between_apos_slashes|keyword": [],
+  "bash|between_apos_slashes|oversimplified": [],
+  "bash|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "bash|between_apos_slashes|system": [
+   "restrictions.code_injection"
+  ],
+  "bash|between_apos_slashes|temporary": [],
   "bash|block_c|eval": [
    "restrictions.code_injection"
   ],
@@ -261,6 +290,76 @@
   "bash|string_triple|placeholder": [],
   "bash|string_triple|system": [],
   "bash|string_triple|temporary": [],
+  "cpp|between_apos_dashes|eval": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_dashes|import": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_dashes|keyword": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_dashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_dashes|placeholder": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_dashes|system": [
+   "languages.allowed",
+   "restrictions.dangerous_calls"
+  ],
+  "cpp|between_apos_dashes|temporary": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_hash|eval": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_hash|import": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_hash|keyword": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_hash|oversimplified": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_hash|placeholder": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_hash|system": [
+   "languages.allowed",
+   "restrictions.dangerous_calls"
+  ],
+  "cpp|between_apos_hash|temporary": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_slashes|eval": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "cpp|between_apos_slashes|import": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_slashes|keyword": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_slashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "cpp|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders",
+   "languages.allowed"
+  ],
+  "cpp|between_apos_slashes|system": [
+   "languages.allowed",
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
+   "restrictions.dangerous_calls"
+  ],
+  "cpp|between_apos_slashes|temporary": [
+   "languages.allowed"
+  ],
   "cpp|block_c|eval": [
    "languages.allowed",
    "restrictions.code_injection"
@@ -687,6 +786,71 @@
   "cpp|string_triple|temporary": [
    "languages.allowed"
   ],
+  "csharp|between_apos_dashes|eval": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_dashes|import": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_dashes|keyword": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_dashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_dashes|placeholder": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_dashes|system": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_dashes|temporary": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_hash|eval": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_hash|import": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_hash|keyword": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_hash|oversimplified": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_hash|placeholder": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_hash|system": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_hash|temporary": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_slashes|eval": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "csharp|between_apos_slashes|import": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_slashes|keyword": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_slashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders",
+   "languages.allowed"
+  ],
+  "csharp|between_apos_slashes|system": [
+   "languages.allowed"
+  ],
+  "csharp|between_apos_slashes|temporary": [
+   "languages.allowed"
+  ],
   "csharp|block_c|eval": [
    "languages.allowed",
    "restrictions.code_injection"
@@ -1071,6 +1235,71 @@
    "languages.allowed"
   ],
   "csharp|string_triple|temporary": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_dashes|eval": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_dashes|import": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_dashes|keyword": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_dashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_dashes|placeholder": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_dashes|system": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_dashes|temporary": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_hash|eval": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_hash|import": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_hash|keyword": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_hash|oversimplified": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_hash|placeholder": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_hash|system": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_hash|temporary": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_slashes|eval": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "cs|between_apos_slashes|import": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_slashes|keyword": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_slashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders",
+   "languages.allowed"
+  ],
+  "cs|between_apos_slashes|system": [
+   "languages.allowed"
+  ],
+  "cs|between_apos_slashes|temporary": [
    "languages.allowed"
   ],
   "cs|block_c|eval": [
@@ -1459,6 +1688,31 @@
   "cs|string_triple|temporary": [
    "languages.allowed"
   ],
+  "golang|between_apos_dashes|eval": [],
+  "golang|between_apos_dashes|import": [],
+  "golang|between_apos_dashes|keyword": [],
+  "golang|between_apos_dashes|oversimplified": [],
+  "golang|between_apos_dashes|placeholder": [],
+  "golang|between_apos_dashes|system": [],
+  "golang|between_apos_dashes|temporary": [],
+  "golang|between_apos_hash|eval": [],
+  "golang|between_apos_hash|import": [],
+  "golang|between_apos_hash|keyword": [],
+  "golang|between_apos_hash|oversimplified": [],
+  "golang|between_apos_hash|placeholder": [],
+  "golang|between_apos_hash|system": [],
+  "golang|between_apos_hash|temporary": [],
+  "golang|between_apos_slashes|eval": [
+   "restrictions.code_injection"
+  ],
+  "golang|between_apos_slashes|import": [],
+  "golang|between_apos_slashes|keyword": [],
+  "golang|between_apos_slashes|oversimplified": [],
+  "golang|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "golang|between_apos_slashes|system": [],
+  "golang|between_apos_slashes|temporary": [],
   "golang|block_c|eval": [
    "restrictions.code_injection"
   ],
@@ -1662,6 +1916,31 @@
   "golang|string_triple|placeholder": [],
   "golang|string_triple|system": [],
   "golang|string_triple|temporary": [],
+  "go|between_apos_dashes|eval": [],
+  "go|between_apos_dashes|import": [],
+  "go|between_apos_dashes|keyword": [],
+  "go|between_apos_dashes|oversimplified": [],
+  "go|between_apos_dashes|placeholder": [],
+  "go|between_apos_dashes|system": [],
+  "go|between_apos_dashes|temporary": [],
+  "go|between_apos_hash|eval": [],
+  "go|between_apos_hash|import": [],
+  "go|between_apos_hash|keyword": [],
+  "go|between_apos_hash|oversimplified": [],
+  "go|between_apos_hash|placeholder": [],
+  "go|between_apos_hash|system": [],
+  "go|between_apos_hash|temporary": [],
+  "go|between_apos_slashes|eval": [
+   "restrictions.code_injection"
+  ],
+  "go|between_apos_slashes|import": [],
+  "go|between_apos_slashes|keyword": [],
+  "go|between_apos_slashes|oversimplified": [],
+  "go|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "go|between_apos_slashes|system": [],
+  "go|between_apos_slashes|temporary": [],
   "go|block_c|eval": [
    "restrictions.code_injection"
   ],
@@ -1865,6 +2144,50 @@
   "go|string_triple|placeholder": [],
   "go|string_triple|system": [],
   "go|string_triple|temporary": [],
+  "javascript|between_apos_dashes|eval": [
+   "restrictions.dangerous_calls"
+  ],
+  "javascript|between_apos_dashes|import": [],
+  "javascript|between_apos_dashes|keyword": [],
+  "javascript|between_apos_dashes|oversimplified": [],
+  "javascript|between_apos_dashes|placeholder": [],
+  "javascript|between_apos_dashes|system": [],
+  "javascript|between_apos_dashes|temporary": [],
+  "javascript|between_apos_hash|eval": [
+   "code_quality.no_hallucinated_apis",
+   "restrictions.dangerous_calls"
+  ],
+  "javascript|between_apos_hash|import": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "javascript|between_apos_hash|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "javascript|between_apos_hash|oversimplified": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "javascript|between_apos_hash|placeholder": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "javascript|between_apos_hash|system": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "javascript|between_apos_hash|temporary": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "javascript|between_apos_slashes|eval": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
+   "restrictions.dangerous_calls"
+  ],
+  "javascript|between_apos_slashes|import": [],
+  "javascript|between_apos_slashes|keyword": [],
+  "javascript|between_apos_slashes|oversimplified": [],
+  "javascript|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "javascript|between_apos_slashes|system": [],
+  "javascript|between_apos_slashes|temporary": [],
   "javascript|block_c|eval": [
    "languages.per_language.banned_functions",
    "restrictions.code_injection",
@@ -2108,6 +2431,72 @@
   "javascript|string_triple|placeholder": [],
   "javascript|string_triple|system": [],
   "javascript|string_triple|temporary": [],
+  "julia|between_apos_dashes|eval": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_dashes|import": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_dashes|keyword": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_dashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_dashes|placeholder": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_dashes|system": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_dashes|temporary": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_hash|eval": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_hash|import": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_hash|keyword": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_hash|oversimplified": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_hash|placeholder": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_hash|system": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_hash|temporary": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_slashes|eval": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "julia|between_apos_slashes|import": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_slashes|keyword": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_slashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "julia|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders",
+   "languages.allowed"
+  ],
+  "julia|between_apos_slashes|system": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "julia|between_apos_slashes|temporary": [
+   "languages.allowed"
+  ],
   "julia|block_c|eval": [
    "languages.allowed",
    "restrictions.code_injection"
@@ -2509,6 +2898,31 @@
   "julia|string_triple|temporary": [
    "languages.allowed"
   ],
+  "nim|between_apos_dashes|eval": [],
+  "nim|between_apos_dashes|import": [],
+  "nim|between_apos_dashes|keyword": [],
+  "nim|between_apos_dashes|oversimplified": [],
+  "nim|between_apos_dashes|placeholder": [],
+  "nim|between_apos_dashes|system": [],
+  "nim|between_apos_dashes|temporary": [],
+  "nim|between_apos_hash|eval": [],
+  "nim|between_apos_hash|import": [],
+  "nim|between_apos_hash|keyword": [],
+  "nim|between_apos_hash|oversimplified": [],
+  "nim|between_apos_hash|placeholder": [],
+  "nim|between_apos_hash|system": [],
+  "nim|between_apos_hash|temporary": [],
+  "nim|between_apos_slashes|eval": [
+   "restrictions.code_injection"
+  ],
+  "nim|between_apos_slashes|import": [],
+  "nim|between_apos_slashes|keyword": [],
+  "nim|between_apos_slashes|oversimplified": [],
+  "nim|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "nim|between_apos_slashes|system": [],
+  "nim|between_apos_slashes|temporary": [],
   "nim|block_c|eval": [
    "restrictions.code_injection"
   ],
@@ -2712,6 +3126,50 @@
   "nim|string_triple|placeholder": [],
   "nim|string_triple|system": [],
   "nim|string_triple|temporary": [],
+  "node|between_apos_dashes|eval": [
+   "restrictions.dangerous_calls"
+  ],
+  "node|between_apos_dashes|import": [],
+  "node|between_apos_dashes|keyword": [],
+  "node|between_apos_dashes|oversimplified": [],
+  "node|between_apos_dashes|placeholder": [],
+  "node|between_apos_dashes|system": [],
+  "node|between_apos_dashes|temporary": [],
+  "node|between_apos_hash|eval": [
+   "code_quality.no_hallucinated_apis",
+   "restrictions.dangerous_calls"
+  ],
+  "node|between_apos_hash|import": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "node|between_apos_hash|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "node|between_apos_hash|oversimplified": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "node|between_apos_hash|placeholder": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "node|between_apos_hash|system": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "node|between_apos_hash|temporary": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "node|between_apos_slashes|eval": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
+   "restrictions.dangerous_calls"
+  ],
+  "node|between_apos_slashes|import": [],
+  "node|between_apos_slashes|keyword": [],
+  "node|between_apos_slashes|oversimplified": [],
+  "node|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "node|between_apos_slashes|system": [],
+  "node|between_apos_slashes|temporary": [],
   "node|block_c|eval": [
    "languages.per_language.banned_functions",
    "restrictions.code_injection",
@@ -2955,6 +3413,45 @@
   "node|string_triple|placeholder": [],
   "node|string_triple|system": [],
   "node|string_triple|temporary": [],
+  "php|between_apos_dashes|eval": [
+   "restrictions.dangerous_calls"
+  ],
+  "php|between_apos_dashes|import": [],
+  "php|between_apos_dashes|keyword": [],
+  "php|between_apos_dashes|oversimplified": [],
+  "php|between_apos_dashes|placeholder": [],
+  "php|between_apos_dashes|system": [
+   "restrictions.dangerous_calls"
+  ],
+  "php|between_apos_dashes|temporary": [],
+  "php|between_apos_hash|eval": [
+   "restrictions.dangerous_calls"
+  ],
+  "php|between_apos_hash|import": [],
+  "php|between_apos_hash|keyword": [],
+  "php|between_apos_hash|oversimplified": [],
+  "php|between_apos_hash|placeholder": [],
+  "php|between_apos_hash|system": [
+   "restrictions.dangerous_calls"
+  ],
+  "php|between_apos_hash|temporary": [],
+  "php|between_apos_slashes|eval": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
+   "restrictions.dangerous_calls"
+  ],
+  "php|between_apos_slashes|import": [],
+  "php|between_apos_slashes|keyword": [],
+  "php|between_apos_slashes|oversimplified": [],
+  "php|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "php|between_apos_slashes|system": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
+   "restrictions.dangerous_calls"
+  ],
+  "php|between_apos_slashes|temporary": [],
   "php|block_c|eval": [
    "languages.per_language.banned_functions",
    "restrictions.code_injection",
@@ -3242,6 +3739,64 @@
    "restrictions.dangerous_calls"
   ],
   "php|string_triple|temporary": [],
+  "python|between_apos_dashes|eval": [
+   "custom_rules.CUSTOM-001",
+   "restrictions.dangerous_calls"
+  ],
+  "python|between_apos_dashes|import": [
+   "restrictions.imports"
+  ],
+  "python|between_apos_dashes|keyword": [],
+  "python|between_apos_dashes|oversimplified": [],
+  "python|between_apos_dashes|placeholder": [],
+  "python|between_apos_dashes|system": [
+   "restrictions.dangerous_calls"
+  ],
+  "python|between_apos_dashes|temporary": [],
+  "python|between_apos_hash|eval": [
+   "custom_rules.CUSTOM-001",
+   "restrictions.dangerous_calls"
+  ],
+  "python|between_apos_hash|import": [
+   "restrictions.imports"
+  ],
+  "python|between_apos_hash|keyword": [],
+  "python|between_apos_hash|oversimplified": [],
+  "python|between_apos_hash|placeholder": [],
+  "python|between_apos_hash|system": [
+   "restrictions.dangerous_calls"
+  ],
+  "python|between_apos_hash|temporary": [],
+  "python|between_apos_slashes|eval": [
+   "code_quality.no_hallucinated_apis",
+   "custom_rules.CUSTOM-001",
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
+   "restrictions.dangerous_calls"
+  ],
+  "python|between_apos_slashes|import": [
+   "code_quality.no_hallucinated_apis",
+   "restrictions.code_injection",
+   "restrictions.imports"
+  ],
+  "python|between_apos_slashes|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "python|between_apos_slashes|oversimplified": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "python|between_apos_slashes|placeholder": [
+   "code_quality.no_hallucinated_apis",
+   "code_quality.no_placeholders"
+  ],
+  "python|between_apos_slashes|system": [
+   "code_quality.no_hallucinated_apis",
+   "restrictions.code_injection",
+   "restrictions.dangerous_calls"
+  ],
+  "python|between_apos_slashes|temporary": [
+   "code_quality.no_hallucinated_apis"
+  ],
   "python|block_c|eval": [
    "custom_rules.CUSTOM-001",
    "languages.per_language.banned_functions",
@@ -3587,6 +4142,45 @@
    "restrictions.dangerous_calls"
   ],
   "python|string_triple|temporary": [],
+  "ruby|between_apos_dashes|eval": [
+   "restrictions.dangerous_calls"
+  ],
+  "ruby|between_apos_dashes|import": [],
+  "ruby|between_apos_dashes|keyword": [],
+  "ruby|between_apos_dashes|oversimplified": [],
+  "ruby|between_apos_dashes|placeholder": [],
+  "ruby|between_apos_dashes|system": [
+   "restrictions.dangerous_calls"
+  ],
+  "ruby|between_apos_dashes|temporary": [],
+  "ruby|between_apos_hash|eval": [
+   "restrictions.dangerous_calls"
+  ],
+  "ruby|between_apos_hash|import": [],
+  "ruby|between_apos_hash|keyword": [],
+  "ruby|between_apos_hash|oversimplified": [],
+  "ruby|between_apos_hash|placeholder": [],
+  "ruby|between_apos_hash|system": [
+   "restrictions.dangerous_calls"
+  ],
+  "ruby|between_apos_hash|temporary": [],
+  "ruby|between_apos_slashes|eval": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
+   "restrictions.dangerous_calls"
+  ],
+  "ruby|between_apos_slashes|import": [],
+  "ruby|between_apos_slashes|keyword": [],
+  "ruby|between_apos_slashes|oversimplified": [],
+  "ruby|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "ruby|between_apos_slashes|system": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
+   "restrictions.dangerous_calls"
+  ],
+  "ruby|between_apos_slashes|temporary": [],
   "ruby|block_c|eval": [
    "languages.per_language.banned_functions",
    "restrictions.code_injection",
@@ -3892,6 +4486,71 @@
    "restrictions.dangerous_calls"
   ],
   "ruby|string_triple|temporary": [],
+  "rust|between_apos_dashes|eval": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_dashes|import": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_dashes|keyword": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_dashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_dashes|placeholder": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_dashes|system": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_dashes|temporary": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_hash|eval": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_hash|import": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_hash|keyword": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_hash|oversimplified": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_hash|placeholder": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_hash|system": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_hash|temporary": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_slashes|eval": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "rust|between_apos_slashes|import": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_slashes|keyword": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_slashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders",
+   "languages.allowed"
+  ],
+  "rust|between_apos_slashes|system": [
+   "languages.allowed"
+  ],
+  "rust|between_apos_slashes|temporary": [
+   "languages.allowed"
+  ],
   "rust|block_c|eval": [
    "languages.allowed",
    "restrictions.code_injection"
@@ -4278,6 +4937,35 @@
   "rust|string_triple|temporary": [
    "languages.allowed"
   ],
+  "shell|between_apos_dashes|eval": [],
+  "shell|between_apos_dashes|import": [],
+  "shell|between_apos_dashes|keyword": [],
+  "shell|between_apos_dashes|oversimplified": [],
+  "shell|between_apos_dashes|placeholder": [],
+  "shell|between_apos_dashes|system": [],
+  "shell|between_apos_dashes|temporary": [],
+  "shell|between_apos_hash|eval": [],
+  "shell|between_apos_hash|import": [],
+  "shell|between_apos_hash|keyword": [],
+  "shell|between_apos_hash|oversimplified": [],
+  "shell|between_apos_hash|placeholder": [],
+  "shell|between_apos_hash|system": [],
+  "shell|between_apos_hash|temporary": [],
+  "shell|between_apos_slashes|eval": [
+   "restrictions.code_injection"
+  ],
+  "shell|between_apos_slashes|import": [
+   "capabilities.shell.blocked_commands"
+  ],
+  "shell|between_apos_slashes|keyword": [],
+  "shell|between_apos_slashes|oversimplified": [],
+  "shell|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "shell|between_apos_slashes|system": [
+   "restrictions.code_injection"
+  ],
+  "shell|between_apos_slashes|temporary": [],
   "shell|block_c|eval": [
    "restrictions.code_injection"
   ],
@@ -4539,6 +5227,35 @@
   "shell|string_triple|placeholder": [],
   "shell|string_triple|system": [],
   "shell|string_triple|temporary": [],
+  "sh|between_apos_dashes|eval": [],
+  "sh|between_apos_dashes|import": [],
+  "sh|between_apos_dashes|keyword": [],
+  "sh|between_apos_dashes|oversimplified": [],
+  "sh|between_apos_dashes|placeholder": [],
+  "sh|between_apos_dashes|system": [],
+  "sh|between_apos_dashes|temporary": [],
+  "sh|between_apos_hash|eval": [],
+  "sh|between_apos_hash|import": [],
+  "sh|between_apos_hash|keyword": [],
+  "sh|between_apos_hash|oversimplified": [],
+  "sh|between_apos_hash|placeholder": [],
+  "sh|between_apos_hash|system": [],
+  "sh|between_apos_hash|temporary": [],
+  "sh|between_apos_slashes|eval": [
+   "restrictions.code_injection"
+  ],
+  "sh|between_apos_slashes|import": [
+   "capabilities.shell.blocked_commands"
+  ],
+  "sh|between_apos_slashes|keyword": [],
+  "sh|between_apos_slashes|oversimplified": [],
+  "sh|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "sh|between_apos_slashes|system": [
+   "restrictions.code_injection"
+  ],
+  "sh|between_apos_slashes|temporary": [],
   "sh|block_c|eval": [
    "restrictions.code_injection"
   ],
@@ -4800,6 +5517,72 @@
   "sh|string_triple|placeholder": [],
   "sh|string_triple|system": [],
   "sh|string_triple|temporary": [],
+  "sqlite|between_apos_dashes|eval": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_dashes|import": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_dashes|keyword": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_dashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_dashes|placeholder": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_dashes|system": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_dashes|temporary": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_hash|eval": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_hash|import": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_hash|keyword": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_hash|oversimplified": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_hash|placeholder": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_hash|system": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_hash|temporary": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_slashes|eval": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "sqlite|between_apos_slashes|import": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_slashes|keyword": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_slashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders",
+   "languages.allowed"
+  ],
+  "sqlite|between_apos_slashes|system": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "sqlite|between_apos_slashes|temporary": [
+   "languages.allowed"
+  ],
   "sqlite|block_c|eval": [
    "languages.allowed",
    "restrictions.code_injection"
@@ -5203,6 +5986,72 @@
    "languages.allowed"
   ],
   "sqlite|string_triple|temporary": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_dashes|eval": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_dashes|import": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_dashes|keyword": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_dashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_dashes|placeholder": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_dashes|system": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_dashes|temporary": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_hash|eval": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_hash|import": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_hash|keyword": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_hash|oversimplified": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_hash|placeholder": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_hash|system": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_hash|temporary": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_slashes|eval": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "sql|between_apos_slashes|import": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_slashes|keyword": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_slashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "sql|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders",
+   "languages.allowed"
+  ],
+  "sql|between_apos_slashes|system": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "sql|between_apos_slashes|temporary": [
    "languages.allowed"
   ],
   "sql|block_c|eval": [
@@ -5610,6 +6459,71 @@
   "sql|string_triple|temporary": [
    "languages.allowed"
   ],
+  "ts|between_apos_dashes|eval": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_dashes|import": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_dashes|keyword": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_dashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_dashes|placeholder": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_dashes|system": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_dashes|temporary": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_hash|eval": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_hash|import": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_hash|keyword": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_hash|oversimplified": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_hash|placeholder": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_hash|system": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_hash|temporary": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_slashes|eval": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "ts|between_apos_slashes|import": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_slashes|keyword": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_slashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders",
+   "languages.allowed"
+  ],
+  "ts|between_apos_slashes|system": [
+   "languages.allowed"
+  ],
+  "ts|between_apos_slashes|temporary": [
+   "languages.allowed"
+  ],
   "ts|block_c|eval": [
    "languages.allowed",
    "restrictions.code_injection"
@@ -5996,6 +6910,71 @@
   "ts|string_triple|temporary": [
    "languages.allowed"
   ],
+  "typescript|between_apos_dashes|eval": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_dashes|import": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_dashes|keyword": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_dashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_dashes|placeholder": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_dashes|system": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_dashes|temporary": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_hash|eval": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_hash|import": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_hash|keyword": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_hash|oversimplified": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_hash|placeholder": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_hash|system": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_hash|temporary": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_slashes|eval": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "typescript|between_apos_slashes|import": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_slashes|keyword": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_slashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders",
+   "languages.allowed"
+  ],
+  "typescript|between_apos_slashes|system": [
+   "languages.allowed"
+  ],
+  "typescript|between_apos_slashes|temporary": [
+   "languages.allowed"
+  ],
   "typescript|block_c|eval": [
    "languages.allowed",
    "restrictions.code_injection"
@@ -6380,6 +7359,72 @@
    "languages.allowed"
   ],
   "typescript|string_triple|temporary": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_dashes|eval": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_dashes|import": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_dashes|keyword": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_dashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_dashes|placeholder": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_dashes|system": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_dashes|temporary": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_hash|eval": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_hash|import": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_hash|keyword": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_hash|oversimplified": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_hash|placeholder": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_hash|system": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_hash|temporary": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_slashes|eval": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "zig|between_apos_slashes|import": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_slashes|keyword": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_slashes|oversimplified": [
+   "languages.allowed"
+  ],
+  "zig|between_apos_slashes|placeholder": [
+   "code_quality.no_placeholders",
+   "languages.allowed"
+  ],
+  "zig|between_apos_slashes|system": [
+   "languages.allowed",
+   "restrictions.code_injection"
+  ],
+  "zig|between_apos_slashes|temporary": [
    "languages.allowed"
   ],
   "zig|block_c|eval": [
@@ -6816,6 +7861,9 @@
   "temporary"
  ],
  "positions": [
+  "between_apos_dashes",
+  "between_apos_hash",
+  "between_apos_slashes",
   "block_c",
   "block_haskell",
   "block_html",
