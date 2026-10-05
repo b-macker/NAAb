@@ -57,6 +57,7 @@ PAYLOADS = {
     "system":      "os.system(user_input)",
     "placeholder": "TODO implement this properly",
     "temporary":   "for now just return the default",
+    "oversimplified": "simplified version of the algorithm",
     "keyword":     "FORBIDDEN_KEYWORD",
     "import":      "import subprocess",
 }
@@ -243,6 +244,8 @@ def cmd_groups(a):
 
 
 KEYWORD_RULE = "code_quality.no_hallucinated_apis"
+MARKER_RULE = "code_quality.no_temporary_code"
+MARKER = "for now just return the default"
 
 
 def cmd_conform(a):
@@ -251,10 +254,16 @@ def cmd_conform(a):
     1. Every name the binary registers resolves to a table entry. A language
        registered without one is a FAILURE: governance would know nothing
        about its comments, and nobody would have decided that.
-    2. For every registered name, the keyword as active code is reported
-       (the control), and the keyword inside EACH comment form the entry
-       declares is not. Adding a language or a comment form to the table adds
-       its probes here with no edit to this file or to any test."""
+    2. For every name, the keyword as active code is reported (the control),
+       and the keyword inside EACH comment form the entry declares is not:
+       comments are hidden from the checks that read code.
+    3. A temporary-code marker inside each declared comment form -- on the
+       opener's line and on an interior line of a block -- IS reported:
+       comments are visible to the checks that read comments.
+    Names probed: every registered name, plus every name in a governance-only
+    entry (no executor, but naab-gov check and the C API accept it). Adding a
+    language or a comment form to the table adds its probes here with no edit
+    to this file or to any test."""
     langs = registered_languages(a.naab)
     if a.table:
         # Test controls only: a planted table in place of the binary's own.
@@ -265,45 +274,54 @@ def cmd_conform(a):
     cfg, _ = load_config()
     out, bad = [], 0
     probes = []
-    for name in langs:
+    gov_only = [n for d in table if d.get("governance_only")
+                for n in [d["canonical"]] + d["aliases"] if n not in langs]
+    for name in langs + gov_only:
         d = resolve(table, name)
         if d is None:
             bad += 1
             out.append("  FAIL %s: registered, but the language table has no entry for it\n" % name)
             continue
-        if d.get("governance_only"):
+        if d.get("governance_only") and name in langs:
             bad += 1
             out.append("  FAIL %s: registered, but its entry says no executor runs it\n" % name)
         probes.append((name, "code", "FORBIDDEN_KEYWORD\n", True))
         for m in d["line_comments"]:
             probes.append((name, "line %s" % m, "%s FORBIDDEN_KEYWORD\n" % m, False))
+            probes.append((name, "marker in line %s" % m, "%s %s\n" % (m, MARKER), True, MARKER_RULE))
         for b in d["block_comments"]:
             probes.append((name, "block %s %s" % (b["open"], b["close"]),
                            "%s\nFORBIDDEN_KEYWORD\n%s\n" % (b["open"], b["close"]), False))
+            probes.append((name, "marker in block %s %s" % (b["open"], b["close"]),
+                           "%s %s\n%s\n" % (b["open"], MARKER, b["close"]), True, MARKER_RULE))
+            probes.append((name, "marker inside block %s %s" % (b["open"], b["close"]),
+                           "%s\n%s\n%s\n" % (b["open"], MARKER, b["close"]), True, MARKER_RULE))
             if b["line_start_only"]:
                 # The control for line_start_only: mid-line, it is NOT a comment.
                 probes.append((name, "mid-line %s" % b["open"],
                                "x = 1 %s FORBIDDEN_KEYWORD %s\n" % (b["open"], b["close"]), True))
     with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as ex:
         res = list(ex.map(lambda p: probe(a.gov, cfg, p[0], p[2]), probes))
-    for (name, what, _, expect), (rules, err) in zip(probes, res):
+    for p, (rules, err) in zip(probes, res):
+        name, what, _, expect = p[:4]
+        rule = p[4] if len(p) > 4 else KEYWORD_RULE
         if err:
             bad += 1
             out.append("  UNMEASURABLE %s %s: %s\n" % (name, what, err))
             continue
-        got = KEYWORD_RULE in rules
+        got = rule in rules
         if got != expect:
             bad += 1
-            out.append("  FAIL %s %s: keyword %s, expected %s\n"
-                       % (name, what, "reported" if got else "hidden",
-                          "reported" if expect else "hidden (it is a comment)"))
+            out.append("  FAIL %s %s: %s %s, expected %s\n"
+                       % (name, what, rule, "reported" if got else "not reported",
+                          "reported" if expect else "not reported (it is a comment)"))
     registered = {resolve(table, n)["canonical"] for n in langs if resolve(table, n)}
     unused = sorted(d["canonical"] for d in table
                     if not d.get("governance_only") and d["canonical"] not in registered)
     if unused:
         out.append("  info: table entries no executor registers here: %s\n" % ", ".join(unused))
-    out.append("langconform conform: %d probe(s) over %d registered name(s), %d problem(s)\n"
-               % (len(probes), len(langs), bad))
+    out.append("langconform conform: %d probe(s) over %d registered + %d governance-only name(s), %d problem(s)\n"
+               % (len(probes), len(langs), len(gov_only), bad))
     write_out("".join(out))
     return 1 if bad else 0
 

@@ -6514,6 +6514,13 @@ std::string GovernanceEngine::checkPolyglotBlock(
     // so downstream pattern-based checks catch indirect calls through variables
     stripped = expandDangerousAliases(lang, stripped);
 
+    // The checks that look for markers INSIDE comments (temporary code,
+    // oversimplification, incomplete logic) read `#`, `//` and `/* */` only.
+    // This is `stripped` with the language's other comment openers (`--`,
+    // `#=`, `=begin`, ...) re-marked as `#`; for languages with no such
+    // opener it is identical to `stripped`.
+    const std::string comment_scan = naab::lang::markCommentsForScan(stripped, lang);
+
     std::string err;
 
     // Language allowed? (uses normalized name)
@@ -6563,7 +6570,7 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
 
     // New v3.0 checks — use stripped (strings removed, comments preserved)
-    err = checkTemporaryCode(stripped, line);
+    err = checkTemporaryCode(comment_scan, line);
     if (!err.empty()) return err;
     err = checkSimulationMarkers(stripped, line);
     if (!err.empty()) return err;
@@ -6591,9 +6598,9 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
 
     // LLM anti-drift checks
-    err = checkOversimplification(stripped, line);
+    err = checkOversimplification(comment_scan, line);
     if (!err.empty()) return err;
-    err = checkIncompleteLogic(stripped, line);
+    err = checkIncompleteLogic(comment_scan, line);
     if (!err.empty()) return err;
     err = checkHallucinatedApis(lang, normalized, line);  // Has its own stripping
     if (!err.empty()) return err;

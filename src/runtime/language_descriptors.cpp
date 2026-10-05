@@ -123,5 +123,72 @@ std::string stripComments(const std::string& code, const std::string& language) 
     return result;
 }
 
+namespace {
+bool patternsReadOpener(const std::string& open) {
+    return open == "#" || open == "//" || open == "/*";
+}
+}  // namespace
+
+std::string markCommentsForScan(const std::string& code, const std::string& language) {
+    const LanguageDescriptor* d = findLanguage(language);
+    if (!d) return code;
+    bool needed = false;
+    for (const auto& m : d->line_comments) needed = needed || !patternsReadOpener(m);
+    for (const auto& b : d->block_comments) needed = needed || !patternsReadOpener(b.open);
+    if (!needed) return code;
+
+    std::string result;
+    result.reserve(code.size() + 16);
+    for (size_t i = 0; i < code.size(); ++i) {
+        bool handled = false;
+        for (const auto& b : d->block_comments) {
+            if (code.compare(i, b.open.size(), b.open) != 0) continue;
+            if (b.line_start_only && !atLineStart(code, i)) continue;
+            const bool rewrite = !patternsReadOpener(b.open);
+            // A block the patterns already read (/* */) is copied unchanged;
+            // a rewritten one gets `#` + padding for its opener, `# ` at the
+            // start of every further line, and spaces for its closer.
+            if (rewrite) {
+                result += '#';
+                result.append(b.open.size() - 1, ' ');
+            } else {
+                result += b.open;
+            }
+            i += b.open.size();
+            while (i < code.size()) {
+                if (code.compare(i, b.close.size(), b.close) == 0) {
+                    if (rewrite) result.append(b.close.size(), ' ');
+                    else result += b.close;
+                    i += b.close.size() - 1;
+                    break;
+                }
+                result += code[i];
+                if (rewrite && code[i] == '\n') result += "# ";
+                ++i;
+            }
+            handled = true;
+            break;
+        }
+        if (handled) continue;
+        for (const auto& m : d->line_comments) {
+            if (code.compare(i, m.size(), m) != 0) continue;
+            if (patternsReadOpener(m)) {
+                result += m;
+            } else {
+                result += '#';
+                result.append(m.size() - 1, ' ');
+            }
+            i += m.size();
+            while (i < code.size() && code[i] != '\n') result += code[i++];
+            if (i < code.size()) result += '\n';
+            handled = true;
+            break;
+        }
+        if (handled) continue;
+        result += code[i];
+    }
+    return result;
+}
+
 }  // namespace lang
 }  // namespace naab
