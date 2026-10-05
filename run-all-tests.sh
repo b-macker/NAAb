@@ -3732,6 +3732,29 @@ else
 fi
 fi  # phase_runs shell
 
+# Report-only: interpreters a suite left running. A python3 was still alive at
+# the end of one Linux CI job (master run 37204130521) and never again in the
+# runs examined since, so the leak could not be attributed after the fact.
+# This names the next one -- pid, parent and full arguments -- while the
+# process still exists. It never changes the verdict: nothing below touches
+# FAILED or the exit status. Linux only (ps -o etimes is procps). Only
+# processes younger than this run are listed, so a python3 the caller started
+# beforehand is not reported as a leak.
+if [ "$(uname -s)" = "Linux" ] && command -v ps >/dev/null 2>&1; then
+    LEFTOVER=$(ps -eo pid=,ppid=,etimes=,stat=,comm=,args= 2>/dev/null | awk -v age="$SECONDS" -v self="$$" '
+        $1 != self && $3 <= age && $4 !~ /^Z/ && ($5 == "python3" || $5 ~ /^python3\./ || $5 == "naab-lang") {
+            cmd = $0
+            for (i = 1; i <= 5; i++) sub(/^[ \t]*[^ \t]+/, "", cmd)
+            sub(/^[ \t]+/, "", cmd)
+            print "    pid=" $1 " ppid=" $2 " age=" $3 "s  " cmd
+        }')
+    if [ -n "$LEFTOVER" ]; then
+        echo ""
+        echo "  Report only (verdict unchanged): interpreters started during this run are still running:"
+        echo "$LEFTOVER"
+    fi
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"

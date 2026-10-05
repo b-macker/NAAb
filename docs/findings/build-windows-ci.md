@@ -10,7 +10,7 @@ that are implemented live in a separate PR.
 |---|---|---|
 | 1. Canary skipped on Windows | b-macker/NAAb#288 only makes the skip honest (`a7e4619a`). Whether the canaries should *run* on Windows is still undecided (proposal (b) below). | **Hypothesis confirmed (observed).** #288's Windows job printed `test_prescan_canaries.sh: SKIPPED (git cannot answer here: exit 127)`. Exit 127 is bash's "command not found", so git is absent from the MSYS2 PATH, not refusing. This closes item 1's weakest link. Master `9a5f776c` still prints the old "uncommitted changes" message. |
 | 2. Orphan `naab-lang` | b-macker/NAAb#288 (`12d5ecdb`, `4e555fe1`): `exec`, `wait`, and EP-05. | **Fixed in that run (observed, one run per platform).** On #288's Windows job, EP-05 reported `PASS … (1 stopped, none still answering)`. Job cleanup listed no `Terminate orphan process`, and the busy-`naab.db` line was gone. On its Linux Build & Test job, no `naab-lang` orphan was left (one `python3` remains; not investigated). Master `9a5f776c` still orphans one on Windows, the third Windows sample to do so. |
-| 3. Slow leak suite | Fixed on master by b-macker/NAAb#278 (`6e80ef30`), written independently. It screens each file's union with one grep and falls back to the original per-pattern loop. #288's own rewrite of the same file was dropped in the merge in favour of #278. | **Fixed (observed).** Master `9a5f776c` on Windows ran it in about 2.6 s by log timestamps (874 passed), against 137.7 s on `fecb13e`. #288's earlier Windows run measured this doc's prototype design at 3.5 s. The suite still has **no in-suite positive control**, so a screen that silently matched nothing would report every file clean. That remains an open proposal. |
+| 3. Slow leak suite | Fixed on master by b-macker/NAAb#278 (`6e80ef30`), written independently. It screens each file's union with one grep and falls back to the original per-pattern loop. #288's own rewrite of the same file was dropped in the merge in favour of #278. | **Fixed (observed).** Master `9a5f776c` on Windows ran it in about 2.6 s by log timestamps (874 passed), against 137.7 s on `fecb13e`. #288's earlier Windows run measured this doc's prototype design at 3.5 s. The in-suite positive control is now added (group-3 follow-up): a planted file carries one leak per pattern, and all 45 must be flagged, or the suite fails. Breaking the screen gives `only 0 of 45` FAIL, and a listed file that no longer exists FAILs instead of being skipped. Count is 875 (874 + the control). Not yet observed on CI. |
 | Incidental: r11 T5 | b-macker/NAAb#288 (`e0e0cff4`): the body goes on stdin, and no response counts as no measurement. | **Fixed in that run (observed, one run).** #288's Windows job printed `PASS: V-API-001: oversized body returns 413`, with no `Argument list too long`. |
 
 CI references:
@@ -182,8 +182,24 @@ every run, so this suite measures nothing there.
 - No argv conversion happens for a path inside a file.
 - EP-00 took 0.45 s, which is unexplained for a server start. It does not change the
   orphan finding.
+- **Change made (group-3 follow-up, not yet observed on Windows):** the NAAb sources
+  now write RELATIVE marker names (`marker_poly.txt`, ...), resolved against the
+  directory both doors run in, so no MSYS path crosses into the native binary. The
+  EP-00 skip now prints the tail of the CLI and server logs, so if it still skips,
+  the next Windows run says why rather than leaving this to be re-derived.
 
-**Not investigated:** the Linux job's fifth orphan, `python3` (pid 21718).
+**`python3` left at the end of the Linux job (screened, not reproduced):**
+- Seen once: master build-linux run 37204130521. Absent from master `24d6d1d8`'s three
+  Linux jobs, #288's build-linux job, and two local parallel runs (observed).
+- The suites that background a python3 (`test_module_codegen_governance.sh`,
+  `test_ssrf_redirect_dns.sh`, `stub_launch.sh`'s `stop_stub`) all stop it on exit (read).
+- An outer `timeout` killing naab-lang mid-block leaves only a `<defunct>` python3,
+  because GNU `timeout` signals the whole group and the container's pid 1 does not
+  reap; with `--timeout` there is none (observed locally).
+- Not fixable without attribution, so `run-all-tests.sh` now lists, report-only, any
+  `python3`/`naab-lang` started during the run that is still alive (pid, parent, full
+  arguments) before the summary. It never changes the verdict. Verified with a
+  planted process (listed) and one started before the run (not listed).
 
 ---
 
