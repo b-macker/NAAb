@@ -86,11 +86,11 @@ if [ -z "$w" ]; then ok "SQ-02" "a table created in one block is visible to the 
 else bad "SQ-02" "state did not carry across blocks or tags" "$w"; fi
 
 # --- SQ-03 / SQ-04 ----------------------------------------------------------------------
-# One block, both variables, inline data: on the tree-walker, a variable
-# declared AFTER any earlier polyglot block in the same function is not found
-# by the binding lookup ("not found in scope for inline code binding") -- a
-# pre-existing defect that hits every language, not SQL's to fix here. A single
-# block with no earlier one keeps this arm about parameter binding.
+# One block, both variables, inline data -- written while the tree-walker
+# could not see a variable declared AFTER an earlier polyglot block in the same
+# function (its polyglot grouping ran the second block before the `let`;
+# fixed, tests/robustness/test_polyglot_group_order.sh). A single block still
+# keeps this arm about parameter binding alone.
 cat > "$W/s03.naab" <<'EOF'
 main {
     let who = "bob"

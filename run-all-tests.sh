@@ -2476,6 +2476,19 @@ else
     echo "  test_block_dlopen_error.sh: not found, skipping"
 fi
 
+# Tree-walker polyglot groups keep source order with the statements between blocks.
+PG_ORDER_SCRIPT="tests/robustness/test_polyglot_group_order.sh"
+if [ -f "$PG_ORDER_SCRIPT" ]; then
+    if run_shell_test "$PG_ORDER_SCRIPT" 2>&1; then
+        echo "  test_polyglot_group_order.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_polyglot_group_order.sh")
+    fi
+else
+    echo "  test_polyglot_group_order.sh: not found, skipping"
+fi
+
 # api_base: plain http only for a real loopback host (not a string prefix).
 API_BASE_LOOPBACK_SCRIPT="tests/security/test_api_base_loopback.sh"
 if [ -f "$API_BASE_LOOPBACK_SCRIPT" ]; then
