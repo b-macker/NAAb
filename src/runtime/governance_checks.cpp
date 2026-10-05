@@ -80,7 +80,7 @@ static std::string stripStringLiterals(const std::string& code,
             }
             if (!skipped) {
                 for (const auto& m : lang_desc->line_comments) {
-                    if (code.compare(i, m.size(), m) != 0) continue;
+                    if (!naab::lang::lineCommentBegins(code, i, m)) continue;
                     size_t end = code.find('\n', i);
                     end = (end == std::string::npos) ? code.size() : end + 1;
                     result.append(code, i, end - i);

@@ -39,9 +39,9 @@ std::vector<LanguageDescriptor> buildTable() {
          ".js",   "",        {{"node", "--check", "{file}"}}, {"node"}},
         {"typescript", {"ts"},              {"//"},            {kCBlock},                 false,
          ".ts",   "",        {{"tsc", "--noEmit", "--skipLibCheck", "{file}"}}, {}},
-        {"shell",      {"sh", "bash"},      {"#"},             {},                        false,
+        {"shell",      {"sh", "bash"},      {{"#", true}},     {},                        false,
          ".sh",   "",        {{"bash", "-n", "{file}"}}, {}},
-        {"ruby",       {"rb"},              {"#"},             {{"=begin", "=end", true}}, false,
+        {"ruby",       {"rb"},              {{"#", true}},    {{"=begin", "=end", true}}, false,
          ".rb",   "",        {{"ruby", "-c", "{file}"}}, {}},
         {"go",         {"golang"},          {"//"},            {kCBlock},                 false,
          ".go",   "package main\n", {{"gofmt", "-e", "{file}"}}, {}},
@@ -54,7 +54,7 @@ std::vector<LanguageDescriptor> buildTable() {
          ".rs",   "",        {{"rustc", "--crate-type=lib", "--emit=metadata", "--out-dir", "{dir}", "{file}"}}, {}},
         {"nim",        {},                  {"#"},             {{"#[", "]#", false}},     false,
          ".nim",  "",        {{"nim", "check", "--hints:off", "{file}"}}, {}},
-        {"php",        {},                  {"//", "#"},       {kCBlock},                 false,
+        {"php",        {},                  {"//", {"#", false, {"["}}}, {kCBlock},        false,
          ".php",  "<?php\n", {{"php", "-l", "{file}"}}, {}},
         {"julia",      {},                  {"#"},             {{"#=", "=#", false}},     false,
          ".jl",   "",        {{"julia", "--startup-file=no", "{file}"}}, {}},
@@ -120,6 +120,21 @@ std::string runtimeLanguage(const std::string& name) {
     return d->canonical;
 }
 
+bool lineCommentBegins(const std::string& code, size_t i, const LineComment& lc) {
+    if (code.compare(i, lc.marker.size(), lc.marker) != 0) return false;
+    if (lc.require_token_boundary && i > 0) {
+        // start-of-input needs nothing; otherwise the char before must be
+        // whitespace/newline or a shell word separator.
+        static const std::string kBoundary = " \t\r\n;&|()<>`";
+        if (kBoundary.find(code[i - 1]) == std::string::npos) return false;
+    }
+    if (lc.not_after_question && i > 0 && code[i - 1] == '?') return false;
+    for (const auto& f : lc.not_if_followed_by) {
+        if (code.compare(i + lc.marker.size(), f.size(), f) == 0) return false;
+    }
+    return true;
+}
+
 std::string stripComments(const std::string& code, const std::string& language) {
     const LanguageDescriptor* d = findLanguage(language);
     if (!d || (d->line_comments.empty() && d->block_comments.empty())) return code;
@@ -153,7 +168,7 @@ std::string stripComments(const std::string& code, const std::string& language) 
 
         // Line comments: the rest of the line becomes spaces.
         for (const auto& m : d->line_comments) {
-            if (code.compare(i, m.size(), m) != 0) continue;
+            if (!lineCommentBegins(code, i, m)) continue;
             while (i < code.size() && code[i] != '\n') {
                 result += ' ';
                 ++i;
@@ -179,7 +194,7 @@ std::string markCommentsForScan(const std::string& code, const std::string& lang
     const LanguageDescriptor* d = findLanguage(language);
     if (!d) return code;
     bool needed = false;
-    for (const auto& m : d->line_comments) needed = needed || !patternsReadOpener(m);
+    for (const auto& m : d->line_comments) needed = needed || !patternsReadOpener(m.marker);
     for (const auto& b : d->block_comments) needed = needed || !patternsReadOpener(b.open);
     if (!needed) return code;
 
@@ -217,14 +232,14 @@ std::string markCommentsForScan(const std::string& code, const std::string& lang
         }
         if (handled) continue;
         for (const auto& m : d->line_comments) {
-            if (code.compare(i, m.size(), m) != 0) continue;
-            if (patternsReadOpener(m)) {
-                result += m;
+            if (!lineCommentBegins(code, i, m)) continue;
+            if (patternsReadOpener(m.marker)) {
+                result += m.marker;
             } else {
                 result += '#';
-                result.append(m.size() - 1, ' ');
+                result.append(m.marker.size() - 1, ' ');
             }
-            i += m.size();
+            i += m.marker.size();
             while (i < code.size() && code[i] != '\n') result += code[i++];
             if (i < code.size()) result += '\n';
             handled = true;
