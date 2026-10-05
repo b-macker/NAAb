@@ -3049,16 +3049,28 @@ fi
 
 CANARY_SCRIPT="tests/self-audit/test_prescan_canaries.sh"
 if [ -f "$CANARY_SCRIPT" ]; then
-    # Canary test injects/reverts source files — skip when working tree is dirty
-    if git diff --quiet -- src/ include/ 2>/dev/null; then
+    # Canary test injects/reverts source files — skip when working tree is dirty.
+    #
+    # Split on the exit status: `git diff --quiet` exits 1 for "dirty", but any
+    # non-zero used to read as dirty, and git exits 127 when it is not installed.
+    # That is the MSYS2 shell on the Windows runner (setup-msys2's minimal PATH,
+    # no git package), so every Windows run printed "uncommitted changes" for a
+    # tree nobody had touched -- a broken probe rendering as a finding, the same
+    # shape test_coverage_visibility.sh CV-04 already guards. See
+    # docs/findings/build-windows-ci.md (item 1).
+    _canary_git_rc=0
+    git diff --quiet -- src/ include/ 2>/dev/null || _canary_git_rc=$?
+    if [ "$_canary_git_rc" -eq 0 ]; then
         if run_shell_test "$CANARY_SCRIPT" 2>&1; then
             echo "  test_prescan_canaries.sh: ALL PASSED"
         else
             FAILED=$((FAILED + 1))
             FAILED_TESTS+=("test_prescan_canaries.sh")
         fi
-    else
+    elif [ "$_canary_git_rc" -eq 1 ]; then
         echo "  test_prescan_canaries.sh: SKIPPED (uncommitted changes in src/include)"
+    else
+        echo "  test_prescan_canaries.sh: SKIPPED (git cannot answer here: exit $_canary_git_rc) -- UNMEASURABLE, not a pass"
     fi
 else
     echo "  test_prescan_canaries.sh: not found, skipping"
