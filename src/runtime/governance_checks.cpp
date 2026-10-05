@@ -6,6 +6,7 @@
 #include "naab/interpreter.h"
 #include "naab/vm.h"
 #include "naab/analyzer/task_pattern_detector.h"
+#include "naab/language_descriptors.h"
 #include "naab/analyzer/syntactic_analyzer.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -477,18 +478,11 @@ static std::string stripComments(const std::string& code) {
     return result;
 }
 
-// FIX 18: Normalize language aliases for consistent governance matching
+// FIX 18: Normalize language aliases for consistent governance matching.
+// The alias list lives in the language table (naab/language_descriptors.h);
+// this name is kept because governance_reports.cpp declares it.
 std::string normalizeLanguage(const std::string& language) {
-    if (language == "bash" || language == "sh") return "shell";
-    if (language == "golang") return "go";
-    if (language == "cs") return "csharp";
-    if (language == "ts") return "typescript";
-    if (language == "c++") return "cpp";
-    if (language == "rb") return "ruby";
-    if (language == "js") return "javascript";
-    if (language == "node") return "javascript";
-    if (language == "py") return "python";
-    return language;
+    return naab::lang::canonicalLanguage(language);
 }
 
 // Helper: regex search against a list of patterns
@@ -4700,87 +4694,12 @@ static const std::vector<std::pair<std::string, std::string>> CROSS_LANG_PATTERN
     {"//\\s+\\w", "// comments are JS/C++ — in Python, use #"},
 };
 
-// Strip comments from code based on language syntax.
-// Replaces comment content with spaces (preserving line structure for regex).
-// Must be called AFTER string stripping to avoid matching # or // inside strings.
+// Strip comments from code based on language syntax -- the comment forms come
+// from the language table (naab/language_descriptors.h), so every alias of a
+// language strips the same way. Must be called AFTER string stripping to avoid
+// matching # or // inside strings.
 static std::string stripComments(const std::string& code, const std::string& language) {
-    bool uses_hash = (language == "python" || language == "ruby" || language == "rb" ||
-                      language == "shell" || language == "bash" || language == "sh" ||
-                      language == "nim");
-    bool uses_slashslash = (language == "javascript" || language == "js" || language == "node" ||
-                            language == "go" || language == "golang" ||
-                            language == "cpp" || language == "c++" ||
-                            language == "rust" || language == "csharp" || language == "cs");
-    bool uses_block = (language == "javascript" || language == "js" || language == "node" ||
-                       language == "go" || language == "golang" ||
-                       language == "cpp" || language == "c++" ||
-                       language == "rust" || language == "csharp" || language == "cs");
-    // V-GOV-002: add -- line comment style for SQL, Lua, and similar languages.
-    // Without this, `-- DROP TABLE users` in a <<sql block is not stripped and the
-    // governance scanner sees "DROP TABLE users" as active code (false positive or bypass).
-    bool uses_dash_dash = (language == "sql" || language == "lua" ||
-                           language == "haskell" || language == "ada");
-
-    std::string result;
-    result.reserve(code.size());
-
-    for (size_t i = 0; i < code.size(); ++i) {
-        // Check for block comments /* ... */
-        if (uses_block && i + 1 < code.size() && code[i] == '/' && code[i + 1] == '*') {
-            // Replace with spaces until closing */
-            result += ' ';
-            result += ' ';
-            i += 2;
-            while (i < code.size()) {
-                if (i + 1 < code.size() && code[i] == '*' && code[i + 1] == '/') {
-                    result += ' ';
-                    result += ' ';
-                    i += 1; // outer loop does +1
-                    break;
-                }
-                result += (code[i] == '\n') ? '\n' : ' ';
-                ++i;
-            }
-            continue;
-        }
-
-        // Check for // line comments
-        if (uses_slashslash && i + 1 < code.size() && code[i] == '/' && code[i + 1] == '/') {
-            // Replace rest of line with spaces
-            while (i < code.size() && code[i] != '\n') {
-                result += ' ';
-                ++i;
-            }
-            if (i < code.size()) result += '\n'; // preserve the newline
-            continue;
-        }
-
-        // Check for # line comments
-        if (uses_hash && code[i] == '#') {
-            // Shell special case: #! (shebang) at very start is still a comment — strip it
-            // Python: # at line start or after whitespace/code is always a comment
-            // (strings already stripped, so no risk of matching # inside strings)
-            while (i < code.size() && code[i] != '\n') {
-                result += ' ';
-                ++i;
-            }
-            if (i < code.size()) result += '\n';
-            continue;
-        }
-
-        // V-GOV-002: -- line comment (SQL, Lua, Haskell, Ada)
-        if (uses_dash_dash && i + 1 < code.size() && code[i] == '-' && code[i+1] == '-') {
-            while (i < code.size() && code[i] != '\n') {
-                result += ' ';
-                ++i;
-            }
-            if (i < code.size()) result += '\n';
-            continue;
-        }
-
-        result += code[i];
-    }
-    return result;
+    return naab::lang::stripComments(code, language);
 }
 
 std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,

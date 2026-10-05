@@ -4263,7 +4263,6 @@
    "languages.allowed"
   ],
   "sqlite|block_html|keyword": [
-   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "sqlite|block_html|placeholder": [
@@ -4307,7 +4306,6 @@
    "languages.allowed"
   ],
   "sqlite|block_lua|keyword": [
-   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "sqlite|block_lua|placeholder": [
@@ -4373,7 +4371,6 @@
    "languages.allowed"
   ],
   "sqlite|line_dashes|keyword": [
-   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "sqlite|line_dashes|placeholder": [

@@ -392,6 +392,7 @@ add_library(naab_security
     src/runtime/governance_engine.cpp        # Governance engine core (init, enforce, recordPass)
     src/runtime/governance_config.cpp       # Governance config (loadFromJson, applyEnvironment)
     src/runtime/governance_checks.cpp       # Governance checks (checkFileAccess, etc.)
+    src/runtime/language_descriptors.cpp    # The one language table (aliases, comment syntax)
     src/runtime/score_accumulator.cpp      # ScoreAccumulator — script-facing scoring math
     src/runtime/agent_provider.cpp         # Shared LLM API calling layer (Gemini/Anthropic)
     src/runtime/finding_parser.cpp         # Shared FINDING/VERDICT line parser
