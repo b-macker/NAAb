@@ -3337,6 +3337,18 @@ public:
                                     const std::string& source_file,
                                     int line = 0);
 
+    // checkPolyglotBlock() for a caller that only CHECKS code text and will
+    // not run it on a registered executor (process.run inline code runs on the
+    // system binary; bolo scans, naab-gov and the C API run nothing). Every
+    // check runs except runtime_versions, which describes the executor that
+    // runs the block. Execution paths must use checkPolyglotBlock(), so a new
+    // one is pinned by default.
+    std::string checkPolyglotSource(const std::string& language,
+                                     const std::string& code,
+                                     const std::string& source_file,
+                                     int line = 0);
+    static thread_local bool t_text_only_check;
+
     // Overload with variable binding count for enforcement
     std::string checkPolyglotBlock(const std::string& language,
                                     const std::string& code,
@@ -3530,9 +3542,13 @@ public:
     // Feature 5: Environment selector
     void applyEnvironment(const std::string& env_name);
 
-    // Phase 8.4: Runtime version pinning
-    void checkRuntimeVersions(const std::string& language,
-                               const std::string& observed_version);
+    // Phase 8.4: Runtime version pinning. Called from checkPolyglotBlock()
+    // for every block about to run, on both engines and every entry point;
+    // returns the enforce() verdict ("" = pass or advisory). An observed
+    // version of "" means the executor reports none: that is reported at the
+    // pin's level as unverifiable, never treated as a pass.
+    std::string checkRuntimeVersions(const std::string& language,
+                                      const std::string& observed_version);
 
     // --- Advisory Output Control ---
     void emitAdvisory(const std::string& msg);

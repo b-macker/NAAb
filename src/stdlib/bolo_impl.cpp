@@ -182,7 +182,7 @@ interpreter::NaabVal BoloModule::call(
 
         ensureEngine();
         g_engine->resetCheckResults();
-        g_engine->checkPolyglotBlock(lang, code, "<bolo-scan>", 1);
+        g_engine->checkPolyglotSource(lang, code, "<bolo-scan>", 1);
 
         ArrayType results;
         for (const auto& r : g_engine->getCheckResults()) {

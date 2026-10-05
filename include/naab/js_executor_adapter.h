@@ -38,6 +38,8 @@ public:
 
     // Get language name
     std::string getLanguage() const override { return "javascript"; }
+    // runtime_versions pins: the QuickJS release linked in (in-process).
+    std::string getRuntimeVersion() const override;
 
     // Get captured output
     std::string getCapturedOutput() override;

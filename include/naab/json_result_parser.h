@@ -29,5 +29,12 @@ struct PolyglotOutput {
 // Phase 12: Parse polyglot stdout with sentinel detection and JSON scanning
 PolyglotOutput parsePolyglotOutput(const std::string& stdout_output, const std::string& return_type);
 
+// A shell block returns a ShellResult {exit_code, stdout, stderr} struct.
+// Unwrap it to stdout, or THROW when the command failed. ONE implementation
+// for both engines: this lived in the tree-walker alone (polyglot.cpp), so on
+// the VM -- the default engine -- a failing shell command left the struct as
+// the block's value and the program ran on under exit 0.
+void unwrapShellResult(interpreter::NaabVal& result);
+
 } // namespace runtime
 } // namespace naab

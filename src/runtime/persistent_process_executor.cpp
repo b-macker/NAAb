@@ -629,5 +629,9 @@ void PersistentProcessExecutor::setNonBlocking(int fd) {
 #endif
 }
 
+std::string PersistentProcessExecutor::getRuntimeVersion() const {
+    return probeRuntimeVersion(command_, {"--version"});
+}
+
 } // namespace runtime
 } // namespace naab

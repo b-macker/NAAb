@@ -417,6 +417,16 @@ run_test() {
             # expressions have no value channel without the embedded executor).
             MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
             echo "  XFAIL: $test_name (missing executor)"
+        elif [ -f "$output_file" ] && grep -qE "block failed(: | \(exit code 127\): )'[^']+' could not be run" "$output_file"; then
+            # A polyglot block whose runtime binary could not be STARTED (exit
+            # 127: not installed / not on PATH) -- the subprocess executors'
+            # environmental-absence message (GenericSubprocessExecutor: tsx,
+            # php, python3; CSharpExecutor: mcs, mono). Those blocks used to
+            # evaluate to null under exit 0, so tests using them "passed" with
+            # the language never run; failing loudly is the fix, and absence of
+            # the compiler is the same class as the Python case above.
+            MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
+            echo "  XFAIL: $test_name (missing executor: runtime not installed)"
         elif [ "${LIVE_AGENT_TESTS[$test_name]}" = "1" ] && [ -f "$output_file" ] && \
              grep -q "Agent error: API key not available" "$output_file"; then
             # Live-agent examples call agent.send() against a real provider and
@@ -3713,6 +3723,94 @@ if [ -f "$SKIPTALLY_SCRIPT" ]; then
     fi
 else
     echo "  test_skip_tally.sh: not found, skipping"
+fi
+
+NAABAPOS_SCRIPT="tests/governance_v4/test_naab_comment_apostrophe.sh"
+if [ -f "$NAABAPOS_SCRIPT" ]; then
+    # An apostrophe in a NAAb # comment must not open a "string" that hides
+    # code from checkNaabFunctionBody (it did: a TODO ran under a HARD config).
+    if run_shell_test "$NAABAPOS_SCRIPT" 2>&1; then
+        echo "  test_naab_comment_apostrophe.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_naab_comment_apostrophe.sh")
+    fi
+else
+    echo "  test_naab_comment_apostrophe.sh: not found, skipping"
+fi
+
+LANGALIAS_SCRIPT="tests/governance_v4/test_language_alias_config.sh"
+if [ -f "$LANGALIAS_SCRIPT" ]; then
+    # Every language name in govern.json (allowed/blocked, per_language,
+    # rule languages, codegen, pins) is canonicalised through the language
+    # table: blocked:["bash"] must block <<sh>>, with canonical controls.
+    if run_shell_test "$LANGALIAS_SCRIPT" 2>&1; then
+        echo "  test_language_alias_config.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_language_alias_config.sh")
+    fi
+else
+    echo "  test_language_alias_config.sh: not found, skipping"
+fi
+
+RTPIN_SCRIPT="tests/governance_v4/test_runtime_pin_engines.sh"
+if [ -f "$RTPIN_SCRIPT" ]; then
+    # runtime_versions pins hold on both engines and through codegen (the VM
+    # never consulted them), and an unverifiable version is not a pass.
+    if run_shell_test "$RTPIN_SCRIPT" 2>&1; then
+        echo "  test_runtime_pin_engines.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_runtime_pin_engines.sh")
+    fi
+else
+    echo "  test_runtime_pin_engines.sh: not found, skipping"
+fi
+
+BFP_SCRIPT="tests/robustness/test_block_failure_parity.sh"
+if [ -f "$BFP_SCRIPT" ]; then
+    # A failed polyglot block fails the program in every registered language,
+    # both engines and forms (typescript/php/cpp/csharp swallowed failures, the
+    # VM ignored failed shell commands, and php ran only with <?php written).
+    if run_shell_test "$BFP_SCRIPT" 2>&1; then
+        echo "  test_block_failure_parity.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_block_failure_parity.sh")
+    fi
+else
+    echo "  test_block_failure_parity.sh: not found, skipping"
+fi
+
+BWU_SCRIPT="tests/robustness/test_binding_use_warning.sh"
+if [ -f "$BWU_SCRIPT" ]; then
+    # "Bound variable is never used" must not fire for a binding read inside
+    # an interpolating string (shell "$x", python f"{x}", ruby "#{x}", php).
+    if run_shell_test "$BWU_SCRIPT" 2>&1; then
+        echo "  test_binding_use_warning.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_binding_use_warning.sh")
+    fi
+else
+    echo "  test_binding_use_warning.sh: not found, skipping"
+fi
+
+LANGCONFORM_SCRIPT="tests/self-audit/test_langconform.sh"
+if [ -f "$LANGCONFORM_SCRIPT" ]; then
+    # What governance sees per language (every comment and string form, every
+    # registered name) against a committed baseline. Consolidating per-language
+    # knowledge moves findings in both directions; this makes each move a
+    # reviewed baseline edit instead of a silent loosening.
+    if run_shell_test "$LANGCONFORM_SCRIPT" 2>&1; then
+        echo "  test_langconform.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_langconform.sh")
+    fi
+else
+    echo "  test_langconform.sh: not found, skipping"
 fi
 
 DEADGATE_SCRIPT="tests/self-audit/test_dead_interpreter_gate.sh"

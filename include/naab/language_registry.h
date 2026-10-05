@@ -63,6 +63,11 @@ public:
     // Check if a language is supported
     bool isSupported(const std::string& language) const;
 
+    // The version string the executor that would run `language` reports
+    // ("" when it reports none, or no executor is registered). Hands out no
+    // executor, so it needs no capability gate -- runtime pins ask this.
+    std::string runtimeVersion(const std::string& language) const;
+
     // Get list of supported languages
     std::vector<std::string> supportedLanguages() const;
 

@@ -92,7 +92,7 @@ interpreter::NaabVal CSharpExecutor::executeWithReturn(
     // V-RCE-010: mkdtemp for exclusive, unpredictable temp directory, removed on every exit
     ScopedTempDir compile_dir(std::filesystem::temp_directory_path(), "naab_cs_");
     if (!compile_dir.valid()) {
-        return interpreter::NaabVal::makeString("Error: Failed to create secure temp directory");
+        throw std::runtime_error("C# block failed: could not create a secure temp directory");
     }
     std::filesystem::path temp_cs = compile_dir.path() / "src.cs";
     std::filesystem::path temp_exe = compile_dir.path() / "bin.exe";
@@ -162,7 +162,7 @@ interpreter::NaabVal CSharpExecutor::executeWithReturn(
 
         std::ofstream ofs(temp_cs);
         if (!ofs.is_open()) {
-            return interpreter::NaabVal::makeNull();
+            throw std::runtime_error("C# block failed: could not write the temp source file");
         }
         ofs << csharp_code;
         ofs.close();
@@ -174,6 +174,10 @@ interpreter::NaabVal CSharpExecutor::executeWithReturn(
             compile_stdout, compile_stderr, nullptr
         );
 
+        if (compile_exit == 127) {
+            throw std::runtime_error("C# block failed: 'mcs' could not be run\n\n"
+                                     "  Help:\n  - Install mcs (Mono) and make sure it is on PATH\n");
+        }
         if (compile_exit != 0) {
             std::string error_msg = compile_stderr;
             throw std::runtime_error(
@@ -193,6 +197,16 @@ interpreter::NaabVal CSharpExecutor::executeWithReturn(
         if (!exec_stdout.empty()) stdout_buffer_.append(exec_stdout);
         if (!exec_stderr.empty()) stderr_buffer_.append(exec_stderr);
 
+        // The program's own failure fails the block (this was never checked).
+        if (exec_exit == 127) {
+            throw std::runtime_error("C# block failed: 'mono' could not be run\n\n"
+                                     "  Help:\n  - Install mono and make sure it is on PATH\n");
+        }
+        if (exec_exit != 0) {
+            throw std::runtime_error("C# program failed (exit code " + std::to_string(exec_exit) +
+                                     "):\n" + exec_stderr);
+        }
+
         // Trim trailing whitespace/newlines
         std::string result = exec_stdout;
         while (!result.empty() && (result.back() == '\n' || result.back() == '\r' || result.back() == ' ' || result.back() == '\t')) {
@@ -207,8 +221,11 @@ interpreter::NaabVal CSharpExecutor::executeWithReturn(
         // Polyglot output is always a string — no implicit type coercion
         return interpreter::NaabVal::makeString(result);
 
-    } catch (const std::exception& e) {
-        return interpreter::NaabVal::makeNull();
+    } catch (const std::exception&) {
+        // Rethrow: this used to return null for EVERY exception -- the
+        // compiler's own error, a timeout, and GovernanceHardError (which no
+        // catch site may swallow). A failed block now fails the program.
+        throw;
     }
 }
 
@@ -231,6 +248,10 @@ std::string CSharpExecutor::getCapturedOutput() {
         output += "\n[C# stderr]: " + errors;
     }
     return output;
+}
+
+std::string CSharpExecutor::getRuntimeVersion() const {
+    return probeRuntimeVersion("mcs", {"--version"});
 }
 
 } // namespace runtime

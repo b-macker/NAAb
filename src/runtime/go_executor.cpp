@@ -278,5 +278,9 @@ std::string GoExecutor::getCapturedOutput() {
     return output;
 }
 
+std::string GoExecutor::getRuntimeVersion() const {
+    return probeRuntimeVersion("go", {"version"});
+}
+
 } // namespace runtime
 } // namespace naab

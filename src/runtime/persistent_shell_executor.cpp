@@ -5,6 +5,7 @@
 #include "naab/interpreter.h"  // For Value, StructDef, StructValue
 #include "naab/ast.h"          // For ast::StructField, ast::Type
 #include <climits>
+#include <random>  // here-document terminator nonce
 #include <fmt/core.h>
 
 namespace naab {
@@ -29,8 +30,26 @@ std::string PersistentShellExecutor::getExitCommand() const {
 }
 
 std::string PersistentShellExecutor::wrapCodeForExecution(const std::string& code) const {
-    // Wrap user code: execute it, capture exit code, print sentinel
-    return code + "\n"
+    // The block reaches bash as ONE unit: read verbatim into a variable from a
+    // quoted here-document (builtin `read`, no expansion, no fork), then eval'd.
+    //
+    // It used to be written to bash's stdin raw, followed by the exit-code and
+    // sentinel lines. A block that is INCOMPLETE input -- an unclosed quote,
+    // `(`, `if ... then` -- made bash read those lines as part of the open
+    // construct, so the sentinel never came and the block waited out the
+    // executor's timeout (30 s, or --timeout) before failing. Under eval the
+    // same block fails at once ("unexpected end of file", exit 2) and the
+    // sentinel lines still run. eval runs in this shell, so variables and
+    // functions a block defines persist exactly as before.
+    //
+    // The terminator carries a random suffix per call, so a block cannot end
+    // the here-document by accident.
+    static thread_local std::mt19937_64 rng{std::random_device{}()};
+    const std::string eof = "__NAAB_CODE_EOF_" + std::to_string(rng()) + "__";
+    return "IFS= read -r -d '' __naab_code <<'" + eof + "'\n" +
+           code + "\n" +
+           eof + "\n"
+           "eval \"$__naab_code\"\n"
            "__naab_exit=$?\n"
            "echo \"__NAAB_EXIT__:${__naab_exit}\"\n"
            "echo '__NAAB_BLOCK_DONE__'\n";

@@ -68,6 +68,12 @@ Executor* LanguageRegistry::getExecutor(const std::string& language) {
     return it->second.get();
 }
 
+std::string LanguageRegistry::runtimeVersion(const std::string& language) const {
+    auto it = executors_.find(language);
+    if (it == executors_.end()) return "";
+    return it->second->getRuntimeVersion();
+}
+
 bool LanguageRegistry::isSupported(const std::string& language) const {
     return executors_.find(language) != executors_.end();
 }

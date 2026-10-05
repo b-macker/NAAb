@@ -2108,7 +2108,7 @@
     "tls_key": ""
   },
 
-  "_comment_runtime_versions": "Runtime version pinning — advisory/soft/hard when version doesn't match. Optional per-entry message: custom mismatch text (empty = auto-generated).",
+  "_comment_runtime_versions": "Runtime version pinning — advisory/soft/hard when version doesn't match, checked for every block that runs on either engine (and codegen). Each executor reports the version of what actually runs the block: embedded python and in-process javascript (QuickJS, a date such as 2021-03-27) and sql their linked library, every subprocess runtime its own binary's version line (node, ruby, bash, go, rustc, g++, php, tsx, nim, zig, julia, mcs). A version that cannot be read (toolchain absent, or the sandbox forbids starting processes) is reported at the pin's level as unverifiable, never a pass. The javascript 18 entry below is a Node version and does not match QuickJS -- pin node for Node.js. Optional per-entry message: custom mismatch text (empty = auto-generated).",
   "runtime_versions": [
     { "language": "python", "required": "3.10", "level": "advisory", "message": "" },
     { "language": "javascript", "required": "18", "level": "advisory" }

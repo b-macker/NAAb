@@ -4,6 +4,7 @@
 // static <<language ... >> blocks, with additional defenses for runtime-
 // generated code (taint, size limits, nesting, action matrix).
 
+#include "naab/language_descriptors.h"
 #include "naab/stdlib_new_modules.h"
 #include "naab/language_registry.h"
 #include "naab/governance.h"
@@ -48,16 +49,14 @@ CodegenStats getCodegenStats() {
 }
 
 // --- Normalize language name ---
+// The language table (naab/language_descriptors.h) is the one alias list. This
+// module used to keep its own, which chose "cs" as C#'s canonical name where
+// governance chose "csharp" -- so codegen.allowed_languages / blocked_languages
+// written with either spelling could miss. The RUNTIME name, because it picks
+// the executor as well as matching the lists: "node" must stay Node.js, not
+// become QuickJS "javascript".
 static std::string normalizeLanguage(const std::string& lang) {
-    std::string normalized = lang;
-    std::transform(normalized.begin(), normalized.end(), normalized.begin(), ::tolower);
-    if (normalized == "js") return "javascript";
-    if (normalized == "bash" || normalized == "sh") return "shell";
-    if (normalized == "c++" || normalized == "cxx") return "cpp";
-    if (normalized == "c#" || normalized == "csharp") return "cs";
-    if (normalized == "py") return "python";
-    if (normalized == "rb") return "ruby";
-    return normalized;
+    return naab::lang::runtimeLanguage(lang);
 }
 
 // --- Count lines in code string ---
@@ -319,9 +318,7 @@ interpreter::NaabVal CodegenModule::call(
         if (gov_engine && gov_engine->isActive()) {
             // Check codegen-specific language restrictions
             if (!codegen_cfg.allowed_languages.empty()) {
-                if (std::find(codegen_cfg.allowed_languages.begin(),
-                              codegen_cfg.allowed_languages.end(), language)
-                    == codegen_cfg.allowed_languages.end()) {
+                if (!naab::lang::languageListAdmits(codegen_cfg.allowed_languages, language)) {
                     throw std::runtime_error(
                         "Codegen error: language '" + language + "' is not allowed for dynamic code\n\n"
                         "  Allowed languages for codegen: " +
@@ -336,9 +333,7 @@ interpreter::NaabVal CodegenModule::call(
                 }
             }
             if (!codegen_cfg.blocked_languages.empty()) {
-                if (std::find(codegen_cfg.blocked_languages.begin(),
-                              codegen_cfg.blocked_languages.end(), language)
-                    != codegen_cfg.blocked_languages.end()) {
+                if (naab::lang::languageListBlocks(codegen_cfg.blocked_languages, language)) {
                     throw std::runtime_error(
                         "Codegen error: language '" + language + "' is blocked for dynamic code\n");
                 }

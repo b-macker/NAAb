@@ -3224,6 +3224,9 @@ interpreter::NaabVal VM::run() {
                         runtime::setPendingSqlBindings(std::move(sql_bindings));
                     }
                     interpreter::NaabVal result = executor->executeWithReturn(final_code);
+                    // ShellResult: unwrap to stdout, or throw on a failed command.
+                    // The VM never did -- only the tree-walker checked it.
+                    runtime::unwrapShellResult(result);
 
                     // Post-execution: parse JSON output for -> JSON blocks
                     // Strategy 1: Check captured output buffer

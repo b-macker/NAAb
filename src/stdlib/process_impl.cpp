@@ -143,7 +143,7 @@ interpreter::NaabVal ProcessModule::call(
             if (gov->isActive()) {
                 std::string lang, code;
                 if (inlineInterpreterCode(cmd, argv_vec, lang, code)) {
-                    std::string berr = gov->checkPolyglotBlock(
+                    std::string berr = gov->checkPolyglotSource(
                         lang, code, "<process.run:" + lang + ">", 0);
                     if (!berr.empty()) throw std::runtime_error(berr);
                 }

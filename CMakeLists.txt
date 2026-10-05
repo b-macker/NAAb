@@ -392,6 +392,7 @@ add_library(naab_security
     src/runtime/governance_engine.cpp        # Governance engine core (init, enforce, recordPass)
     src/runtime/governance_config.cpp       # Governance config (loadFromJson, applyEnvironment)
     src/runtime/governance_checks.cpp       # Governance checks (checkFileAccess, etc.)
+    src/runtime/language_descriptors.cpp    # The one language table (aliases, comment syntax)
     src/runtime/score_accumulator.cpp      # ScoreAccumulator — script-facing scoring math
     src/runtime/agent_provider.cpp         # Shared LLM API calling layer (Gemini/Anthropic)
     src/runtime/finding_parser.cpp         # Shared FINDING/VERDICT line parser
@@ -624,6 +625,9 @@ target_link_libraries(naab_runtime
 if(HAVE_QUICKJS)
     target_link_libraries(naab_runtime quickjs)
     target_compile_definitions(naab_runtime PRIVATE HAVE_QUICKJS=1)
+    # runtime_versions pins: the vendored QuickJS release, from its directory name.
+    string(REGEX MATCH "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]" NAAB_QUICKJS_VERSION "${QUICKJS_DIR}")
+    target_compile_definitions(naab_runtime PRIVATE NAAB_QUICKJS_VERSION="${NAAB_QUICKJS_VERSION}")
 endif()
 if(WIN32)
     target_link_libraries(naab_runtime ws2_32 shell32)
