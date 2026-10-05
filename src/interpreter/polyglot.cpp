@@ -642,15 +642,24 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
 
         // FIX-DX-5 (FIX 19b): Warn about bound variables not used in polyglot code
+        //
+        // Searched in the code AS WRITTEN, not code_stripped. Stripping strings
+        // is right for the check above (a name inside a string is not a use of
+        // an unbound NAAb variable) and wrong here: most languages reference a
+        // bound value INSIDE a string -- shell "$x", Python f"{x}", Ruby
+        // "#{x}", PHP "$x" -- so every such block was told its binding was
+        // never used while it read the value. Searching the raw text can only
+        // miss a hint (a name that appears solely in a plain string or a
+        // comment), never invent one.
         for (const auto& bv : bound_vars) {
             bool found = false;
-            size_t bpos = code_stripped.find(bv);
+            size_t bpos = code.find(bv);
             while (bpos != std::string::npos) {
-                bool ws = (bpos == 0 || (!std::isalnum(code_stripped[bpos - 1]) && code_stripped[bpos - 1] != '_'));
-                bool we = (bpos + bv.size() >= code_stripped.size() ||
-                           (!std::isalnum(code_stripped[bpos + bv.size()]) && code_stripped[bpos + bv.size()] != '_'));
+                bool ws = (bpos == 0 || (!std::isalnum(static_cast<unsigned char>(code[bpos - 1])) && code[bpos - 1] != '_'));
+                bool we = (bpos + bv.size() >= code.size() ||
+                           (!std::isalnum(static_cast<unsigned char>(code[bpos + bv.size()])) && code[bpos + bv.size()] != '_'));
                 if (ws && we) { found = true; break; }
-                bpos = code_stripped.find(bv, bpos + 1);
+                bpos = code.find(bv, bpos + 1);
             }
             if (!found) {
                 fmt::print(stderr, "[WARN] Bound variable '{}' is never used in <<{}>> block at {}:{}.\n",

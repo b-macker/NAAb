@@ -3783,6 +3783,20 @@ else
     echo "  test_block_failure_parity.sh: not found, skipping"
 fi
 
+BWU_SCRIPT="tests/robustness/test_binding_use_warning.sh"
+if [ -f "$BWU_SCRIPT" ]; then
+    # "Bound variable is never used" must not fire for a binding read inside
+    # an interpolating string (shell "$x", python f"{x}", ruby "#{x}", php).
+    if run_shell_test "$BWU_SCRIPT" 2>&1; then
+        echo "  test_binding_use_warning.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_binding_use_warning.sh")
+    fi
+else
+    echo "  test_binding_use_warning.sh: not found, skipping"
+fi
+
 LANGCONFORM_SCRIPT="tests/self-audit/test_langconform.sh"
 if [ -f "$LANGCONFORM_SCRIPT" ]; then
     # What governance sees per language (every comment and string form, every
