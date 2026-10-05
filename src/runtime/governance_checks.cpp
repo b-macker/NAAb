@@ -4467,7 +4467,12 @@ std::string GovernanceEngine::checkNaabFunctionBody(
 
     // EVA-10: Pre-strip strings to prevent false positives from string literals
     // e.g. a legitimate string "TODO" shouldn't trigger checkPlaceholders
-    std::string stripped = stripStringLiterals(source_code);
+    // NAAb's own comment forms (#, //, /* */) from the language table. Without
+    // them only // and /* */ were known, so an apostrophe in a # comment
+    // ("# don't") opened a string that hid the code after it -- a TODO between
+    // "# don't" and "# it's" ran under a HARD no_placeholders config
+    // (tests/governance_v4/test_naab_comment_apostrophe.sh).
+    std::string stripped = stripStringLiterals(source_code, naab::lang::findLanguage("naab"));
 
     // Run applicable checks on the stripped source code
     std::string err;

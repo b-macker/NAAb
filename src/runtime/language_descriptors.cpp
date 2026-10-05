@@ -62,6 +62,14 @@ std::vector<LanguageDescriptor> buildTable() {
          ".zig",  "",        {{"zig", "ast-check", "{file}"}}},
         {"sql",        {"sqlite"},          {"--"},            {kCBlock},                 false,
          ".sql",  "",        {{"python3", "-c", kPySqlite, "{file}"}}},
+        // NAAb itself: the host language, not a polyglot block, so it is
+        // governance-only here. Its text-level checks (checkNaabFunctionBody)
+        // read this entry; its parse-tree checks (taint, contracts, function
+        // capabilities) never read the table at all. Comment forms are the
+        // lexer's (Lexer::skipComment): #, // and /* */. naab-lang is its own
+        // judge in langconform verify.
+        {"naab",       {},                  {"#", "//"},       {kCBlock},                 true,
+         ".naab", "",        {{"naab-lang", "{file}", "--no-governance"}}},
         // Known to governance (naab-gov check, the C API) with no executor.
         {"lua",        {},                  {"--"},            {{"--[[", "]]", false}},   true,
          ".lua",  "",        {{"luac", "-p", "{file}"}}},

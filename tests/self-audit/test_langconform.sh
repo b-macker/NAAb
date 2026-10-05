@@ -200,7 +200,7 @@ case "$c8" in
 esac
 
 # --- LC-09..12: verify against the real toolchains ---
-v9="$(python3 "$TOOL" verify --gov build/naab-gov 2>&1)"; v9rc=$?
+v9="$(python3 "$TOOL" verify --gov build/naab-gov --naab build/naab-lang 2>&1)"; v9rc=$?
 measured=$(printf '%s' "$v9" | tr -d '\r' | sed -n 's/^langconform verify: \([0-9]*\) of.*/\1/p')
 if [ "${measured:-0}" -eq 0 ]; then
     skip LC-09 "no language toolchain installed -- the table's facts are UNMEASURABLE here"
@@ -236,21 +236,21 @@ for d in t:
         d["block_comments"].append({"open": "%{", "close": "%}", "line_start_only": False})
 save(t, 4)
 PY
-    v10="$(python3 "$TOOL" verify --gov build/naab-gov --table "$W/v_wrong.json" 2>&1)"; v10rc=$?
+    v10="$(python3 "$TOOL" verify --gov build/naab-gov --naab build/naab-lang --table "$W/v_wrong.json" 2>&1)"; v10rc=$?
     case "$v10" in
       *"WRONG: line -- is declared, but python3 rejects it"*)
           [ $v10rc -ne 0 ] && ok LC-10 "a planted wrong fact is caught by the real parser (exit $v10rc)" \
                            || bad LC-10 "caught, but exit 0" "$v10" ;;
       *) bad LC-10 "a planted wrong fact was not caught" "$v10" ;;
     esac
-    v11="$(python3 "$TOOL" verify --gov build/naab-gov --table "$W/v_missing.json" 2>&1)"
+    v11="$(python3 "$TOOL" verify --gov build/naab-gov --naab build/naab-lang --table "$W/v_missing.json" 2>&1)"
     case "$v11" in
       *"proposed: line # (accepted by python3, not declared)"*)
           ok LC-11 "a removed real fact is rediscovered from the parser" ;;
       *) bad LC-11 "a removed real fact was not rediscovered" "$v11" ;;
     esac
     if command -v ruby >/dev/null 2>&1; then
-        v12="$(python3 "$TOOL" verify --gov build/naab-gov --table "$W/v_string.json" 2>&1)"
+        v12="$(python3 "$TOOL" verify --gov build/naab-gov --naab build/naab-lang --table "$W/v_string.json" 2>&1)"
         case "$v12" in
           *"WRONG: block %{ %} is declared, but ruby rejects it"*)
               ok LC-12 "a string literal posing as a comment is rejected" ;;

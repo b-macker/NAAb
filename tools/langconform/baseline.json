@@ -8280,6 +8280,31 @@
    "aliases": [],
    "block_comments": [
     {
+     "close": "*/",
+     "line_start_only": false,
+     "open": "/*"
+    }
+   ],
+   "canonical": "naab",
+   "extension": ".naab",
+   "governance_only": true,
+   "line_comments": [
+    "#",
+    "//"
+   ],
+   "prelude": "",
+   "syntax_checks": [
+    [
+     "naab-lang",
+     "{file}",
+     "--no-governance"
+    ]
+   ]
+  },
+  {
+   "aliases": [],
+   "block_comments": [
+    {
      "close": "]]",
      "line_start_only": false,
      "open": "--[["

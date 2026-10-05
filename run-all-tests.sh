@@ -3715,6 +3715,20 @@ else
     echo "  test_skip_tally.sh: not found, skipping"
 fi
 
+NAABAPOS_SCRIPT="tests/governance_v4/test_naab_comment_apostrophe.sh"
+if [ -f "$NAABAPOS_SCRIPT" ]; then
+    # An apostrophe in a NAAb # comment must not open a "string" that hides
+    # code from checkNaabFunctionBody (it did: a TODO ran under a HARD config).
+    if run_shell_test "$NAABAPOS_SCRIPT" 2>&1; then
+        echo "  test_naab_comment_apostrophe.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_naab_comment_apostrophe.sh")
+    fi
+else
+    echo "  test_naab_comment_apostrophe.sh: not found, skipping"
+fi
+
 LANGCONFORM_SCRIPT="tests/self-audit/test_langconform.sh"
 if [ -f "$LANGCONFORM_SCRIPT" ]; then
     # What governance sees per language (every comment and string form, every

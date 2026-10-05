@@ -361,8 +361,15 @@ BLOCK_CANDIDATES = [("/*", "*/"), ("--[[", "]]"), ("#=", "=#"), ("{-", "-}"),
                     ("%{", "%}"), ("#|", "|#")]
 
 
+# The NAAb binary under test, when given: NAAb's own entry names naab-lang as
+# its judge, which is not normally on PATH.
+NAAB_BIN = None
+
+
 def pick_check(entry):
     for argv in entry.get("syntax_checks", []):
+        if argv and argv[0] == "naab-lang" and NAAB_BIN:
+            return [NAAB_BIN] + argv[1:]
         if argv and shutil.which(argv[0]):
             return argv
     return None
@@ -440,6 +447,8 @@ def cmd_verify(a):
     from the checks that read comments; it becomes a table edit only after
     review, and the conformance baseline shows its effect.
     UNMEASURABLE: the toolchain is not installed, or its controls failed."""
+    global NAAB_BIN
+    NAAB_BIN = a.naab
     if a.table:
         with open(a.table, "r", encoding="utf-8", errors="strict") as f:
             table = json.load(f)
@@ -481,6 +490,7 @@ def main(argv):
     s.add_argument("--table", help="a planted language table instead of the binary's (test controls)")
     s = sub.add_parser("verify")
     s.add_argument("--gov", required=True)
+    s.add_argument("--naab", help="naab-lang, the judge for NAAb's own entry")
     s.add_argument("--jobs", type=int, default=os.cpu_count() or 2)
     s.add_argument("--table", help="a planted language table instead of the binary's (test controls)")
     a = ap.parse_args(argv)
