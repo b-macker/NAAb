@@ -8,11 +8,12 @@
 # is off", so each arm here plants known output and checks the count.
 #
 #   ST-01  colour-coded, plain, CRLF-terminated and each marker word are
-#          counted; lowercase prose, SKIPPING and NOSKIP are not
+#          counted; lowercase prose, SKIPPING, NOSKIP and zero counters
+#          ("SKIP: 0", "XFAIL=0") are not
 #   ST-02  a suite with no skips is not listed but is counted as a suite
 #   ST-03  the TSV holds one sorted suite<TAB>line row per skip, with no CR
-#   ST-04  agrees with tools/testrunner/parallel.py's SKIP_RE on which lines
-#          carry a marker (UNMEASURABLE without python3)
+#   ST-04  agrees with tools/testrunner/parallel.py's count_skip_markers()
+#          (the dead gate's rule) on which lines carry a marker (UNMEASURABLE without python3)
 #   ST-05  a missing capture dir is reported UNMEASURABLE, not "0 skips"
 #   ST-06  an empty capture dir is reported UNMEASURABLE, not "0 skips"
 #   ST-07  it never fails: an unwritable TSV path still returns 0 under set -e
@@ -35,7 +36,7 @@ mkdir -p "$W/caps"
 
 echo "=== the skip tally counts what the suites said ==="
 
-# Five lines carry a marker; four look similar and must not count.
+# Five lines carry a marker; six look similar and must not count.
 printf '%b' \
   '  \033[1;33mSKIP\033[0m [X-01] coloured marker\n' \
   '  SKIP [X-02] plain marker\n' \
@@ -45,14 +46,16 @@ printf '%b' \
   'Results: 3 passed, 0 failed, 2 skipped\n' \
   'SKIPPING ahead to the next group\n' \
   'NOSKIP mode\n' \
-  '  PASS [X-05] skip logic works\n' > "$W/caps/alpha.log"
+  '  PASS [X-05] skip logic works\n' \
+  'PASS: 4  FAIL: 0  SKIP: 0  TOTAL: 4\n' \
+  'Results: 2 passed, XFAIL=0\n' > "$W/caps/alpha.log"
 printf '  PASS [Y-01] clean\nResults: 1 passed, 0 failed\n' > "$W/caps/bravo.log"
 
 out="$(skip_tally "$W/caps" "$W/out/skips.tsv")"
 
 # --- ST-01 ---
 case "$out" in
-  *"5 skipped/unmeasurable arm(s) in 1 of 2 suite(s)"*) ok ST-01 "5 marker lines counted, 4 look-alikes ignored" ;;
+  *"5 skipped/unmeasurable arm(s) in 1 of 2 suite(s)"*) ok ST-01 "5 marker lines counted, 6 look-alikes ignored" ;;
   *) bad ST-01 "wrong count" "$out" ;;
 esac
 
@@ -80,14 +83,14 @@ if command -v python3 >/dev/null 2>&1; then
 import sys, parallel
 n = 0
 for raw in sys.stdin.buffer.read().split(b"\n"):
-    if parallel.SKIP_RE.search(parallel.ANSI_RE.sub(b"", raw)):
+    if parallel.count_skip_markers(raw):
         n += 1
 sys.stdout.buffer.write(str(n).encode("ascii"))
 ' < "$W/caps/alpha.log" 2>&1)"
     if [ "$py" = "5" ]; then
-        ok ST-04 "parallel.py's SKIP_RE marks the same 5 lines"
+        ok ST-04 "parallel.py's count_skip_markers() marks the same 5 lines"
     else
-        bad ST-04 "parallel.py's SKIP_RE disagrees: $py lines" "$py"
+        bad ST-04 "parallel.py's count_skip_markers() disagrees: $py lines" "$py"
     fi
 else
     skip ST-04 "python3 unavailable -- agreement with parallel.py UNMEASURABLE"
@@ -95,11 +98,11 @@ fi
 
 # --- ST-05 / ST-06 ---
 o5="$(skip_tally "$W/no-such-dir")"; r5=$?
-case "$o5" in *UNMEASURABLE*) [ $r5 -eq 0 ] && ok ST-05 "missing dir: UNMEASURABLE, rc 0" || bad ST-05 "rc $r5" ;;
+case "$o5" in *UNMEASURABLE*) [ $r5 -eq 0 ] && ok ST-05 "missing dir: reported unmeasurable, rc 0" || bad ST-05 "rc $r5" ;;
   *) bad ST-05 "missing dir reported as a count" "$o5" ;; esac
 mkdir -p "$W/empty"
 o6="$(skip_tally "$W/empty")"
-case "$o6" in *UNMEASURABLE*) ok ST-06 "empty dir: UNMEASURABLE" ;;
+case "$o6" in *UNMEASURABLE*) ok ST-06 "empty dir: reported unmeasurable" ;;
   *) bad ST-06 "empty dir reported as a count" "$o6" ;; esac
 
 # --- ST-07 ---

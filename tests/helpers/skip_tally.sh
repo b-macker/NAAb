@@ -16,7 +16,8 @@
 # WHAT COUNTS. One LINE per marker-bearing line, after colour codes are
 # stripped. The marker set and word boundaries are the ones
 # tools/testrunner/parallel.py counts (SKIP_RE: SKIP|SKIPPED|UNMEASURABLE|XFAIL
-# as whole words, case-sensitive), so "skipping" in prose and SKIPPING are not
+# as whole words, case-sensitive, and ZERO_COUNT_RE: a counter reading zero,
+# "SKIP: 0", is not a skip), so "skipping" in prose and SKIPPING are not
 # counted. parallel.py counts OCCURRENCES and this counts LINES (a line saying
 # "SKIP ... UNMEASURABLE" is one arm here, two markers there);
 # tests/self-audit/test_skip_tally.sh checks the two agree on which lines
@@ -37,6 +38,8 @@ skip_tally_lines() {
     awk '{
         gsub(/\033\[[0-9;]*[A-Za-z]/, "")
         gsub(/\r/, "")
+        # A zero counter ("FAIL: 0  SKIP: 0") names the marker, skips nothing.
+        if ($0 ~ /(SKIP|SKIPPED|UNMEASURABLE|XFAIL)[^A-Za-z0-9_]?[^A-Za-z0-9_]?[^A-Za-z0-9_]?[:=] *0([^0-9]|$)/) next
         if ($0 ~ /(^|[^A-Za-z0-9_])(SKIP|SKIPPED|UNMEASURABLE|XFAIL)([^A-Za-z0-9_]|$)/) {
             sub(/^[ \t]+/, "")
             print substr($0, 1, 200)
