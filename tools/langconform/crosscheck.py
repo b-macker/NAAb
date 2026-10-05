@@ -39,6 +39,8 @@ import os
 import subprocess
 import sys
 import tempfile
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from langconform import config_path  # noqa: E402  (--config, never --config-string: see there)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = os.path.join(HERE, "config.json")
@@ -124,7 +126,7 @@ def scanner_rules(gov, lang, ext, code):
 
 
 def checker_rules(gov, cfg, lang, code):
-    p = subprocess.run([gov, "check", "--language", lang, "--config-string", cfg],
+    p = subprocess.run([gov, "check", "--language", lang, "--config", config_path(cfg)],
                        input=(code + "\n").encode("utf-8"), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
         doc = json.loads(p.stdout.decode("utf-8", "replace"))

@@ -35,6 +35,12 @@
 #          toolchain is absent report UNMEASURABLE; at least one must measure)
 #   LC-10  CONTROL: a planted wrong fact (Python "--" comments) is WRONG, exit 1
 #   LC-11  CONTROL: a removed real fact (Python "#") is rediscovered as proposed
+#   LC-13  every probe's command line fits Windows' 32,767-character limit:
+#          conform runs against a shim naab-gov that refuses a longer one.
+#          The config used to go inline (--config-string, ~93 KB), so on
+#          build-windows CreateProcess refused every probe before naab-gov
+#          started. LC-13c is the control: the shim refuses the old inline
+#          form. Skipped on Windows, where the real limit applies to LC-01.
 #   LC-12  CONTROL: a string literal posing as a comment (Ruby %{ %}) is WRONG --
 #          the verifier cannot be fooled by a form that only starts a string
 #
@@ -260,6 +266,38 @@ PY
         skip LC-12 "ruby not installed -- the string-literal control is UNMEASURABLE"
     fi
 fi
+
+# --- LC-13: command lines fit Windows' limit ---
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) skip LC-13 "Windows: the real limit applies, measured by LC-01" ;;
+    *)
+        REAL_GOV="$(pwd)/build/naab-gov"
+        cat > "$W/gov-shim" <<'SHIM'
+#!/usr/bin/env bash
+n=0; for a in "$0" "$@"; do n=$((n + ${#a} + 1)); done
+echo call >> "$SHIM_CALLS"
+if [ "$n" -gt 32767 ]; then echo "shim: command line is $n characters (> 32767)" >&2; exit 99; fi
+exec "$REAL_GOV" "$@"
+SHIM
+        chmod +x "$W/gov-shim"
+        export REAL_GOV SHIM_CALLS="$(pwd)/$W/shim-calls"
+        : > "$SHIM_CALLS"
+        big="$(cat tools/langconform/config.json)"
+        printf 'x = 1\n' | "$W/gov-shim" check --language python --config-string "$big" >/dev/null 2>&1; c13=$?
+        if [ "$c13" -eq 99 ]; then
+            ok LC-13c "the shim refuses the old inline config (${#big} characters)"
+            : > "$SHIM_CALLS"
+            o13="$(python3 "$TOOL" conform --gov "$W/gov-shim" --naab build/naab-lang 2>&1)"; r13=$?
+            calls=$(grep -c . "$SHIM_CALLS")
+            if [ "$r13" -eq 0 ] && [ "$calls" -gt 0 ]; then
+                ok LC-13 "$calls probe(s), every command line within 32,767 characters"
+            else
+                bad LC-13 "a probe's command line exceeds Windows' limit, or conform failed (rc=$r13, $calls call(s))" "$o13"
+            fi
+        else
+            bad LC-13c "the shim did not refuse a ${#big}-character command line (exit $c13) -- LC-13 would prove nothing"
+        fi ;;
+esac
 
 # Report only: alias groups that disagree today (sql/sqlite until the language table).
 echo "  info: $(python3 "$TOOL" groups tools/langconform/baseline.json 2>&1 | tail -1)"

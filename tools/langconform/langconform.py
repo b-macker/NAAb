@@ -40,6 +40,7 @@ CHANNEL is part of the instrument").
 """
 
 import argparse
+import atexit
 import concurrent.futures
 import hashlib
 import json
@@ -48,6 +49,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = os.path.join(HERE, "config.json")
@@ -152,14 +154,53 @@ def load_config():
     return json.dumps(cfg, sort_keys=True), hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
+_CONFIG_FILES = {}
+_CONFIG_LOCK = threading.Lock()
+
+
+def config_path(cfg):
+    """The config text `cfg` as a file naab-gov can read with --config.
+
+    Never --config-string: the config is ~93 KB and Windows caps a command
+    line at 32,767 characters, so CreateProcess refused every probe on the
+    build-windows runner before naab-gov started. One file per distinct
+    config, written once (probes run on a thread pool), removed at exit.
+    The path is made by this (native) Python and read by a native binary, so
+    no MSYS path crosses between them.
+
+    `extends` is dropped: the inline loader (loadFromString) never resolves
+    it, and every committed measurement was taken that way, while a FILE's
+    `extends` is resolved next to the file -- here a temp directory with no
+    parent config, so naab-gov refused to load (exit 4). Dropping it keeps
+    the file meaning exactly what the string meant; LC-02 (the snapshot
+    equals the committed baseline) is the check that it does."""
+    with _CONFIG_LOCK:
+        path = _CONFIG_FILES.get(cfg)
+        if path is None:
+            doc = json.loads(cfg)
+            if isinstance(doc, dict):
+                doc.pop("extends", None)
+            fd, path = tempfile.mkstemp(prefix="langconform-", suffix=".json")
+            with os.fdopen(fd, "wb") as f:
+                f.write(json.dumps(doc, sort_keys=True).encode("utf-8"))
+            _CONFIG_FILES[cfg] = path
+            atexit.register(lambda p=path: os.path.exists(p) and os.remove(p))
+        return path
+
+
 def probe(gov, cfg, lang, code):
-    p = subprocess.run([gov, "check", "--language", lang, "--config-string", cfg],
+    p = subprocess.run([gov, "check", "--language", lang, "--config", config_path(cfg)],
                        input=code.encode("utf-8"), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
         doc = json.loads(p.stdout.decode("utf-8", "replace"))
     except ValueError:
         return None, "rc=%d, not JSON: %s" % (p.returncode, p.stdout[:200] + p.stderr[-200:])
-    return sorted({v["rule"] for v in doc.get("violations", [])}), None
+    # contradiction.* findings judge the CONFIG (two keys that disagree), not
+    # the code, so they fire identically in every cell. The file loader runs
+    # that detection and the inline loader did not; the matrix records what
+    # each language's checks see, so they are left out here.
+    return sorted({v["rule"] for v in doc.get("violations", [])
+                   if not v["rule"].startswith("contradiction.")}), None
 
 
 def cmd_languages(a):
@@ -235,16 +276,25 @@ def cmd_diff(a):
     return 1 if (lost or gained or len(out) > 1) else 0
 
 
+LIST_RULES = {"languages.allowed", "languages.blocked"}
+
+
 def cmd_groups(a):
     S = load_snap(a.f)
     out, bad = [], 0
     for d in S["table"]:
         present = [n for n in [d["canonical"]] + d["aliases"] if n in S["languages"]]
+        # A runtime variant (node) is the same language but its own executor:
+        # its content findings must agree with the group, while the
+        # allow/block-list verdict is about the runtime and may differ.
+        variants = set(d.get("runtime_variants", []))
         if len(present) < 2:
             continue
         for pos in S["positions"]:
             for pay in S["payloads"]:
-                rows = {g: tuple(S["cells"].get("%s|%s|%s" % (g, pos, pay), [])) for g in present}
+                rows = {g: tuple(r for r in S["cells"].get("%s|%s|%s" % (g, pos, pay), [])
+                                 if g not in variants or r not in LIST_RULES)
+                        for g in present}
                 if len(set(rows.values())) > 1:
                     bad += 1
                     out.append("  %s %s|%s: %s\n" % ("/".join(present), pos, pay,
