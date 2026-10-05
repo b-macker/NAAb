@@ -7,27 +7,30 @@
   "bash|between_apos_dashes|placeholder": [],
   "bash|between_apos_dashes|system": [],
   "bash|between_apos_dashes|temporary": [],
-  "bash|between_apos_hash|eval": [],
-  "bash|between_apos_hash|import": [],
-  "bash|between_apos_hash|keyword": [],
-  "bash|between_apos_hash|oversimplified": [],
-  "bash|between_apos_hash|placeholder": [],
-  "bash|between_apos_hash|system": [],
-  "bash|between_apos_hash|temporary": [],
-  "bash|between_apos_slashes|eval": [
+  "bash|between_apos_hash|eval": [
    "restrictions.code_injection"
   ],
-  "bash|between_apos_slashes|import": [
-   "capabilities.shell.blocked_commands"
+  "bash|between_apos_hash|import": [
+   "capabilities.shell.blocked_commands",
+   "code_quality.no_hallucinated_apis"
   ],
-  "bash|between_apos_slashes|keyword": [],
-  "bash|between_apos_slashes|oversimplified": [],
-  "bash|between_apos_slashes|placeholder": [
+  "bash|between_apos_hash|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "bash|between_apos_hash|oversimplified": [],
+  "bash|between_apos_hash|placeholder": [
    "code_quality.no_placeholders"
   ],
-  "bash|between_apos_slashes|system": [
+  "bash|between_apos_hash|system": [
    "restrictions.code_injection"
   ],
+  "bash|between_apos_hash|temporary": [],
+  "bash|between_apos_slashes|eval": [],
+  "bash|between_apos_slashes|import": [],
+  "bash|between_apos_slashes|keyword": [],
+  "bash|between_apos_slashes|oversimplified": [],
+  "bash|between_apos_slashes|placeholder": [],
+  "bash|between_apos_slashes|system": [],
   "bash|between_apos_slashes|temporary": [],
   "bash|block_c|eval": [
    "restrictions.code_injection"
@@ -342,6 +345,7 @@
    "languages.allowed"
   ],
   "cpp|between_apos_slashes|keyword": [
+   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "cpp|between_apos_slashes|oversimplified": [
@@ -836,6 +840,7 @@
    "languages.allowed"
   ],
   "csharp|between_apos_slashes|keyword": [
+   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "csharp|between_apos_slashes|oversimplified": [
@@ -1287,6 +1292,7 @@
    "languages.allowed"
   ],
   "cs|between_apos_slashes|keyword": [
+   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "cs|between_apos_slashes|oversimplified": [
@@ -1706,7 +1712,9 @@
    "restrictions.code_injection"
   ],
   "golang|between_apos_slashes|import": [],
-  "golang|between_apos_slashes|keyword": [],
+  "golang|between_apos_slashes|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
   "golang|between_apos_slashes|oversimplified": [],
   "golang|between_apos_slashes|placeholder": [
    "code_quality.no_placeholders"
@@ -1934,7 +1942,9 @@
    "restrictions.code_injection"
   ],
   "go|between_apos_slashes|import": [],
-  "go|between_apos_slashes|keyword": [],
+  "go|between_apos_slashes|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
   "go|between_apos_slashes|oversimplified": [],
   "go|between_apos_slashes|placeholder": [
    "code_quality.no_placeholders"
@@ -2181,7 +2191,9 @@
    "restrictions.dangerous_calls"
   ],
   "javascript|between_apos_slashes|import": [],
-  "javascript|between_apos_slashes|keyword": [],
+  "javascript|between_apos_slashes|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
   "javascript|between_apos_slashes|oversimplified": [],
   "javascript|between_apos_slashes|placeholder": [
    "code_quality.no_placeholders"
@@ -2453,29 +2465,32 @@
    "languages.allowed"
   ],
   "julia|between_apos_hash|eval": [
-   "languages.allowed"
+   "languages.allowed",
+   "restrictions.code_injection"
   ],
   "julia|between_apos_hash|import": [
    "languages.allowed"
   ],
   "julia|between_apos_hash|keyword": [
+   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "julia|between_apos_hash|oversimplified": [
    "languages.allowed"
   ],
   "julia|between_apos_hash|placeholder": [
+   "code_quality.no_placeholders",
    "languages.allowed"
   ],
   "julia|between_apos_hash|system": [
-   "languages.allowed"
+   "languages.allowed",
+   "restrictions.code_injection"
   ],
   "julia|between_apos_hash|temporary": [
    "languages.allowed"
   ],
   "julia|between_apos_slashes|eval": [
-   "languages.allowed",
-   "restrictions.code_injection"
+   "languages.allowed"
   ],
   "julia|between_apos_slashes|import": [
    "languages.allowed"
@@ -2487,12 +2502,10 @@
    "languages.allowed"
   ],
   "julia|between_apos_slashes|placeholder": [
-   "code_quality.no_placeholders",
    "languages.allowed"
   ],
   "julia|between_apos_slashes|system": [
-   "languages.allowed",
-   "restrictions.code_injection"
+   "languages.allowed"
   ],
   "julia|between_apos_slashes|temporary": [
    "languages.allowed"
@@ -2905,22 +2918,24 @@
   "nim|between_apos_dashes|placeholder": [],
   "nim|between_apos_dashes|system": [],
   "nim|between_apos_dashes|temporary": [],
-  "nim|between_apos_hash|eval": [],
-  "nim|between_apos_hash|import": [],
-  "nim|between_apos_hash|keyword": [],
-  "nim|between_apos_hash|oversimplified": [],
-  "nim|between_apos_hash|placeholder": [],
-  "nim|between_apos_hash|system": [],
-  "nim|between_apos_hash|temporary": [],
-  "nim|between_apos_slashes|eval": [
+  "nim|between_apos_hash|eval": [
    "restrictions.code_injection"
   ],
+  "nim|between_apos_hash|import": [],
+  "nim|between_apos_hash|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "nim|between_apos_hash|oversimplified": [],
+  "nim|between_apos_hash|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "nim|between_apos_hash|system": [],
+  "nim|between_apos_hash|temporary": [],
+  "nim|between_apos_slashes|eval": [],
   "nim|between_apos_slashes|import": [],
   "nim|between_apos_slashes|keyword": [],
   "nim|between_apos_slashes|oversimplified": [],
-  "nim|between_apos_slashes|placeholder": [
-   "code_quality.no_placeholders"
-  ],
+  "nim|between_apos_slashes|placeholder": [],
   "nim|between_apos_slashes|system": [],
   "nim|between_apos_slashes|temporary": [],
   "nim|block_c|eval": [
@@ -3163,7 +3178,9 @@
    "restrictions.dangerous_calls"
   ],
   "node|between_apos_slashes|import": [],
-  "node|between_apos_slashes|keyword": [],
+  "node|between_apos_slashes|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
   "node|between_apos_slashes|oversimplified": [],
   "node|between_apos_slashes|placeholder": [
    "code_quality.no_placeholders"
@@ -3425,13 +3442,21 @@
   ],
   "php|between_apos_dashes|temporary": [],
   "php|between_apos_hash|eval": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "php|between_apos_hash|import": [],
-  "php|between_apos_hash|keyword": [],
+  "php|between_apos_hash|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
   "php|between_apos_hash|oversimplified": [],
-  "php|between_apos_hash|placeholder": [],
+  "php|between_apos_hash|placeholder": [
+   "code_quality.no_placeholders"
+  ],
   "php|between_apos_hash|system": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "php|between_apos_hash|temporary": [],
@@ -3441,7 +3466,9 @@
    "restrictions.dangerous_calls"
   ],
   "php|between_apos_slashes|import": [],
-  "php|between_apos_slashes|keyword": [],
+  "php|between_apos_slashes|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
   "php|between_apos_slashes|oversimplified": [],
   "php|between_apos_slashes|placeholder": [
    "code_quality.no_placeholders"
@@ -3755,28 +3782,33 @@
   "python|between_apos_dashes|temporary": [],
   "python|between_apos_hash|eval": [
    "custom_rules.CUSTOM-001",
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "python|between_apos_hash|import": [
+   "restrictions.code_injection",
    "restrictions.imports"
   ],
-  "python|between_apos_hash|keyword": [],
+  "python|between_apos_hash|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
   "python|between_apos_hash|oversimplified": [],
-  "python|between_apos_hash|placeholder": [],
+  "python|between_apos_hash|placeholder": [
+   "code_quality.no_placeholders"
+  ],
   "python|between_apos_hash|system": [
+   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "python|between_apos_hash|temporary": [],
   "python|between_apos_slashes|eval": [
    "code_quality.no_hallucinated_apis",
    "custom_rules.CUSTOM-001",
-   "languages.per_language.banned_functions",
-   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "python|between_apos_slashes|import": [
    "code_quality.no_hallucinated_apis",
-   "restrictions.code_injection",
    "restrictions.imports"
   ],
   "python|between_apos_slashes|keyword": [
@@ -3786,12 +3818,10 @@
    "code_quality.no_hallucinated_apis"
   ],
   "python|between_apos_slashes|placeholder": [
-   "code_quality.no_hallucinated_apis",
-   "code_quality.no_placeholders"
+   "code_quality.no_hallucinated_apis"
   ],
   "python|between_apos_slashes|system": [
    "code_quality.no_hallucinated_apis",
-   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "python|between_apos_slashes|temporary": [
@@ -4154,30 +4184,32 @@
   ],
   "ruby|between_apos_dashes|temporary": [],
   "ruby|between_apos_hash|eval": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "ruby|between_apos_hash|import": [],
-  "ruby|between_apos_hash|keyword": [],
+  "ruby|between_apos_hash|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
   "ruby|between_apos_hash|oversimplified": [],
-  "ruby|between_apos_hash|placeholder": [],
+  "ruby|between_apos_hash|placeholder": [
+   "code_quality.no_placeholders"
+  ],
   "ruby|between_apos_hash|system": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "ruby|between_apos_hash|temporary": [],
   "ruby|between_apos_slashes|eval": [
-   "languages.per_language.banned_functions",
-   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "ruby|between_apos_slashes|import": [],
   "ruby|between_apos_slashes|keyword": [],
   "ruby|between_apos_slashes|oversimplified": [],
-  "ruby|between_apos_slashes|placeholder": [
-   "code_quality.no_placeholders"
-  ],
+  "ruby|between_apos_slashes|placeholder": [],
   "ruby|between_apos_slashes|system": [
-   "languages.per_language.banned_functions",
-   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "ruby|between_apos_slashes|temporary": [],
@@ -4536,6 +4568,7 @@
    "languages.allowed"
   ],
   "rust|between_apos_slashes|keyword": [
+   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "rust|between_apos_slashes|oversimplified": [
@@ -4944,27 +4977,30 @@
   "shell|between_apos_dashes|placeholder": [],
   "shell|between_apos_dashes|system": [],
   "shell|between_apos_dashes|temporary": [],
-  "shell|between_apos_hash|eval": [],
-  "shell|between_apos_hash|import": [],
-  "shell|between_apos_hash|keyword": [],
-  "shell|between_apos_hash|oversimplified": [],
-  "shell|between_apos_hash|placeholder": [],
-  "shell|between_apos_hash|system": [],
-  "shell|between_apos_hash|temporary": [],
-  "shell|between_apos_slashes|eval": [
+  "shell|between_apos_hash|eval": [
    "restrictions.code_injection"
   ],
-  "shell|between_apos_slashes|import": [
-   "capabilities.shell.blocked_commands"
+  "shell|between_apos_hash|import": [
+   "capabilities.shell.blocked_commands",
+   "code_quality.no_hallucinated_apis"
   ],
-  "shell|between_apos_slashes|keyword": [],
-  "shell|between_apos_slashes|oversimplified": [],
-  "shell|between_apos_slashes|placeholder": [
+  "shell|between_apos_hash|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "shell|between_apos_hash|oversimplified": [],
+  "shell|between_apos_hash|placeholder": [
    "code_quality.no_placeholders"
   ],
-  "shell|between_apos_slashes|system": [
+  "shell|between_apos_hash|system": [
    "restrictions.code_injection"
   ],
+  "shell|between_apos_hash|temporary": [],
+  "shell|between_apos_slashes|eval": [],
+  "shell|between_apos_slashes|import": [],
+  "shell|between_apos_slashes|keyword": [],
+  "shell|between_apos_slashes|oversimplified": [],
+  "shell|between_apos_slashes|placeholder": [],
+  "shell|between_apos_slashes|system": [],
   "shell|between_apos_slashes|temporary": [],
   "shell|block_c|eval": [
    "restrictions.code_injection"
@@ -5234,27 +5270,30 @@
   "sh|between_apos_dashes|placeholder": [],
   "sh|between_apos_dashes|system": [],
   "sh|between_apos_dashes|temporary": [],
-  "sh|between_apos_hash|eval": [],
-  "sh|between_apos_hash|import": [],
-  "sh|between_apos_hash|keyword": [],
-  "sh|between_apos_hash|oversimplified": [],
-  "sh|between_apos_hash|placeholder": [],
-  "sh|between_apos_hash|system": [],
-  "sh|between_apos_hash|temporary": [],
-  "sh|between_apos_slashes|eval": [
+  "sh|between_apos_hash|eval": [
    "restrictions.code_injection"
   ],
-  "sh|between_apos_slashes|import": [
-   "capabilities.shell.blocked_commands"
+  "sh|between_apos_hash|import": [
+   "capabilities.shell.blocked_commands",
+   "code_quality.no_hallucinated_apis"
   ],
-  "sh|between_apos_slashes|keyword": [],
-  "sh|between_apos_slashes|oversimplified": [],
-  "sh|between_apos_slashes|placeholder": [
+  "sh|between_apos_hash|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
+  "sh|between_apos_hash|oversimplified": [],
+  "sh|between_apos_hash|placeholder": [
    "code_quality.no_placeholders"
   ],
-  "sh|between_apos_slashes|system": [
+  "sh|between_apos_hash|system": [
    "restrictions.code_injection"
   ],
+  "sh|between_apos_hash|temporary": [],
+  "sh|between_apos_slashes|eval": [],
+  "sh|between_apos_slashes|import": [],
+  "sh|between_apos_slashes|keyword": [],
+  "sh|between_apos_slashes|oversimplified": [],
+  "sh|between_apos_slashes|placeholder": [],
+  "sh|between_apos_slashes|system": [],
   "sh|between_apos_slashes|temporary": [],
   "sh|block_c|eval": [
    "restrictions.code_injection"
@@ -5518,22 +5557,26 @@
   "sh|string_triple|system": [],
   "sh|string_triple|temporary": [],
   "sqlite|between_apos_dashes|eval": [
-   "languages.allowed"
+   "languages.allowed",
+   "restrictions.code_injection"
   ],
   "sqlite|between_apos_dashes|import": [
    "languages.allowed"
   ],
   "sqlite|between_apos_dashes|keyword": [
+   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "sqlite|between_apos_dashes|oversimplified": [
    "languages.allowed"
   ],
   "sqlite|between_apos_dashes|placeholder": [
+   "code_quality.no_placeholders",
    "languages.allowed"
   ],
   "sqlite|between_apos_dashes|system": [
-   "languages.allowed"
+   "languages.allowed",
+   "restrictions.code_injection"
   ],
   "sqlite|between_apos_dashes|temporary": [
    "languages.allowed"
@@ -5560,8 +5603,7 @@
    "languages.allowed"
   ],
   "sqlite|between_apos_slashes|eval": [
-   "languages.allowed",
-   "restrictions.code_injection"
+   "languages.allowed"
   ],
   "sqlite|between_apos_slashes|import": [
    "languages.allowed"
@@ -5573,12 +5615,10 @@
    "languages.allowed"
   ],
   "sqlite|between_apos_slashes|placeholder": [
-   "code_quality.no_placeholders",
    "languages.allowed"
   ],
   "sqlite|between_apos_slashes|system": [
-   "languages.allowed",
-   "restrictions.code_injection"
+   "languages.allowed"
   ],
   "sqlite|between_apos_slashes|temporary": [
    "languages.allowed"
@@ -5989,22 +6029,26 @@
    "languages.allowed"
   ],
   "sql|between_apos_dashes|eval": [
-   "languages.allowed"
+   "languages.allowed",
+   "restrictions.code_injection"
   ],
   "sql|between_apos_dashes|import": [
    "languages.allowed"
   ],
   "sql|between_apos_dashes|keyword": [
+   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "sql|between_apos_dashes|oversimplified": [
    "languages.allowed"
   ],
   "sql|between_apos_dashes|placeholder": [
+   "code_quality.no_placeholders",
    "languages.allowed"
   ],
   "sql|between_apos_dashes|system": [
-   "languages.allowed"
+   "languages.allowed",
+   "restrictions.code_injection"
   ],
   "sql|between_apos_dashes|temporary": [
    "languages.allowed"
@@ -6031,8 +6075,7 @@
    "languages.allowed"
   ],
   "sql|between_apos_slashes|eval": [
-   "languages.allowed",
-   "restrictions.code_injection"
+   "languages.allowed"
   ],
   "sql|between_apos_slashes|import": [
    "languages.allowed"
@@ -6044,12 +6087,10 @@
    "languages.allowed"
   ],
   "sql|between_apos_slashes|placeholder": [
-   "code_quality.no_placeholders",
    "languages.allowed"
   ],
   "sql|between_apos_slashes|system": [
-   "languages.allowed",
-   "restrictions.code_injection"
+   "languages.allowed"
   ],
   "sql|between_apos_slashes|temporary": [
    "languages.allowed"
@@ -6509,6 +6550,7 @@
    "languages.allowed"
   ],
   "ts|between_apos_slashes|keyword": [
+   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "ts|between_apos_slashes|oversimplified": [
@@ -6960,6 +7002,7 @@
    "languages.allowed"
   ],
   "typescript|between_apos_slashes|keyword": [
+   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "typescript|between_apos_slashes|oversimplified": [
@@ -7411,6 +7454,7 @@
    "languages.allowed"
   ],
   "zig|between_apos_slashes|keyword": [
+   "code_quality.no_hallucinated_apis",
    "languages.allowed"
   ],
   "zig|between_apos_slashes|oversimplified": [

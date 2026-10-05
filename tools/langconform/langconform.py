@@ -300,6 +300,10 @@ def cmd_conform(a):
         for m in d["line_comments"]:
             probes.append((name, "line %s" % m, "%s FORBIDDEN_KEYWORD\n" % m, False))
             probes.append((name, "marker in line %s" % m, "%s %s\n" % (m, MARKER), True, MARKER_RULE))
+            # An apostrophe in the language's own comment must not open a
+            # string that hides the code after it.
+            probes.append((name, "code between %s don't / %s it's" % (m, m),
+                           "%s don't\nFORBIDDEN_KEYWORD\n%s it's\n" % (m, m), True))
         for b in d["block_comments"]:
             probes.append((name, "block %s %s" % (b["open"], b["close"]),
                            "%s\nFORBIDDEN_KEYWORD\n%s\n" % (b["open"], b["close"]), False))

@@ -35,7 +35,8 @@ namespace governance {
 
 // FIX 16: Strip string literal contents to prevent false positive pattern matches
 // This prevents governance checks from triggering on code/paths inside strings
-static std::string stripStringLiterals(const std::string& code) {
+static std::string stripStringLiterals(const std::string& code,
+                                       const naab::lang::LanguageDescriptor* lang_desc = nullptr) {
     std::string result;
     result.reserve(code.size());
     bool in_single = false, in_double = false, in_backtick = false;
@@ -52,7 +53,43 @@ static std::string stripStringLiterals(const std::string& code) {
         // quotes in comments (e.g., // don't) don't toggle string mode.
         // Comments are passed through to output for downstream checks that need them
         // (e.g., checkPlaceholders intentionally detects // TODO in comments).
-        if (!in_single && !in_double && !in_backtick) {
+        // With the language known, its OWN comment forms are skipped (from
+        // the language table). Only // and /* */ were known here, so an
+        // apostrophe in a # or -- comment ("# don't") opened a string that
+        // swallowed the code up to the next apostrophe and hid it from every
+        // check reading the stripped text (test_langconform.sh, positions
+        // between_apos_*). Without a language, the historical // and /* */
+        // handling below is unchanged.
+        if (lang_desc && !in_single && !in_double && !in_backtick) {
+            bool skipped = false;
+            for (const auto& b : lang_desc->block_comments) {
+                if (code.compare(i, b.open.size(), b.open) != 0) continue;
+                if (b.line_start_only) {
+                    size_t k = i;
+                    while (k > 0 && (code[k - 1] == ' ' || code[k - 1] == '\t')) --k;
+                    if (k > 0 && code[k - 1] != '\n') continue;
+                }
+                size_t end = code.find(b.close, i + b.open.size());
+                end = (end == std::string::npos) ? code.size() : end + b.close.size();
+                result.append(code, i, end - i);
+                i = end - 1;
+                skipped = true;
+                break;
+            }
+            if (!skipped) {
+                for (const auto& m : lang_desc->line_comments) {
+                    if (code.compare(i, m.size(), m) != 0) continue;
+                    size_t end = code.find('\n', i);
+                    end = (end == std::string::npos) ? code.size() : end + 1;
+                    result.append(code, i, end - i);
+                    i = end - 1;
+                    skipped = true;
+                    break;
+                }
+            }
+            if (skipped) continue;
+        }
+        if (!lang_desc && !in_single && !in_double && !in_backtick) {
             // Line comment: //
             if (c == '/' && i+1 < code.size() && code[i+1] == '/') {
                 while (i < code.size() && code[i] != '\n') {
@@ -4725,23 +4762,10 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
     // Strip string literal contents before checking patterns.
     // This prevents false positives when code generates source code for
     // another language inside strings (e.g., Go code that builds Rust source).
-    std::string code_no_strings;
-    {
-        bool in_single = false, in_double = false, in_backtick = false;
-        bool escaped = false;
-        for (size_t i = 0; i < code.size(); ++i) {
-            char c = code[i];
-            if (escaped) { escaped = false; continue; }
-            // C11 fix: track escapes in backtick strings too
-            if (c == '\\' && (in_single || in_double || in_backtick)) { escaped = true; continue; }
-            if (c == '"' && !in_single && !in_backtick) { in_double = !in_double; continue; }
-            if (c == '\'' && !in_double && !in_backtick) { in_single = !in_single; continue; }
-            if (c == '`' && !in_double && !in_single) { in_backtick = !in_backtick; continue; }
-            if (!in_single && !in_double && !in_backtick) {
-                code_no_strings += c;
-            }
-        }
-    }
+    // The shared, language-aware stripper: this check used to carry its own
+    // copy, which knew no comment syntax at all -- an apostrophe in any
+    // comment ("// don't") opened a string and hid the code after it.
+    std::string code_no_strings = stripStringLiterals(code, naab::lang::findLanguage(language));
 
     // Strip comments for the target language (after string stripping).
     // This prevents false positives like "# TODO: use append" in Shell
@@ -5106,7 +5130,7 @@ std::string GovernanceEngine::checkSemanticIssues(
     clearTrace();
 
     // Strip strings and comments for pattern matching
-    std::string code_no_strings = stripStringLiterals(code);
+    std::string code_no_strings = stripStringLiterals(code, naab::lang::findLanguage(language));
     std::string clean = stripComments(code_no_strings, language);
 
     // Helper: run a vector of SemanticCheck patterns against a target string
@@ -6484,7 +6508,7 @@ std::string GovernanceEngine::preprocessCode(const std::string& language, const 
     std::string lang = normalizeLanguage(language);
     std::string result = normalizeUnicode(code);
     result = normalizeWhitespace(result);
-    result = stripStringLiterals(result);
+    result = stripStringLiterals(result, naab::lang::findLanguage(lang));
     result = expandDangerousAliases(lang, result);
     return result;
 }
@@ -6508,7 +6532,7 @@ std::string GovernanceEngine::checkPolyglotBlock(
 
     // FIX 16: Pre-process code — strip string literals for pattern matching
     // This prevents false positives from code/paths inside strings
-    std::string stripped = stripStringLiterals(normalized);
+    std::string stripped = stripStringLiterals(normalized, naab::lang::findLanguage(lang));
 
     // Expand dangerous function aliases (e.g., s = os.system; s("rm") → os.system("rm"))
     // so downstream pattern-based checks catch indirect calls through variables
