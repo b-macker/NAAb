@@ -32,36 +32,36 @@ std::vector<LanguageDescriptor> buildTable() {
     // resolve here, under its canonical name or an alias.
     return {
         // canonical     aliases        line comments  block comments            gov-only
-        //   extension  prelude   syntax checks (parse only, never run)
+        //   extension  prelude   syntax checks (parse only, never run)  runtime variants
         {"python",     {"py"},              {"#"},             {},                        false,
-         ".py",   "",        {{"python3", "-c", kPyParse, "{file}"}}},
+         ".py",   "",        {{"python3", "-c", kPyParse, "{file}"}}, {}},
         {"javascript", {"js", "node"},      {"//"},            {kCBlock},                 false,
-         ".js",   "",        {{"node", "--check", "{file}"}}},
+         ".js",   "",        {{"node", "--check", "{file}"}}, {"node"}},
         {"typescript", {"ts"},              {"//"},            {kCBlock},                 false,
-         ".ts",   "",        {{"tsc", "--noEmit", "--skipLibCheck", "{file}"}}},
+         ".ts",   "",        {{"tsc", "--noEmit", "--skipLibCheck", "{file}"}}, {}},
         {"shell",      {"sh", "bash"},      {"#"},             {},                        false,
-         ".sh",   "",        {{"bash", "-n", "{file}"}}},
+         ".sh",   "",        {{"bash", "-n", "{file}"}}, {}},
         {"ruby",       {"rb"},              {"#"},             {{"=begin", "=end", true}}, false,
-         ".rb",   "",        {{"ruby", "-c", "{file}"}}},
+         ".rb",   "",        {{"ruby", "-c", "{file}"}}, {}},
         {"go",         {"golang"},          {"//"},            {kCBlock},                 false,
-         ".go",   "package main\n", {{"gofmt", "-e", "{file}"}}},
-        {"cpp",        {"c++"},             {"//"},            {kCBlock},                 false,
+         ".go",   "package main\n", {{"gofmt", "-e", "{file}"}}, {}},
+        {"cpp",        {"c++", "cxx"},      {"//"},            {kCBlock},                 false,
          ".cpp",  "",        {{"g++", "-fsyntax-only", "-x", "c++", "{file}"},
-                              {"clang++", "-fsyntax-only", "-x", "c++", "{file}"}}},
-        {"csharp",     {"cs"},              {"//"},            {kCBlock},                 false,
-         ".cs",   "",        {}},
+                              {"clang++", "-fsyntax-only", "-x", "c++", "{file}"}}, {}},
+        {"csharp",     {"cs", "c#"},        {"//"},            {kCBlock},                 false,
+         ".cs",   "",        {}, {}},
         {"rust",       {},                  {"//"},            {kCBlock},                 false,
-         ".rs",   "",        {{"rustc", "--crate-type=lib", "--emit=metadata", "--out-dir", "{dir}", "{file}"}}},
+         ".rs",   "",        {{"rustc", "--crate-type=lib", "--emit=metadata", "--out-dir", "{dir}", "{file}"}}, {}},
         {"nim",        {},                  {"#"},             {{"#[", "]#", false}},     false,
-         ".nim",  "",        {{"nim", "check", "--hints:off", "{file}"}}},
+         ".nim",  "",        {{"nim", "check", "--hints:off", "{file}"}}, {}},
         {"php",        {},                  {"//", "#"},       {kCBlock},                 false,
-         ".php",  "<?php\n", {{"php", "-l", "{file}"}}},
+         ".php",  "<?php\n", {{"php", "-l", "{file}"}}, {}},
         {"julia",      {},                  {"#"},             {{"#=", "=#", false}},     false,
-         ".jl",   "",        {{"julia", "--startup-file=no", "{file}"}}},
+         ".jl",   "",        {{"julia", "--startup-file=no", "{file}"}}, {}},
         {"zig",        {},                  {"//"},            {},                        false,
-         ".zig",  "",        {{"zig", "ast-check", "{file}"}}},
+         ".zig",  "",        {{"zig", "ast-check", "{file}"}}, {}},
         {"sql",        {"sqlite"},          {"--"},            {kCBlock},                 false,
-         ".sql",  "",        {{"python3", "-c", kPySqlite, "{file}"}}},
+         ".sql",  "",        {{"python3", "-c", kPySqlite, "{file}"}}, {}},
         // NAAb itself: the host language, not a polyglot block, so it is
         // governance-only here. Its text-level checks (checkNaabFunctionBody)
         // read this entry; its parse-tree checks (taint, contracts, function
@@ -69,14 +69,14 @@ std::vector<LanguageDescriptor> buildTable() {
         // lexer's (Lexer::skipComment): #, // and /* */. naab-lang is its own
         // judge in langconform verify.
         {"naab",       {},                  {"#", "//"},       {kCBlock},                 true,
-         ".naab", "",        {{"naab-lang", "{file}", "--no-governance"}}},
+         ".naab", "",        {{"naab-lang", "{file}", "--no-governance"}}, {}},
         // Known to governance (naab-gov check, the C API) with no executor.
         {"lua",        {},                  {"--"},            {{"--[[", "]]", false}},   true,
-         ".lua",  "",        {{"luac", "-p", "{file}"}}},
+         ".lua",  "",        {{"luac", "-p", "{file}"}}, {}},
         {"haskell",    {},                  {"--"},            {{"{-", "-}", false}},     true,
-         ".hs",   "main = return ()\n", {{"ghc", "-fno-code", "{file}"}}},
+         ".hs",   "main = return ()\n", {{"ghc", "-fno-code", "{file}"}}, {}},
         {"ada",        {},                  {"--"},            {},                        true,
-         ".adb",  "",        {}},
+         ".adb",  "",        {}, {}},
     };
 }
 
@@ -109,6 +109,15 @@ const LanguageDescriptor* findLanguage(const std::string& name) {
 std::string canonicalLanguage(const std::string& name) {
     const LanguageDescriptor* d = findLanguage(name);
     return d ? d->canonical : lower(name);
+}
+
+std::string runtimeLanguage(const std::string& name) {
+    const LanguageDescriptor* d = findLanguage(name);
+    if (!d) return lower(name);
+    const std::string l = lower(name);
+    for (const auto& v : d->runtime_variants)
+        if (v == l) return l;
+    return d->canonical;
 }
 
 std::string stripComments(const std::string& code, const std::string& language) {

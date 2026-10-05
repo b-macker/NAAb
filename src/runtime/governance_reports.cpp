@@ -1867,6 +1867,10 @@ bool GovernanceEngine::isTranscriptAgent(const std::string& agent_name) const {
 
 // --- Agent Role Application ---
 // C1: init-only — copy-mutate-swap to avoid writing shared rules_ptr_
+// Stands in for an allow list that admits nothing (see applyAgentRole).
+static const char* const kNoLanguageAllowed =
+    "(none: the agent role and languages.allowed share no language)";
+
 void GovernanceEngine::applyAgentRole() {
     auto new_rules = std::make_shared<GovernanceRules>(rules());  // copy current
     for (const auto& role : new_rules->agents) {
@@ -1884,6 +1888,14 @@ void GovernanceEngine::applyAgentRole() {
                         if (new_rules->allowed_languages.count(l))
                             intersection.insert(l);
                     }
+                    // An EMPTY allow list means "unrestricted", so a role
+                    // whose languages share nothing with the project's must
+                    // not leave it empty: that turned `allowed: ["python"]`
+                    // plus a role naming "ruby" into permission to run Ruby
+                    // (measured), a role exceeding the project. The marker
+                    // is not a language name, so it admits nothing.
+                    if (intersection.empty())
+                        intersection.insert(kNoLanguageAllowed);
                     new_rules->allowed_languages = intersection;
                 }
             }

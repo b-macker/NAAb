@@ -52,6 +52,16 @@ struct LanguageDescriptor {
     // first whose program is installed is used. "{file}" is the source file,
     // "{dir}" a scratch directory. Exit 0 = the file is valid syntax.
     std::vector<std::vector<std::string>> syntax_checks;
+
+    // Aliases that are ALSO a separate runtime. `node` is JavaScript for every
+    // check that reads the code (per_language, rules, comment syntax), but it
+    // is its own executor -- a Node.js subprocess with filesystem and process
+    // reach, where `javascript` is in-process QuickJS with neither. An
+    // allow/block list is a decision about what may RUN, so it needs the
+    // runtime, not just the language: allowing QuickJS must not admit Node,
+    // and `blocked: ["node"]` must block Node without blocking QuickJS.
+    // Every name here must also be in `aliases`.
+    std::vector<std::string> runtime_variants;
 };
 
 // Every descriptor, in a fixed order.
@@ -63,6 +73,33 @@ const LanguageDescriptor* findLanguage(const std::string& name);
 
 // The canonical name for `name`, or `name` lower-cased when it is unknown.
 std::string canonicalLanguage(const std::string& name);
+
+// The name of the RUNTIME `name` selects: the alias itself when it is one of
+// its language's runtime_variants (`node`), otherwise canonicalLanguage().
+// Use this, not canonicalLanguage(), wherever a language name decides what may
+// run: languages.allowed/blocked, codegen and per-agent language lists,
+// runtime pins, and executor lookup.
+std::string runtimeLanguage(const std::string& name);
+
+// The one matching rule for allow/block lists of runtime names (entries
+// already passed through runtimeLanguage()). A block list blocks a runtime
+// when it names the runtime OR the runtime's language, so blocking
+// `javascript` still blocks `node`. An allow list admits a runtime only when
+// it names that runtime, so allowing `javascript` does not admit `node`.
+// Both directions resolve toward refusing.
+template <class List>
+bool languageListBlocks(const List& blocked, const std::string& runtime) {
+    const std::string family = canonicalLanguage(runtime);
+    for (const auto& b : blocked)
+        if (b == runtime || b == family) return true;
+    return false;
+}
+template <class List>
+bool languageListAdmits(const List& allowed, const std::string& runtime) {
+    for (const auto& a : allowed)
+        if (a == runtime) return true;
+    return false;
+}
 
 // Replace every comment in `code` with spaces, keeping newlines, using the
 // language's own comment syntax. Call it AFTER string literals are stripped,

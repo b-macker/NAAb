@@ -523,7 +523,8 @@ static int cmdLanguages() {
                        {"line_comments", d.line_comments}, {"block_comments", blocks},
                        {"governance_only", d.governance_only},
                        {"extension", d.extension}, {"prelude", d.prelude},
-                       {"syntax_checks", d.syntax_checks}});
+                       {"syntax_checks", d.syntax_checks},
+                       {"runtime_variants", d.runtime_variants}});
     }
     std::cout << out.dump(1) << "\n";
     return 0;

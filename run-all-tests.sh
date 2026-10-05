@@ -3729,6 +3729,21 @@ else
     echo "  test_naab_comment_apostrophe.sh: not found, skipping"
 fi
 
+LANGALIAS_SCRIPT="tests/governance_v4/test_language_alias_config.sh"
+if [ -f "$LANGALIAS_SCRIPT" ]; then
+    # Every language name in govern.json (allowed/blocked, per_language,
+    # rule languages, codegen, pins) is canonicalised through the language
+    # table: blocked:["bash"] must block <<sh>>, with canonical controls.
+    if run_shell_test "$LANGALIAS_SCRIPT" 2>&1; then
+        echo "  test_language_alias_config.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_language_alias_config.sh")
+    fi
+else
+    echo "  test_language_alias_config.sh: not found, skipping"
+fi
+
 LANGCONFORM_SCRIPT="tests/self-audit/test_langconform.sh"
 if [ -f "$LANGCONFORM_SCRIPT" ]; then
     # What governance sees per language (every comment and string form, every

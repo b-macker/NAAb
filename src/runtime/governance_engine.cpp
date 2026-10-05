@@ -7,6 +7,7 @@
 //   ADVISORY  - Warn only. Execution continues.
 
 #include "naab/governance.h"
+#include "naab/language_descriptors.h"
 #include <cstdarg>
 #include "naab/paths.h"
 #include "naab/limits.h"
@@ -1647,23 +1648,17 @@ std::string GovernanceEngine::checkCodegenAllowed(
 
     // Check codegen-specific language restrictions
     if (!rules().codegen.allowed_languages.empty()) {
-        bool found = false;
-        for (const auto& l : rules().codegen.allowed_languages) {
-            if (l == language) { found = true; break; }
-        }
-        if (!found) {
+        if (!naab::lang::languageListAdmits(rules().codegen.allowed_languages, language)) {
             addTrace("codegen.allowed_languages does not contain '" + language + "' → blocked");
             return enforce("codegen.allowed_languages", rules().codegen.level,
                 "Codegen error: language '" + language + "' is not allowed for dynamic code\n");
         }
     }
     if (!rules().codegen.blocked_languages.empty()) {
-        for (const auto& l : rules().codegen.blocked_languages) {
-            if (l == language) {
-                addTrace("codegen.blocked_languages contains '" + language + "' → blocked");
-                return enforce("codegen.blocked_languages", rules().codegen.level,
-                    "Codegen error: language '" + language + "' is blocked for dynamic code\n");
-            }
+        if (naab::lang::languageListBlocks(rules().codegen.blocked_languages, language)) {
+            addTrace("codegen.blocked_languages contains '" + language + "' → blocked");
+            return enforce("codegen.blocked_languages", rules().codegen.level,
+                "Codegen error: language '" + language + "' is blocked for dynamic code\n");
         }
     }
 
@@ -1686,8 +1681,13 @@ std::string GovernanceEngine::checkLanguageAllowed(
     const std::string& language, int line) {
     clearTrace();
 
+    // `language` is the block's RUNTIME name (naab::lang::runtimeLanguage), so
+    // <<node>> arrives as "node": a block list naming "node" or its language
+    // "javascript" blocks it, while an allow list must name "node" itself.
     // Check blocked list first
-    if (rules().blocked_languages.count(language)) {
+    if (naab::lang::languageListBlocks(rules().blocked_languages, language)) {
+        const std::string blocked_by = rules().blocked_languages.count(language)
+            ? language : naab::lang::canonicalLanguage(language);
         std::string location = line > 0
             ? fmt::format("line {}: <<{}", line, language)
             : fmt::format("<<{}", language);
@@ -1702,7 +1702,7 @@ std::string GovernanceEngine::checkLanguageAllowed(
             formatError(EnforcementLevel::HARD,
                 fmt::format("Language \"{}\" is blocked", language),
                 location,
-                fmt::format("languages.blocked contains \"{}\"", language),
+                fmt::format("languages.blocked contains \"{}\"", blocked_by),
                 fmt::format("The \"{}\" language is explicitly blocked in governance", language),
                 fmt::format("let result = <<{}\n...\n>>", language),
                 !rules().allowed_languages.empty()
@@ -1713,7 +1713,7 @@ std::string GovernanceEngine::checkLanguageAllowed(
 
     // Check allowed list (only if non-empty — empty means all allowed)
     if (!rules().allowed_languages.empty() &&
-        !rules().allowed_languages.count(language)) {
+        !naab::lang::languageListAdmits(rules().allowed_languages, language)) {
 
         std::string location = line > 0
             ? fmt::format("line {}: <<{}", line, language)
@@ -1742,8 +1742,8 @@ std::string GovernanceEngine::checkLanguageAllowed(
     for (const auto& role : rules().agents) {
         if (role.name == effectiveAgentId()) {
             // Check per-agent blocked languages
-            for (const auto& bl : role.blocked_languages) {
-                if (bl == language) {
+            {
+                if (naab::lang::languageListBlocks(role.blocked_languages, language)) {
                     return enforce("agent_role.language", EnforcementLevel::HARD,
                         formatError(EnforcementLevel::HARD,
                             fmt::format("Agent '{}' is blocked from using language \"{}\"",
@@ -1762,11 +1762,7 @@ std::string GovernanceEngine::checkLanguageAllowed(
             }
             // Check per-agent allowed languages (if non-empty, must be in list)
             if (!role.allowed_languages.empty()) {
-                bool found = false;
-                for (const auto& al : role.allowed_languages) {
-                    if (al == language) { found = true; break; }
-                }
-                if (!found) {
+                if (!naab::lang::languageListAdmits(role.allowed_languages, language)) {
                     std::string al_list;
                     for (const auto& al : role.allowed_languages) {
                         if (!al_list.empty()) al_list += ", ";
@@ -6548,8 +6544,12 @@ void GovernanceEngine::checkRuntimeVersions(const std::string& language,
     if (rules().runtime_versions.empty()) return;
     if (observed_version.empty()) return;
 
+    // Pins name a RUNTIME and are stored that way (governance_config.cpp); the
+    // caller passes the block's tag as written, so <<bash>> must match a pin on
+    // "shell", while a pin on "node" stays Node's and not QuickJS's.
+    const std::string runtime = naab::lang::runtimeLanguage(language);
     for (const auto& pin : rules().runtime_versions) {
-        if (pin.language != language) continue;
+        if (pin.language != runtime) continue;
 
         bool ok = versionSatisfies(observed_version, pin.required_version);
         std::string rule_name = "runtime_version." + language;

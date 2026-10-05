@@ -6552,8 +6552,10 @@ std::string GovernanceEngine::checkPolyglotBlock(
 
     std::string err;
 
-    // Language allowed? (uses normalized name)
-    err = checkLanguageAllowed(lang, line);
+    // Language allowed? Asked with the RUNTIME name: <<node>> is JavaScript for
+    // every content check below, but a separate executor for the allow/block
+    // lists (naab::lang::runtimeLanguage).
+    err = checkLanguageAllowed(naab::lang::runtimeLanguage(language), line);
     if (!err.empty()) return err;
 
     // Shell capability check

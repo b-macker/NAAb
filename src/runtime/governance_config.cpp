@@ -2,6 +2,7 @@
 // Extracted from governance.cpp lines 1-1727
 
 #include "naab/loopback_url.h"
+#include "naab/language_descriptors.h"
 #include "naab/governance.h"
 #include "naab/paths.h"
 #include "naab/telemetry_forwarder.h"
@@ -29,6 +30,30 @@
 #endif
 #include <fmt/core.h>
 
+
+
+// Every language name read from govern.json goes through the language table
+// (naab/language_descriptors.h), so it is compared in the same vocabulary as
+// the block it is checked against. The checks receive the CANONICAL name
+// (<<bash>> is checked as "shell"), while these lists were stored as written --
+// so `languages.blocked: ["bash"]` never matched <<bash>> and blocked nothing,
+// and `allowed: ["bash"]` refused the language it named.
+// tests/governance_v4/test_language_alias_config.sh.
+//
+// Two vocabularies, chosen by what the name decides:
+//  - configLanguage(): keys that describe the CODE (per_language, custom and
+//    plugin rule languages). `node` is JavaScript here, so a JavaScript rule
+//    applies to <<node>> blocks.
+//  - configRuntime(): lists that decide what may RUN (languages.allowed/
+//    blocked, codegen and per-agent language lists, runtime pins). `node` stays
+//    `node` here -- it is a separate executor from QuickJS `javascript`. See
+//    LanguageDescriptor::runtime_variants and languageListBlocks/Admits.
+static std::string configLanguage(const std::string& name) {
+    return naab::lang::canonicalLanguage(name);
+}
+static std::string configRuntime(const std::string& name) {
+    return naab::lang::runtimeLanguage(name);
+}
 
 namespace naab {
 namespace governance {
@@ -537,20 +562,28 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& lang = j["languages"];
         if (lang.contains("allowed") && lang["allowed"].is_array()) {
             for (auto& l : lang["allowed"]) {
-                if (l.is_string()) rules_.allowed_languages.insert(l.get<std::string>());
+                if (l.is_string()) rules_.allowed_languages.insert(configRuntime(l.get<std::string>()));
             }
         }
         if (lang.contains("blocked") && lang["blocked"].is_array()) {
             for (auto& l : lang["blocked"]) {
-                if (l.is_string()) rules_.blocked_languages.insert(l.get<std::string>());
+                if (l.is_string()) rules_.blocked_languages.insert(configRuntime(l.get<std::string>()));
             }
         }
         // naab-29 EO-08: Resolve contradictory config — blocked takes precedence.
         // Record the overlap BEFORE erasing it: the erase is what makes CONTRA-007
         // unable to observe the contradiction it exists to report.
-        for (const auto& blocked : rules_.blocked_languages) {
-            if (rules_.allowed_languages.erase(blocked) > 0) {
-                rules_.languages.allowed_and_blocked.insert(blocked);
+        // An allowed runtime is also contradicted when its LANGUAGE is blocked
+        // (allowed "node" + blocked "javascript"): the block list wins there
+        // too, so it is the same contradiction. The reverse (allowed
+        // "javascript" + blocked "node") is not one -- they are different
+        // runtimes, and that pair is how a config admits QuickJS alone.
+        for (auto it = rules_.allowed_languages.begin(); it != rules_.allowed_languages.end();) {
+            if (naab::lang::languageListBlocks(rules_.blocked_languages, *it)) {
+                rules_.languages.allowed_and_blocked.insert(*it);
+                it = rules_.allowed_languages.erase(it);
+            } else {
+                ++it;
             }
         }
     }
@@ -859,7 +892,17 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (cfg.contains("require_package_main") && cfg["require_package_main"].is_boolean())
                     lc.require_package_main = cfg["require_package_main"].get<bool>();
 
-                rules_.languages.per_language[lang_name] = std::move(lc);
+                // Two keys naming the same language ("bash" and "shell") would
+                // collapse into one entry, and keeping either silently drops
+                // the other's restrictions -- refuse the config instead.
+                const std::string canon = configLanguage(lang_name);
+                if (rules_.languages.per_language.count(canon)) {
+                    throw std::runtime_error(
+                        "languages.per_language has more than one entry for the language \"" + canon +
+                        "\" (\"" + lang_name + "\" names the same language as an earlier entry). "
+                        "Merge them into one entry under \"" + canon + "\".");
+                }
+                rules_.languages.per_language[canon] = std::move(lc);
             }
         }
     }
@@ -1871,7 +1914,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (cr.contains("name") && cr["name"].is_string()) rule.name = cr["name"].get<std::string>();
             if (cr.contains("description") && cr["description"].is_string()) rule.description = cr["description"].get<std::string>();
             if (cr.contains("pattern") && cr["pattern"].is_string()) rule.pattern = cr["pattern"].get<std::string>();
-            if (cr.contains("languages")) for (auto& l : cr["languages"]) if (l.is_string()) rule.languages.push_back(l.get<std::string>());
+            if (cr.contains("languages")) for (auto& l : cr["languages"]) if (l.is_string()) rule.languages.push_back(configLanguage(l.get<std::string>()));
             if (cr.contains("level")) { auto [en, lv] = parseEnforcementLevel(cr["level"]); rule.level = lv; }
             if (cr.contains("message") && cr["message"].is_string()) rule.message = cr["message"].get<std::string>();
             if (cr.contains("help") && cr["help"].is_string()) rule.help = cr["help"].get<std::string>();
@@ -1934,7 +1977,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     if (pr.contains("function") && pr["function"].is_string()) rule.function_name = pr["function"].get<std::string>();
                     if (pr.contains("description") && pr["description"].is_string()) rule.description = pr["description"].get<std::string>();
                     if (pr.contains("level")) { auto [en, lv] = parseEnforcementLevel(pr["level"]); rule.level = lv; }
-                    if (pr.contains("languages")) for (auto& l : pr["languages"]) if (l.is_string()) rule.languages.push_back(l.get<std::string>());
+                    if (pr.contains("languages")) for (auto& l : pr["languages"]) if (l.is_string()) rule.languages.push_back(configLanguage(l.get<std::string>()));
                     if (pr.contains("trigger") && pr["trigger"].is_string()) rule.trigger = pr["trigger"].get<std::string>();
                     if (pr.contains("message") && pr["message"].is_string()) rule.message = pr["message"].get<std::string>();
                     if (pr.contains("help") && pr["help"].is_string()) rule.help = pr["help"].get<std::string>();
@@ -2612,12 +2655,12 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.codegen.max_nesting_depth = std::max(0, cg["max_nesting_depth"].get<int>());
         if (cg.contains("allowed_languages") && cg["allowed_languages"].is_array()) {
             for (const auto& lang : cg["allowed_languages"]) {
-                if (lang.is_string()) rules_.codegen.allowed_languages.push_back(lang.get<std::string>());
+                if (lang.is_string()) rules_.codegen.allowed_languages.push_back(configRuntime(lang.get<std::string>()));
             }
         }
         if (cg.contains("blocked_languages") && cg["blocked_languages"].is_array()) {
             for (const auto& lang : cg["blocked_languages"]) {
-                if (lang.is_string()) rules_.codegen.blocked_languages.push_back(lang.get<std::string>());
+                if (lang.is_string()) rules_.codegen.blocked_languages.push_back(configRuntime(lang.get<std::string>()));
             }
         }
         if (cg.contains("sanitize_stderr") && cg["sanitize_stderr"].is_boolean())
@@ -2730,10 +2773,10 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             // --- Permissions ---
             if (cfg_json.contains("allowed_languages") && cfg_json["allowed_languages"].is_array())
                 for (const auto& l : cfg_json["allowed_languages"])
-                    if (l.is_string()) agent.allowed_languages.push_back(l.get<std::string>());
+                    if (l.is_string()) agent.allowed_languages.push_back(configRuntime(l.get<std::string>()));
             if (cfg_json.contains("blocked_languages") && cfg_json["blocked_languages"].is_array())
                 for (const auto& l : cfg_json["blocked_languages"])
-                    if (l.is_string()) agent.blocked_languages.push_back(l.get<std::string>());
+                    if (l.is_string()) agent.blocked_languages.push_back(configRuntime(l.get<std::string>()));
             if (cfg_json.contains("blocked_paths") && cfg_json["blocked_paths"].is_array())
                 for (const auto& p : cfg_json["blocked_paths"])
                     if (p.is_string()) agent.blocked_paths.push_back(p.get<std::string>());
@@ -3652,7 +3695,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         for (const auto& pin_json : j["runtime_versions"]) {
             GovernanceRules::RuntimeVersionPin pin;
             if (pin_json.contains("language") && pin_json["language"].is_string())
-                pin.language = pin_json["language"].get<std::string>();
+                pin.language = configRuntime(pin_json["language"].get<std::string>());
             if (pin_json.contains("required") && pin_json["required"].is_string())
                 pin.required_version = pin_json["required"].get<std::string>();
             if (pin_json.contains("message") && pin_json["message"].is_string())
