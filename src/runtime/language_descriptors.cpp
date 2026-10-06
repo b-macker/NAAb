@@ -33,35 +33,36 @@ std::vector<LanguageDescriptor> buildTable() {
     return {
         // canonical     aliases        line comments  block comments            gov-only
         //   extension  prelude   syntax checks (parse only, never run)  runtime variants
+        //   string interpolations {quote, prefix, open, close}   backtick runs a command
         {"python",     {"py"},              {"#"},             {},                        false,
-         ".py",   "",        {{"python3", "-c", kPyParse, "{file}"}}, {}},
+         ".py",   "",        {{"python3", "-c", kPyParse, "{file}"}}, {}, {{"\"", "f", "{", "}"}, {"'", "f", "{", "}"}}, false},
         {"javascript", {"js", "node"},      {"//"},            {kCBlock},                 false,
-         ".js",   "",        {{"node", "--check", "{file}"}}, {"node"}},
+         ".js",   "",        {{"node", "--check", "{file}"}}, {"node"}, {{"`", "", "${", "}"}}, false},
         {"typescript", {"ts"},              {"//"},            {kCBlock},                 false,
-         ".ts",   "",        {{"tsc", "--noEmit", "--skipLibCheck", "{file}"}}, {}},
+         ".ts",   "",        {{"tsc", "--noEmit", "--skipLibCheck", "{file}"}}, {}, {{"`", "", "${", "}"}}, false},
         {"shell",      {"sh", "bash"},      {"#"},             {},                        false,
-         ".sh",   "",        {{"bash", "-n", "{file}"}}, {}},
+         ".sh",   "",        {{"bash", "-n", "{file}"}}, {}, {{"\"", "", "$(", ")"}, {"\"", "", "`", "`"}, {"\"", "", "${", "}"}}, true},
         {"ruby",       {"rb"},              {"#"},             {{"=begin", "=end", true}}, false,
-         ".rb",   "",        {{"ruby", "-c", "{file}"}}, {}},
+         ".rb",   "",        {{"ruby", "-c", "{file}"}}, {}, {{"\"", "", "#{", "}"}}, true},
         {"go",         {"golang"},          {"//"},            {kCBlock},                 false,
-         ".go",   "package main\n", {{"gofmt", "-e", "{file}"}}, {}},
+         ".go",   "package main\n", {{"gofmt", "-e", "{file}"}}, {}, {}, false},
         {"cpp",        {"c++", "cxx"},      {"//"},            {kCBlock},                 false,
          ".cpp",  "",        {{"g++", "-fsyntax-only", "-x", "c++", "{file}"},
-                              {"clang++", "-fsyntax-only", "-x", "c++", "{file}"}}, {}},
+                              {"clang++", "-fsyntax-only", "-x", "c++", "{file}"}}, {}, {}, false},
         {"csharp",     {"cs", "c#"},        {"//"},            {kCBlock},                 false,
-         ".cs",   "",        {}, {}},
+         ".cs",   "",        {}, {}, {{"\"", "$", "{", "}"}}, false},
         {"rust",       {},                  {"//"},            {kCBlock},                 false,
-         ".rs",   "",        {{"rustc", "--crate-type=lib", "--emit=metadata", "--out-dir", "{dir}", "{file}"}}, {}},
+         ".rs",   "",        {{"rustc", "--crate-type=lib", "--emit=metadata", "--out-dir", "{dir}", "{file}"}}, {}, {}, false},
         {"nim",        {},                  {"#"},             {{"#[", "]#", false}},     false,
-         ".nim",  "",        {{"nim", "check", "--hints:off", "{file}"}}, {}},
+         ".nim",  "",        {{"nim", "check", "--hints:off", "{file}"}}, {}, {}, false},
         {"php",        {},                  {"//", "#"},       {kCBlock},                 false,
-         ".php",  "<?php\n", {{"php", "-l", "{file}"}}, {}},
+         ".php",  "<?php\n", {{"php", "-l", "{file}"}}, {}, {{"\"", "", "{$", "}"}, {"\"", "", "${", "}"}}, true},
         {"julia",      {},                  {"#"},             {{"#=", "=#", false}},     false,
-         ".jl",   "",        {{"julia", "--startup-file=no", "{file}"}}, {}},
+         ".jl",   "",        {{"julia", "--startup-file=no", "{file}"}}, {}, {}, false},
         {"zig",        {},                  {"//"},            {},                        false,
-         ".zig",  "",        {{"zig", "ast-check", "{file}"}}, {}},
+         ".zig",  "",        {{"zig", "ast-check", "{file}"}}, {}, {}, false},
         {"sql",        {"sqlite"},          {"--"},            {kCBlock},                 false,
-         ".sql",  "",        {{"python3", "-c", kPySqlite, "{file}"}}, {}},
+         ".sql",  "",        {{"python3", "-c", kPySqlite, "{file}"}}, {}, {}, false},
         // NAAb itself: the host language, not a polyglot block, so it is
         // governance-only here. Its text-level checks (checkNaabFunctionBody)
         // read this entry; its parse-tree checks (taint, contracts, function
@@ -69,14 +70,14 @@ std::vector<LanguageDescriptor> buildTable() {
         // lexer's (Lexer::skipComment): #, // and /* */. naab-lang is its own
         // judge in langconform verify.
         {"naab",       {},                  {"#", "//"},       {kCBlock},                 true,
-         ".naab", "",        {{"naab-lang", "{file}", "--no-governance"}}, {}},
+         ".naab", "",        {{"naab-lang", "{file}", "--no-governance"}}, {}, {}, false},
         // Known to governance (naab-gov check, the C API) with no executor.
         {"lua",        {},                  {"--"},            {{"--[[", "]]", false}},   true,
-         ".lua",  "",        {{"luac", "-p", "{file}"}}, {}},
+         ".lua",  "",        {{"luac", "-p", "{file}"}}, {}, {}, false},
         {"haskell",    {},                  {"--"},            {{"{-", "-}", false}},     true,
-         ".hs",   "main = return ()\n", {{"ghc", "-fno-code", "{file}"}}, {}},
+         ".hs",   "main = return ()\n", {{"ghc", "-fno-code", "{file}"}}, {}, {}, false},
         {"ada",        {},                  {"--"},            {},                        true,
-         ".adb",  "",        {}, {}},
+         ".adb",  "",        {}, {}, {}, false},
     };
 }
 

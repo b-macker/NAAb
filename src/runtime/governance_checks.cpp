@@ -35,8 +35,89 @@ namespace governance {
 // V3.0 New Check Implementations
 // ============================================================================
 
+static std::string stripStringLiterals(const std::string& code,
+                                       const naab::lang::LanguageDescriptor* lang_desc);
+
+// Where the interpolation that opens at `from` (just after its opener) ends:
+// the index of its closer, or npos when it is unterminated. Bracketed forms
+// nest ("${a ? `${b}` : c}") and skip quoted strings inside the expression, so
+// a brace or paren in a nested string does not end it early.
+static size_t findInterpolationEnd(const std::string& code, size_t from,
+                                   const naab::lang::Interpolation& it) {
+    if (it.open == it.close) {  // shell "`cmd`": no nesting
+        for (size_t j = from; j < code.size(); ++j) {
+            if (code[j] == '\\') { ++j; continue; }
+            if (code.compare(j, it.close.size(), it.close) == 0) return j;
+        }
+        return std::string::npos;
+    }
+    const char opener = it.open.back();
+    const char closer = it.close.front();
+    int depth = 1;
+    for (size_t j = from; j < code.size(); ++j) {
+        const char c = code[j];
+        if (c == '\\') { ++j; continue; }
+        if (c == '"' || c == '\'' || c == '`') {
+            for (size_t k = j + 1; k < code.size(); ++k) {
+                if (code[k] == '\\') { ++k; continue; }
+                if (code[k] == c) { j = k; break; }
+                if (k + 1 == code.size()) j = k;
+            }
+            continue;
+        }
+        if (c == opener) ++depth;
+        else if (c == closer && --depth == 0) return j;
+    }
+    return std::string::npos;
+}
+
+// The letters that prefix the string whose opening quote is at `quote_pos`
+// (f / rf / fr for Python, $ / $@ / @$ for C#), lower-cased.
+static std::string stringPrefixBefore(const std::string& code, size_t quote_pos) {
+    size_t b = quote_pos;
+    while (b > 0 && quote_pos - b < 3) {
+        const char p = code[b - 1];
+        if (std::isalpha(static_cast<unsigned char>(p)) || p == '$' || p == '@') --b;
+        else break;
+    }
+    std::string pre = code.substr(b, quote_pos - b);
+    for (auto& ch : pre) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    return pre;
+}
+
+// If an interpolation the language declares for this string opens at `i`,
+// append its expression to `out` AS CODE (itself string-stripped) and return
+// the index of its last character; otherwise return npos. Python/C# "{{" is a
+// literal brace, not an interpolation.
+static size_t emitInterpolationAt(const std::string& code, size_t i, char quote,
+                                  const std::string& prefix,
+                                  const naab::lang::LanguageDescriptor* d,
+                                  std::string& out) {
+    if (!d) return std::string::npos;
+    for (const auto& it : d->interpolations) {
+        if (it.quote.size() != 1 || it.quote[0] != quote) continue;
+        if (!it.prefix.empty() && prefix.find(it.prefix) == std::string::npos) continue;
+        if (code.compare(i, it.open.size(), it.open) != 0) continue;
+        if (it.open == "{" && i + 1 < code.size() && code[i + 1] == '{') return i + 1;
+        const size_t from = i + it.open.size();
+        const size_t end = findInterpolationEnd(code, from, it);
+        const size_t stop = (end == std::string::npos) ? code.size() : end;
+        out += ' ';
+        out += stripStringLiterals(code.substr(from, stop - from), d);
+        out += ' ';
+        return (end == std::string::npos) ? code.size() - 1 : end + it.close.size() - 1;
+    }
+    return std::string::npos;
+}
+
 // FIX 16: Strip string literal contents to prevent false positive pattern matches
-// This prevents governance checks from triggering on code/paths inside strings
+// This prevents governance checks from triggering on code/paths inside strings.
+//
+// Code the language EVALUATES inside a string -- an interpolation from the
+// language table (f"{x}", `${x}`, "#{x}", "$(cmd)") -- is kept, as code: it
+// used to be stripped with the string, so wrapping any call in one hid it from
+// every check (os.system inside f"{...}" drew no finding). Where backticks run
+// a command (shell, ruby, php), they are not a string at all.
 static std::string stripStringLiterals(const std::string& code,
                                        const naab::lang::LanguageDescriptor* lang_desc = nullptr) {
     std::string result;
@@ -44,9 +125,17 @@ static std::string stripStringLiterals(const std::string& code,
     bool in_single = false, in_double = false, in_backtick = false;
     bool escaped = false;
     bool in_raw = false;  // Track Python raw strings — no escape processing
+    std::string str_prefix;  // prefix of the string we are in (f, rf, $ ...)
+    const bool backtick_is_code = lang_desc && lang_desc->backtick_runs_command;
     for (size_t i = 0; i < code.size(); ++i) {
         char c = code[i];
         if (escaped) { escaped = false; continue; }
+        // Interpolation inside the current string: its expression is code.
+        if (lang_desc && (in_single || in_double || in_backtick)) {
+            const char q = in_double ? '"' : (in_single ? '\'' : '`');
+            const size_t last = emitInterpolationAt(code, i, q, str_prefix, lang_desc, result);
+            if (last != std::string::npos) { i = last; continue; }
+        }
         // C11 fix: track escapes in backtick strings too (JS template literals)
         // Skip escape processing in raw strings (r"..." / r'...')
         if (c == '\\' && (in_single || in_double || in_backtick) && !in_raw) { escaped = true; continue; }
@@ -174,12 +263,15 @@ static std::string stripStringLiterals(const std::string& code,
         // EVA-6: Triple-double-quote: """...""" (Python docstrings)
         if (c == '"' && !in_single && !in_backtick && !in_double
             && i+2 < code.size() && code[i+1] == '"' && code[i+2] == '"') {
+            const std::string tq_prefix = stringPrefixBefore(code, i);
             i += 3;  // skip opening """
             while (i+2 < code.size()) {
                 if (code[i] == '"' && code[i+1] == '"' && code[i+2] == '"') {
                     i += 2;  // will be incremented by loop
                     break;
                 }
+                const size_t last = emitInterpolationAt(code, i, '"', tq_prefix, lang_desc, result);
+                if (last != std::string::npos) { i = last + 1; continue; }
                 i++;
             }
             continue;
@@ -187,20 +279,35 @@ static std::string stripStringLiterals(const std::string& code,
         // EVA-6: Triple-single-quote: '''...'''
         if (c == '\'' && !in_double && !in_backtick && !in_single
             && i+2 < code.size() && code[i+1] == '\'' && code[i+2] == '\'') {
+            const std::string tq_prefix = stringPrefixBefore(code, i);
             i += 3;
             while (i+2 < code.size()) {
                 if (code[i] == '\'' && code[i+1] == '\'' && code[i+2] == '\'') {
                     i += 2;
                     break;
                 }
+                const size_t last = emitInterpolationAt(code, i, '\'', tq_prefix, lang_desc, result);
+                if (last != std::string::npos) { i = last + 1; continue; }
                 i++;
             }
             continue;
         }
 
-        if (c == '"' && !in_single && !in_backtick) { in_double = !in_double; if (!in_double) in_raw = false; continue; }
-        if (c == '\'' && !in_double && !in_backtick) { in_single = !in_single; if (!in_single) in_raw = false; continue; }
-        if (c == '`' && !in_double && !in_single) { in_backtick = !in_backtick; continue; }
+        if (c == '"' && !in_single && !in_backtick) {
+            in_double = !in_double;
+            if (in_double) str_prefix = stringPrefixBefore(code, i); else in_raw = false;
+            continue;
+        }
+        if (c == '\'' && !in_double && !in_backtick) {
+            in_single = !in_single;
+            if (in_single) str_prefix = stringPrefixBefore(code, i); else in_raw = false;
+            continue;
+        }
+        if (c == '`' && !in_double && !in_single && !backtick_is_code) {
+            in_backtick = !in_backtick;
+            if (in_backtick) str_prefix.clear();
+            continue;
+        }
         if (!in_single && !in_double && !in_backtick) {
             result += c;
         }

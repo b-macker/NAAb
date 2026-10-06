@@ -34,6 +34,19 @@ struct BlockComment {
     bool line_start_only = false;
 };
 
+// Code embedded in a string literal: the language EVALUATES what sits between
+// `open` and `close` inside a string delimited by `quote` (and carrying
+// `prefix`, when one is required). Python f"{x}", JS `${x}`, Ruby "#{x}",
+// shell "$(cmd)". Governance strips string literals before its code checks,
+// so without this a call wrapped in an interpolation was invisible to every
+// one of them (measured: os.system(...) inside f"{...}" drew no finding).
+struct Interpolation {
+    std::string quote;   // the string delimiter it lives in: "\"", "'", "`"
+    std::string prefix;  // a letter the string must carry ("f", "$"); "" = none needed
+    std::string open;
+    std::string close;   // nests with `open` (braces/parens) unless open == close
+};
+
 struct LanguageDescriptor {
     std::string canonical;
     std::vector<std::string> aliases;
@@ -62,6 +75,12 @@ struct LanguageDescriptor {
     // and `blocked: ["node"]` must block Node without blocking QuickJS.
     // Every name here must also be in `aliases`.
     std::vector<std::string> runtime_variants;
+
+    // String interpolation forms (see Interpolation).
+    std::vector<Interpolation> interpolations;
+    // True where `...` RUNS A COMMAND (shell, ruby, php) rather than quoting
+    // text: its content is code to every check, never a string literal.
+    bool backtick_runs_command = false;
 };
 
 // Every descriptor, in a fixed order.

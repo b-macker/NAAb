@@ -514,6 +514,11 @@ static int cmdLanguages() {
     using json = nlohmann::json;
     json out = json::array();
     for (const auto& d : naab::lang::allLanguages()) {
+        json interps = json::array();
+        for (const auto& in : d.interpolations) {
+            interps.push_back({{"quote", in.quote}, {"prefix", in.prefix},
+                               {"open", in.open}, {"close", in.close}});
+        }
         json blocks = json::array();
         for (const auto& b : d.block_comments) {
             blocks.push_back({{"open", b.open}, {"close", b.close},
@@ -524,7 +529,9 @@ static int cmdLanguages() {
                        {"governance_only", d.governance_only},
                        {"extension", d.extension}, {"prelude", d.prelude},
                        {"syntax_checks", d.syntax_checks},
-                       {"runtime_variants", d.runtime_variants}});
+                       {"runtime_variants", d.runtime_variants},
+                       {"interpolations", interps},
+                       {"backtick_runs_command", d.backtick_runs_command}});
     }
     std::cout << out.dump(1) << "\n";
     return 0;
