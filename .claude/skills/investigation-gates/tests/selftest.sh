@@ -125,6 +125,32 @@ else
     if [ $st -eq 2 ] && has "$h" "probe is broken"; then pass "M-H a sabotaged pickaxe is caught by the built-in control"
     else fail "M-H sabotaged pickaxe went undetected" "exit=$st $h"; fi
   fi
+
+  # H-06: git warnings on stderr must not be parsed as commit hits. A non-root
+  # CI job cannot read $HOME/.config/git and git warns to stderr on every call;
+  # merged with 2>&1 those lines were counted as hits (shallow UNMEASURABLE
+  # hidden, broken-probe control inflated past zero). Reproduced on ANY user by
+  # a `git` shim that prints a warning to stderr, then forwards to the real git.
+  # With the fix (separate streams) the result is identical to the clean run.
+  if [ -n "$GIT" ]; then
+    mkdir -p "$WORK/shim"
+    { printf '#!/usr/bin/env bash\n'
+      printf 'echo "warning: unable to access '\''/nonexistent/.config/git/attributes'\'': Permission denied" >&2\n'
+      printf 'exec %q "$@"\n' "$GIT"
+    } > "$WORK/shim/git"
+    chmod +x "$WORK/shim/git"
+    clean=$(cd "$R" && bash "$S/history_pass.sh" alpha_token 2>/dev/null); cst=$?
+    noisy=$(cd "$R" && PATH="$WORK/shim:$PATH" bash "$S/history_pass.sh" alpha_token 2>/dev/null); st=$?
+    # the shim fires (control): without it this arm proves nothing
+    probe=$(cd "$R" && PATH="$WORK/shim:$PATH" git --version 2>&1 >/dev/null)
+    if ! has "$probe" "Permission denied"; then
+      unm "H-06 the git shim did not emit its stderr warning"
+    elif has "$clean" "HITS 1" && [ "$noisy" = "$clean" ] && [ "$st" -eq "$cst" ]; then
+      # identical to the clean run, exit and all -- the warning changed nothing
+      pass "H-06 git stderr warnings are not parsed as commit hits"
+    else fail "H-06 git stderr warning leaked into parsed output" "clean_exit=$cst noisy_exit=$st
+$noisy"; fi
+  fi
 fi
 
 echo

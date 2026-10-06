@@ -76,9 +76,18 @@ print_capped() {
 count_lines() { local c=0 line; while IFS= read -r line; do [ -n "$line" ] && c=$((c + 1)); done <<< "$1"; echo "$c"; }
 
 # ---- usability: is the instrument live at all? -------------------------------
-top=$(git rev-parse --show-toplevel 2>&1); st=$?
+# stdout only -- a git stderr warning merged in here (2>&1) became part of the
+# path and the later `cd "$top"` died on it (see log_query's note). The error
+# text for the not-a-repo message is read from stderr separately.
+top_errf=$(mktemp 2>/dev/null) || top_errf=""
+if [ -n "$top_errf" ]; then
+  top=$(git rev-parse --show-toplevel 2>"$top_errf"); st=$?
+  top_err=$(cat "$top_errf" 2>/dev/null); rm -f "$top_errf"
+else
+  top=$(git rev-parse --show-toplevel 2>/dev/null); st=$?; top_err=""
+fi
 if [ $st -ne 0 ]; then
-  echo "UNMEASURABLE: not inside a git repository ($top)"
+  echo "UNMEASURABLE: not inside a git repository (${top_err:0:200})"
   exit 2
 fi
 cd "$top" || { echo "UNMEASURABLE: cannot cd to $top"; exit 2; }
@@ -111,15 +120,30 @@ is_boundary() { local c="$1" b; for b in "${BOUNDARY[@]:-}"; do [ -n "$b" ] && [
 
 # Run one log query. $1 = label, rest = git log args.
 # Sets LAST_REAL_HITS to the number of non-boundary commits found.
+#
+# stdout and stderr are kept SEPARATE on purpose. git writes warnings to
+# stderr -- e.g. "unable to access '$HOME/.config/git/attributes': Permission
+# denied" when run as a user who cannot read the ambient config, as a non-root
+# CI job does. Merged with 2>&1 those warning lines were parsed as commit
+# rows: each became a bogus HITS, which hid the shallow-clone UNMEASURABLE and
+# inflated the broken-probe control's count past zero (selftest H-03 and M-H
+# failed only under that condition). Only stdout is parsed; stderr is reported
+# as the reason when, and only when, git exits non-zero.
 LAST_REAL_HITS=0
 log_query() {
   local label="$1"; shift
-  local out st real="" art="" line sha
-  out=$(git log --format='%h %ad %s' --date=short "$@" 2>&1); st=$?
+  local out st err real="" art="" line sha
+  local errf; errf=$(mktemp 2>/dev/null) || errf=""
+  if [ -n "$errf" ]; then
+    out=$(git log --format='%h %ad %s' --date=short "$@" 2>"$errf"); st=$?
+    err=$(cat "$errf" 2>/dev/null); rm -f "$errf"
+  else
+    out=$(git log --format='%h %ad %s' --date=short "$@" 2>/dev/null); st=$?; err=""
+  fi
   echo "-- $label"
   if [ $st -ne 0 ]; then
     LAST_REAL_HITS=0
-    unmeasurable "git log failed: ${out:0:200}"
+    unmeasurable "git log failed: ${err:0:200}"
     return
   fi
   while IFS= read -r line; do
