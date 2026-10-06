@@ -3843,6 +3843,22 @@ else
     echo "  test_protection_map.sh: not found, skipping"
 fi
 
+GATES_SELFTEST=".claude/skills/investigation-gates/tests/selftest.sh"
+if [ -f "$GATES_SELFTEST" ]; then
+    # The investigation-gates skill's own scripts (history pass, flake loop
+    # length, write-up lint) against their positive controls and two mutants.
+    # Registered so a script that rots fails here rather than in a session
+    # that trusts its silence.
+    if run_shell_test "$GATES_SELFTEST" 2>&1; then
+        echo "  investigation-gates selftest: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("investigation-gates/selftest.sh")
+    fi
+else
+    echo "  investigation-gates selftest: not found, skipping"
+fi
+
 DEADGATE_SCRIPT="tests/self-audit/test_dead_interpreter_gate.sh"
 if [ -f "$DEADGATE_SCRIPT" ]; then
     # tools/testrunner/dead_gate.py runs every suite against an interpreter that
