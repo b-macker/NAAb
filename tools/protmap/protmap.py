@@ -72,10 +72,20 @@ ENV_NAME = "NAAB_PM_SECRET"
 # Each snippet performs ONE action with the language's ordinary API -- the
 # form a text check is written for. {MARK} is the exec marker's file name,
 # {PORT} the listener's port. Paths are relative to the probe's cwd.
+#
+# External commands are ABSOLUTE ({TOUCH}, {CAT}, {CURL}, resolved once by
+# tool_paths()). The first version called them by bare name, and a bare name
+# measures PATH, not containment: when a level denies exec, child containment
+# sets PATH to the interpreter's own directory (subprocess_helpers.cpp,
+# restrict_path) and blocks fork with RLIMIT_NPROC=0 -- which the kernel does
+# not enforce for root. As root, PATH was the only barrier, a full path walked
+# straight through it, and the map called it containment (measured:
+# std::system("/usr/bin/touch ...") from a cpp block at standard with shell
+# disabled created the file; "touch ..." exited 127).
 SNIPPETS = {
     "python": {
         "alive": '"ALIVE"',
-        "exec": 'import subprocess\nsubprocess.run(["touch", "{MARK}"])\n"done"',
+        "exec": 'import subprocess\nsubprocess.run(["{TOUCH}", "{MARK}"])\n"done"',
         "read": 'open("vault/secret.txt").read()',
         "write": 'open("vault/w.txt", "w").write("x")\n"done"',
         "net": 'import socket\nsocket.create_connection(("127.0.0.1", {PORT}), timeout=3).close()\n"done"',
@@ -83,7 +93,7 @@ SNIPPETS = {
     },
     "node": {
         "alive": 'console.log("ALIVE")',
-        "exec": 'require("child_process").execFileSync("touch", ["{MARK}"]); console.log("done")',
+        "exec": 'require("child_process").execFileSync("{TOUCH}", ["{MARK}"]); console.log("done")',
         "read": 'console.log(require("fs").readFileSync("vault/secret.txt", "utf8"))',
         "write": 'require("fs").writeFileSync("vault/w.txt", "x"); console.log("done")',
         "net": 'const s = require("net").connect({PORT}, "127.0.0.1", () => { s.end(); console.log("done"); });',
@@ -91,15 +101,15 @@ SNIPPETS = {
     },
     "shell": {
         "alive": 'echo ALIVE',
-        "exec": 'touch {MARK}',
-        "read": 'cat vault/secret.txt',
+        "exec": '{TOUCH} {MARK}',
+        "read": '{CAT} vault/secret.txt',
         "write": 'echo x > vault/w.txt',
-        "net": 'curl -s -m 3 http://127.0.0.1:{PORT}/ >/dev/null; echo done',
+        "net": '{CURL} -s -m 3 http://127.0.0.1:{PORT}/ >/dev/null; echo done',
         "env": 'echo "$NAAB_PM_SECRET"',
     },
     "ruby": {
         "alive": 'puts "ALIVE"',
-        "exec": 'system("touch", "{MARK}")',
+        "exec": 'r = system("{TOUCH}", "{MARK}")\nputs "PROBE_ERR: #{$!}" if r.nil?',
         "read": 'puts File.read("vault/secret.txt")',
         "write": 'File.write("vault/w.txt", "x")',
         "net": 'require "socket"\nTCPSocket.new("127.0.0.1", {PORT}).close',
@@ -107,7 +117,7 @@ SNIPPETS = {
     },
     "php": {
         "alive": 'echo "ALIVE";',
-        "exec": 'exec("touch {MARK}");',
+        "exec": 'exec("{TOUCH} {MARK}");',
         "read": 'echo file_get_contents("vault/secret.txt");',
         "write": 'file_put_contents("vault/w.txt", "x");',
         "net": '$s = fsockopen("127.0.0.1", {PORT}); fclose($s);',
@@ -115,7 +125,7 @@ SNIPPETS = {
     },
     "go": {
         "alive": 'package main\nimport "fmt"\nfunc main() { fmt.Print("ALIVE") }',
-        "exec": 'package main\nimport "os/exec"\nfunc main() { exec.Command("touch", "{MARK}").Run() }',
+        "exec": 'package main\nimport ("fmt"; "os/exec")\nfunc main() { if err := exec.Command("{TOUCH}", "{MARK}").Run(); err != nil { fmt.Println("PROBE_ERR:", err) } }',
         "read": 'package main\nimport ("fmt"; "os")\nfunc main() { b, _ := os.ReadFile("vault/secret.txt"); fmt.Print(string(b)) }',
         "write": 'package main\nimport "os"\nfunc main() { os.WriteFile("vault/w.txt", []byte("x"), 0644) }',
         "net": 'package main\nimport "net"\nfunc main() { c, err := net.Dial("tcp", "127.0.0.1:{PORT}"); if err == nil { c.Close() } }',
@@ -123,7 +133,7 @@ SNIPPETS = {
     },
     "cpp": {
         "alive": '#include <iostream>\nint main() { std::cout << "ALIVE"; return 0; }',
-        "exec": '#include <cstdlib>\nint main() { return std::system("touch {MARK}") ? 1 : 0; }',
+        "exec": '#include <cstdlib>\nint main() { return std::system("{TOUCH} {MARK}") ? 1 : 0; }',
         "read": '#include <fstream>\n#include <iostream>\nint main() { std::ifstream f("vault/secret.txt"); std::cout << f.rdbuf(); return 0; }',
         "write": '#include <fstream>\nint main() { std::ofstream f("vault/w.txt"); f << "x"; return 0; }',
         "net": ('#include <arpa/inet.h>\n#include <sys/socket.h>\n#include <unistd.h>\n'
@@ -134,7 +144,7 @@ SNIPPETS = {
     },
     "rust": {
         "alive": 'fn main() { print!("ALIVE"); }',
-        "exec": 'fn main() { let _ = std::process::Command::new("touch").arg("{MARK}").status(); }',
+        "exec": 'fn main() { if let Err(e) = std::process::Command::new("{TOUCH}").arg("{MARK}").status() { println!("PROBE_ERR: {}", e); } }',
         "read": 'fn main() { print!("{}", std::fs::read_to_string("vault/secret.txt").unwrap_or_default()); }',
         "write": 'fn main() { let _ = std::fs::write("vault/w.txt", "x"); }',
         "net": 'fn main() { let _ = std::net::TcpStream::connect("127.0.0.1:{PORT}"); }',
@@ -145,7 +155,7 @@ SNIPPETS = {
     # NO_API is still an observation -- the control must fail for it.
     "javascript": {
         "alive": '"ALIVE"',
-        "exec": 'os.exec(["touch", "{MARK}"])',
+        "exec": 'os.exec(["{TOUCH}", "{MARK}"])',
         "read": 'std.loadFile("vault/secret.txt")',
         "write": 'let f = std.open("vault/w.txt", "w"); f.puts("x"); f.close(); "done"',
         "net": 'fetch("http://127.0.0.1:{PORT}/")',
@@ -169,6 +179,50 @@ NO_API = {
     # every level -- contained by construction, which the control proves.
     "sql": {"exec", "read", "write", "net", "env"},
 }
+
+
+# The external commands the probes run, resolved once to absolute paths.
+TOOLS = ("touch", "cat", "curl")
+
+
+def tool_paths():
+    """{"TOUCH": "/usr/bin/touch", ...}; a missing tool maps to None."""
+    return {t.upper(): shutil.which(t) for t in TOOLS}
+
+
+def tools_needed(code):
+    return [t.upper() for t in TOOLS if "{" + t.upper() + "}" in code]
+
+
+def substitute(code, mark, port, tools):
+    for k, v in tools.items():
+        code = code.replace("{" + k + "}", v or ("/nonexistent/" + k.lower()))
+    return code.replace("{MARK}", mark).replace("{PORT}", str(port))
+
+
+# What each runtime prints when the program it was asked to start does not
+# exist. If a probe's action did not happen AND its output says this about
+# the probe's own command, the probe broke -- that is not containment.
+NOT_FOUND = ("not found", "No such file or directory", "ENOENT",
+             "executable file not found", "os error 2", "FileNotFoundError",
+             "cannot find", "command not found")
+
+
+def probe_broken(output, commands):
+    """True when `output` reports that one of `commands` (absolute paths or
+    bare names) could not be found. Probes whose runtime would otherwise
+    swallow the error (go, rust, ruby) print it behind PROBE_ERR:, and a
+    PROBE_ERR line with a not-found signature is broken by construction."""
+    for line in output.splitlines():
+        if "PROBE_ERR" in line and any(sig in line for sig in NOT_FOUND):
+            return True
+        if any(sig in line for sig in NOT_FOUND):
+            for c in commands:
+                if c and (c in line or os.path.basename(c) in line.split()):
+                    return True
+            if "command not found" in line or ": not found" in line:
+                return True
+    return False
 
 
 def text_rules():
@@ -248,8 +302,13 @@ class Listener:
         self.sock.close()
 
 
-def run_probe(naab, lang, action, mode, level, rules, policy=True, timeout=90):
-    """Run one block; return (happened, exit_code, output, audit_rules)."""
+def run_probe(naab, lang, action, mode, level, rules, policy=True, timeout=90,
+              tools=None, snippet=None):
+    """Run one block; return (happened, exit_code, output, audit_rules,
+    broken) -- `broken` is True when the action did not happen and the
+    output says the probe's own command was not found."""
+    tools = tools if tools is not None else tool_paths()
+    snippet = snippet if snippet is not None else SNIPPETS[lang][action]
     w = tempfile.mkdtemp(prefix="protmap-")
     lis = Listener() if action == "net" else None
     try:
@@ -259,9 +318,7 @@ def run_probe(naab, lang, action, mode, level, rules, policy=True, timeout=90):
         with open(os.path.join(w, "vault", "secret.txt"), "w") as f:
             f.write(file_token + "\n")
         mark = "pm_mark_" + secrets.token_hex(4)
-        code = (SNIPPETS[lang][action]
-                .replace("{MARK}", mark)
-                .replace("{PORT}", str(lis.port if lis else 0)))
+        code = substitute(snippet, mark, lis.port if lis else 0, tools)
         with open(os.path.join(w, "govern.json"), "w") as f:
             json.dump(make_config(mode, level, *rules, policy=policy), f)
         with open(os.path.join(w, "p.naab"), "w") as f:
@@ -299,7 +356,11 @@ def run_probe(naab, lang, action, mode, level, rules, policy=True, timeout=90):
             raise ValueError(action)
         audit = sorted({ln.split()[2].rstrip(":") for ln in err.splitlines()
                         if ln.startswith("[governance] AUDIT ")})
-        return happened, rc, ("OUT:" + out[-400:] + " ERR:" + err[-800:]), audit
+        cmds = [tools.get(k) for k in tools_needed(snippet)] + \
+               [k.lower() for k in tools_needed(snippet)] + \
+               [w_ for w_ in ("touch", "cat", "curl") if w_ in snippet.split("\"")]
+        broken = (not happened) and probe_broken(out + "\n" + err, cmds)
+        return happened, rc, ("OUT:" + out[-400:] + " ERR:" + err[-800:]), audit, broken
     finally:
         if lis:
             lis.close()
@@ -311,7 +372,7 @@ def static_block_rules(gov, lang, action, level, rules):
     column's enforce config; None when naab-gov is unavailable."""
     if not os.path.exists(gov):
         return None
-    code = SNIPPETS[lang][action].replace("{MARK}", "pm_mark").replace("{PORT}", "1")
+    code = substitute(SNIPPETS[lang][action], "pm_mark", 1, tool_paths())
     with tempfile.TemporaryDirectory(prefix="protmap-gov-") as w:
         cfg = os.path.join(w, "govern.json")
         with open(cfg, "w") as f:
@@ -372,6 +433,12 @@ def compare(cells, baseline):
     fails, skipped = [], 0
     for key, want in sorted(baseline.items()):
         got = cells.get(key, {}).get("verdict")
+        if got == "UNMEASURABLE" and cells[key].get("why", "").startswith("probe broken"):
+            # Not "this platform cannot measure it" -- the instrument failed on
+            # a cell it measured before. Skipping it would hide exactly the
+            # defect the probe-broken check exists to surface.
+            fails.append(f"{key}: {want} -> UNMEASURABLE ({cells[key]['why']})")
+            continue
         if got in (None, "UNMEASURABLE"):
             skipped += 1
             continue
@@ -385,15 +452,17 @@ def compare(cells, baseline):
     return fails, skipped
 
 
-def measure(naab, langs, levels, jobs):
+def measure(naab, langs, levels, jobs, snippets=None):
     rules = text_rules()
+    tools = tool_paths()
+    snippets = snippets or SNIPPETS
     jobs_list = []
     for lang in langs:
         jobs_list.append((lang, "alive", "audit", "unrestricted", False))
         for lv in levels:  # does the language run at all in this column?
             jobs_list.append((lang, "alive", "audit", lv, True))
         for action in ACTIONS:
-            if action not in SNIPPETS[lang]:
+            if action not in snippets[lang]:
                 continue
             jobs_list.append((lang, action, "audit", "unrestricted", False))  # control
             for lv in levels:
@@ -403,7 +472,8 @@ def measure(naab, langs, levels, jobs):
                 jobs_list.append((lang, action, "enforce", lv, True))
     results = {}
     with concurrent.futures.ThreadPoolExecutor(jobs) as ex:
-        futs = {ex.submit(run_probe, naab, *j[:4], rules, j[4]): j for j in jobs_list}
+        futs = {ex.submit(run_probe, naab, *j[:4], rules, j[4], 90, tools,
+                          snippets[j[0]][j[1]]): j for j in jobs_list}
         for f in concurrent.futures.as_completed(futs):
             results[futs[f]] = f.result()
 
@@ -414,7 +484,7 @@ def measure(naab, langs, levels, jobs):
         for action in ACTIONS:
             for lv in levels:
                 key = f"{lang}/{action}/{lv}"
-                if action not in SNIPPETS[lang]:
+                if action not in snippets[lang]:
                     cells[key] = {"verdict": "NO_API" if action in NO_API.get(lang, ()) else "NO_PROBE"}
                     continue
                 if action == "exec" and COLUMNS[lv][1]:
@@ -426,9 +496,13 @@ def measure(naab, langs, levels, jobs):
                 cell = {"control": ctl[0], "runtime_stops": not rt[0],
                         "text_stops": not tx[0], "text_exit": tx[1],
                         "text_rules": rt[3]}
+                missing = [t.lower() for t in tools_needed(snippets[lang][action]) if not tools[t]]
                 if not alive:
                     v = "UNMEASURABLE"
                     cell["why"] = "language did not run (toolchain absent?)"
+                elif missing:
+                    v = "UNMEASURABLE"
+                    cell["why"] = "probe tool not installed: " + ", ".join(missing)
                 elif not ctl[0]:
                     if action in NO_API.get(lang, ()):
                         v = "NO_API"
@@ -436,11 +510,22 @@ def measure(naab, langs, levels, jobs):
                         v = "UNMEASURABLE"
                         cell["why"] = "control: the action did not happen even unrestricted"
                         cell["control_output"] = ctl[2]
+                elif not rt[0] and rt[4]:
+                    # The action did not happen because the probe's own command
+                    # could not be found: an instrument failure, never a
+                    # containment result (the bare-name defect, caught).
+                    v = "UNMEASURABLE"
+                    cell["why"] = "probe broken: its command was not found (runtime arm)"
+                    cell["runtime_output"] = rt[2]
                 elif not rt[0]:
                     v = "CONTAINED"
                     # display detail only (not baselined): the whole language
                     # is refused here, rather than this one action
                     cell["language_refused"] = not results[(lang, "alive", "audit", lv, True)][0]
+                elif not tx[0] and tx[4]:
+                    v = "UNMEASURABLE"
+                    cell["why"] = "probe broken: its command was not found (text arm)"
+                    cell["text_output"] = tx[2]
                 elif not tx[0]:
                     # Something in enforce mode stopped it. It is a TEXT check
                     # only if naab-gov -- which reads the source and never runs
@@ -484,6 +569,48 @@ def render_md(cells, langs, levels):
     return "\n".join(out) + "\n"
 
 
+def selftest():
+    """probe_broken() against outputs the runtimes really print. The positive
+    strings are copied from runs (sh from a cpp std::system, the others from
+    each runtime's own error for a missing program); they are AUTHORED inputs,
+    so this checks the classifier's logic, not that a runtime still prints
+    them -- the --plant-bare control checks that end to end."""
+    cmds = ["/usr/bin/touch", "touch"]
+    positive = [
+        "sh: 1: touch: not found",
+        "sh: 1: /usr/bin/touch: not found",
+        'exec: "touch": executable file not found in $PATH',
+        "PROBE_ERR: No such file or directory (os error 2)",
+        'PROBE_ERR: exec: "touch": executable file not found in $PATH',
+        "PROBE_ERR: No such file or directory - touch",
+        "FileNotFoundError: [Errno 2] No such file or directory: 'touch'",
+        "Error: spawnSync touch ENOENT",
+        "bash: line 1: touch: command not found",
+    ]
+    negative = [
+        "",
+        "[SANDBOX VIOLATION] SYS_EXEC capability required",
+        "Security: cpp execution denied by sandbox",
+        "PermissionError: [Errno 13] Permission denied: 'vault/secret.txt'",
+        "Governance error: Code injection pattern in python block",
+        "Resource temporarily unavailable",
+        "PROBE_ERR: fork/exec /usr/bin/touch: resource temporarily unavailable",
+        "PROBE_ERR: Resource temporarily unavailable (os error 11)",
+        "PROBE_ERR: Operation not permitted",
+    ]
+    fails = 0
+    for o in positive:
+        ok = probe_broken(o, cmds)
+        fails += not ok
+        print(("PASS" if ok else "FAIL") + "  broken  <- " + o)
+    for o in negative:
+        ok = not probe_broken(o, cmds)
+        fails += not ok
+        print(("PASS" if ok else "FAIL") + "  not-broken <- " + (o or "(empty)"))
+    print("SELFTEST %d fail" % fails)
+    return 1 if fails else 0
+
+
 def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("--naab", default=os.path.join(REPO, "build", "naab-lang"))
@@ -498,6 +625,13 @@ def main(argv):
     ap.add_argument("--cells", help="use this saved --json measurement instead of measuring")
     ap.add_argument("--profile", choices=["root", "nonroot"],
                     help="baseline section (default: from the effective uid)")
+    ap.add_argument("--plant-bare", metavar="LANG/ACTION/COLUMN",
+                    help="CONTROL: measure one cell with its absolute command "
+                         "paths replaced by bare names (the original defect); "
+                         "prints the cell as JSON")
+    ap.add_argument("--selftest", action="store_true",
+                    help="check probe_broken() against outputs captured from "
+                         "the runtimes, both directions")
     a = ap.parse_args(argv)
     a.naab = os.path.abspath(a.naab)
     langs = [x for x in a.langs.split(",") if x]
@@ -508,6 +642,18 @@ def main(argv):
             print("UNMEASURABLE: could not ask the binary for its languages")
             return 2
         print("\n".join(rts))
+        return 0
+    if a.selftest:
+        return selftest()
+    if a.plant_bare:
+        lang, action, col = a.plant_bare.split("/", 2)
+        planted = {k: dict(v) for k, v in SNIPPETS.items()}
+        code = planted[lang][action]
+        for t in TOOLS:
+            code = code.replace("{" + t.upper() + "}", t)
+        planted[lang][action] = code
+        cells = measure(a.naab, [lang], [col], a.jobs, planted)
+        print(json.dumps(cells[f"{lang}/{action}/{col}"], sort_keys=True))
         return 0
     for l in langs:
         if l not in SNIPPETS:

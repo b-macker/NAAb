@@ -23,9 +23,7 @@
 #   PM-02  the measured map equals the committed baseline. Weaker cells are
 #          regressions; stronger ones mean the committed map is out of date.
 #          Cells this platform cannot measure (toolchain absent) are skipped
-#          and counted. The baseline has a root and a nonroot section:
-#          RLIMIT_NPROC does not bind root, so the same build contains less
-#          when run as root (9 cells differ); the section follows the uid.
+#          and counted.
 #   PM-03  the instrument can report every verdict: the measurement holds at
 #          least one CONTAINED, one TEXT-ONLY and one OPEN cell. A probe that
 #          collapsed to one answer would otherwise pass PM-02 only while the
@@ -33,6 +31,14 @@
 #   PM-04  CONTROL: the comparator reports planted changes in BOTH directions
 #          (a CONTAINED cell rewritten OPEN reads as STRONGER, a TEXT-ONLY cell
 #          rewritten CONTAINED as WEAKER) and exits non-zero for each
+#   PM-05  the probe_broken() classifier (a command-not-found output is an
+#          instrument failure, not containment) passes its own selftest
+#   PM-06  CONTROL: a planted bare-name exec probe reports UNMEASURABLE, not a
+#          containment verdict -- the PATH artifact the absolute-path fix closed
+#
+# The baseline has a root and a nonroot section: RLIMIT_NPROC does not bind
+# root, so the same build contains less when run as root (12 cells differ);
+# the section follows the uid.
 #
 # Linux only: the containment being mapped (rlimits, fork/exec gating) is the
 # POSIX implementation, and the baseline was measured there.
@@ -172,6 +178,39 @@ else
     bad PM-04 "comparator missed a planted change (exit $prc/$prc2)" "$pout
 $pout2"
 fi
+
+# --- PM-05: the classifier that tells a broken probe from containment ---
+# probe_broken() is why a bare-name command (which measures PATH, not the
+# sandbox) no longer reads as CONTAINED. Its own both-direction check.
+sout="$(python3 "$TOOL" --selftest 2>&1)"; src=$?
+if [ $src -eq 0 ] && printf '%s\n' "$sout" | grep -q "SELFTEST 0 fail"; then
+    ok PM-05 "probe_broken() selftest passes both directions"
+else
+    bad PM-05 "probe_broken() selftest failed" "$sout"
+fi
+
+# --- PM-06: CONTROL, end to end -- a planted bare-name exec probe must report
+# UNMEASURABLE (probe broken), never a containment verdict. This is the exact
+# defect the absolute-path fix closed: the exec-denied PATH restriction hides a
+# bare `touch`, and the old probe called that CONTAINED.
+#
+# The column is `elevated/deny`, not `standard/deny`, on purpose: at `standard`
+# RLIMIT_NPROC=0 blocks the fork before PATH is ever consulted (as a non-root
+# user), which is REAL containment, so a bare name there is legitimately
+# CONTAINED and proves nothing. At `elevated` fork is allowed on both uids, so
+# PATH is the only barrier and a bare name fails to resolve -- the artifact, if
+# it were back. The absolute-path probe's real verdict for this cell is
+# TEXT-ONLY (it runs), so a CONTAINED here can only be the PATH artifact.
+pb="$(python3 "$TOOL" --plant-bare cpp/exec/elevated/deny --jobs 2 2>&1 | tail -1)"
+verdict="$(printf '%s' "$pb" | python3 -c "import json,sys
+try: print(json.loads(sys.stdin.read()).get('verdict','?'))
+except Exception: print('PARSE_FAIL')" 2>/dev/null)"
+case "$verdict" in
+    UNMEASURABLE) ok PM-06 "a bare-name exec probe is reported UNMEASURABLE, not contained" ;;
+    CONTAINED)    bad PM-06 "a bare-name exec probe read as CONTAINED -- the PATH artifact is back" "$pb" ;;
+    OPEN|TEXT-ONLY) skip PM-06 "bare name resolved here ($verdict); PATH did not hide it -- UNMEASURABLE control" ;;
+    *)            bad PM-06 "could not classify the planted probe ($verdict)" "$pb" ;;
+esac
 
 report
 [ "$FAIL" -eq 0 ]
