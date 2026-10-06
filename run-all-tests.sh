@@ -3849,8 +3849,17 @@ if [ -f "$GATES_SELFTEST" ]; then
     # length, write-up lint) against their positive controls and two mutants.
     # Registered so a script that rots fails here rather than in a session
     # that trusts its silence.
-    if run_shell_test "$GATES_SELFTEST" 2>&1; then
+    # Exit convention (its header): 0 all pass, 1 a FAIL, 2 only UNMEASURABLE
+    # (a prerequisite absent -- git is not on the Windows "CLI tests" step's
+    # PATH, though python3 is, so the L/F arms run and the git H/M arms cannot).
+    # Treat 2 as a skip, as the rest of the suite treats UNMEASURABLE; only a
+    # real FAIL (exit 1) fails here. The arms that CAN run still must pass.
+    gates_rc=0
+    run_shell_test "$GATES_SELFTEST" 2>&1 || gates_rc=$?
+    if [ "$gates_rc" -eq 0 ]; then
         echo "  investigation-gates selftest: ALL PASSED"
+    elif [ "$gates_rc" -eq 2 ]; then
+        echo "  investigation-gates selftest: SKIPPED (prerequisite absent, e.g. git) -- UNMEASURABLE"
     else
         FAILED=$((FAILED + 1))
         FAILED_TESTS+=("investigation-gates/selftest.sh")
