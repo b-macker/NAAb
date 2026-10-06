@@ -221,8 +221,7 @@ cat > "$WORK_F2/govern.json" << 'EOF'
     "capabilities": {
         "network": false,
         "filesystem": "readwrite",
-        "env_vars": { "read": true },
-        "process": { "allow_spawn": true, "allowed_commands": ["echo", "sh", "bash"] }
+        "env_vars": { "read": true }
     },
     "behavioral_sequences": {
         "enabled": true,
@@ -307,8 +306,7 @@ cat > "$WORK_F2/govern_hard.json" << 'EOF'
     "capabilities": {
         "network": false,
         "filesystem": "readwrite",
-        "env_vars": { "read": true },
-        "process": { "allow_spawn": true, "allowed_commands": ["echo", "sh", "bash"] }
+        "env_vars": { "read": true }
     },
     "behavioral_sequences": {
         "enabled": true,

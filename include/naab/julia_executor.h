@@ -42,6 +42,8 @@ public:
     ) override;
     bool isInitialized() const override { return true; }
     std::string getLanguage() const override { return "julia"; }
+    // runtime_versions pins: the version of the interpreter this executor invokes.
+    std::string getRuntimeVersion() const override;
     std::string getCapturedOutput() override;
 
 private:

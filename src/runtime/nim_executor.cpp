@@ -1,6 +1,7 @@
 #include "naab/interpreter.h"
 #include "naab/nim_executor.h"
 #include "naab/subprocess_helpers.h"
+#include "naab/scoped_temp_dir.h"
 #include "naab/sandbox.h"
 #include "naab/audit_logger.h"
 #include <filesystem>
@@ -9,7 +10,6 @@
 #include <thread>
 #include <regex>
 #include <fmt/core.h>
-#include <sys/stat.h>  // V-RCE-010: chmod
 #include <unistd.h>
 
 namespace naab {
@@ -132,17 +132,14 @@ bool NimExecutor::execute(const std::string& code) {
         return false;
     }
 
-    // V-RCE-010: mkdtemp for secure temp directory
-    std::string tmpl = (std::filesystem::temp_directory_path() / "naab_nim_XXXXXX").string();
-    char* raw_dir = mkdtemp(tmpl.data());
-    if (!raw_dir) {
+    // V-RCE-010: mkdtemp for secure temp directory, removed on every exit
+    ScopedTempDir compile_dir(std::filesystem::temp_directory_path(), "naab_nim_");
+    if (!compile_dir.valid()) {
         fmt::print("[ERROR] Failed to create secure temp directory\n");
         return false;
     }
-    chmod(raw_dir, 0700);
-    std::filesystem::path compile_dir(raw_dir);
-    std::filesystem::path temp_nim = compile_dir / "src.nim";
-    std::filesystem::path temp_bin = compile_dir / "bin";
+    std::filesystem::path temp_nim = compile_dir.path() / "src.nim";
+    std::filesystem::path temp_bin = compile_dir.path() / "bin";
 
     try {
         std::string nim_code = wrapNimCode(code, false);
@@ -168,7 +165,6 @@ bool NimExecutor::execute(const std::string& code) {
         if (compile_exit != 0) {
             fmt::print("[ERROR] Nim compilation failed (exit code {})\n", compile_exit);
             stderr_buffer_.append(compile_stderr);
-            std::filesystem::remove(temp_nim);
             return false;
         }
 
@@ -186,10 +182,6 @@ bool NimExecutor::execute(const std::string& code) {
             stderr_buffer_.append(exec_stderr);
         }
 
-        // Clean up
-        std::filesystem::remove(temp_nim);
-        std::filesystem::remove(temp_bin);
-
         if (exec_exit != 0) {
             fmt::print("[ERROR] Nim program failed (exit code {})\n", exec_exit);
         }
@@ -198,8 +190,6 @@ bool NimExecutor::execute(const std::string& code) {
 
     } catch (const std::exception& e) {
         fmt::print("[ERROR] Nim execution failed: {}\n", e.what());
-        std::filesystem::remove(temp_nim);
-        std::filesystem::remove(temp_bin);
         return false;
     }
 }
@@ -221,16 +211,13 @@ interpreter::NaabVal NimExecutor::executeWithReturn(
         return interpreter::NaabVal::makeString("Error: " + unsafe_reason2);
     }
 
-    // V-RCE-010: mkdtemp for secure temp directory
-    std::string tmpl2 = (std::filesystem::temp_directory_path() / "naab_nim_XXXXXX").string();
-    char* raw_dir2 = mkdtemp(tmpl2.data());
-    if (!raw_dir2) {
+    // V-RCE-010: mkdtemp for secure temp directory, removed on every exit
+    ScopedTempDir compile_dir(std::filesystem::temp_directory_path(), "naab_nim_");
+    if (!compile_dir.valid()) {
         return interpreter::NaabVal::makeString("Error: Failed to create secure temp directory");
     }
-    chmod(raw_dir2, 0700);
-    std::filesystem::path compile_dir2(raw_dir2);
-    std::filesystem::path temp_nim = compile_dir2 / "src.nim";
-    std::filesystem::path temp_bin = compile_dir2 / "bin";
+    std::filesystem::path temp_nim = compile_dir.path() / "src.nim";
+    std::filesystem::path temp_bin = compile_dir.path() / "bin";
 
     try {
         std::string nim_code = wrapNimCode(code, true);
@@ -251,7 +238,6 @@ interpreter::NaabVal NimExecutor::executeWithReturn(
 
         if (compile_exit != 0) {
             std::string error_msg = compile_stderr;
-            std::filesystem::remove(temp_nim);
 
             // Add helpful hints for common Nim compilation errors
             if (error_msg.find("undeclared identifier") != std::string::npos ||
@@ -310,10 +296,6 @@ interpreter::NaabVal NimExecutor::executeWithReturn(
         }
         if (!exec_stderr.empty()) stderr_buffer_.append(exec_stderr);
 
-        // Cleanup
-        std::filesystem::remove(temp_nim);
-        std::filesystem::remove(temp_bin);
-
         // Trim trailing whitespace/newlines
         std::string result = exec_stdout;
         while (!result.empty() && (result.back() == '\n' || result.back() == '\r' ||
@@ -329,10 +311,8 @@ interpreter::NaabVal NimExecutor::executeWithReturn(
         // Polyglot output is always a string — no implicit type coercion
         return interpreter::NaabVal::makeString(result);
 
-    } catch (const std::exception& e) {
-        std::filesystem::remove(temp_nim);
-        std::filesystem::remove(temp_bin);
-        throw;
+    } catch (const std::exception&) {
+        throw;  // compile_dir's destructor removes the directory during unwinding
     }
 }
 
@@ -357,6 +337,10 @@ std::string NimExecutor::getCapturedOutput() {
         output += "\n[Nim stderr]: " + errors;
     }
     return output;
+}
+
+std::string NimExecutor::getRuntimeVersion() const {
+    return probeRuntimeVersion("nim", {"--version"});
 }
 
 } // namespace runtime

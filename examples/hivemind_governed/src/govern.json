@@ -105,7 +105,6 @@
 
   "restrictions": {
     "max_output_lines": 5000,
-    "max_string_length": 200000,
     "dangerous_calls": { "enabled": true, "level": "hard" },
     "shell_injection": { "enabled": true, "level": "hard" },
     "privilege_escalation": {
@@ -186,7 +185,6 @@
   },
 
   "meta": {
-    "require_signature": false,
     "rationale": "context_drift and an agents block are DELIBERATELY ABSENT. Both default false, and enabling them here would be theatre: the 23 CDD signals are fed from AGENT_RESPONSE events carrying content keywords and token counts, and those are emitted only by agent_impl.cpp. A pipeline that reaches its model through process.run produces none. Turning context_drift on without behavioral_sequences also prints '[governance] Warning: context_drift.enabled: true has no effect'; turning both on would silence that warning while still scoring nothing, which is strictly worse than leaving it off. If the dispatch layer is ever ported to agent.send(), add the agents block and context_drift THEN, and expect the config to fail the ratchet if it is loosened afterwards."
   }
 }

@@ -5,6 +5,7 @@
 //           VariableSnapshot::capture, executePolyglotGroupParallel,
 //           serializeValueForLanguage
 
+#include "naab/sql_executor.h"
 #include "naab/interpreter.h"
 #include "naab/governance.h"
 #include "naab/logger.h"
@@ -180,15 +181,16 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         // FIX-DX-2 + FIX-D: Taint tracking for ALL language bindings
         checkPolyglotBoundVarTaint(language, bound_vars, node.getLocation().line);
 
-        // Phase 8.4: Runtime version pinning check
-        std::string rt_version = executor->getRuntimeVersion();
-        if (!rt_version.empty()) {
-            governance_->checkRuntimeVersions(language, rt_version);
-        }
+        // Runtime version pins are checked inside checkPolyglotBlock() above,
+        // for both engines and every execution path.
     }
 
     // Phase 2.2: Bind variables using string serialization
     std::string var_declarations;
+    // SQL is the exception: its bound variables become SQLite parameters, never
+    // text spliced into the SQL (that would be injection by construction).
+    const bool is_sql = (language == "sql" || language == "sqlite");
+    runtime::SqlBindings sql_bindings;
 
     for (const auto& var_name : bound_vars) {
         // Look up variable in current environment
@@ -197,6 +199,11 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
 
         auto value = current_env_->get(var_name);
+
+        if (is_sql) {
+            sql_bindings.emplace_back(var_name, value);
+            continue;
+        }
 
         // For all languages: use string serialization
         std::string serialized = serializeValueForLanguage(value, language);
@@ -635,15 +642,24 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
 
         // FIX-DX-5 (FIX 19b): Warn about bound variables not used in polyglot code
+        //
+        // Searched in the code AS WRITTEN, not code_stripped. Stripping strings
+        // is right for the check above (a name inside a string is not a use of
+        // an unbound NAAb variable) and wrong here: most languages reference a
+        // bound value INSIDE a string -- shell "$x", Python f"{x}", Ruby
+        // "#{x}", PHP "$x" -- so every such block was told its binding was
+        // never used while it read the value. Searching the raw text can only
+        // miss a hint (a name that appears solely in a plain string or a
+        // comment), never invent one.
         for (const auto& bv : bound_vars) {
             bool found = false;
-            size_t bpos = code_stripped.find(bv);
+            size_t bpos = code.find(bv);
             while (bpos != std::string::npos) {
-                bool ws = (bpos == 0 || (!std::isalnum(code_stripped[bpos - 1]) && code_stripped[bpos - 1] != '_'));
-                bool we = (bpos + bv.size() >= code_stripped.size() ||
-                           (!std::isalnum(code_stripped[bpos + bv.size()]) && code_stripped[bpos + bv.size()] != '_'));
+                bool ws = (bpos == 0 || (!std::isalnum(static_cast<unsigned char>(code[bpos - 1])) && code[bpos - 1] != '_'));
+                bool we = (bpos + bv.size() >= code.size() ||
+                           (!std::isalnum(static_cast<unsigned char>(code[bpos + bv.size()])) && code[bpos + bv.size()] != '_'));
                 if (ws && we) { found = true; break; }
-                bpos = code_stripped.find(bv, bpos + 1);
+                bpos = code.find(bv, bpos + 1);
             }
             if (!found) {
                 fmt::print(stderr, "[WARN] Bound variable '{}' is never used in <<{}>> block at {}:{}.\n",
@@ -714,6 +730,10 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
 
     try {
+        if (is_sql) {
+            // Same thread as the call below, so the executor consumes exactly these.
+            runtime::setPendingSqlBindings(std::move(sql_bindings));
+        }
         result_ = executor->executeWithReturn(final_code);
 
         // Finding G fix: enforce polyglot output size limits from governance config.
@@ -800,27 +820,8 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             governance_->writeProfileEntry(language, task_cat, hash_buf, duration_us);
         }
 
-        // ShellResult transparent handling: extract stdout or throw on failure
-        {
-            if (result_.isStructVal()) {
-                auto& struct_val = result_.asStruct();
-                if (struct_val->type_name == "ShellResult" && struct_val->field_values.size() >= 3) {
-                    auto exit_code_val = struct_val->field_values[0];
-                    auto stdout_val = struct_val->field_values[1];
-                    auto stderr_val = struct_val->field_values[2];
-                    int exit_code = exit_code_val.isInt() ? exit_code_val.asInt() : -1;
-                    if (exit_code != 0) {
-                        throw std::runtime_error(
-                            "Shell command failed with exit code " + std::to_string(exit_code) + "\n"
-                            "  stderr: " + stderr_val.toString() + "\n"
-                            "  stdout: " + stdout_val.toString()
-                        );
-                    }
-                    // Success: unwrap to just stdout value
-                    result_ = NaabVal(stdout_val);
-                }
-            }
-        }
+        // ShellResult: unwrap to stdout, or throw on failure (shared with the VM)
+        runtime::unwrapShellResult(result_);
 
         // Phase 12: Check for sentinel/JSON return values
         // Strategy 1: Check executor's captured output buffer (works for Python)

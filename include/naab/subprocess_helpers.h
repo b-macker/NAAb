@@ -64,6 +64,32 @@ struct SubprocessContainment {
     static SubprocessContainment fromCurrentSandbox(const std::string& command_path);
 };
 
+// The version line of a runtime BINARY, for runtime_versions pins: runs
+// `binary args...` (e.g. "node --version") and returns the first non-empty
+// output line, or "" when it cannot be read. Pass the same binary the
+// executor runs, so the answer is about the runtime that runs the block.
+// Honours the current sandbox: where process execution is not permitted it
+// runs nothing and returns "" (the pin then reports "cannot be determined";
+// the block could not run there anyway). Successful answers are cached for
+// the process.
+//
+// It only STARTS a process inside a ScopedRuntimeVersionProbe; elsewhere it
+// returns the cached answer or "". getRuntimeVersion() is also read by the
+// per-block execution audit records, and a version probe on every block of
+// every unpinned runtime would be a process launch in the hot path. Pins and
+// the lockfile commands open the scope; everything else sees what they found.
+std::string probeRuntimeVersion(const std::string& binary,
+                                const std::vector<std::string>& args);
+
+class ScopedRuntimeVersionProbe {
+public:
+    ScopedRuntimeVersionProbe();
+    ~ScopedRuntimeVersionProbe();
+    ScopedRuntimeVersionProbe(const ScopedRuntimeVersionProbe&) = delete;
+    ScopedRuntimeVersionProbe& operator=(const ScopedRuntimeVersionProbe&) = delete;
+    static bool active();
+};
+
 // Helper to execute a subprocess and capture its stdout/stderr separately
 // Returns exit code, fills stdout_str and stderr_str
 int execute_subprocess_with_pipes(

@@ -44,6 +44,8 @@ public:
 
     // Get language name
     std::string getLanguage() const override { return "cpp"; }
+    // runtime_versions pins: the version of the compiler compileBlock() invokes.
+    std::string getRuntimeVersion() const override;
 
     // Get captured output
     std::string getCapturedOutput() override;
@@ -53,6 +55,14 @@ public:
     const std::string& getCurrentBlockId() const { return current_block_id_; }
 
 private:
+    // Set by the inline statement path for one execute() call: see fail().
+    bool throw_on_failure_ = false;
+    bool fail(const std::string& msg);
+    struct ScopedFlag {
+        bool& flag; bool prev;
+        explicit ScopedFlag(bool& f) : flag(f), prev(f) { flag = true; }
+        ~ScopedFlag() { flag = prev; }
+    };
     CppExecutor executor_;
     std::string current_block_id_;
     int block_counter_;

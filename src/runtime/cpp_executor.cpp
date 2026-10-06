@@ -4,11 +4,13 @@
 #include "naab/cpp_executor.h"
 #include "naab/interpreter.h"
 #include "naab/paths.h"
+#include "naab/atomic_file.h"
 #include "naab/resource_limits.h"
 #include "naab/input_validator.h"
 #include "naab/audit_logger.h"
 #include "naab/sandbox.h"
 #include "naab/subprocess_helpers.h"
+#include "naab/scoped_temp_dir.h"
 #include "naab/stack_tracer.h"  // Phase 4.2.5: Cross-language stack traces
 #include <fmt/core.h>
 #include <fstream>
@@ -167,20 +169,16 @@ bool CppExecutor::compileBlock(
         base_tmp = fs::path("/data/data/com.termux/files/home/.cache/naab");
         fs::create_directories(base_tmp);
     }
-    std::string tmpl = (base_tmp / "naab_cpp_bl_XXXXXX").string();
-    char* raw_dir = mkdtemp(tmpl.data());
-    if (!raw_dir) {
+    ScopedTempDir compile_dir(base_tmp, "naab_cpp_bl_");  // removed on every exit
+    if (!compile_dir.valid()) {
         fmt::print("[ERROR] Failed to create secure temp directory for block compilation\n");
         return false;
     }
-    chmod(raw_dir, 0700);
-    fs::path compile_dir(raw_dir);
-    std::string temp_source_path = (compile_dir / (block_id + ".cpp")).string();
-    std::string temp_so_path     = (compile_dir / (block_id + ".so")).string();
+    std::string temp_source_path = (compile_dir.path() / (block_id + ".cpp")).string();
+    std::string temp_so_path     = (compile_dir.path() / (block_id + ".so")).string();
 
     std::ofstream source_file(temp_source_path);
     if (!source_file.is_open()) {
-        fs::remove_all(compile_dir);
         fmt::print("[ERROR] Failed to create source file in secure temp dir\n");
         return false;
     }
@@ -210,7 +208,6 @@ bool CppExecutor::compileBlock(
     // Compile to shared library inside the private temp dir
     bool compiled = compileToSharedLibrary(temp_source_path, temp_so_path, dependencies);
     if (!compiled) {
-        fs::remove_all(compile_dir);
         return false;
     }
 
@@ -218,10 +215,12 @@ bool CppExecutor::compileBlock(
     std::error_code ec;
     fs::rename(temp_so_path, so_path, ec);
     if (ec) {
-        // Cross-device fallback (tmp and cache on different filesystems)
-        fs::copy_file(temp_so_path, so_path, fs::copy_options::overwrite_existing, ec);
+        // Cross-device (a tmpfs /tmp): rename() cannot cross filesystems, and
+        // copying over so_path in place truncated a library another process
+        // had already dlopen()ed -- SIGBUS on its next page fault. Copy beside
+        // so_path and rename from there, which stays on one filesystem.
+        copyFileAtomically(temp_so_path, so_path, ec);
     }
-    fs::remove_all(compile_dir);
 
     if (ec) {
         fmt::print("[ERROR] Failed to install compiled block to cache: {}\n", ec.message());
@@ -350,8 +349,13 @@ bool CppExecutor::loadCompiledBlock(const std::string& block_id) {
     // Load shared library (dlopen should be fast, no timeout needed)
     void* handle = dlopen(canonical_path.c_str(), RTLD_LAZY);
     if (!handle) {
-        fmt::print("[ERROR] Failed to load library: {}\n", dlerror());
-        security::AuditLogger::logSecurityViolation("dlopen() failed: " + std::string(dlerror()));
+        // dlerror() returns the message once and then NULL, so read it once.
+        // Calling it twice handed NULL to std::string, which threw, and the
+        // real error was reported as "basic_string: construction from null".
+        const char* err = dlerror();
+        const std::string reason = err ? err : "unknown dlopen error";
+        fmt::print("[ERROR] Failed to load library: {}\n", reason);
+        security::AuditLogger::logSecurityViolation("dlopen() failed: " + reason);
         return false;
     }
 
@@ -405,8 +409,9 @@ interpreter::NaabVal CppExecutor::executeBlock(
     ExecuteFunc execute = (ExecuteFunc)dlsym(block->handle, block->entry_point.c_str());
 
     if (!execute) {
+        const char* err = dlerror();  // NULL when the symbol exists but is NULL
         fmt::print("[ERROR] Failed to find entry point '{}': {}\n",
-                   block->entry_point, dlerror());
+                   block->entry_point, err ? err : "symbol is null");
         return interpreter::NaabVal::makeNull();
     }
 

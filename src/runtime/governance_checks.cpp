@@ -3,9 +3,12 @@
 
 #include "naab/governance.h"
 #include "naab/language_registry.h"
+#include "naab/subprocess_helpers.h"  // ScopedRuntimeVersionProbe (runtime pins)
 #include "naab/interpreter.h"
 #include "naab/vm.h"
 #include "naab/analyzer/task_pattern_detector.h"
+#include "naab/language_descriptors.h"
+#include <algorithm>
 #include "naab/analyzer/syntactic_analyzer.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -15,6 +18,8 @@
 #include <regex>
 #include <chrono>
 #include <functional>
+#include <unordered_map>
+#include <unordered_set>
 #ifndef _WIN32
 #  include <sys/file.h>
 #endif
@@ -32,7 +37,8 @@ namespace governance {
 
 // FIX 16: Strip string literal contents to prevent false positive pattern matches
 // This prevents governance checks from triggering on code/paths inside strings
-static std::string stripStringLiterals(const std::string& code) {
+static std::string stripStringLiterals(const std::string& code,
+                                       const naab::lang::LanguageDescriptor* lang_desc = nullptr) {
     std::string result;
     result.reserve(code.size());
     bool in_single = false, in_double = false, in_backtick = false;
@@ -49,7 +55,43 @@ static std::string stripStringLiterals(const std::string& code) {
         // quotes in comments (e.g., // don't) don't toggle string mode.
         // Comments are passed through to output for downstream checks that need them
         // (e.g., checkPlaceholders intentionally detects // TODO in comments).
-        if (!in_single && !in_double && !in_backtick) {
+        // With the language known, its OWN comment forms are skipped (from
+        // the language table). Only // and /* */ were known here, so an
+        // apostrophe in a # or -- comment ("# don't") opened a string that
+        // swallowed the code up to the next apostrophe and hid it from every
+        // check reading the stripped text (test_langconform.sh, positions
+        // between_apos_*). Without a language, the historical // and /* */
+        // handling below is unchanged.
+        if (lang_desc && !in_single && !in_double && !in_backtick) {
+            bool skipped = false;
+            for (const auto& b : lang_desc->block_comments) {
+                if (code.compare(i, b.open.size(), b.open) != 0) continue;
+                if (b.line_start_only) {
+                    size_t k = i;
+                    while (k > 0 && (code[k - 1] == ' ' || code[k - 1] == '\t')) --k;
+                    if (k > 0 && code[k - 1] != '\n') continue;
+                }
+                size_t end = code.find(b.close, i + b.open.size());
+                end = (end == std::string::npos) ? code.size() : end + b.close.size();
+                result.append(code, i, end - i);
+                i = end - 1;
+                skipped = true;
+                break;
+            }
+            if (!skipped) {
+                for (const auto& m : lang_desc->line_comments) {
+                    if (!naab::lang::lineCommentBegins(code, i, m)) continue;
+                    size_t end = code.find('\n', i);
+                    end = (end == std::string::npos) ? code.size() : end + 1;
+                    result.append(code, i, end - i);
+                    i = end - 1;
+                    skipped = true;
+                    break;
+                }
+            }
+            if (skipped) continue;
+        }
+        if (!lang_desc && !in_single && !in_double && !in_backtick) {
             // Line comment: //
             if (c == '/' && i+1 < code.size() && code[i+1] == '/') {
                 while (i < code.size() && code[i] != '\n') {
@@ -475,18 +517,11 @@ static std::string stripComments(const std::string& code) {
     return result;
 }
 
-// FIX 18: Normalize language aliases for consistent governance matching
+// FIX 18: Normalize language aliases for consistent governance matching.
+// The alias list lives in the language table (naab/language_descriptors.h);
+// this name is kept because governance_reports.cpp declares it.
 std::string normalizeLanguage(const std::string& language) {
-    if (language == "bash" || language == "sh") return "shell";
-    if (language == "golang") return "go";
-    if (language == "cs") return "csharp";
-    if (language == "ts") return "typescript";
-    if (language == "c++") return "cpp";
-    if (language == "rb") return "ruby";
-    if (language == "js") return "javascript";
-    if (language == "node") return "javascript";
-    if (language == "py") return "python";
-    return language;
+    return naab::lang::canonicalLanguage(language);
 }
 
 // Helper: regex search against a list of patterns
@@ -4434,7 +4469,12 @@ std::string GovernanceEngine::checkNaabFunctionBody(
 
     // EVA-10: Pre-strip strings to prevent false positives from string literals
     // e.g. a legitimate string "TODO" shouldn't trigger checkPlaceholders
-    std::string stripped = stripStringLiterals(source_code);
+    // NAAb's own comment forms (#, //, /* */) from the language table. Without
+    // them only // and /* */ were known, so an apostrophe in a # comment
+    // ("# don't") opened a string that hid the code after it -- a TODO between
+    // "# don't" and "# it's" ran under a HARD no_placeholders config
+    // (tests/governance_v4/test_naab_comment_apostrophe.sh).
+    std::string stripped = stripStringLiterals(source_code, naab::lang::findLanguage("naab"));
 
     // Run applicable checks on the stripped source code
     std::string err;
@@ -4698,87 +4738,12 @@ static const std::vector<std::pair<std::string, std::string>> CROSS_LANG_PATTERN
     {"//\\s+\\w", "// comments are JS/C++ — in Python, use #"},
 };
 
-// Strip comments from code based on language syntax.
-// Replaces comment content with spaces (preserving line structure for regex).
-// Must be called AFTER string stripping to avoid matching # or // inside strings.
+// Strip comments from code based on language syntax -- the comment forms come
+// from the language table (naab/language_descriptors.h), so every alias of a
+// language strips the same way. Must be called AFTER string stripping to avoid
+// matching # or // inside strings.
 static std::string stripComments(const std::string& code, const std::string& language) {
-    bool uses_hash = (language == "python" || language == "ruby" || language == "rb" ||
-                      language == "shell" || language == "bash" || language == "sh" ||
-                      language == "nim");
-    bool uses_slashslash = (language == "javascript" || language == "js" || language == "node" ||
-                            language == "go" || language == "golang" ||
-                            language == "cpp" || language == "c++" ||
-                            language == "rust" || language == "csharp" || language == "cs");
-    bool uses_block = (language == "javascript" || language == "js" || language == "node" ||
-                       language == "go" || language == "golang" ||
-                       language == "cpp" || language == "c++" ||
-                       language == "rust" || language == "csharp" || language == "cs");
-    // V-GOV-002: add -- line comment style for SQL, Lua, and similar languages.
-    // Without this, `-- DROP TABLE users` in a <<sql block is not stripped and the
-    // governance scanner sees "DROP TABLE users" as active code (false positive or bypass).
-    bool uses_dash_dash = (language == "sql" || language == "lua" ||
-                           language == "haskell" || language == "ada");
-
-    std::string result;
-    result.reserve(code.size());
-
-    for (size_t i = 0; i < code.size(); ++i) {
-        // Check for block comments /* ... */
-        if (uses_block && i + 1 < code.size() && code[i] == '/' && code[i + 1] == '*') {
-            // Replace with spaces until closing */
-            result += ' ';
-            result += ' ';
-            i += 2;
-            while (i < code.size()) {
-                if (i + 1 < code.size() && code[i] == '*' && code[i + 1] == '/') {
-                    result += ' ';
-                    result += ' ';
-                    i += 1; // outer loop does +1
-                    break;
-                }
-                result += (code[i] == '\n') ? '\n' : ' ';
-                ++i;
-            }
-            continue;
-        }
-
-        // Check for // line comments
-        if (uses_slashslash && i + 1 < code.size() && code[i] == '/' && code[i + 1] == '/') {
-            // Replace rest of line with spaces
-            while (i < code.size() && code[i] != '\n') {
-                result += ' ';
-                ++i;
-            }
-            if (i < code.size()) result += '\n'; // preserve the newline
-            continue;
-        }
-
-        // Check for # line comments
-        if (uses_hash && code[i] == '#') {
-            // Shell special case: #! (shebang) at very start is still a comment — strip it
-            // Python: # at line start or after whitespace/code is always a comment
-            // (strings already stripped, so no risk of matching # inside strings)
-            while (i < code.size() && code[i] != '\n') {
-                result += ' ';
-                ++i;
-            }
-            if (i < code.size()) result += '\n';
-            continue;
-        }
-
-        // V-GOV-002: -- line comment (SQL, Lua, Haskell, Ada)
-        if (uses_dash_dash && i + 1 < code.size() && code[i] == '-' && code[i+1] == '-') {
-            while (i < code.size() && code[i] != '\n') {
-                result += ' ';
-                ++i;
-            }
-            if (i < code.size()) result += '\n';
-            continue;
-        }
-
-        result += code[i];
-    }
-    return result;
+    return naab::lang::stripComments(code, language);
 }
 
 std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
@@ -4804,23 +4769,10 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
     // Strip string literal contents before checking patterns.
     // This prevents false positives when code generates source code for
     // another language inside strings (e.g., Go code that builds Rust source).
-    std::string code_no_strings;
-    {
-        bool in_single = false, in_double = false, in_backtick = false;
-        bool escaped = false;
-        for (size_t i = 0; i < code.size(); ++i) {
-            char c = code[i];
-            if (escaped) { escaped = false; continue; }
-            // C11 fix: track escapes in backtick strings too
-            if (c == '\\' && (in_single || in_double || in_backtick)) { escaped = true; continue; }
-            if (c == '"' && !in_single && !in_backtick) { in_double = !in_double; continue; }
-            if (c == '\'' && !in_double && !in_backtick) { in_single = !in_single; continue; }
-            if (c == '`' && !in_double && !in_single) { in_backtick = !in_backtick; continue; }
-            if (!in_single && !in_double && !in_backtick) {
-                code_no_strings += c;
-            }
-        }
-    }
+    // The shared, language-aware stripper: this check used to carry its own
+    // copy, which knew no comment syntax at all -- an apostrophe in any
+    // comment ("// don't") opened a string and hid the code after it.
+    std::string code_no_strings = stripStringLiterals(code, naab::lang::findLanguage(language));
 
     // Strip comments for the target language (after string stripping).
     // This prevents false positives like "# TODO: use append" in Shell
@@ -5185,7 +5137,7 @@ std::string GovernanceEngine::checkSemanticIssues(
     clearTrace();
 
     // Strip strings and comments for pattern matching
-    std::string code_no_strings = stripStringLiterals(code);
+    std::string code_no_strings = stripStringLiterals(code, naab::lang::findLanguage(language));
     std::string clean = stripComments(code_no_strings, language);
 
     // Helper: run a vector of SemanticCheck patterns against a target string
@@ -6543,6 +6495,21 @@ std::string GovernanceEngine::checkVariableBinding(size_t binding_count, int lin
                    rules().polyglot.variable_binding.require_explicit_level, msg);
 }
 
+// Set by checkPolyglotSource() for the duration of one text-only check.
+// Thread-local: polyglot blocks are checked on worker threads too.
+thread_local bool GovernanceEngine::t_text_only_check = false;
+
+std::string GovernanceEngine::checkPolyglotSource(
+    const std::string& language, const std::string& code,
+    const std::string& source_file, int line) {
+    struct Restore {
+        bool prev;
+        ~Restore() { t_text_only_check = prev; }
+    } restore{t_text_only_check};
+    t_text_only_check = true;
+    return checkPolyglotBlock(language, code, source_file, line);
+}
+
 std::string GovernanceEngine::checkPolyglotBlock(
     const std::string& language, const std::string& code,
     const std::string& source_file, int line,
@@ -6563,7 +6530,7 @@ std::string GovernanceEngine::preprocessCode(const std::string& language, const 
     std::string lang = normalizeLanguage(language);
     std::string result = normalizeUnicode(code);
     result = normalizeWhitespace(result);
-    result = stripStringLiterals(result);
+    result = stripStringLiterals(result, naab::lang::findLanguage(lang));
     result = expandDangerousAliases(lang, result);
     return result;
 }
@@ -6587,17 +6554,47 @@ std::string GovernanceEngine::checkPolyglotBlock(
 
     // FIX 16: Pre-process code — strip string literals for pattern matching
     // This prevents false positives from code/paths inside strings
-    std::string stripped = stripStringLiterals(normalized);
+    std::string stripped = stripStringLiterals(normalized, naab::lang::findLanguage(lang));
 
     // Expand dangerous function aliases (e.g., s = os.system; s("rm") → os.system("rm"))
     // so downstream pattern-based checks catch indirect calls through variables
     stripped = expandDangerousAliases(lang, stripped);
 
+    // The checks that look for markers INSIDE comments (temporary code,
+    // oversimplification, incomplete logic) read `#`, `//` and `/* */` only.
+    // This is `stripped` with the language's other comment openers (`--`,
+    // `#=`, `=begin`, ...) re-marked as `#`; for languages with no such
+    // opener it is identical to `stripped`.
+    const std::string comment_scan = naab::lang::markCommentsForScan(stripped, lang);
+
     std::string err;
 
-    // Language allowed? (uses normalized name)
-    err = checkLanguageAllowed(lang, line);
+    // Language allowed? Asked with the RUNTIME name: <<node>> is JavaScript for
+    // every content check below, but a separate executor for the allow/block
+    // lists (naab::lang::runtimeLanguage).
+    err = checkLanguageAllowed(naab::lang::runtimeLanguage(language), line);
     if (!err.empty()) return err;
+
+    // Runtime version pins, for every block about to RUN. This used to be
+    // called from the tree-walker's polyglot path only, so on the VM -- the
+    // default engine since pins shipped -- and through codegen, modules and
+    // REST a pin was never consulted. Here every execution path gets it.
+    const std::string pin_runtime = naab::lang::runtimeLanguage(language);
+    const bool pinned = std::any_of(rules().runtime_versions.begin(), rules().runtime_versions.end(),
+        [&](const auto& p) { return p.language == pin_runtime; });
+    if (!t_text_only_check && pinned) {
+        // Only now is the version asked for: a subprocess runtime answers by
+        // running its binary, which an unpinned block must not pay for.
+        // The executor is registered under the tag (<<sqlite>>) or, for a
+        // spelling with no registration of its own (<<js>>), its runtime name.
+        auto& registry = runtime::LanguageRegistry::instance();
+        runtime::ScopedRuntimeVersionProbe probing;
+        std::string version = registry.runtimeVersion(language);
+        if (version.empty())
+            version = registry.runtimeVersion(naab::lang::runtimeLanguage(language));
+        err = checkRuntimeVersions(language, version);
+        if (!err.empty()) return err;
+    }
 
     // Shell capability check
     if (lang == "shell") {
@@ -6642,7 +6639,7 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
 
     // New v3.0 checks — use stripped (strings removed, comments preserved)
-    err = checkTemporaryCode(stripped, line);
+    err = checkTemporaryCode(comment_scan, line);
     if (!err.empty()) return err;
     err = checkSimulationMarkers(stripped, line);
     if (!err.empty()) return err;
@@ -6670,9 +6667,9 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
 
     // LLM anti-drift checks
-    err = checkOversimplification(stripped, line);
+    err = checkOversimplification(comment_scan, line);
     if (!err.empty()) return err;
-    err = checkIncompleteLogic(stripped, line);
+    err = checkIncompleteLogic(comment_scan, line);
     if (!err.empty()) return err;
     err = checkHallucinatedApis(lang, normalized, line);  // Has its own stripping
     if (!err.empty()) return err;
@@ -6860,6 +6857,97 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
                 }
             }
         }
+
+        // Nested keys. The loop above sees the top level only, so a nested key
+        // the loader never reads was accepted in silence -- and the silent
+        // default was usually the WEAKER one: agent_dispatch.hard_stop.max_calls
+        // (read: max_calls_per_run) left a run with no call budget, api.auth
+        // (read: api.keys) left /execute unauthenticated. The schema is
+        // generated from the loader itself (tools/config_known_keys.py), so it
+        // cannot drift into a hand-kept list that is short.
+        //
+        // A key is reported only under a CLOSED level -- one where the loader
+        // reads named children. A level with no known children is a value the
+        // loader reads whole (contract fixtures, regex lists) and is not
+        // descended into; "*" stands for any key of an open map (agents.<name>).
+        static const std::vector<std::string> KNOWN_PATHS = {
+#include "governance_known_keys.inc"
+        };
+        static const auto schema = [] {
+            struct Schema {
+                std::unordered_set<std::string> known;
+                std::unordered_map<std::string, std::vector<std::string>> children;
+            } sc;
+            for (const auto& p : KNOWN_PATHS) {
+                sc.known.insert(p);
+                auto cut = p.rfind('\x1f');
+                std::string parent = cut == std::string::npos ? std::string() : p.substr(0, cut);
+                std::string leaf = cut == std::string::npos ? p : p.substr(cut + 1);
+                sc.children[parent].push_back(leaf);
+            }
+            return sc;
+        }();
+        auto isAnnotation = [](const std::string& k) {
+            return (!k.empty() && k[0] == '_') || k == "rationale" ||
+                   (k.size() > 10 && k.compare(k.size() - 10, 10, "_rationale") == 0);
+        };
+        auto join = [](const std::string& a, const std::string& b) {
+            return a.empty() ? b : a + '\x1f' + b;
+        };
+        auto step = [&](const std::vector<std::string>& cands, const std::string& seg) {
+            std::vector<std::string> out;
+            for (const auto& c : cands)
+                for (const std::string& s : {seg, std::string("*")})
+                    if (schema.known.count(join(c, s))) out.push_back(join(c, s));
+            return out;
+        };
+        constexpr size_t kMaxNestedWarnings = 25;
+        size_t nested_found = 0;
+        std::function<void(const nlohmann::json&, const std::vector<std::string>&,
+                           const std::string&)> walk;
+        walk = [&](const nlohmann::json& v, const std::vector<std::string>& cands,
+                   const std::string& shown) {
+            if (v.is_object()) {
+                std::vector<std::string> names;
+                for (const auto& c : cands) {
+                    auto it = schema.children.find(c);
+                    if (it != schema.children.end())
+                        for (const auto& n : it->second) if (n != "*" && n != "[]") names.push_back(n);
+                }
+                bool closed = false;
+                for (const auto& c : cands) if (schema.children.count(c)) { closed = true; break; }
+                if (!closed) return;
+                for (auto it = v.begin(); it != v.end(); ++it) {
+                    const std::string& k = it.key();
+                    if (isAnnotation(k)) continue;
+                    std::string here = shown + "." + k;
+                    auto nc = step(cands, k);
+                    if (nc.empty()) {
+                        if (++nested_found > kMaxNestedWarnings) continue;
+                        std::string suggestion = suggestKey(k, names);
+                        warnings.push_back(fmt::format(
+                            "[governance] Warning: \"{}\" is not a setting the engine reads - "
+                            "it has no effect.{}", here,
+                            suggestion.empty() ? std::string()
+                                               : fmt::format(" Did you mean \"{}\"?", suggestion)));
+                        continue;
+                    }
+                    walk(it.value(), nc, here);
+                }
+            } else if (v.is_array()) {
+                auto nc = step(cands, "[]");
+                if (nc.empty()) return;
+                for (const auto& x : v) walk(x, nc, shown + "[]");
+            }
+        };
+        for (auto& [key, val] : j.items()) {
+            if (isAnnotation(key) || !schema.known.count(key)) continue;
+            walk(val, {key}, key);
+        }
+        if (nested_found > kMaxNestedWarnings)
+            warnings.push_back(fmt::format(
+                "[governance] Warning: {} more settings the engine does not read were "
+                "not listed.", nested_found - kMaxNestedWarnings));
     } catch (const std::exception&) {}
     return warnings;
 }

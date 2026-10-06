@@ -125,7 +125,7 @@ char* naab_gov_scan(naab_gov_engine_t engine,
         CurrentEngineGuard guard(&engine->engine);
 
         engine->engine.resetCheckResults();
-        std::string err = engine->engine.checkPolyglotBlock(
+        std::string err = engine->engine.checkPolyglotSource(
             language, code, source_file ? source_file : "", start_line);
 
         nlohmann::json result;

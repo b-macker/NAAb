@@ -1,6 +1,7 @@
 #include "naab/generic_subprocess_executor.h"
 #include "naab/interpreter.h" // For Value definition
 #include "naab/subprocess_helpers.h" // For execute_subprocess_with_pipes
+#include "naab/language_descriptors.h" // withPrelude(): php opener
 #include "naab/temp_file_guard.h"   // For TempFileGuard
 #include "naab/sandbox.h" // For security sandbox
 #include "naab/resource_limits.h" // Enterprise security: Resource limits
@@ -18,6 +19,44 @@
 
 namespace naab {
 namespace runtime {
+
+namespace {
+
+// The language's required file opener (php: "<?php"), from the language
+// table, unless the code already contains it. Without it PHP prints the block
+// as literal TEXT: `<<php echo 1 + 1; >>` "returned" the string
+// "echo 1 + 1;" and file_put_contents() wrote nothing, under exit 0. The
+// engines added the opener only when they injected bindings or naab_return.
+// "Already contains" (not "starts with") keeps PHP templates -- text before a
+// <?php tag -- working as written.
+std::string withPrelude(const std::string& language, const std::string& code) {
+    const auto* d = naab::lang::findLanguage(language);
+    if (!d || d->prelude.empty()) return code;
+    std::string marker = d->prelude;
+    while (!marker.empty() && (marker.back() == '\n' || marker.back() == ' ')) marker.pop_back();
+    if (marker.empty() || code.find(marker) != std::string::npos) return code;
+    return d->prelude + code;
+}
+
+// A block whose process failed must fail the program, as every other
+// executor's does. This one used to ignore the exit status and parse
+// whatever stdout held -- usually nothing, so a missing `tsx`, a PHP fatal
+// error or a Python exception became `null` under exit 0.
+[[noreturn]] void throwBlockFailure(const std::string& language, const std::string& cmd,
+                                    int exit_code, const std::string& stderr_output) {
+    std::string tail = stderr_output.size() > 2000
+        ? "..." + stderr_output.substr(stderr_output.size() - 2000) : stderr_output;
+    std::string msg = language + " block failed (exit code " + std::to_string(exit_code) + ")";
+    if (exit_code == 127) {
+        msg += ": '" + cmd + "' could not be run\n\n"
+               "  Help:\n  - Install " + cmd + " and make sure it is on PATH\n";
+    } else {
+        msg += ":\n" + tail;
+    }
+    throw std::runtime_error(msg);
+}
+
+}  // namespace
 
 // Helper to unescape string literals (e.g. convert "\\n" to actual newline)
 std::string unescape_string_literal(const std::string& s) {
@@ -106,7 +145,7 @@ bool naab::runtime::GenericSubprocessExecutor::execute(const std::string& code) 
             fmt::print("[ERROR] Failed to create temp file for {} execution: '{}'\n", language_id_, temp_file_path.string());
             return false;
         }
-        ofs << processed_code;
+        ofs << withPrelude(language_id_, processed_code);
         ofs.close();
 
         std::string command_line = format_command(command_template_, temp_file_path.string());
@@ -312,7 +351,7 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
         if (!ofs.is_open()) {
             throw std::runtime_error("Failed to create temp file");
         }
-        ofs << wrapped_code;
+        ofs << withPrelude(language_id_, wrapped_code);
         ofs.close();
 
         std::string command_line = format_command(command_template_, temp_file_path.string());
@@ -338,6 +377,11 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
     }
     if (!stderr_output.empty()) {
         stderr_buffer_.append(stderr_output);
+    }
+
+    if (exit_code != 0) {
+        std::string cmd = command_template_.substr(0, command_template_.find(' '));
+        throwBlockFailure(language_id_, cmd, exit_code, stderr_output);
     }
 
     // Trim trailing whitespace/newlines
@@ -465,6 +509,10 @@ bool naab::runtime::GenericSubprocessExecutor::runCommand(const std::string& com
         fmt::print("[ERROR] GenericSubprocessExecutor-{} command failed with code {} (captured stderr: \'{}\')\n", language_id_, exit_code, stderr_buffer_local);
     }
     return success;
+}
+
+std::string GenericSubprocessExecutor::getRuntimeVersion() const {
+    return probeRuntimeVersion(command_template_.substr(0, command_template_.find(' ')), {"--version"});
 }
 
 } // namespace runtime

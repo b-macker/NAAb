@@ -43,6 +43,8 @@ public:
     ) override;
     bool isInitialized() const override;
     std::string getLanguage() const override;
+    // runtime_versions pins: the version of the compiler this executor invokes.
+    std::string getRuntimeVersion() const override;
     std::string getCapturedOutput() override;
 
     /**

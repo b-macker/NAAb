@@ -6,6 +6,7 @@
 #include "naab/rust_ffi.h"
 #include "naab/stack_tracer.h"  // Phase 4.2.4: Cross-language stack traces
 #include "naab/subprocess_helpers.h"  // For execute_subprocess_with_pipes
+#include "naab/scoped_temp_dir.h"
 #include <dlfcn.h>
 #include <fmt/core.h>
 #include <stdexcept>
@@ -91,22 +92,19 @@ bool RustExecutor::execute(const std::string& code) {
         throw std::runtime_error("[Security] Rust polyglot block rejected: " + unsafe_reason);
     }
 
-    // V-RCE-004: mkdtemp for exclusive, unpredictable temp directory
-    std::string tmpl = (getRustSafeTempDir() / "naab_rust_XXXXXX").string();
-    char* raw_dir = mkdtemp(tmpl.data());
-    if (!raw_dir) {
+    // V-RCE-004: mkdtemp for exclusive, unpredictable temp directory, removed on every
+    // exit (this function has no try/catch, so a timeout used to leak it)
+    ScopedTempDir compile_dir(getRustSafeTempDir(), "naab_rust_");
+    if (!compile_dir.valid()) {
         fmt::print("[ERROR] Failed to create secure temp directory\n");
         return false;
     }
-    chmod(raw_dir, 0700);
-    std::filesystem::path compile_dir(raw_dir);
-    std::filesystem::path temp_rs = compile_dir / "src.rs";
-    std::filesystem::path temp_bin = compile_dir / "bin";
+    std::filesystem::path temp_rs = compile_dir.path() / "src.rs";
+    std::filesystem::path temp_bin = compile_dir.path() / "bin";
 
     // Write code to temp file
     std::ofstream ofs(temp_rs);
     if (!ofs.is_open()) {
-        std::filesystem::remove_all(compile_dir);
         fmt::print("[ERROR] Failed to create temp Rust source file\n");
         return false;
     }
@@ -124,7 +122,6 @@ bool RustExecutor::execute(const std::string& code) {
 
     if (compile_exit != 0) {
         fmt::print("[ERROR] Rust compilation failed:\n{}\n", compile_stderr);
-        std::filesystem::remove_all(compile_dir);
         return false;
     }
 
@@ -146,9 +143,6 @@ bool RustExecutor::execute(const std::string& code) {
         stderr_buffer_.append(exec_stderr);
     }
 
-    // Cleanup secure compile dir
-    std::filesystem::remove_all(compile_dir);
-
     bool success = (exec_exit == 0);
     if (success) {
         // Rust program executed (silent)
@@ -169,17 +163,15 @@ interpreter::NaabVal RustExecutor::executeWithReturn(
         throw std::runtime_error("[Security] Rust polyglot block rejected: " + unsafe_reason);
     }
 
-    // V-RCE-004: mkdtemp for exclusive, unpredictable temp directory
-    std::string tmpl = (getRustSafeTempDir() / "naab_rust_XXXXXX").string();
-    char* raw_dir = mkdtemp(tmpl.data());
-    if (!raw_dir) {
+    // V-RCE-004: mkdtemp for exclusive, unpredictable temp directory, removed on every
+    // exit (this function has no try/catch, so a timeout used to leak it)
+    ScopedTempDir compile_dir(getRustSafeTempDir(), "naab_rust_");
+    if (!compile_dir.valid()) {
         fmt::print("[ERROR] Failed to create secure temp directory\n");
         return interpreter::NaabVal::makeNull();
     }
-    chmod(raw_dir, 0700);
-    std::filesystem::path compile_dir(raw_dir);
-    std::filesystem::path temp_rs = compile_dir / "src.rs";
-    std::filesystem::path temp_bin = compile_dir / "bin";
+    std::filesystem::path temp_rs = compile_dir.path() / "src.rs";
+    std::filesystem::path temp_bin = compile_dir.path() / "bin";
 
     // Phase 2.3: Multi-line support - check if code needs wrapping
     std::string rust_code = code;
@@ -299,7 +291,6 @@ interpreter::NaabVal RustExecutor::executeWithReturn(
 
     std::ofstream ofs(temp_rs);
     if (!ofs.is_open()) {
-        std::filesystem::remove_all(compile_dir);
         return interpreter::NaabVal::makeNull();
     }
     ofs << rust_code;
@@ -314,7 +305,6 @@ interpreter::NaabVal RustExecutor::executeWithReturn(
 
     if (compile_exit != 0) {
         std::string error_msg = compile_stderr;
-        std::filesystem::remove_all(compile_dir);
         throw std::runtime_error(
             "Rust compilation failed:\n" + error_msg +
             "\n  Code preview:\n    " + rust_code.substr(0, std::min(rust_code.size(), size_t(200))));
@@ -336,9 +326,6 @@ interpreter::NaabVal RustExecutor::executeWithReturn(
         }
     }
     if (!exec_stderr.empty()) stderr_buffer_.append(exec_stderr);
-
-    // Cleanup secure compile dir
-    std::filesystem::remove_all(compile_dir);
 
     // Trim trailing whitespace/newlines
     std::string result = exec_stdout;
@@ -565,6 +552,10 @@ std::string RustExecutor::getCapturedOutput() {
         output += "\n[Rust stderr]: " + errors;
     }
     return output;
+}
+
+std::string RustExecutor::getRuntimeVersion() const {
+    return probeRuntimeVersion("rustc", {"--version"});
 }
 
 } // namespace runtime

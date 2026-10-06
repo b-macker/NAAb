@@ -510,6 +510,11 @@ create, send, run, messages, usage, register_tool, batch, fan_out, pipeline
   `"dispatch_mode": "parallel"` — run detection agents concurrently (default: `"sequential"`)
   `"max_parallel": 4` — limit concurrent detection agents (0 = unlimited)
   `"fail_strategy": "fail_fast"` — abort on first error (`"continue"` = collect all results)
+  `max_parallel` and `fail_strategy` are read ONLY under `"dispatch_mode": "parallel"` with two or more
+  detection agents. Under `"sequential"` (the default) the first failing agent always ends the review and
+  the rest are never asked, whatever `fail_strategy` says. Under `"continue"`, a failed agent is reported
+  only when EVERY agent failed — if one succeeds, the failure is dropped silently and `fail_policy: "closed"`
+  does not fire. (Measured: `tests/governance_v4/test_agent_review_settings.sh` AR-15.)
 - Output tokens estimated (~content.size()/4) when Gemini API omits `candidatesTokenCount` (common with Gemma models)
 - **Key rotation**: `api_key_env` accepts string or array of env var names. Keys are tried round-robin; 401 responses mark a key dead for the rest of the run.
 - **Model fallback**: `model` accepts string or array. On 404/503, the next model in the chain is tried.

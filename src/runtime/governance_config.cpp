@@ -1,6 +1,11 @@
 // governance_config.cpp — GovernanceEngine configuration loading
 // Extracted from governance.cpp lines 1-1727
 
+#include "naab/loopback_url.h"
+#include "naab/language_descriptors.h"
+#include <algorithm>
+#include <cctype>
+#include <vector>
 #include "naab/governance.h"
 #include "naab/paths.h"
 #include "naab/telemetry_forwarder.h"
@@ -28,6 +33,84 @@
 #endif
 #include <fmt/core.h>
 
+
+
+// Every language name read from govern.json goes through the language table
+// (naab/language_descriptors.h), so it is compared in the same vocabulary as
+// the block it is checked against. The checks receive the CANONICAL name
+// (<<bash>> is checked as "shell"), while these lists were stored as written --
+// so `languages.blocked: ["bash"]` never matched <<bash>> and blocked nothing,
+// and `allowed: ["bash"]` refused the language it named.
+// tests/governance_v4/test_language_alias_config.sh.
+//
+// Two vocabularies, chosen by what the name decides:
+//  - configLanguage(): keys that describe the CODE (per_language, custom and
+//    plugin rule languages). `node` is JavaScript here, so a JavaScript rule
+//    applies to <<node>> blocks.
+//  - configRuntime(): lists that decide what may RUN (languages.allowed/
+//    blocked, codegen and per-agent language lists, runtime pins). `node` stays
+//    `node` here -- it is a separate executor from QuickJS `javascript`. See
+//    LanguageDescriptor::runtime_variants and languageListBlocks/Admits.
+//
+// A name the table does not know is a config ERROR (exit 4), not a value to
+// store: it matches no block, so `blocked: ["pyhton"]` blocked nothing while
+// reading like a block -- the failure is silent and in the open direction.
+// The error suggests the nearest known name; it never guesses for you (an
+// auto-correct in a security policy can pick the wrong language: ts/js).
+static size_t editDistance(const std::string& a, const std::string& b) {
+    std::vector<size_t> prev(b.size() + 1), cur(b.size() + 1);
+    for (size_t j = 0; j <= b.size(); ++j) prev[j] = j;
+    for (size_t i = 1; i <= a.size(); ++i) {
+        cur[0] = i;
+        for (size_t j = 1; j <= b.size(); ++j)
+            cur[j] = std::min({prev[j] + 1, cur[j - 1] + 1,
+                               prev[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1)});
+        std::swap(prev, cur);
+    }
+    return prev[b.size()];
+}
+
+static void requireKnownLanguage(const std::string& name, const char* where) {
+    if (naab::lang::findLanguage(name)) return;
+    std::string lname = name;
+    std::transform(lname.begin(), lname.end(), lname.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    std::string known, best;
+    size_t best_d = std::string::npos;
+    for (const auto& d : naab::lang::allLanguages()) {
+        if (!known.empty()) known += ", ";
+        known += d.canonical;
+        std::vector<std::string> names{d.canonical};
+        names.insert(names.end(), d.aliases.begin(), d.aliases.end());
+        for (const auto& n : names) {
+            const size_t dist = editDistance(lname, n);
+            if (dist < best_d) { best_d = dist; best = n; }
+        }
+    }
+    // Suggest only a near miss: within 2 edits and fewer edits than the name
+    // has characters (so "c" is not "corrected" to "cs").
+    const bool near = best_d <= 2 && best_d < lname.size();
+    std::string help = near
+        ? "  - Did you mean \"" + best + "\"?\n"
+        : "  - NAAb has no language by that name, so nothing can run it and the\n"
+          "    entry has no effect. Remove it.\n";
+    throw std::runtime_error(
+        "Governance config error: unknown language name \"" + name + "\" in " + where + "\n\n"
+        "  Got: \"" + name + "\"\n"
+        "  Expected: one of " + known + " (or an alias of one)\n\n"
+        "  Help:\n" + help +
+        "  - An unrecognised name matches no block: in a block list it blocks\n"
+        "    nothing, so it is refused rather than ignored.\n");
+}
+
+static std::string configLanguage(const std::string& name, const char* where) {
+    requireKnownLanguage(name, where);
+    return naab::lang::canonicalLanguage(name);
+}
+static std::string configRuntime(const std::string& name, const char* where) {
+    requireKnownLanguage(name, where);
+    return naab::lang::runtimeLanguage(name);
+}
 
 namespace naab {
 namespace governance {
@@ -331,7 +414,115 @@ static void warnIgnoredEnableFlag(const nlohmann::json& blk, const char* section
     }
 }
 
+// A requirements.* block whose check was never built. Its keys are still
+// parsed (ratchet, inheritance and explicitly_set all see them), but nothing
+// consults the result: requiresErrorHandling() has no caller and no naming
+// checker exists (docs/findings/inert-config-keys.md). The block used to draw
+// the enable/level mismatch warnings, which told the operator the check was
+// "ON" or "OFF" -- either way implying a check exists. Say what is true.
+static void warnUnimplementedRequirement(const char* name, const char* consequence) {
+    fprintf(stderr,
+            "[governance] Warning: \"requirements.%s\" is accepted but no check "
+            "enforces it - %s. Do not rely on this block.\n",
+            name, consequence);
+}
+
+#ifdef NAAB_CONFIG_MUTATION
+// ---------------------------------------------------------------------------
+// TEST BUILD ONLY (cmake -DNAAB_CONFIG_MUTATION=ON). Compiled out of every
+// normal build: in a shipped binary an environment variable able to delete a
+// governance setting would be a bypass.
+//
+// NAAB_DROP_SETTING=a.b.c[,d.e] removes those settings from every config this
+// process loads -- file, extends chain, inline string, mid-run reload all pass
+// through loadFromJson -- so the engine falls back to its default. '*' matches
+// any key at that level (agents.*.shell_allowed). tools/testrunner/
+// setting_drop.py drops one setting at a time and asks whether any test that
+// sets it notices: a setting no test notices is dead or untested.
+//
+// Every drop actually performed is appended to NAAB_DROP_LOG as one line,
+// "<path><TAB><value as JSON>". A run that logs nothing never loaded the
+// setting, and must be read as UNMEASURABLE, not as "the setting does nothing".
+// ---------------------------------------------------------------------------
+#include <cstdio>
+#include <cstdlib>
+#include <vector>
+
+static void dropSettingAt(nlohmann::json& node, const std::vector<std::string>& parts,
+                          size_t i, std::string& path, FILE* log) {
+    if (!node.is_object() || i >= parts.size()) return;
+    auto visit = [&](const std::string& key) {
+        if (!node.contains(key)) return;
+        size_t mark = path.size();
+        path += (path.empty() ? "" : ".") + key;
+        if (i + 1 == parts.size()) {
+            if (log) fprintf(log, "%s\t%s\n", path.c_str(), node[key].dump().c_str());
+            node.erase(key);
+        } else {
+            dropSettingAt(node[key], parts, i + 1, path, log);
+        }
+        path.resize(mark);
+    };
+    if (parts[i] == "*") {
+        std::vector<std::string> keys;
+        for (auto it = node.begin(); it != node.end(); ++it) keys.push_back(it.key());
+        for (const auto& k : keys) visit(k);
+    } else {
+        visit(parts[i]);
+    }
+}
+
+static void logLoadedSettings(const nlohmann::json& node, std::string& path, FILE* log) {
+    if (!node.is_object() || node.empty()) {
+        if (!path.empty()) fprintf(log, "%s\n", path.c_str());
+        return;
+    }
+    for (auto it = node.begin(); it != node.end(); ++it) {
+        size_t mark = path.size();
+        path += (path.empty() ? "" : ".") + it.key();
+        logLoadedSettings(it.value(), path, log);
+        path.resize(mark);
+    }
+}
+
+static nlohmann::json applySettingDrop(const nlohmann::json& j) {
+    // NAAB_SETTINGS_LOG: every setting path this config contains, one per line
+    // -- measured, so the harness knows which settings each test really loads.
+    if (const char* p = std::getenv("NAAB_SETTINGS_LOG"); p && *p) {
+        if (FILE* f = fopen(p, "a")) { std::string path; logLoadedSettings(j, path, f); fclose(f); }
+    }
+    const char* spec = std::getenv("NAAB_DROP_SETTING");
+    if (!spec || !*spec) return j;
+    nlohmann::json copy = j;
+    const char* log_path = std::getenv("NAAB_DROP_LOG");
+    FILE* log = (log_path && *log_path) ? fopen(log_path, "a") : nullptr;
+    // Comma-separated: several settings may be dropped together, so a group
+    // that shows no effect can be cleared in one run.
+    std::stringstream all(spec);
+    for (std::string one; std::getline(all, one, ',');) {
+        if (one.empty()) continue;
+        std::vector<std::string> parts;
+        std::stringstream ss(one);
+        for (std::string part; std::getline(ss, part, '.');) parts.push_back(part);
+        std::string path;
+        dropSettingAt(copy, parts, 0, path, log);
+    }
+    if (log) fclose(log);
+    return copy;
+}
+#endif
+
+static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_);
+
 static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
+#ifdef NAAB_CONFIG_MUTATION
+    loadFromJsonImpl(applySettingDrop(j), rules_);
+#else
+    loadFromJsonImpl(j, rules_);
+#endif
+}
+
+static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
     // Mode
     if (j.contains("mode") && j["mode"].is_string()) {
         std::string mode = j["mode"].get<std::string>();
@@ -428,20 +619,28 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& lang = j["languages"];
         if (lang.contains("allowed") && lang["allowed"].is_array()) {
             for (auto& l : lang["allowed"]) {
-                if (l.is_string()) rules_.allowed_languages.insert(l.get<std::string>());
+                if (l.is_string()) rules_.allowed_languages.insert(configRuntime(l.get<std::string>(), "languages.allowed"));
             }
         }
         if (lang.contains("blocked") && lang["blocked"].is_array()) {
             for (auto& l : lang["blocked"]) {
-                if (l.is_string()) rules_.blocked_languages.insert(l.get<std::string>());
+                if (l.is_string()) rules_.blocked_languages.insert(configRuntime(l.get<std::string>(), "languages.blocked"));
             }
         }
         // naab-29 EO-08: Resolve contradictory config — blocked takes precedence.
         // Record the overlap BEFORE erasing it: the erase is what makes CONTRA-007
         // unable to observe the contradiction it exists to report.
-        for (const auto& blocked : rules_.blocked_languages) {
-            if (rules_.allowed_languages.erase(blocked) > 0) {
-                rules_.languages.allowed_and_blocked.insert(blocked);
+        // An allowed runtime is also contradicted when its LANGUAGE is blocked
+        // (allowed "node" + blocked "javascript"): the block list wins there
+        // too, so it is the same contradiction. The reverse (allowed
+        // "javascript" + blocked "node") is not one -- they are different
+        // runtimes, and that pair is how a config admits QuickJS alone.
+        for (auto it = rules_.allowed_languages.begin(); it != rules_.allowed_languages.end();) {
+            if (naab::lang::languageListBlocks(rules_.blocked_languages, *it)) {
+                rules_.languages.allowed_and_blocked.insert(*it);
+                it = rules_.allowed_languages.erase(it);
+            } else {
+                ++it;
             }
         }
     }
@@ -533,6 +732,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 auto [enabled, level] = parseEnforcementLevel(req["error_handling"]);
                 rules_.require_error_handling = enabled;
                 rules_.error_handling_level = level;
+                // The object form warns in the v3 pass below; the legacy
+                // string/bool form is only ever seen here.
+                if (enabled)
+                    warnUnimplementedRequirement("error_handling",
+                        "code without try/catch is not blocked");
             }
         }
         if (req.contains("main_block")) {
@@ -745,7 +949,17 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (cfg.contains("require_package_main") && cfg["require_package_main"].is_boolean())
                     lc.require_package_main = cfg["require_package_main"].get<bool>();
 
-                rules_.languages.per_language[lang_name] = std::move(lc);
+                // Two keys naming the same language ("bash" and "shell") would
+                // collapse into one entry, and keeping either silently drops
+                // the other's restrictions -- refuse the config instead.
+                const std::string canon = configLanguage(lang_name, "languages.per_language");
+                if (rules_.languages.per_language.count(canon)) {
+                    throw std::runtime_error(
+                        "languages.per_language has more than one entry for the language \"" + canon +
+                        "\" (\"" + lang_name + "\" names the same language as an earlier entry). "
+                        "Merge them into one entry under \"" + canon + "\".");
+                }
+                rules_.languages.per_language[canon] = std::move(lc);
             }
         }
     }
@@ -965,16 +1179,20 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (lim.contains("data") && lim["data"].is_object()) {
             auto& d = lim["data"];
 
-            // limits.data.string_length / nesting_depth / dict_size are parsed,
-            // recorded in explicitly_set (so they take part in the ratchet and in
-            // inheritance) and clamped -- and then read by nothing. Their only
-            // readers are GovernanceEngine::checkStringLength / checkNestingDepth /
-            // checkDictSize, which have zero call sites anywhere in src/: defined
-            // once, declared once in governance.h, never invoked. So an operator
-            // can set a HARD data limit, see it survive validation, and get no
-            // enforcement at all.
+            // limits.data.string_length / nesting_depth are parsed, recorded in
+            // explicitly_set (so they take part in the ratchet and in inheritance)
+            // and clamped -- and then read by nothing. Their only readers are
+            // GovernanceEngine::checkStringLength / checkNestingDepth, which have
+            // zero call sites anywhere in src/. So an operator can set a HARD data
+            // limit, see it survive validation, and get no enforcement at all.
             //
             // NOT warned, because they are live and would be false alarms:
+            //   * dict_size      -- wired by #160: both engines call
+            //                       checkDictSize() on dict literals (vm.cpp
+            //                       OP_DICT, expressions.cpp). It used to be warned
+            //                       here as well, and the warning outlived the
+            //                       wiring -- printed immediately above the block
+            //                       it said could not happen.
             //   * output_size    -- read at polyglot.cpp:718, which enforces it
             //                       directly (as a plain runtime_error rather than
             //                       through enforce(), so it produces no finding or
@@ -1003,7 +1221,6 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 }
             };
             warnInertLimit("string_length", "");
-            warnInertLimit("dict_size", "");
             warnInertLimit("nesting_depth",
                            " Use \"limits.data.max_json_depth\" for JSON parse depth,"
                            " which is enforced.");
@@ -1085,7 +1302,13 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (req.contains("error_handling") && req["error_handling"].is_object()) {
             auto& eh = req["error_handling"];
-            warnEnableNeedsLevel(eh, "requirements", "error_handling");
+            // Asked for = the shapes that would enable it if it existed: a
+            // level, or enabled:true. {enabled:false} alone asks for nothing.
+            const bool eh_asked = eh.contains("level") ||
+                (eh.contains("enabled") && eh["enabled"].is_boolean() && eh["enabled"].get<bool>());
+            if (eh_asked)
+                warnUnimplementedRequirement("error_handling",
+                    "code without try/catch is not blocked");
             rules_.explicitly_set.insert("requirements.error_handling");
             if (eh.contains("level")) {
                 auto [en, lv] = parseEnforcementLevel(eh["level"]);
@@ -1100,7 +1323,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (req.contains("naming_conventions") && req["naming_conventions"].is_object()) {
             auto& nc = req["naming_conventions"];
-            warnIgnoredEnableFlag(nc, "requirements", "naming_conventions");
+            const bool nc_off = nc.contains("enabled") && nc["enabled"].is_boolean() &&
+                                !nc["enabled"].get<bool>();
+            if (!nc_off)
+                warnUnimplementedRequirement("naming_conventions",
+                    "no naming convention is checked in NAAb or polyglot code");
             rules_.requirements.naming_conventions.enabled = true;
             rules_.explicitly_set.insert("requirements.naming_conventions");
             if (nc.contains("level")) { auto [en, lv] = parseEnforcementLevel(nc["level"]); rules_.requirements.naming_conventions.level = lv; }
@@ -1744,7 +1971,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (cr.contains("name") && cr["name"].is_string()) rule.name = cr["name"].get<std::string>();
             if (cr.contains("description") && cr["description"].is_string()) rule.description = cr["description"].get<std::string>();
             if (cr.contains("pattern") && cr["pattern"].is_string()) rule.pattern = cr["pattern"].get<std::string>();
-            if (cr.contains("languages")) for (auto& l : cr["languages"]) if (l.is_string()) rule.languages.push_back(l.get<std::string>());
+            if (cr.contains("languages")) for (auto& l : cr["languages"]) if (l.is_string()) rule.languages.push_back(configLanguage(l.get<std::string>(), "custom_rules[].languages"));
             if (cr.contains("level")) { auto [en, lv] = parseEnforcementLevel(cr["level"]); rule.level = lv; }
             if (cr.contains("message") && cr["message"].is_string()) rule.message = cr["message"].get<std::string>();
             if (cr.contains("help") && cr["help"].is_string()) rule.help = cr["help"].get<std::string>();
@@ -1807,7 +2034,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     if (pr.contains("function") && pr["function"].is_string()) rule.function_name = pr["function"].get<std::string>();
                     if (pr.contains("description") && pr["description"].is_string()) rule.description = pr["description"].get<std::string>();
                     if (pr.contains("level")) { auto [en, lv] = parseEnforcementLevel(pr["level"]); rule.level = lv; }
-                    if (pr.contains("languages")) for (auto& l : pr["languages"]) if (l.is_string()) rule.languages.push_back(l.get<std::string>());
+                    if (pr.contains("languages")) for (auto& l : pr["languages"]) if (l.is_string()) rule.languages.push_back(configLanguage(l.get<std::string>(), "governance plugin rule languages"));
                     if (pr.contains("trigger") && pr["trigger"].is_string()) rule.trigger = pr["trigger"].get<std::string>();
                     if (pr.contains("message") && pr["message"].is_string()) rule.message = pr["message"].get<std::string>();
                     if (pr.contains("help") && pr["help"].is_string()) rule.help = pr["help"].get<std::string>();
@@ -2485,12 +2712,12 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.codegen.max_nesting_depth = std::max(0, cg["max_nesting_depth"].get<int>());
         if (cg.contains("allowed_languages") && cg["allowed_languages"].is_array()) {
             for (const auto& lang : cg["allowed_languages"]) {
-                if (lang.is_string()) rules_.codegen.allowed_languages.push_back(lang.get<std::string>());
+                if (lang.is_string()) rules_.codegen.allowed_languages.push_back(configRuntime(lang.get<std::string>(), "codegen.allowed_languages"));
             }
         }
         if (cg.contains("blocked_languages") && cg["blocked_languages"].is_array()) {
             for (const auto& lang : cg["blocked_languages"]) {
-                if (lang.is_string()) rules_.codegen.blocked_languages.push_back(lang.get<std::string>());
+                if (lang.is_string()) rules_.codegen.blocked_languages.push_back(configRuntime(lang.get<std::string>(), "codegen.blocked_languages"));
             }
         }
         if (cg.contains("sanitize_stderr") && cg["sanitize_stderr"].is_boolean())
@@ -2603,10 +2830,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             // --- Permissions ---
             if (cfg_json.contains("allowed_languages") && cfg_json["allowed_languages"].is_array())
                 for (const auto& l : cfg_json["allowed_languages"])
-                    if (l.is_string()) agent.allowed_languages.push_back(l.get<std::string>());
+                    if (l.is_string()) agent.allowed_languages.push_back(configRuntime(l.get<std::string>(), "agents.<name>.allowed_languages"));
             if (cfg_json.contains("blocked_languages") && cfg_json["blocked_languages"].is_array())
                 for (const auto& l : cfg_json["blocked_languages"])
-                    if (l.is_string()) agent.blocked_languages.push_back(l.get<std::string>());
+                    if (l.is_string()) agent.blocked_languages.push_back(configRuntime(l.get<std::string>(), "agents.<name>.blocked_languages"));
             if (cfg_json.contains("blocked_paths") && cfg_json["blocked_paths"].is_array())
                 for (const auto& p : cfg_json["blocked_paths"])
                     if (p.is_string()) agent.blocked_paths.push_back(p.get<std::string>());
@@ -2730,9 +2957,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (cfg_json.contains("api_base") && cfg_json["api_base"].is_string()) {
                     std::string base = cfg_json["api_base"].get<std::string>();
                     bool https = base.rfind("https://", 0) == 0;
-                    bool loopback_http = base.rfind("http://127.0.0.1", 0) == 0 ||
-                                         base.rfind("http://localhost", 0) == 0 ||
-                                         base.rfind("http://[::1]", 0) == 0;
+                    // The host itself, not a string prefix: a prefix accepted
+                    // "http://127.0.0.1@other-host/" (userinfo) and sent the
+                    // API key there in cleartext.
+                    bool loopback_http = naab::net::isLoopbackHttpUrl(base);
                     if (https || loopback_http) {
                         agent.api_base = base;
                     } else if (!base.empty()) {
@@ -3524,7 +3752,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         for (const auto& pin_json : j["runtime_versions"]) {
             GovernanceRules::RuntimeVersionPin pin;
             if (pin_json.contains("language") && pin_json["language"].is_string())
-                pin.language = pin_json["language"].get<std::string>();
+                pin.language = configRuntime(pin_json["language"].get<std::string>(), "runtime_versions[].language");
             if (pin_json.contains("required") && pin_json["required"].is_string())
                 pin.required_version = pin_json["required"].get<std::string>();
             if (pin_json.contains("message") && pin_json["message"].is_string())

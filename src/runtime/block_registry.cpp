@@ -418,7 +418,10 @@ bool BlockRegistry::loadCache(const std::string& base_path) {
         if (content.empty()) return false;
 
         json cache = json::parse(content);
-        if (!cache.contains("version") || cache["version"].get<int>() != 1) {
+        // Version 2 carries code_hash. A version-1 cache has none, so loading it
+        // would leave every block with an empty hash -- and getBlockSource()
+        // skips the V-RT-004 integrity check when the hash is empty. Rebuild.
+        if (!cache.contains("version") || cache["version"].get<int>() != 2) {
             return false;  // Wrong version
         }
 
@@ -442,6 +445,7 @@ bool BlockRegistry::loadCache(const std::string& base_path) {
             metadata.output_type = b.value("output_type", "");
             metadata.performance_tier = b.value("performance_tier", "unknown");
             metadata.success_rate_percent = b.value("success_rate_percent", 100);
+            metadata.code_hash = b.value("code_hash", "");
 
             blocks_[metadata.block_id] = metadata;
         }
@@ -457,7 +461,7 @@ void BlockRegistry::saveCache(const std::string& base_path) const {
 
     try {
         json cache;
-        cache["version"] = 1;
+        cache["version"] = 2;
 
         json blocks_json;
         for (const auto& [id, meta] : blocks_) {
@@ -475,6 +479,10 @@ void BlockRegistry::saveCache(const std::string& base_path) const {
             b["output_type"] = meta.output_type;
             b["performance_tier"] = meta.performance_tier;
             b["success_rate_percent"] = meta.success_rate_percent;
+            // Without this, the first run's cache dropped every block's hash and
+            // each later run skipped the integrity check: a block source edited
+            // after one clean run executed unverified (V-RT-004).
+            b["code_hash"] = meta.code_hash;
             blocks_json[id] = b;
         }
         cache["blocks"] = blocks_json;

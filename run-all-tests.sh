@@ -417,6 +417,16 @@ run_test() {
             # expressions have no value channel without the embedded executor).
             MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
             echo "  XFAIL: $test_name (missing executor)"
+        elif [ -f "$output_file" ] && grep -qE "block failed(: | \(exit code 127\): )'[^']+' could not be run" "$output_file"; then
+            # A polyglot block whose runtime binary could not be STARTED (exit
+            # 127: not installed / not on PATH) -- the subprocess executors'
+            # environmental-absence message (GenericSubprocessExecutor: tsx,
+            # php, python3; CSharpExecutor: mcs, mono). Those blocks used to
+            # evaluate to null under exit 0, so tests using them "passed" with
+            # the language never run; failing loudly is the fix, and absence of
+            # the compiler is the same class as the Python case above.
+            MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
+            echo "  XFAIL: $test_name (missing executor: runtime not installed)"
         elif [ "${LIVE_AGENT_TESTS[$test_name]}" = "1" ] && [ -f "$output_file" ] && \
              grep -q "Agent error: API key not available" "$output_file"; then
             # Live-agent examples call agent.send() against a real provider and
@@ -1609,6 +1619,24 @@ else
     echo "  test_polyglot_gate_coverage.sh: not found, skipping"
 fi
 
+# --- Compiled-language temp directories (ScopedTempDir, every exit path) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Compile Temp Directories (none left in TMPDIR, incl. on timeout)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+TEMPDIR_CLEANUP_SCRIPT="tests/robustness/test_compile_tempdir_cleanup.sh"
+if [ -f "$TEMPDIR_CLEANUP_SCRIPT" ]; then
+    if run_shell_test "$TEMPDIR_CLEANUP_SCRIPT" 2>&1; then
+        echo "  test_compile_tempdir_cleanup.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_compile_tempdir_cleanup.sh")
+    fi
+else
+    echo "  test_compile_tempdir_cleanup.sh: not found, skipping"
+fi
+
 # --- Path policy precedence (F9) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -2432,6 +2460,84 @@ else
     echo "  test_try_handler_leak.sh: not found, skipping"
 fi
 
+# async fn semantics per engine (ASYNC-001): results agree, VM concurrent, tree-walker pinned synchronous.
+ASYNCSEM_SCRIPT="tests/vm/test_async_engine_semantics.sh"
+if [ -f "$ASYNCSEM_SCRIPT" ]; then
+    if run_shell_test "$ASYNCSEM_SCRIPT" 2>&1; then
+        echo "  test_async_engine_semantics.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_async_engine_semantics.sh")
+    fi
+else
+    echo "  test_async_engine_semantics.sh: not found, skipping"
+fi
+
+# A C++ block library that fails to dlopen() reports the loader's reason.
+DLERR_SCRIPT="tests/robustness/test_block_dlopen_error.sh"
+if [ -f "$DLERR_SCRIPT" ]; then
+    if run_shell_test "$DLERR_SCRIPT" 2>&1; then
+        echo "  test_block_dlopen_error.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_block_dlopen_error.sh")
+    fi
+else
+    echo "  test_block_dlopen_error.sh: not found, skipping"
+fi
+
+# Tree-walker polyglot groups keep source order with the statements between blocks.
+PG_ORDER_SCRIPT="tests/robustness/test_polyglot_group_order.sh"
+if [ -f "$PG_ORDER_SCRIPT" ]; then
+    if run_shell_test "$PG_ORDER_SCRIPT" 2>&1; then
+        echo "  test_polyglot_group_order.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_polyglot_group_order.sh")
+    fi
+else
+    echo "  test_polyglot_group_order.sh: not found, skipping"
+fi
+
+# api_base: plain http only for a real loopback host (not a string prefix).
+API_BASE_LOOPBACK_SCRIPT="tests/security/test_api_base_loopback.sh"
+if [ -f "$API_BASE_LOOPBACK_SCRIPT" ]; then
+    if run_shell_test "$API_BASE_LOOPBACK_SCRIPT" 2>&1; then
+        echo "  test_api_base_loopback.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_api_base_loopback.sh")
+    fi
+else
+    echo "  test_api_base_loopback.sh: not found, skipping"
+fi
+
+# A long line in a polyglot block cannot crash the analyzers.
+ANALYZER_LONG_LINE_SCRIPT="tests/security/test_analyzer_long_line.sh"
+if [ -f "$ANALYZER_LONG_LINE_SCRIPT" ]; then
+    if run_shell_test "$ANALYZER_LONG_LINE_SCRIPT" 2>&1; then
+        echo "  test_analyzer_long_line.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_analyzer_long_line.sh")
+    fi
+else
+    echo "  test_analyzer_long_line.sh: not found, skipping"
+fi
+
+# <<sql>> blocks: results, parameters, and containment (in-memory, no file reach).
+SQLEXEC_SCRIPT="tests/security/test_sql_executor.sh"
+if [ -f "$SQLEXEC_SCRIPT" ]; then
+    if run_shell_test "$SQLEXEC_SCRIPT" 2>&1; then
+        echo "  test_sql_executor.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_sql_executor.sh")
+    fi
+else
+    echo "  test_sql_executor.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then
@@ -2966,16 +3072,28 @@ fi
 
 CANARY_SCRIPT="tests/self-audit/test_prescan_canaries.sh"
 if [ -f "$CANARY_SCRIPT" ]; then
-    # Canary test injects/reverts source files — skip when working tree is dirty
-    if git diff --quiet -- src/ include/ 2>/dev/null; then
+    # Canary test injects/reverts source files — skip when working tree is dirty.
+    #
+    # Split on the exit status: `git diff --quiet` exits 1 for "dirty", but any
+    # non-zero used to read as dirty, and git exits 127 when it is not installed.
+    # That is the MSYS2 shell on the Windows runner (setup-msys2's minimal PATH,
+    # no git package), so every Windows run printed "uncommitted changes" for a
+    # tree nobody had touched -- a broken probe rendering as a finding, the same
+    # shape test_coverage_visibility.sh CV-04 already guards. See
+    # docs/findings/build-windows-ci.md (item 1).
+    _canary_git_rc=0
+    git diff --quiet -- src/ include/ 2>/dev/null || _canary_git_rc=$?
+    if [ "$_canary_git_rc" -eq 0 ]; then
         if run_shell_test "$CANARY_SCRIPT" 2>&1; then
             echo "  test_prescan_canaries.sh: ALL PASSED"
         else
             FAILED=$((FAILED + 1))
             FAILED_TESTS+=("test_prescan_canaries.sh")
         fi
-    else
+    elif [ "$_canary_git_rc" -eq 1 ]; then
         echo "  test_prescan_canaries.sh: SKIPPED (uncommitted changes in src/include)"
+    else
+        echo "  test_prescan_canaries.sh: SKIPPED (git cannot answer here: exit $_canary_git_rc) -- UNMEASURABLE, not a pass"
     fi
 else
     echo "  test_prescan_canaries.sh: not found, skipping"
@@ -3433,6 +3551,24 @@ else
     echo "  test_child_memory_limit.sh: not found, skipping"
 fi
 
+# --- Concurrent compiles of one C++ block (atomic cache installs) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Compile Cache Race (two processes, one block, no torn files)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+CACHE_RACE_SCRIPT="tests/robustness/test_compile_cache_race.sh"
+if [ -f "$CACHE_RACE_SCRIPT" ]; then
+    if run_shell_test "$CACHE_RACE_SCRIPT" 2>&1; then
+        echo "  test_compile_cache_race.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_compile_cache_race.sh")
+    fi
+else
+    echo "  test_compile_cache_race.sh: not found, skipping"
+fi
+
 API_REST_HARD_BLOCK_SCRIPT="tests/api/test_rest_hard_block_survives.sh"
 if [ -f "$API_REST_HARD_BLOCK_SCRIPT" ]; then
     if run_shell_test "$API_REST_HARD_BLOCK_SCRIPT" 2>&1; then
@@ -3574,6 +3710,139 @@ else
     echo "  test_parallel_runner.sh: not found, skipping"
 fi
 
+SKIPTALLY_SCRIPT="tests/self-audit/test_skip_tally.sh"
+if [ -f "$SKIPTALLY_SCRIPT" ]; then
+    # The end-of-run skip tally (tests/helpers/skip_tally.sh) is what makes a
+    # platform's untested arms visible under a green verdict. A tally that
+    # silently counted nothing would read as "nothing is off".
+    if run_shell_test "$SKIPTALLY_SCRIPT" 2>&1; then
+        echo "  test_skip_tally.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_skip_tally.sh")
+    fi
+else
+    echo "  test_skip_tally.sh: not found, skipping"
+fi
+
+NAABAPOS_SCRIPT="tests/governance_v4/test_naab_comment_apostrophe.sh"
+if [ -f "$NAABAPOS_SCRIPT" ]; then
+    # An apostrophe in a NAAb # comment must not open a "string" that hides
+    # code from checkNaabFunctionBody (it did: a TODO ran under a HARD config).
+    if run_shell_test "$NAABAPOS_SCRIPT" 2>&1; then
+        echo "  test_naab_comment_apostrophe.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_naab_comment_apostrophe.sh")
+    fi
+else
+    echo "  test_naab_comment_apostrophe.sh: not found, skipping"
+fi
+
+CMCTX_SCRIPT="tests/governance_v4/test_comment_marker_context.sh"
+if [ -f "$CMCTX_SCRIPT" ]; then
+    # A line-comment marker is a comment only where the real lexer says: shell
+    # ${#..}/$#/a#b, ruby ?#//#/ are code, not comments (#294 regression).
+    if run_shell_test "$CMCTX_SCRIPT" 2>&1; then
+        echo "  test_comment_marker_context.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_comment_marker_context.sh")
+    fi
+else
+    echo "  test_comment_marker_context.sh: not found, skipping"
+fi
+
+LANGALIAS_SCRIPT="tests/governance_v4/test_language_alias_config.sh"
+if [ -f "$LANGALIAS_SCRIPT" ]; then
+    # Every language name in govern.json (allowed/blocked, per_language,
+    # rule languages, codegen, pins) is canonicalised through the language
+    # table: blocked:["bash"] must block <<sh>>, with canonical controls.
+    if run_shell_test "$LANGALIAS_SCRIPT" 2>&1; then
+        echo "  test_language_alias_config.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_language_alias_config.sh")
+    fi
+else
+    echo "  test_language_alias_config.sh: not found, skipping"
+fi
+
+RTPIN_SCRIPT="tests/governance_v4/test_runtime_pin_engines.sh"
+if [ -f "$RTPIN_SCRIPT" ]; then
+    # runtime_versions pins hold on both engines and through codegen (the VM
+    # never consulted them), and an unverifiable version is not a pass.
+    if run_shell_test "$RTPIN_SCRIPT" 2>&1; then
+        echo "  test_runtime_pin_engines.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_runtime_pin_engines.sh")
+    fi
+else
+    echo "  test_runtime_pin_engines.sh: not found, skipping"
+fi
+
+BFP_SCRIPT="tests/robustness/test_block_failure_parity.sh"
+if [ -f "$BFP_SCRIPT" ]; then
+    # A failed polyglot block fails the program in every registered language,
+    # both engines and forms (typescript/php/cpp/csharp swallowed failures, the
+    # VM ignored failed shell commands, and php ran only with <?php written).
+    if run_shell_test "$BFP_SCRIPT" 2>&1; then
+        echo "  test_block_failure_parity.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_block_failure_parity.sh")
+    fi
+else
+    echo "  test_block_failure_parity.sh: not found, skipping"
+fi
+
+BWU_SCRIPT="tests/robustness/test_binding_use_warning.sh"
+if [ -f "$BWU_SCRIPT" ]; then
+    # "Bound variable is never used" must not fire for a binding read inside
+    # an interpolating string (shell "$x", python f"{x}", ruby "#{x}", php).
+    if run_shell_test "$BWU_SCRIPT" 2>&1; then
+        echo "  test_binding_use_warning.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_binding_use_warning.sh")
+    fi
+else
+    echo "  test_binding_use_warning.sh: not found, skipping"
+fi
+
+LANGCONFORM_SCRIPT="tests/self-audit/test_langconform.sh"
+if [ -f "$LANGCONFORM_SCRIPT" ]; then
+    # What governance sees per language (every comment and string form, every
+    # registered name) against a committed baseline. Consolidating per-language
+    # knowledge moves findings in both directions; this makes each move a
+    # reviewed baseline edit instead of a silent loosening.
+    if run_shell_test "$LANGCONFORM_SCRIPT" 2>&1; then
+        echo "  test_langconform.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_langconform.sh")
+    fi
+else
+    echo "  test_langconform.sh: not found, skipping"
+fi
+
+PROTMAP_SCRIPT="tests/self-audit/test_protection_map.sh"
+if [ -f "$PROTMAP_SCRIPT" ]; then
+    # Which layer stops each forbidden action per language (runtime, text
+    # checks only, or nothing), observed rather than inferred, pinned against
+    # tools/protmap/baseline.json. A weaker cell is a regression; a stronger
+    # one means docs/protection-map.md is out of date.
+    if run_shell_test "$PROTMAP_SCRIPT" 2>&1; then
+        echo "  test_protection_map.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_protection_map.sh")
+    fi
+else
+    echo "  test_protection_map.sh: not found, skipping"
+fi
+
 DEADGATE_SCRIPT="tests/self-audit/test_dead_interpreter_gate.sh"
 if [ -f "$DEADGATE_SCRIPT" ]; then
     # tools/testrunner/dead_gate.py runs every suite against an interpreter that
@@ -3588,7 +3857,57 @@ if [ -f "$DEADGATE_SCRIPT" ]; then
 else
     echo "  test_dead_interpreter_gate.sh: not found, skipping"
 fi
+
+SDROP_SCRIPT="tests/security/test_setting_drop_compiled_out.sh"
+if [ -f "$SDROP_SCRIPT" ]; then
+    # A TEST build (-DNAAB_CONFIG_MUTATION=ON) lets NAAB_DROP_SETTING delete a
+    # governance setting at load, for tools/testrunner/setting_drop.py. In a
+    # shipped binary that variable would be a governance bypass: this checks
+    # the hook is compiled out of the normal build CI ships.
+    if run_shell_test "$SDROP_SCRIPT" 2>&1; then
+        echo "  test_setting_drop_compiled_out.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_setting_drop_compiled_out.sh")
+    fi
+else
+    echo "  test_setting_drop_compiled_out.sh: not found, skipping"
+fi
 fi  # phase_runs shell
+
+# Report-only: interpreters a suite left running. A python3 was still alive at
+# the end of one Linux CI job (master run 37204130521) and never again in the
+# runs examined since, so the leak could not be attributed after the fact.
+# This names the next one -- pid, parent and full arguments -- while the
+# process still exists. It never changes the verdict: nothing below touches
+# FAILED or the exit status. Linux only (ps -o etimes is procps). Only
+# processes younger than this run are listed, so a python3 the caller started
+# beforehand is not reported as a leak.
+if [ "$(uname -s)" = "Linux" ] && command -v ps >/dev/null 2>&1; then
+    LEFTOVER=$(ps -eo pid=,ppid=,etimes=,stat=,comm=,args= 2>/dev/null | awk -v age="$SECONDS" -v self="$$" '
+        $1 != self && $3 <= age && $4 !~ /^Z/ && ($5 == "python3" || $5 ~ /^python3\./ || $5 == "naab-lang") {
+            cmd = $0
+            for (i = 1; i <= 5; i++) sub(/^[ \t]*[^ \t]+/, "", cmd)
+            sub(/^[ \t]+/, "", cmd)
+            print "    pid=" $1 " ppid=" $2 " age=" $3 "s  " cmd
+        }')
+    if [ -n "$LEFTOVER" ]; then
+        echo ""
+        echo "  Report only (verdict unchanged): interpreters started during this run are still running:"
+        echo "$LEFTOVER"
+    fi
+fi
+
+# Report-only: every arm a suite said it could not measure (SKIP/UNMEASURABLE/
+# XFAIL), per suite, with its reason. A platform missing a tool turns arms into
+# skips under a passing verdict, so a green job alone cannot say how much ran.
+# NAAB_SKIP_REPORT=FILE also writes a sorted suite<TAB>line list, so two
+# platforms' lists can be diffed. Never changes FAILED or the exit status.
+if phase_runs shell && [ -z "${NAAB_TEST_LIST:-}" ] && [ -n "${SHELL_TEST_CAPTURE_DIR:-}" ] \
+   && [ -f "tests/helpers/skip_tally.sh" ]; then
+    . tests/helpers/skip_tally.sh
+    skip_tally "$SHELL_TEST_CAPTURE_DIR" "${NAAB_SKIP_REPORT:-}"
+fi
 
 # Print summary
 echo ""

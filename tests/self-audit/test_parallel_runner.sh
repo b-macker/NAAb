@@ -28,6 +28,9 @@
 #   PR-06c CONTROL: compare of a result with itself is EQUIVALENT
 #   PR-08  a SKIP marker is counted when the suite colours it (a colour code
 #          directly before the word defeats a word-boundary match)
+#   PR-09  a process a unit leaves running is reported and stopped
+#   PR-09c CONTROL: the same leftover process is really alive while the unit
+#          runs, so PR-09's "stopped" is the runner's doing
 #   PR-07  the real run-all-tests.sh list mode refuses any phase but shell, and
 #          lists the units this suite is registered among (itself included)
 # ============================================================
@@ -44,13 +47,13 @@ skip() { SKIP=$((SKIP+1)); echo "  SKIP [$1] $2"; }
 echo "=== The parallel runner reports what ran, faithfully ==="
 
 if ! command -v python3 >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1; then
-    for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08; do
+    for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08 PR-09 PR-09c; do
         skip "$id" "python3 or timeout unavailable (UNMEASURABLE)"; done
     echo ""; echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"; exit 0
 fi
 case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*)
-        for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08; do
+        for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08 PR-09 PR-09c; do
             skip "$id" "the runner is POSIX-only (UNMEASURABLE here)"; done
         echo ""; echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"; exit 0 ;;
 esac
@@ -161,6 +164,33 @@ runp --jobs 1
 got=$(jq_py "print(d['results'][0]['skip_markers'])" 2>/dev/null)
 if [ "$got" = "2" ]; then ok "PR-08" "a coloured skip marker is counted alongside a plain one"
 else bad "PR-08" "skip markers miscounted" "expected 2, got '$got'"; fi
+
+# --- PR-09 / PR-09c --------------------------------------------------------------------
+# The leftover is a sleep with a unique duration, so it cannot be confused with
+# anything else on the machine; it records its own pid for the control.
+if [ -d /proc ]; then
+    mark="77.$$"
+    mk u/leak.sh "sleep $mark & echo \$! > \"\$PR_LEAK\"; sleep 1; kill -0 \$(cat \"\$PR_LEAK\") && echo ALIVE_DURING_UNIT"
+    export PR_LEAK="$W/leak.pid"
+    write_plan "shell${T}60s${T}u/leak.sh"
+    runp --jobs 1
+    got=$(jq_py "print(','.join(d['results'][0].get('left_running', [])))" 2>/dev/null)
+    lpid=$(cat "$PR_LEAK" 2>/dev/null)
+    # Alive = present and not a zombie. kill -0 succeeds on a zombie, and in a
+    # container whose PID 1 does not reap, a killed orphan stays a zombie.
+    alive() { [ -r "/proc/$1/stat" ] && [ "$(sed 's/.*) //' "/proc/$1/stat" | cut -d' ' -f1)" != Z ]; }
+    if [ "$got" = "sleep" ] && [ -n "$lpid" ] && ! alive "$lpid"; then
+        ok "PR-09" "a process left running by a unit is reported (sleep) and stopped"
+    else bad "PR-09" "leftover not reported or still alive" "reported='$got' pid=$lpid alive=$(alive "$lpid" && echo yes || echo no)"; fi
+    if grep -q ALIVE_DURING_UNIT "$W/out/logs/"*leak* 2>/dev/null; then
+        ok "PR-09c" "CONTROL: the leftover was alive while the unit ran"
+    else bad "PR-09c" "the leftover never ran -- PR-09 proves nothing"; fi
+    [ -n "$lpid" ] && kill "$lpid" 2>/dev/null
+    unset PR_LEAK
+else
+    skip "PR-09" "no /proc -- leftover processes cannot be enumerated (UNMEASURABLE)"
+    skip "PR-09c" "no /proc (UNMEASURABLE)"
+fi
 
 # --- PR-06 / PR-06c -------------------------------------------------------------------------
 mkj() {  # $1 file, $2 rc of u/a.sh, $3 skips of u/b.sh

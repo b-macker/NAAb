@@ -4,6 +4,8 @@
 
 #include "naab/inline_code_cache.h"
 #include "naab/paths.h"
+#include "naab/atomic_file.h"
+#include "naab/crypto_utils.h"
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -43,27 +45,13 @@ InlineCodeCache::~InlineCodeCache() {
 }
 
 std::string InlineCodeCache::hashCode(const std::string& code) const {
-    // Simple but effective hash using std::hash + length + first/last chars
-    // This avoids expensive crypto hashing while being collision-resistant for cache purposes
-
-    std::hash<std::string> hasher;
-    size_t hash1 = hasher(code);
-
-    // Mix in code length and content from different positions
-    size_t hash2 = code.length();
-    if (!code.empty()) {
-        hash2 ^= (size_t)code[0] << 16;
-        hash2 ^= (size_t)code[code.length() / 2] << 8;
-        hash2 ^= (size_t)code[code.length() - 1];
-    }
-
-    // Combine hashes
-    size_t final_hash = hash1 ^ (hash2 << 1);
-
-    // Convert to hex string
-    std::ostringstream oss;
-    oss << std::hex << std::setfill('0') << std::setw(16) << final_hash;
-    return oss.str();
+    // The key decides WHICH compiled binary runs for a block, so a collision
+    // runs another block's code -- code governance never checked for this
+    // block. It used to be std::hash mixed with the length and three
+    // characters: 64 bits, not collision-resistant, and std::hash makes no
+    // promise across library versions. SHA-256 of the full source costs
+    // microseconds against a compile measured in seconds.
+    return security::CryptoUtils::sha256(code);
 }
 
 bool InlineCodeCache::isCached(const std::string& language, const std::string& code) const {
@@ -127,14 +115,17 @@ void InlineCodeCache::storeBinary(
     std::string cached_source = getSourcePath(language, hash);
 
     try {
-        // Copy binary to cache
-        if (fs::exists(binary_path)) {
-            fs::copy_file(binary_path, cached_binary, fs::copy_options::overwrite_existing);
+        // Another naab-lang process may be compiling the same block, or running
+        // this cached binary, right now: cache_mutex_ only serialises this
+        // process. Copying over the final name truncates it first, so install
+        // through a sibling temporary and rename() -- readers see the old file
+        // or the whole new one, never part of it.
+        std::error_code ec;
+        if (fs::exists(binary_path) && !copyFileAtomically(binary_path, cached_binary, ec)) {
+            throw fs::filesystem_error("install cached binary", binary_path, cached_binary, ec);
         }
-
-        // Copy source to cache
-        if (fs::exists(source_path)) {
-            fs::copy_file(source_path, cached_source, fs::copy_options::overwrite_existing);
+        if (fs::exists(source_path) && !copyFileAtomically(source_path, cached_source, ec)) {
+            throw fs::filesystem_error("install cached source", source_path, cached_source, ec);
         }
 
         // Create metadata entry
@@ -378,9 +369,13 @@ void InlineCodeCache::loadMetadata() {
 
 void InlineCodeCache::saveMetadata() {
     std::string metadata_path = getMetadataPath();
+    std::lock_guard<std::mutex> lock(cache_mutex_);  // entries_ is iterated below
 
     try {
-        std::ofstream file(metadata_path);
+        // Built in memory and installed whole, for the same reason as
+        // storeBinary(): an ofstream on metadata.txt truncates it, and a
+        // process starting meanwhile loads an empty or half-written cache.
+        std::ostringstream file;
 
         for (const auto& pair : entries_) {
             const auto& entry = pair.second;
@@ -395,6 +390,10 @@ void InlineCodeCache::saveMetadata() {
                  << last_access_epoch << "\n";
         }
 
+        std::error_code ec;
+        if (!writeFileAtomically(metadata_path, file.str(), ec)) {
+            throw fs::filesystem_error("write cache metadata", metadata_path, ec);
+        }
         // Saved metadata (silent)
 
     } catch (const std::exception& e) {

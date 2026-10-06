@@ -1,0 +1,3308 @@
+{
+  "version": "5.0",
+  "mode": "audit",
+  "description": "NAAb Governance v5.0 \u2014 Complete Template (all sections, all options)",
+  "update_reason": "",
+  "_comment_update_reason": "Optional: reason for last config update (shown in mid-run reload notices)",
+  "_comment_modes": "mode: 'enforce' (default), 'audit' (dry-run), 'off' (disabled)",
+  "_comment_levels": "Enforcement levels: 'hard' (block, no override), 'soft' (block, --governance-override allows), 'advisory' (warn only)",
+  "_comment_extends": "Policy inheritance \u2014 load a parent govern.json and merge its settings. Child values override parent by default. Array fields (blocked_commands, custom_rules, taint sources/sinks/sanitizers, agents, env_vars blocked_read/allowed_read/blocked_write/allowed_write) are controlled by meta.inheritance.merge_arrays. Parent can be absolute path or relative to this file. Circular references and depth > meta.inheritance.max_depth are rejected. Parent must pass signature verification.",
+  "extends": "./base-govern.json",
+  "languages": {
+    "allowed": [
+      "python",
+      "javascript",
+      "shell",
+      "go",
+      "nim",
+      "ruby",
+      "php"
+    ],
+    "blocked": [],
+    "require_explicit": false,
+    "per_language": {
+      "python": {
+        "version_hint": "3.8+",
+        "timeout": 15,
+        "max_lines": 200,
+        "max_output_size": 0,
+        "banned_functions": [
+          "eval(",
+          "exec(",
+          "compile(",
+          "__import__("
+        ],
+        "banned_keywords": [],
+        "banned_globals": [],
+        "required_imports": [],
+        "imports": {
+          "mode": "blocklist",
+          "blocked": [
+            "subprocess",
+            "ctypes",
+            "os.system"
+          ],
+          "allowed": [],
+          "blocked_from": [
+            "os:system,popen,exec"
+          ]
+        },
+        "allow_f_strings": true,
+        "allow_walrus": true,
+        "max_string_length": 0,
+        "no_star_imports": true,
+        "no_star_imports_level": "advisory",
+        "indent_style": "spaces",
+        "indent_size": 4
+      },
+      "javascript": {
+        "timeout": 10,
+        "max_lines": 150,
+        "banned_functions": [
+          "eval(",
+          "Function(",
+          "setTimeout("
+        ],
+        "imports": {
+          "mode": "blocklist",
+          "blocked": [
+            "child_process",
+            "fs",
+            "net"
+          ]
+        },
+        "strict_mode": true,
+        "strict_mode_level": "advisory",
+        "no_var": true,
+        "no_var_level": "advisory",
+        "no_console_log": false,
+        "no_console_log_level": "advisory"
+      },
+      "shell": {
+        "timeout": 10,
+        "max_lines": 50,
+        "banned_commands": [
+          "rm -rf /",
+          "mkfs",
+          "dd if=/dev/zero"
+        ],
+        "shell_injection": true,
+        "shell_injection_level": "hard",
+        "require_set_e": false,
+        "require_set_e_level": "soft",
+        "require_set_u": false,
+        "require_set_u_level": "advisory",
+        "require_set_pipefail": false,
+        "require_set_pipefail_level": "advisory",
+        "require_quoting": false,
+        "require_quoting_level": "soft",
+        "no_curl_pipe_sh": true,
+        "no_curl_pipe_sh_level": "hard",
+        "no_wget_pipe_bash": true,
+        "no_wget_pipe_bash_level": "hard"
+      },
+      "go": {
+        "timeout": 30,
+        "max_lines": 200,
+        "banned_imports": [
+          "unsafe",
+          "syscall"
+        ],
+        "require_package_main": true
+      },
+      "nim": {
+        "timeout": 30,
+        "max_lines": 200,
+        "banned_functions": []
+      },
+      "ruby": {
+        "timeout": 10,
+        "max_lines": 100,
+        "banned_functions": [
+          "eval(",
+          "system(",
+          "exec("
+        ],
+        "banned_globals": [
+          "$SAFE"
+        ]
+      },
+      "php": {
+        "timeout": 10,
+        "max_lines": 100,
+        "banned_functions": [
+          "eval(",
+          "exec(",
+          "system(",
+          "shell_exec(",
+          "passthru("
+        ]
+      },
+      "rust": {
+        "timeout": 60,
+        "max_lines": 300,
+        "banned_functions": []
+      },
+      "cpp": {
+        "timeout": 60,
+        "max_lines": 300,
+        "banned_includes": [
+          "<cstdlib>"
+        ],
+        "banned_functions": [
+          "system(",
+          "exec("
+        ]
+      },
+      "csharp": {
+        "timeout": 60,
+        "max_lines": 300,
+        "banned_namespaces": [
+          "System.Diagnostics.Process"
+        ]
+      }
+    }
+  },
+  "_comment_rationale": "Any section can include an optional 'rationale' field explaining WHY that rule or tier was chosen. Rationale text appears in governance reports and the audit trail.",
+  "_comment_aliases": "Alternate spellings the loader also accepts, each writing the SAME setting as the key shown in this template. When both appear, the one the loader parses LATER wins (loader order, not file order): top-level sandbox_level < governance.sandbox_level < security.sandbox_level; governance.quiet/no_color < output.quiet/no_color; runtime.timeout < limits.execution.timeout_seconds; limits.call_depth < limits.execution.call_depth; limits.array_size < limits.data.array_size; restrictions.no_secrets/no_placeholders/no_hardcoded_results < code_quality.*; an agent's capabilities.shell.enabled is read only when shell_allowed is absent. Use one spelling.",
+  "_comment_capabilities_sandbox": "capabilities also control runtime sandbox: shell.enabled=false removes SYS_EXEC, network.enabled=false removes NET_CONNECT, filesystem.mode=none removes FS_READ+FS_WRITE",
+  "capabilities": {
+    "network": {
+      "enabled": true,
+      "rationale": "Network access enabled for API integrations; blocked_hosts restricts cloud metadata endpoints (SSRF prevention)",
+      "_comment_reserved_network": "http_allowed, max_request_size, max_response_size are RESERVED \u2014 not yet enforced. Use allowed_hosts/blocked_hosts for access control.",
+      "http_allowed": true,
+      "https_only": false,
+      "allowed_hosts": [],
+      "blocked_hosts": [
+        "169.254.169.254",
+        "metadata.google.internal"
+      ],
+      "allowed_ports": [],
+      "max_request_size": 0,
+      "max_response_size": 0,
+      "allow_websockets": true,
+      "allow_raw_sockets": false
+    },
+    "filesystem": {
+      "mode": "write",
+      "allowed_paths": [],
+      "blocked_paths": [
+        "/etc/shadow",
+        "/etc/passwd"
+      ],
+      "allowed_extensions": [],
+      "_comment_blocked_extensions": "RESERVED: blocked_extensions is not yet enforced. Use blocked_paths for path-based blocking.",
+      "blocked_extensions": [
+        ".exe",
+        ".dll",
+        ".so"
+      ],
+      "max_file_size": 0,
+      "max_files": 0,
+      "allow_symlinks": true,
+      "allow_hidden_files": true,
+      "allow_absolute_paths": true
+    },
+    "shell": {
+      "_comment_spawn_boundary": "SPAWN BOUNDARY: with shell enabled, project governance is ADVISORY for anything that can start a process. Governance is discovered per-process from the SCRIPT'S OWN directory, so a program can write a .naab file where no govern.json is discoverable, run naab-lang on it, and the child is ungoverned -- it reads what this config blocks. Signing does not stop it: the child discovers no config, so blocked_flags and the implicit bypass-flag block never apply. blocked_commands does not stop it either -- it matches the command line, so a renamed copy of the binary walks past. The only containment is setting enabled to false, which removes SYS_EXEC at the sandbox layer. Prefer false for agent-facing projects unless they genuinely need to spawn processes.",
+      "enabled": true,
+      "rationale": "CWE-78 \u2014 shell access allowed but sudo/su/suid blocked to prevent privilege escalation",
+      "allowed_commands": [],
+      "blocked_commands": [
+        "sudo",
+        "su",
+        "chmod +s"
+      ],
+      "allow_pipes": true,
+      "allow_redirects": true,
+      "_comment_allow_backgrounding": "RESERVED: allow_backgrounding is not yet enforced.",
+      "allow_backgrounding": false,
+      "max_execution_time": 0
+    },
+    "_comment_env_vars": "Environment variable access control \u2014 enforced at runtime in all env.get/set/has/list functions. read=false blocks all reads (HARD). blocked_read: case-insensitive blocklist (HARD \u2014 env.get() throws, env.has() returns false, env.list()/get_all() filters). allowed_read: if non-empty, only listed vars are readable (SOFT). write=false blocks all writes (HARD). blocked_write/allowed_write: same semantics for env.set_var()/delete_var()/load_dotenv(). All four arrays participate in extends/merge_arrays inheritance.",
+    "env_vars": {
+      "read": true,
+      "write": false,
+      "allowed_read": [],
+      "blocked_read": [
+        "AWS_SECRET_ACCESS_KEY",
+        "GITHUB_TOKEN"
+      ],
+      "allowed_write": [],
+      "blocked_write": [
+        "PATH",
+        "HOME",
+        "LD_PRELOAD"
+      ],
+      "_comment_subprocess_scrub": "Subprocess environment scrubbing (V-SC-006-ext) for polyglot child processes. All four keys empty (the default) = only NAAb's own secrets (NAAB_GOVERN_KEY, NAAB_LOCK_KEY, NAAB_SIGNING_KEY) are removed. Setting any of them activates a policy. Read ONLY here, under capabilities.env_vars: the same keys at the top level of govern.json are ignored, with no warning.",
+      "_comment_subprocess_scrub_mode": "\"allowlist\" = pass only allowed_subprocess_vars plus essentials (PATH, HOME, LANG, TERM, TMPDIR, USER, SHELL, ...); any other value = blocklist using blocked_subprocess_vars and blocked_subprocess_prefixes.",
+      "subprocess_scrub_mode": "",
+      "_comment_allowed_subprocess_vars": "allowlist mode only: exact variable names passed through to the child.",
+      "allowed_subprocess_vars": [],
+      "_comment_blocked_subprocess_vars": "blocklist mode: exact variable names removed from the child's environment.",
+      "blocked_subprocess_vars": [],
+      "_comment_blocked_subprocess_prefixes": "blocklist mode: variables starting with any prefix are removed, e.g. [\"AWS_\", \"GITHUB_\"].",
+      "blocked_subprocess_prefixes": []
+    },
+    "_comment_functions": "Function-scope capabilities (third rung after capabilities.* and agents.<name>.allowed_actions). Map a NAAb function name to {\"allowed_actions\": [...]} using FS_READ, FS_WRITE, NET_CONNECT, SHELL_EXEC, AGENT_SEND, ENV_READ, ENV_WRITE; a \"default\" entry applies to every function without its own. Permissions INTERSECT down the call stack, so a caller's entry narrows its callees. No function entries (the default) = feature unused.",
+    "_comment_functions_level": "functions.level: enforcement level for undeclared effects -- advisory (default; violations collected into one grouped summary per run), soft, hard or detect. An unrecognised string DISABLES the gate (with a warning). Lowering it mid-run is a ratchet violation.",
+    "functions": {
+      "level": "advisory"
+    },
+    "_comment_process": "RESERVED: process sub-keys are parsed for rationale only. Actual process control uses limits.execution and security.sandbox_level.",
+    "process": {
+      "spawn": true,
+      "signals": false,
+      "max_processes": 5,
+      "allow_daemon": false
+    },
+    "_comment_time": "RESERVED: time sub-keys are not yet enforced. Sleep limits use limits.timeout.per_block instead.",
+    "time": {
+      "allow_sleep": true,
+      "max_sleep_seconds": 10,
+      "allow_timers": true
+    },
+    "_comment_memory": "RESERVED: memory sub-keys are not yet enforced. Memory limits use limits.memory.per_block_mb and limits.memory.total_mb instead.",
+    "memory": {
+      "max_allocation_mb": 512,
+      "allow_mmap": false,
+      "allow_shared_memory": false
+    }
+  },
+  "_comment_taint_tracking": "Taint Tracking \u2014 track untrusted data from sources through to sinks",
+  "_comment_taint_matching": "Sources/sanitizers/sinks use PREFIX matching (not substring). 'validate_' matches 'validate_input' but NOT 'revalidate'. 'int(' matches 'int(x)' but NOT 'print(x)'. For per-language polyglot taint, use 'polyglot_output:python' syntax. For per-language sink checks, add 'python_exec', 'go_exec', etc.",
+  "taint_tracking": {
+    "enabled": false,
+    "level": "soft",
+    "lineage": false,
+    "sources": [
+      "env.get",
+      "io.read_line",
+      "file.read",
+      "polyglot_output"
+    ],
+    "sinks": [
+      "shell_exec",
+      "python_exec",
+      "go_exec",
+      "javascript_exec",
+      "nim_exec",
+      "file.write",
+      "file.append",
+      "http.",
+      "env.set_var"
+    ],
+    "sanitizers": [
+      "validate_",
+      "sanitize_",
+      "escape_"
+    ],
+    "propagation": {
+      "string_concat": true,
+      "string_interpolation": true,
+      "function_returns": true,
+      "for_loop_iterators": true,
+      "dict_array_access": true
+    },
+    "gate_cross_block": false,
+    "cross_block_level": "soft"
+  },
+  "limits": {
+    "timeout": {
+      "global": 60,
+      "per_block": 30,
+      "total_polyglot": 120
+    },
+    "memory": {
+      "per_block_mb": 256,
+      "total_mb": 1024
+    },
+    "execution": {
+      "call_depth": 100,
+      "loop_iterations": 1000000,
+      "polyglot_blocks": 50,
+      "parallel_blocks": 4,
+      "total_executions": 200
+    },
+    "data": {
+      "array_size": 100000,
+      "dict_size": 50000,
+      "string_length": 1000000,
+      "nesting_depth": 20,
+      "max_json_depth": 20,
+      "output_size": 1000000,
+      "input_size": 1000000
+    },
+    "code": {
+      "max_lines_per_block": 500,
+      "max_total_polyglot_lines": 5000,
+      "max_nesting_depth": 10
+    },
+    "rate": {
+      "max_polyglot_per_second": 10,
+      "max_stdlib_calls_per_second": 100,
+      "max_file_ops_per_second": 20,
+      "cooldown_on_limit_ms": 100
+    }
+  },
+  "requirements": {
+    "main_block": {
+      "enabled": true,
+      "level": "soft",
+      "message": "Programs should have a main block"
+    },
+    "error_handling": {
+      "enabled": false,
+      "level": "advisory",
+      "require_try_catch": true,
+      "require_catch_body": true
+    },
+    "strict_types": {
+      "enabled": false,
+      "level": "advisory",
+      "message": "Use explicit type annotations"
+    },
+    "no_global_state": {
+      "enabled": false,
+      "level": "advisory",
+      "allow_global_constants": true,
+      "allow_global_functions": true,
+      "block_global_variables": true
+    },
+    "naming_conventions": {
+      "enabled": false,
+      "level": "advisory",
+      "variables": "snake_case",
+      "functions": "snake_case",
+      "constants": "UPPER_SNAKE_CASE",
+      "check_naab_code": true,
+      "check_polyglot_code": false
+    },
+    "documentation": {
+      "enabled": false,
+      "level": "advisory",
+      "require_file_comment": false,
+      "require_function_comment": false,
+      "require_main_comment": false
+    },
+    "version_pinning": {
+      "enabled": false,
+      "level": "advisory",
+      "message": "Pin language versions in govern.json"
+    }
+  },
+  "restrictions": {
+    "dangerous_calls": {
+      "enabled": true,
+      "level": "hard",
+      "allowlist": [],
+      "blocklist_extra": [],
+      "check_chained_calls": false,
+      "check_string_formatting": false
+    },
+    "shell_injection": {
+      "enabled": true,
+      "level": "hard",
+      "patterns": [],
+      "allowlist": [],
+      "check_variable_expansion": false,
+      "require_quoting": false
+    },
+    "privilege_escalation": {
+      "enabled": true,
+      "level": "hard",
+      "block_sudo": true,
+      "block_su": true,
+      "block_chmod_suid": true,
+      "block_setuid": true,
+      "block_capability_changes": true
+    },
+    "imports": {
+      "enabled": true,
+      "level": "soft",
+      "mode": "blocklist",
+      "blocked": {
+        "python": [
+          "subprocess",
+          "ctypes",
+          "pickle",
+          "os.system"
+        ],
+        "javascript": [
+          "child_process",
+          "fs",
+          "net",
+          "cluster"
+        ],
+        "ruby": [
+          "open3",
+          "pty"
+        ]
+      },
+      "allowed": {}
+    },
+    "data_exfiltration": {
+      "enabled": false,
+      "level": "hard",
+      "block_base64_encode_secrets": true,
+      "block_hex_encode_secrets": true,
+      "block_url_encode_secrets": true,
+      "block_encoding_chains": true,
+      "block_network_exfil": true,
+      "block_socket_exfil": true,
+      "max_encoded_output_length": 0,
+      "_comment_patterns": "patterns: custom regexes. When non-empty they are used EXCLUSIVELY -- the built-in block_* pattern categories are skipped.",
+      "patterns": []
+    },
+    "vcs_secret_extraction": {
+      "enabled": false,
+      "level": "hard"
+    },
+    "obfuscation": {
+      "enabled": false,
+      "level": "hard"
+    },
+    "resource_abuse": {
+      "enabled": true,
+      "level": "hard",
+      "block_fork_bomb": true,
+      "block_infinite_loops": false,
+      "infinite_loops_level": "advisory",
+      "block_recursive_file_ops": true,
+      "block_disk_filling": true,
+      "max_temp_files": 100,
+      "max_temp_file_size": 10485760
+    },
+    "information_disclosure": {
+      "enabled": false,
+      "level": "soft",
+      "block_env_dump": true,
+      "block_process_listing": true,
+      "block_system_info_leak": true,
+      "block_directory_listing": false,
+      "directory_listing_level": "advisory",
+      "block_error_stack_traces": false,
+      "suppressions": []
+    },
+    "code_injection": {
+      "enabled": true,
+      "level": "hard",
+      "block_dynamic_code_gen": true,
+      "block_template_injection": true,
+      "block_sql_injection_patterns": true,
+      "block_xpath_injection": true,
+      "block_ldap_injection": true,
+      "block_command_injection": true
+    },
+    "crypto": {
+      "enabled": true,
+      "level": "advisory",
+      "block_weak_hashing": true,
+      "weak_hashes": [
+        "md5",
+        "sha1"
+      ],
+      "block_weak_encryption": true,
+      "weak_ciphers": [
+        "des",
+        "rc4",
+        "3des"
+      ],
+      "block_hardcoded_keys": true,
+      "block_hardcoded_ivs": true,
+      "require_secure_random": false,
+      "secure_random_level": "advisory"
+    },
+    "polyglot_output": {
+      "format": "any",
+      "max_size": 0,
+      "require_structured": false,
+      "validate_json": false
+    }
+  },
+  "code_quality": {
+    "no_secrets": {
+      "enabled": true,
+      "level": "hard",
+      "rationale": "OWASP A07:2021 \u2014 hardcoded secrets are a critical risk. Hard block prevents any secret from reaching production.",
+      "entropy_check": {
+        "enabled": true,
+        "threshold": 4.5,
+        "min_length": 20,
+        "max_length": 500,
+        "check_base64": true,
+        "check_hex": true,
+        "check_url_encoded": true,
+        "ignore_comments": false,
+        "ignore_urls": true
+      },
+      "suspicious_variable_names": {
+        "enabled": true,
+        "names": [
+          "password",
+          "secret",
+          "api_key",
+          "token",
+          "private_key"
+        ]
+      },
+      "allowlist": [
+        "example.com",
+        "localhost",
+        "127.0.0.1"
+      ],
+      "custom_patterns": []
+    },
+    "no_placeholders": {
+      "enabled": true,
+      "level": "soft",
+      "rationale": "Production code must not contain TODO/FIXME markers \u2014 soft block allows override during development",
+      "markers": [
+        "TODO",
+        "FIXME",
+        "STUB",
+        "PLACEHOLDER",
+        "HACK",
+        "XXX",
+        "TEMP"
+      ],
+      "custom_markers": [],
+      "ignore_in_comments_only": false,
+      "case_sensitive": false,
+      "max_violations_before_block": 0
+    },
+    "no_hardcoded_results": {
+      "enabled": true,
+      "level": "advisory",
+      "check_return_true_false": true,
+      "check_return_none_null": true,
+      "check_return_empty_collections": true,
+      "check_dict_success_fields": true,
+      "check_dict_status_fields": true,
+      "check_perfect_scores": true,
+      "check_zero_counts": true,
+      "check_round_numbers": true
+    },
+    "no_pii": {
+      "enabled": true,
+      "level": "advisory",
+      "detect_ssn": true,
+      "detect_credit_card": true,
+      "detect_email": true,
+      "detect_phone": true,
+      "detect_ip_address": false,
+      "detect_drivers_license": false,
+      "detect_passport": false,
+      "detect_iban": false,
+      "detect_medical_record": false,
+      "custom_pii_patterns": [],
+      "allowlist_patterns": [],
+      "mask_in_errors": true
+    },
+    "no_temporary_code": {
+      "enabled": true,
+      "level": "soft",
+      "patterns": [],
+      "custom_patterns": [],
+      "case_sensitive": false
+    },
+    "no_simulation_markers": {
+      "enabled": true,
+      "level": "hard",
+      "patterns": [],
+      "custom_patterns": [],
+      "case_sensitive": false
+    },
+    "no_mock_data": {
+      "enabled": true,
+      "level": "advisory",
+      "variable_prefixes": [
+        "mock_",
+        "fake_",
+        "dummy_",
+        "test_"
+      ],
+      "function_prefixes": [
+        "mock_",
+        "fake_",
+        "stub_"
+      ],
+      "literal_patterns": [],
+      "custom_prefixes": [],
+      "custom_patterns": [],
+      "ignore_in_test_context": true
+    },
+    "no_apologetic_language": {
+      "enabled": false,
+      "level": "advisory",
+      "categories": {},
+      "custom_patterns": [],
+      "scan_comments_only": true,
+      "scan_strings": false
+    },
+    "no_dead_code": {
+      "enabled": true,
+      "level": "advisory",
+      "detect_unreachable_after_return": true,
+      "detect_always_true_conditions": true,
+      "detect_always_false_conditions": true,
+      "detect_empty_except_blocks": true,
+      "detect_unused_variables": false,
+      "detect_commented_out_code": true,
+      "_comment_patterns": "patterns and custom_patterns are merged into ONE list; when non-empty it REPLACES the built-in patterns rather than extending them.",
+      "patterns": [],
+      "custom_patterns": []
+    },
+    "no_debug_artifacts": {
+      "enabled": true,
+      "level": "soft",
+      "patterns": [],
+      "custom_patterns": [],
+      "allowlist": [],
+      "check_polyglot_only": true,
+      "check_naab_code": false
+    },
+    "no_unsafe_deserialization": {
+      "enabled": true,
+      "level": "hard",
+      "_comment_patterns": "patterns and custom_patterns are merged into ONE list; when non-empty it REPLACES the built-in patterns rather than extending them.",
+      "patterns": [],
+      "custom_patterns": []
+    },
+    "no_sql_injection": {
+      "enabled": true,
+      "level": "hard",
+      "allowlist": [],
+      "_comment_patterns": "patterns and custom_patterns are merged into ONE list; when non-empty it REPLACES the built-in patterns rather than extending them.",
+      "patterns": [],
+      "custom_patterns": []
+    },
+    "no_path_traversal": {
+      "enabled": true,
+      "level": "hard",
+      "_comment_patterns": "patterns and custom_patterns are merged into ONE list; when non-empty it REPLACES the built-in patterns rather than extending them.",
+      "patterns": [],
+      "custom_patterns": []
+    },
+    "no_hardcoded_urls": {
+      "enabled": false,
+      "level": "advisory",
+      "_comment_allowlist": "NOT READ: the loader never parses this allowlist, so entries here exempt nothing. example.com, localhost, 127.0.0.1 and 0.0.0.0 are always allowed by the built-in pattern.",
+      "allowlist": [
+        "https://example.com",
+        "http://localhost"
+      ],
+      "check_internal_urls": false
+    },
+    "no_hardcoded_ips": {
+      "enabled": false,
+      "level": "advisory",
+      "_comment_allowlist": "NOT READ: the loader never parses this allowlist; the built-in list (127.0.0.1, 0.0.0.0, 255.255.255.0, 255.255.255.255) always applies.",
+      "allowlist": [
+        "127.0.0.1",
+        "0.0.0.0",
+        "::1"
+      ]
+    },
+    "max_complexity": {
+      "enabled": false,
+      "level": "advisory",
+      "max_lines_per_block": 100,
+      "max_nesting_depth": 5,
+      "max_parameters": 6,
+      "max_local_variables": 15,
+      "max_cyclomatic_complexity": 10,
+      "max_cognitive_complexity": 15
+    },
+    "complexity_floor": {
+      "level": "soft",
+      "min_score": 10,
+      "check_polyglot": false,
+      "check_naab": true,
+      "skip_if_has_polyglot_block": true,
+      "_comment_min_lines_for_check": "Skip the complexity floor for functions shorter than N lines (0 = check every function).",
+      "min_lines_for_check": 0,
+      "target_prefixes": [],
+      "rules": [
+        {
+          "names": [
+            "test_"
+          ],
+          "min_score": 3,
+          "require_branching_or_loops": false,
+          "message": "Test functions have lower complexity requirements"
+        },
+        {
+          "names": [
+            "analyze",
+            "compute",
+            "calculate",
+            "process",
+            "transform",
+            "evaluate",
+            "optimize",
+            "classify",
+            "detect",
+            "predict"
+          ],
+          "min_score": 25,
+          "require_branching_or_loops": true,
+          "message": "Functions named analyze/compute/process must contain non-trivial logic"
+        },
+        {
+          "names": [
+            "sort",
+            "search",
+            "filter",
+            "merge",
+            "parse",
+            "serialize",
+            "encode",
+            "decode",
+            "compress",
+            "encrypt"
+          ],
+          "min_score": 20,
+          "require_branching_or_loops": true
+        },
+        {
+          "names": [
+            "get",
+            "set",
+            "is_",
+            "has_",
+            "to_",
+            "from_",
+            "format",
+            "wrap",
+            "apply_",
+            "move_",
+            "check_",
+            "destroy_",
+            "find_",
+            "render_",
+            "load_",
+            "spawn_",
+            "format_",
+            "make_"
+          ],
+          "min_score": 3,
+          "require_branching_or_loops": false
+        }
+      ],
+      "_comment_weights": "Complexity scoring weights \u2014 control how structural features map to a 0-100 score. Presence of this section enables custom scoring (overrides SyntacticAnalyzer defaults). Omit to use defaults.",
+      "weights": {
+        "loop": 5,
+        "padding_loop": 1,
+        "nested_loops": 15,
+        "large_iterations": 20,
+        "function": 3,
+        "recursion": 10,
+        "array_ops": 5,
+        "pipeline": 3,
+        "pipeline_cap": 15,
+        "comprehension": 5,
+        "memory_alloc": 10,
+        "lifetime": 10,
+        "pointers": 15,
+        "try_catch": 5,
+        "error_propagation": 5,
+        "import": 2,
+        "external_call": 1
+      }
+    },
+    "intent_validation": {
+      "enabled": false,
+      "level": "soft",
+      "min_overlap": 0.3,
+      "missing_level": "soft",
+      "exempt_functions": [],
+      "_comment_required": "true = with function_intents set, a function of at least min_function_lines lines must carry an @intent.",
+      "required": false,
+      "_comment_mode": "\"agent\" skips static intent validation and defers to agent review; \"hybrid\" (default) and \"static\" both run it (no code path distinguishes the two today).",
+      "mode": "hybrid",
+      "_comment_min_function_lines": "Functions shorter than this are not intent-checked.",
+      "min_function_lines": 3,
+      "_comment_project_intent": "Owner-written statement of the project's purpose; free text used as broad, advisory context.",
+      "project_intent": "",
+      "_comment_function_intents": "Owner-written per-function requirements: {\"function_name\": \"what it must do\"}. A key naming no function in the program is reported as orphaned.",
+      "function_intents": {}
+    },
+    "_comment_semantic_checks": "code_quality.semantic_checks (deliberately not written here): semantic polyglot checks, OFF by default. true or a level string (\"soft\") enables all sub-checks. The OBJECT form {\"level\": ..., \"check_imports\": true, \"check_api_signatures\": true, \"check_shell_syntax\": true, \"check_dangerous_eval\": true} ENABLES the check by its presence (an inner \"enabled\": false is not read); each check_* defaults true. Omitted rather than set to false because, once present, it overrides an extends parent that enables it.",
+    "encoding": {
+      "enabled": true,
+      "level": "advisory",
+      "require_utf8": true,
+      "block_null_bytes": true,
+      "block_control_characters": true,
+      "block_bom": false,
+      "block_unicode_bidi": true,
+      "block_homoglyph_attacks": true
+    },
+    "no_oversimplification": {
+      "enabled": true,
+      "level": "hard",
+      "check_empty_bodies": true,
+      "check_trivial_returns": true,
+      "check_identity_functions": true,
+      "check_not_implemented": true,
+      "check_comment_only_bodies": true,
+      "check_fabricated_results": true,
+      "min_function_lines": 2,
+      "_comment_case_sensitive": "Pattern matching is case-INsensitive unless true.",
+      "case_sensitive": false,
+      "_comment_custom_patterns": "Extra regexes checked IN ADDITION to the built-in patterns.",
+      "custom_patterns": []
+    },
+    "no_incomplete_logic": {
+      "enabled": true,
+      "level": "hard",
+      "check_empty_catch": true,
+      "check_swallowed_exceptions": true,
+      "check_generic_errors": true,
+      "check_vague_error_messages": true,
+      "check_single_iteration_loops": true,
+      "check_bare_raise": true,
+      "check_always_true_false": true,
+      "check_missing_validation": true,
+      "_comment_case_sensitive": "Pattern matching is case-INsensitive unless true.",
+      "case_sensitive": false,
+      "_comment_custom_patterns": "Extra regexes checked IN ADDITION to the built-in patterns.",
+      "custom_patterns": [],
+      "_comment_suppressions": "Source files where a match is not reported: an exact file basename (\"validators.naab\") or a *suffix glob (\"*_test.naab\"). A \"category:\" prefix is accepted and ignored.",
+      "suppressions": []
+    },
+    "no_hallucinated_apis": {
+      "enabled": true,
+      "level": "soft",
+      "check_cross_language": true,
+      "check_made_up_functions": true,
+      "check_wrong_syntax": true,
+      "case_sensitive": true,
+      "_comment_custom_patterns": "Extra regexes checked on every polyglot block (string literals and comments stripped first). The per-language tables are built in; python_patterns, javascript_patterns, shell_patterns, go_patterns, ruby_patterns and cross_language_patterns are parsed but NOT consulted.",
+      "custom_patterns": [
+        "FORBIDDEN_KEYWORD"
+      ]
+    },
+    "duplicate_calls": {
+      "enabled": true,
+      "threshold": 3,
+      "max_entries": 5
+    },
+    "polyglot_try_catch": {
+      "enabled": true,
+      "max_entries": 3
+    },
+    "drift_detection": {
+      "enabled": false,
+      "level": "hard",
+      "baseline_path": ".naab/drift-baseline.json",
+      "max_function_loss": 0.5,
+      "max_loc_loss": 0.6,
+      "max_export_loss": 0.0,
+      "max_struct_loss": 0.5,
+      "auto_save": false,
+      "check_signatures": true,
+      "max_param_loss": 0.5,
+      "check_imports": true,
+      "max_import_loss": 0.5,
+      "check_complexity": true,
+      "max_complexity_loss": 0.6,
+      "check_comment_ratio": true,
+      "max_comment_ratio": 0.5,
+      "check_hollow_exports": true,
+      "check_polyglot": true,
+      "max_polyglot_loss": 0.5,
+      "check_struct_fields": true,
+      "max_field_loss": 0.5,
+      "check_test_functions": true,
+      "max_test_loss": 0.0,
+      "check_function_names": true,
+      "max_function_name_loss": 0.5,
+      "require_baseline": false,
+      "check_body_hash": true,
+      "check_param_utilization": true,
+      "min_param_utilization": 0.5,
+      "check_new_functions": false,
+      "max_function_gain": 0,
+      "check_polyglot_content": false,
+      "max_polyglot_shrink": 0.5,
+      "check_script_location": false,
+      "check_signature_presence": false,
+      "check_config_presence": false,
+      "max_comment_only_ratio": 0.8,
+      "min_complexity_baseline": 0,
+      "min_hollow_export_complexity": 3
+    }
+  },
+  "_comment_integrity": "Ed25519 signing of govern.json and drift baselines. Run naab-lang --keygen to generate keys. Set NAAB_SIGNING_KEY env var to sign. blocked_flags prevents LLMs from using dangerous CLI flags.",
+  "integrity": {
+    "blocked_flags": [
+      "--drift-baseline-save",
+      "--governance-override"
+    ]
+  },
+  "_comment_trust": "Authority Decay: signature staleness and key lifecycle. max_signature_age_days=0 disables staleness check. check_key_expiry/check_revocation skip expired/revoked keys at load time.",
+  "trust": {
+    "max_signature_age_days": 90,
+    "require_fresh_signature": false,
+    "stale_signature_level": "advisory",
+    "check_key_expiry": true,
+    "check_revocation": true
+  },
+  "_comment_prerequisites": "Environment Attestation: verify prerequisites before execution. Types: python_version, package (pip:pkg or npm:pkg), tool, env_var, command. Set enabled:true to activate.",
+  "_comment_prerequisites_message": "checks[].message: custom failure text for that check (empty = auto-generated).",
+  "prerequisites": {
+    "enabled": false,
+    "checks": [
+      {
+        "type": "python_version",
+        "name": "python3",
+        "required": ">=3.10",
+        "level": "advisory",
+        "message": ""
+      },
+      {
+        "type": "tool",
+        "name": "jq",
+        "required": "exists",
+        "level": "advisory"
+      },
+      {
+        "type": "env_var",
+        "name": "DATABASE_URL",
+        "required": "exists",
+        "level": "soft"
+      }
+    ]
+  },
+  "_comment_contradiction_detection": "Contradiction Detection: static analysis of govern.json for conflicting rules. Cheap in-memory check, always useful. Patterns: CONTRA-001 through CONTRA-009.",
+  "contradiction_detection": {
+    "enabled": true,
+    "max_level": "advisory"
+  },
+  "_comment_contracts": "Function contracts \u2014 runtime assertions on inputs and return values (design-by-contract)",
+  "contracts": {
+    "level": "soft",
+    "validate_inputs": true,
+    "functions": {
+      "compute_area": {
+        "description": "Returns area as a positive float",
+        "params": [
+          "width:float",
+          "height:float"
+        ],
+        "return_type": "float",
+        "return_min": 0
+      },
+      "classify_text": {
+        "description": "Returns text category",
+        "params": [
+          "text:string"
+        ],
+        "return_type": "string",
+        "return_one_of": [
+          "positive",
+          "negative",
+          "neutral"
+        ]
+      },
+      "count_words": {
+        "params": [
+          "text:string"
+        ],
+        "return_type": "int",
+        "return_min": 0
+      },
+      "fetch_users": {
+        "return_type": "array",
+        "return_non_empty": true
+      },
+      "parse_config": {
+        "params": [
+          "path:string"
+        ],
+        "return_type": "dict",
+        "return_keys": [
+          "host",
+          "port",
+          "database"
+        ]
+      },
+      "process_order": {
+        "description": "Process an order with input type validation",
+        "params": [
+          "order_id:string",
+          "items:array"
+        ],
+        "return_type": "dict"
+      },
+      "_comment_v5": "v5: Static behavioral contracts \u2014 patterns that must appear in function body",
+      "normalize_severity": {
+        "description": "Normalize severity string to numeric level",
+        "must_call": [
+          "string.lower"
+        ],
+        "must_contain": [
+          "match"
+        ]
+      },
+      "_comment_v6": "v6: Execution-based contracts \u2014 call functions and verify outputs post-execution",
+      "compute_score": {
+        "description": "Golden test: function must return expected output for given inputs",
+        "must_produce": [
+          {
+            "args": [
+              "CRITICAL"
+            ],
+            "expect": 0
+          },
+          {
+            "args": [
+              "Error"
+            ],
+            "expect": 0
+          },
+          {
+            "args": [
+              "warning"
+            ],
+            "expect": 2
+          }
+        ]
+      },
+      "compute_event_frequency": {
+        "description": "Static derivation: return key must be computed from specified parameters",
+        "must_derive_from": {
+          "events_per_minute": [
+            "events"
+          ],
+          "peak_rate": [
+            "events",
+            "window_seconds"
+          ]
+        }
+      },
+      "compute_alert_statistics": {
+        "description": "Anti-hardcoding: return key must change when input varies",
+        "must_vary": [
+          {
+            "key": "escalation_rate",
+            "across": "alerts",
+            "fixtures": []
+          }
+        ]
+      },
+      "classify_event": {
+        "description": "Mutation testing: different inputs must produce different outputs",
+        "must_differentiate": [
+          {
+            "a": {
+              "message": "auth denied"
+            },
+            "b": {
+              "message": "disk full"
+            },
+            "key": "category"
+          }
+        ]
+      },
+      "is_security_event": {
+        "description": "Case-sensitivity: function must handle case variants consistently",
+        "must_handle_case": [
+          {
+            "inputs": [
+              {
+                "message": "Auth failed"
+              },
+              {
+                "message": "AUTH FAILED"
+              },
+              {
+                "message": "auth failed"
+              }
+            ],
+            "expect": "consistent"
+          }
+        ]
+      },
+      "calculate_sla_compliance": {
+        "description": "Invariant checks: expressions that must hold on the return value",
+        "must_satisfy": [
+          "result.compliance_rate >= 0",
+          "result.compliance_rate <= 1"
+        ],
+        "must_satisfy_args": [
+          [
+            {
+              "severity": "high"
+            },
+            {
+              "severity": "low"
+            }
+          ]
+        ]
+      },
+      "_comment_v7": "v7: Arity and return value constraints",
+      "validate_input": {
+        "description": "Arity enforcement: min/max parameter count",
+        "min_arity": 1,
+        "max_arity": 3,
+        "return_type": "bool"
+      },
+      "fetch_data": {
+        "description": "Extended return constraints",
+        "return_type": "dict",
+        "return_keys": [
+          "data",
+          "status"
+        ],
+        "return_not_null": true,
+        "return_keys_non_null": true,
+        "return_keys_non_empty": true
+      },
+      "format_output": {
+        "description": "Length and pattern constraints on return value",
+        "return_type": "string",
+        "return_length_min": 1,
+        "return_length_max": 1000,
+        "return_matches": "^[A-Z].*\\.$"
+      },
+      "compute_bounded": {
+        "description": "Range constraint on numeric return",
+        "return_type": "float",
+        "return_range": [
+          0.0,
+          100.0
+        ],
+        "return_max": 100.0
+      },
+      "process_items": {
+        "description": "Arity constraint (alternative to min_arity/max_arity)",
+        "arity": {
+          "min": 1,
+          "max": 4
+        },
+        "return_type": "array"
+      }
+    }
+  },
+  "_comment_baselines": "Output baselines \u2014 record and compare polyglot outputs over time",
+  "baselines": {
+    "enabled": false,
+    "level": "advisory",
+    "path": ".naab/baselines.json",
+    "tolerance": 1e-06,
+    "auto_record": false,
+    "hash_keys": true
+  },
+  "custom_rules": [
+    {
+      "id": "CUSTOM-001",
+      "name": "no_eval_python",
+      "description": "Prevent eval() in Python blocks",
+      "pattern": "\\beval\\s*\\(",
+      "trigger": "",
+      "languages": [
+        "python"
+      ],
+      "level": "hard",
+      "message": "eval() is forbidden \u2014 use ast.literal_eval() or json.loads()",
+      "help": "eval() executes arbitrary code and is a security risk",
+      "good_example": "import json; data = json.loads(input_str)",
+      "bad_example": "data = eval(input_str)",
+      "tags": [
+        "security",
+        "injection"
+      ],
+      "enabled": true,
+      "case_sensitive": false,
+      "multiline": false
+    },
+    {
+      "id": "CUSTOM-002",
+      "name": "no_debug_prints",
+      "description": "No debug print statements in production code",
+      "pattern": "print\\(.*[Dd]ebug",
+      "languages": [],
+      "level": "advisory",
+      "message": "Debug print statements should be removed before production",
+      "tags": [
+        "cleanup"
+      ],
+      "enabled": true
+    }
+  ],
+  "scopes": [
+    {
+      "glob": "tests/**",
+      "overrides": {
+        "code_quality.no_placeholders": "false",
+        "code_quality.no_mock_data": "false",
+        "code_quality.no_oversimplification.level": "advisory"
+      }
+    },
+    {
+      "glob": "examples/**",
+      "overrides": {
+        "code_quality.no_hardcoded_results": "false",
+        "requirements.documentation.enabled": "true"
+      }
+    }
+  ],
+  "output": {
+    "_comment_summary_reserved": "show_skipped and sort_by are RESERVED \u2014 not yet enforced.",
+    "summary": {
+      "enabled": true,
+      "format": "detailed",
+      "show_passing": true,
+      "show_skipped": false,
+      "group_by": "category",
+      "sort_by": "severity"
+    },
+    "_comment_errors_reserved": "show_line_preview, show_rule_path, show_fix_suggestions, truncate_long_lines are RESERVED \u2014 not yet enforced.",
+    "errors": {
+      "verbose": true,
+      "show_line_preview": true,
+      "show_code_context": 3,
+      "show_help": true,
+      "show_examples": true,
+      "show_rule_path": true,
+      "show_fix_suggestions": true,
+      "max_errors_per_rule": 5,
+      "max_total_errors": 50,
+      "truncate_long_lines": 120
+    },
+    "_comment_formatting_reserved": "indent is RESERVED \u2014 not yet enforced. color, unicode_symbols, width are active.",
+    "formatting": {
+      "color": true,
+      "unicode_symbols": true,
+      "width": 80,
+      "indent": 2
+    },
+    "_comment_file_output_reserved": "report_csv and report_html are RESERVED \u2014 not yet implemented. Use report_json, report_sarif, or report_junit.",
+    "file_output": {
+      "report_json": "",
+      "report_sarif": "",
+      "report_junit": "",
+      "report_csv": "",
+      "report_html": ""
+    },
+    "max_advisories": 15,
+    "advisory_summary": true,
+    "voice": "",
+    "voice_cache": false
+  },
+  "audit": {
+    "level": "basic",
+    "output_file": ".governance-audit.jsonl",
+    "tamper_evidence": {
+      "enabled": false,
+      "algorithm": "sha256",
+      "chain_genesis": "NAAB-GOVERNANCE-GENESIS",
+      "hmac_key": "",
+      "hmac_key_env": "NAAB_AUDIT_HMAC_KEY"
+    },
+    "log_events": {
+      "checks_passed": true,
+      "checks_failed": true,
+      "checks_warned": true,
+      "overrides": true,
+      "config_loaded": true,
+      "execution_start": true,
+      "execution_end": true,
+      "polyglot_executed": true,
+      "polyglot_timing": true,
+      "taint_decisions": true,
+      "contract_checks": true
+    },
+    "retention": {
+      "max_file_size_mb": 100,
+      "rotate_at_mb": 50,
+      "keep_rotated": 5
+    },
+    "provenance": {
+      "enabled": false,
+      "record_proof_objects": false,
+      "record_attestations": false,
+      "record_decisions": false,
+      "sign_records": false,
+      "signing_key": "",
+      "signing_key_env": ""
+    }
+  },
+  "_comment_telemetry": "Telemetry \u2014 JSONL output for agent execution tracking. Tamper evidence: HMAC-SHA256 hash chains detect retroactive modification. Forwarding: webhook_url sends events to external SIEM/observability (webhook_auth_env reads auth header from env var, e.g. 'Bearer token'). Batching and retry configurable.",
+  "telemetry": {
+    "enabled": false,
+    "output_file": "telemetry.jsonl",
+    "tamper_evidence": {
+      "enabled": false,
+      "algorithm": "hmac-sha256",
+      "chain_genesis": "",
+      "hmac_key": "",
+      "hmac_key_env": "NAAB_TELEMETRY_HMAC_KEY"
+    },
+    "webhook_url": "",
+    "webhook_auth_header": "",
+    "webhook_auth_env": "",
+    "forward_batch_size": 10,
+    "forward_timeout_ms": 5000,
+    "forward_retry_count": 3,
+    "forward_buffer_max": 1000,
+    "forward_shutdown_drain_ms": 3000,
+    "deduplicate_checks": false,
+    "_comment_decision_snapshots": "Attach a compact cdd_snapshot (coherence, per-signal baselines and counters, keyword-set digests -- never raw content) to SEMANTIC_TURN and OUTPUT_ADMISSIBILITY_EVAL events so decisions can be replayed. Inside the hashed payload. Disabling it mid-run is a ratchet violation.",
+    "decision_snapshots": false,
+    "_comment_transcript": "Agent Interaction Transcript \u2014 opt-in JSONL log capturing complete agent.create() and agent.send() lifecycle with full content visibility. Separate from tamper-evident telemetry. Per-agent filtering via agents array (empty = all agents). Use for testing (content-level assertions), production auditing, and debugging.",
+    "transcript": {
+      "enabled": false,
+      "output_file": "transcript.jsonl",
+      "agents": []
+    }
+  },
+  "_comment_agents": "Agents \u2014 unified per-agent permissions + LLM config for governed AI conversations. Per-agent separation of duties: network_allowed (bool) controls network access, allowed_actions (array of SHELL_EXEC/NET_CONNECT/FS_READ/FS_WRITE/AGENT_SEND/TOOL_EXEC) restricts actions. Ratchet enforcement prevents mid-run loosening.",
+  "_comment_agents_providers": "Providers: 'anthropic' (default, api_key_env defaults to ANTHROPIC_API_KEY) or 'gemini'/'google' (api_key_env defaults to GEMINI_API_KEY). Responses are scanned by checkSecrets (hard) and checkPii (configurable). Turn/token limits enforced server-side.",
+  "_comment_agents_tools": "Tool Execution \u2014 tools_enabled (bool, default false) is the master switch. tools (string array) is the allowlist \u2014 must match agent.register_tool() names. max_tool_calls_per_turn caps invocations per agentSend(). max_tool_loop_turns caps LLM round-trips. tool_result_max_chars truncates individual results. tool_result_max_total_chars caps cumulative results. tool_timeout_seconds is per-call timeout. All tool config fields are ratchet-enforced (can tighten mid-run, cannot loosen).",
+  "_comment_agents_resilience": "model and api_key_env accept string or array. Array enables fallback chain (model) and key rotation (api_key_env). retry configures exponential backoff with jitter. key_retry_after_seconds enables dead key revival after cooldown (0 = never revive). rate_limit adds client-side throttling.",
+  "_comment_agents_thinking": "thinking_budget controls thinking/reasoning tokens. -1 (default): provider decides (WARNING: thinking models may consume entire output budget \u2014 increase max_tokens to compensate). 0: don't configure thinking (safe for all models). >0: enable thinking with that budget (sends thinkingConfig to Gemini, thinking block to Anthropic \u2014 only works on models that accept it). Gemini: thinking shares maxOutputTokens \u2014 max_tokens is expanded by thinking_budget. Anthropic: thinking is separate from max_tokens. Note: some models (gemma-4-*) think by default but reject thinkingConfig \u2014 use -1 and increase max_tokens instead. Ratchet-enforced.",
+  "agents": {
+    "researcher": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-20250514",
+      "api_key_env": "ANTHROPIC_API_KEY",
+      "max_tokens": 4096,
+      "thinking_budget": -1,
+      "system_prompt": "You are a research assistant.",
+      "max_turns": 20,
+      "max_total_tokens": 50000,
+      "temperature": 1.0,
+      "response_format": "json",
+      "tools": [
+        "search",
+        "read_file"
+      ],
+      "tools_enabled": false,
+      "max_tool_calls_per_turn": 5,
+      "max_tool_loop_turns": 10,
+      "tool_result_max_chars": 4096,
+      "tool_result_max_total_chars": 32768,
+      "tool_timeout_seconds": 10,
+      "allowed_languages": [
+        "python"
+      ],
+      "blocked_languages": [],
+      "allowed_paths": [
+        "./src",
+        "./data"
+      ],
+      "blocked_paths": [
+        "./secrets",
+        "./.env"
+      ],
+      "shell_allowed": false,
+      "_comment_shell_content_allowed": "true lets this agent WRITE shell syntax in responses (runbooks, install steps) without executing it. Pair with capabilities.shell.enabled=false: per-agent shell_allowed gates execution only under --agent-id, so an orchestration script calling codegen.run(shell, response) is gated by the GLOBAL capability instead.",
+      "shell_content_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": [],
+      "risk_budget": 0,
+      "standing_lease_turns": 0,
+      "standing_lease_seconds": 0,
+      "context_window": 0,
+      "context_strategy": "full",
+      "stream": false,
+      "stop_reason_action": "",
+      "_comment_api_base": "Override the provider endpoint base URL (empty = provider default). https:// only, except loopback http://127.0.0.1, http://localhost, http://[::1]; any other value is ignored with a warning. Any mid-run change is a ratchet violation.",
+      "api_base": "",
+      "_comment_timeout": "Per-call LLM API timeout in seconds (default 60). Setting it here overrides agent_dispatch.default_timeout_seconds for this agent; omit it to inherit that value.",
+      "timeout": 60,
+      "_comment_min_tokens": "Floor on the request budget: effective max_tokens = max(max_tokens, min_tokens). 0 = no floor. Ratchet: raise-only.",
+      "min_tokens": 0,
+      "_comment_propose_candidates_max": "Cap on candidates agent.propose() may generate; 0 = agent.propose() disabled. Raising it mid-run is a ratchet violation.",
+      "propose_candidates_max": 0,
+      "_comment_context_drift_signals": "Per-agent overrides of context_drift.signals, keyed by CONFIG names, e.g. {\"semantic_stability\": false}. Telemetry labels differ for S1-S7 (vocab_contraction, circular, contradictions, capability_underutil are NOT config keys); an unknown key warns and overrides nothing.",
+      "context_drift_signals": {},
+      "_comment_output_contract": "Output contract \u2014 validate agent response structure. format: 'json' requires valid JSON. required_fields: keys that must exist. field_types: expected types per key. regex_checks: regex patterns per key.",
+      "output_contract": {
+        "format": "",
+        "required_fields": [],
+        "field_types": {},
+        "regex_checks": {}
+      },
+      "retry": {
+        "max_attempts": 1,
+        "backoff_ms": 1000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "retry_on": [
+          429,
+          503
+        ],
+        "skip_key_on": [
+          401
+        ],
+        "fallback_model_on": [
+          404,
+          503
+        ],
+        "never_retry": [
+          400
+        ],
+        "key_retry_after_seconds": 0,
+        "_comment_throttle_key_on": "HTTP codes that deprioritise the key temporarily (rate limiting, not key death). If every key is throttled one is used anyway.",
+        "throttle_key_on": [
+          429
+        ],
+        "_comment_throttle_cooldown_seconds": "Seconds a throttled key is deprioritised; 0 disables throttling.",
+        "throttle_cooldown_seconds": 60
+      },
+      "rate_limit": {
+        "requests_per_minute": 0,
+        "delay_between_calls_ms": 0
+      }
+    },
+    "coder": {
+      "provider": "gemini",
+      "model": [
+        "gemma-3-4b-it",
+        "gemini-2.5-flash"
+      ],
+      "api_key_env": [
+        "GEMINI_API_KEY"
+      ],
+      "max_tokens": 8192,
+      "thinking_budget": -1,
+      "system_prompt": "You are a coding assistant.",
+      "max_turns": 50,
+      "max_total_tokens": 200000,
+      "allowed_languages": [
+        "python",
+        "shell"
+      ],
+      "allowed_paths": [
+        "./src",
+        "./tests"
+      ],
+      "shell_allowed": true,
+      "_comment_shell_content_allowed": "true lets this agent WRITE shell syntax in responses (runbooks, install steps) without executing it. Pair with capabilities.shell.enabled=false: per-agent shell_allowed gates execution only under --agent-id, so an orchestration script calling codegen.run(shell, response) is gated by the GLOBAL capability instead.",
+      "shell_content_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": [],
+      "risk_budget": 0,
+      "standing_lease_turns": 0,
+      "standing_lease_seconds": 0,
+      "context_window": 0,
+      "context_strategy": "full",
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 1000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "retry_on": [
+          429,
+          503
+        ],
+        "skip_key_on": [
+          401
+        ],
+        "fallback_model_on": [
+          404,
+          503
+        ],
+        "never_retry": [
+          400
+        ],
+        "key_retry_after_seconds": 0
+      }
+    }
+  },
+  "_comment_agents_legacy": "Legacy 'agent_roles' key is still accepted for backward compat (permissions only, no LLM config)",
+  "meta": {
+    "schema_validation": {
+      "warn_unknown_keys": true,
+      "suggest_corrections": true,
+      "strict_types": true
+    },
+    "config_immutability": {
+      "hash": "",
+      "verify_on_load": false,
+      "block_on_mismatch": false
+    },
+    "_comment_inheritance": "Controls how 'extends' merges parent and child configs. merge_arrays: 'replace' (default \u2014 child array replaces parent) or 'append' (parent + child arrays concatenated with dedup). Applies to: blocked_commands, custom_rules, taint sources/sinks/sanitizers, agents, env_vars blocked_read/allowed_read/blocked_write/allowed_write. max_depth limits inheritance chain length. allow_circular is always rejected regardless of setting.",
+    "inheritance": {
+      "max_depth": 5,
+      "merge_strategy": "child_wins",
+      "merge_arrays": "replace",
+      "allow_circular": false
+    },
+    "feature_flags": {
+      "experimental_checks": false,
+      "legacy_compatibility": true,
+      "verbose_parsing": false
+    },
+    "environment": {
+      "allow_env_var_substitution": false,
+      "env_prefix": "NAAB_GOV_",
+      "allow_cli_override": true
+    },
+    "_comment_allow_agent_addition_mid_run": "false (default): a mid-run reload that ADDS an agent not present at startup is a ratchet violation, so a withdrawn restriction cannot be re-granted under a new name. Enabling it mid-run is itself a violation.",
+    "allow_agent_addition_mid_run": false
+  },
+  "_comment_hooks": [
+    "Hooks fire external programs on governance lifecycle events.",
+    "command: executable path (no shell pipelines \u2014 use a script file for shell logic).",
+    "args: array of arguments. ${variable} placeholders are substituted per hook type.",
+    "timeout: wall-clock seconds before SIGKILL (default 5). Enforced per-call.",
+    "Hooks are synchronous \u2014 the caller blocks until the hook exits or times out (default 5s).",
+    "Hook failures never mask governance enforcement.",
+    "POSIX: uses execv (no shell). Windows: uses CreateProcess (no cmd.exe). No shell injection possible.",
+    "inherit_governance_keys: if true, hook child inherits NAAB_GOVERN_KEY (default false).",
+    "  Only enable for hooks that need to re-sign govern.json after tightening.",
+    "",
+    "on_violation vars: ${rule_name}, ${level}, ${file}, ${line}, ${category}",
+    "  level values: hard, detect, approval_denied, soft, advisory_escalated",
+    "  Also fires for agent-side blocks: step_up_challenge_fail, max_calls_hard_stop,",
+    "  max_time_hard_stop, consecutive_failures, contract_violation, temporal_coupling",
+    "on_override vars: ${rule_name}, ${agent_id}, ${override_reason}, ${file}, ${line}",
+    "pre_check vars: ${file}",
+    "post_check vars: ${file}, ${status}  (status: passed or blocked)",
+    "on_complete vars: ${file}, ${status}  (only fires on program completion, not on HARD block)"
+  ],
+  "hooks": {
+    "on_violation": {
+      "command": "",
+      "args": [],
+      "timeout": 5,
+      "inherit_governance_keys": false
+    },
+    "on_override": {
+      "command": "",
+      "args": [],
+      "timeout": 5,
+      "inherit_governance_keys": false
+    },
+    "on_complete": {
+      "command": "",
+      "args": [],
+      "timeout": 5,
+      "inherit_governance_keys": false
+    },
+    "pre_check": {
+      "command": "",
+      "args": [],
+      "timeout": 5,
+      "inherit_governance_keys": false
+    },
+    "post_check": {
+      "command": "",
+      "args": [],
+      "timeout": 5,
+      "inherit_governance_keys": false
+    }
+  },
+  "polyglot": {
+    "variable_binding": {
+      "require_explicit": false,
+      "require_explicit_level": "advisory",
+      "max_bound_variables": 0,
+      "validate_types": false
+    },
+    "output": {
+      "require_json_pipe": false,
+      "require_naab_return": false,
+      "max_output_lines": 0,
+      "strip_whitespace": false,
+      "validate_encoding": true
+    },
+    "context_isolation": {
+      "enabled": false,
+      "level": "advisory",
+      "no_shared_state": false,
+      "no_env_pollution": true,
+      "clean_temp_files": true
+    },
+    "parallel": {
+      "max_parallel_blocks": 4,
+      "timeout_per_block": 30,
+      "fail_strategy": "fail_fast",
+      "allow_shared_variables": false
+    },
+    "persistent_runtime": {
+      "max_sessions": 5,
+      "session_timeout": 300,
+      "max_memory_per_session_mb": 256,
+      "allow_state_persistence": true
+    }
+  },
+  "polyglot_optimization": {
+    "enabled": true,
+    "enforcement_level": "advisory",
+    "pattern_detection": {
+      "enabled": true,
+      "task_inference": {
+        "numerical_operations": {
+          "patterns": [
+            "\\bnp\\.",
+            "\\bnumpy\\.",
+            "matrix",
+            "\\bsum\\(",
+            "\\bmean\\(",
+            "\\blinspace\\(",
+            "\\beigenval",
+            "\\bdet\\(",
+            "\\bfft\\("
+          ],
+          "optimal_languages": [
+            "python",
+            "nim"
+          ],
+          "suboptimal_languages": [
+            "javascript",
+            "shell"
+          ],
+          "message": "Numerical operations perform best in Python (NumPy) or Nim"
+        },
+        "string_processing": {
+          "patterns": [
+            "\\bsplit\\(",
+            "\\bjoin\\(",
+            "\\breplace\\(",
+            "\\bregex\\b",
+            "\\bmatch\\(",
+            "\\bsearch\\(",
+            "\\bfindall\\(",
+            "\\bstrip\\(",
+            "\\btrim\\("
+          ],
+          "optimal_languages": [
+            "python",
+            "ruby",
+            "nim"
+          ],
+          "suboptimal_languages": [
+            "go",
+            "shell"
+          ],
+          "message": "String operations benefit from high-level language built-ins"
+        },
+        "file_operations": {
+          "patterns": [
+            "\\bfind\\b",
+            "\\bgrep\\b",
+            "\\bsed\\b",
+            "\\bawk\\b",
+            "\\bls\\b",
+            "\\bcat\\b",
+            "\\bwc\\b",
+            "\\bsort\\b",
+            "\\bglob\\b",
+            "\\bwalk\\b"
+          ],
+          "optimal_languages": [
+            "shell"
+          ],
+          "suboptimal_languages": [
+            "javascript"
+          ],
+          "message": "Shell tools are purpose-built for file operations"
+        },
+        "systems_calls": {
+          "patterns": [
+            "\\bmalloc\\b",
+            "\\bfree\\b",
+            "pointer",
+            "\\bunsafe\\b",
+            "\\bsyscall\\b",
+            "\\bmmap\\b"
+          ],
+          "optimal_languages": [
+            "nim",
+            "go",
+            "rust",
+            "cpp"
+          ],
+          "suboptimal_languages": [
+            "python",
+            "javascript",
+            "ruby"
+          ],
+          "message": "Systems operations need compiled languages with low-level control"
+        },
+        "web_apis": {
+          "patterns": [
+            "\\bfetch\\(",
+            "\\bhttp\\.",
+            "\\burl\\.",
+            "\\bapi\\b",
+            "\\brequest\\(",
+            "XMLHttpRequest"
+          ],
+          "optimal_languages": [
+            "javascript",
+            "python",
+            "go"
+          ],
+          "suboptimal_languages": [
+            "shell",
+            "nim"
+          ],
+          "message": "Web APIs best handled by languages with rich HTTP libraries"
+        },
+        "json_processing": {
+          "patterns": [
+            "JSON\\.parse",
+            "JSON\\.stringify",
+            "json\\.",
+            "\\bparse_json\\b",
+            "json\\.dumps",
+            "json\\.loads"
+          ],
+          "optimal_languages": [
+            "javascript",
+            "python",
+            "nim"
+          ],
+          "suboptimal_languages": [
+            "cpp",
+            "shell"
+          ],
+          "message": "JSON processing best in languages with native JSON support"
+        },
+        "concurrency": {
+          "patterns": [
+            "\\bgoroutine\\b",
+            "\\basync\\b",
+            "\\bawait\\b",
+            "\\bthread\\b",
+            "\\bparallel\\b",
+            "sync\\.WaitGroup",
+            "\\bchannel\\b",
+            "Promise\\."
+          ],
+          "optimal_languages": [
+            "go",
+            "javascript"
+          ],
+          "suboptimal_languages": [
+            "python",
+            "ruby"
+          ],
+          "message": "Concurrency best in Go (goroutines) or JavaScript (async/await)"
+        },
+        "data_parsing": {
+          "patterns": [
+            "\\bcsv\\.",
+            "\\bxml\\.",
+            "\\byaml\\.",
+            "BeautifulSoup",
+            "\\bparse\\(",
+            "DictReader"
+          ],
+          "optimal_languages": [
+            "python",
+            "javascript"
+          ],
+          "suboptimal_languages": [
+            "shell",
+            "go"
+          ],
+          "message": "Data parsing benefits from Python's rich ecosystem"
+        }
+      }
+    },
+    "profiling": {
+      "enabled": true,
+      "profile_path": "~/.naab/profile.json",
+      "max_entries": 10000,
+      "include_code_hash": true
+    },
+    "calibration": {
+      "enabled": true,
+      "calibration_path": "~/.naab/calibration.json",
+      "max_age_days": 30,
+      "iterations": 3,
+      "auto_calibrate": false
+    },
+    "confidence": {
+      "min_display_level": "estimated",
+      "suppress_unknown": true,
+      "show_measurement_details": true
+    },
+    "verification": {
+      "enabled": false,
+      "enforcement_level": "advisory",
+      "consensus_languages": [
+        "python",
+        "javascript",
+        "go"
+      ],
+      "tolerance": 1e-10,
+      "verify_task_types": [
+        "numerical_computation",
+        "string_manipulation",
+        "data_parsing",
+        "file_operations",
+        "cli_tool",
+        "web_service",
+        "async_operations",
+        "systems_programming"
+      ],
+      "min_consensus": 2,
+      "max_verification_time_ms": 5000,
+      "show_drift_details": true,
+      "drift_tracking": {
+        "enabled": false,
+        "path": "~/.naab/drift.jsonl",
+        "max_entries": 1000,
+        "trend_window": 10,
+        "escalation_threshold": 0.3,
+        "include_code_hash": true
+      }
+    },
+    "language_diversity": {
+      "enabled": true,
+      "min_languages": 2,
+      "max_single_language_percent": 80,
+      "message": "Consider using specialized languages for different task types"
+    },
+    "helper_errors": {
+      "enabled": true,
+      "show_alternative_language": true,
+      "show_example_code": true,
+      "fuzzy_match_threshold": 0.7
+    },
+    "ai_guidance": {
+      "enabled": true,
+      "include_in_errors": true,
+      "suggest_refactoring": true,
+      "show_benchmarks": false
+    },
+    "task_language_matrix": {
+      "numerical_computation": {
+        "python": {
+          "score": 85,
+          "reason": "NumPy/SciPy excellent for math"
+        },
+        "nim": {
+          "score": 90,
+          "reason": "Compiled speed, good math libs"
+        },
+        "go": {
+          "score": 50,
+          "reason": "No operator overloading, limited math"
+        },
+        "javascript": {
+          "score": 35,
+          "reason": "Slow, limited numerical precision"
+        },
+        "shell": {
+          "score": 10,
+          "reason": "Not designed for computation"
+        },
+        "ruby": {
+          "score": 40,
+          "reason": "Slow for heavy math"
+        }
+      },
+      "string_manipulation": {
+        "python": {
+          "score": 100,
+          "reason": "Rich string API, regex built-in"
+        },
+        "ruby": {
+          "score": 95,
+          "reason": "Excellent string handling"
+        },
+        "nim": {
+          "score": 85,
+          "reason": "Fast + good stdlib"
+        },
+        "javascript": {
+          "score": 80,
+          "reason": "Good string methods"
+        },
+        "go": {
+          "score": 65,
+          "reason": "Decent but verbose"
+        },
+        "shell": {
+          "score": 70,
+          "reason": "sed/awk/tr for simple transforms"
+        }
+      },
+      "file_operations": {
+        "shell": {
+          "score": 100,
+          "reason": "Built for file ops: find/grep/sed/awk"
+        },
+        "python": {
+          "score": 80,
+          "reason": "Good pathlib, os modules"
+        },
+        "nim": {
+          "score": 75,
+          "reason": "Fast filesystem access"
+        },
+        "go": {
+          "score": 70,
+          "reason": "Good os/filepath stdlib"
+        },
+        "ruby": {
+          "score": 70,
+          "reason": "File and Dir classes"
+        },
+        "javascript": {
+          "score": 40,
+          "reason": "Node.js fs module limited in polyglot"
+        }
+      },
+      "web_apis": {
+        "javascript": {
+          "score": 100,
+          "reason": "fetch API, JSON native"
+        },
+        "python": {
+          "score": 90,
+          "reason": "requests/urllib excellent"
+        },
+        "go": {
+          "score": 85,
+          "reason": "net/http in stdlib"
+        },
+        "ruby": {
+          "score": 75,
+          "reason": "net/http available"
+        },
+        "nim": {
+          "score": 65,
+          "reason": "httpclient available"
+        },
+        "shell": {
+          "score": 50,
+          "reason": "curl/wget work but limited"
+        }
+      },
+      "json_processing": {
+        "javascript": {
+          "score": 100,
+          "reason": "JSON.parse/stringify native"
+        },
+        "python": {
+          "score": 95,
+          "reason": "json module excellent"
+        },
+        "go": {
+          "score": 85,
+          "reason": "encoding/json good"
+        },
+        "nim": {
+          "score": 80,
+          "reason": "json module fast"
+        },
+        "ruby": {
+          "score": 75,
+          "reason": "JSON class built-in"
+        },
+        "shell": {
+          "score": 30,
+          "reason": "jq external tool"
+        }
+      },
+      "concurrency": {
+        "go": {
+          "score": 100,
+          "reason": "Goroutines and channels built-in"
+        },
+        "javascript": {
+          "score": 75,
+          "reason": "async/await, event loop"
+        },
+        "nim": {
+          "score": 70,
+          "reason": "async/await support"
+        },
+        "python": {
+          "score": 50,
+          "reason": "asyncio exists but GIL limits"
+        },
+        "ruby": {
+          "score": 40,
+          "reason": "Threads limited by GIL"
+        },
+        "shell": {
+          "score": 55,
+          "reason": "& and pipes for simple parallelism"
+        }
+      },
+      "cli_tools": {
+        "shell": {
+          "score": 100,
+          "reason": "Purpose-built for CLI"
+        },
+        "python": {
+          "score": 85,
+          "reason": "argparse, sys.argv"
+        },
+        "go": {
+          "score": 80,
+          "reason": "Fast binaries, flag package"
+        },
+        "nim": {
+          "score": 70,
+          "reason": "Compiled CLI tools"
+        },
+        "ruby": {
+          "score": 65,
+          "reason": "OptionParser available"
+        },
+        "javascript": {
+          "score": 45,
+          "reason": "Node.js works but slow startup"
+        }
+      },
+      "data_parsing": {
+        "python": {
+          "score": 100,
+          "reason": "pandas, csv, BeautifulSoup, lxml"
+        },
+        "javascript": {
+          "score": 80,
+          "reason": "cheerio, JSON native"
+        },
+        "ruby": {
+          "score": 75,
+          "reason": "Nokogiri, CSV stdlib"
+        },
+        "go": {
+          "score": 70,
+          "reason": "encoding/* packages"
+        },
+        "nim": {
+          "score": 65,
+          "reason": "parsers available"
+        },
+        "shell": {
+          "score": 45,
+          "reason": "awk/sed for simple parsing"
+        }
+      }
+    }
+  },
+  "_comment_scanner": "Code Quality Scanner \u2014 auto-runs on every execution when this section exists",
+  "scanner": {
+    "version": "1.0",
+    "mode": "enforce",
+    "_comment_scan_settings": "Controls which files to scan and size limits",
+    "scan": {
+      "max_files": 200,
+      "max_file_size_kb": 500,
+      "include_tests": false,
+      "follow_symlinks": false,
+      "exclude_patterns": [
+        "node_modules",
+        ".git",
+        "__pycache__",
+        "build",
+        "dist"
+      ]
+    },
+    "_comment_categories": "139 checks across 6 categories + 6 language modules. Each check: enabled (bool), level (hard/soft/advisory), options (thresholds)",
+    "redundancy": {
+      "obvious_comments": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "over_abstraction": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "redundant_try_catch": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "suspicious_try_catch": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "generic_variable_names": {
+        "enabled": true,
+        "level": "soft",
+        "names": [
+          "data",
+          "temp",
+          "tmp",
+          "val",
+          "x",
+          "y",
+          "foo",
+          "bar",
+          "baz",
+          "stuff",
+          "thing",
+          "obj",
+          "item",
+          "result"
+        ]
+      },
+      "excessive_comments": {
+        "enabled": true,
+        "level": "advisory",
+        "threshold": 0.6
+      },
+      "apologetic_comments": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "placeholder_code": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "gaming_comments": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "trivial_constant_alias": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "restating_docstrings": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "unnecessary_else_after_return": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "wrapper_classes": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "unused_imports": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "missing_imports": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "phantom_imports": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "single_use_variable": {
+        "enabled": false,
+        "level": "advisory"
+      },
+      "copy_paste_signatures": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "excessive_type_checks": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "decorative_separators": {
+        "enabled": true,
+        "level": "advisory"
+      }
+    },
+    "code_quality": {
+      "empty_catch": {
+        "enabled": true,
+        "level": "hard"
+      },
+      "catch_and_ignore": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "magic_numbers": {
+        "enabled": true,
+        "level": "soft",
+        "allowed": [
+          0,
+          1,
+          -1,
+          2,
+          10,
+          100,
+          1000
+        ]
+      },
+      "magic_strings": {
+        "enabled": true,
+        "level": "soft",
+        "min_length": 5,
+        "min_occurrences": 3
+      },
+      "dead_code_after_return": {
+        "enabled": true,
+        "level": "hard"
+      },
+      "dead_conditional": {
+        "enabled": true,
+        "level": "hard"
+      },
+      "god_functions": {
+        "enabled": true,
+        "level": "soft",
+        "max_lines": 80
+      },
+      "god_classes": {
+        "enabled": true,
+        "level": "soft",
+        "max_lines": 300,
+        "max_methods": 20
+      },
+      "deep_nesting": {
+        "enabled": true,
+        "level": "soft",
+        "max_depth": 4
+      },
+      "long_parameter_list": {
+        "enabled": true,
+        "level": "soft",
+        "max_params": 5
+      },
+      "complex_boolean_expr": {
+        "enabled": true,
+        "level": "soft",
+        "max_conditions": 3
+      },
+      "mutable_global_state": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "boolean_function_returns": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "string_concat_in_loop": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "recursive_no_base_case": {
+        "enabled": true,
+        "level": "soft"
+      }
+    },
+    "complexity": {
+      "cyclomatic_complexity": {
+        "enabled": true,
+        "level": "soft",
+        "max": 15
+      },
+      "cognitive_complexity": {
+        "enabled": true,
+        "level": "soft",
+        "max": 20
+      },
+      "file_length": {
+        "enabled": true,
+        "level": "soft",
+        "max_lines": 500
+      },
+      "function_count": {
+        "enabled": true,
+        "level": "advisory",
+        "max": 25
+      },
+      "class_count": {
+        "enabled": true,
+        "level": "advisory",
+        "max": 5
+      },
+      "import_count": {
+        "enabled": true,
+        "level": "advisory",
+        "max": 30
+      },
+      "return_count": {
+        "enabled": true,
+        "level": "advisory",
+        "max": 5
+      },
+      "nested_ternary": {
+        "enabled": true,
+        "level": "soft"
+      }
+    },
+    "style": {
+      "inconsistent_naming": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "debug_leftovers": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "commented_out_code": {
+        "enabled": true,
+        "level": "soft",
+        "min_lines": 3
+      },
+      "inconsistent_spacing": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "long_lines": {
+        "enabled": true,
+        "level": "advisory",
+        "max_length": 120
+      },
+      "missing_final_newline": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "multiple_blank_lines": {
+        "enabled": true,
+        "level": "advisory",
+        "max_consecutive": 2
+      },
+      "inconsistent_quotes": {
+        "enabled": false,
+        "level": "advisory"
+      },
+      "import_ordering": {
+        "enabled": true,
+        "level": "advisory"
+      }
+    },
+    "security": {
+      "hardcoded_credentials": {
+        "enabled": true,
+        "level": "hard"
+      },
+      "sql_string_concat": {
+        "enabled": true,
+        "level": "hard"
+      },
+      "shell_injection": {
+        "enabled": true,
+        "level": "hard"
+      },
+      "insecure_random": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "weak_crypto": {
+        "enabled": true,
+        "level": "soft"
+      },
+      "hardcoded_ip": {
+        "enabled": false,
+        "level": "advisory"
+      },
+      "hardcoded_url": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "path_traversal": {
+        "enabled": true,
+        "level": "hard"
+      },
+      "insecure_deserialization": {
+        "enabled": true,
+        "level": "hard"
+      },
+      "exposed_stack_traces": {
+        "enabled": true,
+        "level": "advisory"
+      },
+      "process_shell_guard": {
+        "enabled": true,
+        "level": "soft"
+      }
+    },
+    "_comment_lang_rules": "Language-specific checks (only run for matching file types)",
+    "lang_rules": {
+      "python": {
+        "bare_except": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "mutable_default_args": {
+          "enabled": true,
+          "level": "hard"
+        },
+        "star_imports": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "assert_for_validation": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "global_keyword": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "nested_comprehension": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "broad_exception_type": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "open_without_with": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "type_check_isinstance": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "import_inside_function": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "mutable_class_vars": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "string_format_mix": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "duplicate_dict_key": {
+          "enabled": true,
+          "level": "hard"
+        },
+        "f_string_without_expression": {
+          "enabled": true,
+          "level": "advisory"
+        }
+      },
+      "javascript": {
+        "loose_equality": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "var_usage": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "eval_usage": {
+          "enabled": true,
+          "level": "hard"
+        },
+        "for_in_array": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "prototype_pollution": {
+          "enabled": true,
+          "level": "hard"
+        },
+        "document_write": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "innerhtml_assignment": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "promise_no_catch": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "async_no_await": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "callback_hell": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "no_strict_mode": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "implicit_globals": {
+          "enabled": true,
+          "level": "soft"
+        }
+      },
+      "naab": {
+        "value_semantics_bug": {
+          "enabled": true,
+          "level": "hard"
+        },
+        "missing_null_check": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "polyglot_no_binding": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "throw_raw_string": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "oversized_polyglot": {
+          "enabled": true,
+          "level": "soft",
+          "max_lines": 100
+        },
+        "top_level_let": {
+          "enabled": true,
+          "level": "hard"
+        },
+        "arrow_lambda": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "missing_export": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "dict_bracket_access": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "python_return_in_block": {
+          "enabled": true,
+          "level": "hard"
+        },
+        "unsafe_args_access": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "json_double_encode": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "hardcoded_return_value": {
+          "enabled": false,
+          "level": "advisory"
+        },
+        "polyglot_magic_numbers": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "dict_key_schema_check": {
+          "enabled": false,
+          "level": "advisory"
+        }
+      },
+      "cpp": {
+        "raw_new_delete": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "using_namespace_std_header": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "c_style_casts": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "goto_usage": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "manual_memory": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "macro_functions": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "missing_virtual_dtor": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "exception_by_value": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "string_c_str_misuse": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "include_guard_missing": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "array_decay": {
+          "enabled": true,
+          "level": "advisory"
+        }
+      },
+      "go": {
+        "ignored_error": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "panic_in_library": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "empty_interface_abuse": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "error_string_format": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "shadow_err": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "naked_return": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "goroutine_leak": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "defer_in_loop": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "init_function": {
+          "enabled": true,
+          "level": "advisory"
+        }
+      },
+      "rust": {
+        "unsafe_blocks": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "todo_unimplemented": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "string_push": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "unwrap_in_prod": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "needless_lifetimes": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "clone_abuse": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "manual_map": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "expect_without_msg": {
+          "enabled": true,
+          "level": "soft"
+        },
+        "return_impl_trait": {
+          "enabled": true,
+          "level": "advisory"
+        },
+        "box_vec": {
+          "enabled": true,
+          "level": "advisory"
+        }
+      }
+    },
+    "_comment_output": "Report output settings",
+    "output": {
+      "format": "text",
+      "max_issues_per_file": 50,
+      "max_total_issues": 500,
+      "group_by": "file",
+      "sort_by": "severity",
+      "show_line_preview": true,
+      "show_fix_suggestion": true,
+      "save_json": true,
+      "save_text": true,
+      "save_sarif": false,
+      "json_path": "quality-report.json",
+      "text_path": "quality-report.txt",
+      "sarif_path": "quality-report.sarif"
+    }
+  },
+  "_comment_project_context": "Project Context Awareness \u2014 supplement governance with rules from project files",
+  "project_context": {
+    "enabled": false,
+    "enforcement_level": "advisory",
+    "priority_source": "",
+    "sources": {
+      "llm": true,
+      "linters": true,
+      "manifests": true
+    },
+    "watch_files": [],
+    "ignore_files": [],
+    "suppress_rules": [],
+    "extract": {
+      "language_preferences": true,
+      "banned_patterns": true,
+      "style_rules": true,
+      "custom_directives": true
+    },
+    "feed_optimization": true,
+    "show_extractions": true,
+    "dry_run": false,
+    "max_file_size_kb": 100
+  },
+  "_comment_quality_gate": "Quality Gate \u2014 aggregate pass/fail for CI/CD pipelines. Exit code 2 on failure.",
+  "quality_gate": {
+    "enabled": false,
+    "conditions": [
+      {
+        "metric": "hard_violations",
+        "operator": ">",
+        "threshold": 0
+      },
+      {
+        "metric": "soft_violations",
+        "operator": ">",
+        "threshold": 5
+      },
+      {
+        "metric": "advisory_violations",
+        "operator": ">",
+        "threshold": 20
+      },
+      {
+        "metric": "security_findings",
+        "operator": ">",
+        "threshold": 0
+      },
+      {
+        "metric": "total_violations",
+        "operator": ">",
+        "threshold": 10
+      }
+    ]
+  },
+  "_comment_scoring": "Cumulative Risk Scoring \u2014 advisory findings accumulate weighted scores. Cross red_threshold = block (exit 2). Deterministic, no LLM.",
+  "scoring": {
+    "enabled": false,
+    "rationale": "Cumulative risk scoring \u2014 advisory findings accumulate weighted scores. Yellow/red thresholds tuned to block when 3+ medium or 1 critical finding present.",
+    "default_weight": 3,
+    "rule_weights": {
+      "code_quality.no_hardcoded_results": 1,
+      "code_quality.no_dead_code": 2,
+      "code_quality.encoding": 8
+    },
+    "green_threshold": 0,
+    "yellow_threshold": 10,
+    "red_threshold": 25,
+    "_comment_threshold_mode": "\"fixed\" (default) or \"per_source\" (yellow/red thresholds are multiplied by the number of distinct finding sources).",
+    "threshold_mode": "fixed"
+  },
+  "_comment_scorers": "Named Scorers \u2014 reusable scoring configurations for governance.scorer() introspection. Each scorer defines weights and thresholds for programmatic evaluation.",
+  "scorers": {
+    "security_review": {
+      "name": "security_review",
+      "description": "Security review scorer for governance introspection",
+      "weights": {
+        "vulnerability_count": 0.3,
+        "cvss_severity": 0.4,
+        "exploit_availability": 0.2,
+        "patch_availability": 0.1
+      },
+      "thresholds": {
+        "pass": 0.7,
+        "warn": 0.5
+      },
+      "_comment_read_keys": "The loader reads only the keys below; the scorer's name is its key in this map, and name/description/weights/thresholds above are not read. agent_review.scorer selects a scorer by that key; an unknown or disabled name falls back to the scoring section when it is enabled, else to built-in defaults.",
+      "_comment_enabled": "false = this scorer is skipped when looked up by name.",
+      "enabled": true,
+      "_comment_default_weight": "Score for a finding whose rule has no rule_weights entry.",
+      "default_weight": 3,
+      "_comment_rule_weights": "Per-rule integer weights, keyed by rule name (e.g. \"code_quality.no_dead_code\").",
+      "rule_weights": {},
+      "_comment_yellow_threshold": "Cumulative score at which this scorer's zone becomes yellow.",
+      "yellow_threshold": 10,
+      "_comment_red_threshold": "Cumulative score at which this scorer's zone becomes red.",
+      "red_threshold": 25,
+      "_comment_threshold_mode": "\"fixed\" or \"per_source\", as in scoring.threshold_mode.",
+      "threshold_mode": "fixed"
+    }
+  },
+  "_comment_governance_plugins": "Governance Plugins \u2014 custom NAAb-based governance checks loaded at runtime. Each plugin specifies a .naab file containing check functions.",
+  "_comment_governance_plugins_entry": "Entry shape: {\"file\": \"checks.naab\" (required; an entry without it is skipped), \"rules\": [{\"id\", \"function\" (required), \"trigger\" (required), \"description\", \"level\", \"languages\": [], \"message\", \"help\", \"good_example\", \"bad_example\", \"enabled\": true}]}. A rule missing function or trigger is skipped with a warning.",
+  "governance_plugins": [],
+  "_comment_behavioral_sequences": "Behavioral Sequence Detection (BSD) \u2014 FSM-based multi-step attack pattern matching. Records runtime events (env reads, file I/O, network, shell exec, encoding, tool calls) into a ring buffer and advances per-pattern state machines. When all steps of a pattern match within the window, enforcement fires. wouldMatch() enables pre-execution blocking. Event types: ENV_READ, ENV_WRITE, FILE_READ, FILE_WRITE, NET_CONNECT, SHELL_EXEC, AGENT_SEND, AGENT_RESPONSE, TAINT_VIOLATION, TAINT_SANITIZED, ENCODE, DECODE, PROCESS_EXEC, CONFIG_RELOAD, CHECK_FAILED, TOOL_CALL, TOOL_RESULT, TOOL_ERROR, TOOL_BLOCKED. Default patterns (credential harvesting, sandbox probe, config tampering, progressive escalation, data staging, taint bypass, tool data exfil, tool env harvest, tool shell escape, tool rapid fire) activate when no user patterns are defined.",
+  "behavioral_sequences": {
+    "enabled": false,
+    "rationale": "Detect multi-step attack patterns that span individual governance checks.",
+    "window_size": 100,
+    "_comment_default_pattern_enforcement": "\"observe\" (default): the BUILT-IN patterns enforce at ADVISORY; \"declared\": they enforce at their declared levels. Built-ins apply only when no patterns are configured here.",
+    "default_pattern_enforcement": "observe",
+    "_comment_pattern_fields": "Per pattern: cross_agent (match only when the events span 2+ agents; default false), decay_seconds (events older than this do not count; default 300), decay_turns (events more than N turns old do not count; default 20).",
+    "patterns": [
+      {
+        "name": "credential_harvesting",
+        "sequence": [
+          "ENV_READ:*KEY*|*SECRET*|*TOKEN*",
+          "NET_CONNECT"
+        ],
+        "max_gap": 5,
+        "level": "soft",
+        "cross_agent": false,
+        "decay_seconds": 300,
+        "decay_turns": 20,
+        "rationale": "Reading credential env vars then exfiltrating over network."
+      }
+    ]
+  },
+  "_comment_context_drift": "Context Drift Detection (CDD) \u2014 monitors agent behavioral coherence across turns. Four signals: circular actions (same fingerprint repeats), repeated failures (same error 3+ times), scope creep (2+ new event types after warmup), intent contradictions (retrying blocked capabilities via alternative paths). Coherence score decays from 1.0; crossing threshold fires enforcement. Reality Checkpoint adds Signal 5: composite pressure from all governance subsystems. Temporal trust decay: coherence erodes over time when idle (grace period configurable). Adaptive baselining: observe normal signal rates for N turns before penalizing deviations (mean + k*stddev threshold). Thresholds sub-object: tunes signal detection sensitivity (velocity_drop, circular_lookback, repeated_failure_count, etc.). Reality checkpoint scaling: signal_density_divisor normalizes signals/turn, acceleration_multiplier scales coherence acceleration to [0,1].",
+  "context_drift": {
+    "enabled": false,
+    "rationale": "Detect when agents lose alignment with their task through behavioral drift.",
+    "level": "advisory",
+    "coherence_threshold": 0.7,
+    "max_contradictions": 5,
+    "check_interval_turns": 3,
+    "fingerprint_window": 10,
+    "rate_normalized": false,
+    "rate_normalized_floor": 0.5,
+    "coherence_recovery_amount": 0.2,
+    "coherence_recovery_cap": 1.0,
+    "coherence_natural_healing": 0.02,
+    "temporal_decay_enabled": false,
+    "temporal_decay_per_minute": 0.01,
+    "temporal_decay_grace_minutes": 1.0,
+    "adaptive_baseline_enabled": false,
+    "adaptive_baseline_window": 5,
+    "adaptive_baseline_sensitivity": 2.0,
+    "escalation_effectiveness_window": 5,
+    "_comment_event_feed": "Which events a CDD check sees: \"turn_bucket\" (default; events stamped with this turn) or \"since_last_check\" (every event since the previous check). Any mid-run change is a ratchet violation.",
+    "event_feed": "turn_bucket",
+    "_comment_adaptive_absorption_limit": "A signal fully absorbed by the adaptive baseline for more than N CONSECUTIVE post-baseline checks starts paying its base penalty. 0 (default) = unlimited absorption. Enabling it requires auditing structurally-firing signals per agent first. Raising or removing it mid-run is a ratchet violation.",
+    "adaptive_absorption_limit": 0,
+    "_comment_coherence_healing_damage_fraction": "When > 0, per-turn healing = fraction * mean damage over the agent's recent DAMAGING turns, replacing coherence_natural_healing. 0 (default) = off. Clamped below 1.0. Ratcheted.",
+    "coherence_healing_damage_fraction": 0.0,
+    "_comment_coherence_damage_window": "How many recent DAMAGING turns that mean spans.",
+    "coherence_damage_window": 20,
+    "_comment_validation_recovery_amount": "Coherence credited when agent.record_validation() moves from a failure to a pass (half the S22 weight, so fail/pass oscillation stays net-negative). Raising it mid-run is a ratchet violation.",
+    "validation_recovery_amount": 0.075,
+    "_comment_response_min_output_tokens": "S23 response_degenerate fires when a response's output_tokens is below this (events with unreported token counts are ignored).",
+    "response_min_output_tokens": 8,
+    "signals": {
+      "circular_actions": true,
+      "repeated_failures": true,
+      "scope_creep": true,
+      "intent_contradictions": true,
+      "coherence_velocity": true,
+      "vocabulary_contraction": true,
+      "capability_underutilization": false,
+      "semantic_stability": true,
+      "mandate_alignment": true,
+      "response_quality": true,
+      "thinking_collapse": true,
+      "context_growth": true,
+      "instruction_recall": true,
+      "plan_drift": true,
+      "entity_consistency": true,
+      "instruction_conflict": true,
+      "persona_fingerprint": true,
+      "tool_chain_integrity": true,
+      "claim_result_reconciliation": true,
+      "_comment_prompt_compliance": "S20: agent substantively complies with an off-topic prompt instead of refusing or redirecting.",
+      "prompt_compliance": true,
+      "_comment_response_repetition": "S21: verbatim duplicate of a recent response (SHA-256 of the full content).",
+      "response_repetition": true,
+      "_comment_validation_outcome": "S22: folds agent.record_validation() pass/fail into coherence. Costs nothing until a result is recorded.",
+      "validation_outcome": true,
+      "_comment_response_degenerate": "S23: near-empty response (output_tokens below response_min_output_tokens). OFF by default -- terse-by-design agents would fire constantly.",
+      "response_degenerate": false,
+      "exclude_infrastructure_errors": true
+    },
+    "weights": {
+      "circular": 0.15,
+      "scope_creep": 0.1,
+      "contradiction": 0.2,
+      "repeated_failure": 0.1,
+      "vocabulary_contraction": 0.1,
+      "capability_underutilization": 0.1,
+      "semantic_stability": 0.1,
+      "mandate_alignment": 0.12,
+      "response_quality": 0.08,
+      "thinking_collapse": 0.06,
+      "context_growth": 0.07,
+      "instruction_recall": 0.08,
+      "plan_drift": 0.09,
+      "entity_consistency": 0.08,
+      "instruction_conflict": 0.1,
+      "persona_fingerprint": 0.05,
+      "tool_chain_integrity": 0.08,
+      "claim_result_reconciliation": 0.12,
+      "_comment_prompt_compliance": "S20 penalty weight.",
+      "prompt_compliance": 0.1,
+      "_comment_response_repetition": "S21 penalty weight.",
+      "response_repetition": 0.15,
+      "_comment_validation_outcome": "S22 penalty weight: a flat penalty, never absorbed by the adaptive baseline.",
+      "validation_outcome": 0.15,
+      "_comment_response_degenerate": "S23 penalty weight (only when signals.response_degenerate is enabled).",
+      "response_degenerate": 0.08
+    },
+    "thresholds": {
+      "velocity_drop": -0.15,
+      "circular_lookback": 3,
+      "underutilization_delay": 10,
+      "scope_creep_min_history": 3,
+      "scope_creep_min_new_types": 2,
+      "repeated_failure_count": 3,
+      "vocab_contraction_window": 6,
+      "entropy_min_initial": 0.5,
+      "entropy_contraction_ratio": 0.6,
+      "coherence_history_size": 10,
+      "response_quality_min_ratio": 0.3,
+      "thinking_collapse_ratio": 0.5,
+      "thinking_history_window": 20,
+      "semantic_stability_min_overlap": 0.25,
+      "mandate_alignment_min": 0.15,
+      "context_growth_factor": 3.0,
+      "instruction_recall_min": 0.1,
+      "plan_step_overlap_min": 0.2,
+      "entity_context_min_overlap": 0.25,
+      "instruction_conflict_topic_overlap": 0.4,
+      "instruction_conflict_window": 10,
+      "persona_deviation_factor": 2.0,
+      "tool_result_recall_min": 0.15,
+      "claim_accuracy_min": 0.7,
+      "_comment_entity_context_window": "S15: how many recent per-sighting contexts of an entity are compared against (max Jaccard).",
+      "entity_context_window": 5,
+      "_comment_persona_history_window": "S17: response window for the persona baseline (independent of thinking_history_window).",
+      "persona_history_window": 20,
+      "_comment_persona_baseline_adaptive": "S17: re-derive the persona baseline from current behaviour instead of freezing it at the warm-up turns. false = frozen baseline.",
+      "persona_baseline_adaptive": true,
+      "_comment_entropy_baseline_adaptive": "S5: re-derive the reference entropy on turns clean apart from S5, instead of freezing it at startup. false = frozen baseline.",
+      "entropy_baseline_adaptive": true,
+      "_comment_vocab_contraction_agent_events_only": "S5 counts only the agent's own events (AGENT_SEND, AGENT_RESPONSE, TOOL_*); false = every event in the turn, including the orchestration script's. Enabling it mid-run is a ratchet violation.",
+      "vocab_contraction_agent_events_only": true,
+      "_comment_prompt_compliance_mandate_min": "S20: prompt-to-mandate keyword overlap below this marks the prompt off-topic.",
+      "prompt_compliance_mandate_min": 0.1,
+      "_comment_prompt_compliance_response_min_tokens": "S20: responses shorter than this (output tokens) are not treated as substantive compliance.",
+      "prompt_compliance_response_min_tokens": 50,
+      "_comment_response_repetition_lookback": "S21: how many previous responses are checked for an exact duplicate.",
+      "response_repetition_lookback": 5
+    },
+    "reality_checkpoint": {
+      "enabled": true,
+      "rationale": "Detect sustained multi-signal pressure before any single signal crosses threshold. Composite score from coherence proximity, cumulative risk, signal density, conversation depth, and BSD partial progress.",
+      "level": "soft",
+      "pressure_threshold": 0.7,
+      "sustained_turns_required": 3,
+      "min_turns_between_checkpoints": 5,
+      "expected_conversation_depth": 20,
+      "signal_density_divisor": 4.0,
+      "acceleration_multiplier": 5.0,
+      "weights": {
+        "coherence_proximity": 0.35,
+        "risk_score_proximity": 0.2,
+        "signal_density": 0.25,
+        "conversation_depth": 0.1,
+        "bsd_partial_progress": 0.1,
+        "pipeline_inherited": 0.0,
+        "coherence_acceleration": 0.0,
+        "codegen_pressure": 0.0,
+        "bsd_eviction_pressure": 0.0,
+        "semantic_deviation": 0.0
+      }
+    }
+  },
+  "_comment_agent_review": "Agent Review \u2014 LLM-based governance phase. Detection agents analyze script source, validation agent filters false positives, voice agent synthesizes findings into one actionable remediation guide. Scored findings enforce at advisory/soft/hard tiers. Disabled by default. Cache uses SHA-256 of script source.",
+  "agent_review": {
+    "enabled": false,
+    "detection": [
+      "redteam",
+      "testing"
+    ],
+    "validation": "analyst",
+    "voice": "voice",
+    "scorer": "security",
+    "enforcement": {
+      "green": "advisory",
+      "yellow": "soft",
+      "red": "hard"
+    },
+    "cache": true,
+    "dispatch_mode": "sequential",
+    "max_parallel": 0,
+    "fail_strategy": "fail_fast",
+    "fail_policy": "open",
+    "_comment_fail_policy": "Policy when agent review fails: 'open' (warn only) or 'closed' (block). Default: open",
+    "_comment_hints": "Print findings the review rejected as [hint] lines on stderr.",
+    "hints": false
+  },
+  "_comment_agent_dispatch": "Agent Dispatch \u2014 parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size, concurrency limits, and run-level hard stop budgets.",
+  "agent_dispatch": {
+    "default_timeout_seconds": 0,
+    "max_retries_per_run": 0,
+    "max_concurrent": 6,
+    "pool_size": 6,
+    "pool_queue_max": 50,
+    "hard_stop": {
+      "max_calls_per_run": 0,
+      "max_tokens_per_run": 0,
+      "max_agent_time_ms": 0,
+      "consecutive_failure_limit": 0,
+      "action": "block"
+    }
+  },
+  "_comment_governance_baseline": "Governance Baseline \u2014 regression detection across runs. Use --governance-baseline-save to snapshot.",
+  "governance_baseline": {
+    "enabled": false,
+    "path": ".naab/governance-baseline.json",
+    "fail_on_regression": true,
+    "level": "soft"
+  },
+  "_comment_environments": "Environment Selector \u2014 use --env <name> to apply overrides. Values override top-level settings.",
+  "environments": {
+    "production": {
+      "mode": "enforce",
+      "quality_gate.enabled": "true"
+    },
+    "development": {
+      "mode": "audit",
+      "quality_gate.enabled": "false"
+    },
+    "ci": {
+      "mode": "enforce",
+      "output.file_output.report_sarif": "governance.sarif"
+    }
+  },
+  "_comment_governance": "Governance behavior \u2014 replaces CLI flags like --governance-verbose, --governance-dashboard, etc. CLI flags override when present.",
+  "governance": {
+    "verbose": false,
+    "dashboard": false,
+    "quiet": false,
+    "override": false,
+    "lint_only": false,
+    "baseline_save": false,
+    "record_baselines": false,
+    "check_baselines": false,
+    "strict_types": false,
+    "gc_threshold": 5000,
+    "gc_stats": false,
+    "sandbox_level": "unrestricted",
+    "agent_id": "anonymous",
+    "default_env": "",
+    "telemetry": "",
+    "report_json": "",
+    "report_sarif": "",
+    "report_junit": "",
+    "no_color": false,
+    "explanations": true,
+    "require_override_reason": false
+  },
+  "_comment_approval": "Approval tokens for APPROVAL_REQUIRED enforcement tier. Requires Ed25519 signed tokens.",
+  "approval": {
+    "store_path": ".naab/approvals.json",
+    "approver_keys": [],
+    "default_expiry_hours": 24
+  },
+  "_comment_runtime": "Runtime limits \u2014 apply to all execution paths (VM and tree-walker). CLI flags (--timeout, --memory-limit, --gc-threshold, --gc-stats) override when present.",
+  "runtime": {
+    "timeout": 30,
+    "memory_limit": 0,
+    "gc_threshold": 5000,
+    "gc_stats": false
+  },
+  "_comment_security": "Security posture. CLI flags (--sandbox-level, --allow-network, --strict-types) override when present.",
+  "security": {
+    "sandbox_level": "unrestricted",
+    "allow_network": false,
+    "strict_types": false
+  },
+  "_comment_api": "REST API server settings (naab-lang api). Single key via 'key' or multi-key via 'keys' array with scoped permissions (scopes: 'run', 'scan', 'health', 'config'). TLS: set tls_cert and tls_key for HTTPS. CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
+  "api": {
+    "key": "",
+    "keys": [
+      {
+        "key": "",
+        "name": "ci-runner",
+        "scopes": [
+          "run",
+          "health"
+        ]
+      },
+      {
+        "key": "",
+        "name": "admin",
+        "scopes": [
+          "run",
+          "scan",
+          "health",
+          "config"
+        ]
+      }
+    ],
+    "timeout": 10,
+    "rate_limit": 0,
+    "max_body": 1048576,
+    "tls_cert": "",
+    "tls_key": ""
+  },
+  "_comment_runtime_versions": "Runtime version pinning \u2014 advisory/soft/hard when version doesn't match. Optional per-entry message: custom mismatch text (empty = auto-generated).",
+  "runtime_versions": [
+    {
+      "language": "python",
+      "required": "3.10",
+      "level": "advisory",
+      "message": ""
+    },
+    {
+      "language": "javascript",
+      "required": "18",
+      "level": "advisory"
+    }
+  ],
+  "_comment_exposure_tracking": "Exposure Tracking \u2014 aggregate autonomous agent action volume monitoring. max_pipeline_depth limits nested agent.pipeline() depth (0 = unlimited). checkpoint_cooldown_turns enforces mandatory pause after reality checkpoint fires (trading halt analog). min_capability_utilization requires minimum ratio of exercised/granted capabilities after utilization_check_after_turns turns.",
+  "exposure_tracking": {
+    "enabled": false,
+    "max_autonomous_actions": 50,
+    "max_unique_agents": 10,
+    "coherence_floor": 0.3,
+    "level": "advisory",
+    "max_pipeline_depth": 0,
+    "checkpoint_cooldown_turns": 0,
+    "min_capability_utilization": 0.0,
+    "utilization_check_after_turns": 10
+  },
+  "_comment_circuit_breaker": "Graduated Circuit Breakers \u2014 system-wide governance levels (NORMAL/ELEVATED/HIGH/CRITICAL) based on sustained composite pressure. NYSE circuit breaker analog. ELEVATED: CDD check_interval \u2192 1. HIGH: all ADVISORY escalate to SOFT. CRITICAL: admission denied for all agents. Step-up challenges: at configurable governance level, inject challenge prompt and score response (word count + keyword overlap). Pass recovers coherence, fail blocks send.",
+  "circuit_breaker": {
+    "enabled": false,
+    "elevated_threshold": 0.4,
+    "high_threshold": 0.6,
+    "critical_threshold": 0.8,
+    "elevated_sustained": 2,
+    "high_sustained": 3,
+    "critical_sustained": 4,
+    "_comment_deescalate_sustained": "Consecutive turns the computed level must sit BELOW the current one before stepping down ONE level (escalation stays immediate). Lowering it mid-run is a ratchet violation.",
+    "deescalate_sustained": 2,
+    "_comment_level_effects": "What the middle levels DO. elevated_cdd_every_turn: at ELEVATED and above, CDD analyses every turn regardless of check_interval_turns. high_advisory_to_soft: at HIGH and above, ADVISORY findings are enforced as SOFT. Both default on; disabling either mid-run is a ratchet violation.",
+    "level_effects": {
+      "elevated_cdd_every_turn": true,
+      "high_advisory_to_soft": true
+    },
+    "critical_coherence": 0.2,
+    "step_up_enabled": false,
+    "step_up_at_level": "elevated",
+    "step_up_challenge": "Before responding, restate your current objective in one sentence, then proceed.",
+    "step_up_min_words": 5,
+    "step_up_cooldown_turns": 3,
+    "_comment_max_challenge_failures": "Consecutive failed step-up challenges before the agent is terminated (uncatchable). Below the limit a failed challenge blocks the send with a catchable error. 1 = historical one-strike. Raising it mid-run is a ratchet violation.",
+    "max_challenge_failures": 1,
+    "_comment_step_up_on_inadmissible": "With output_admissibility enabled, a handle whose coherence is below the admissibility threshold draws a challenge on its next send whatever the global level. Disabling it mid-run is a ratchet violation.",
+    "step_up_on_inadmissible": false,
+    "step_up_keyword_threshold": 0.4,
+    "step_up_contextual": false,
+    "step_up_contextual_threshold": 0.3,
+    "step_up_challenge_history": "recent",
+    "step_up_history_recent_count": 20,
+    "mandate_reinforcement_enabled": false,
+    "mandate_reinforcement_interval": 10,
+    "mandate_reinforcement_message": "",
+    "coherence_correction_enabled": false,
+    "coherence_correction_threshold": 0.85,
+    "coherence_correction_cooldown_turns": 5,
+    "coherence_correction_message": "",
+    "_comment_output_admissibility": "Post-CDD gate on response coherence, the counterpart of pre-send admission. Every relaxation below (disable, lower threshold, weaker action, exclude->commit, gate_tool_calls off, raising/removing the streak limit, enabling or raising require_corroboration, relaxing on_undetermined) is a mid-run ratchet violation.",
+    "output_admissibility": {
+      "_comment_enabled": "Master switch for the gate.",
+      "enabled": false,
+      "_comment_threshold": "Coherence below this makes a response inadmissible.",
+      "threshold": 0.7,
+      "_comment_action": "\"quarantine\" (default; response returned with admissibility.admissible=false), \"block\" (enforced at level; not returned), \"attest\" (quarantine plus an Ed25519-signed attestation).",
+      "action": "quarantine",
+      "_comment_on_undetermined": "While a handle is still inside its adaptive-baseline window a pass is not a judgement: \"pass\" (default) delivers it, \"quarantine\" holds it, \"block\" enforces at level. An undetermined hold never advances the quarantine streak.",
+      "on_undetermined": "pass",
+      "_comment_level": "Enforcement level for action \"block\" and on_undetermined \"block\"; raised to at least detect.",
+      "level": "soft",
+      "_comment_inadmissible_history": "\"commit\" (default): quarantined/attested responses enter the handle's history; \"exclude\": returned to the caller but never appended.",
+      "inadmissible_history": "commit",
+      "_comment_gate_tool_calls": "Check coherence and pulse before each tool execution in the tool loop.",
+      "gate_tool_calls": false,
+      "_comment_max_quarantine_streak": "Consecutive quarantined responses before the agent is terminated (uncatchable); 0 = no limit.",
+      "max_quarantine_streak": 5,
+      "_comment_require_corroboration": "N > 0: a quarantined turn advances the streak only when N DISTINCT penalising signals fired that turn. 0 (default) = every quarantine counts.",
+      "require_corroboration": 0
+    },
+    "rationale": "Graduated system-wide governance levels based on sustained composite pressure. Mandate reinforcement and coherence correction provide proactive drift prevention \u2014 steer the model back before it reaches the challenge/kill zone. Zero extra API calls."
+  },
+  "_comment_advisory_escalation": "Advisory Escalation \u2014 repeated advisory findings harden over time. 1st occurrence: warn. 2nd+: increase scoring weight by multiplier. N-th (soft_after): escalate to a HARD block (uncatchable, cannot be overridden). Occurrences are counted per rule name across the whole run (all agents together), and halved at each evidence-epoch boundary. OSHA violation escalation analog: informal warning \u2192 formal \u2192 citation.",
+  "advisory_escalation": {
+    "enabled": false,
+    "soft_after": 3,
+    "weight_multiplier": 1.5,
+    "rationale": "Repeated advisories harden \u2014 persistent issues must be addressed"
+  },
+  "_comment_scoring_calibration": "Scoring Calibration \u2014 operator-driven weight overrides. Persists calibration to .naab/scoring-calibration.json. Use governance.calibrate(rule, weight, reason) to set overrides. governance.calibration() returns current overrides.",
+  "scoring_calibration": {
+    "enabled": false,
+    "path": ".naab/scoring-calibration.json",
+    "auto_save": true,
+    "rationale": "Operator-driven weight overrides \u2014 tune scoring weights based on project experience"
+  },
+  "_comment_governance_health": "Governance Health Monitoring \u2014 verify BSD/CDD instrumentation is operational. Detects: BSD received 0 events after N turns, CDD analyzed 0 turns after N turns, perfect coherence (1.0) after 10+ turns. governance_entropy_warning flags suspiciously uniform governance check result distributions. Pulse thresholds: consecutive_passes_suspicion (flag if all checks pass N+ times), impaired_degraded_turns/impaired_signal_count (IMPAIRED verdict conditions), pulse_cooldown_turns (min turns between verdict transitions). Nuclear safety system exercising analog.",
+  "governance_health": {
+    "enabled": false,
+    "check_after_turns": 10,
+    "governance_entropy_warning": 0.5,
+    "consecutive_passes_suspicion": 50,
+    "impaired_degraded_turns": 3,
+    "impaired_signal_count": 3,
+    "pulse_cooldown_turns": 3,
+    "_comment_coherence_floor_warning": "From turn 10, warn once per agent handle whose coherence sits at or below this (a possible governance false positive), naming its top signals. 0 = off.",
+    "coherence_floor_warning": 0.25,
+    "rationale": "Verify governance instrumentation is operational"
+  },
+  "_comment_pipeline_separation": "Pipeline Separation of Duties \u2014 adjacent pipeline stages must use different agent configs. SOX separation of duties analog.",
+  "pipeline_separation": {
+    "enabled": false,
+    "level": "soft",
+    "rationale": "Adjacent pipeline stages must use different agent configs"
+  },
+  "_comment_temporal_coupling": "Temporal Coupling Detection \u2014 pairwise lag correlation between agent event streams. Flags when two agents show suspiciously correlated timing patterns. Front-running detection analog (financial regulation).",
+  "temporal_coupling": {
+    "enabled": false,
+    "max_correlation": 0.85,
+    "min_events": 10,
+    "rationale": "Detect suspicious inter-agent timing correlation"
+  },
+  "_comment_codegen": "Dynamic Code Execution \u2014 codegen.run(language, code_string) routes runtime-generated code through the same 39+ governance checks as static <<language ... >> blocks. Disabled by default. Per-call limits (size, lines, timeout), cumulative limits (calls, bytes, per-agent calls), taint policy (allow_tainted_code = false blocks LLM-generated code by default), nesting prevention, language restrictions, and stderr sanitization. Shares polyglot rate limiter and block counter with static blocks. Requires CODEGEN_EXEC in agent allowed_actions if action matrix is set.",
+  "codegen": {
+    "enabled": false,
+    "level": "hard",
+    "max_code_size_bytes": 65536,
+    "max_code_lines": 500,
+    "timeout_seconds": 15,
+    "max_cumulative_code_bytes": 524288,
+    "max_cumulative_calls": 100,
+    "max_cumulative_calls_per_agent": 20,
+    "allow_tainted_code": false,
+    "max_nesting_depth": 0,
+    "allowed_languages": [],
+    "blocked_languages": [],
+    "sanitize_stderr": true,
+    "max_stderr_chars": 2048,
+    "rationale": "Governed dynamic code execution for LLM agents"
+  },
+  "_comment_orchestra": "Multi-Agent Orchestration \u2014 orchestra module provides high-level agent lifecycle patterns. sequential_refinement(handles, prompt, iterations) chains agents for iterative refinement. consensus_vote(handles, artifact) collects APPROVED/REVIEW/REJECTED verdicts with configurable majority. enforce_convergence(handle, spec, max_attempts) retries with correction until output matches spec. Requires 'use orchestra' in NAAb scripts.",
+  "orchestra": {
+    "enabled": true,
+    "default_iterations": 3,
+    "default_max_attempts": 5,
+    "consensus_majority": "simple",
+    "rationale": "Multi-agent orchestration patterns for complex workflows"
+  },
+  "_comment_output_contract": "Agent Output Contracts \u2014 per-agent response validation. Add 'output_contract' to individual agent configs in the 'agents' section. Fields: format ('json'), required_fields (array of key names), field_types (dict of key\u2192type: 'string'|'number'|'boolean'|'array'|'object'), regex_checks (dict of key\u2192regex pattern). Violation emits CONTRACT_VIOLATION telemetry and throws. Example: {\"format\": \"json\", \"required_fields\": [\"severity\"], \"regex_checks\": {\"severity\": \"^(low|medium|high|critical)$\"}}",
+  "_comment_telemetry_events": "Agent Telemetry Event Types: AGENT_CREATE, AGENT_SEND, AGENT_RESPONSE, PROMPT_SCAN, RESPONSE_SCAN, RESPONSE_SUPPRESSED (empty response after retries), CDD_TURN, BSD_MATCH, BSD_TRANSITION, CONTRACT_VIOLATION, TOOL_EXEC, TOOL_BLOCKED, AGENT_KEY_REVIVED, PULSE_VERDICT. All events include run_id and prev_hash (tamper-evident hash chain).",
+  "_comment_pass2": "Post-execution audit (Pass 2): runs automatically after execution. Checks polyglot output for secrets/PII, taint flow summaries, determinism analysis, cross-block data flow, and coverage. Compact one-line summary when clean; detailed report when findings exist. No configuration needed \u2014 controlled by governance being active.",
+  "_comment_langconform": "tools/langconform harness config: govern-template.json as of 2026-10-05 with mode audit (no finding stops the dispatcher) and one custom hallucinated-API pattern, FORBIDDEN_KEYWORD, that matches in no language's real API. Frozen on purpose: a template change must not move the baseline."
+}

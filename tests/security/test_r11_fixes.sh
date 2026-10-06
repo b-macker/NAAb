@@ -226,12 +226,20 @@ else
         # T5: oversized body → 413
         BIG_BODY=$(python3 -c "import json; print(json.dumps({'code': 'x' * 100000}))" 2>/dev/null \
                    || printf '{"code":"%s"}' "$(head -c 100000 /dev/zero | tr '\0' 'x')")
-        BIG_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+        # The body goes in on stdin, not argv: a 100 KB `-d` argument exceeds
+        # the Windows command-line limit, curl never ran ("Argument list too
+        # long"), BIG_STATUS came back empty, and the != "200" branch below
+        # recorded that as a rejection. See docs/findings/build-windows-ci.md.
+        BIG_STATUS=$(printf '%s' "$BIG_BODY" | curl -s -o /dev/null -w "%{http_code}" \
             -X POST "http://localhost:$API_PORT/api/v1/execute" \
             -H "Content-Type: application/json" \
             -H "X-API-Key: $API_KEY" \
-            -d "$BIG_BODY")
-        if [ "$BIG_STATUS" = "413" ]; then
+            --data-binary @-)
+        if [ -z "$BIG_STATUS" ] || [ "$BIG_STATUS" = "000" ]; then
+            # No HTTP response at all: the probe did not run, which says
+            # nothing about whether the server rejects oversized bodies.
+            fail "V-API-001: oversized-body probe got no HTTP response (status '$BIG_STATUS') -- UNMEASURABLE, not a rejection"
+        elif [ "$BIG_STATUS" = "413" ]; then
             pass "V-API-001: oversized body returns 413"
         else
             # httplib may return 400 or 500 — still blocked, not 200

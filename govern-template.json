@@ -115,6 +115,7 @@
   },
 
   "_comment_rationale": "Any section can include an optional 'rationale' field explaining WHY that rule or tier was chosen. Rationale text appears in governance reports and the audit trail.",
+  "_comment_aliases": "Alternate spellings the loader also accepts, each writing the SAME setting as the key shown in this template. When both appear, the one the loader parses LATER wins (loader order, not file order): top-level sandbox_level < governance.sandbox_level < security.sandbox_level; governance.quiet/no_color < output.quiet/no_color; runtime.timeout < limits.execution.timeout_seconds; limits.call_depth < limits.execution.call_depth; limits.array_size < limits.data.array_size; restrictions.no_secrets/no_placeholders/no_hardcoded_results < code_quality.*; an agent's capabilities.shell.enabled is read only when shell_allowed is absent. Use one spelling.",
 
   "_comment_capabilities_sandbox": "capabilities also control runtime sandbox: shell.enabled=false removes SYS_EXEC, network.enabled=false removes NET_CONNECT, filesystem.mode=none removes FS_READ+FS_WRITE",
 
@@ -165,7 +166,21 @@
       "allowed_read": [],
       "blocked_read": ["AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN"],
       "allowed_write": [],
-      "blocked_write": ["PATH", "HOME", "LD_PRELOAD"]
+      "blocked_write": ["PATH", "HOME", "LD_PRELOAD"],
+      "_comment_subprocess_scrub": "Subprocess environment scrubbing (V-SC-006-ext) for polyglot child processes. All four keys empty (the default) = only NAAb's own secrets (NAAB_GOVERN_KEY, NAAB_LOCK_KEY, NAAB_SIGNING_KEY) are removed. Setting any of them activates a policy. Read ONLY here, under capabilities.env_vars: the same keys at the top level of govern.json are ignored, with no warning.",
+      "_comment_subprocess_scrub_mode": "\"allowlist\" = pass only allowed_subprocess_vars plus essentials (PATH, HOME, LANG, TERM, TMPDIR, USER, SHELL, ...); any other value = blocklist using blocked_subprocess_vars and blocked_subprocess_prefixes.",
+      "subprocess_scrub_mode": "",
+      "_comment_allowed_subprocess_vars": "allowlist mode only: exact variable names passed through to the child.",
+      "allowed_subprocess_vars": [],
+      "_comment_blocked_subprocess_vars": "blocklist mode: exact variable names removed from the child's environment.",
+      "blocked_subprocess_vars": [],
+      "_comment_blocked_subprocess_prefixes": "blocklist mode: variables starting with any prefix are removed, e.g. [\"AWS_\", \"GITHUB_\"].",
+      "blocked_subprocess_prefixes": []
+    },
+    "_comment_functions": "Function-scope capabilities (third rung after capabilities.* and agents.<name>.allowed_actions). Map a NAAb function name to {\"allowed_actions\": [...]} using FS_READ, FS_WRITE, NET_CONNECT, SHELL_EXEC, AGENT_SEND, ENV_READ, ENV_WRITE; a \"default\" entry applies to every function without its own. Permissions INTERSECT down the call stack, so a caller's entry narrows its callees. No function entries (the default) = feature unused.",
+    "_comment_functions_level": "functions.level: enforcement level for undeclared effects -- advisory (default; violations collected into one grouped summary per run), soft, hard or detect. An unrecognised string DISABLES the gate (with a warning). Lowering it mid-run is a ratchet violation.",
+    "functions": {
+      "level": "advisory"
     },
     "_comment_process": "RESERVED: process sub-keys are parsed for rationale only. Actual process control uses limits.execution and security.sandbox_level.",
     "process": {
@@ -187,12 +202,6 @@
       "allow_shared_memory": false
     }
   },
-
-  "_comment_subprocess_env": "Subprocess Environment Scrubbing (V-SC-006-ext) — control which env vars are inherited by polyglot subprocess execution. allowlist mode: only listed vars passed. blocklist mode: all vars passed except blocked ones.",
-  "subprocess_scrub_mode": "blocklist",
-  "allowed_subprocess_vars": [],
-  "blocked_subprocess_vars": [],
-  "blocked_subprocess_prefixes": ["AWS_", "GITHUB_", "NAAB_SIGNING"],
 
   "_comment_taint_tracking": "Taint Tracking — track untrusted data from sources through to sinks",
   "_comment_taint_matching": "Sources/sanitizers/sinks use PREFIX matching (not substring). 'validate_' matches 'validate_input' but NOT 'revalidate'. 'int(' matches 'int(x)' but NOT 'print(x)'. For per-language polyglot taint, use 'polyglot_output:python' syntax. For per-language sink checks, add 'python_exec', 'go_exec', etc.",
@@ -346,7 +355,9 @@
       "block_encoding_chains": true,
       "block_network_exfil": true,
       "block_socket_exfil": true,
-      "max_encoded_output_length": 0
+      "max_encoded_output_length": 0,
+      "_comment_patterns": "patterns: custom regexes. When non-empty they are used EXCLUSIVELY -- the built-in block_* pattern categories are skipped.",
+      "patterns": []
     },
     "vcs_secret_extraction": {
       "enabled": false,
@@ -509,7 +520,10 @@
       "detect_always_false_conditions": true,
       "detect_empty_except_blocks": true,
       "detect_unused_variables": false,
-      "detect_commented_out_code": true
+      "detect_commented_out_code": true,
+      "_comment_patterns": "patterns and custom_patterns are merged into ONE list; when non-empty it REPLACES the built-in patterns rather than extending them.",
+      "patterns": [],
+      "custom_patterns": []
     },
     "no_debug_artifacts": {
       "enabled": true,
@@ -522,26 +536,37 @@
     },
     "no_unsafe_deserialization": {
       "enabled": true,
-      "level": "hard"
+      "level": "hard",
+      "_comment_patterns": "patterns and custom_patterns are merged into ONE list; when non-empty it REPLACES the built-in patterns rather than extending them.",
+      "patterns": [],
+      "custom_patterns": []
     },
     "no_sql_injection": {
       "enabled": true,
       "level": "hard",
-      "allowlist": []
+      "allowlist": [],
+      "_comment_patterns": "patterns and custom_patterns are merged into ONE list; when non-empty it REPLACES the built-in patterns rather than extending them.",
+      "patterns": [],
+      "custom_patterns": []
     },
     "no_path_traversal": {
       "enabled": true,
-      "level": "hard"
+      "level": "hard",
+      "_comment_patterns": "patterns and custom_patterns are merged into ONE list; when non-empty it REPLACES the built-in patterns rather than extending them.",
+      "patterns": [],
+      "custom_patterns": []
     },
     "no_hardcoded_urls": {
       "enabled": false,
       "level": "advisory",
+      "_comment_allowlist": "NOT READ: the loader never parses this allowlist, so entries here exempt nothing. example.com, localhost, 127.0.0.1 and 0.0.0.0 are always allowed by the built-in pattern.",
       "allowlist": ["https://example.com", "http://localhost"],
       "check_internal_urls": false
     },
     "no_hardcoded_ips": {
       "enabled": false,
       "level": "advisory",
+      "_comment_allowlist": "NOT READ: the loader never parses this allowlist; the built-in list (127.0.0.1, 0.0.0.0, 255.255.255.0, 255.255.255.255) always applies.",
       "allowlist": ["127.0.0.1", "0.0.0.0", "::1"]
     },
     "max_complexity": {
@@ -560,6 +585,8 @@
       "check_polyglot": false,
       "check_naab": true,
       "skip_if_has_polyglot_block": true,
+      "_comment_min_lines_for_check": "Skip the complexity floor for functions shorter than N lines (0 = check every function).",
+      "min_lines_for_check": 0,
       "target_prefixes": [],
       "rules": [
         {
@@ -615,10 +642,19 @@
       "level": "soft",
       "min_overlap": 0.3,
       "missing_level": "soft",
-      "exempt_functions": []
+      "exempt_functions": [],
+      "_comment_required": "true = with function_intents set, a function of at least min_function_lines lines must carry an @intent.",
+      "required": false,
+      "_comment_mode": "\"agent\" skips static intent validation and defers to agent review; \"hybrid\" (default) and \"static\" both run it (no code path distinguishes the two today).",
+      "mode": "hybrid",
+      "_comment_min_function_lines": "Functions shorter than this are not intent-checked.",
+      "min_function_lines": 3,
+      "_comment_project_intent": "Owner-written statement of the project's purpose; free text used as broad, advisory context.",
+      "project_intent": "",
+      "_comment_function_intents": "Owner-written per-function requirements: {\"function_name\": \"what it must do\"}. A key naming no function in the program is reported as orphaned.",
+      "function_intents": {}
     },
-    "project_intent": "",
-    "function_intents": {},
+    "_comment_semantic_checks": "code_quality.semantic_checks (deliberately not written here): semantic polyglot checks, OFF by default. true or a level string (\"soft\") enables all sub-checks. The OBJECT form {\"level\": ..., \"check_imports\": true, \"check_api_signatures\": true, \"check_shell_syntax\": true, \"check_dangerous_eval\": true} ENABLES the check by its presence (an inner \"enabled\": false is not read); each check_* defaults true. Omitted rather than set to false because, once present, it overrides an extends parent that enables it.",
     "encoding": {
       "enabled": true,
       "level": "advisory",
@@ -638,7 +674,11 @@
       "check_not_implemented": true,
       "check_comment_only_bodies": true,
       "check_fabricated_results": true,
-      "min_function_lines": 2
+      "min_function_lines": 2,
+      "_comment_case_sensitive": "Pattern matching is case-INsensitive unless true.",
+      "case_sensitive": false,
+      "_comment_custom_patterns": "Extra regexes checked IN ADDITION to the built-in patterns.",
+      "custom_patterns": []
     },
     "no_incomplete_logic": {
       "enabled": true,
@@ -650,7 +690,13 @@
       "check_single_iteration_loops": true,
       "check_bare_raise": true,
       "check_always_true_false": true,
-      "check_missing_validation": true
+      "check_missing_validation": true,
+      "_comment_case_sensitive": "Pattern matching is case-INsensitive unless true.",
+      "case_sensitive": false,
+      "_comment_custom_patterns": "Extra regexes checked IN ADDITION to the built-in patterns.",
+      "custom_patterns": [],
+      "_comment_suppressions": "Source files where a match is not reported: an exact file basename (\"validators.naab\") or a *suffix glob (\"*_test.naab\"). A \"category:\" prefix is accepted and ignored.",
+      "suppressions": []
     },
     "no_hallucinated_apis": {
       "enabled": true,
@@ -658,7 +704,9 @@
       "check_cross_language": true,
       "check_made_up_functions": true,
       "check_wrong_syntax": true,
-      "case_sensitive": true
+      "case_sensitive": true,
+      "_comment_custom_patterns": "Extra regexes checked on every polyglot block (string literals and comments stripped first). The per-language tables are built in; python_patterns, javascript_patterns, shell_patterns, go_patterns, ruby_patterns and cross_language_patterns are parsed but NOT consulted.",
+      "custom_patterns": []
     },
     "duplicate_calls": {
       "enabled": true,
@@ -708,13 +756,7 @@
       "check_config_presence": false,
       "max_comment_only_ratio": 0.8,
       "min_complexity_baseline": 0,
-      "min_hollow_export_complexity": 3,
-      "min_lines_for_check": 3,
-      "semantic_checks": {
-        "check_api_signatures": false,
-        "check_dangerous_eval": false,
-        "check_shell_syntax": false
-      }
+      "min_hollow_export_complexity": 3
     }
   },
 
@@ -733,10 +775,11 @@
   },
 
   "_comment_prerequisites": "Environment Attestation: verify prerequisites before execution. Types: python_version, package (pip:pkg or npm:pkg), tool, env_var, command. Set enabled:true to activate.",
+  "_comment_prerequisites_message": "checks[].message: custom failure text for that check (empty = auto-generated).",
   "prerequisites": {
     "enabled": false,
     "checks": [
-      { "type": "python_version", "name": "python3", "required": ">=3.10", "level": "advisory" },
+      { "type": "python_version", "name": "python3", "required": ">=3.10", "level": "advisory", "message": "" },
       { "type": "tool", "name": "jq", "required": "exists", "level": "advisory" },
       { "type": "env_var", "name": "DATABASE_URL", "required": "exists", "level": "soft" }
     ]
@@ -1035,6 +1078,8 @@
     "forward_buffer_max": 1000,
     "forward_shutdown_drain_ms": 3000,
     "deduplicate_checks": false,
+    "_comment_decision_snapshots": "Attach a compact cdd_snapshot (coherence, per-signal baselines and counters, keyword-set digests -- never raw content) to SEMANTIC_TURN and OUTPUT_ADMISSIBILITY_EVAL events so decisions can be replayed. Inside the hashed payload. Disabling it mid-run is a ratchet violation.",
+    "decision_snapshots": false,
     "_comment_transcript": "Agent Interaction Transcript — opt-in JSONL log capturing complete agent.create() and agent.send() lifecycle with full content visibility. Separate from tamper-evident telemetry. Per-agent filtering via agents array (empty = all agents). Use for testing (content-level assertions), production auditing, and debugging.",
     "transcript": {
       "enabled": false,
@@ -1083,6 +1128,16 @@
       "context_strategy": "full",
       "stream": false,
       "stop_reason_action": "",
+      "_comment_api_base": "Override the provider endpoint base URL (empty = provider default). https:// only, except loopback http://127.0.0.1, http://localhost, http://[::1]; any other value is ignored with a warning. Any mid-run change is a ratchet violation.",
+      "api_base": "",
+      "_comment_timeout": "Per-call LLM API timeout in seconds (default 60). Setting it here overrides agent_dispatch.default_timeout_seconds for this agent; omit it to inherit that value.",
+      "timeout": 60,
+      "_comment_min_tokens": "Floor on the request budget: effective max_tokens = max(max_tokens, min_tokens). 0 = no floor. Ratchet: raise-only.",
+      "min_tokens": 0,
+      "_comment_propose_candidates_max": "Cap on candidates agent.propose() may generate; 0 = agent.propose() disabled. Raising it mid-run is a ratchet violation.",
+      "propose_candidates_max": 0,
+      "_comment_context_drift_signals": "Per-agent overrides of context_drift.signals, keyed by CONFIG names, e.g. {\"semantic_stability\": false}. Telemetry labels differ for S1-S7 (vocab_contraction, circular, contradictions, capability_underutil are NOT config keys); an unknown key warns and overrides nothing.",
+      "context_drift_signals": {},
       "_comment_output_contract": "Output contract — validate agent response structure. format: 'json' requires valid JSON. required_fields: keys that must exist. field_types: expected types per key. regex_checks: regex patterns per key.",
       "output_contract": {
         "format": "",
@@ -1099,7 +1154,11 @@
         "skip_key_on": [401],
         "fallback_model_on": [404, 503],
         "never_retry": [400],
-        "key_retry_after_seconds": 0
+        "key_retry_after_seconds": 0,
+        "_comment_throttle_key_on": "HTTP codes that deprioritise the key temporarily (rate limiting, not key death). If every key is throttled one is used anyway.",
+        "throttle_key_on": [429],
+        "_comment_throttle_cooldown_seconds": "Seconds a throttled key is deprioritised; 0 disables throttling.",
+        "throttle_cooldown_seconds": 60
       },
       "rate_limit": {
         "requests_per_minute": 0,
@@ -1169,7 +1228,9 @@
       "allow_env_var_substitution": false,
       "env_prefix": "NAAB_GOV_",
       "allow_cli_override": true
-    }
+    },
+    "_comment_allow_agent_addition_mid_run": "false (default): a mid-run reload that ADDS an agent not present at startup is a ratchet violation, so a withdrawn restriction cannot be re-granted under a new name. Enabling it mid-run is itself a violation.",
+    "allow_agent_addition_mid_run": false
   },
 
   "_comment_hooks": [
@@ -1704,7 +1765,9 @@
     },
     "green_threshold": 0,
     "yellow_threshold": 10,
-    "red_threshold": 25
+    "red_threshold": 25,
+    "_comment_threshold_mode": "\"fixed\" (default) or \"per_source\" (yellow/red thresholds are multiplied by the number of distinct finding sources).",
+    "threshold_mode": "fixed"
   },
 
   "_comment_scorers": "Named Scorers — reusable scoring configurations for governance.scorer() introspection. Each scorer defines weights and thresholds for programmatic evaluation.",
@@ -1721,11 +1784,25 @@
       "thresholds": {
         "pass": 0.7,
         "warn": 0.5
-      }
+      },
+      "_comment_read_keys": "The loader reads only the keys below; the scorer's name is its key in this map, and name/description/weights/thresholds above are not read. agent_review.scorer selects a scorer by that key; an unknown or disabled name falls back to the scoring section when it is enabled, else to built-in defaults.",
+      "_comment_enabled": "false = this scorer is skipped when looked up by name.",
+      "enabled": true,
+      "_comment_default_weight": "Score for a finding whose rule has no rule_weights entry.",
+      "default_weight": 3,
+      "_comment_rule_weights": "Per-rule integer weights, keyed by rule name (e.g. \"code_quality.no_dead_code\").",
+      "rule_weights": {},
+      "_comment_yellow_threshold": "Cumulative score at which this scorer's zone becomes yellow.",
+      "yellow_threshold": 10,
+      "_comment_red_threshold": "Cumulative score at which this scorer's zone becomes red.",
+      "red_threshold": 25,
+      "_comment_threshold_mode": "\"fixed\" or \"per_source\", as in scoring.threshold_mode.",
+      "threshold_mode": "fixed"
     }
   },
 
   "_comment_governance_plugins": "Governance Plugins — custom NAAb-based governance checks loaded at runtime. Each plugin specifies a .naab file containing check functions.",
+  "_comment_governance_plugins_entry": "Entry shape: {\"file\": \"checks.naab\" (required; an entry without it is skipped), \"rules\": [{\"id\", \"function\" (required), \"trigger\" (required), \"description\", \"level\", \"languages\": [], \"message\", \"help\", \"good_example\", \"bad_example\", \"enabled\": true}]}. A rule missing function or trigger is skipped with a warning.",
   "governance_plugins": [],
 
   "_comment_behavioral_sequences": "Behavioral Sequence Detection (BSD) — FSM-based multi-step attack pattern matching. Records runtime events (env reads, file I/O, network, shell exec, encoding, tool calls) into a ring buffer and advances per-pattern state machines. When all steps of a pattern match within the window, enforcement fires. wouldMatch() enables pre-execution blocking. Event types: ENV_READ, ENV_WRITE, FILE_READ, FILE_WRITE, NET_CONNECT, SHELL_EXEC, AGENT_SEND, AGENT_RESPONSE, TAINT_VIOLATION, TAINT_SANITIZED, ENCODE, DECODE, PROCESS_EXEC, CONFIG_RELOAD, CHECK_FAILED, TOOL_CALL, TOOL_RESULT, TOOL_ERROR, TOOL_BLOCKED. Default patterns (credential harvesting, sandbox probe, config tampering, progressive escalation, data staging, taint bypass, tool data exfil, tool env harvest, tool shell escape, tool rapid fire) activate when no user patterns are defined.",
@@ -1733,13 +1810,18 @@
     "enabled": false,
     "rationale": "Detect multi-step attack patterns that span individual governance checks.",
     "window_size": 100,
-    "cross_agent": false,
+    "_comment_default_pattern_enforcement": "\"observe\" (default): the BUILT-IN patterns enforce at ADVISORY; \"declared\": they enforce at their declared levels. Built-ins apply only when no patterns are configured here.",
+    "default_pattern_enforcement": "observe",
+    "_comment_pattern_fields": "Per pattern: cross_agent (match only when the events span 2+ agents; default false), decay_seconds (events older than this do not count; default 300), decay_turns (events more than N turns old do not count; default 20).",
     "patterns": [
       {
         "name": "credential_harvesting",
         "sequence": ["ENV_READ:*KEY*|*SECRET*|*TOKEN*", "NET_CONNECT"],
         "max_gap": 5,
         "level": "soft",
+        "cross_agent": false,
+        "decay_seconds": 300,
+        "decay_turns": 20,
         "rationale": "Reading credential env vars then exfiltrating over network."
       }
     ]
@@ -1766,6 +1848,18 @@
     "adaptive_baseline_window": 5,
     "adaptive_baseline_sensitivity": 2.0,
     "escalation_effectiveness_window": 5,
+    "_comment_event_feed": "Which events a CDD check sees: \"turn_bucket\" (default; events stamped with this turn) or \"since_last_check\" (every event since the previous check). Any mid-run change is a ratchet violation.",
+    "event_feed": "turn_bucket",
+    "_comment_adaptive_absorption_limit": "A signal fully absorbed by the adaptive baseline for more than N CONSECUTIVE post-baseline checks starts paying its base penalty. 0 (default) = unlimited absorption. Enabling it requires auditing structurally-firing signals per agent first. Raising or removing it mid-run is a ratchet violation.",
+    "adaptive_absorption_limit": 0,
+    "_comment_coherence_healing_damage_fraction": "When > 0, per-turn healing = fraction * mean damage over the agent's recent DAMAGING turns, replacing coherence_natural_healing. 0 (default) = off. Clamped below 1.0. Ratcheted.",
+    "coherence_healing_damage_fraction": 0.0,
+    "_comment_coherence_damage_window": "How many recent DAMAGING turns that mean spans.",
+    "coherence_damage_window": 20,
+    "_comment_validation_recovery_amount": "Coherence credited when agent.record_validation() moves from a failure to a pass (half the S22 weight, so fail/pass oscillation stays net-negative). Raising it mid-run is a ratchet violation.",
+    "validation_recovery_amount": 0.075,
+    "_comment_response_min_output_tokens": "S23 response_degenerate fires when a response's output_tokens is below this (events with unreported token counts are ignored).",
+    "response_min_output_tokens": 8,
     "signals": {
       "circular_actions": true,
       "repeated_failures": true,
@@ -1786,6 +1880,14 @@
       "persona_fingerprint": true,
       "tool_chain_integrity": true,
       "claim_result_reconciliation": true,
+      "_comment_prompt_compliance": "S20: agent substantively complies with an off-topic prompt instead of refusing or redirecting.",
+      "prompt_compliance": true,
+      "_comment_response_repetition": "S21: verbatim duplicate of a recent response (SHA-256 of the full content).",
+      "response_repetition": true,
+      "_comment_validation_outcome": "S22: folds agent.record_validation() pass/fail into coherence. Costs nothing until a result is recorded.",
+      "validation_outcome": true,
+      "_comment_response_degenerate": "S23: near-empty response (output_tokens below response_min_output_tokens). OFF by default -- terse-by-design agents would fire constantly.",
+      "response_degenerate": false,
       "exclude_infrastructure_errors": true
     },
     "weights": {
@@ -1806,7 +1908,15 @@
       "instruction_conflict": 0.10,
       "persona_fingerprint": 0.05,
       "tool_chain_integrity": 0.08,
-      "claim_result_reconciliation": 0.12
+      "claim_result_reconciliation": 0.12,
+      "_comment_prompt_compliance": "S20 penalty weight.",
+      "prompt_compliance": 0.10,
+      "_comment_response_repetition": "S21 penalty weight.",
+      "response_repetition": 0.15,
+      "_comment_validation_outcome": "S22 penalty weight: a flat penalty, never absorbed by the adaptive baseline.",
+      "validation_outcome": 0.15,
+      "_comment_response_degenerate": "S23 penalty weight (only when signals.response_degenerate is enabled).",
+      "response_degenerate": 0.08
     },
     "thresholds": {
       "velocity_drop": -0.15,
@@ -1832,7 +1942,23 @@
       "instruction_conflict_window": 10,
       "persona_deviation_factor": 2.0,
       "tool_result_recall_min": 0.15,
-      "claim_accuracy_min": 0.70
+      "claim_accuracy_min": 0.70,
+      "_comment_entity_context_window": "S15: how many recent per-sighting contexts of an entity are compared against (max Jaccard).",
+      "entity_context_window": 5,
+      "_comment_persona_history_window": "S17: response window for the persona baseline (independent of thinking_history_window).",
+      "persona_history_window": 20,
+      "_comment_persona_baseline_adaptive": "S17: re-derive the persona baseline from current behaviour instead of freezing it at the warm-up turns. false = frozen baseline.",
+      "persona_baseline_adaptive": true,
+      "_comment_entropy_baseline_adaptive": "S5: re-derive the reference entropy on turns clean apart from S5, instead of freezing it at startup. false = frozen baseline.",
+      "entropy_baseline_adaptive": true,
+      "_comment_vocab_contraction_agent_events_only": "S5 counts only the agent's own events (AGENT_SEND, AGENT_RESPONSE, TOOL_*); false = every event in the turn, including the orchestration script's. Enabling it mid-run is a ratchet violation.",
+      "vocab_contraction_agent_events_only": true,
+      "_comment_prompt_compliance_mandate_min": "S20: prompt-to-mandate keyword overlap below this marks the prompt off-topic.",
+      "prompt_compliance_mandate_min": 0.10,
+      "_comment_prompt_compliance_response_min_tokens": "S20: responses shorter than this (output tokens) are not treated as substantive compliance.",
+      "prompt_compliance_response_min_tokens": 50,
+      "_comment_response_repetition_lookback": "S21: how many previous responses are checked for an exact duplicate.",
+      "response_repetition_lookback": 5
     },
     "reality_checkpoint": {
       "enabled": true,
@@ -1876,7 +2002,9 @@
     "max_parallel": 0,
     "fail_strategy": "fail_fast",
     "fail_policy": "open",
-    "_comment_fail_policy": "Policy when agent review fails: 'open' (warn only) or 'closed' (block). Default: open"
+    "_comment_fail_policy": "Policy when agent review fails: 'open' (warn only) or 'closed' (block). Default: open",
+    "_comment_hints": "Print findings the review rejected as [hint] lines on stderr.",
+    "hints": false
   },
 
   "_comment_agent_dispatch": "Agent Dispatch — parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size, concurrency limits, and run-level hard stop budgets.",
@@ -1980,9 +2108,9 @@
     "tls_key": ""
   },
 
-  "_comment_runtime_versions": "Runtime version pinning — advisory/soft/hard when version doesn't match.",
+  "_comment_runtime_versions": "Runtime version pinning — advisory/soft/hard when version doesn't match, checked for every block that runs on either engine (and codegen). Each executor reports the version of what actually runs the block: embedded python and in-process javascript (QuickJS, a date such as 2021-03-27) and sql their linked library, every subprocess runtime its own binary's version line (node, ruby, bash, go, rustc, g++, php, tsx, nim, zig, julia, mcs). A version that cannot be read (toolchain absent, or the sandbox forbids starting processes) is reported at the pin's level as unverifiable, never a pass. The javascript 18 entry below is a Node version and does not match QuickJS -- pin node for Node.js. Optional per-entry message: custom mismatch text (empty = auto-generated).",
   "runtime_versions": [
-    { "language": "python", "required": "3.10", "level": "advisory" },
+    { "language": "python", "required": "3.10", "level": "advisory", "message": "" },
     { "language": "javascript", "required": "18", "level": "advisory" }
   ],
 
@@ -2008,12 +2136,23 @@
     "elevated_sustained": 2,
     "high_sustained": 3,
     "critical_sustained": 4,
+    "_comment_deescalate_sustained": "Consecutive turns the computed level must sit BELOW the current one before stepping down ONE level (escalation stays immediate). Lowering it mid-run is a ratchet violation.",
+    "deescalate_sustained": 2,
+    "_comment_level_effects": "What the middle levels DO. elevated_cdd_every_turn: at ELEVATED and above, CDD analyses every turn regardless of check_interval_turns. high_advisory_to_soft: at HIGH and above, ADVISORY findings are enforced as SOFT. Both default on; disabling either mid-run is a ratchet violation.",
+    "level_effects": {
+      "elevated_cdd_every_turn": true,
+      "high_advisory_to_soft": true
+    },
     "critical_coherence": 0.2,
     "step_up_enabled": false,
     "step_up_at_level": "elevated",
     "step_up_challenge": "Before responding, restate your current objective in one sentence, then proceed.",
     "step_up_min_words": 5,
     "step_up_cooldown_turns": 3,
+    "_comment_max_challenge_failures": "Consecutive failed step-up challenges before the agent is terminated (uncatchable). Below the limit a failed challenge blocks the send with a catchable error. 1 = historical one-strike. Raising it mid-run is a ratchet violation.",
+    "max_challenge_failures": 1,
+    "_comment_step_up_on_inadmissible": "With output_admissibility enabled, a handle whose coherence is below the admissibility threshold draws a challenge on its next send whatever the global level. Disabling it mid-run is a ratchet violation.",
+    "step_up_on_inadmissible": false,
     "step_up_keyword_threshold": 0.4,
     "step_up_contextual": false,
     "step_up_contextual_threshold": 0.30,
@@ -2026,6 +2165,27 @@
     "coherence_correction_threshold": 0.85,
     "coherence_correction_cooldown_turns": 5,
     "coherence_correction_message": "",
+    "_comment_output_admissibility": "Post-CDD gate on response coherence, the counterpart of pre-send admission. Every relaxation below (disable, lower threshold, weaker action, exclude->commit, gate_tool_calls off, raising/removing the streak limit, enabling or raising require_corroboration, relaxing on_undetermined) is a mid-run ratchet violation.",
+    "output_admissibility": {
+      "_comment_enabled": "Master switch for the gate.",
+      "enabled": false,
+      "_comment_threshold": "Coherence below this makes a response inadmissible.",
+      "threshold": 0.70,
+      "_comment_action": "\"quarantine\" (default; response returned with admissibility.admissible=false), \"block\" (enforced at level; not returned), \"attest\" (quarantine plus an Ed25519-signed attestation).",
+      "action": "quarantine",
+      "_comment_on_undetermined": "While a handle is still inside its adaptive-baseline window a pass is not a judgement: \"pass\" (default) delivers it, \"quarantine\" holds it, \"block\" enforces at level. An undetermined hold never advances the quarantine streak.",
+      "on_undetermined": "pass",
+      "_comment_level": "Enforcement level for action \"block\" and on_undetermined \"block\"; raised to at least detect.",
+      "level": "soft",
+      "_comment_inadmissible_history": "\"commit\" (default): quarantined/attested responses enter the handle's history; \"exclude\": returned to the caller but never appended.",
+      "inadmissible_history": "commit",
+      "_comment_gate_tool_calls": "Check coherence and pulse before each tool execution in the tool loop.",
+      "gate_tool_calls": false,
+      "_comment_max_quarantine_streak": "Consecutive quarantined responses before the agent is terminated (uncatchable); 0 = no limit.",
+      "max_quarantine_streak": 5,
+      "_comment_require_corroboration": "N > 0: a quarantined turn advances the streak only when N DISTINCT penalising signals fired that turn. 0 (default) = every quarantine counts.",
+      "require_corroboration": 0
+    },
     "rationale": "Graduated system-wide governance levels based on sustained composite pressure. Mandate reinforcement and coherence correction provide proactive drift prevention — steer the model back before it reaches the challenge/kill zone. Zero extra API calls."
   },
 
@@ -2054,6 +2214,8 @@
     "impaired_degraded_turns": 3,
     "impaired_signal_count": 3,
     "pulse_cooldown_turns": 3,
+    "_comment_coherence_floor_warning": "From turn 10, warn once per agent handle whose coherence sits at or below this (a possible governance false positive), naming its top signals. 0 = off.",
+    "coherence_floor_warning": 0.25,
     "rationale": "Verify governance instrumentation is operational"
   },
 

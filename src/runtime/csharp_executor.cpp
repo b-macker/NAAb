@@ -1,12 +1,12 @@
 #include "naab/interpreter.h"  // Phase 2.3: MUST be first for Value definition
 #include "naab/csharp_executor.h"
 #include "naab/subprocess_helpers.h"
+#include "naab/scoped_temp_dir.h"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <thread>
 #include <fmt/core.h>
-#include <sys/stat.h>  // V-RCE-010: chmod
 #include <unistd.h>
 
 namespace naab {
@@ -20,17 +20,14 @@ CSharpExecutor::CSharpExecutor() {
 }
 
 bool CSharpExecutor::execute(const std::string& code) {
-    // V-RCE-010: mkdtemp for exclusive, unpredictable temp directory
-    std::string tmpl = (std::filesystem::temp_directory_path() / "naab_cs_XXXXXX").string();
-    char* raw_dir = mkdtemp(tmpl.data());
-    if (!raw_dir) {
+    // V-RCE-010: mkdtemp for exclusive, unpredictable temp directory, removed on every exit
+    ScopedTempDir compile_dir(std::filesystem::temp_directory_path(), "naab_cs_");
+    if (!compile_dir.valid()) {
         fmt::print("[ERROR] Failed to create secure temp directory\n");
         return false;
     }
-    chmod(raw_dir, 0700);
-    std::filesystem::path compile_dir(raw_dir);
-    std::filesystem::path temp_cs = compile_dir / "src.cs";
-    std::filesystem::path temp_exe = compile_dir / "bin.exe";
+    std::filesystem::path temp_cs = compile_dir.path() / "src.cs";
+    std::filesystem::path temp_exe = compile_dir.path() / "bin.exe";
 
     try {
         // Write code to temp file
@@ -56,8 +53,6 @@ bool CSharpExecutor::execute(const std::string& code) {
         if (compile_exit != 0) {
             fmt::print("[ERROR] C# compilation failed (exit code {})\n", compile_exit);
             stderr_buffer_.append(compile_stderr);
-            // Clean up
-            std::filesystem::remove(temp_cs);
             return false;
         }
 
@@ -76,10 +71,6 @@ bool CSharpExecutor::execute(const std::string& code) {
             stderr_buffer_.append(exec_stderr);
         }
 
-        // Clean up
-        std::filesystem::remove(temp_cs);
-        std::filesystem::remove(temp_exe);
-
         if (exec_exit == 0) {
             // C# program executed (silent)
         } else {
@@ -90,9 +81,6 @@ bool CSharpExecutor::execute(const std::string& code) {
 
     } catch (const std::exception& e) {
         fmt::print("[ERROR] C# execution failed: {}\n", e.what());
-        // Clean up on error
-        std::filesystem::remove(temp_cs);
-        std::filesystem::remove(temp_exe);
         return false;
     }
 }
@@ -101,16 +89,13 @@ bool CSharpExecutor::execute(const std::string& code) {
 interpreter::NaabVal CSharpExecutor::executeWithReturn(
     const std::string& code) {
 
-    // V-RCE-010: mkdtemp for exclusive, unpredictable temp directory
-    std::string tmpl2 = (std::filesystem::temp_directory_path() / "naab_cs_XXXXXX").string();
-    char* raw_dir2 = mkdtemp(tmpl2.data());
-    if (!raw_dir2) {
-        return interpreter::NaabVal::makeString("Error: Failed to create secure temp directory");
+    // V-RCE-010: mkdtemp for exclusive, unpredictable temp directory, removed on every exit
+    ScopedTempDir compile_dir(std::filesystem::temp_directory_path(), "naab_cs_");
+    if (!compile_dir.valid()) {
+        throw std::runtime_error("C# block failed: could not create a secure temp directory");
     }
-    chmod(raw_dir2, 0700);
-    std::filesystem::path compile_dir2(raw_dir2);
-    std::filesystem::path temp_cs = compile_dir2 / "src.cs";
-    std::filesystem::path temp_exe = compile_dir2 / "bin.exe";
+    std::filesystem::path temp_cs = compile_dir.path() / "src.cs";
+    std::filesystem::path temp_exe = compile_dir.path() / "bin.exe";
 
     try {
         // Phase 2.3: Multi-line support - wrap code if needed
@@ -177,7 +162,7 @@ interpreter::NaabVal CSharpExecutor::executeWithReturn(
 
         std::ofstream ofs(temp_cs);
         if (!ofs.is_open()) {
-            return interpreter::NaabVal::makeNull();
+            throw std::runtime_error("C# block failed: could not write the temp source file");
         }
         ofs << csharp_code;
         ofs.close();
@@ -189,9 +174,12 @@ interpreter::NaabVal CSharpExecutor::executeWithReturn(
             compile_stdout, compile_stderr, nullptr
         );
 
+        if (compile_exit == 127) {
+            throw std::runtime_error("C# block failed: 'mcs' could not be run\n\n"
+                                     "  Help:\n  - Install mcs (Mono) and make sure it is on PATH\n");
+        }
         if (compile_exit != 0) {
             std::string error_msg = compile_stderr;
-            std::filesystem::remove(temp_cs);
             throw std::runtime_error(
                 "C# compilation failed:\n" + error_msg +
                 "\n  Code preview:\n    " + csharp_code.substr(0, std::min(csharp_code.size(), size_t(200))));
@@ -209,9 +197,15 @@ interpreter::NaabVal CSharpExecutor::executeWithReturn(
         if (!exec_stdout.empty()) stdout_buffer_.append(exec_stdout);
         if (!exec_stderr.empty()) stderr_buffer_.append(exec_stderr);
 
-        // Cleanup
-        std::filesystem::remove(temp_cs);
-        std::filesystem::remove(temp_exe);
+        // The program's own failure fails the block (this was never checked).
+        if (exec_exit == 127) {
+            throw std::runtime_error("C# block failed: 'mono' could not be run\n\n"
+                                     "  Help:\n  - Install mono and make sure it is on PATH\n");
+        }
+        if (exec_exit != 0) {
+            throw std::runtime_error("C# program failed (exit code " + std::to_string(exec_exit) +
+                                     "):\n" + exec_stderr);
+        }
 
         // Trim trailing whitespace/newlines
         std::string result = exec_stdout;
@@ -227,10 +221,11 @@ interpreter::NaabVal CSharpExecutor::executeWithReturn(
         // Polyglot output is always a string — no implicit type coercion
         return interpreter::NaabVal::makeString(result);
 
-    } catch (const std::exception& e) {
-        std::filesystem::remove(temp_cs);
-        std::filesystem::remove(temp_exe);
-        return interpreter::NaabVal::makeNull();
+    } catch (const std::exception&) {
+        // Rethrow: this used to return null for EVERY exception -- the
+        // compiler's own error, a timeout, and GovernanceHardError (which no
+        // catch site may swallow). A failed block now fails the program.
+        throw;
     }
 }
 
@@ -253,6 +248,10 @@ std::string CSharpExecutor::getCapturedOutput() {
         output += "\n[C# stderr]: " + errors;
     }
     return output;
+}
+
+std::string CSharpExecutor::getRuntimeVersion() const {
+    return probeRuntimeVersion("mcs", {"--version"});
 }
 
 } // namespace runtime

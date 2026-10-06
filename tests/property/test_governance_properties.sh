@@ -166,6 +166,10 @@ if echo "$OUT" | grep -q "TAINT_CLEAN"; then
     ok "P4: clean code passes under hard taint (no false positive)"
 else
     fail "P4: clean code blocked by taint (exit $RC)"
+    # Once in ~30 runs (2026-10-04, under 4-way parallel load) this failed
+    # with exit 0 and no TAINT_CLEAN, and nothing recorded why. Show the output
+    # so a recurrence explains itself.
+    printf '%s\n' "$OUT" | tail -15 | sed 's/^/      | /'
 fi
 
 # P5: Score integrity — no mismatch for standard scoring (no escalation)

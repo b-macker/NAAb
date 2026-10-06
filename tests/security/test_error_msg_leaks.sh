@@ -105,38 +105,117 @@ BANNED_IN_STRINGS=(
     'telemetry_connected|pulse telemetry field leaked in error string'
 )
 
+# Only match inside string literals that are likely error messages.
+# Exclude: comments, variable declarations, comparisons, unsetenv/setenv,
+# blocklist array entries, and enum-style string constants.
+# Reads `grep -n` output on stdin. ONE copy, shared by the screening pass and
+# the per-pattern loop below, so the two cannot drift apart.
+# Known: the first filter cannot match -- every input line starts with "N:" --
+# so comment lines are scanned as live (docs/governance-campaign-findings.md).
+# Kept as is: a speed change must not move a verdict.
+string_literal_filter() {
+    grep -v '^\s*//' \
+        | grep -v 'static const char\*' \
+        | grep -v 'unsetenv(' \
+        | grep -v 'setenv(' \
+        | grep -v '== "' \
+        | grep -v '{".*,' \
+        | grep -v 'blocked_env_vars' \
+        | grep -v 'NAAB_INTERNAL_ENV_VARS' \
+        | grep -v '^\s*[0-9]*:\s*"[A-Z_]*",'
+}
+
+# SCREENING PASS -- speed only; it never decides a FAIL.
+#
+# The per-pattern loop is 45 patterns x 19 files, each a pipeline of ten greps:
+# ~8,600 processes. fork+exec is cheap on Linux and ~15 ms under MSYS2, which is
+# why this suite took ~7 s on build-linux and ~130 s on build-windows.
+#
+# `grep -e A -e B` selects a line iff A or B matches it, so one grep with all 45
+# patterns selects exactly the UNION of the lines the 45 per-pattern greps
+# select, numbered identically. string_literal_filter judges each line on its
+# own, so the filtered union is empty iff every per-pattern pipeline's output
+# would be empty. A file that screens clean therefore earns exactly the 45
+# PASSes the loop would have given it. Anything else -- any surviving line, or
+# a grep error (exit 2, e.g. a pattern that does not compile) -- runs the
+# original per-pattern loop, which is the only thing that prints a FAIL. A
+# screen that errored must never read as clean: the loop then reproduces the
+# old behaviour exactly, including its per-pattern 2>/dev/null.
+SCREEN_ARGS=()
+for entry in "${BANNED_IN_STRINGS[@]}"; do
+    SCREEN_ARGS+=(-e "\".*${entry%%|*}")
+done
+
+# scan_file <path> -- sets SCAN_HITS to the patterns found in string literals
+# and prints nothing. ONE implementation for the real files and the planted
+# control below, so the control exercises exactly the path the verdicts take.
+scan_file() {
+    local filepath="$1" screen screen_rc entry pattern matches
+    SCAN_HITS=()
+    SCAN_DETAIL=()
+    screen=$(grep -n "${SCREEN_ARGS[@]}" "$filepath" 2>/dev/null)
+    screen_rc=$?
+    if [ "$screen_rc" -eq 1 ] || { [ "$screen_rc" -eq 0 ] &&
+            [ -z "$(printf '%s\n' "$screen" | string_literal_filter)" ]; }; then
+        return 0
+    fi
+    for entry in "${BANNED_IN_STRINGS[@]}"; do
+        pattern="${entry%%|*}"
+        matches=$(grep -n "\".*${pattern}" "$filepath" 2>/dev/null | string_literal_filter)
+        if [ -n "$matches" ]; then
+            SCAN_HITS+=("$entry")
+            SCAN_DETAIL+=("$(printf '%s\n' "$matches" | head -3)")
+        fi
+    done
+}
+
 echo "=== Error Message Leak Check ==="
 echo ""
 
+# POSITIVE CONTROL -- the matcher can still flag a leak. Every pattern is
+# planted once, inside an ordinary error string, and every one must be found.
+# Without this a matcher broken by an edit (a pattern that stopped compiling,
+# a filter that eats every line, a screen that reads an error as "clean")
+# reports 874 PASSes and proves nothing. The example text for each pattern is
+# the pattern itself with ".*" read as a space: a literal "." matches ".".
+CONTROL_FILE="$(mktemp "${TMPDIR:-/tmp}/leak_control.XXXXXX")" || exit 1
+trap 'rm -f "$CONTROL_FILE"' EXIT
+for entry in "${BANNED_IN_STRINGS[@]}"; do
+    example="${entry%%|*}"
+    example="${example//.\*/ }"
+    printf '    throw std::runtime_error("planted leak: %s here");\n' "$example" >> "$CONTROL_FILE"
+done
+scan_file "$CONTROL_FILE"
+if [ "${#SCAN_HITS[@]}" -eq "${#BANNED_IN_STRINGS[@]}" ]; then
+    echo "  PASS: CONTROL -- all ${#BANNED_IN_STRINGS[@]} planted leaks were flagged"
+    PASS=$((PASS + 1))
+else
+    echo "  FAIL: CONTROL -- only ${#SCAN_HITS[@]} of ${#BANNED_IN_STRINGS[@]} planted leaks were flagged;"
+    echo "        the matcher cannot be trusted to find a real one"
+    found=" ${SCAN_HITS[*]%%|*} "
+    for entry in "${BANNED_IN_STRINGS[@]}"; do
+        case "$found" in *" ${entry%%|*} "*) ;; *) echo "        missed: ${entry%%|*}" ;; esac
+    done
+    FAIL=$((FAIL + 1))
+fi
+
 for src in "${SECURITY_FILES[@]}"; do
     filepath="$LANG_DIR/$src"
-    [ -f "$filepath" ] || continue
+    # A listed file that no longer exists used to be skipped in silence, so a
+    # rename dropped it from the check without anything turning red.
+    if [ ! -f "$filepath" ]; then
+        echo "  FAIL: $src -- listed but not found; its error strings are no longer checked"
+        FAIL=$((FAIL + 1))
+        continue
+    fi
 
-    for entry in "${BANNED_IN_STRINGS[@]}"; do
-        pattern="${entry%%|*}"
-        desc="${entry##*|}"
-
-        # Only match inside string literals that are likely error messages.
-        # Exclude: comments, variable declarations, comparisons, unsetenv/setenv,
-        # blocklist array entries, and enum-style string constants.
-        matches=$(grep -n "\".*${pattern}" "$filepath" 2>/dev/null \
-            | grep -v '^\s*//' \
-            | grep -v 'static const char\*' \
-            | grep -v 'unsetenv(' \
-            | grep -v 'setenv(' \
-            | grep -v '== "' \
-            | grep -v '{".*,' \
-            | grep -v 'blocked_env_vars' \
-            | grep -v 'NAAB_INTERNAL_ENV_VARS' \
-            | grep -v '^\s*[0-9]*:\s*"[A-Z_]*",' )
-        if [ -n "$matches" ]; then
-            echo "  FAIL: $src — $desc"
-            echo "        Pattern: $pattern"
-            echo "$matches" | head -3 | sed 's/^/        /'
-            FAIL=$((FAIL + 1))
-        else
-            PASS=$((PASS + 1))
-        fi
+    scan_file "$filepath"
+    PASS=$((PASS + ${#BANNED_IN_STRINGS[@]} - ${#SCAN_HITS[@]}))
+    for i in "${!SCAN_HITS[@]}"; do
+        echo "  FAIL: $src — ${SCAN_HITS[$i]##*|}"
+        echo "        Pattern: ${SCAN_HITS[$i]%%|*}"
+        printf '%s\n' "${SCAN_DETAIL[$i]}" | sed 's/^/        /'
+        FAIL=$((FAIL + 1))
     done
 done
 

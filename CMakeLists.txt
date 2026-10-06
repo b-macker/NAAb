@@ -392,6 +392,7 @@ add_library(naab_security
     src/runtime/governance_engine.cpp        # Governance engine core (init, enforce, recordPass)
     src/runtime/governance_config.cpp       # Governance config (loadFromJson, applyEnvironment)
     src/runtime/governance_checks.cpp       # Governance checks (checkFileAccess, etc.)
+    src/runtime/language_descriptors.cpp    # The one language table (aliases, comment syntax)
     src/runtime/score_accumulator.cpp      # ScoreAccumulator — script-facing scoring math
     src/runtime/agent_provider.cpp         # Shared LLM API calling layer (Gemini/Anthropic)
     src/runtime/finding_parser.cpp         # Shared FINDING/VERDICT line parser
@@ -521,6 +522,7 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/type_marshaller.cpp
     src/runtime/semver.cpp
     src/runtime/js_executor.cpp
+    src/runtime/sql_executor.cpp  # <<sql>> blocks: in-process, in-memory SQLite
     src/runtime/language_registry.cpp
     src/runtime/cpp_executor_adapter.cpp
     src/runtime/js_executor_adapter.cpp
@@ -623,6 +625,9 @@ target_link_libraries(naab_runtime
 if(HAVE_QUICKJS)
     target_link_libraries(naab_runtime quickjs)
     target_compile_definitions(naab_runtime PRIVATE HAVE_QUICKJS=1)
+    # runtime_versions pins: the vendored QuickJS release, from its directory name.
+    string(REGEX MATCH "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]" NAAB_QUICKJS_VERSION "${QUICKJS_DIR}")
+    target_compile_definitions(naab_runtime PRIVATE NAAB_QUICKJS_VERSION="${NAAB_QUICKJS_VERSION}")
 endif()
 if(WIN32)
     target_link_libraries(naab_runtime ws2_32 shell32)
@@ -1662,6 +1667,7 @@ if(HAVE_GOOGLETEST)
         tests/unit/ffi_callback_validator_test.cpp  # Phase 1 Item 9: FFI callback safety tests
         tests/unit/ffi_async_callback_test.cpp  # Phase 1 Item 10 Day 4: FFI async callback safety tests
         tests/unit/polyglot_async_test.cpp  # Phase 1 Item 10 Day 5: Polyglot async integration tests
+        tests/unit/inline_code_cache_test.cpp  # cache files are installed atomically (fork + reader)
     )
 
     # Link GoogleTest and NAAb libraries
@@ -1693,6 +1699,16 @@ endif()
 # Fuzzing Infrastructure (libFuzzer + ASAN + UBSAN)
 # ============================================================================
 option(ENABLE_FUZZING "Enable libFuzzer fuzz targets (requires Clang)" OFF)
+
+# TEST BUILD ONLY: lets NAAB_DROP_SETTING remove one governance setting from
+# every loaded config (tools/testrunner/setting_drop.py). Never enable it in a
+# build anyone runs for real -- an environment variable that deletes a governance
+# setting is a bypass. See loadFromJson in src/runtime/governance_config.cpp.
+option(NAAB_CONFIG_MUTATION "Test-only: NAAB_DROP_SETTING deletes a governance setting at load" OFF)
+if(NAAB_CONFIG_MUTATION)
+    message(WARNING "NAAB_CONFIG_MUTATION is ON: this build honours NAAB_DROP_SETTING and is for setting-liveness tests only")
+    add_compile_definitions(NAAB_CONFIG_MUTATION=1)
+endif()
 add_subdirectory(fuzz)
 
 # ============================================================================

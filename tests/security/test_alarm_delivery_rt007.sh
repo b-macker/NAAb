@@ -10,7 +10,14 @@ fail() { echo "  FAIL: $1"; ((FAIL++)); }
 skip() { echo "  SKIP: $1"; ((SKIP++)); }
 
 WORK_DIR=$(mktemp -d)
-trap 'rm -rf "$WORK_DIR"' EXIT
+source "$(dirname "$0")/../helpers/trust_setup.sh"
+setup_isolated_trust   # the unsigned govern.json below must not meet a populated trust store
+trap 'rm -rf "$WORK_DIR"; teardown_isolated_trust' EXIT
+# Governance is required by default, so with no config here every run below
+# exited at once with "no govern.json found" (exit 4) -- and every arm passed,
+# because an instant non-124 exit is exactly what they accept. C1 is the
+# control that would have caught it.
+echo '{ "version": "4.0", "mode": "off" }' > "$WORK_DIR/govern.json"
 
 echo "=== V-RT-007: Reliable POSIX Alarm Delivery ==="
 
@@ -94,6 +101,29 @@ elif [ $elapsed -le 6 ]; then
     pass "T3: terminated in ${elapsed}s with --timeout 1"
 else
     fail "T3: took ${elapsed}s to terminate (expected ≤ 6s)"
+fi
+
+# C1 CONTROL: T1-T3 accept any prompt non-124 exit, which a program that never
+# started also produces. This loop prints a marker first; the run must show the
+# marker, report a timeout, and last at least the timeout it was given.
+cat > "$WORK_DIR/marked.naab" <<'EOF'
+main {
+    print("LOOP_STARTED")
+    let i = 0
+    while true {
+        i = i + 1
+    }
+}
+EOF
+start=$(date +%s)
+out=$(timeout 15 "$NAAB" "$WORK_DIR/marked.naab" --timeout 2 2>&1)
+exit_code=$?
+elapsed=$(( $(date +%s) - start ))
+if [[ "$out" == *LOOP_STARTED* ]] && grep -qi "timeout" <<<"$out" \
+   && [ $exit_code -ne 0 ] && [ $exit_code -ne 124 ] && [ $elapsed -ge 1 ]; then
+    pass "C1: the loop ran and was stopped by --timeout (${elapsed}s, exit $exit_code)"
+else
+    fail "C1: loop did not run to its timeout -- T1-T3 prove nothing (exit $exit_code, ${elapsed}s): ${out:0:200}"
 fi
 
 echo ""

@@ -98,6 +98,25 @@ SKIP_RE = re.compile(rb"\b(SKIP|SKIPPED|UNMEASURABLE|XFAIL)\b")
 # character, so \b never matches and a coloured marker went uncounted (7 suites,
 # 34 markers on the first full run).
 ANSI_RE = re.compile(rb"\x1b\[[0-9;]*[A-Za-z]")
+# A counter line reporting zero ("PASS: 4  FAIL: 0  SKIP: 0") names the marker
+# without anything having been skipped. Counting it let a suite's own summary
+# line read as an honest skip -- in the dead-interpreter gate that would excuse
+# a suite that skipped nothing (none did on 2026-10-05: 0 of the 26 excused
+# units relied on such a line). tests/helpers/skip_tally.sh applies the same
+# rule; tests/self-audit/test_skip_tally.sh ST-04 checks they agree.
+ZERO_COUNT_RE = re.compile(rb"\b(SKIP|SKIPPED|UNMEASURABLE|XFAIL)\W{0,3}[:=] *0\b")
+
+
+def count_skip_markers(body):
+    """Skip markers in a unit's output: colour stripped, zero counters ignored.
+
+    The one definition every tool uses (parallel runner, dead-interpreter gate,
+    setting_drop.py), so they cannot disagree on what counts as a skip."""
+    n = 0
+    for line in ANSI_RE.sub(b"", body).split(b"\n"):
+        if not ZERO_COUNT_RE.search(line):
+            n += len(SKIP_RE.findall(line))
+    return n
 TOOLCHAIN_DIRS = {  # env var -> path under the real HOME
     "CARGO_HOME": ".cargo",
     "RUSTUP_HOME": ".rustup",
@@ -223,6 +242,46 @@ def tmp_snapshot():
         return []
 
 
+def session_procs(sid):
+    """-> [(pid, comm)] still alive in session `sid` (Linux /proc; [] elsewhere)."""
+    found = []
+    if not os.path.isdir("/proc"):
+        return found
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
+            continue
+        try:
+            with open("/proc/%s/stat" % name, "rb") as f:
+                stat = f.read().decode("utf-8", "replace")
+        except OSError:
+            continue
+        # comm is parenthesised and may contain spaces; fields resume after ')'
+        comm = stat[stat.find("(") + 1:stat.rfind(")")]
+        rest = stat[stat.rfind(")") + 2:].split()
+        if len(rest) > 3 and rest[0] != "Z" and int(rest[3]) == sid:
+            found.append((int(name), comm))
+    return found
+
+
+def reap_session(sid):
+    """Stop whatever is left in a finished unit's session; -> names of what was."""
+    left = session_procs(sid)
+    if left:
+        # Per pid, not killpg: `timeout` moves itself into a new process group
+        # (to signal its own child), so the session id is not a group id. The
+        # SESSION is what every descendant shares.
+        for sig, wait in ((signal.SIGTERM, 2.0), (signal.SIGKILL, 0.5)):
+            for pid, _ in session_procs(sid):
+                try:
+                    os.kill(pid, sig)
+                except OSError:
+                    pass
+            deadline = time.time() + wait
+            while time.time() < deadline and session_procs(sid):
+                time.sleep(0.1)
+    return sorted({comm for _, comm in left})
+
+
 # --------------------------------------------------------------- execution --
 
 class Runner:
@@ -260,17 +319,23 @@ class Runner:
             with self.lock:
                 self.procs.add(p)
             rc = p.wait()
+            # Anything the unit started and left running (a stub server whose
+            # suite was killed at its timeout before its EXIT trap ran) would
+            # otherwise outlive it and hold ports or files a later unit needs.
+            # It is named in the report and then stopped.
+            left = reap_session(p.pid)
             with self.lock:
                 self.procs.discard(p)
         t1 = time.time()
         with open(log, "rb") as lf:
             body = lf.read()
         res = {
+            "left_running": left,
             "key": u["key"], "kind": u["kind"], "index": idx, "exclusive": u["exclusive"],
             "rc": rc, "verdict": "PASS" if (u["kind"] == "naab-phase" and rc == 0)
             else ("FAIL" if u["kind"] == "naab-phase" else verdict_for(u, rc)),
             "seconds": round(t1 - t0, 3), "start": round(t0 - self.t_start, 3),
-            "skip_markers": len(SKIP_RE.findall(ANSI_RE.sub(b"", body))),
+            "skip_markers": count_skip_markers(body),
             "log": os.path.relpath(log, self.out),
         }
         if home is not None:
@@ -482,6 +547,11 @@ def summarise(rep):
                     ["TMPDIR/" + x for x in r.get("left_in_tmpdir", [])]
             out.append("- `%s`: %s%s" % (r["key"], ", ".join("`%s`" % x for x in items[:6]),
                                         " (+%d more)" % (len(items) - 6) if len(items) > 6 else ""))
+        out.append("")
+    running = [r for r in res if r.get("left_running")]
+    if running:
+        out += ["### Units that left processes running (stopped by the runner)", ""]
+        out += ["- `%s`: %s" % (r["key"], ", ".join("`%s`" % c for c in r["left_running"])) for r in running]
         out.append("")
     h = rep["hygiene"]
     out += ["### Run-wide side effects", ""]

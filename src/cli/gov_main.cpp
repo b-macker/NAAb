@@ -4,6 +4,7 @@
 //   naab-gov lint <file.naab> [--config <govern.json>] [--sarif <out.sarif>]
 //   naab-gov check --language <lang> [options]    (reads from stdin or --file)
 //   naab-gov scan <path> [--language <lang>]
+//   naab-gov languages                            (the language table, JSON)
 //   naab-gov --version
 //   naab-gov --help
 //
@@ -15,6 +16,7 @@
 //   4  — config error
 
 #include "naab/governance.h"
+#include "naab/language_descriptors.h"
 #include "naab/scanner.h"
 #include <nlohmann/json.hpp>
 
@@ -57,6 +59,7 @@ static void printHelp() {
         "  naab-gov lint <file.naab> [options]   Lint a NAAb file (static governance checks)\n"
         "  naab-gov check --language <lang> [options]  Check code from stdin or file\n"
         "  naab-gov scan <path> [options]         Scan code for quality issues\n"
+        "  naab-gov languages                     Print the language table (JSON)\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
         "\n"
@@ -388,7 +391,7 @@ static int cmdCheck(const std::vector<std::string>& args) {
     std::string hard_block_message;
     try {
         engine.setCheckContext(source_file, 1);
-        engine.checkPolyglotBlock(language, code, source_file, 1);
+        engine.checkPolyglotSource(language, code, source_file, 1);
     } catch (const naab::governance::GovernanceHardError& e) {
         hard_block_message = e.what();
     }
@@ -503,6 +506,35 @@ static int cmdScan(const std::vector<std::string>& args) {
 // main
 // ---------------------------------------------------------------------------
 
+// The language table (naab/language_descriptors.h) as JSON: what governance
+// knows about each language. tests/self-audit/test_langconform.sh generates
+// its probes from this, so a language added to the table is covered by the
+// conformance matrix without anyone editing the test.
+static int cmdLanguages() {
+    using json = nlohmann::json;
+    json out = json::array();
+    for (const auto& d : naab::lang::allLanguages()) {
+        json blocks = json::array();
+        for (const auto& b : d.block_comments) {
+            blocks.push_back({{"open", b.open}, {"close", b.close},
+                              {"line_start_only", b.line_start_only}});
+        }
+        // Emit line-comment markers as plain strings (langconform reads them as
+        // such); the context flags that govern WHERE each begins are verified
+        // against the real interpreter, not from this JSON.
+        json line_comments = json::array();
+        for (const auto& m : d.line_comments) line_comments.push_back(m.marker);
+        out.push_back({{"canonical", d.canonical}, {"aliases", d.aliases},
+                       {"line_comments", line_comments}, {"block_comments", blocks},
+                       {"governance_only", d.governance_only},
+                       {"extension", d.extension}, {"prelude", d.prelude},
+                       {"syntax_checks", d.syntax_checks},
+                       {"runtime_variants", d.runtime_variants}});
+    }
+    std::cout << out.dump(1) << "\n";
+    return 0;
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         printHelp();
@@ -538,6 +570,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "scan") {
             return cmdScan(rest);
+        }
+
+        if (cmd == "languages") {
+            return cmdLanguages();
         }
     } catch (const naab::governance::GovernanceHardError& e) {
         std::cerr << e.what() << "\n";

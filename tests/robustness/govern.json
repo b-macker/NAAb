@@ -34,8 +34,7 @@
         },
         "shell": {
             "enabled": true
-        },
-        "env_access": false
+        }
     },
     "limits": {
         "timeout": {
@@ -49,8 +48,7 @@
         },
         "code": {
             "max_lines_per_block": 50,
-            "max_nesting_depth": 4,
-            "max_functions": 20
+            "max_nesting_depth": 4
         }
     },
     "requirements": {

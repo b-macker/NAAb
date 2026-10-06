@@ -47,6 +47,16 @@
 # A FRESH SERVER PER REST PROBE, because of EP-03: once a probe trips the
 # _exit(3) path there is no server left to run the next one, and reusing it
 # would report later probes as "refused" when really nothing was listening.
+#
+#   EP-05  a STOPPED server must be gone. The server used to be started as
+#          `( cd "$WDIR" && "$NAAB" api ... ) &` without exec, so $! was the
+#          subshell and `kill -9 $!` killed only that: every server this suite
+#          started outlived it -- four orphaned `naab-lang api` per Linux run,
+#          the "Terminate orphan process: naab-lang" GitHub's job cleanup
+#          reported. The arm asks the PORT, not a PID, so it sees an orphan
+#          whichever process the script happens to hold; the same /health
+#          probe answered moments earlier in start_server, which is what makes
+#          its silence mean something. See docs/findings/build-windows-ci.md.
 # ============================================================
 set -uo pipefail
 
@@ -76,8 +86,11 @@ setup_isolated_trust
 
 WDIR="$(mktemp -d)"
 SRV_PID=""
+STOPPED=0; SURVIVED=0
 cleanup() {
-    [ -n "${SRV_PID:-}" ] && kill -9 "$SRV_PID" 2>/dev/null
+    # kill_server waits, so the server no longer holds $WDIR/naab.db open when
+    # the rm below runs (Windows refuses to delete an open file).
+    kill_server
     teardown_isolated_trust
     rm -rf "$WDIR"
 }
@@ -98,7 +111,7 @@ cli_probe() {  # $1=cfg $2=naab source $3=marker ; returns 0 if it EXECUTED
     write_cfg "$1"
     printf '%s\n' "$2" > "$WDIR/probe.naab"
     rm -f "$3"
-    ( cd "$WDIR" && timeout 120 "$NAAB" run probe.naab >/dev/null 2>&1 )
+    ( cd "$WDIR" && timeout 120 "$NAAB" run probe.naab >"$WDIR/cli.log" 2>&1 )
     [ -f "$3" ]
 }
 
@@ -107,7 +120,10 @@ start_server() {  # $1 = cfg ; sets SRV_PID and SRV_PORT
     local i
     write_cfg "$1"
     SRV_PORT=$(( (RANDOM % 20000) + 20000 ))
-    ( cd "$WDIR" && "$NAAB" api "$SRV_PORT" > "$WDIR/server.log" 2>&1 ) &
+    # exec, so the backgrounded subshell IS the server and $! is its pid (the
+    # same shape tests/api/test_platform_fixes.sh documents). Without it the
+    # kill in stop_server hits the subshell and the server is orphaned (EP-05).
+    ( cd "$WDIR" && exec "$NAAB" api "$SRV_PORT" > "$WDIR/server.log" 2>&1 ) &
     SRV_PID=$!
     for i in $(seq 1 60); do
         curl -sS --max-time 2 "http://127.0.0.1:$SRV_PORT/health" >/dev/null 2>&1 && return 0
@@ -116,13 +132,37 @@ start_server() {  # $1 = cfg ; sets SRV_PID and SRV_PORT
     done
     return 1
 }
-stop_server() { [ -n "${SRV_PID:-}" ] && kill -9 "$SRV_PID" 2>/dev/null; SRV_PID=""; }
+kill_server() {
+    [ -n "${SRV_PID:-}" ] || return 0
+    kill -9 "$SRV_PID" 2>/dev/null; wait "$SRV_PID" 2>/dev/null
+    SRV_PID=""
+}
+# For a server whose /health answered: kill it, then gather EP-05's evidence --
+# the port, not the pid we hold. A server that never answered is killed with
+# kill_server instead and not counted, since its silence afterwards proves nothing.
+stop_server() {
+    [ -n "${SRV_PID:-}" ] || return 0
+    kill_server
+    STOPPED=$((STOPPED+1))
+    curl -sS --max-time 2 "http://127.0.0.1:$SRV_PORT/health" >/dev/null 2>&1 && SURVIVED=$((SURVIVED+1))
+    return 0
+}
+
+check_stopped_servers() {
+    if [ "$STOPPED" -eq 0 ]; then
+        skip "EP-05" "no server was started and stopped -- UNMEASURABLE"
+    elif [ "$SURVIVED" -eq 0 ]; then
+        ok "EP-05" "every stopped server is gone ($STOPPED stopped, none still answering)"
+    else
+        bad "EP-05" "$SURVIVED of $STOPPED stopped servers still answer /health -- orphaned"
+    fi
+}
 
 json_escape() { python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
 
 rest_probe() {  # $1=cfg $2=naab source $3=marker ; returns 0 if it EXECUTED
     rm -f "$3"
-    start_server "$1" || { REST_UP=0; return 1; }
+    start_server "$1" || { kill_server; REST_UP=0; return 1; }
     REST_UP=1
     local payload
     payload="$(printf '%s\n' "$2" | json_escape)"
@@ -134,21 +174,27 @@ rest_probe() {  # $1=cfg $2=naab source $3=marker ; returns 0 if it EXECUTED
     [ -f "$3" ]
 }
 
+# The programs name their markers RELATIVELY. Both doors run inside $WDIR (the
+# CLI arm cds there, the server is started there), and an absolute "$WDIR/..."
+# is an MSYS path on the Windows runner -- /tmp/... -- that the native binary
+# cannot open: the write failed on both doors, EP-00 found no marker, and every
+# Windows run skipped the whole suite as UNMEASURABLE. The shell still checks
+# "$WDIR/marker_*", in its own path vocabulary.
 POLY_SRC='main {
     <<python
-open("'"$WDIR"'/marker_poly.txt","w").write("x")
+open("marker_poly.txt","w").write("x")
 >>
 }'
 PATH_SRC='main {
     let c = file.read("./workspace/secret.txt")
-    file.write("'"$WDIR"'/marker_path.txt", c)
+    file.write("marker_path.txt", c)
 }'
 
 # ---- EP-00: both doors must work at all --------------------------------
 # Without this every "refused" below is unfalsifiable: a REST arm that cannot
 # execute anything reports perfect compliance.
 BENIGN_SRC='main {
-    file.write("'"$WDIR"'/marker_benign.txt", "ok")
+    file.write("marker_benign.txt", "ok")
 }'
 OPEN_CFG='{ "version": "4.0", "mode": "enforce", "security": { "sandbox_level": "elevated" } }'
 
@@ -158,7 +204,17 @@ if [ "$CLI_OK" = 1 ] && [ "$REST_OK" = 1 ]; then
     ok "EP-00" "both entry points execute a permitted program"
 else
     skip "EP-00" "cli=$CLI_OK rest=$REST_OK -- cannot drive both doors, UNMEASURABLE"
-    report; exit 0
+    # Say WHY, so the next run of an unmeasurable platform is diagnosable
+    # instead of a bare skip.
+    [ "$CLI_OK" = 1 ]  || { echo "    cli said:";    tail -5 "$WDIR/cli.log"    2>/dev/null | sed 's/^/      | /'; }
+    [ "$REST_OK" = 1 ] || { echo "    server said:"; tail -5 "$WDIR/server.log" 2>/dev/null | sed 's/^/      | /'; }
+    # The REST probe above may still have started (and stopped) a server, and
+    # this early exit is the path the Windows runner takes -- the one orphan its
+    # job cleanup reported came from here. EP-05 does not need both doors.
+    check_stopped_servers
+    report
+    [ $FAIL -eq 0 ] || exit 1
+    exit 0
 fi
 
 # ---- EP-01: governance layer, expected to AGREE -------------------------
@@ -204,6 +260,10 @@ if [ "$REST_PATH_ALIVE" = 1 ]; then
 else
     bad "EP-03" "a single refused request terminated the daemon"
 fi
+
+# ---- EP-05: a stopped server must be gone -------------------------------
+echo "--- EP-05: stopping the server must stop the server"
+check_stopped_servers
 
 report
 [ $FAIL -eq 0 ] || exit 1

@@ -345,6 +345,55 @@ fi
 B5_STDERR=$(cat "$DIR/b5_stderr.txt" 2>/dev/null || echo "")
 check_grep "B5b" "Hook timeout diagnostic in stderr" "Hook killed\|Hook exited" "$B5_STDERR"
 
+# B5c: the timeout bounds everything the hook started, not just its first
+# process. The hook's shell forks a grandchild that records its pid and sleeps;
+# killing only the hook's own pid used to leave that sleep running after the
+# hook "timed out". B5c-ctl is the control that the grandchild really started --
+# without it, "pid not alive" passes for a hook that never ran.
+DIR="$TMPBASE/b5c"
+mkdir -p "$DIR"
+cat > "$DIR/govern.json" <<EOF
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "hook timeout process-group test",
+  "security": { "sandbox_level": "elevated" },
+  "languages": { "allowed": ["python"], "require_explicit": true },
+  "hooks": {
+    "on_violation": {
+      "command": "/bin/sh",
+      "args": ["-c", "sh -c 'echo \$\$ > $DIR/gc.pid; exec sleep 60'; :"],
+      "timeout": 1
+    }
+  }
+}
+EOF
+sign_govern "$DIR"
+cp "$TMPBASE/b5/test.naab" "$DIR/test.naab"
+"$NAAB" "$DIR/test.naab" >/dev/null 2>&1 || true
+GC_PID=$(cat "$DIR/gc.pid" 2>/dev/null || echo "")
+if [ -n "$GC_PID" ]; then
+    echo "  PASS [B5c-ctl] Hook grandchild started (pid recorded)"
+    PASS=$((PASS + 1))
+    sleep 0.5
+    # Alive = exists and not a zombie. A SIGKILLed orphan stays <defunct> until
+    # init reaps it, and kill -0 succeeds on a zombie -- in a container whose
+    # pid 1 does not reap, that reads a killed process as still running.
+    GC_STAT=$(ps -o stat= -p "$GC_PID" 2>/dev/null || true)
+    if [ -n "$GC_STAT" ] && [ "${GC_STAT#Z}" = "$GC_STAT" ]; then
+        echo "  FAIL [B5c] Hook grandchild still running after the hook timed out (pid $GC_PID)"
+        ps -o pid,stat,cmd -p "$GC_PID" 2>&1 | sed "s/^/       /"
+        FAIL=$((FAIL + 1))
+        kill -9 "$GC_PID" 2>/dev/null || true
+    else
+        echo "  PASS [B5c] Hook timeout killed the hook's whole process group"
+        PASS=$((PASS + 1))
+    fi
+else
+    echo "  FAIL [B5c-ctl] Hook grandchild never recorded its pid -- B5c cannot be judged"
+    FAIL=$((FAIL + 1))
+fi
+
 # ═══════════════════════════════════════════════════════════
 # C1: on_violation receives ${category} variable
 # ═══════════════════════════════════════════════════════════

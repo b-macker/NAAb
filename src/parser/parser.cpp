@@ -2546,6 +2546,11 @@ std::unique_ptr<ast::Expr> Parser::parsePostfix() {
 
         // Function call
         if (match(lexer::TokenType::LPAREN)) {
+            // The call's location is its '(' -- calls used to carry an empty
+            // SourceLocation, so every tree-walker report built from one (taint
+            // sink violations among them) named line 0 while the VM named the
+            // real line.
+            const ast::SourceLocation call_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
             std::vector<std::unique_ptr<ast::Expr>> args;
 
             if (!check(lexer::TokenType::RPAREN)) {
@@ -2562,7 +2567,7 @@ std::unique_ptr<ast::Expr> Parser::parsePostfix() {
                 std::move(expr),
                 std::move(args),
                 std::move(type_arguments),  // Pass type arguments
-                ast::SourceLocation()
+                call_loc
             );
         }
         // Optional chaining (?.) or member access (.)
@@ -2624,6 +2629,7 @@ std::unique_ptr<ast::Expr> Parser::parsePostfix() {
         }
         // Array/Dict subscript
         else if (match(lexer::TokenType::LBRACKET)) {
+            const ast::SourceLocation bracket_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
             // Check for slice syntax: arr[start:end]
             auto index = parseExpression();
             if (match(lexer::TokenType::COLON)) {
@@ -2638,7 +2644,7 @@ std::unique_ptr<ast::Expr> Parser::parsePostfix() {
                 args.push_back(std::move(index));
                 args.push_back(std::move(end_expr));
                 expr = std::make_unique<ast::CallExpr>(
-                    std::move(callee), std::move(args), std::vector<ast::Type>{}, ast::SourceLocation());
+                    std::move(callee), std::move(args), std::vector<ast::Type>{}, bracket_loc);
             } else {
                 expect(lexer::TokenType::RBRACKET, "Expected ']'");
 

@@ -7,6 +7,7 @@
 //   ADVISORY  - Warn only. Execution continues.
 
 #include "naab/governance.h"
+#include "naab/language_descriptors.h"
 #include <cstdarg>
 #include "naab/paths.h"
 #include "naab/limits.h"
@@ -1647,23 +1648,17 @@ std::string GovernanceEngine::checkCodegenAllowed(
 
     // Check codegen-specific language restrictions
     if (!rules().codegen.allowed_languages.empty()) {
-        bool found = false;
-        for (const auto& l : rules().codegen.allowed_languages) {
-            if (l == language) { found = true; break; }
-        }
-        if (!found) {
+        if (!naab::lang::languageListAdmits(rules().codegen.allowed_languages, language)) {
             addTrace("codegen.allowed_languages does not contain '" + language + "' → blocked");
             return enforce("codegen.allowed_languages", rules().codegen.level,
                 "Codegen error: language '" + language + "' is not allowed for dynamic code\n");
         }
     }
     if (!rules().codegen.blocked_languages.empty()) {
-        for (const auto& l : rules().codegen.blocked_languages) {
-            if (l == language) {
-                addTrace("codegen.blocked_languages contains '" + language + "' → blocked");
-                return enforce("codegen.blocked_languages", rules().codegen.level,
-                    "Codegen error: language '" + language + "' is blocked for dynamic code\n");
-            }
+        if (naab::lang::languageListBlocks(rules().codegen.blocked_languages, language)) {
+            addTrace("codegen.blocked_languages contains '" + language + "' → blocked");
+            return enforce("codegen.blocked_languages", rules().codegen.level,
+                "Codegen error: language '" + language + "' is blocked for dynamic code\n");
         }
     }
 
@@ -1686,8 +1681,13 @@ std::string GovernanceEngine::checkLanguageAllowed(
     const std::string& language, int line) {
     clearTrace();
 
+    // `language` is the block's RUNTIME name (naab::lang::runtimeLanguage), so
+    // <<node>> arrives as "node": a block list naming "node" or its language
+    // "javascript" blocks it, while an allow list must name "node" itself.
     // Check blocked list first
-    if (rules().blocked_languages.count(language)) {
+    if (naab::lang::languageListBlocks(rules().blocked_languages, language)) {
+        const std::string blocked_by = rules().blocked_languages.count(language)
+            ? language : naab::lang::canonicalLanguage(language);
         std::string location = line > 0
             ? fmt::format("line {}: <<{}", line, language)
             : fmt::format("<<{}", language);
@@ -1702,7 +1702,7 @@ std::string GovernanceEngine::checkLanguageAllowed(
             formatError(EnforcementLevel::HARD,
                 fmt::format("Language \"{}\" is blocked", language),
                 location,
-                fmt::format("languages.blocked contains \"{}\"", language),
+                fmt::format("languages.blocked contains \"{}\"", blocked_by),
                 fmt::format("The \"{}\" language is explicitly blocked in governance", language),
                 fmt::format("let result = <<{}\n...\n>>", language),
                 !rules().allowed_languages.empty()
@@ -1713,7 +1713,7 @@ std::string GovernanceEngine::checkLanguageAllowed(
 
     // Check allowed list (only if non-empty — empty means all allowed)
     if (!rules().allowed_languages.empty() &&
-        !rules().allowed_languages.count(language)) {
+        !naab::lang::languageListAdmits(rules().allowed_languages, language)) {
 
         std::string location = line > 0
             ? fmt::format("line {}: <<{}", line, language)
@@ -1742,8 +1742,8 @@ std::string GovernanceEngine::checkLanguageAllowed(
     for (const auto& role : rules().agents) {
         if (role.name == effectiveAgentId()) {
             // Check per-agent blocked languages
-            for (const auto& bl : role.blocked_languages) {
-                if (bl == language) {
+            {
+                if (naab::lang::languageListBlocks(role.blocked_languages, language)) {
                     return enforce("agent_role.language", EnforcementLevel::HARD,
                         formatError(EnforcementLevel::HARD,
                             fmt::format("Agent '{}' is blocked from using language \"{}\"",
@@ -1762,11 +1762,7 @@ std::string GovernanceEngine::checkLanguageAllowed(
             }
             // Check per-agent allowed languages (if non-empty, must be in list)
             if (!role.allowed_languages.empty()) {
-                bool found = false;
-                for (const auto& al : role.allowed_languages) {
-                    if (al == language) { found = true; break; }
-                }
-                if (!found) {
+                if (!naab::lang::languageListAdmits(role.allowed_languages, language)) {
                     std::string al_list;
                     for (const auto& al : role.allowed_languages) {
                         if (!al_list.empty()) al_list += ", ";
@@ -6515,18 +6511,38 @@ static bool semverGe(const std::string& observed, const std::string& required) {
 
 // Extract numeric version from a runtime version string.
 // e.g., "Python 3.11.2" -> "3.11.2", "go1.21.0" -> "1.21.0"
+// A date-stamped release (QuickJS "2021-03-27") compares as dotted numbers,
+// so ">=2021-01-01" and a "2021-03" prefix behave like any other version.
+static std::string dateToDotted(std::string v) {
+    // A full date or a prefix of one ("2021-03"), as a pin may write it.
+    static const std::regex date_re(R"(^\d{4}(?:-\d{2}){1,2}$)");
+    if (std::regex_match(v, date_re)) std::replace(v.begin(), v.end(), '-', '.');
+    return v;
+}
+
 static std::string extractVersionNumber(const std::string& version_str) {
-    std::regex version_re(R"((\d+\.\d+(?:\.\d+)*))");
+    static const std::regex version_re(R"((\d+\.\d+(?:\.\d+)*))");
+    static const std::regex date_re(R"((\d{4}-\d{2}-\d{2}))");
+    // Dotted first: ruby prints "ruby 3.1.2p20 (2022-04-12 revision ...)",
+    // whose release DATE must not be read as its version.
     std::smatch m;
     if (std::regex_search(version_str, m, version_re)) {
         return m[1].str();
+    }
+    if (std::regex_search(version_str, m, date_re)) {
+        return dateToDotted(m[1].str());
     }
     return version_str;
 }
 
 static bool versionSatisfies(const std::string& observed_raw,
-                              const std::string& required) {
+                              const std::string& required_raw) {
     std::string observed = extractVersionNumber(observed_raw);
+    std::string required;
+    {
+        size_t op = required_raw.find_first_not_of("<>=");
+        required = required_raw.substr(0, op) + dateToDotted(op == std::string::npos ? "" : required_raw.substr(op));
+    }
     if (required.substr(0, 2) == ">=") {
         return semverGe(observed, required.substr(2));
     }
@@ -6542,38 +6558,58 @@ static bool versionSatisfies(const std::string& observed_raw,
     return obs_prefix == required;
 }
 
-void GovernanceEngine::checkRuntimeVersions(const std::string& language,
-                                             const std::string& observed_version) {
-    if (!active_) return;
-    if (rules().runtime_versions.empty()) return;
-    if (observed_version.empty()) return;
+std::string GovernanceEngine::checkRuntimeVersions(const std::string& language,
+                                                    const std::string& observed_version) {
+    if (!active_) return "";
+    if (rules().runtime_versions.empty()) return "";
 
+    // Pins name a RUNTIME and are stored that way (governance_config.cpp); the
+    // caller passes the block's tag as written, so <<bash>> must match a pin on
+    // "shell", while a pin on "node" stays Node's and not QuickJS's.
+    const std::string runtime = naab::lang::runtimeLanguage(language);
     for (const auto& pin : rules().runtime_versions) {
-        if (pin.language != language) continue;
+        if (pin.language != runtime) continue;
 
-        bool ok = versionSatisfies(observed_version, pin.required_version);
-        std::string rule_name = "runtime_version." + language;
+        const std::string rule_name = "runtime_version." + runtime;
+        const std::string pin_text = fmt::format(
+            "runtime_versions[language=\"{}\"].required = \"{}\"", runtime, pin.required_version);
 
-        if (!ok) {
-            std::string msg = pin.message.empty()
-                ? fmt::format("Runtime version mismatch for {}: required '{}', got '{}'",
-                    language, pin.required_version, observed_version)
-                : pin.message;
-            enforce(rule_name, pin.level,
-                formatError(pin.level, msg,
-                    fmt::format("{}", observed_version),
-                    fmt::format("runtime_versions[language=\"{}\"].required = \"{}\"",
-                        language, pin.required_version),
-                    fmt::format("Pin your runtime: add to govern.json:\n"
-                        "  \"runtime_versions\": [{{\"language\": \"{}\", "
-                        "\"required\": \"{}\", \"level\": \"advisory\"}}]",
-                        language, pin.required_version),
+        // An executor that reports no version cannot satisfy a pin. This used
+        // to return early -- a pin on any runtime but Python or SQL passed
+        // silently on every run. It is reported at the pin's own level.
+        if (observed_version.empty()) {
+            addTrace("runtime_version: " + runtime + " reports no version -> unverifiable");
+            return enforce(rule_name, pin.level,
+                formatError(pin.level,
+                    pin.message.empty()
+                        ? fmt::format("Runtime version for {} cannot be determined: its "
+                              "executor reports no version, so the pin '{}' cannot be verified",
+                              runtime, pin.required_version)
+                        : pin.message,
+                    "", pin_text,
+                    fmt::format("NAAb cannot read the version of the runtime that runs "
+                        "{} blocks, so this pin can never be satisfied as written.", runtime),
                     "", ""));
-        } else {
-            recordPass(rule_name, pin.level);
         }
-        break;  // Only one pin per language
+
+        if (!versionSatisfies(observed_version, pin.required_version)) {
+            addTrace("runtime_version: " + runtime + " " + observed_version +
+                     " does not satisfy " + pin.required_version);
+            return enforce(rule_name, pin.level,
+                formatError(pin.level,
+                    pin.message.empty()
+                        ? fmt::format("Runtime version mismatch for {}: required '{}', got '{}'",
+                              runtime, pin.required_version, observed_version)
+                        : pin.message,
+                    observed_version, pin_text,
+                    fmt::format("Run {} blocks on a runtime that satisfies '{}'.",
+                        runtime, pin.required_version),
+                    "", ""));
+        }
+        recordPass(rule_name, pin.level);
+        return "";  // Only one pin per language
     }
+    return "";
 }
 
 // ============================================================================

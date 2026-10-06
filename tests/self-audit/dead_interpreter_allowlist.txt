@@ -37,12 +37,7 @@ tests/agent/test_agent_governance_depth.sh	structural	greps source for governanc
 tests/security/test_r34_fixes.sh	structural	greps source for cycle detection; defines $NAAB but never runs it
 tests/security/test_error_msg_leaks.sh	structural	scans error strings in src/ for leaked bypass flags
 tests/governance_v4/test_inert_key_sweep.sh	structural	static sweep: config keys that no code reads
+tests/governance_v4/test_template_coverage.sh	structural	static check: key paths loadFromJson() reads vs govern-template.json; never runs naab-lang
 tests/self-audit/test_coverage_visibility.sh	structural	every test directory and suite is registered and tracked
 
-tests/security/test_alarm_delivery_rt007.sh	weak	'infinite loop terminated in 0s': nothing checks the loop started
-tests/cli/test_async_timeout_async001.sh	weak	'finished within budget' also holds when nothing ran
-tests/security/test_marshal_depth_rt005.sh	weak	the only assertion is 'did not crash'
-tests/security/test_queue_cap_async002.sh	weak	the only assertion is 'did not crash'
-tests/differential/run_differential.sh	weak	VM and tree-walker 'agree' when both print nothing
-tests/fuzzing/run_fuzz_smoke.sh	weak	engines 'agree' on empty output; oracle gaps do not fail it
-tests/security/test_govern_json_fuzz.sh	weak	exit 0 on a malformed config counts as 'handled gracefully'
+tests/self-audit/test_skip_tally.sh	tool	tests the skip-tally helper on planted suite output; never runs naab-lang

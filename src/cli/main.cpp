@@ -9,6 +9,7 @@
 #  define pclose _pclose
 #endif
 
+#include "naab/sql_executor.h"
 #include "repl.h"
 #include "naab/config.h"
 #include "naab/paths.h"
@@ -23,6 +24,7 @@
 #include "naab/error_sanitizer.h"
 #include "../formatter/formatter.h"
 #include "naab/language_registry.h"
+#include "naab/subprocess_helpers.h"  // ScopedRuntimeVersionProbe (lockfile)
 #include "naab/block_search_index.h"
 #include "naab/block_registry.h"
 #include "naab/block_loader.h"
@@ -295,6 +297,11 @@ void initialize_executors() {
     registry.registerExecutor("javascript",
         std::make_unique<naab::runtime::JsExecutorAdapter>());
 #endif
+
+    // SQL via in-process SQLite (already a required dependency). In-memory
+    // only, no filesystem reach -- see include/naab/sql_executor.h.
+    registry.registerExecutor("sql", std::make_unique<naab::runtime::SqlExecutor>());
+    registry.registerExecutor("sqlite", std::make_unique<naab::runtime::SqlExecutor>());
 
     // Subprocess Python (when embedded Python/pybind11 not available)
     // GenericSubprocessExecutor delegates to subprocess_helpers which has
@@ -1894,16 +1901,18 @@ int main(int argc, char** argv) {
                     fflush(stderr);
                     _exit(1);
                 }
+                // Only the runtimes the lockfile records: checkDrift() ignores
+                // the rest, and a subprocess runtime answers by running its
+                // binary -- probing every installed toolchain on every run of
+                // a locked project would cost a process each.
                 auto& lang_registry_pc = naab::runtime::LanguageRegistry::instance();
-                std::unordered_map<std::string, std::string> observed_pc;
-                for (const auto& lang : lang_registry_pc.supportedLanguages()) {
-                    auto* exec = lang_registry_pc.getExecutor(lang);
-                    if (exec) {
-                        std::string ver = exec->getRuntimeVersion();
-                        if (!ver.empty()) observed_pc[lang] = ver;
-                    }
-                }
                 naab::Lockfile lf_pc = naab::Lockfile::load(lf_path_precheck);
+                std::unordered_map<std::string, std::string> observed_pc;
+                naab::runtime::ScopedRuntimeVersionProbe probing;  // a lockfile records real versions
+                for (const auto& e : lf_pc.runtimes) {
+                    std::string ver = lang_registry_pc.runtimeVersion(e.language);
+                    if (!ver.empty()) observed_pc[e.language] = ver;
+                }
                 auto drifts_pc = lf_pc.checkDrift(observed_pc);
                 if (!drifts_pc.empty()) {
                     for (const auto& d : drifts_pc) {
@@ -2882,6 +2891,7 @@ int main(int argc, char** argv) {
 
                 // Collect observed runtime versions from all registered executors
                 auto& lang_registry = naab::runtime::LanguageRegistry::instance();
+                naab::runtime::ScopedRuntimeVersionProbe probing;  // a lockfile records real versions
                 std::unordered_map<std::string, std::string> observed;
                 for (const auto& lang : lang_registry.supportedLanguages()) {
                     auto* exec = lang_registry.getExecutor(lang);
@@ -3948,16 +3958,15 @@ int main(int argc, char** argv) {
                     fflush(stderr);
                     _exit(1);
                 }
+                // Only the runtimes the lockfile records (see the run-path check).
                 auto& lang_registry_api = naab::runtime::LanguageRegistry::instance();
-                std::unordered_map<std::string, std::string> observed_api;
-                for (const auto& lang : lang_registry_api.supportedLanguages()) {
-                    auto* exec = lang_registry_api.getExecutor(lang);
-                    if (exec) {
-                        std::string ver = exec->getRuntimeVersion();
-                        if (!ver.empty()) observed_api[lang] = ver;
-                    }
-                }
                 naab::Lockfile loaded_lf_api = naab::Lockfile::load(lf_path_api);
+                std::unordered_map<std::string, std::string> observed_api;
+                naab::runtime::ScopedRuntimeVersionProbe probing;  // a lockfile records real versions
+                for (const auto& e : loaded_lf_api.runtimes) {
+                    std::string ver = lang_registry_api.runtimeVersion(e.language);
+                    if (!ver.empty()) observed_api[e.language] = ver;
+                }
                 auto drift_api = loaded_lf_api.checkDrift(observed_api);
                 if (!drift_api.empty()) {
                     fprintf(stderr, "[lock] RUNTIME DRIFT DETECTED:\n");
