@@ -1,0 +1,1 @@
+{"verdict": "REJECTED", "reason": "Only step 1 passed verification; steps 2-4 each reported defects absent from ground truth (inventory.py:6, inventory.py:16, report.py:8, report.py:7), and step 4 was also inadmissible, so the audit summary is unreliable and both critics rejected it."}

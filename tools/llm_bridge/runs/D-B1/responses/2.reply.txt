@@ -1,0 +1,22 @@
+```json
+{
+  "steps": [
+    {
+      "id": 1,
+      "goal": "Enumerate all files in the inventory-service workspace and report directory structure"
+    },
+    {
+      "id": 2,
+      "goal": "Audit source code files for structural and logic defects (dead code, unreachable paths, type errors)"
+    },
+    {
+      "id": 3,
+      "goal": "Audit configuration and manifest files for correctness and governance violations"
+    },
+    {
+      "id": 4,
+      "goal": "Audit security-sensitive code for policy violations, unsafe patterns, and missing guards"
+    }
+  ]
+}
+```

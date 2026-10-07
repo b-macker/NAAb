@@ -1,0 +1,22 @@
+```json
+{
+  "steps": [
+    {
+      "id": 1,
+      "goal": "Scan and list all files in inventory-service workspace with their paths and types"
+    },
+    {
+      "id": 2,
+      "goal": "Audit application code files for logic errors, null references, and runtime defects"
+    },
+    {
+      "id": 3,
+      "goal": "Review configuration, manifest, and dependency files for correctness and consistency"
+    },
+    {
+      "id": 4,
+      "goal": "Generate comprehensive defect report mapping each issue to file location and line number"
+    }
+  ]
+}
+```

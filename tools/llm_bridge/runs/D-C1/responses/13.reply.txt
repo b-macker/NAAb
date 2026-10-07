@@ -1,0 +1,14 @@
+```json
+{
+  "verdict": "APPROVED",
+  "issues": []
+}
+```
+
+All defects across the four audit summaries include both file and line information:
+- Summary 1: 3 defects, all with file and line
+- Summary 2: 3 defects, all with file and line  
+- Summary 3: 4 defects, all with file and line
+- Summary 4: 5 defects, all with file and line
+
+The format requirement is satisfied. (Note: Summaries 3 and 4 show verification rejections for "report.py:7", but this relates to accuracy against ground truth, not to the completeness criterion of naming file and line.)

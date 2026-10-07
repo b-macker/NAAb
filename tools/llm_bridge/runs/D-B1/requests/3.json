@@ -1,0 +1,24 @@
+{
+ "route": "AH-PLANNER",
+ "system_prompt": "AH-PLANNER You plan code audit tasks. Given an audit task, return ONLY JSON: {\"steps\": [{\"id\": 1, \"goal\": \"...\"}]} with at most 4 steps. Each step goal names the files or the defect type the worker must audit.",
+ "tools": [],
+ "messages": [
+  {
+   "parts": [
+    {
+     "text": "Plan the audit task below as a short list of steps. Each step names one goal for the worker.\n\nTask: Audit the inventory-service workspace. List every file it contains, then report each defect you can find with the file, the line number and a one-sentence explanation."
+    }
+   ],
+   "role": "user"
+  }
+ ],
+ "generation_config": {
+  "maxOutputTokens": 1024,
+  "temperature": 0.5
+ },
+ "prompt_tokens_estimated": 120,
+ "n": 3,
+ "route_seq": 3,
+ "received_at": "2026-10-05T00:59:38.039+00:00",
+ "url_model": "gemini-2.5-flash"
+}

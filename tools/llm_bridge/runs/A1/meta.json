@@ -1,0 +1,60 @@
+{
+ "label": "A1",
+ "kind": "clean",
+ "rotation": "A",
+ "personas": {
+  "planner": {
+   "model": "opus",
+   "style": "none"
+  },
+  "worker": {
+   "model": "haiku",
+   "style": "none"
+  },
+  "critic-1": {
+   "model": "sonnet",
+   "style": "none"
+  },
+  "critic-2": {
+   "model": "sonnet",
+   "style": "none"
+  },
+  "judge": {
+   "model": "opus",
+   "style": "none"
+  }
+ },
+ "routing": "AH-PLANNER->planner, AH-WORKER->worker, AH-CRITIC: 1st arrival->critic-1, 2nd->critic-2, AH-JUDGE->judge",
+ "ledger": [],
+ "written_before_run": true,
+ "preamble_versions": {
+  "all": "v1 (tools/llm_bridge/persona_preamble.txt as committed)"
+ },
+ "abandoned_personas": [
+  {
+   "persona": "worker",
+   "agent_id": "afed29bb0b01ed9f7",
+   "model": "haiku",
+   "preamble": "v2 (rule 5 named the handback call)",
+   "reason": "never invoked the handback tool; served nothing"
+  },
+  {
+   "persona": "worker",
+   "agent_id": "ab1493e19774b630c",
+   "model": "haiku",
+   "preamble": "v3 (handback described as a real invocation)",
+   "reason": "first reply itself contained fake <SubagentHandback> markup; served nothing"
+  }
+ ],
+ "persona_ids": {
+  "planner": "a0160f9d9b4ff0707",
+  "worker": "af9056bbeee8c450c"
+ },
+ "note_worker": "worker af9056bbeee8c450c (v1) answers with pre-nudge text; its memory holds post-nudge chatter ('list_files did not return results') from its first turn -- later replies are checked for echoes of it",
+ "outcome": {
+  "exit_code": 1,
+  "stage_reached": "worker step 1 (of 4 planned)",
+  "cause": "worker (haiku) called list_files then read_file x3 = 4 calls = max_tool_calls_per_turn; loop exited before a final model turn (agent_impl.cpp:3741); content '' -> RESPONSE_SUPPRESSED; output contract skipped for empty content (agent_impl.cpp:4227); harness json.parse('') -> exit 1",
+  "verified_by": "replay of exported fixture through tests/helpers/agent_stub.py reproduces exit 1, same exit_reason, same events"
+ }
+}

@@ -1,0 +1,41 @@
+{
+ "label": "B1",
+ "kind": "clean",
+ "rotation": "B",
+ "personas": {
+  "planner": {
+   "model": "haiku",
+   "style": "none"
+  },
+  "worker": {
+   "model": "opus",
+   "style": "none"
+  },
+  "critic-1": {
+   "model": "opus",
+   "style": "none"
+  },
+  "critic-2": {
+   "model": "opus",
+   "style": "none"
+  },
+  "judge": {
+   "model": "sonnet",
+   "style": "none"
+  }
+ },
+ "routing": "AH-PLANNER->planner, AH-WORKER->worker, AH-CRITIC: 1st arrival->critic-1, 2nd->critic-2, AH-JUDGE->judge",
+ "preamble": "v1 (tools/llm_bridge/persona_preamble.txt)",
+ "reply_extraction": "handback if invoked before any nudge, else pre-nudge text",
+ "ledger": [],
+ "written_before_run": true,
+ "persona_ids": {
+  "planner": "a54ea7fd60a1419ee",
+  "worker": "aef865e1486c25c2f"
+ },
+ "outcome": {
+  "exit_code": 1,
+  "stage_reached": "worker step 1 (of 4 planned)",
+  "cause": "same as A1: worker (opus) list_files + read_file x3 = 4 = max_tool_calls_per_turn; no final model turn; RESPONSE_SUPPRESSED; json.parse('') exit 1"
+ }
+}

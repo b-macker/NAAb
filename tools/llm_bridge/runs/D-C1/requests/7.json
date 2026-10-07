@@ -1,0 +1,62 @@
+{
+ "route": "AH-WORKER",
+ "system_prompt": "AH-WORKER You audit code in a workspace using the list_files and read_file tools. For each audit step, read the files, then return ONLY JSON: {\"step\": N, \"files\": [\"name\"], \"defects\": [{\"file\": \"name\", \"line\": N, \"explanation\": \"one sentence\"}]}. Report only defects you saw in the file content, with the exact line number.",
+ "tools": [
+  {
+   "description": "List the files in the audit workspace.",
+   "name": "list_files",
+   "parameters": {
+    "properties": {},
+    "type": "object"
+   }
+  },
+  {
+   "description": "Read one workspace file. Lines are numbered.",
+   "name": "read_file",
+   "parameters": {
+    "properties": {
+     "path": {
+      "description": "File name inside the workspace, e.g. inventory.py",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   }
+  }
+ ],
+ "messages": [
+  {
+   "parts": [
+    {
+     "text": "Audit step 1: Enumerate the inventory-service workspace recursively and list every file it contains (source, tests, config, build and dependency manifests), so the audit scope is complete.\nUse the list_files and read_file tools on the workspace. Report the files and the defects you found with file and line."
+    }
+   ],
+   "role": "user"
+  },
+  {
+   "parts": [
+    {
+     "text": "{\"step\": 1, \"files\": [\"report.py\", \"README.md\", \"inventory.py\"], \"defects\": [{\"file\": \"inventory.py\", \"line\": 8, \"explanation\": \"average_daily_sales divides by len(sales), which raises ZeroDivisionError when sales is an empty list.\"}, {\"file\": \"inventory.py\", \"line\": 21, \"explanation\": \"range(1, len(items)) starts at index 1, so the first item is never checked and low_stock misses it.\"}, {\"file\": \"report.py\", \"line\": 5, \"explanation\": \"The file opened here is never closed (no with block or close call), so the handle leaks and written data may not be flushed.\"}]}"
+    }
+   ],
+   "role": "model"
+  },
+  {
+   "parts": [
+    {
+     "text": "Audit step 2: Audit the source files for logic defects such as off-by-one errors, wrong stock or quantity arithmetic, unchecked null or missing values, and incorrect comparisons, recording the file and line number for each.\nUse the list_files and read_file tools on the workspace. Report the files and the defects you found with file and line."
+    }
+   ],
+   "role": "user"
+  }
+ ],
+ "generation_config": {
+  "maxOutputTokens": 2048,
+  "temperature": 0.1
+ },
+ "prompt_tokens_estimated": 478,
+ "n": 7,
+ "route_seq": 4,
+ "received_at": "2026-10-05T01:08:53.585+00:00",
+ "url_model": "gemini-2.5-flash"
+}

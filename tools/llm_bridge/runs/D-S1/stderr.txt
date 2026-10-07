@@ -1,0 +1,48 @@
+[governance] WARNING contradiction.CONTRA-013
+Governance warning: capabilities.filesystem path rules are enforced inside NAAb's standard library and the embedded Python executor only. A polyglot block that runs as a separate process (shell, ruby, node, php and similar) reaches the filesystem through its own runtime, so it can read and write paths that file.read() and file.write() are blocked on. No operating-system path enforcement is implemented [ADVISORY]
+
+  Rule: contradiction.CONTRA-013
+
+  Help:
+  - Treat these rules as covering NAAb code and embedded Python only, block the subprocess languages in languages.blocked, or set security.sandbox_level to "restricted", which refuses polyglot execution outright
+
+
+  Note: This is an advisory warning — execution will continue
+
+[governance] Loaded: /tmp/claude-0/-home-user-NAAb/38a117e5-e21d-520a-9b98-52c8203032a2/scratchpad/runs/D-S1/harness/govern.json (mode: enforce)
+[governance] Validation failure for agent 'worker' (handle 2) was recorded after its last turn; scored at exit (coherence 0.9250 -> 0.7750)
+[ADVISORY] Duplicate calls (store results in variables):
+  regex.replace(  — 3x in: sanitize_report:347
+  rows.push(  — 3x in: render_summary:330
+  v.get(  — 3x in: sanitize_stats:299
+  tally.get(  — 3x in: adjudicate:290
+  truth.get(  — 3x in: verify_claims:208
+  ... and 6 more unique calls
+[ADVISORY] Polyglot blocks without try/catch: analyze_sources:99, render_summary:330
+  Wrap polyglot blocks in try/catch for graceful error handling.
+
+[governance] Summary (mode: enforce): 522 passed, 2 warnings, 0 blocked
+  ⚠ context_drift.validation_outcome    [advisory]  WARN
+  ⚠ contradiction.CONTRA-013            [advisory]  WARN
+
+[governance] Telemetry: 648 events written to out/telemetry.jsonl (524 check results + 124 agent, anchor and health events)
+-- Governance: PASS (524 static, 0 runtime, 0 violations) --
+[hint] dict.get("goal") returned null — available keys: "id"
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: standard
+Checks:     622 passed, 0 blocked, 2 advisory
+  Detail:   Warning: contradiction.CONTRA-013 — project governance policy.
+Telemetry:  624 events → out/telemetry.jsonl
+BSD:        56 events, 0 patterns matched
+CDD:        coherence=1.00 vel=0.000 accel=0.000 (8 turns analyzed)
+CDD agents: planner=1.00 worker=0.77 critic=1.00 judge=1.00 min=0.77
+Checkpoint: pressure=0.07 (0 consecutive)
+OA Gate:    threshold=0.60, action=quarantine, level=n/a
+Exposure:   8 autonomous actions, 4 unique agents
+Lineage:    0 tainted values, 0 sink flows
+Dispatch:   15 calls (0 retries, 6454 tokens, 227127ms)
+Tools:      11 calls (0 blocked, 11ms)
+Pulse:      HEALTHY (623 checks, 7 clean turns, epoch 0)
+────────────────────────────────

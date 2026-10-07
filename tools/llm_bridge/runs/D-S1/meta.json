@@ -1,0 +1,62 @@
+{
+ "label": "D-S1",
+ "kind": "clean-styled",
+ "rotation": "B (same models as D-B1; style is the only variable)",
+ "deviation": "worker-tool-budget-8",
+ "personas": {
+  "planner": {
+   "model": "haiku",
+   "style": "terse, minimal formatting, no pleasantries",
+   "memory": "stateless"
+  },
+  "worker": {
+   "model": "opus",
+   "style": "heavy markdown, headers and bullet lists, restates the question first",
+   "memory": "SendMessage"
+  },
+  "critic-1": {
+   "model": "opus",
+   "style": "long conversational preamble before the answer",
+   "memory": "SendMessage"
+  },
+  "critic-2": {
+   "model": "opus",
+   "style": "long conversational preamble before the answer",
+   "memory": "SendMessage"
+  },
+  "judge": {
+   "model": "sonnet",
+   "style": "heavy markdown, headers and bullet lists, restates the question first",
+   "memory": "SendMessage"
+  }
+ },
+ "style_delivery": "prefixed to the persona preamble on first contact: 'Response style profile (how you habitually write; format and tone only): <style>'",
+ "routing": "AH-PLANNER->planner, AH-WORKER->worker, AH-CRITIC: 1st arrival->critic-1, 2nd->critic-2, AH-JUDGE->judge",
+ "preamble": "v1",
+ "reply_extraction": "native declared-tool call, else handback, else pre-nudge text (all pre-nudge)",
+ "ledger": [],
+ "written_before_run": true,
+ "persona_ids": {
+  "planner": [
+   "a6d97dc539b31baf1",
+   "a54b0baa08f21b409",
+   "ad5a7883642aa783b"
+  ],
+  "worker": "ae70add353fbfdfc4",
+  "critic-1": "a779e98c944f94777",
+  "critic-2": "a7578f7b1c6884942",
+  "judge": "a257911059de9c550"
+ },
+ "outcome": {
+  "exit_code": 0,
+  "stage_reached": "complete",
+  "stdout": "STEP 1 pass, 2 fail, 3 pass, 4 fail; REVIEW REJECTED; VERDICT REJECTED; SUMMARY 2/4",
+  "notes": [
+   "no styled persona changed the FORMAT of a JSON-mandated reply: opus worker, opus critics and sonnet judge answered in plain JSON despite heavy-markdown / long-preamble profiles",
+   "haiku planner (terse) fenced its JSON in 3/3 samples, as unstyled haiku did in D-B1 -> a model habit, not a style effect",
+   "opus worker again reported inventory.py:16 (2 of 2 opus runs) -> S22",
+   "step 3 answered {files:[], defects:[]} (correct: no config files) -> passed; critics called it a vacuous pass",
+   "no quarantine: step 4 recompiled earlier findings (stable vocabulary), unlike D-B1's security-only step 4"
+  ]
+ }
+}

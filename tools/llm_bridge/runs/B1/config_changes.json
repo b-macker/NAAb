@@ -1,0 +1,52 @@
+[
+ {
+  "path": "agents.planner.api_base",
+  "before": "<absent>",
+  "after": "http://127.0.0.1:32977"
+ },
+ {
+  "path": "agents.planner.standing_lease_seconds",
+  "before": 600,
+  "after": 86400
+ },
+ {
+  "path": "agents.worker.api_base",
+  "before": "<absent>",
+  "after": "http://127.0.0.1:32977"
+ },
+ {
+  "path": "agents.worker.standing_lease_seconds",
+  "before": 900,
+  "after": 86400
+ },
+ {
+  "path": "agents.critic.api_base",
+  "before": "<absent>",
+  "after": "http://127.0.0.1:32977"
+ },
+ {
+  "path": "agents.judge.api_base",
+  "before": "<absent>",
+  "after": "http://127.0.0.1:32977"
+ },
+ {
+  "path": "agent_dispatch.default_timeout_seconds",
+  "before": 120,
+  "after": 7200
+ },
+ {
+  "path": "agent_dispatch.hard_stop.max_agent_time_ms",
+  "before": 600000,
+  "after": 21600000
+ },
+ {
+  "path": "runtime.timeout",
+  "before": 600,
+  "after": 21600
+ },
+ {
+  "path": "limits.timeout.global",
+  "before": 600,
+  "after": 21600
+ }
+]

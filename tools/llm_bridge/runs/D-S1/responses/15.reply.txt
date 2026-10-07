@@ -1,0 +1,1 @@
+{"verdict": "REJECTED", "reason": "Steps 2 and 4 failed verification because they claim an inventory.py:16 type-mismatch defect that is not in the ground truth, step 3 reported no defects at all, and both critics rejected the summary, so the audit is not consistently accurate."}

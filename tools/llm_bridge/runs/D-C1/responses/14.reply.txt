@@ -1,0 +1,8 @@
+```json
+{
+  "verdict": "APPROVED",
+  "issues": []
+}
+```
+
+Every defect across all four steps names both a file and a line number. Step 3 and Step 4 show verification rejections ("defect not in ground truth: report.py:7"), which indicates accuracy concerns, but the defects still carry complete attribution. The specified rejection criterion—missing file and line—is not met.

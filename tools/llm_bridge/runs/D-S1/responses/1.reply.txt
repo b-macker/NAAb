@@ -1,0 +1,22 @@
+```json
+{
+  "steps": [
+    {
+      "id": 1,
+      "goal": "Enumerate all files in inventory-service workspace and list them by type (source code, config, docs, build artifacts)"
+    },
+    {
+      "id": 2,
+      "goal": "Audit all source code files for defects: logic errors, type mismatches, resource leaks, unhandled exceptions"
+    },
+    {
+      "id": 3,
+      "goal": "Audit configuration and manifest files for issues: missing dependencies, insecure settings, malformed syntax"
+    },
+    {
+      "id": 4,
+      "goal": "Compile all findings with file path, line number, defect category, and one-sentence explanation"
+    }
+  ]
+}
+```
