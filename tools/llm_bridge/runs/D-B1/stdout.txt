@@ -1,0 +1,10 @@
+STATIC|findings=3|agree=true
+PLAN|steps=4
+STEP|1|passed=true
+STEP|2|passed=false
+STEP|3|passed=false
+STEP|4|passed=false
+REVIEW|REJECTED
+VERDICT|REJECTED
+SUMMARY|1/4
+REPORT|bytes=4687

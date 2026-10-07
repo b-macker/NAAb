@@ -1,0 +1,374 @@
+{
+ "_comment": "Exported by tools/llm_bridge/bridge.py export-fixture from /tmp/claude-0/-home-user-NAAb/38a117e5-e21d-520a-9b98-52c8203032a2/scratchpad/runs/D-C1/queue. Token counts are the bridge's ESTIMATES (words*1.3); thinking unreported.",
+ "routes": {
+  "AH-PLANNER": {
+   "responses": [
+    {
+     "content": "{\"steps\": [{\"id\": 1, \"goal\": \"Enumerate the inventory-service workspace recursively and list every file it contains (source, tests, config, build and dependency manifests), so the audit scope is complete.\"}, {\"id\": 2, \"goal\": \"Audit the source files for logic defects such as off-by-one errors, wrong stock or quantity arithmetic, unchecked null or missing values, and incorrect comparisons, recording the file and line number for each.\"}, {\"id\": 3, \"goal\": \"Audit the config, dependency and input-handling files for security and robustness defects such as hardcoded secrets, unvalidated input, injection risks, swallowed errors and missing error handling, recording the file and line number for each.\"}, {\"id\": 4, \"goal\": \"Re-read every file flagged in the previous steps to confirm each defect, then report each one with its file, line number and a one-sentence explanation.\"}]}",
+     "input_tokens": 120,
+     "output_tokens": 220,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "planner",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ad748c6603a65ee9b.jsonl#1:handback",
+      "route": "AH-PLANNER",
+      "route_seq": 1,
+      "style": "none",
+      "written_at": "2026-10-05T01:07:28.836+00:00"
+     },
+     "_bridge_n": 1
+    },
+    {
+     "content": "{\"steps\": [{\"id\": 1, \"goal\": \"List every file in the inventory-service workspace by walking the directory tree recursively, covering source, tests, configuration, build scripts and dependency manifests.\"}, {\"id\": 2, \"goal\": \"Audit the application source files for logic defects such as off-by-one errors, incorrect stock or quantity calculations, unhandled null or empty values, and wrong conditions, noting the file and line number of each.\"}, {\"id\": 3, \"goal\": \"Audit the configuration, dependency and input-handling code for security and error-handling defects such as hardcoded credentials, unvalidated input, injection risks and silently swallowed exceptions, noting the file and line number of each.\"}, {\"id\": 4, \"goal\": \"Verify each suspected defect against the file it came from, then report every confirmed defect with its file, line number and a one-sentence explanation.\"}]}",
+     "input_tokens": 120,
+     "output_tokens": 222,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "planner",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ad748c6603a65ee9b.jsonl#2:handback",
+      "route": "AH-PLANNER",
+      "route_seq": 2,
+      "style": "none",
+      "written_at": "2026-10-05T01:07:41.256+00:00"
+     },
+     "_bridge_n": 2
+    },
+    {
+     "content": "{\"steps\": [{\"id\": 1, \"goal\": \"Produce a complete file inventory of the inventory-service workspace by listing every file in every subdirectory, including source, tests, configs, scripts and dependency manifests.\"}, {\"id\": 2, \"goal\": \"Audit the core source files for functional defects such as off-by-one errors, incorrect stock or quantity arithmetic, missing null or bounds checks, and faulty conditionals, recording the file and line number for each.\"}, {\"id\": 3, \"goal\": \"Audit configuration files, dependency manifests and input or database handling code for security and reliability defects such as hardcoded secrets, unsanitized input, injection risks and ignored errors, recording the file and line number for each.\"}, {\"id\": 4, \"goal\": \"Re-open each file where a defect was suspected to confirm the line number, then report every confirmed defect as file, line number and a one-sentence explanation.\"}]}",
+     "input_tokens": 120,
+     "output_tokens": 228,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "planner",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-ad748c6603a65ee9b.jsonl#3:handback",
+      "route": "AH-PLANNER",
+      "route_seq": 3,
+      "style": "none",
+      "written_at": "2026-10-05T01:07:51.434+00:00"
+     },
+     "_bridge_n": 3
+    }
+   ]
+  },
+  "AH-WORKER": {
+   "responses": [
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "list_files",
+       "args": {}
+      }
+     ],
+     "input_tokens": 250,
+     "output_tokens": 9,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-aec77b2863fa92bf6.jsonl#1:pre-nudge-text",
+      "route": "AH-WORKER",
+      "route_seq": 1,
+      "style": "none",
+      "written_at": "2026-10-05T01:08:15.316+00:00"
+     },
+     "_bridge_n": 4
+    },
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "read_file",
+       "args": {
+        "path": "inventory.py"
+       }
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "report.py"
+       }
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "README.md"
+       }
+      }
+     ],
+     "input_tokens": 289,
+     "output_tokens": 41,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-aec77b2863fa92bf6.jsonl#2:pre-nudge-text",
+      "route": "AH-WORKER",
+      "route_seq": 2,
+      "style": "none",
+      "written_at": "2026-10-05T01:08:29.311+00:00"
+     },
+     "_bridge_n": 5
+    },
+    {
+     "content": "{\"step\": 1, \"files\": [\"report.py\", \"README.md\", \"inventory.py\"], \"defects\": [{\"file\": \"inventory.py\", \"line\": 8, \"explanation\": \"average_daily_sales divides by len(sales), which raises ZeroDivisionError when sales is an empty list.\"}, {\"file\": \"inventory.py\", \"line\": 21, \"explanation\": \"range(1, len(items)) starts at index 1, so the first item is never checked and low_stock misses it.\"}, {\"file\": \"report.py\", \"line\": 5, \"explanation\": \"The file opened here is never closed (no with block or close call), so the handle leaks and written data may not be flushed.\"}]}",
+     "input_tokens": 701,
+     "output_tokens": 142,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-aec77b2863fa92bf6.jsonl#3:pre-nudge-text",
+      "route": "AH-WORKER",
+      "route_seq": 3,
+      "style": "none",
+      "written_at": "2026-10-05T01:08:53.526+00:00"
+     },
+     "_bridge_n": 6
+    },
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "read_file",
+       "args": {
+        "path": "inventory.py"
+       }
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "report.py"
+       }
+      }
+     ],
+     "input_tokens": 478,
+     "output_tokens": 27,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-aec77b2863fa92bf6.jsonl#4:pre-nudge-text",
+      "route": "AH-WORKER",
+      "route_seq": 4,
+      "style": "none",
+      "written_at": "2026-10-05T01:09:15.778+00:00"
+     },
+     "_bridge_n": 7
+    },
+    {
+     "content": "{\"step\": 2, \"files\": [\"inventory.py\", \"report.py\"], \"defects\": [{\"file\": \"inventory.py\", \"line\": 8, \"explanation\": \"average_daily_sales divides by len(sales) without checking for an empty list, so missing sales data raises ZeroDivisionError.\"}, {\"file\": \"inventory.py\", \"line\": 21, \"explanation\": \"Off-by-one: range(1, len(items)) starts at index 1, so the first item is never compared against the threshold and low_stock can miss it.\"}, {\"file\": \"report.py\", \"line\": 5, \"explanation\": \"The file handle from open() is never closed (no with block or close call), so buffered summary rows may not be flushed to disk.\"}]}",
+     "input_tokens": 813,
+     "output_tokens": 155,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-aec77b2863fa92bf6.jsonl#5:pre-nudge-text",
+      "route": "AH-WORKER",
+      "route_seq": 5,
+      "style": "none",
+      "written_at": "2026-10-05T01:09:41.572+00:00"
+     },
+     "_bridge_n": 8
+    },
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "list_files",
+       "args": {}
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "report.py"
+       }
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "inventory.py"
+       }
+      }
+     ],
+     "input_tokens": 813,
+     "output_tokens": 36,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-aec77b2863fa92bf6.jsonl#6:pre-nudge-text",
+      "route": "AH-WORKER",
+      "route_seq": 6,
+      "style": "none",
+      "written_at": "2026-10-05T01:10:02.798+00:00"
+     },
+     "_bridge_n": 9
+    },
+    {
+     "content": "{\"step\": 3, \"files\": [\"report.py\", \"inventory.py\"], \"defects\": [{\"file\": \"report.py\", \"line\": 5, \"explanation\": \"The caller-supplied path is opened for writing with no validation and no error handling, so an untrusted path can overwrite any writable file and a bad path raises an unhandled exception.\"}, {\"file\": \"report.py\", \"line\": 7, \"explanation\": \"row['sku'] and row['stock'] are read without checking the keys exist, so one malformed row raises KeyError partway through and leaves a partial, unclosed output file.\"}, {\"file\": \"inventory.py\", \"line\": 8, \"explanation\": \"The sales input is not validated, so an empty list causes an unhandled ZeroDivisionError, and a non-numeric entry would already have failed at line 7.\"}, {\"file\": \"inventory.py\", \"line\": 22, \"explanation\": \"items[i][\\\"stock\\\"] and items[i][\\\"sku\\\"] are accessed without checking the keys exist or that stock is numeric, so malformed input raises an unhandled KeyError or TypeError.\"}]}",
+     "input_tokens": 1187,
+     "output_tokens": 240,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-aec77b2863fa92bf6.jsonl#7:pre-nudge-text",
+      "route": "AH-WORKER",
+      "route_seq": 7,
+      "style": "none",
+      "written_at": "2026-10-05T01:10:32.228+00:00"
+     },
+     "_bridge_n": 10
+    },
+    {
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "read_file",
+       "args": {
+        "path": "inventory.py"
+       }
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "report.py"
+       }
+      }
+     ],
+     "input_tokens": 1039,
+     "output_tokens": 27,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-aec77b2863fa92bf6.jsonl#8:pre-nudge-text",
+      "route": "AH-WORKER",
+      "route_seq": 8,
+      "style": "none",
+      "written_at": "2026-10-05T01:10:57.218+00:00"
+     },
+     "_bridge_n": 11
+    },
+    {
+     "content": "{\"step\": 4, \"files\": [\"inventory.py\", \"report.py\"], \"defects\": [{\"file\": \"inventory.py\", \"line\": 8, \"explanation\": \"Confirmed: total / len(sales) divides by zero when sales is an empty list, with no guard or error handling.\"}, {\"file\": \"inventory.py\", \"line\": 21, \"explanation\": \"Confirmed off-by-one: range(1, len(items)) starts at index 1, so items[0] is never checked against the threshold.\"}, {\"file\": \"inventory.py\", \"line\": 22, \"explanation\": \"Confirmed: items[i][\\\"stock\\\"] is compared and items[i][\\\"sku\\\"] is read at line 23 without checking the keys exist or that stock is numeric, so malformed items raise KeyError or TypeError.\"}, {\"file\": \"report.py\", \"line\": 5, \"explanation\": \"Confirmed: open(path, \\\"w\\\") uses an unvalidated caller-supplied path with no error handling, and the handle is never closed (no with block or close call), so output may not be flushed.\"}, {\"file\": \"report.py\", \"line\": 7, \"explanation\": \"Confirmed: row['sku'] and row['stock'] are read without checking the keys exist, so one malformed row raises KeyError and leaves a partial output file.\"}]}",
+     "input_tokens": 1374,
+     "output_tokens": 272,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "sonnet",
+      "persona": "worker",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-aec77b2863fa92bf6.jsonl#9:pre-nudge-text",
+      "route": "AH-WORKER",
+      "route_seq": 9,
+      "style": "none",
+      "written_at": "2026-10-05T01:11:23.307+00:00"
+     },
+     "_bridge_n": 12
+    }
+   ]
+  },
+  "AH-CRITIC": {
+   "responses": [
+    {
+     "content": "```json\n{\n  \"verdict\": \"APPROVED\",\n  \"issues\": []\n}\n```\n\nAll defects across the four audit summaries include both file and line information:\n- Summary 1: 3 defects, all with file and line\n- Summary 2: 3 defects, all with file and line  \n- Summary 3: 4 defects, all with file and line\n- Summary 4: 5 defects, all with file and line\n\nThe format requirement is satisfied. (Note: Summaries 3 and 4 show verification rejections for \"report.py:7\", but this relates to accuracy against ground truth, not to the completeness criterion of naming file and line.)",
+     "input_tokens": 980,
+     "output_tokens": 138,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "haiku",
+      "persona": "critic-1",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-a143bc256a0be1a5b.jsonl#1:pre-nudge-text",
+      "route": "AH-CRITIC",
+      "route_seq": 1,
+      "style": "none",
+      "written_at": "2026-10-05T01:12:35.820+00:00"
+     },
+     "_bridge_n": 13
+    },
+    {
+     "content": "```json\n{\n  \"verdict\": \"APPROVED\",\n  \"issues\": []\n}\n```\n\nEvery defect across all four steps names both a file and a line number. Step 3 and Step 4 show verification rejections (\"defect not in ground truth: report.py:7\"), which indicates accuracy concerns, but the defects still carry complete attribution. The specified rejection criterion\u2014missing file and line\u2014is not met.",
+     "input_tokens": 980,
+     "output_tokens": 94,
+     "thinking_tokens": null,
+     "_provenance": {
+      "delivery_check": "exact",
+      "director_note": "",
+      "intervention": "",
+      "model": "haiku",
+      "persona": "critic-2",
+      "persona_other_tool_uses": [],
+      "reply_source": "transcript:agent-a5c3749720fc3422d.jsonl#1:pre-nudge-text",
+      "route": "AH-CRITIC",
+      "route_seq": 2,
+      "style": "none",
+      "written_at": "2026-10-05T01:12:35.889+00:00"
+     },
+     "_bridge_n": 14
+    }
+   ]
+  }
+ },
+ "responses": [
+  {
+   "content": "{\"error\": \"unrouted request\"}"
+  }
+ ]
+}

@@ -1,0 +1,22 @@
+```json
+{
+  "steps": [
+    {
+      "id": 1,
+      "goal": "Enumerate all files in inventory-service workspace and generate comprehensive file listing"
+    },
+    {
+      "id": 2,
+      "goal": "Audit for code quality defects: complexity, duplication, naming conventions, error handling"
+    },
+    {
+      "id": 3,
+      "goal": "Audit for correctness and logic errors: control flow, null checks, state management"
+    },
+    {
+      "id": 4,
+      "goal": "Audit for security and resource issues: injection vulnerabilities, resource leaks, access control"
+    }
+  ]
+}
+```

@@ -1,0 +1,70 @@
+{
+ "route": "AH-WORKER",
+ "system_prompt": "AH-WORKER You audit code in a workspace using the list_files and read_file tools. For each audit step, read the files, then return ONLY JSON: {\"step\": N, \"files\": [\"name\"], \"defects\": [{\"file\": \"name\", \"line\": N, \"explanation\": \"one sentence\"}]}. Report only defects you saw in the file content, with the exact line number.",
+ "tools": [
+  {
+   "description": "Read one workspace file. Lines are numbered.",
+   "name": "read_file",
+   "parameters": {
+    "properties": {
+     "path": {
+      "description": "File name inside the workspace, e.g. inventory.py",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   }
+  },
+  {
+   "description": "List the files in the audit workspace.",
+   "name": "list_files",
+   "parameters": {
+    "properties": {},
+    "type": "object"
+   }
+  }
+ ],
+ "messages": [
+  {
+   "parts": [
+    {
+     "text": "Audit step 1: Enumerate the inventory-service workspace: list every file it contains (including nested directories, configs, tests, and scripts) so the audit covers the full set.\nUse the list_files and read_file tools on the workspace. Report the files and the defects you found with file and line."
+    }
+   ],
+   "role": "user"
+  },
+  {
+   "parts": [
+    {
+     "functionCall": {
+      "args": {},
+      "name": "list_files"
+     }
+    }
+   ],
+   "role": "model"
+  },
+  {
+   "parts": [
+    {
+     "functionResponse": {
+      "name": "list_files",
+      "response": {
+       "result": "{\"count\":3,\"files\":[\"report.py\",\"README.md\",\"inventory.py\"]}"
+      }
+     }
+    }
+   ],
+   "role": "user"
+  }
+ ],
+ "generation_config": {
+  "maxOutputTokens": 2048,
+  "temperature": 0.1
+ },
+ "prompt_tokens_estimated": 286,
+ "n": 5,
+ "route_seq": 2,
+ "received_at": "2026-10-03T19:08:34.034+00:00",
+ "url_model": "gemini-2.5-flash"
+}

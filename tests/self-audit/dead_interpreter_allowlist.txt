@@ -41,3 +41,4 @@ tests/governance_v4/test_template_coverage.sh	structural	static check: key paths
 tests/self-audit/test_coverage_visibility.sh	structural	every test directory and suite is registered and tracked
 
 tests/self-audit/test_skip_tally.sh	tool	tests the skip-tally helper on planted suite output; never runs naab-lang
+.claude/skills/investigation-gates/tests/selftest.sh	tool	self-test of the investigation-gates skill scripts (bash/Python, temp git repos); never runs naab-lang

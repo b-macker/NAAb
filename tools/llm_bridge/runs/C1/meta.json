@@ -1,0 +1,41 @@
+{
+ "label": "C1",
+ "kind": "clean",
+ "rotation": "C",
+ "personas": {
+  "planner": {
+   "model": "sonnet",
+   "style": "none"
+  },
+  "worker": {
+   "model": "sonnet",
+   "style": "none"
+  },
+  "critic-1": {
+   "model": "haiku",
+   "style": "none"
+  },
+  "critic-2": {
+   "model": "haiku",
+   "style": "none"
+  },
+  "judge": {
+   "model": "haiku",
+   "style": "none"
+  }
+ },
+ "routing": "AH-PLANNER->planner, AH-WORKER->worker, AH-CRITIC: 1st arrival->critic-1, 2nd->critic-2, AH-JUDGE->judge",
+ "preamble": "v1",
+ "reply_extraction": "handback if invoked before any nudge, else pre-nudge text",
+ "ledger": [],
+ "written_before_run": true,
+ "persona_ids": {
+  "planner": "a0d4ac3bd9f625d2b",
+  "worker": "a1ac1ca245a464e17"
+ },
+ "outcome": {
+  "exit_code": 1,
+  "stage_reached": "worker step 1 (of 4 planned)",
+  "cause": "same as A1/B1: worker (sonnet) list_files + read_file x3 = 4 = max_tool_calls_per_turn; no final model turn; RESPONSE_SUPPRESSED; json.parse('') exit 1"
+ }
+}

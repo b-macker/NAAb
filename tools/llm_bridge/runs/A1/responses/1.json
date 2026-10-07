@@ -1,0 +1,14 @@
+{
+ "content": "{\"steps\": [{\"id\": 1, \"goal\": \"List every file in the inventory-service workspace, recursively, with its full relative path, including source, config, test, build and data files.\"}, {\"id\": 2, \"goal\": \"Audit all source code files for correctness defects: logic errors, off-by-one bugs, wrong conditions, unhandled null or empty values, broken error handling, and incorrect stock or quantity calculations. Record the file and line number for each.\"}, {\"id\": 3, \"goal\": \"Audit source, config and dependency files for security and robustness defects: injection risks, hardcoded secrets or credentials, missing input validation, unsafe file or network access, race conditions on inventory updates, and misconfigured settings. Record the file and line number for each.\"}, {\"id\": 4, \"goal\": \"Check the test files and build files for defects such as tests that cannot fail, missing coverage of critical paths, and broken build or dependency declarations. Then produce the final report: the full file list, and every defect with its file, line number and a one-sentence explanation. Confirm that every listed file was reviewed.\"}]}",
+ "tool_calls": [],
+ "provenance": {
+  "persona": "planner",
+  "model": "opus",
+  "style": "none",
+  "intervention": "",
+  "director_note": "",
+  "route": "AH-PLANNER",
+  "route_seq": 1,
+  "written_at": "2026-10-03T18:56:36.867+00:00"
+ }
+}

@@ -1,0 +1,22 @@
+```json
+{
+  "steps": [
+    {
+      "id": 1,
+      "goal": "Enumerate all files in inventory-service workspace and categorize by type (source code, configuration, tests, documentation)"
+    },
+    {
+      "id": 2,
+      "goal": "Audit application source code files for logic errors, security issues, type errors, and code quality defects"
+    },
+    {
+      "id": 3,
+      "goal": "Audit configuration and infrastructure files (package.json, build scripts, environment files) for correctness and dependency defects"
+    },
+    {
+      "id": 4,
+      "goal": "Compile complete defect report with file paths, line numbers, and one-sentence explanations for each issue found"
+    }
+  ]
+}
+```

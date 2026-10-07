@@ -1,0 +1,58 @@
+{
+ "label": "D-C1",
+ "kind": "clean",
+ "rotation": "C",
+ "deviation": "worker-tool-budget-8",
+ "personas": {
+  "planner": {
+   "model": "sonnet",
+   "style": "none",
+   "memory": "SendMessage"
+  },
+  "worker": {
+   "model": "sonnet",
+   "style": "none",
+   "memory": "SendMessage"
+  },
+  "critic-1": {
+   "model": "haiku",
+   "style": "none",
+   "memory": "stateless"
+  },
+  "critic-2": {
+   "model": "haiku",
+   "style": "none",
+   "memory": "stateless"
+  },
+  "judge": {
+   "model": "haiku",
+   "style": "none",
+   "memory": "stateless"
+  }
+ },
+ "routing": "AH-PLANNER->planner, AH-WORKER->worker, AH-CRITIC: 1st arrival->critic-1, 2nd->critic-2, AH-JUDGE->judge; other routes to the persona whose system prompt they carry",
+ "preamble": "v1",
+ "reply_extraction": "native declared-tool call, else handback, else pre-nudge text (all pre-nudge)",
+ "ledger": [],
+ "written_before_run": true,
+ "persona_ids": {
+  "planner": "ad748c6603a65ee9b",
+  "worker": "aec77b2863fa92bf6",
+  "critic-1": [
+   "a143bc256a0be1a5b"
+  ],
+  "critic-2": [
+   "a5c3749720fc3422d"
+  ]
+ },
+ "outcome": {
+  "exit_code": 1,
+  "stage_reached": "review (critics); judge never ran",
+  "stdout": "STEP 1 pass, 2 pass, 3 fail, 4 fail",
+  "notes": [
+   "sonnet worker: no extras in steps 1-2 (passed); robustness finding report.py:7 rejected in steps 3-4 (closed-world truth); coherence 0.85 at step 4, never quarantined",
+   "both haiku critics: APPROVED, but fenced JSON followed by prose -> output contract refused -> exit 1 (true catch: 'Return ONLY JSON')",
+   "haiku critic-2's post-nudge hand-back was clean JSON; its pre-nudge (served) text was not"
+  ]
+ }
+}

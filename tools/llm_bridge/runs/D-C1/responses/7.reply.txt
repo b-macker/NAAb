@@ -1,0 +1,2 @@
+CALL read_file {"path": "inventory.py"}
+CALL read_file {"path": "report.py"}
