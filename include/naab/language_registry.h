@@ -45,6 +45,15 @@ public:
 
     // Get exit code from last subprocess execution (pass 2 audit)
     virtual int getLastExitCode() const { return 0; }
+
+    // True only for a runtime hosted INSIDE this process (embedded CPython,
+    // QuickJS, SQLite), where the engine sees and decides every operation the
+    // block attempts. Everything else is a separate program -- a compiler, an
+    // interpreter, a built binary -- that can start commands no in-process
+    // hook observes, so getExecutor() refuses it when the project disables
+    // shell. The default is FALSE on purpose: a newly registered executor is
+    // gated until someone shows it runs in-process, not the other way round.
+    virtual bool runsInProcess() const { return false; }
 };
 
 // Language Registry - manages language-specific executors

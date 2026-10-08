@@ -23,16 +23,26 @@
 #   PM-02  the measured map equals the committed baseline. Weaker cells are
 #          regressions; stronger ones mean the committed map is out of date.
 #          Cells this platform cannot measure (toolchain absent) are skipped
-#          and counted. The baseline has a root and a nonroot section:
-#          RLIMIT_NPROC does not bind root, so the same build contains less
-#          when run as root (9 cells differ); the section follows the uid.
+#          and counted.
 #   PM-03  the instrument can report every verdict: the measurement holds at
 #          least one CONTAINED, one TEXT-ONLY and one OPEN cell. A probe that
 #          collapsed to one answer would otherwise pass PM-02 only while the
 #          baseline happened to agree.
 #   PM-04  CONTROL: the comparator reports planted changes in BOTH directions
 #          (a CONTAINED cell rewritten OPEN reads as STRONGER, a TEXT-ONLY cell
-#          rewritten CONTAINED as WEAKER) and exits non-zero for each
+#          rewritten CONTAINED as WEAKER), exactly that cell, and exits non-zero.
+#          Planted into a copy of this run's measurement, so the control holds
+#          while the committed baseline is out of date. PM-04z: the unplanted
+#          copy compares clean.
+#   PM-05  the probe_broken() classifier (a command-not-found output is an
+#          instrument failure, not containment) passes its own selftest
+#   PM-06  CONTROL: a planted bare-name exec probe reports UNMEASURABLE, not a
+#          containment verdict -- the PATH artifact the absolute-path fix closed
+#          (root only: as non-root no column can host the artifact)
+#
+# The baseline has a root and a nonroot section: RLIMIT_NPROC does not bind
+# root, so the same build contains less when run as root (12 cells differ);
+# the section follows the uid.
 #
 # Linux only: the containment being mapped (rlimits, fork/exec gating) is the
 # POSIX implementation, and the baseline was measured there.
@@ -148,29 +158,90 @@ if [ -z "$miss" ]; then ok PM-03 "instrument reports every verdict ($kinds)"
 else bad PM-03 "measurement never produced:$miss -- the instrument may have collapsed"; fi
 
 # --- PM-04 ---
-python3 - "$BASE" "$W/planted.json" "$PROFILE" <<'EOF'
-import json, sys
-d = json.load(open(sys.argv[1]))
-b = d[sys.argv[3]]
-k = next(k for k, v in sorted(b.items()) if v == "CONTAINED")
-b[k] = "OPEN"
-json.dump(d, open(sys.argv[2], "w"))
-EOF
+# The planted baselines are built from THIS RUN'S MEASUREMENT, not from the
+# committed baseline. Planting into the committed file made the control depend
+# on the map being unchanged: a real change to the planted cell (an intended
+# fix, before baseline.json is regenerated) made the "planted" value equal the
+# measurement, and the control reported the comparator broken when it was not.
+# From the measurement, exactly one cell differs -- the planted one -- so the
+# comparator must report that cell and nothing else. PM-04z is the control's
+# control: the unplanted copy must compare clean.
+plant() {  # $1 = out, $2 = from-verdict, $3 = to-verdict ("" = no plant)
+    python3 - "$W/cells.json" "$1" "$PROFILE" "$2" "$3" "$TOOL" <<'EOF2'
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("protmap", sys.argv[6])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+cells = json.load(open(sys.argv[1]))
+# the same filter the tool applies when it writes a baseline
+measured = {k: v["verdict"] for k, v in cells.items() if v["verdict"] in m.RANK}
+frm, to = sys.argv[4], sys.argv[5]
+if to:
+    k = next(k for k, v in sorted(measured.items()) if v == frm)
+    measured[k] = to
+    print(k)
+json.dump({sys.argv[3]: measured}, open(sys.argv[2], "w"))
+EOF2
+}
+plant "$W/clean.json" "" "" >/dev/null
+zout="$(python3 "$TOOL" --cells "$W/cells.json" --baseline "$W/clean.json" 2>&1)"; zrc=$?
+k1="$(plant "$W/planted.json" CONTAINED OPEN)"
 pout="$(python3 "$TOOL" --cells "$W/cells.json" --baseline "$W/planted.json" 2>&1)"; prc=$?
-python3 - "$BASE" "$W/planted2.json" "$PROFILE" <<'EOF'
-import json, sys
-d = json.load(open(sys.argv[1]))
-b = d[sys.argv[3]]
-k = next(k for k, v in sorted(b.items()) if v == "TEXT-ONLY")
-b[k] = "CONTAINED"
-json.dump(d, open(sys.argv[2], "w"))
-EOF
+k2="$(plant "$W/planted2.json" TEXT-ONLY CONTAINED)"
 pout2="$(python3 "$TOOL" --cells "$W/cells.json" --baseline "$W/planted2.json" 2>&1)"; prc2=$?
-if [ $prc -ne 0 ] && [[ "$pout" == *"(STRONGER)"* ]] && [ $prc2 -ne 0 ] && [[ "$pout2" == *"(WEAKER)"* ]]; then
-    ok PM-04 "comparator reports planted changes in both directions and fails"
+n1="$(printf '%s\n' "$pout" | grep -c '^DIFF ' || true)"
+n2="$(printf '%s\n' "$pout2" | grep -c '^DIFF ' || true)"
+if [ $zrc -ne 0 ]; then
+    bad PM-04z "an unplanted copy of the measurement does not compare clean (exit $zrc)" "$zout"
 else
-    bad PM-04 "comparator missed a planted change (exit $prc/$prc2)" "$pout
+    ok PM-04z "control: the measurement compared with itself is clean"
+fi
+if [ $prc -ne 0 ] && [ "$n1" = 1 ] && [[ "$pout" == *"$k1: OPEN -> CONTAINED (STRONGER)"* ]] \
+   && [ $prc2 -ne 0 ] && [ "$n2" = 1 ] && [[ "$pout2" == *"$k2: CONTAINED -> TEXT-ONLY (WEAKER)"* ]]; then
+    ok PM-04 "comparator reports exactly the planted cell in both directions and fails"
+else
+    bad PM-04 "comparator missed or misreported a planted change (exit $prc/$prc2, diffs $n1/$n2)" "$pout
 $pout2"
+fi
+
+# --- PM-05: the classifier that tells a broken probe from containment ---
+# probe_broken() is why a bare-name command (which measures PATH, not the
+# sandbox) no longer reads as CONTAINED. Its own both-direction check.
+sout="$(python3 "$TOOL" --selftest 2>&1)"; src=$?
+if [ $src -eq 0 ] && printf '%s\n' "$sout" | grep -q "SELFTEST 0 fail"; then
+    ok PM-05 "probe_broken() selftest passes both directions"
+else
+    bad PM-05 "probe_broken() selftest failed" "$sout"
+fi
+
+# --- PM-06: CONTROL, end to end -- a planted bare-name exec probe must report
+# UNMEASURABLE (probe broken), never a containment verdict. This is the exact
+# defect the absolute-path fix closed: an exec-denied PATH restriction hides a
+# bare `touch`, and the old probe called that CONTAINED.
+#
+# The column is `standard/shell`, the ONE column where the artifact can still
+# happen: since a project's shell-off refuses every separate-process language
+# outright, the `*/deny` columns no longer run cpp at all (CONTAINED there is
+# real). At `standard` the LEVEL withholds exec, so PATH is restricted while
+# shell is on and cpp runs -- and as root RLIMIT_NPROC does not bind, so the
+# fork happens and PATH is the only barrier. The map marks exec PERMITTED in
+# that column (the policy allows commands); --plant-bare measures it anyway,
+# because its subject is the instrument. As a non-root user RLIMIT_NPROC stops
+# the fork first (real containment), so no column can host the artifact and
+# the arm is UNMEASURABLE there. Verified: with probe_broken() disabled, this
+# planted probe reads CONTAINED.
+if [ "$PROFILE" != root ]; then
+    skip PM-06 "non-root: RLIMIT_NPROC contains the fork before PATH is consulted, so no column hosts the PATH artifact -- UNMEASURABLE"
+else
+    pb="$(python3 "$TOOL" --naab "$NAAB" --plant-bare cpp/exec/standard/shell --jobs 2 2>&1 | tail -1)"
+    verdict="$(printf '%s' "$pb" | python3 -c "import json,sys
+try: print(json.loads(sys.stdin.read()).get('verdict','?'))
+except Exception: print('PARSE_FAIL')" 2>/dev/null)"
+    case "$verdict" in
+        UNMEASURABLE) ok PM-06 "a bare-name exec probe is reported UNMEASURABLE, not contained" ;;
+        CONTAINED)    bad PM-06 "a bare-name exec probe read as CONTAINED -- the PATH artifact is back" "$pb" ;;
+        OPEN|TEXT-ONLY) skip PM-06 "bare name resolved here ($verdict); PATH did not hide it -- UNMEASURABLE control" ;;
+        *)            bad PM-06 "could not classify the planted probe ($verdict)" "$pb" ;;
+    esac
 fi
 
 report

@@ -886,6 +886,19 @@ if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]] || [[ -n "${WIN
     IS_WINDOWS=true
 fi
 
+# O-RATCH-01/02/04 use Python under a shell-OFF config (to drive the swap, or to
+# show Python still runs after shell is tightened). Where python is a separate
+# process (no embedded Python) the shell-off gate refuses it by design, so those
+# arms cannot reach their subject there -- and O-RATCH-04's premise ("python
+# unaffected by shell tightening") holds only for embedded Python.
+source "$SCRIPT_DIR/../../helpers/python_shell_off.sh"
+RATCH_PY_GATED=0
+if python_refused_under_shell_off "$NAAB"; then RATCH_PY_GATED=1; fi
+ratch_check() {  # same arguments as the function named in $1
+    local fn="$1"; shift
+    if [ "$RATCH_PY_GATED" -eq 1 ]; then skip "$1" "$PYTHON_SHELL_OFF_REASON"; else "$fn" "$@"; fi
+}
+
 if $IS_WINDOWS; then
     skip "O-RATCH-01" "mid-run file swap requires POSIX file semantics"
     skip "O-RATCH-02" "mid-run file swap requires POSIX file semantics"
@@ -951,7 +964,7 @@ echo "should be blocked"
 NAABEOF
 start_swap_operator "$RDIR"
 ORACLE_OUT=$(cd "$RDIR" && timeout 30s "$NAAB" test.naab 2>&1) && ORACLE_RC=$? || ORACLE_RC=$?
-check "O-RATCH-01" "tighten shell capability mid-run → blocked (exit 3)" "3" "$ORACLE_RC"
+ratch_check check "O-RATCH-01" "tighten shell capability mid-run → blocked (exit 3)" "3" "$ORACLE_RC"
 
 # O-RATCH-02: Loosening capability rejected → ratchet violation in stderr
 # capabilities.shell.enabled: false→true is a ratchet violation
@@ -1004,7 +1017,7 @@ print("still strict")
 NAABEOF
 start_swap_operator "$RDIR"
 ORACLE_OUT=$(cd "$RDIR" && timeout 30s "$NAAB" test.naab 2>&1) && ORACLE_RC=$? || ORACLE_RC=$?
-check_contains "O-RATCH-02" "ratchet rejected capability loosening" "$ORACLE_OUT" "ratchet"
+ratch_check check_contains "O-RATCH-02" "ratchet rejected capability loosening" "$ORACLE_OUT" "ratchet"
 
 # O-RATCH-03: Numeric limit tightening → new limit enforced
 RDIR="$TMPBASE/ratch03"
@@ -1113,8 +1126,8 @@ print("python still works after tightening")
 NAABEOF
 start_swap_operator "$RDIR"
 ORACLE_OUT=$(cd "$RDIR" && timeout 30s "$NAAB" test.naab 2>&1) && ORACLE_RC=$? || ORACLE_RC=$?
-check "O-RATCH-04" "tighten shell, python unaffected" "0" "$ORACLE_RC"
-check_contains "O-RATCH-04b" "python ran after capability tightening" "$ORACLE_OUT" "python still works after tightening"
+ratch_check check "O-RATCH-04" "tighten shell, python unaffected" "0" "$ORACLE_RC"
+ratch_check check_contains "O-RATCH-04b" "python ran after capability tightening" "$ORACLE_OUT" "python still works after tightening"
 
 # O-RATCH-05: Loosening numeric limit rejected
 # loop_iterations: 5 → 0 (unlimited) is a ratchet violation

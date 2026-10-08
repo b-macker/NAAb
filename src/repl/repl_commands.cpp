@@ -3,6 +3,7 @@
 
 #include "naab/repl_commands.h"
 #include "naab/language_registry.h"
+#include "naab/governance.h"
 #include "naab/block_registry.h"
 #include "naab/block_loader.h"
 #include "naab/lexer.h"
@@ -418,8 +419,17 @@ void ReplCommandHandler::handleLanguages() {
         fmt::print("  Register executors in main() to enable languages.\n");
     } else {
         for (const auto& lang : languages) {
-            auto* executor = registry.getExecutor(lang);
-            std::string status = executor && executor->isInitialized() ? "✓ ready" : "✗ not initialized";
+            // getExecutor() is the execution gate and throws for a language the
+            // policy refuses; a listing reports that rather than aborting.
+            std::string status;
+            try {
+                auto* executor = registry.getExecutor(lang);
+                status = executor && executor->isInitialized() ? "✓ ready" : "✗ not initialized";
+            } catch (const naab::governance::GovernanceHardError&) {
+                throw;
+            } catch (const std::runtime_error&) {
+                status = "✗ denied by sandbox";
+            }
             fmt::print("  • {:12} {}\n", lang, status);
         }
     }

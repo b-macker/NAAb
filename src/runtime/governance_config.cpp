@@ -514,12 +514,55 @@ static nlohmann::json applySettingDrop(const nlohmann::json& j) {
 
 static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_);
 
+// Each of the three capability switches is stored TWICE: a legacy flat field
+// (shell_allowed, network_allowed, filesystem_mode) and the v3 structured one
+// (capabilities.shell.enabled, .network.enabled, .filesystem.mode). Writers and
+// readers each picked one copy:
+//   - the bare forms ("shell": false, "network": false, "filesystem": "read")
+//     set ONLY the flat field;
+//   - the object forms set both;
+//   - the `extends` merge (mergeRules) sets ONLY the structured field;
+//   - the sandbox sync (main.cpp), checkShellAllowed/checkNetworkAllowed and the
+//     filesystem gate read the FLAT field; the ratchet and CONTRA checks read
+//     the structured one.
+// So a parent's `shell.enabled: false` reached nothing that enforces it: a
+// child extending it ran shell commands and opened sockets (measured, exit 0),
+// while the same file used directly was blocked (exit 3). And a bare
+// `"shell": false` was invisible to the reload ratchet.
+//
+// The two copies are reconciled to the STRICTER value wherever rules are
+// produced -- after every parse and after every merge. The stricter of the two
+// is always whichever was actually written (the other still holds its
+// permissive default), so this never loosens a config; it only makes every
+// reader see the restriction that was set.
+static void reconcileCapabilityMirrors(GovernanceRules& r) {
+    const bool shell = r.shell_allowed && r.capabilities.shell.enabled;
+    r.shell_allowed = shell;
+    r.capabilities.shell.enabled = shell;
+
+    const bool net = r.network_allowed && r.capabilities.network.enabled;
+    r.network_allowed = net;
+    r.capabilities.network.enabled = net;
+
+    auto rank = [](const std::string& m) {
+        if (m == "none") return 0;
+        if (m == "read") return 1;
+        return 2;  // "write" -- the only other value normalizeFilesystemMode() admits
+    };
+    const std::string stricter = rank(r.filesystem_mode) <= rank(r.capabilities.filesystem.mode)
+                                     ? r.filesystem_mode
+                                     : r.capabilities.filesystem.mode;
+    r.filesystem_mode = stricter;
+    r.capabilities.filesystem.mode = stricter;
+}
+
 static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
 #ifdef NAAB_CONFIG_MUTATION
     loadFromJsonImpl(applySettingDrop(j), rules_);
 #else
     loadFromJsonImpl(j, rules_);
 #endif
+    reconcileCapabilityMirrors(rules_);
 }
 
 static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
@@ -4902,6 +4945,7 @@ bool GovernanceEngine::reloadIfChanged() {
             if (!new_rp->shell_allowed) {
                 sb->setAllowExec(false);
                 sb->removeCapability(security::Capability::SYS_EXEC);
+                sb->markShellDisabledByPolicy();
             }
             if (new_rp->capabilities.filesystem.mode == "none") {
                 sb->removeCapability(security::Capability::FS_READ);
@@ -5741,6 +5785,10 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
         base.polyglot.persistent_runtime.max_memory_per_session_mb > 0)
         child.polyglot.persistent_runtime.max_memory_per_session_mb =
             base.polyglot.persistent_runtime.max_memory_per_session_mb;
+
+    // The capability merges above write only the structured copy; the gates
+    // read the flat one. See reconcileCapabilityMirrors().
+    reconcileCapabilityMirrors(child);
 }
 
 bool GovernanceEngine::loadWithExtends(const std::string& path, int depth,

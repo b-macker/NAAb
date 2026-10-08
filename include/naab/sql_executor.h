@@ -57,6 +57,7 @@ public:
     std::string getLanguage() const override { return "sql"; }
     std::string getCapturedOutput() override { return ""; }
     std::string getRuntimeVersion() const override;
+    bool runsInProcess() const override { return true; }
 
     // Rows a single block may return before it is refused (memory bound).
     static constexpr size_t kMaxResultRows = 100000;

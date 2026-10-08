@@ -41,6 +41,7 @@ public:
 
     // Get runtime version (e.g., "Python 3.11.2")
     std::string getRuntimeVersion() const override;
+    bool runsInProcess() const override { return true; }
 
 private:
     std::unique_ptr<PythonCExecutor> executor_;

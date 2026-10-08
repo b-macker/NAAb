@@ -417,6 +417,18 @@ run_test() {
             # expressions have no value channel without the embedded executor).
             MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
             echo "  XFAIL: $test_name (missing executor)"
+        elif [ -f "$output_file" ] && grep -q "python execution denied by sandbox" "$output_file" && \
+             grep -q "governance disables running commands" "$output_file"; then
+            # Python refused by the shell-off gate. That happens ONLY where python
+            # is a separate process (no embedded Python: Windows, Linux without
+            # pybind11) -- embedded Python runs in-process and is never refused --
+            # and a project that disables shell refuses such runtimes by design.
+            # Platform absence of the in-process executor, the same class as the
+            # Python case above. Python ONLY: the same refusal for cpp/go/rust/...
+            # happens on every build, so a .naab test hitting it is a real change
+            # and must stay a FAIL.
+            MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
+            echo "  XFAIL: $test_name (missing executor: python is a subprocess here and the shell-off config refuses it)"
         elif [ -f "$output_file" ] && grep -qE "block failed(: | \(exit code 127\): )'[^']+' could not be run" "$output_file"; then
             # A polyglot block whose runtime binary could not be STARTED (exit
             # 127: not installed / not on PATH) -- the subprocess executors'
@@ -1619,6 +1631,19 @@ else
     echo "  test_polyglot_gate_coverage.sh: not found, skipping"
 fi
 
+# --- Shell disabled by the project: every separate-process language refused ---
+SHELL_OFF_LANGS_SCRIPT="tests/security/test_shell_off_subprocess_langs.sh"
+if [ -f "$SHELL_OFF_LANGS_SCRIPT" ]; then
+    if run_shell_test "$SHELL_OFF_LANGS_SCRIPT" 2>&1; then
+        echo "  test_shell_off_subprocess_langs.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_shell_off_subprocess_langs.sh")
+    fi
+else
+    echo "  test_shell_off_subprocess_langs.sh: not found, skipping"
+fi
+
 # --- Compiled-language temp directories (ScopedTempDir, every exit path) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -2076,6 +2101,22 @@ elif [ -f "$EXTENDS_SCRIPT" ]; then
     fi
 else
     echo "  test_extends.sh: not found, skipping"
+fi
+
+# Capability set by extends / bare form / reload reaches every gate (the two
+# stored copies of shell, network and filesystem mode agree)
+CAP_MIRRORS_SCRIPT="tests/governance_v4/test_capability_mirrors.sh"
+if $IS_WINDOWS; then
+    echo "  test_capability_mirrors.sh: skipped (requires shell executor — POSIX-only)"
+elif [ -f "$CAP_MIRRORS_SCRIPT" ]; then
+    if run_shell_test "$CAP_MIRRORS_SCRIPT" 2>&1; then
+        echo "  test_capability_mirrors.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_capability_mirrors.sh")
+    fi
+else
+    echo "  test_capability_mirrors.sh: not found, skipping"
 fi
 
 UNCATCHABLE_SCRIPT="tests/governance_v4/test_uncatchable.sh"
