@@ -217,6 +217,16 @@ EOF
     OUT="$(cd "$d" && timeout 120 "$NAAB" r.naab 2>&1)"
 }
 ENV_ON='"env_vars": { "read": true }'
+# Every CM-06 base config disables shell, and the swap is driven from a Python
+# block. Where python is a separate process (no embedded Python) the shell-off
+# gate refuses it by design, so the ratchet is never reached.
+source "$REPO/tests/helpers/python_shell_off.sh"
+CM6_PY_GATED=0
+if python_refused_under_shell_off "$NAAB"; then CM6_PY_GATED=1; fi
+if [ "$CM6_PY_GATED" -eq 1 ]; then
+    skip "CM-06a" "$PYTHON_SHELL_OFF_REASON"; skip "CM-06" "$PYTHON_SHELL_OFF_REASON"; skip "CM-06b" "$PYTHON_SHELL_OFF_REASON"
+    OUT="__GATED__"
+else
 reload_case obj "{ \"shell\": { \"enabled\": false }, $ENV_ON }" "{ \"shell\": { \"enabled\": true }, $ENV_ON }"
 if [ "$OUT" = "__NOSIGN__" ]; then
     skip "CM-06a" "signing unavailable -- UNMEASURABLE"; skip "CM-06" "signing unavailable -- UNMEASURABLE"; skip "CM-06b" "signing unavailable -- UNMEASURABLE"
@@ -236,6 +246,7 @@ else
         *REACHED_END*) ok "CM-06b" "control: a tightening reload is not rejected" ;;
         *) bad "CM-06b" "control: program did not finish" "$OUT" ;;
     esac
+fi
 fi
 unset NAAB_SIGNING_KEY
 

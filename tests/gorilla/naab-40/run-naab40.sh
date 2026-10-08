@@ -151,6 +151,42 @@ else
     echo "        E3-E5 and F1-F4 will report UNMEASURABLE, not FAIL."
 fi
 
+# Python-under-shell-off probe.
+#
+# Every phase config here sets capabilities.shell.enabled: false. A project that
+# disables shell refuses every language whose runtime is a separate process
+# (LanguageRegistry::getExecutor(); tests/security/test_shell_off_subprocess_langs.sh).
+# Embedded Python runs in-process and is not refused. A build WITHOUT embedded
+# Python (no pybind11: every Windows build) registers python as a subprocess
+# executor, and there it IS refused, by design. The python programs below then
+# stop at their first block, and their arms cannot measure what they are about:
+# C2-C5, D10, E8 and E9 fail, and C1, C6, C7, C9 and C10 would PASS on a program
+# that never ran (no timeout, a mode string, three absence checks).
+#
+# So ask, with a marker file (a block's stdout is captured, not forwarded):
+#   control  -- shell ON: does a python block run at all here?
+#   subject  -- shell OFF: does it run, or is it refused BY THE SHELL-OFF GATE?
+# Only "control ran, subject refused with the gate's own message" marks the
+# arms UNMEASURABLE. Any other failure is left to fail them as before, so a
+# broken python cannot hide behind this.
+PY_SHELLOFF_GATED=0
+source "$SCRIPT_DIR/../../helpers/python_shell_off.sh"
+if python_refused_under_shell_off "$NAAB"; then
+    PY_SHELLOFF_GATED=1
+    echo ""
+    echo "  NOTE: python runs as a separate process in this build, and every phase"
+    echo "        config disables shell, so the shell-off gate refuses it by design."
+    echo "        C1-C7, C9, C10, D10, E8 and E9 will report UNMEASURABLE, not FAIL."
+fi
+# $1 = arm id. True (and records the skip) when the arm cannot be measured.
+py_gated_skip() {
+    if [ "$PY_SHELLOFF_GATED" -eq 1 ]; then
+        skip "$1" "$PYTHON_SHELL_OFF_REASON"
+        return 0
+    fi
+    return 1
+}
+
 setup_workdir() {
     local phase="$1"
     local workdir="$TEST_TMP/work-${phase}-$$-$RANDOM"
@@ -338,42 +374,54 @@ if should_run 3; then
     dash_stdout=$(run_in_split "$WORKDIR_DASH" "cat3_dashboard_violations.naab" "$STDERR_FILE") && dash_exit=0 || dash_exit=$?
 
     # C1: Dashboard completes (no deadlock — timeout would give 124)
-    if [ "$dash_exit" -ne 124 ]; then
+    if py_gated_skip "C1"; then
+        :
+    elif [ "$dash_exit" -ne 124 ]; then
         pass "C1" "dashboard completes (no deadlock)"
     else
         fail "C1" "dashboard timed out (deadlock?)" "exit=$dash_exit"
     fi
 
     # C2: Dashboard header present
-    if grep -q "Governance Summary" "$STDERR_FILE" 2>/dev/null; then
+    if py_gated_skip "C2"; then
+        :
+    elif grep -q "Governance Summary" "$STDERR_FILE" 2>/dev/null; then
         pass "C2" "dashboard header present"
     else
         fail "C2" "dashboard header missing" "$(head -5 "$STDERR_FILE" 2>/dev/null)"
     fi
 
     # C3: "Checks:" line with count
-    if grep -qE "Checks:.*[0-9]+ passed" "$STDERR_FILE" 2>/dev/null; then
+    if py_gated_skip "C3"; then
+        :
+    elif grep -qE "Checks:.*[0-9]+ passed" "$STDERR_FILE" 2>/dev/null; then
         pass "C3" "Checks line with count"
     else
         fail "C3" "Checks line missing" "$(grep -i 'check' "$STDERR_FILE" 2>/dev/null | head -1)"
     fi
 
     # C4: "Risk score:" line when scoring+violations
-    if grep -qE "[Rr]isk [Ss]core:? *[0-9]+" "$STDERR_FILE" 2>/dev/null; then
+    if py_gated_skip "C4"; then
+        :
+    elif grep -qE "[Rr]isk [Ss]core:? *[0-9]+" "$STDERR_FILE" 2>/dev/null; then
         pass "C4" "Risk score line present"
     else
         fail "C4" "Risk score line missing" "$(grep -i 'score\|risk' "$STDERR_FILE" 2>/dev/null | head -1)"
     fi
 
     # C5: Score breakdown shows rule with weight
-    if grep -qE "^\s*\+[0-9]+" "$STDERR_FILE" 2>/dev/null; then
+    if py_gated_skip "C5"; then
+        :
+    elif grep -qE "^\s*\+[0-9]+" "$STDERR_FILE" 2>/dev/null; then
         pass "C5" "score breakdown shows +N weight"
     else
         fail "C5" "score breakdown missing" "$(grep -E '\+[0-9]' "$STDERR_FILE" 2>/dev/null | head -1)"
     fi
 
     # C6: Mode shows "enforce"
-    if grep -qi "enforce" "$STDERR_FILE" 2>/dev/null; then
+    if py_gated_skip "C6"; then
+        :
+    elif grep -qi "enforce" "$STDERR_FILE" 2>/dev/null; then
         pass "C6" "mode shows enforce"
     else
         fail "C6" "mode doesn't show enforce" "$(grep -i 'mode' "$STDERR_FILE" 2>/dev/null | head -1)"
@@ -382,7 +430,9 @@ if should_run 3; then
     # C7: weight=0 calibration suppresses rule from breakdown
     # The dashboard_violations.naab calibrates DASH-TRIGGER to weight=0 before triggers fire
     # Check that DASH-TRIGGER doesn't appear with +N (non-zero) prefix in score breakdown
-    if ! grep -E "^\s*\+[1-9][0-9]*.*DASH-TRIGGER" "$STDERR_FILE" 2>/dev/null; then
+    if py_gated_skip "C7"; then
+        :
+    elif ! grep -E "^\s*\+[1-9][0-9]*.*DASH-TRIGGER" "$STDERR_FILE" 2>/dev/null; then
         pass "C7" "weight=0 suppresses rule from scored breakdown"
     else
         fail "C7" "weight=0 didn't suppress" "$(grep 'DASH-TRIGGER' "$STDERR_FILE" 2>/dev/null | head -1)"
@@ -400,7 +450,9 @@ if should_run 3; then
     fi
 
     # C9: No integrity mismatch warning
-    if ! grep -qi "mismatch" "$STDERR_FILE" 2>/dev/null; then
+    if py_gated_skip "C9"; then
+        :
+    elif ! grep -qi "mismatch" "$STDERR_FILE" 2>/dev/null; then
         pass "C9" "no integrity mismatch warning"
     else
         fail "C9" "integrity mismatch found" "$(grep -i 'mismatch' "$STDERR_FILE" 2>/dev/null | head -1)"
@@ -411,7 +463,9 @@ if should_run 3; then
     STDERR_STRESS="$TEST_TMP/cat3_stderr_stress.txt"
     stress_stdout=$(run_in_split "$WORKDIR_STRESS" "cat3_dashboard_stress.naab" "$STDERR_STRESS") && stress_exit=0 || stress_exit=$?
 
-    if [ "$stress_exit" -ne 124 ]; then
+    if py_gated_skip "C10"; then
+        :
+    elif [ "$stress_exit" -ne 124 ]; then
         pass "C10" "dashboard completes under load (5+ violations)"
     else
         fail "C10" "dashboard deadlock under load" "exit=$stress_exit"
@@ -509,7 +563,9 @@ if should_run 4; then
     WORKDIR_D10=$(setup_workdir "cat4-detect")
     d10_output=$(run_subprocess "$WORKDIR_D10" "cat4_clean.naab") && d10_exit=0 || d10_exit=$?
 
-    if [ "$d10_exit" -eq 0 ]; then
+    if py_gated_skip "D10"; then
+        :
+    elif [ "$d10_exit" -eq 0 ]; then
         pass "D10" "clean code exits 0"
     else
         fail "D10" "clean code exited non-zero" "exit=$d10_exit"
@@ -601,7 +657,9 @@ if should_run 5; then
     # E8: import json allowed
     WORKDIR_E8=$(setup_workdir "cat5-imports")
     e8_output=$(run_subprocess "$WORKDIR_E8" "cat5_e8_json_allowed.naab") && e8_exit=0 || e8_exit=$?
-    if [ "$e8_exit" -eq 0 ] && echo "$e8_output" | grep -q "ok"; then
+    if py_gated_skip "E8"; then
+        :
+    elif [ "$e8_exit" -eq 0 ] && echo "$e8_output" | grep -q "ok"; then
         pass "E8" "import json allowed (exit 0)"
     else
         fail "E8" "import json failed" "exit=$e8_exit, $(echo "$e8_output" | head -1)"
@@ -610,7 +668,9 @@ if should_run 5; then
     # E9: import math allowed
     WORKDIR_E9=$(setup_workdir "cat5-imports")
     e9_output=$(run_subprocess "$WORKDIR_E9" "cat5_e9_math_allowed.naab") && e9_exit=0 || e9_exit=$?
-    if [ "$e9_exit" -eq 0 ] && echo "$e9_output" | grep -q "4"; then
+    if py_gated_skip "E9"; then
+        :
+    elif [ "$e9_exit" -eq 0 ] && echo "$e9_output" | grep -q "4"; then
         pass "E9" "import math allowed (exit 0)"
     else
         fail "E9" "import math failed" "exit=$e9_exit, $(echo "$e9_output" | head -1)"

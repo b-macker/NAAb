@@ -73,6 +73,14 @@ if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]] || [[ -n "${WIN
     IS_WINDOWS=true
 fi
 
+# I-RATCH-01/02 run Python under a shell-OFF config (after the tightening swap,
+# and as the base config respectively). Where python is a separate process (no
+# embedded Python) the shell-off gate refuses it by design, so those arms cannot
+# reach their subject there.
+source "$SCRIPT_DIR/../../helpers/python_shell_off.sh"
+RATCH_PY_GATED=0
+if python_refused_under_shell_off "$NAAB"; then RATCH_PY_GATED=1; fi
+
 if $IS_WINDOWS; then
     skip "I-RATCH-01" "mid-run file swap requires POSIX file semantics"
     skip "I-RATCH-02" "mid-run file swap requires POSIX file semantics"
@@ -136,7 +144,9 @@ echo "should be blocked"
 NAABEOF
 start_swap_operator "$R1DIR"
 OUT=$(cd "$R1DIR" && timeout 30s "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
-if [ $RC -eq 3 ]; then
+if [ "$RATCH_PY_GATED" -eq 1 ]; then
+    skip "I-RATCH-01" "$PYTHON_SHELL_OFF_REASON"
+elif [ $RC -eq 3 ]; then
     ok "I-RATCH-01" "capability tightening accepted → shell blocked (exit 3)"
 else
     fail "I-RATCH-01" "expected exit 3, got $RC"
@@ -193,7 +203,9 @@ print("still strict")
 NAABEOF
 start_swap_operator "$R2DIR"
 OUT=$(cd "$R2DIR" && timeout 30s "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
-if echo "$OUT" | grep -qi "ratchet"; then
+if [ "$RATCH_PY_GATED" -eq 1 ]; then
+    skip "I-RATCH-02" "$PYTHON_SHELL_OFF_REASON"
+elif echo "$OUT" | grep -qi "ratchet"; then
     ok "I-RATCH-02" "capability loosening rejected with ratchet message"
 else
     fail "I-RATCH-02" "expected ratchet rejection (exit $RC)"

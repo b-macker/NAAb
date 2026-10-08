@@ -280,7 +280,15 @@ main {
 NAABEOF
 
 OUTPUT5=$(cd "$T5DIR" && timeout 20s "$NAAB" test_ratchet.naab --governance-dashboard 2>&1) || true
-if echo "$OUTPUT5" | grep -qi "ratchet\|reject"; then
+# Test 5 drives its swap with Python under a shell-OFF base config. Where
+# python is a separate process (no embedded Python) the shell-off gate refuses
+# it by design, so this test cannot reach its subject there.
+source "$PROJECT_DIR/tests/helpers/python_shell_off.sh"
+T5_PY_GATED=0
+if python_refused_under_shell_off "$NAAB"; then T5_PY_GATED=1; fi
+if [ "$T5_PY_GATED" -eq 1 ]; then
+    skip "Test 5 ratchet: $PYTHON_SHELL_OFF_REASON"
+elif echo "$OUTPUT5" | grep -qi "ratchet\|reject"; then
     # Ratchet rejection message visible — loosening was blocked
     if echo "$OUTPUT5" | grep -q "after_loosen"; then
         ok "Ratchet rejected loosening; both blocks ran with original (strict) config"
