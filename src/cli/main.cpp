@@ -151,6 +151,7 @@ static void syncGovernanceToSandbox(
     if (!rules.shell_allowed) {
         config.allow_exec = false;
         config.capabilities.erase(naab::security::Capability::SYS_EXEC);
+        config.shell_disabled_by_policy = true;
     }
     // Filesystem mode restrictions
     if (rules.capabilities.filesystem.mode == "none") {
@@ -280,6 +281,7 @@ static void applyGovernanceSandbox(
     if (!rules.shell_allowed) {
         live->setAllowExec(false);
         live->removeCapability(naab::security::Capability::SYS_EXEC);
+        live->markShellDisabledByPolicy();
     }
     if (!rules.capabilities.env_vars.read) {
         live->removeCapability(naab::security::Capability::SYS_ENV);
@@ -2087,6 +2089,7 @@ int main(int argc, char** argv) {
                             if (!rules.shell_allowed) {
                                 live_sb->setAllowExec(false);
                                 live_sb->removeCapability(naab::security::Capability::SYS_EXEC);
+                                live_sb->markShellDisabledByPolicy();
                             }
                             if (!rules.capabilities.env_vars.read) {
                                 live_sb->removeCapability(naab::security::Capability::SYS_ENV);
@@ -2893,12 +2896,14 @@ int main(int argc, char** argv) {
                 auto& lang_registry = naab::runtime::LanguageRegistry::instance();
                 naab::runtime::ScopedRuntimeVersionProbe probing;  // a lockfile records real versions
                 std::unordered_map<std::string, std::string> observed;
+                // runtimeVersion(), as --lock-check uses, not getExecutor(): this
+                // asks what is installed, it does not execute, and getExecutor()
+                // is the execution gate -- it refuses a language the project's
+                // policy forbids, which aborted --lock for the whole project.
+                // The version probe itself still requires exec permission.
                 for (const auto& lang : lang_registry.supportedLanguages()) {
-                    auto* exec = lang_registry.getExecutor(lang);
-                    if (exec) {
-                        std::string ver = exec->getRuntimeVersion();
-                        if (!ver.empty()) observed[lang] = ver;
-                    }
+                    std::string ver = lang_registry.runtimeVersion(lang);
+                    if (!ver.empty()) observed[lang] = ver;
                 }
 
                 naab::Lockfile lf = naab::Lockfile::load(lf_path);

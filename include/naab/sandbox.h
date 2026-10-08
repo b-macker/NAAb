@@ -78,6 +78,16 @@ struct SandboxConfig {
     bool allow_exec;
     std::vector<std::string> allowed_commands;  // Whitelist of executable names
 
+    // Set only when the project's governance config itself disables shell
+    // (capabilities.shell.enabled false, in any form, inherited or direct).
+    // Distinct from !allow_exec: the `standard` level -- the enforce default --
+    // also withholds exec, and a language refused there would refuse every
+    // compute-only block in projects that never asked for that. This bit means
+    // "the operator said no commands", and LanguageRegistry::getExecutor()
+    // refuses every language whose runtime is a separate process on it, since
+    // such a runtime can start commands that no in-process hook can see.
+    bool shell_disabled_by_policy = false;
+
     // Create config from permission level
     static SandboxConfig fromPermissionLevel(PermissionLevel level);
 
@@ -135,6 +145,8 @@ public:
     // Update exec permission (used when governance disables shell mid-run)
     void setAllowExec(bool allowed) { config_.allow_exec = allowed; }
     void setAllowFork(bool allowed) { config_.allow_fork = allowed; }
+    // One-way: governance only ever sets it (see SandboxConfig).
+    void markShellDisabledByPolicy() { config_.shell_disabled_by_policy = true; }
 
     // Audit logging
     void logViolation(const std::string& operation,
@@ -178,6 +190,7 @@ public:
     void setNetworkEnabled(bool enabled) { if (sandbox_) sandbox_->setNetworkEnabled(enabled); }
     void setAllowExec(bool allowed) { if (sandbox_) sandbox_->setAllowExec(allowed); }
     void setAllowFork(bool allowed) { if (sandbox_) sandbox_->setAllowFork(allowed); }
+    void markShellDisabledByPolicy() { if (sandbox_) sandbox_->markShellDisabledByPolicy(); }
     void replaceConfig(const SandboxConfig& config) { if (sandbox_) sandbox_->replaceConfig(config); }
 
 private:

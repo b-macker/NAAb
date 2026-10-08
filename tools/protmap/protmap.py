@@ -452,7 +452,13 @@ def compare(cells, baseline):
     return fails, skipped
 
 
-def measure(naab, langs, levels, jobs, snippets=None):
+def measure(naab, langs, levels, jobs, snippets=None, measure_permitted=False):
+    """measure_permitted: also measure exec in a column whose policy permits it
+    (normally PERMITTED, never probed). Only --plant-bare uses it: its subject
+    is the INSTRUMENT, and since shell-off refuses every separate-process
+    language the one column left where a bare command name can fail to resolve
+    while the language runs is standard/shell (PATH restricted by the level,
+    fork allowed for root)."""
     rules = text_rules()
     tools = tool_paths()
     snippets = snippets or SNIPPETS
@@ -466,7 +472,7 @@ def measure(naab, langs, levels, jobs, snippets=None):
                 continue
             jobs_list.append((lang, action, "audit", "unrestricted", False))  # control
             for lv in levels:
-                if action == "exec" and COLUMNS[lv][1]:
+                if action == "exec" and COLUMNS[lv][1] and not measure_permitted:
                     continue  # permitted by this column's policy
                 jobs_list.append((lang, action, "audit", lv, True))
                 jobs_list.append((lang, action, "enforce", lv, True))
@@ -487,7 +493,7 @@ def measure(naab, langs, levels, jobs, snippets=None):
                 if action not in snippets[lang]:
                     cells[key] = {"verdict": "NO_API" if action in NO_API.get(lang, ()) else "NO_PROBE"}
                     continue
-                if action == "exec" and COLUMNS[lv][1]:
+                if action == "exec" and COLUMNS[lv][1] and not measure_permitted:
                     cells[key] = {"verdict": "PERMITTED"}
                     continue
                 ctl = results[(lang, action, "audit", "unrestricted", False)]
@@ -652,7 +658,7 @@ def main(argv):
         for t in TOOLS:
             code = code.replace("{" + t.upper() + "}", t)
         planted[lang][action] = code
-        cells = measure(a.naab, [lang], [col], a.jobs, planted)
+        cells = measure(a.naab, [lang], [col], a.jobs, planted, measure_permitted=True)
         print(json.dumps(cells[f"{lang}/{action}/{col}"], sort_keys=True))
         return 0
     for l in langs:
@@ -674,7 +680,8 @@ def main(argv):
     measured = {k: c["verdict"] for k, c in cells.items() if c["verdict"] in RANK}
     # The baseline has one section per privilege: RLIMIT_NPROC (the fork/exec
     # half of subprocess containment) is not enforced for root, so the same
-    # build contains less when run as root -- measured: 9 cells differ.
+    # build contains less when run as root -- measured 2026-10-08: 4 cells
+    # differ (go at standard/shell).
     profile = a.profile or ("root" if hasattr(os, "geteuid") and os.geteuid() == 0 else "nonroot")
     if a.write_baseline:
         doc = {}

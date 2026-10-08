@@ -303,7 +303,15 @@ EXIT_CODE=$?
 
 # Shell should be blocked because base disables it and child inherits
 check "T5a: shell blocked by inherited config" "1" "$([ $EXIT_CODE -ne 0 ] && echo 1 || echo 0)"
-check_contains "T5b: shell governance block message" "denied" "$OUTPUT"
+# T5b asserts the GOVERNANCE block (HARD, exit 3), not the sandbox's refusal.
+# It used to match "denied" -- the standard sandbox's own "sh execution denied
+# by sandbox", which fires whether or not the parent's shell-off was inherited.
+# It was: the extends merge set only capabilities.shell.enabled while every
+# gate reads shell_allowed, so this arm passed on a defect (see
+# test_capability_mirrors.sh). Matching the governance message makes T5 able
+# to fail when inheritance breaks.
+check_contains "T5b: shell governance block message" "Shell execution is not allowed" "$OUTPUT"
+check "T5b2: inherited shell block is HARD (exit 3)" "3" "$EXIT_CODE"
 
 
 # ============================================================
@@ -463,6 +471,9 @@ OUTPUT2=$(cd "$T9C" && "$NAAB" run test_shell.naab 2>&1)
 EXIT2=$?
 
 check "T9c: grandparent shell block inherited" "1" "$([ $EXIT2 -ne 0 ] && echo 1 || echo 0)"
+# Same reason as T5b: a non-zero exit is also what the standard sandbox gives
+# on its own. The governance message is what only inheritance produces.
+check_contains "T9d: grandparent shell block is the governance block" "Shell execution is not allowed" "$OUTPUT2"
 
 
 # ============================================================

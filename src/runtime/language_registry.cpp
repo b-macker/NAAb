@@ -65,6 +65,42 @@ Executor* LanguageRegistry::getExecutor(const std::string& language) {
         throw std::runtime_error(language + " execution denied by sandbox");
     }
 
+    // Shell disabled BY THE PROJECT: refuse every runtime that is a separate
+    // program. Before this, only the persistent executors (shell, node, ruby)
+    // checked for exec, so with shell disabled php, go, cpp and rust still
+    // started commands -- by absolute path or execve, which the subprocess PATH
+    // restriction does not cover and RLIMIT_NPROC does not bind as root (or at
+    // `elevated` at all). Measured with the protection map: those cells were
+    // TEXT-ONLY or OPEN with shell disabled. A runtime that is its own process
+    // cannot be told "no commands" from here, so the language is refused.
+    //
+    // Keyed on shell_disabled_by_policy, NOT on !allow_exec: the `standard`
+    // level withholds exec from every project in enforce mode, and refusing on
+    // that would refuse compute-only blocks in projects that never disabled
+    // shell. Only the operator's explicit decision triggers this.
+    //
+    // Here, not in each executor, for the reason the gate above gives: one
+    // place, and a new executor is covered by default (runsInProcess() is false
+    // unless the executor says otherwise).
+    if (!it->second->runsInProcess() &&
+        security::ScopedSandbox::effectiveConfig().shell_disabled_by_policy) {
+        if (auto* sandbox = security::ScopedSandbox::getCurrent()) {
+            sandbox->logViolation("polyglot:" + language, "<block>",
+                                  "shell disabled by project policy");
+        }
+        throw std::runtime_error(
+            "Security: " + language + " execution denied by sandbox\n\n"
+            "  This project's governance disables running commands, and " + language + "\n"
+            "  code runs as a separate program that can start commands the\n"
+            "  sandbox cannot observe, so the language is refused.\n\n"
+            "  Help:\n"
+            "  - Languages hosted inside the interpreter itself (embedded python,\n"
+            "    javascript and sql, where this build includes them) still run,\n"
+            "    under the same policy.\n"
+            "  - The project owner decides whether commands are allowed, in the\n"
+            "    project configuration.\n");
+    }
+
     return it->second.get();
 }
 

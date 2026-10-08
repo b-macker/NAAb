@@ -2869,8 +2869,16 @@ std::string GovernanceEngine::verifyPolyglotResult(
     for (const auto& lang : cfg.consensus_languages) {
         std::string norm = normalizeLanguage(lang);
         if (norm == norm_lang) continue;
-        if (registry.getExecutor(norm) != nullptr) {
-            available_langs.push_back(norm);
+        // getExecutor() is the execution gate: it THROWS for a language the
+        // sandbox or the project's shell policy refuses. A refused language
+        // cannot run a verification, so it is unavailable, not a fatal error.
+        try {
+            if (registry.getExecutor(norm) != nullptr) {
+                available_langs.push_back(norm);
+            }
+        } catch (const governance::GovernanceHardError&) {
+            throw;
+        } catch (const std::runtime_error&) {
         }
     }
 
