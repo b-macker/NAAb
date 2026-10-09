@@ -3221,6 +3221,15 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     int tool_total_result_chars = 0;
     std::vector<NaabVal> tool_results_summary;  // for response dict
     std::string tool_loop_exit_reason = "text_response";
+    // The final tool-less turn granted when the loop runs out of budget:
+    // "" (not applicable), "granted", "skipped: <budget>" or "failed: <error>".
+    std::string tool_loop_final_turn;
+    // Whether the tracker already holds the CURRENT agent_resp's turn and
+    // tokens. The loop accounts each tool-requesting response after running
+    // its calls; the post-loop commit accounts agent_resp. A final turn
+    // replaces agent_resp, so the response it replaces must be accounted
+    // first unless the loop already did.
+    bool loop_resp_accounted = false;
     // F48/F54 tool-loop attempt state. Separate from the send path's own
     // key_offset/model_idx on purpose: the tool loop is a different sequence of
     // calls and should not rewind or advance the send path's rotation. Seeded
@@ -3284,6 +3293,53 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         for (const auto& [name, reg] : tool_snapshot) {
             tool_defs.push_back({name, reg.description, reg.input_schema.dump()});
         }
+
+        // One provider call of the tool loop. F48/F54: the loop's calls use the
+        // SAME primitives as the main send path (selectAttemptKey,
+        // chargeCallBudget), so "which key" and "does this fit the budget"
+        // cannot answer differently depending on which loop asked. Shared by
+        // the loop and by the final tool-less turn so there is one copy.
+        // Returns true on success; otherwise `hard_stop` says the run budget
+        // refused the call and `err` holds the last provider error.
+        auto callToolLoopTurn = [&](const std::string& msgs, bool forbid_tools,
+                                    runtime::ProviderResult& out, std::string& err,
+                                    bool& hard_stop) -> bool {
+            hard_stop = false;
+            err.clear();
+            const int max_attempts = std::max(1, config->retry.max_attempts);
+            for (int attempt = 0; attempt < max_attempts; attempt++) {
+                // Key: rotate on each attempt, skipping dead and preferring
+                // un-throttled -- rotation after a failure is the point.
+                std::string lkey_env, lapi_key;
+                if (!selectAttemptKey(keys, config, gov_engine,
+                                      key_offset_tool, lapi_key, lkey_env)) {
+                    err = "All API keys exhausted or dead";
+                    return false;
+                }
+                // Model: walk the fallback chain, one step per attempt.
+                governance::AgentConfig loop_config = *config;
+                loop_config.model = models[loop_model_idx % models.size()];
+
+                if (!chargeCallBudget(hs_tool, gov_engine, config_name).empty()) {
+                    // The budget is a run-level stop, not a retryable error.
+                    hard_stop = true;
+                    err.clear();
+                    return false;
+                }
+                out = runtime::callAgentWithTools(loop_config, lapi_key, msgs,
+                                                  tool_defs, forbid_tools);
+                if (out.response.success) return true;
+
+                err = out.response.error;
+                s_dispatch.total_retries++;
+                if (models.size() > 1) loop_model_idx++;   // fall back next attempt
+                if (attempt + 1 < max_attempts && config->retry.backoff_ms > 0) {
+                    std::this_thread::sleep_for(
+                        std::chrono::milliseconds(config->retry.backoff_ms));
+                }
+            }
+            return false;
+        };
 
         // Emit TOOL_LOOP_START telemetry
         if (gov_engine && gov_engine->isActive()) {
@@ -3705,7 +3761,19 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 }
             } // end for each tool_call
 
-            if (tool_loop_exit_reason != "text_response") break;
+            if (tool_loop_exit_reason != "text_response") {
+                // The per-turn call budget ran out part-way through this
+                // response. Keep the calls that DID run, with their results,
+                // so the final tool-less turn below answers from them. (The
+                // messages here are the request context only; handle history
+                // gets the user message and the final reply, nothing else.)
+                if (tool_loop_exit_reason == "max_tool_calls_per_turn" &&
+                    !tool_result_blocks.empty()) {
+                    messages_json.push_back({{"role", "assistant"}, {"content", assistant_content}});
+                    messages_json.push_back({{"role", "user"}, {"content", tool_result_blocks}});
+                }
+                break;
+            }
 
             // Append assistant (tool_use) message to history
             json asst_msg;
@@ -3726,6 +3794,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 tracker.turns++;
                 tracker.input_tokens += resp_input_tokens;
                 tracker.output_tokens += resp_output_tokens;
+                loop_resp_accounted = true;
                 if (tracker.turns >= config->max_turns) {
                     tool_loop_exit_reason = "max_turns";
                     break;
@@ -3804,53 +3873,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             // charged the run budget, so a tool-using agent was both LESS
             // resilient than the same agent without tools and able to spend
             // uncounted calls. Measured before the fix: 3 tool-loop turns under
-            // max_calls_per_run: 2.
-            //
-            // Retries use the SAME primitives as the main send path, so "which
-            // key" and "does this fit the budget" cannot answer differently
-            // depending on which loop asked.
+            // max_calls_per_run: 2. Retries now go through callToolLoopTurn.
             runtime::ProviderResult loop_result;
-            bool loop_ok = false;
             std::string loop_last_error;
-            const int loop_max_attempts = std::max(1, config->retry.max_attempts);
-
-            for (int lattempt = 0; lattempt < loop_max_attempts; lattempt++) {
-                // Key: rotate on each attempt, skipping dead and preferring
-                // un-throttled. The first attempt reuses the key already chosen
-                // above only if selection lands on it again -- rotation after a
-                // failure is the point.
-                std::string lkey_env, lapi_key;
-                if (!selectAttemptKey(keys, config, gov_engine,
-                                      key_offset_tool, lapi_key, lkey_env)) {
-                    loop_last_error = "All API keys exhausted or dead";
-                    break;
-                }
-
-                // Model: walk the fallback chain, one step per attempt.
-                governance::AgentConfig loop_config = *config;
-                loop_config.model = models[loop_model_idx % models.size()];
-
-                std::string stop_reason = chargeCallBudget(hs_tool, gov_engine, config_name);
-                if (!stop_reason.empty()) {
-                    // The budget is a run-level stop, not a retryable error.
-                    tool_loop_exit_reason = "hard_stop";
-                    loop_last_error.clear();
-                    break;
-                }
-
-                loop_result = runtime::callAgentWithTools(
-                    loop_config, lapi_key, messages_str, tool_defs);
-
-                if (loop_result.response.success) { loop_ok = true; break; }
-
-                loop_last_error = loop_result.response.error;
-                s_dispatch.total_retries++;
-                if (models.size() > 1) loop_model_idx++;   // fall back next attempt
-                if (lattempt + 1 < loop_max_attempts && config->retry.backoff_ms > 0) {
-                    std::this_thread::sleep_for(
-                        std::chrono::milliseconds(config->retry.backoff_ms));
-                }
-            }
+            bool loop_hard_stop = false;
+            bool loop_ok = callToolLoopTurn(messages_str, /*forbid_tools=*/false,
+                                            loop_result, loop_last_error, loop_hard_stop);
+            if (loop_hard_stop) tool_loop_exit_reason = "hard_stop";
 
             if (!loop_ok) {
                 if (tool_loop_exit_reason != "hard_stop") {
@@ -3871,6 +3900,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
             // Update response data
             agent_resp = loop_result.response;
+            loop_resp_accounted = false;
             content = agent_resp.content;
             stop_reason = agent_resp.stop_reason;
             resp_input_tokens = agent_resp.input_tokens;
@@ -3883,6 +3913,112 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 tool_loop_exit_reason = "text_response";
             }
         } // end while tool loop
+
+        // The while condition is itself a budget. Leaving because tool_loop_turns
+        // reached max_tool_loop_turns while the model was STILL asking for tools
+        // used to keep the initial "text_response" label, so a loop that ended
+        // with no final text turn (content empty) read as a normal completion in
+        // AGENT_TOOL_LOOP_END, the transcript and the response dict -- and
+        // tools/llm_bridge/score.py counted it as a success.
+        if (is_tool_response && tool_loop_exit_reason == "text_response") {
+            tool_loop_exit_reason = "max_tool_loop_turns";
+        }
+
+        // Final tool-less turn (project owner's decision, 2026-10-09). When the
+        // loop stops on one of its OWN budgets while the model is still asking
+        // for tools, the model never saw the results of its last calls and
+        // there is no text reply -- the empty-reply shape of
+        // docs/llm-bridge-findings.md open item 2, which a live living-script
+        // review read as the engine dropping 610-1476-token answers. Grant one
+        // more call with the tool definitions kept (a history holding tool
+        // calls needs them) but tool use forbidden, so the model must answer
+        // in text. It is an ordinary call: charged to the run budget, refused
+        // by max_turns / max_total_tokens / CRITICAL like the loop's own calls,
+        // and accounted. Run-level stops (hard_stop, max_turns, max_tokens,
+        // governance_critical, api errors) get no final turn -- the point of
+        // those is that no further call is made.
+        if (tool_loop_exit_reason == "max_tool_loop_turns" ||
+            tool_loop_exit_reason == "max_tool_calls_per_turn") {
+            std::string skip;
+            {
+                std::lock_guard<std::mutex> lock(s_agent_mutex);
+                auto& tracker = s_trackers[handle_id];
+                const int pending_turns = loop_resp_accounted ? 0 : 1;
+                const int pending_tokens =
+                    loop_resp_accounted ? 0 : resp_input_tokens + resp_output_tokens;
+                if (tracker.turns + pending_turns >= config->max_turns) {
+                    skip = "max_turns";
+                } else if (config->max_total_tokens > 0 &&
+                           tracker.input_tokens + tracker.output_tokens + pending_tokens >=
+                               config->max_total_tokens) {
+                    skip = "max_tokens";
+                }
+            }
+            if (skip.empty() && s_dispatch.hard_stopped.load()) skip = "hard_stop";
+            if (skip.empty() && gov_engine && gov_engine->isActive() &&
+                gov_engine->getGovernanceLevel() == governance::GovernanceLevel::CRITICAL) {
+                skip = "governance_critical";
+            }
+
+            if (!skip.empty()) {
+                tool_loop_final_turn = "skipped: " + skip;
+            } else {
+                json final_messages = messages_json;
+                // max_tool_loop_turns: the last response's calls never ran and
+                // are not in the request history. Show them, each answered
+                // "not executed", so the history stays well-formed (every call
+                // has a result) and the model knows why it has no result.
+                // (max_tool_calls_per_turn already appended the calls that ran.)
+                if (tool_loop_exit_reason == "max_tool_loop_turns" &&
+                    !agent_resp.tool_calls.empty()) {
+                    json asst = json::array();
+                    if (!content.empty()) asst.push_back({{"type", "text"}, {"text", content}});
+                    json results = json::array();
+                    for (const auto& tc : agent_resp.tool_calls) {
+                        json input = json::object();
+                        try { input = json::parse(tc.arguments); } catch (...) {}
+                        asst.push_back({{"type", "tool_use"}, {"id", tc.id},
+                                        {"name", tc.name}, {"input", input}});
+                        results.push_back({{"type", "tool_result"}, {"tool_use_id", tc.id},
+                            {"name", tc.name},
+                            {"content", "Not executed: the tool budget for this turn is spent. "
+                                        "Answer now, in text, from the results you already have."},
+                            {"is_error", true}});
+                    }
+                    final_messages.push_back({{"role", "assistant"}, {"content", asst}});
+                    final_messages.push_back({{"role", "user"}, {"content", results}});
+                }
+
+                runtime::ProviderResult final_result;
+                std::string final_error;
+                bool final_hard_stop = false;
+                if (callToolLoopTurn(final_messages.dump(), /*forbid_tools=*/true,
+                                     final_result, final_error, final_hard_stop)) {
+                    if (!loop_resp_accounted) {
+                        std::lock_guard<std::mutex> lock(s_agent_mutex);
+                        auto& tracker = s_trackers[handle_id];
+                        tracker.turns++;
+                        tracker.input_tokens += resp_input_tokens;
+                        tracker.output_tokens += resp_output_tokens;
+                    }
+                    // Any tool call a provider returns anyway is not executed:
+                    // the reply is its text.
+                    agent_resp = final_result.response;
+                    loop_resp_accounted = false;
+                    content = agent_resp.content;
+                    stop_reason = agent_resp.stop_reason;
+                    resp_input_tokens = agent_resp.input_tokens;
+                    resp_output_tokens = agent_resp.output_tokens;
+                    tool_loop_final_turn = "granted";
+                } else if (final_hard_stop) {
+                    tool_loop_final_turn = "skipped: hard_stop";
+                } else {
+                    std::string detail = naab::error::ErrorSanitizer::sanitize(final_error);
+                    if (detail.size() > 200) detail = detail.substr(0, 200) + "...";
+                    tool_loop_final_turn = "failed: " + detail;
+                }
+            }
+        }
 
         // Update tracker tool counters (L5)
         {
@@ -3906,7 +4042,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 {"handle_id", std::to_string(handle_id)},
                 {"tool_calls_made", std::to_string(tool_calls_this_send)},
                 {"tool_loop_turns", std::to_string(tool_loop_turns)},
-                {"exit_reason", tool_loop_exit_reason}
+                {"exit_reason", tool_loop_exit_reason},
+                {"final_turn", tool_loop_final_turn}
             });
         }
         if (transcript_active && tool_calls_this_send > 0) {
@@ -3914,7 +4051,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 {"calls_made", tool_calls_this_send},
                 {"calls_blocked", tool_blocked_this_send},
                 {"turns", tool_loop_turns},
-                {"exit_reason", tool_loop_exit_reason}
+                {"exit_reason", tool_loop_exit_reason},
+                {"final_turn", tool_loop_final_turn}
             };
         }
     } // end if tools_enabled
@@ -4124,15 +4262,31 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         });
     }
 
-    // Telemetry: response suppressed — content was empty after all retries
+    // Telemetry: response suppressed — content was empty after all retries.
+    // An empty reply has two different causes: the model said nothing, or the
+    // tool loop stopped on a budget while the model was still calling tools, so
+    // there was no final text turn. In the second case output_tokens are the
+    // last tool-CALL turn's (its arguments can be the whole answer -- code
+    // passed to a validator), which read as "the model produced N tokens and
+    // the engine dropped them" unless the event says the loop ended there.
     if (gov_engine && gov_engine->isActive() && content.empty()) {
+        const bool tool_loop_ended_without_text =
+            tool_calls_this_send > 0 && tool_loop_exit_reason != "text_response";
         gov_engine->writeAgentTelemetry("RESPONSE_SUPPRESSED", {
             {"handle_id",     std::to_string(handle_id)},
             {"config_name",   config_name},
             {"turn",          std::to_string(current_turn)},
             {"output_tokens", std::to_string(resp_output_tokens)},
-            {"reason",        !agent_resp.error.empty() ? agent_resp.error : "empty response"},
-            {"retries_used",  std::to_string(agent_resp.attempts - 1)}
+            {"reason",        !agent_resp.error.empty() ? agent_resp.error
+                              : tool_loop_final_turn == "granted"
+                                  ? "final tool-less turn returned no text"
+                              : tool_loop_ended_without_text
+                                  ? "tool loop ended without a final text turn"
+                                  : "empty response"},
+            {"retries_used",  std::to_string(agent_resp.attempts - 1)},
+            {"tool_calls_made",       std::to_string(tool_calls_this_send)},
+            {"tool_loop_exit_reason", tool_loop_exit_reason},
+            {"tool_loop_final_turn",  tool_loop_final_turn}
         });
     }
 
@@ -4224,10 +4378,35 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     }
 
     // Output Contract checking (Phase 7) — validate response against schema
-    if (config && !content.empty() && !config->output_contract.format.empty()) {
-        std::string contract_error;
+    // Computed here, ENFORCED after the accounting commit below: the call
+    // happened, so a violating reply's turn and tokens must count (split
+    // commit). Throwing here, as this block did, skipped the tracker update, so
+    // every contract violation was a model call max_turns and max_total_tokens
+    // never saw -- and making an empty reply a violation would have moved the
+    // empty replies, which used to be counted, into that hole too.
+    std::string contract_error;
+    if (config && !config->output_contract.format.empty()) {
 
-        if (config->output_contract.format == "json") {
+        // A declared contract is not met by saying nothing. This block used to
+        // run only for non-empty content, so an agent whose contract required
+        // fields could hand the script "" (llm-bridge-findings open item 3);
+        // the commit that added the guard (99447293) gave no reason for the
+        // exemption. Project owner's decision 2026-10-09: an empty reply is a
+        // violation. The usual cause is a tool loop that stopped on a budget
+        // with no final text turn, so name it when that is what happened.
+        if (content.empty()) {
+            if (tool_loop_final_turn == "granted")
+                contract_error = fmt::format(
+                    "empty response (the final tool-less turn after {} returned no text)",
+                    tool_loop_exit_reason);
+            else if (tool_calls_this_send > 0 && tool_loop_exit_reason != "text_response")
+                contract_error = fmt::format(
+                    "empty response (tool loop ended without a final text turn: {}{})",
+                    tool_loop_exit_reason,
+                    tool_loop_final_turn.empty() ? "" : ", final turn " + tool_loop_final_turn);
+            else
+                contract_error = "empty response";
+        } else if (config->output_contract.format == "json") {
             try {
                 auto parsed = nlohmann::json::parse(content);
 
@@ -4288,33 +4467,6 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             }
         }
 
-        // Emit CONTRACT_VIOLATION telemetry if contract failed
-        if (!contract_error.empty()) {
-            if (gov_engine && gov_engine->isActive()) {
-                gov_engine->writeAgentTelemetry("CONTRACT_VIOLATION", {
-                    {"handle_id",     std::to_string(handle_id)},
-                    {"config_name",   config_name},
-                    {"turn",          std::to_string(current_turn)},
-                    {"format",        config->output_contract.format},
-                    {"violation",     contract_error},
-                    {"content_length", std::to_string(content.size())}
-                });
-                gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
-                    {"rule_name", "contract_violation"},
-                    {"level", "hard"},
-                    {"agent", config_name},
-                    {"turn", std::to_string(current_turn)}
-                });
-            }
-            // Block the response by throwing an error
-            throw std::runtime_error(
-                fmt::format("Agent error: output contract violation\n\n"
-                    "  Agent: {}\n"
-                    "  Format: {}\n"
-                    "  Violation: {}\n\n"
-                    "  The LLM response does not match the expected output schema.\n",
-                    config_name, config->output_contract.format, contract_error));
-        }
     }
     if (transcript_active) {
         nlohmann::json cc;
@@ -4365,6 +4517,37 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         if (!exposure_block.empty()) {
             throw std::runtime_error(exposure_block);
         }
+    }
+
+    // Output contract: enforced only now, after the accounting and exposure
+    // commits above, and still before CDD and the history append (a violating
+    // reply never enters history and is not scored).
+    // Emit CONTRACT_VIOLATION telemetry if contract failed
+    if (!contract_error.empty()) {
+        if (gov_engine && gov_engine->isActive()) {
+            gov_engine->writeAgentTelemetry("CONTRACT_VIOLATION", {
+                {"handle_id",     std::to_string(handle_id)},
+                {"config_name",   config_name},
+                {"turn",          std::to_string(current_turn)},
+                {"format",        config->output_contract.format},
+                {"violation",     contract_error},
+                {"content_length", std::to_string(content.size())}
+            });
+            gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
+                {"rule_name", "contract_violation"},
+                {"level", "hard"},
+                {"agent", config_name},
+                {"turn", std::to_string(current_turn)}
+            });
+        }
+        // Block the response by throwing an error
+        throw std::runtime_error(
+            fmt::format("Agent error: output contract violation\n\n"
+                "  Agent: {}\n"
+                "  Format: {}\n"
+                "  Violation: {}\n\n"
+                "  The LLM response does not match the expected output schema.\n",
+                config_name, config->output_contract.format, contract_error));
     }
 
     // Behavioral sequence: emit agent.response event + context drift check
@@ -5054,6 +5237,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         result["tool_budget_remaining"] = NaabVal::makeInt(
             std::max(0, config->max_tool_calls_per_turn - tool_calls_this_send));
         result["tool_loop_exit_reason"] = NaabVal::makeString(tool_loop_exit_reason);
+        result["tool_loop_final_turn"] = NaabVal::makeString(tool_loop_final_turn);
     }
 
     // Reality checkpoint: add pressure data if checkpoint fired at ADVISORY
@@ -6744,18 +6928,9 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
                         if (pc != prev.end() && cc != curr.end() &&
                             pc->second.isString() && cc->second.isString() &&
                             pc->second.asString() == cc->second.asString()) {
-                            std::string msg = fmt::format(
-                                "Pipeline separation violation — adjacent stages {} and {} "
-                                "share agent config '{}'\n\n"
-                                "  Pipeline stages should use distinct agent configurations\n"
-                                "  to ensure separation of duties.\n",
-                                i-1, i, pc->second.asString());
-                            if (sep.level == governance::EnforcementLevel::HARD ||
-                                sep.level == governance::EnforcementLevel::SOFT) {
-                                throw std::runtime_error(msg);
-                            } else {
-                                fprintf(stderr, "[governance] ADVISORY: %s\n", msg.c_str());
-                            }
+                            // Through enforce(): HARD is uncatchable, as for
+                            // every other HARD block (see checkPipelineSeparation).
+                            ge->checkPipelineSeparation(i - 1, i, pc->second.asString());
                         }
                     }
                 }

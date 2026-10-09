@@ -83,12 +83,17 @@ struct ToolDefinition {
     std::string input_schema_json;  // JSON string of parameter schema
 };
 
-// Multi-turn with tool definitions: sends tool schemas to LLM, parses tool_use responses
+// Multi-turn with tool definitions: sends tool schemas to LLM, parses tool_use responses.
+// forbid_tool_use keeps the definitions (a history holding tool calls needs
+// them) but tells the model it may not call any: Anthropic tool_choice
+// {"type":"none"}, Gemini functionCallingConfig mode NONE. Used for the final
+// turn granted when the tool loop runs out of budget.
 ProviderResult callAgentWithTools(
     const governance::AgentConfig& config,
     const std::string& api_key,
     const std::string& messages_json,
-    const std::vector<ToolDefinition>& tools);
+    const std::vector<ToolDefinition>& tools,
+    bool forbid_tool_use = false);
 
 } // namespace runtime
 } // namespace naab

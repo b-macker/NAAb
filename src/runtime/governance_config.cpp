@@ -234,59 +234,127 @@ std::string GovernanceEngine::formatError(
 // JSON Loading
 // ============================================================================
 
+// Level names are case-insensitive: "HARD" is "hard". The project owner's
+// decision (2026-10-09), after a live run's `pipeline_separation.level: "HARD"`
+// was misreported. Lower-case was never documented as required, and the cost
+// of case-sensitivity was a fail-OPEN: at the 30 keys whose value also switches
+// a check on, "HARD" DISABLED the check. The one direction this loosens is an
+// upper-case "SOFT"/"ADVISORY"/"DETECT" on a level-only key, which used to fall
+// through to hard by accident and now means what it says; no config in the tree
+// carried one. Only values that ARE a level are folded -- "Elevated" in
+// sandbox_level or "BASIC" in audit.level are not this function's business.
+static std::string normalizeLevelName(const std::string& s) {
+    std::string lower = s;
+    std::transform(lower.begin(), lower.end(), lower.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    static const char* const kLevels[] = {"hard", "soft", "advisory", "detect",
+                                          "approval_required", "none"};
+    for (const char* l : kLevels)
+        if (lower == l) return lower;
+    return s;
+}
+
+// The spelled-out levels. Shared by both parsers below so they cannot drift.
+static bool matchEnforcementLevel(const std::string& raw, EnforcementLevel& out) {
+    const std::string s = normalizeLevelName(raw);
+    if (s == "hard")              { out = EnforcementLevel::HARD;              return true; }
+    if (s == "approval_required") { out = EnforcementLevel::APPROVAL_REQUIRED; return true; }
+    if (s == "soft")              { out = EnforcementLevel::SOFT;              return true; }
+    if (s == "advisory")          { out = EnforcementLevel::ADVISORY;          return true; }
+    if (s == "detect")            { out = EnforcementLevel::DETECT;            return true; }
+    return false;
+}
+
+// A1c: an unrecognised level is still not honoured differently -- rejecting it
+// or reinterpreting it could fail configs that load today -- but it is never
+// silent. The warning must say what ACTUALLY happens, and that depends on the
+// call site, so the caller passes the effect:
+//   * parseEnforcementLevel() sites also take the check's on/off from the value
+//     (the shorthand `"no_secrets": "hard"`), and an unknown string DISABLES it.
+//   * parseLevelOnly() sites read only a level -- the check has its own
+//     `enabled` key -- and an unknown string leaves the strictest level, HARD.
+// Both used to print "this check is DISABLED". At the 41 level-only sites that
+// was the opposite of the truth: `pipeline_separation.level: "HARD"` was
+// enforced at hard while its warning said it was off, and a live-run review
+// reported the check as disabled for the whole run on the strength of it.
+//
+// Warn once per distinct (value, effect). Several checks reach a parser by two
+// paths (no_secrets, no_placeholders, no_hardcoded_results), and the message
+// names no key, so a repeat carries no information.
+static void warnUnknownEnforcementLevel(const std::string& s, const char* effect) {
+    static std::mutex warned_mu;
+    static std::set<std::string> warned;
+    std::lock_guard<std::mutex> lk(warned_mu);
+    if (!warned.insert(s + '\x1f' + effect).second) return;
+    fprintf(stderr,
+            "[governance] Warning: unknown enforcement level \"%s\" - %s. "
+            "Valid levels: hard, soft, advisory, detect, approval_required.\n",
+            s.c_str(), effect);
+}
+
+static constexpr const char* kUnknownLevelDisables =
+    "where the level also decides whether a check is on, that check is DISABLED";
+static constexpr const char* kUnknownLevelAppliesHard =
+    "where it sets a check's level, the check is enforced at hard";
+
 static std::pair<bool, EnforcementLevel> parseEnforcementLevel(
     const nlohmann::json& value) {
     if (value.is_boolean()) {
         return {value.get<bool>(), EnforcementLevel::HARD};
     }
     if (value.is_string()) {
-        std::string s = (value.is_string() ? value.get<std::string>() : std::string());
-        if (s == "hard")              return {true, EnforcementLevel::HARD};
-        if (s == "approval_required") return {true, EnforcementLevel::APPROVAL_REQUIRED};
-        if (s == "soft")              return {true, EnforcementLevel::SOFT};
-        if (s == "advisory")          return {true, EnforcementLevel::ADVISORY};
-        if (s == "detect")            return {true, EnforcementLevel::DETECT};
-        // A1c: any OTHER string falls through to {false, HARD} below -- i.e. it
-        // silently DISABLES the check. So "level": "off", "none", "warn", or a
-        // plain typo turns a check off with no diagnostic, which is the same
-        // silence as the ignored "enabled" flag, in the very key the warning for
-        // that flag tells operators to reach for.
-        //
-        // The value is still not honoured differently -- rejecting unknown levels
-        // and defaulting them to enabled are both tightenings that could fail
-        // configs which load today. Only the silence is fixed, matching the
-        // precedent set for the enabled flag.
-        // Warn once per distinct unknown level. Several checks are parsed by two
-        // paths (no_secrets, no_placeholders, no_hardcoded_results each reach
-        // parseEnforcementLevel twice), so a single bad value printed per call
-        // site produces duplicate lines that carry no extra information -- the
-        // message does not name the key, so the second line is pure noise.
-        {
-            static std::mutex warned_mu;
-            static std::set<std::string> warned;
-            std::lock_guard<std::mutex> lk(warned_mu);
-            if (warned.insert(s).second) {
-                fprintf(stderr,
-                        "[governance] Warning: unknown enforcement level \"%s\" - "
-                        "this check is DISABLED. Valid levels: hard, soft, "
-                        "advisory, detect, approval_required.\n",
-                        s.c_str());
-            }
-        }
+        std::string s = value.get<std::string>();
+        EnforcementLevel lv;
+        if (matchEnforcementLevel(s, lv)) return {true, lv};
+        warnUnknownEnforcementLevel(s, kUnknownLevelDisables);
     }
     if (value.is_object()) {
         bool enabled = value.value("enabled", true);
         EnforcementLevel level = EnforcementLevel::HARD;
         if (value.contains("level") && value["level"].is_string()) {
             std::string s = value["level"].get<std::string>();
-            if (s == "approval_required") level = EnforcementLevel::APPROVAL_REQUIRED;
-            else if (s == "soft") level = EnforcementLevel::SOFT;
-            else if (s == "advisory") level = EnforcementLevel::ADVISORY;
-            else if (s == "detect") level = EnforcementLevel::DETECT;
+            // An unknown nested level keeps HARD (enabled comes from its own
+            // key here), which used to happen with no warning at all.
+            if (!matchEnforcementLevel(s, level)) {
+                level = EnforcementLevel::HARD;
+                warnUnknownEnforcementLevel(s, kUnknownLevelAppliesHard);
+            }
         }
         return {enabled, level};
     }
     return {false, EnforcementLevel::HARD};
+}
+
+static constexpr const char* kUnknownLevelKeepsDefault =
+    "where a check applies only a level it recognises, the setting is ignored and its default level applies";
+
+// For keys that keep their current level unless the value names a valid one
+// (`if (en) target = lv` at the call site). An unknown string changes nothing,
+// which is neither "disabled" nor "hard", and the warning now says so.
+static void parseLevelIfValid(const nlohmann::json& value, EnforcementLevel& target) {
+    if (value.is_string()) {
+        std::string s = value.get<std::string>();
+        EnforcementLevel lv;
+        if (matchEnforcementLevel(s, lv)) target = lv;
+        else warnUnknownEnforcementLevel(s, kUnknownLevelKeepsDefault);
+        return;
+    }
+    auto [en, lv] = parseEnforcementLevel(value);
+    if (en) target = lv;
+}
+
+// For keys that set ONLY a level. Same values as parseEnforcementLevel's
+// .second -- a bool or object value is read the same way -- but an unknown
+// string is reported as what it is here: enforced at hard, not disabled.
+static EnforcementLevel parseLevelOnly(const nlohmann::json& value) {
+    if (value.is_string()) {
+        std::string s = value.get<std::string>();
+        EnforcementLevel lv;
+        if (matchEnforcementLevel(s, lv)) return lv;
+        warnUnknownEnforcementLevel(s, kUnknownLevelAppliesHard);
+        return EnforcementLevel::HARD;
+    }
+    return parseEnforcementLevel(value).second;
 }
 
 // V-GOV-019 (R24): governance configs are parsed by dozens of unbounded
@@ -767,9 +835,11 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (req["error_handling"].is_object()) {
                 auto& eh = req["error_handling"];
                 if (eh.contains("level")) {
-                    auto [en, lv] = parseEnforcementLevel(eh["level"]);
-                    rules_.require_error_handling = en;
-                    rules_.error_handling_level = lv;
+                    // The V3 parser below re-reads this object form and wins (enabled = true,
+                    // level-only), so parse it the same way here: otherwise this
+                    // site warns "DISABLED" for a check that ends up enforced.
+                    rules_.require_error_handling = true;
+                    rules_.error_handling_level = parseLevelOnly(eh["level"]);
                 }
             } else {
                 auto [enabled, level] = parseEnforcementLevel(req["error_handling"]);
@@ -787,9 +857,11 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (req["main_block"].is_object()) {
                 auto& mb = req["main_block"];
                 if (mb.contains("level")) {
-                    auto [en, lv] = parseEnforcementLevel(mb["level"]);
-                    rules_.require_main_block = en;
-                    rules_.main_block_level = lv;
+                    // The V3 parser below re-reads this object form and wins (enabled = true,
+                    // level-only), so parse it the same way here: otherwise this
+                    // site warns "DISABLED" for a check that ends up enforced.
+                    rules_.require_main_block = true;
+                    rules_.main_block_level = parseLevelOnly(mb["level"]);
                 }
             } else {
                 auto [enabled, level] = parseEnforcementLevel(req["main_block"]);
@@ -813,9 +885,11 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (res["dangerous_calls"].is_object()) {
                 auto& dc = res["dangerous_calls"];
                 if (dc.contains("level")) {
-                    auto [en, lv] = parseEnforcementLevel(dc["level"]);
-                    rules_.restrict_dangerous_calls = en;
-                    rules_.dangerous_calls_level = lv;
+                    // The V3 parser below re-reads this object form and wins (enabled = true,
+                    // level-only), so parse it the same way here: otherwise this
+                    // site warns "DISABLED" for a check that ends up enforced.
+                    rules_.restrict_dangerous_calls = true;
+                    rules_.dangerous_calls_level = parseLevelOnly(dc["level"]);
                 }
             } else {
                 auto [enabled, level] = parseEnforcementLevel(res["dangerous_calls"]);
@@ -864,9 +938,11 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 // loosening); warned instead.
                 warnIgnoredEnableFlag(val, "code_quality", name);
                 if (val.contains("level")) {
-                    auto [en, lv] = parseEnforcementLevel(val["level"]);
-                    out_enabled = en;
-                    out_level = lv;
+                    // The V3 parser below re-reads this object form and wins (enabled = true,
+                    // level-only), so parse it the same way here: otherwise this
+                    // site warns "DISABLED" for a check that ends up enforced.
+                    out_enabled = true;
+                    out_level = parseLevelOnly(val["level"]);
                 } else {
                     out_enabled = true;
                     out_level = EnforcementLevel::HARD;
@@ -1334,7 +1410,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             warnEnableNeedsLevel(mb, "requirements", "main_block");
             rules_.explicitly_set.insert("requirements.main_block");
             if (mb.contains("level")) {
-                auto [en, lv] = parseEnforcementLevel(mb["level"]);
+                auto lv = parseLevelOnly(mb["level"]);
                 rules_.requirements.main_block.enabled = true;
                 rules_.requirements.main_block.level = lv;
                 rules_.require_main_block = true;
@@ -1354,7 +1430,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     "code without try/catch is not blocked");
             rules_.explicitly_set.insert("requirements.error_handling");
             if (eh.contains("level")) {
-                auto [en, lv] = parseEnforcementLevel(eh["level"]);
+                auto lv = parseLevelOnly(eh["level"]);
                 rules_.requirements.error_handling.enabled = true;
                 rules_.requirements.error_handling.level = lv;
                 rules_.require_error_handling = true;
@@ -1373,7 +1449,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     "no naming convention is checked in NAAb or polyglot code");
             rules_.requirements.naming_conventions.enabled = true;
             rules_.explicitly_set.insert("requirements.naming_conventions");
-            if (nc.contains("level")) { auto [en, lv] = parseEnforcementLevel(nc["level"]); rules_.requirements.naming_conventions.level = lv; }
+            if (nc.contains("level")) { auto lv = parseLevelOnly(nc["level"]); rules_.requirements.naming_conventions.level = lv; }
             if (nc.contains("variables") && nc["variables"].is_string()) rules_.requirements.naming_conventions.variables = nc["variables"].get<std::string>();
             if (nc.contains("functions") && nc["functions"].is_string()) rules_.requirements.naming_conventions.functions = nc["functions"].get<std::string>();
             if (nc.contains("check_naab_code") && nc["check_naab_code"].is_boolean()) rules_.requirements.naming_conventions.check_naab_code = nc["check_naab_code"].get<bool>();
@@ -1427,7 +1503,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.restrictions.dangerous_calls.enabled = true;
             rules_.explicitly_set.insert("restrictions.dangerous_calls");
             rules_.restrict_dangerous_calls = true;
-            if (dc.contains("level")) { auto [en, lv] = parseEnforcementLevel(dc["level"]); rules_.restrictions.dangerous_calls.level = lv; rules_.dangerous_calls_level = lv; }
+            if (dc.contains("level")) { auto lv = parseLevelOnly(dc["level"]); rules_.restrictions.dangerous_calls.level = lv; rules_.dangerous_calls_level = lv; }
             if (dc.contains("allowlist")) for (auto& a : dc["allowlist"]) if (a.is_string()) rules_.restrictions.dangerous_calls.allowlist.push_back(a.get<std::string>());
             if (dc.contains("blocklist_extra")) for (auto& b : dc["blocklist_extra"]) if (b.is_string()) rules_.restrictions.dangerous_calls.blocklist_extra.push_back(b.get<std::string>());
             parseRationale(dc, rules_.restrictions.dangerous_calls.rationale);
@@ -1437,7 +1513,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             warnIgnoredEnable(si, "shell_injection");
             rules_.restrictions.shell_injection.enabled = true;
             rules_.explicitly_set.insert("restrictions.shell_injection");
-            if (si.contains("level")) { auto [en, lv] = parseEnforcementLevel(si["level"]); rules_.restrictions.shell_injection.level = lv; }
+            if (si.contains("level")) { auto lv = parseLevelOnly(si["level"]); rules_.restrictions.shell_injection.level = lv; }
             if (si.contains("patterns")) for (auto& p : si["patterns"]) if (p.is_string()) rules_.restrictions.shell_injection.patterns.push_back(p.get<std::string>());
             parseRationale(si, rules_.restrictions.shell_injection.rationale);
         }
@@ -1446,7 +1522,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             warnIgnoredEnable(pe, "privilege_escalation");
             rules_.restrictions.privilege_escalation.enabled = true;
             rules_.explicitly_set.insert("restrictions.privilege_escalation");
-            if (pe.contains("level")) { auto [en, lv] = parseEnforcementLevel(pe["level"]); rules_.restrictions.privilege_escalation.level = lv; }
+            if (pe.contains("level")) { auto lv = parseLevelOnly(pe["level"]); rules_.restrictions.privilege_escalation.level = lv; }
             if (pe.contains("block_sudo") && pe["block_sudo"].is_boolean()) rules_.restrictions.privilege_escalation.block_sudo = pe["block_sudo"].get<bool>();
             if (pe.contains("block_su") && pe["block_su"].is_boolean()) rules_.restrictions.privilege_escalation.block_su = pe["block_su"].get<bool>();
             parseRationale(pe, rules_.restrictions.privilege_escalation.rationale);
@@ -1456,7 +1532,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             warnIgnoredEnable(ci, "code_injection");
             rules_.restrictions.code_injection.enabled = true;
             rules_.explicitly_set.insert("restrictions.code_injection");
-            if (ci.contains("level")) { auto [en, lv] = parseEnforcementLevel(ci["level"]); rules_.restrictions.code_injection.level = lv; }
+            if (ci.contains("level")) { auto lv = parseLevelOnly(ci["level"]); rules_.restrictions.code_injection.level = lv; }
             if (ci.contains("block_dynamic_code_gen") && ci["block_dynamic_code_gen"].is_boolean()) rules_.restrictions.code_injection.block_dynamic_code_gen = ci["block_dynamic_code_gen"].get<bool>();
             if (ci.contains("block_sql_injection_patterns") && ci["block_sql_injection_patterns"].is_boolean()) rules_.restrictions.code_injection.block_sql_injection_patterns = ci["block_sql_injection_patterns"].get<bool>();
             if (ci.contains("block_command_injection") && ci["block_command_injection"].is_boolean()) rules_.restrictions.code_injection.block_command_injection = ci["block_command_injection"].get<bool>();
@@ -1470,7 +1546,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             warnIgnoredEnable(cr, "crypto");
             rules_.restrictions.crypto.enabled = true;
             rules_.explicitly_set.insert("restrictions.crypto");
-            if (cr.contains("level")) { auto [en, lv] = parseEnforcementLevel(cr["level"]); rules_.restrictions.crypto.level = lv; }
+            if (cr.contains("level")) { auto lv = parseLevelOnly(cr["level"]); rules_.restrictions.crypto.level = lv; }
             if (cr.contains("weak_hashes")) for (auto& h : cr["weak_hashes"]) if (h.is_string()) rules_.restrictions.crypto.weak_hashes.push_back(h.get<std::string>());
             if (cr.contains("weak_ciphers")) for (auto& c : cr["weak_ciphers"]) if (c.is_string()) rules_.restrictions.crypto.weak_ciphers.push_back(c.get<std::string>());
             parseRationale(cr, rules_.restrictions.crypto.rationale);
@@ -1479,14 +1555,14 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& vs = res["vcs_secret_extraction"];
             rules_.explicitly_set.insert("restrictions.vcs_secret_extraction");
             if (vs.contains("enabled") && vs["enabled"].is_boolean()) rules_.restrictions.vcs_secret_extraction.enabled = vs["enabled"].get<bool>();
-            if (vs.contains("level")) { auto [en, lv] = parseEnforcementLevel(vs["level"]); rules_.restrictions.vcs_secret_extraction.level = lv; }
+            if (vs.contains("level")) { auto lv = parseLevelOnly(vs["level"]); rules_.restrictions.vcs_secret_extraction.level = lv; }
             parseRationale(vs, rules_.restrictions.vcs_secret_extraction.rationale);
         }
         if (res.contains("obfuscation") && res["obfuscation"].is_object()) {
             auto& ob = res["obfuscation"];
             rules_.explicitly_set.insert("restrictions.obfuscation");
             if (ob.contains("enabled") && ob["enabled"].is_boolean()) rules_.restrictions.obfuscation.enabled = ob["enabled"].get<bool>();
-            if (ob.contains("level")) { auto [en, lv] = parseEnforcementLevel(ob["level"]); rules_.restrictions.obfuscation.level = lv; }
+            if (ob.contains("level")) { auto lv = parseLevelOnly(ob["level"]); rules_.restrictions.obfuscation.level = lv; }
             parseRationale(ob, rules_.restrictions.obfuscation.rationale);
         }
         if (res.contains("imports") && res["imports"].is_object()) {
@@ -1494,7 +1570,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             warnIgnoredEnable(im, "imports");
             rules_.restrictions.imports.enabled = true;
             rules_.explicitly_set.insert("restrictions.imports");
-            if (im.contains("level")) { auto [en, lv] = parseEnforcementLevel(im["level"]); rules_.restrictions.imports.level = lv; }
+            if (im.contains("level")) { auto lv = parseLevelOnly(im["level"]); rules_.restrictions.imports.level = lv; }
             if (im.contains("mode") && im["mode"].is_string()) rules_.restrictions.imports.mode = im["mode"].get<std::string>();
             if (im.contains("blocked") && im["blocked"].is_object())
                 for (auto& [lang, arr] : im["blocked"].items())
@@ -1508,7 +1584,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& de = res["data_exfiltration"];
             rules_.explicitly_set.insert("restrictions.data_exfiltration");
             if (de.contains("enabled") && de["enabled"].is_boolean()) rules_.restrictions.data_exfiltration.enabled = de["enabled"].get<bool>();
-            if (de.contains("level")) { auto [en, lv] = parseEnforcementLevel(de["level"]); rules_.restrictions.data_exfiltration.level = lv; }
+            if (de.contains("level")) { auto lv = parseLevelOnly(de["level"]); rules_.restrictions.data_exfiltration.level = lv; }
             if (de.contains("block_base64_encode_secrets") && de["block_base64_encode_secrets"].is_boolean()) rules_.restrictions.data_exfiltration.block_base64_encode_secrets = de["block_base64_encode_secrets"].get<bool>();
             if (de.contains("block_hex_encode_secrets") && de["block_hex_encode_secrets"].is_boolean()) rules_.restrictions.data_exfiltration.block_hex_encode_secrets = de["block_hex_encode_secrets"].get<bool>();
             if (de.contains("block_network_exfil") && de["block_network_exfil"].is_boolean()) rules_.restrictions.data_exfiltration.block_network_exfil = de["block_network_exfil"].get<bool>();
@@ -1525,7 +1601,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& ra = res["resource_abuse"];
             rules_.explicitly_set.insert("restrictions.resource_abuse");
             if (ra.contains("enabled") && ra["enabled"].is_boolean()) rules_.restrictions.resource_abuse.enabled = ra["enabled"].get<bool>();
-            if (ra.contains("level")) { auto [en, lv] = parseEnforcementLevel(ra["level"]); rules_.restrictions.resource_abuse.level = lv; }
+            if (ra.contains("level")) { auto lv = parseLevelOnly(ra["level"]); rules_.restrictions.resource_abuse.level = lv; }
             if (ra.contains("block_fork_bomb") && ra["block_fork_bomb"].is_boolean()) rules_.restrictions.resource_abuse.block_fork_bomb = ra["block_fork_bomb"].get<bool>();
             if (ra.contains("block_disk_filling") && ra["block_disk_filling"].is_boolean()) rules_.restrictions.resource_abuse.block_disk_filling = ra["block_disk_filling"].get<bool>();
             parseRationale(ra, rules_.restrictions.resource_abuse.rationale);
@@ -1534,7 +1610,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& id = res["information_disclosure"];
             rules_.explicitly_set.insert("restrictions.information_disclosure");
             if (id.contains("enabled") && id["enabled"].is_boolean()) rules_.restrictions.information_disclosure.enabled = id["enabled"].get<bool>();
-            if (id.contains("level")) { auto [en, lv] = parseEnforcementLevel(id["level"]); rules_.restrictions.information_disclosure.level = lv; }
+            if (id.contains("level")) { auto lv = parseLevelOnly(id["level"]); rules_.restrictions.information_disclosure.level = lv; }
             if (id.contains("block_env_dump") && id["block_env_dump"].is_boolean()) rules_.restrictions.information_disclosure.block_env_dump = id["block_env_dump"].get<bool>();
             if (id.contains("block_process_listing") && id["block_process_listing"].is_boolean()) rules_.restrictions.information_disclosure.block_process_listing = id["block_process_listing"].get<bool>();
             if (id.contains("block_system_info_leak") && id["block_system_info_leak"].is_boolean()) rules_.restrictions.information_disclosure.block_system_info_leak = id["block_system_info_leak"].get<bool>();
@@ -1551,7 +1627,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& ns = cq["no_secrets"];
             rules_.code_quality.no_secrets.enabled = true;
             rules_.no_secrets = true;
-            if (ns.contains("level")) { auto [en, lv] = parseEnforcementLevel(ns["level"]); rules_.code_quality.no_secrets.level = lv; rules_.no_secrets_level = lv; }
+            if (ns.contains("level")) { auto lv = parseLevelOnly(ns["level"]); rules_.code_quality.no_secrets.level = lv; rules_.no_secrets_level = lv; }
             if (ns.contains("allowlist")) for (auto& a : ns["allowlist"]) if (a.is_string()) rules_.code_quality.no_secrets.allowlist.push_back(a.get<std::string>());
             if (ns.contains("entropy_check") && ns["entropy_check"].is_object()) {
                 auto& ec = ns["entropy_check"];
@@ -1572,7 +1648,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& np = cq["no_placeholders"];
             rules_.code_quality.no_placeholders.enabled = true;
             rules_.no_placeholders = true;
-            if (np.contains("level")) { auto [en, lv] = parseEnforcementLevel(np["level"]); rules_.code_quality.no_placeholders.level = lv; rules_.no_placeholders_level = lv; }
+            if (np.contains("level")) { auto lv = parseLevelOnly(np["level"]); rules_.code_quality.no_placeholders.level = lv; rules_.no_placeholders_level = lv; }
             if (np.contains("markers")) { rules_.code_quality.no_placeholders.markers.clear(); for (auto& m : np["markers"]) if (m.is_string()) rules_.code_quality.no_placeholders.markers.push_back(m.get<std::string>()); }
             if (np.contains("custom_markers")) for (auto& m : np["custom_markers"]) if (m.is_string()) rules_.code_quality.no_placeholders.custom_markers.push_back(m.get<std::string>());
             if (np.contains("case_sensitive") && np["case_sensitive"].is_boolean()) rules_.code_quality.no_placeholders.case_sensitive = np["case_sensitive"].get<bool>();
@@ -1608,7 +1684,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     config.enabled = true;
                     auto& obj = cq[key];
                     warnIgnoredEnableFlag(obj, "code_quality", key.c_str());
-                    if (obj.contains("level")) { auto [en, lv] = parseEnforcementLevel(obj["level"]); config.level = lv; }
+                    if (obj.contains("level")) { auto lv = parseLevelOnly(obj["level"]); config.level = lv; }
                     if (obj.contains("patterns"))
                         for (auto& p : obj["patterns"]) if (p.is_string()) config.patterns.push_back(p.get<std::string>());
                     if (obj.contains("custom_patterns"))
@@ -1637,7 +1713,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             } else if (cq["semantic_checks"].is_object()) {
                 auto& sc = cq["semantic_checks"];
                 rules_.code_quality.semantic_checks.enabled = true;
-                if (sc.contains("level")) { auto [en, lv] = parseEnforcementLevel(sc["level"]); rules_.code_quality.semantic_checks.level = lv; }
+                if (sc.contains("level")) { auto lv = parseLevelOnly(sc["level"]); rules_.code_quality.semantic_checks.level = lv; }
                 if (sc.contains("check_imports") && sc["check_imports"].is_boolean()) rules_.code_quality.semantic_checks.check_imports = sc["check_imports"].get<bool>();
                 if (sc.contains("check_api_signatures") && sc["check_api_signatures"].is_boolean()) rules_.code_quality.semantic_checks.check_api_signatures = sc["check_api_signatures"].get<bool>();
                 if (sc.contains("check_shell_syntax") && sc["check_shell_syntax"].is_boolean()) rules_.code_quality.semantic_checks.check_shell_syntax = sc["check_shell_syntax"].get<bool>();
@@ -1653,8 +1729,8 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.explicitly_set.insert("code_quality.intent_validation");
             if (iv.contains("enabled") && iv["enabled"].is_boolean()) rules_.code_quality.intent_validation.enabled = iv["enabled"].get<bool>();
             if (iv.contains("required") && iv["required"].is_boolean()) rules_.code_quality.intent_validation.required = iv["required"].get<bool>();
-            if (iv.contains("level")) { auto [en, lv] = parseEnforcementLevel(iv["level"]); rules_.code_quality.intent_validation.level = lv; }
-            if (iv.contains("missing_level")) { auto [en, lv] = parseEnforcementLevel(iv["missing_level"]); rules_.code_quality.intent_validation.missing_level = lv; }
+            if (iv.contains("level")) { auto lv = parseLevelOnly(iv["level"]); rules_.code_quality.intent_validation.level = lv; }
+            if (iv.contains("missing_level")) { auto lv = parseLevelOnly(iv["missing_level"]); rules_.code_quality.intent_validation.missing_level = lv; }
             if (iv.contains("mode") && iv["mode"].is_string()) rules_.code_quality.intent_validation.mode = iv["mode"].get<std::string>();
             if (iv.contains("min_function_lines") && iv["min_function_lines"].is_number_integer()) rules_.code_quality.intent_validation.min_function_lines = iv["min_function_lines"].get<int>();
             if (iv.contains("min_overlap") && iv["min_overlap"].is_number())
@@ -1683,7 +1759,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 auto& pii = cq["no_pii"];
                 rules_.code_quality.no_pii.enabled = true;
                 warnIgnoredEnableFlag(pii, "code_quality", "no_pii");
-                if (pii.contains("level")) { auto [en, lv] = parseEnforcementLevel(pii["level"]); rules_.code_quality.no_pii.level = lv; }
+                if (pii.contains("level")) { auto lv = parseLevelOnly(pii["level"]); rules_.code_quality.no_pii.level = lv; }
                 if (pii.contains("detect_ssn") && pii["detect_ssn"].is_boolean()) rules_.code_quality.no_pii.detect_ssn = pii["detect_ssn"].get<bool>();
                 if (pii.contains("detect_credit_card") && pii["detect_credit_card"].is_boolean()) rules_.code_quality.no_pii.detect_credit_card = pii["detect_credit_card"].get<bool>();
                 if (pii.contains("detect_email") && pii["detect_email"].is_boolean()) rules_.code_quality.no_pii.detect_email = pii["detect_email"].get<bool>();
@@ -1700,7 +1776,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& md = cq["no_mock_data"];
             rules_.code_quality.no_mock_data.enabled = true;
             warnIgnoredEnableFlag(md, "code_quality", "no_mock_data");
-            if (md.contains("level")) { auto [en, lv] = parseEnforcementLevel(md["level"]); rules_.code_quality.no_mock_data.level = lv; }
+            if (md.contains("level")) { auto lv = parseLevelOnly(md["level"]); rules_.code_quality.no_mock_data.level = lv; }
             if (md.contains("variable_prefixes")) for (auto& p : md["variable_prefixes"]) if (p.is_string()) rules_.code_quality.no_mock_data.variable_prefixes.push_back(p.get<std::string>());
             if (md.contains("function_prefixes")) for (auto& p : md["function_prefixes"]) if (p.is_string()) rules_.code_quality.no_mock_data.function_prefixes.push_back(p.get<std::string>());
             if (md.contains("literal_patterns")) for (auto& p : md["literal_patterns"]) if (p.is_string()) rules_.code_quality.no_mock_data.literal_patterns.push_back(p.get<std::string>());
@@ -1722,7 +1798,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 auto& al = cq["no_apologetic_language"];
                 rules_.code_quality.no_apologetic_language.enabled = true;
                 warnIgnoredEnableFlag(al, "code_quality", "no_apologetic_language");
-                if (al.contains("level")) { auto [en, lv] = parseEnforcementLevel(al["level"]); rules_.code_quality.no_apologetic_language.level = lv; }
+                if (al.contains("level")) { auto lv = parseLevelOnly(al["level"]); rules_.code_quality.no_apologetic_language.level = lv; }
                 if (al.contains("scan_comments_only") && al["scan_comments_only"].is_boolean()) rules_.code_quality.no_apologetic_language.scan_comments_only = al["scan_comments_only"].get<bool>();
                 if (al.contains("scan_strings") && al["scan_strings"].is_boolean()) rules_.code_quality.no_apologetic_language.scan_strings = al["scan_strings"].get<bool>();
                 parseRationale(al, rules_.code_quality.no_apologetic_language.rationale);
@@ -1734,7 +1810,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& mc = cq["max_complexity"];
             rules_.code_quality.max_complexity.enabled = true;
             warnIgnoredEnableFlag(mc, "code_quality", "max_complexity");
-            if (mc.contains("level")) { auto [en, lv] = parseEnforcementLevel(mc["level"]); rules_.code_quality.max_complexity.level = lv; }
+            if (mc.contains("level")) { auto lv = parseLevelOnly(mc["level"]); rules_.code_quality.max_complexity.level = lv; }
             if (mc.contains("max_lines_per_block") && mc["max_lines_per_block"].is_number_integer()) rules_.code_quality.max_complexity.max_lines_per_block = mc["max_lines_per_block"].get<int>();
             if (mc.contains("max_nesting_depth") && mc["max_nesting_depth"].is_number_integer()) rules_.code_quality.max_complexity.max_nesting_depth = mc["max_nesting_depth"].get<int>();
             if (mc.contains("max_parameters") && mc["max_parameters"].is_number_integer()) rules_.code_quality.max_complexity.max_parameters = mc["max_parameters"].get<int>();
@@ -1746,7 +1822,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& enc = cq["encoding"];
             rules_.code_quality.encoding.enabled = true;
             warnIgnoredEnableFlag(enc, "code_quality", "encoding");
-            if (enc.contains("level")) { auto [en, lv] = parseEnforcementLevel(enc["level"]); rules_.code_quality.encoding.level = lv; }
+            if (enc.contains("level")) { auto lv = parseLevelOnly(enc["level"]); rules_.code_quality.encoding.level = lv; }
             if (enc.contains("block_null_bytes") && enc["block_null_bytes"].is_boolean()) rules_.code_quality.encoding.block_null_bytes = enc["block_null_bytes"].get<bool>();
             if (enc.contains("block_unicode_bidi") && enc["block_unicode_bidi"].is_boolean()) rules_.code_quality.encoding.block_unicode_bidi = enc["block_unicode_bidi"].get<bool>();
             parseRationale(enc, rules_.code_quality.encoding.rationale);
@@ -1757,7 +1833,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& hr = cq["no_hardcoded_results"];
             rules_.code_quality.no_hardcoded_results.enabled = true;
             rules_.no_hardcoded_results = true;
-            if (hr.contains("level")) { auto [en, lv] = parseEnforcementLevel(hr["level"]); rules_.code_quality.no_hardcoded_results.level = lv; rules_.no_hardcoded_results_level = lv; }
+            if (hr.contains("level")) { auto lv = parseLevelOnly(hr["level"]); rules_.code_quality.no_hardcoded_results.level = lv; rules_.no_hardcoded_results_level = lv; }
             if (hr.contains("check_return_true_false") && hr["check_return_true_false"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_return_true_false = hr["check_return_true_false"].get<bool>();
             if (hr.contains("check_dict_success_fields") && hr["check_dict_success_fields"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_dict_success_fields = hr["check_dict_success_fields"].get<bool>();
             parseRationale(hr, rules_.code_quality.no_hardcoded_results.rationale);
@@ -1772,7 +1848,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 os.enabled = en; os.level = lv;
             } else if (val.is_object()) {
                 os.enabled = true;
-                if (val.contains("level")) { auto [en, lv] = parseEnforcementLevel(val["level"]); os.level = lv; }
+                if (val.contains("level")) { auto lv = parseLevelOnly(val["level"]); os.level = lv; }
                 if (val.contains("enabled") && val["enabled"].is_boolean()) os.enabled = val["enabled"].get<bool>();
                 if (val.contains("check_empty_bodies") && val["check_empty_bodies"].is_boolean()) os.check_empty_bodies = val["check_empty_bodies"].get<bool>();
                 if (val.contains("check_trivial_returns") && val["check_trivial_returns"].is_boolean()) os.check_trivial_returns = val["check_trivial_returns"].get<bool>();
@@ -1798,7 +1874,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 il.enabled = en; il.level = lv;
             } else if (val.is_object()) {
                 il.enabled = true;
-                if (val.contains("level")) { auto [en, lv] = parseEnforcementLevel(val["level"]); il.level = lv; }
+                if (val.contains("level")) { auto lv = parseLevelOnly(val["level"]); il.level = lv; }
                 if (val.contains("enabled") && val["enabled"].is_boolean()) il.enabled = val["enabled"].get<bool>();
                 if (val.contains("check_empty_catch") && val["check_empty_catch"].is_boolean()) il.check_empty_catch = val["check_empty_catch"].get<bool>();
                 if (val.contains("check_swallowed_exceptions") && val["check_swallowed_exceptions"].is_boolean()) il.check_swallowed_exceptions = val["check_swallowed_exceptions"].get<bool>();
@@ -1828,7 +1904,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 ha.enabled = en; ha.level = lv;
             } else if (val.is_object()) {
                 ha.enabled = true;
-                if (val.contains("level")) { auto [en, lv] = parseEnforcementLevel(val["level"]); ha.level = lv; }
+                if (val.contains("level")) { auto lv = parseLevelOnly(val["level"]); ha.level = lv; }
                 if (val.contains("enabled") && val["enabled"].is_boolean()) ha.enabled = val["enabled"].get<bool>();
                 if (val.contains("check_cross_language") && val["check_cross_language"].is_boolean()) ha.check_cross_language = val["check_cross_language"].get<bool>();
                 if (val.contains("check_made_up_functions") && val["check_made_up_functions"].is_boolean()) ha.check_made_up_functions = val["check_made_up_functions"].get<bool>();
@@ -1855,10 +1931,9 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             cf.enabled = true;  // Presence of section enables it
             if (val.is_object()) warnIgnoredEnableFlag(val, "code_quality", "complexity_floor");
             if (val.is_string()) {
-                auto [en, lv] = parseEnforcementLevel(val);
-                if (en) cf.level = lv;
+                parseLevelIfValid(val, cf.level);
             } else if (val.is_object()) {
-                if (val.contains("level")) { auto [en, lv] = parseEnforcementLevel(val["level"]); cf.level = lv; }
+                if (val.contains("level")) { auto lv = parseLevelOnly(val["level"]); cf.level = lv; }
                 if (val.contains("min_score") && val["min_score"].is_number_integer()) cf.min_score = val["min_score"].get<int>();
                 if (val.contains("check_polyglot") && val["check_polyglot"].is_boolean()) cf.check_polyglot = val["check_polyglot"].get<bool>();
                 if (val.contains("check_naab") && val["check_naab"].is_boolean()) cf.check_naab = val["check_naab"].get<bool>();
@@ -1932,7 +2007,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& dd = cq["drift_detection"];
             rules_.code_quality.drift_detection.enabled = dd.value("enabled", false);
             if (dd.contains("level")) {
-                auto [en, lv] = parseEnforcementLevel(dd["level"]);
+                auto lv = parseLevelOnly(dd["level"]);
                 rules_.code_quality.drift_detection.level = lv;
             }
             if (dd.contains("baseline_path") && dd["baseline_path"].is_string()) rules_.code_quality.drift_detection.baseline_path = dd["baseline_path"].get<std::string>();
@@ -2015,7 +2090,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (cr.contains("description") && cr["description"].is_string()) rule.description = cr["description"].get<std::string>();
             if (cr.contains("pattern") && cr["pattern"].is_string()) rule.pattern = cr["pattern"].get<std::string>();
             if (cr.contains("languages")) for (auto& l : cr["languages"]) if (l.is_string()) rule.languages.push_back(configLanguage(l.get<std::string>(), "custom_rules[].languages"));
-            if (cr.contains("level")) { auto [en, lv] = parseEnforcementLevel(cr["level"]); rule.level = lv; }
+            if (cr.contains("level")) { auto lv = parseLevelOnly(cr["level"]); rule.level = lv; }
             if (cr.contains("message") && cr["message"].is_string()) rule.message = cr["message"].get<std::string>();
             if (cr.contains("help") && cr["help"].is_string()) rule.help = cr["help"].get<std::string>();
             if (cr.contains("good_example") && cr["good_example"].is_string()) rule.good_example = cr["good_example"].get<std::string>();
@@ -2076,7 +2151,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     if (pr.contains("id") && pr["id"].is_string()) rule.id = pr["id"].get<std::string>();
                     if (pr.contains("function") && pr["function"].is_string()) rule.function_name = pr["function"].get<std::string>();
                     if (pr.contains("description") && pr["description"].is_string()) rule.description = pr["description"].get<std::string>();
-                    if (pr.contains("level")) { auto [en, lv] = parseEnforcementLevel(pr["level"]); rule.level = lv; }
+                    if (pr.contains("level")) { auto lv = parseLevelOnly(pr["level"]); rule.level = lv; }
                     if (pr.contains("languages")) for (auto& l : pr["languages"]) if (l.is_string()) rule.languages.push_back(configLanguage(l.get<std::string>(), "governance plugin rule languages"));
                     if (pr.contains("trigger") && pr["trigger"].is_string()) rule.trigger = pr["trigger"].get<std::string>();
                     if (pr.contains("message") && pr["message"].is_string()) rule.message = pr["message"].get<std::string>();
@@ -2252,7 +2327,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& po = j["polyglot_optimization"];
 
         if (po.contains("enabled") && po["enabled"].is_boolean()) rules_.polyglot_optimization.enabled = po["enabled"].get<bool>();
-        if (po.contains("enforcement_level") && po["enforcement_level"].is_string()) rules_.polyglot_optimization.enforcement_level = po["enforcement_level"].get<std::string>();
+        if (po.contains("enforcement_level") && po["enforcement_level"].is_string()) rules_.polyglot_optimization.enforcement_level = normalizeLevelName(po["enforcement_level"].get<std::string>());
 
         // Pattern detection
         if (po.contains("pattern_detection") && po["pattern_detection"].is_object()) {
@@ -2347,7 +2422,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (vf.contains("enabled") && vf["enabled"].is_boolean())
                 rules_.polyglot_optimization.verification.enabled = vf["enabled"].get<bool>();
             if (vf.contains("enforcement_level") && vf["enforcement_level"].is_string())
-                rules_.polyglot_optimization.verification.enforcement_level = vf["enforcement_level"].get<std::string>();
+                rules_.polyglot_optimization.verification.enforcement_level = normalizeLevelName(vf["enforcement_level"].get<std::string>());
             if (vf.contains("tolerance") && vf["tolerance"].is_number())
                 rules_.polyglot_optimization.verification.tolerance = vf["tolerance"].get<double>();
             if (vf.contains("min_consensus") && vf["min_consensus"].is_number_integer())
@@ -2422,7 +2497,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("project_context") && j["project_context"].is_object()) {
         auto& pc = j["project_context"];
         if (pc.contains("enabled") && pc["enabled"].is_boolean()) rules_.project_context.enabled = pc["enabled"].get<bool>();
-        if (pc.contains("enforcement_level") && pc["enforcement_level"].is_string()) rules_.project_context.enforcement_level = pc["enforcement_level"].get<std::string>();
+        if (pc.contains("enforcement_level") && pc["enforcement_level"].is_string()) rules_.project_context.enforcement_level = normalizeLevelName(pc["enforcement_level"].get<std::string>());
         if (pc.contains("priority_source") && pc["priority_source"].is_string()) rules_.project_context.priority_source = pc["priority_source"].get<std::string>();
         if (pc.contains("sources") && pc["sources"].is_object()) {
             auto& src = pc["sources"];
@@ -2456,8 +2531,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("contracts") && j["contracts"].is_object()) {
         auto& ct = j["contracts"];
         if (ct.contains("level")) {
-            auto [en, lv] = parseEnforcementLevel(ct["level"]);
-            if (en) rules_.contracts.level = lv;
+            parseLevelIfValid(ct["level"], rules_.contracts.level);
         }
         if (ct.contains("validate_inputs") && ct["validate_inputs"].is_boolean()) rules_.contracts.validate_inputs = ct["validate_inputs"].get<bool>();
         if (ct.contains("functions") && ct["functions"].is_object()) {
@@ -2466,8 +2540,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 FunctionContract fc;
                 if (fn_obj.contains("description") && fn_obj["description"].is_string()) fc.description = fn_obj["description"].get<std::string>();
                 if (fn_obj.contains("level")) {
-                    auto [en, lv] = parseEnforcementLevel(fn_obj["level"]);
-                    if (en) fc.level = lv;
+                    parseLevelIfValid(fn_obj["level"], fc.level);
                 }
                 if (fn_obj.contains("return_type") && fn_obj["return_type"].is_string()) fc.return_type = fn_obj["return_type"].get<std::string>();
                 if (fn_obj.contains("return_range") && fn_obj["return_range"].is_array() && fn_obj["return_range"].size() == 2) {
@@ -2601,8 +2674,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.explicitly_set.insert("baselines");
         if (bl.contains("enabled") && bl["enabled"].is_boolean()) rules_.baselines.enabled = bl["enabled"].get<bool>();
         if (bl.contains("level")) {
-            auto [en, lv] = parseEnforcementLevel(bl["level"]);
-            if (en) rules_.baselines.level = lv;
+            parseLevelIfValid(bl["level"], rules_.baselines.level);
         }
         if (bl.contains("path") && bl["path"].is_string()) rules_.baselines.path = bl["path"].get<std::string>();
         if (bl.contains("tolerance") && bl["tolerance"].is_number()) rules_.baselines.tolerance = bl["tolerance"].get<double>();
@@ -2615,7 +2687,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& tt = j["taint_tracking"];
         if (tt.contains("enabled") && tt["enabled"].is_boolean()) rules_.taint_tracking.enabled = tt["enabled"].get<bool>();
         if (tt.contains("lineage") && tt["lineage"].is_boolean()) rules_.taint_tracking.lineage = tt["lineage"].get<bool>();
-        if (tt.contains("level") && tt["level"].is_string()) { rules_.taint_tracking.level = tt["level"].get<std::string>(); rules_.explicitly_set.insert("taint_tracking.level"); }
+        if (tt.contains("level") && tt["level"].is_string()) { rules_.taint_tracking.level = normalizeLevelName(tt["level"].get<std::string>()); rules_.explicitly_set.insert("taint_tracking.level"); }
         if (tt.contains("sources") && tt["sources"].is_array()) {
             for (const auto& s : tt["sources"]) {
                 if (s.is_string()) rules_.taint_tracking.sources.push_back(s.get<std::string>());
@@ -2650,7 +2722,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         parseRationale(tt, rules_.taint_tracking.rationale);
         if (tt.contains("gate_cross_block") && tt["gate_cross_block"].is_boolean()) rules_.taint_tracking.gate_cross_block = tt["gate_cross_block"].get<bool>();
         if (tt.contains("cross_block_level")) {
-            auto [en, lv] = parseEnforcementLevel(tt["cross_block_level"]);
+            auto lv = parseLevelOnly(tt["cross_block_level"]);
             rules_.taint_tracking.cross_block_level = lv;
         }
     }
@@ -2676,7 +2748,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.trust_policy.require_fresh_signature = tp["require_fresh_signature"].get<bool>(); rules_.explicitly_set.insert("trust_policy.require_fresh_signature"); }
         if (tp.contains("stale_signature_level") && tp["stale_signature_level"].is_string()) {
             rules_.explicitly_set.insert("trust_policy.stale_signature_level");
-            std::string lev = tp["stale_signature_level"].get<std::string>();
+            std::string lev = normalizeLevelName(tp["stale_signature_level"].get<std::string>());
             if (lev == "hard") rules_.trust_policy.stale_signature_level = EnforcementLevel::HARD;
             else if (lev == "soft") rules_.trust_policy.stale_signature_level = EnforcementLevel::SOFT;
             else rules_.trust_policy.stale_signature_level = EnforcementLevel::ADVISORY;
@@ -2699,7 +2771,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (chk.contains("name") && chk["name"].is_string()) pc.name = chk["name"].get<std::string>();
                 if (chk.contains("required") && chk["required"].is_string()) pc.required = chk["required"].get<std::string>();
                 if (chk.contains("level") && chk["level"].is_string()) {
-                    std::string lev = chk["level"].get<std::string>();
+                    std::string lev = normalizeLevelName(chk["level"].get<std::string>());
                     if (lev == "hard") pc.level = EnforcementLevel::HARD;
                     else if (lev == "soft") pc.level = EnforcementLevel::SOFT;
                     else pc.level = EnforcementLevel::ADVISORY;
@@ -2716,7 +2788,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.explicitly_set.insert("contradiction_detection");
         if (cd.contains("enabled") && cd["enabled"].is_boolean()) rules_.contradiction_detection.enabled = cd["enabled"].get<bool>();
         if (cd.contains("max_level") && cd["max_level"].is_string()) {
-            std::string lev = cd["max_level"].get<std::string>();
+            std::string lev = normalizeLevelName(cd["max_level"].get<std::string>());
             if (lev == "hard") rules_.contradiction_detection.max_level = EnforcementLevel::HARD;
             else if (lev == "soft") rules_.contradiction_detection.max_level = EnforcementLevel::SOFT;
             else rules_.contradiction_detection.max_level = EnforcementLevel::ADVISORY;
@@ -2730,7 +2802,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cg.contains("enabled") && cg["enabled"].is_boolean())
             rules_.codegen.enabled = cg["enabled"].get<bool>();
         if (cg.contains("level") && cg["level"].is_string()) {
-            std::string lev = cg["level"].get<std::string>();
+            std::string lev = normalizeLevelName(cg["level"].get<std::string>());
             if (lev == "hard") rules_.codegen.level = EnforcementLevel::HARD;
             else if (lev == "soft") rules_.codegen.level = EnforcementLevel::SOFT;
             else rules_.codegen.level = EnforcementLevel::ADVISORY;
@@ -3079,6 +3151,20 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     auto& oc = cfg_json["output_contract"];
                     if (oc.contains("format") && oc["format"].is_string())
                         agent.output_contract.format = oc["format"].get<std::string>();
+                    // Only "json" has checks behind it; required_fields,
+                    // field_types and regex_checks are all keyed by a JSON
+                    // field. Any other format declares a contract that checks
+                    // nothing but an empty reply -- the living-script configs
+                    // carry "text" contracts with regex_checks that never ran.
+                    if (!agent.output_contract.format.empty() &&
+                        agent.output_contract.format != "json") {
+                        fmt::print(stderr,
+                            "[governance] Warning: agent \"{}\" output_contract.format \"{}\" "
+                            "is not validated - only \"json\" is. Its required_fields, "
+                            "field_types and regex_checks apply to JSON fields and do nothing "
+                            "here; only an empty reply is refused.\n",
+                            name, agent.output_contract.format);
+                    }
                     if (oc.contains("required_fields") && oc["required_fields"].is_array()) {
                         agent.output_contract.required_fields.clear();
                         for (const auto& f : oc["required_fields"])
@@ -3267,7 +3353,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (ar.contains("enforcement") && ar["enforcement"].is_object()) {
             for (auto& [zone, level] : ar["enforcement"].items()) {
-                if (level.is_string()) rules_.agent_review.enforcement[zone] = level.get<std::string>();
+                if (level.is_string()) rules_.agent_review.enforcement[zone] = normalizeLevelName(level.get<std::string>());
             }
         }
     }
@@ -3327,6 +3413,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         parseRationale(bs, cfg.rationale);
         if (bs.contains("patterns") && bs["patterns"].is_array()) {
+            size_t stepless_patterns = 0;
             for (auto& pat : bs["patterns"]) {
                 SequencePattern sp;
                 sp.name = pat.value("name", "");
@@ -3334,7 +3421,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 sp.decay_seconds = pat.value("decay_seconds", 300);
                 sp.decay_turns = pat.value("decay_turns", 20);
                 if (pat.contains("level")) {
-                    auto [en, lv] = parseEnforcementLevel(pat["level"]);
+                    auto lv = parseLevelOnly(pat["level"]);
                     sp.level = lv;
                 } else {
                     sp.level = EnforcementLevel::SOFT;
@@ -3351,6 +3438,18 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                         std::string token;
                         while (std::getline(iss, token, '|')) {
                             if (token.empty()) continue;
+                            // B8: 17 of 24 enum spellings match no event type.
+                            {
+                                std::string type_part = token.substr(0, token.find(':'));
+                                std::string fix = deadEnumStepSpelling(type_part);
+                                if (!fix.empty()) {
+                                    fmt::print(stderr,
+                                        "[governance] Warning: behavioral_sequences pattern \"{}\": "
+                                        "step \"{}\" matches no event type, so this pattern can "
+                                        "never fire. Write \"{}\".\n",
+                                        sp.name, type_part, fix);
+                                }
+                            }
                             auto colon = token.find(':');
                             if (colon != std::string::npos) {
                                 step.match_any.push_back(token.substr(0, colon));
@@ -3363,7 +3462,29 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                         sp.steps.push_back(std::move(step));
                     }
                 }
+                if (sp.steps.empty()) {
+                    // A pattern with no steps can never match -- the matcher
+                    // advances only while current_step < steps.size(). Usually
+                    // the steps were written under another key ("steps"), which
+                    // the unknown-key check reports without saying this.
+                    ++stepless_patterns;
+                    fmt::print(stderr,
+                        "[governance] Warning: behavioral_sequences pattern \"{}\" has no "
+                        "steps (they go in \"sequence\") and can never fire.\n",
+                        sp.name.empty() ? std::string("(unnamed)") : sp.name);
+                }
                 cfg.patterns.push_back(std::move(sp));
+            }
+            // Listing ANY pattern replaces the built-in set, so a list made only
+            // of unmatchable patterns leaves sequence detection with nothing it
+            // can detect while `enabled: true` -- the built-ins it displaced
+            // would have fired. Say so; which set applies is unchanged.
+            if (stepless_patterns > 0) {
+                fmt::print(stderr,
+                    "[governance] Warning: behavioral_sequences.patterns lists {} pattern(s), "
+                    "{} of them with no steps. A patterns list replaces the built-in "
+                    "patterns, so the built-ins are not active either.\n",
+                    cfg.patterns.size(), stepless_patterns);
             }
         }
     }
@@ -3374,7 +3495,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& cfg = rules_.context_drift;
         if (cd.contains("enabled") && cd["enabled"].is_boolean()) cfg.enabled = cd["enabled"].get<bool>();
         if (cd.contains("level")) {
-            auto [en, lv] = parseEnforcementLevel(cd["level"]);
+            auto lv = parseLevelOnly(cd["level"]);
             cfg.level = lv;
         }
         if (cd.contains("coherence_threshold") && cd["coherence_threshold"].is_number()) {
@@ -3515,7 +3636,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& rccfg = cfg.reality_checkpoint;
             if (rc.contains("enabled") && rc["enabled"].is_boolean()) rccfg.enabled = rc["enabled"].get<bool>();
             if (rc.contains("level")) {
-                auto [en, lv] = parseEnforcementLevel(rc["level"]);
+                auto lv = parseLevelOnly(rc["level"]);
                 rccfg.level = lv;
             }
             if (rc.contains("pressure_threshold") && rc["pressure_threshold"].is_number()) rccfg.pressure_threshold = rc["pressure_threshold"].get<double>();
@@ -3586,7 +3707,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         if (et.contains("min_capability_utilization") && et["min_capability_utilization"].is_number()) cfg.min_capability_utilization = et["min_capability_utilization"].get<double>();
         if (et.contains("utilization_check_after_turns") && et["utilization_check_after_turns"].is_number_integer()) cfg.utilization_check_after_turns = et["utilization_check_after_turns"].get<int>();
         if (et.contains("level")) {
-            auto [en, lv] = parseEnforcementLevel(et["level"]);
+            auto lv = parseLevelOnly(et["level"]);
             cfg.level = lv;
         }
         parseRationale(et, cfg.rationale);
@@ -3600,7 +3721,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         if (tc.contains("max_correlation") && tc["max_correlation"].is_number()) cfg.max_correlation = tc["max_correlation"].get<double>();
         if (tc.contains("min_events") && tc["min_events"].is_number_integer()) cfg.min_events = tc["min_events"].get<int>();
         if (tc.contains("level") && tc["level"].is_string()) {
-            auto [en, lv] = parseEnforcementLevel(tc["level"]);
+            auto lv = parseLevelOnly(tc["level"]);
             cfg.level = lv;
         }
         parseRationale(tc, cfg.rationale);
@@ -3697,7 +3818,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     oac.on_undetermined = ou;
             }
             if (oa.contains("level") && oa["level"].is_string()) {
-                auto [en, lv] = parseEnforcementLevel(oa["level"]);
+                auto lv = parseLevelOnly(oa["level"]);
                 oac.level = lv;
             }
             // Clamp: ADVISORY/NONE can't block — minimum DETECT for "block".
@@ -3758,7 +3879,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& cfg = rules_.pipeline_separation;
         if (ps.contains("enabled") && ps["enabled"].is_boolean()) cfg.enabled = ps["enabled"].get<bool>();
         if (ps.contains("level")) {
-            auto [en, lv] = parseEnforcementLevel(ps["level"]);
+            auto lv = parseLevelOnly(ps["level"]);
             cfg.level = lv;
         }
         parseRationale(ps, cfg.rationale);
@@ -3771,7 +3892,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         if (gb.contains("path") && gb["path"].is_string()) rules_.governance_baseline.path = gb["path"].get<std::string>();
         if (gb.contains("fail_on_regression") && gb["fail_on_regression"].is_boolean()) rules_.governance_baseline.fail_on_regression = gb["fail_on_regression"].get<bool>();
         if (gb.contains("level") && gb["level"].is_string()) {
-            auto lvl = gb["level"].get<std::string>();
+            auto lvl = normalizeLevelName(gb["level"].get<std::string>());
             if (lvl == "hard") rules_.governance_baseline.level = EnforcementLevel::HARD;
             else if (lvl == "soft") rules_.governance_baseline.level = EnforcementLevel::SOFT;
             else rules_.governance_baseline.level = EnforcementLevel::ADVISORY;
@@ -3801,7 +3922,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (pin_json.contains("message") && pin_json["message"].is_string())
                 pin.message = pin_json["message"].get<std::string>();
             if (pin_json.contains("level") && pin_json["level"].is_string()) {
-                auto lvl = pin_json["level"].get<std::string>();
+                auto lvl = normalizeLevelName(pin_json["level"].get<std::string>());
                 if (lvl == "hard") pin.level = EnforcementLevel::HARD;
                 else if (lvl == "soft") pin.level = EnforcementLevel::SOFT;
                 else pin.level = EnforcementLevel::ADVISORY;

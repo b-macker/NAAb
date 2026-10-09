@@ -2262,7 +2262,7 @@
     "rationale": "Multi-agent orchestration patterns for complex workflows"
   },
 
-  "_comment_output_contract": "Agent Output Contracts — per-agent response validation. Add 'output_contract' to individual agent configs in the 'agents' section. Fields: format ('json'), required_fields (array of key names), field_types (dict of key→type: 'string'|'number'|'boolean'|'array'|'object'), regex_checks (dict of key→regex pattern). Violation emits CONTRACT_VIOLATION telemetry and throws. Example: {\"format\": \"json\", \"required_fields\": [\"severity\"], \"regex_checks\": {\"severity\": \"^(low|medium|high|critical)$\"}}",
+  "_comment_output_contract": "Agent Output Contracts — per-agent response validation. Add 'output_contract' to individual agent configs in the 'agents' section. Fields: format ('json'), required_fields (array of key names), field_types (dict of key→type: 'string'|'number'|'boolean'|'array'|'object'), regex_checks (dict of key→regex pattern). Only 'json' is validated; any other format checks only that the reply is not empty, and the loader warns. An empty reply is a violation. Violation emits CONTRACT_VIOLATION telemetry and throws (after the call is accounted). Example: {\"format\": \"json\", \"required_fields\": [\"severity\"], \"regex_checks\": {\"severity\": \"^(low|medium|high|critical)$\"}}",
 
   "_comment_telemetry_events": "Agent Telemetry Event Types: AGENT_CREATE, AGENT_SEND, AGENT_RESPONSE, PROMPT_SCAN, RESPONSE_SCAN, RESPONSE_SUPPRESSED (empty response after retries), CDD_TURN, BSD_MATCH, BSD_TRANSITION, CONTRACT_VIOLATION, TOOL_EXEC, TOOL_BLOCKED, AGENT_KEY_REVIVED, PULSE_VERDICT. All events include run_id and prev_hash (tamper-evident hash chain).",
 

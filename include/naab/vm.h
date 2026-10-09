@@ -243,6 +243,11 @@ struct CompiledFunction {
     ast::Type return_type{ast::TypeKind::Any};
     bool is_generator = false;
     bool is_async = false;
+    // Top-level function only: did the source have a main {} block? The VM's
+    // requirements.main_block check used to infer this from the chunk being
+    // at most one instruction, which an empty main never is, so the check
+    // never fired on the default engine.
+    bool has_main_block = false;
     std::string source_file;
     int source_line = 0;
 

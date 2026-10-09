@@ -694,7 +694,8 @@ ProviderResult callAgentWithTools(
     const governance::AgentConfig& config,
     const std::string& api_key,
     const std::string& messages_json_str,
-    const std::vector<ToolDefinition>& tools) {
+    const std::vector<ToolDefinition>& tools,
+    bool forbid_tool_use) {
 
     ProviderResult pr;
 
@@ -785,6 +786,8 @@ ProviderResult callAgentWithTools(
                     func_decls.push_back(fd);
                 }
                 request_body["tools"] = json::array({{{"functionDeclarations", func_decls}}});
+                if (forbid_tool_use)
+                    request_body["toolConfig"] = {{"functionCallingConfig", {{"mode", "NONE"}}}};
             }
 
             std::string url = geminiUrl(config);
@@ -819,6 +822,7 @@ ProviderResult callAgentWithTools(
                     tools_array.push_back(td);
                 }
                 request_body["tools"] = tools_array;
+                if (forbid_tool_use) request_body["tool_choice"] = {{"type", "none"}};
             }
 
             http_result = httpPostRaw(

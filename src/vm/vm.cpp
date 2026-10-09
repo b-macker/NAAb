@@ -183,31 +183,10 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
         }
         governance_->validateScopePatterns(func_names);
 
-        // Check require_main_block — the compiler always has a main function
-        // but if the source has no main{} block, the main function will be empty
-        if (governance_->requiresMainBlock()) {
-            // If the main function has only OP_RETURN_NULL (empty), there's no main block
-            if (main_fn->chunk.code.size() <= 1) {
-                auto level = governance_->getRules().main_block_level;
-                std::string msg = "Governance error: Program requires a main { } block ["
-                    + std::string(level == governance::EnforcementLevel::HARD ? "HARD-MANDATORY" :
-                                  level == governance::EnforcementLevel::SOFT ? "SOFT-MANDATORY" : "ADVISORY")
-                    + "]\n\n"
-                    "  Rule: main block required\n\n"
-                    "  Help:\n"
-                    "  - All programs must have a main { } block when governance requires it\n";
-                if (level == governance::EnforcementLevel::HARD) {
-                    throw std::runtime_error(msg);
-                } else if (level == governance::EnforcementLevel::SOFT) {
-                    if (!governance_->isOverrideEnabled()) {
-                        throw std::runtime_error(msg + "\n  This rule is enforced by the project's governance configuration.\n");
-                    }
-                    fprintf(stderr, "[governance] OVERRIDE: %s\n", msg.c_str());
-                } else {
-                    fprintf(stderr, "[governance] WARNING: Program has no main block\n");
-                }
-            }
-        }
+        // requirements.main_block. The compiler records whether the source had
+        // a main {} block; the old test here (main chunk <= 1 instruction) was
+        // never true, so the requirement did nothing on the default engine.
+        governance_->checkMainBlockRequired(main_fn->has_main_block);
     }
 
     auto result = run();
