@@ -191,8 +191,34 @@ run_arm() {
     case "$OUT" in *"$TB"*) HAS_B=1;; esac
     case "$OUT" in *"$TC"*) HAS_C=1;; esac
     case "$OUT" in *"$TP"*) HAS_P=1;; esac
-    case "$OUT" in *"Loaded: $dir/govern.json"*|*"Loaded: $(native_path "$dir")/govern.json"*) LOADED=1;; esac
+    loaded_own "$dir" "$OUT" && LOADED=1
 }
+# loaded_own DIR TEXT: TEXT has a "[governance] Loaded:" line naming DIR's own
+# govern.json. Matched on DIR's basename (mktemp-random, so unique) with every
+# backslash turned into a slash, NOT on DIR's full path: a native Windows build
+# prints the path it built itself (D:\...\arm.X\govern.json), which is neither
+# the MSYS path the shell holds nor cygpath -m's D:/... form. Comparing full
+# paths there read every config as not loaded (build-windows on 1870d482:
+# R-00 and four route arms FAILED while the policy demonstrably applied).
+loaded_own() {
+    local want="/$(basename "$1")/govern.json (mode:" line
+    while IFS= read -r line; do
+        line="${line//\\//}"
+        case "$line" in *"[governance] Loaded: "*"$want"*) return 0 ;; esac
+    done <<< "$2"
+    return 1
+}
+# The probe's own control, on both path vocabularies and a CRLF line ending,
+# plus a sibling directory that must NOT match: a probe that cannot fire, or
+# fires on anything, would turn every arm below into a verdict about itself.
+_lo_ok=1
+loaded_own /x/arm.Q1 '[governance] Loaded: /x/arm.Q1/govern.json (mode: enforce)' || _lo_ok=0
+loaded_own /x/arm.Q1 $'[governance] Loaded: D:\\a\\x\\arm.Q1\\govern.json (mode: enforce)\r' || _lo_ok=0
+loaded_own /x/arm.Q1 '[governance] Loaded: /x/arm.Q2/govern.json (mode: enforce)' && _lo_ok=0
+if [ "$_lo_ok" != 1 ]; then
+    echo "  FAIL: the loaded-config probe fails its own control -- every verdict below would be about the probe"
+    exit 1
+fi
 show() { printf '%s\n' "$OUT" | grep -vE '^\[governance\] Warning|^$' | head -8 | sed 's/^/        /'; }
 newdir() { local d; d="$(mktemp -d "$TMPBASE/arm.XXXXXX")"; d="$(cd "$d" && pwd -P)"; echo "$d"; }
 
@@ -405,7 +431,17 @@ done
 # old thread_local copy was set once at load, so a reload never reached it.
 echo ""
 echo "--- L: a mid-run reload reaches the next child ---"
-if ! viable printenv vm; then
+IS_WINDOWS=0
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
+[ -n "${WINDIR:-}" ] && IS_WINDOWS=1
+if [ "$IS_WINDOWS" = 1 ]; then
+    # Decided in 0304af3a and followed by every reload suite since: Windows
+    # file locking prevents replacing govern.json under a running program.
+    # build-windows on 1870d482 reached the second spawn unscrubbed with no
+    # "Reload rejected" -- consistent with the swap never landing, which
+    # this arm could not tell apart from a reload that did not apply.
+    skip L-01 "mid-run file swap requires POSIX file semantics"
+elif ! viable printenv vm; then
     unviable L-01 printenv
 else
     L_TRUST="$NAAB_TRUST_STORE_DIR"
@@ -459,9 +495,11 @@ EOF
         has() { case "$1" in *"$2"*) echo 1;; *) echo 0;; esac; }
         if [ "$(has "$BEFORE" "$TC")" != 1 ]; then
             fail L-01 "the first spawn did not run, though the route is viable"; show
-        elif [ -z "$AFTER" ] && [ ! -f "$LD/.swap_done" ]; then
+        elif [ ! -f "$LD/.swap_done" ] || ! cmp -s "$LD/govern.json" "$LN/govern.json"; then
             # The swap is driven from a <<python>> block and an external operator;
-            # where that machinery does not work the reload is never staged.
+            # where that machinery does not work the reload is never staged --
+            # and the program can reach its second spawn anyway, so reaching it
+            # proves nothing. Only a swap whose result is on disk is measured.
             skip L-01 "the config swap did not happen in this environment -- cannot stage the reload"
         elif [ -z "$AFTER" ]; then
             fail L-01 "the config was swapped but the program never reached its second spawn"; show
