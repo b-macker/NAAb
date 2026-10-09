@@ -34,10 +34,10 @@ jobs:
           key: naab-build-${{ hashFiles('CMakeLists.txt', 'src/**/*.cpp', 'src/**/*.h', 'include/**/*.h') }}
           restore-keys: naab-build-
 
-      - name: Build naab-lang
+      - name: Build naab-lang and naab-gov
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
-          ninja -C build naab-lang -j$(nproc)
+          ninja -C build naab-lang naab-gov -j$(nproc)
 
       - name: Find .naab source files
         id: find-sources
@@ -70,8 +70,6 @@ jobs:
         run: |
           mkdir -p .governance-reports
           EXIT=0
-          CHECKED=0
-          FAILED=0
 
           # Skip directories not suitable for standalone CI scanning:
           # - demo/demos: intentionally bad code for governance demonstration
@@ -94,7 +92,7 @@ jobs:
           #   than an exclusion; this is the smaller one.
           # - ch0_full_projects: multi-file integration projects needing
           #   specific CWD, compilers (Rust/Go), and inter-process setup
-          for f in $(find . -name '*.naab' \
+          files=$(find . -name '*.naab' \
             -not -path './build/*' \
             -not -path './tests/*' \
             -not -path './examples/*' \
@@ -106,39 +104,26 @@ jobs:
             -not -path './investigate/*' \
             -not -path '*/ch0_full_projects/*' \
             -not -name 'test_go_async.naab' \
-            -type f | sort); do
+            -type f | sort)
 
-            echo "=== Checking: $f ==="
-            CHECKED=$((CHECKED + 1))
-
-            # Walk up to find govern.json; if none found, run without governance
-            GOV_FLAG=""
-            SEARCH_DIR=$(dirname "$f")
-            FOUND_GOV=false
-            while [ "$SEARCH_DIR" != "." ] && [ "$SEARCH_DIR" != "/" ]; do
-              if [ -f "$SEARCH_DIR/govern.json" ]; then
-                FOUND_GOV=true
-                break
-              fi
-              SEARCH_DIR=$(dirname "$SEARCH_DIR")
-            done
-            if [ "$FOUND_GOV" = false ] && [ ! -f "./govern.json" ]; then
-              GOV_FLAG="--no-governance"
-            fi
-
-            if ! ./build/naab-lang run "$f" \
-              $GOV_FLAG \
-              --governance-sarif ".governance-reports/sarif-${CHECKED}.json" \
-              --governance-junit ".governance-reports/junit-${CHECKED}.xml" \
-              --governance-report ".governance-reports/report-${CHECKED}.json" \
-              2>&1; then
-              FAILED=$((FAILED + 1))
-              EXIT=1
-            fi
-          done
-
-          echo "checked=$CHECKED" >> $GITHUB_OUTPUT
-          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          # A file with a main block is run; a module (no main block) under a
+          # govern.json is linted with naab-gov, which applies the same source
+          # and per-function checks without the main_block requirement --
+          # running a module under requirements.main_block can only report that
+          # it has no main block. The logic lives in a script so that
+          # tests/self-audit/test_governance_check_files.sh can test it.
+          # Under `bash -e` the pipeline's status is tee's, so a failed file
+          # does not end the step; PIPESTATUS carries the script's own.
+          bash .github/scripts/governance_check_files.sh $files 2>&1 \
+            | tee .governance-reports/check.log
+          [ "${PIPESTATUS[0]}" -eq 0 ] || EXIT=1
+          # The counts are the script's last two lines; a program's own output
+          # could print "checked=" too, so only those two lines are read.
+          if ! tail -n 2 .governance-reports/check.log \
+               | grep -E '^(checked|failed)=[0-9]+$' >> "$GITHUB_OUTPUT"; then
+            echo "::error::governance_check_files.sh printed no counts"
+            EXIT=1
+          fi
 
           # Merge all SARIF files into one for GitHub code scanning.
           # Lives in a real file so it is testable — `--selftest` runs in

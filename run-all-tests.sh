@@ -2410,6 +2410,22 @@ else
     echo "  merge_sarif.py: not found, skipping"
 fi
 
+# The Governance Check workflow's per-file decision: a file with a main block is
+# run, a module under a govern.json is linted with naab-gov (which compiles it,
+# so the per-function checks apply). requirements.main_block blocks every
+# module that is run, so running them all reported every module as failed.
+GOVCHECK_SCRIPT="tests/self-audit/test_governance_check_files.sh"
+if [ -f "$GOVCHECK_SCRIPT" ]; then
+    if run_shell_test "$GOVCHECK_SCRIPT" 2>&1; then
+        echo "  test_governance_check_files.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_governance_check_files.sh")
+    fi
+else
+    echo "  test_governance_check_files.sh: not found, skipping"
+fi
+
 # What pressure drift can actually generate, and which rungs that reaches.
 PMAP_SCRIPT="tests/governance_v4/test_pressure_level_map.sh"
 if [ -f "$PMAP_SCRIPT" ]; then

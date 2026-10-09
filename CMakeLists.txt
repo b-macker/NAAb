@@ -883,6 +883,7 @@ target_include_directories(naab-gov PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_link_libraries(naab-gov
+    naab_vm            # lint compiles the file so the per-function checks run
     naab_lexer
     naab_parser
     naab_interpreter   # governance_engine.cpp references g_current_interpreter
