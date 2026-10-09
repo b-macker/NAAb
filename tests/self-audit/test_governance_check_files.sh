@@ -61,7 +61,12 @@ fi
 
 W="$(mktemp -d "${TMPDIR:-/tmp}/naab-govcheck.XXXXXX")" || exit 1
 [ -n "$W" ] && [ -d "$W" ] || { echo "FATAL: no work dir" >&2; exit 1; }
-trap 'rm -rf "$W"' EXIT
+# The fixtures' govern.json is unsigned: with any key in the ambient trust
+# store it would be an INTEGRITY BLOCK and every file would exit 3. Both
+# binaries the script runs inherit NAAB_TRUST_STORE_DIR.
+source "$REPO/tests/helpers/trust_setup.sh"
+setup_isolated_trust
+trap 'rm -rf "$W"; teardown_isolated_trust' EXIT
 mkdir -p "$W/gov" "$W/nogov"
 
 cat > "$W/gov/govern.json" <<'EOF'
