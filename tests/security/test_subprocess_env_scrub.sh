@@ -16,17 +16,25 @@
 #      ruby) never stripped proxies at all.
 #   W  the scrub policy was thread_local and set only on the thread that loaded
 #      the config, so a VM async fn's children got no scrubbing.
+#   L  for the same reason a mid-run reload never reached the policy.
 #
 # Every arm reads three variables, each holding a fresh random token:
 #   A  NAAB_ES_BR  listed in blocked_read             (the subject of R)
 #   B  NAAB_ES_BS  listed in blocked_subprocess_vars  (the subject of B and W)
 #   C  NAAB_ES_NO  listed nowhere                      (control: the route ran
 #                                                       and its output reached us)
-# An arm asserting that A or B is ABSENT counts only when C is PRESENT in the
-# same run, and each route first runs under a config with no policy, where A
-# must be PRESENT -- otherwise "absent" could mean the route never carried it.
-# A route whose no-policy run fails is UNMEASURABLE (toolchain missing), and
-# says so; it is never a pass.
+# VIABILITY: before any arm asserts something about a route, the same route
+# runs under a config with NO policy, and A and C must both reach its child.
+# A route that fails that is UNMEASURABLE here (a toolchain or executor this
+# platform lacks -- e.g. Windows has no <<shell>> executor), never a pass and
+# never a failure. A route that passes it and then does not run under the
+# policy under test is a FAILURE: the policy broke it.
+#
+# Every external program is handed a NATIVE path (tests/helpers/native_path.sh):
+# under MSYS2 naab-lang is a native Windows binary and cannot start /usr/bin/x.
+#
+# ES_SIMULATE_UNVIABLE=route,route marks routes unviable, to check that the
+# suite reports them UNMEASURABLE rather than failing (a test of the test).
 #
 # Usage: bash tests/security/test_subprocess_env_scrub.sh [path/to/naab-lang]
 
@@ -53,9 +61,15 @@ TMPBASE="$(mktemp -d "${TMPDIR:-/tmp}/naab_envscrub.XXXXXX")"
 # block (exit 3) -- which the arms below would read as "route did not run".
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 source "$SCRIPT_DIR/../helpers/config_swap.sh"
+source "$SCRIPT_DIR/../helpers/native_path.sh"
 setup_isolated_trust
 cleanup() { stop_swap_operators; teardown_isolated_trust; rm -rf "$TMPBASE"; }
 trap cleanup EXIT
+
+# The programs the probes start, as paths the binary can open.
+PRINTENV_N=""; SH_N=""
+p="$(command -v printenv 2>/dev/null || true)"; [ -n "$p" ] && PRINTENV_N="$(native_path "$p")"
+p="$(command -v sh 2>/dev/null || true)";       [ -n "$p" ] && SH_N="$(native_path "$p")"
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -64,10 +78,11 @@ trap cleanup EXIT
 # Written by python (json.dumps) rather than a heredoc, so no shell expansion
 # can drop a key's quotes, and read back as JSON before any verdict is trusted.
 mkcfg() {
-    python3 -I - "$@" <<'PY'
+    python3 -I - "$@" "$SH_N" <<'PY'
 import json, sys
 d, mode, network, policy = sys.argv[1], sys.argv[2], sys.argv[3] == "true", sys.argv[4]
-hookfile = sys.argv[5] if len(sys.argv) > 5 else ""
+hookfile = sys.argv[5] if len(sys.argv) > 6 else ""
+sh = sys.argv[-1]
 ev = {"read": True}
 if policy in ("read", "both"):
     ev["blocked_read"] = ["NAAB_ES_BR"]
@@ -82,7 +97,7 @@ cfg = {
     "security": {"sandbox_level": "elevated"},
 }
 if hookfile:
-    cfg["hooks"] = {"on_complete": {"command": "/bin/sh",
+    cfg["hooks"] = {"on_complete": {"command": sh,
                                     "args": ["-c", "printenv > " + hookfile],
                                     "timeout": 5}}
 with open(d + "/govern.json", "w") as f:
@@ -148,24 +163,12 @@ func main() { fmt.Print("A=" + os.Getenv("NAAB_ES_BR") + " B=" + os.Getenv("NAAB
 }
 EOF
     ;;
-    # process.run by ABSOLUTE path: the subject here is the environment, not
-    # PATH lookup (that is Group B, which uses the bare name on purpose).
-    printenv) printf 'use process\nmain {\n    let r = process.run("/usr/bin/printenv", [])\n    print("V=" + r["stdout"])\n}\n' > "$f" ;;
+    # process.run by FULL path: the subject here is the environment, not PATH
+    # lookup (that is Group B, which uses the bare name on purpose).
+    printenv) printf 'use process\nmain {\n    let r = process.run("%s", [])\n    print("V=" + r["stdout"])\n}\n' "$PRINTENV_N" > "$f" ;;
     printenv_bare) printf 'use process\nmain {\n    let r = process.run("printenv", [])\n    print("EXIT=" + string(r["exit_code"]) + " V=" + r["stdout"])\n}\n' > "$f" ;;
-    sh_c)   printf 'use process\nmain {\n    let r = process.run("/bin/sh", ["-c", "echo %s"])\n    print("V=" + r["stdout"])\n}\n' "$ECHO3" > "$f" ;;
-    async_run) cat > "$f" <<'EOF'
-use process
-async fn f() {
-    let r = process.run("/usr/bin/printenv", [])
-    return r["stdout"]
-}
-main {
-    let fut = f()
-    let s = await fut
-    print("V=" + s)
-}
-EOF
-    ;;
+    sh_c)   printf 'use process\nmain {\n    let r = process.run("%s", ["-c", "echo %s"])\n    print("V=" + r["stdout"])\n}\n' "$SH_N" "$ECHO3" > "$f" ;;
+    async_run) printf 'use process\nasync fn f() {\n    let r = process.run("%s", [])\n    return r["stdout"]\n}\nmain {\n    let fut = f()\n    let s = await fut\n    print("V=" + s)\n}\n' "$PRINTENV_N" > "$f" ;;
     async_shell) printf 'async fn f() {\n    let r = <<shell\necho "%s"\n>>\n    return string(r)\n}\nmain {\n    let fut = f()\n    let s = await fut\n    print("V=" + s)\n}\n' "$ECHO3" > "$f" ;;
     env_get) printf 'use env\nmain {\n    let v = env.get("NAAB_ES_BR")\n    print("V=" + string(v))\n}\n' > "$f" ;;
     *) echo "unknown route $2"; exit 1 ;;
@@ -174,14 +177,12 @@ EOF
 
 # run_arm DIR ROUTE ENGINE(vm|tw) -> sets OUT, RC, HAS_A, HAS_B, HAS_C, HAS_P, LOADED
 TA="" TB="" TC="" TP=""
+token() { printf '%s%s' "$1" "$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"; }
 run_arm() {
     local dir="$1" route="$2" engine="$3" flags=()
     [ "$engine" = tw ] && flags=(--tree-walk)
     write_route "$dir/p.naab" "$route"
-    TA="TA$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
-    TB="TB$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
-    TC="TC$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
-    TP="TP$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
+    TA="$(token TA)"; TB="$(token TB)"; TC="$(token TC)"; TP="$(token TP)"
     OUT="$(cd "$dir" && NAAB_ES_BR="$TA" NAAB_ES_BS="$TB" NAAB_ES_NO="$TC" HTTPS_PROXY="$TP" \
            timeout 120 "$NAAB" "${flags[@]}" p.naab --timeout 90 2>&1)"
     RC=$?
@@ -190,10 +191,27 @@ run_arm() {
     case "$OUT" in *"$TB"*) HAS_B=1;; esac
     case "$OUT" in *"$TC"*) HAS_C=1;; esac
     case "$OUT" in *"$TP"*) HAS_P=1;; esac
-    case "$OUT" in *"Loaded: $dir/govern.json"*) LOADED=1;; esac
+    case "$OUT" in *"Loaded: $dir/govern.json"*|*"Loaded: $(native_path "$dir")/govern.json"*) LOADED=1;; esac
 }
 show() { printf '%s\n' "$OUT" | grep -vE '^\[governance\] Warning|^$' | head -8 | sed 's/^/        /'; }
 newdir() { local d; d="$(mktemp -d "$TMPBASE/arm.XXXXXX")"; d="$(cd "$d" && pwd -P)"; echo "$d"; }
+
+# viable ROUTE ENGINE: the route carries A and C to its child under a config
+# with no policy (cached). Sets WHY when it does not.
+declare -A VIABLE=()
+WHY=""
+viable() {
+    local key="$1/$2" d
+    case ",${ES_SIMULATE_UNVIABLE:-}," in *",$1,"*) WHY="simulated"; return 1;; esac
+    if [ -z "${VIABLE[$key]+x}" ]; then
+        d="$(newdir)"; mkcfg "$d" enforce true none
+        run_arm "$d" "$1" "$2"
+        if [ "$HAS_A" = 1 ] && [ "$HAS_C" = 1 ]; then VIABLE[$key]=1; else VIABLE[$key]="rc=$RC"; fi
+    fi
+    [ "${VIABLE[$key]}" = 1 ] && return 0
+    WHY="${VIABLE[$key]}"; return 1
+}
+unviable() { skip "$1" "route '$2' does not carry the variables here even with no policy ($WHY) -- executor or program unavailable"; }
 
 # ---------------------------------------------------------------------------
 # Group R: a blocked_read variable reaches no child process
@@ -212,12 +230,7 @@ fi
 for route in shell python ruby node php go printenv sh_c; do
     for engine in vm tw; do
         id="R-$route/$engine"
-        D0="$(newdir)"; mkcfg "$D0" enforce true none
-        run_arm "$D0" "$route" "$engine"
-        if [ "$HAS_C" != 1 ] || [ "$HAS_A" != 1 ]; then
-            skip "$id" "route did not carry the variables with no policy set (rc=$RC) -- executor unavailable here"
-            continue
-        fi
+        if ! viable "$route" "$engine"; then unviable "$id" "$route"; continue; fi
         D="$(newdir)"; mkcfg "$D" enforce true read
         run_arm "$D" "$route" "$engine"
         if [ "$HAS_C" != 1 ] || [ "$LOADED" != 1 ]; then
@@ -233,10 +246,11 @@ done
 # A VM async fn runs on its own thread.
 for route in async_run async_shell; do
     id="R-$route/vm"
+    if ! viable "$route" vm; then unviable "$id" "$route"; continue; fi
     D="$(newdir)"; mkcfg "$D" enforce true read
     run_arm "$D" "$route" vm
     if [ "$HAS_C" != 1 ]; then
-        fail "$id" "route did not run (rc=$RC)"; show
+        fail "$id" "route ran with no policy but not with blocked_read set (rc=$RC)"; show
     elif [ "$HAS_A" = 1 ]; then
         fail "$id" "blocked_read variable reached a child started from an async fn"
     else
@@ -244,61 +258,65 @@ for route in async_run async_shell; do
     fi
 done
 
-# The withheld variable is NAMED once, and its value never printed.
-D="$(newdir)"; mkcfg "$D" enforce true read
-run_arm "$D" shell vm
-n="$(printf '%s\n' "$OUT" | grep -c 'Withheld.*NAAB_ES_BR' || true)"
-if [ "$HAS_C" = 1 ] && [ "$n" = 1 ] && [ "$HAS_A" = 0 ]; then
-    pass R-notice "one stderr notice names the withheld variable; its value appears nowhere"
-else
-    fail R-notice "expected exactly one notice naming NAAB_ES_BR and no value (notices=$n, value seen=$HAS_A, ran=$HAS_C)"; show
-fi
+if viable printenv vm; then
+    # The withheld variable is NAMED once, and its value never printed.
+    D="$(newdir)"; mkcfg "$D" enforce true read
+    run_arm "$D" printenv vm
+    n="$(printf '%s\n' "$OUT" | grep -c 'Withheld.*NAAB_ES_BR' || true)"
+    if [ "$HAS_C" = 1 ] && [ "$n" = 1 ] && [ "$HAS_A" = 0 ]; then
+        pass R-notice "one stderr notice names the withheld variable; its value appears nowhere"
+    else
+        fail R-notice "expected exactly one notice naming NAAB_ES_BR and no value (notices=$n, value seen=$HAS_A, ran=$HAS_C)"; show
+    fi
 
-# Audit mode observes and does not enforce: env.get() is not refused there, so
-# children are not scrubbed of blocked_read either. Pinned as a decision.
-D="$(newdir)"; mkcfg "$D" audit true read
-run_arm "$D" env_get vm
-AUDIT_ENVGET_RC="$RC"; AUDIT_ENVGET_A="$HAS_A"
-run_arm "$D" shell vm
-if [ "$AUDIT_ENVGET_RC" = 0 ] && [ "$AUDIT_ENVGET_A" = 1 ] && [ "$HAS_C" = 1 ] && [ "$HAS_A" = 1 ]; then
-    pass R-audit "audit mode: env.get() and children both see the variable (blocked_read is enforced only in enforce mode)"
-else
-    fail R-audit "audit mode: env.get rc=$AUDIT_ENVGET_RC seen=$AUDIT_ENVGET_A; child ran=$HAS_C seen=$HAS_A"; show
-fi
+    # Audit mode observes and does not enforce: env.get() is not refused there,
+    # so children are not scrubbed of blocked_read either. Pinned as a decision.
+    D="$(newdir)"; mkcfg "$D" audit true read
+    run_arm "$D" env_get vm
+    AUDIT_ENVGET_RC="$RC"; AUDIT_ENVGET_A="$HAS_A"
+    run_arm "$D" printenv vm
+    if [ "$AUDIT_ENVGET_RC" = 0 ] && [ "$AUDIT_ENVGET_A" = 1 ] && [ "$HAS_C" = 1 ] && [ "$HAS_A" = 1 ]; then
+        pass R-audit "audit mode: env.get() and children both see the variable (blocked_read is enforced only in enforce mode)"
+    else
+        fail R-audit "audit mode: env.get rc=$AUDIT_ENVGET_RC seen=$AUDIT_ENVGET_A; child ran=$HAS_C seen=$HAS_A"; show
+    fi
 
-# Hooks are commands the OPERATOR configured, not program code: a blocked_read
-# variable stays available to them (a hook may need the token a script must not
-# read). The hook writes its environment to a file outside the program.
-D="$(newdir)"; HOOKOUT="$D/hook_env.txt"; mkcfg "$D" enforce true read "$HOOKOUT"
-run_arm "$D" shell vm
-if [ ! -f "$HOOKOUT" ]; then
-    skip R-hook "on_complete hook did not run in this configuration (no $HOOKOUT) -- cannot measure"
-else
-    HOOK_ENV="$(cat "$HOOKOUT")"
-    case "$HOOK_ENV" in
-        *"$TA"*) if [ "$HAS_A" = 0 ] && [ "$HAS_C" = 1 ]; then
-                     pass R-hook "the operator's hook still receives the variable the program's child was denied"
-                 else
-                     fail R-hook "hook saw the variable, but the program's child result is wrong (child saw=$HAS_A, ran=$HAS_C)"
-                 fi ;;
-        *) fail R-hook "the operator's hook lost a blocked_read variable" ;;
-    esac
-fi
+    # Hooks are commands the OPERATOR configured, not program code: a
+    # blocked_read variable stays available to them (a hook may need the token a
+    # script must not read). The hook writes its environment to a file.
+    D="$(newdir)"; HOOKOUT="$D/hook_env.txt"; mkcfg "$D" enforce true read "$(native_path "$HOOKOUT")"
+    run_arm "$D" printenv vm
+    if [ ! -f "$HOOKOUT" ]; then
+        skip R-hook "on_complete hook did not run in this configuration (no hook output) -- cannot measure"
+    else
+        HOOK_ENV="$(cat "$HOOKOUT")"
+        case "$HOOK_ENV" in
+            *"$TA"*) if [ "$HAS_A" = 0 ] && [ "$HAS_C" = 1 ]; then
+                         pass R-hook "the operator's hook still receives the variable the program's child was denied"
+                     else
+                         fail R-hook "hook saw the variable, but the program's child result is wrong (child saw=$HAS_A, ran=$HAS_C)"
+                     fi ;;
+            *) fail R-hook "the operator's hook lost a blocked_read variable" ;;
+        esac
+    fi
 
-# mode "off": the subprocess lists still apply (they did before, set at load
-# whatever the mode), and blocked_read does not (env.get() is not enforced).
-# Loosening the first would be a silent regression for any config that keeps
-# its scrub lists while governance is switched off.
-D="$(newdir)"; mkcfg "$D" off true both
-run_arm "$D" printenv vm
-if [ "$HAS_C" != 1 ]; then
-    fail S-off "route did not run under mode off (rc=$RC)"; show
-elif [ "$HAS_B" = 1 ]; then
-    fail S-off "mode off: a blocked_subprocess_vars variable reached the child"
-elif [ "$HAS_A" != 1 ]; then
-    fail S-off "mode off: the blocked_read variable was withheld, though env.get() is not enforced in mode off"
+    # mode "off": the subprocess lists still apply (they did before, set at load
+    # whatever the mode), and blocked_read does not (env.get() is not enforced).
+    # Loosening the first would be a silent regression for any config that keeps
+    # its scrub lists while governance is switched off.
+    D="$(newdir)"; mkcfg "$D" off true both
+    run_arm "$D" printenv vm
+    if [ "$HAS_C" != 1 ]; then
+        fail S-off "route did not run under mode off (rc=$RC)"; show
+    elif [ "$HAS_B" = 1 ]; then
+        fail S-off "mode off: a blocked_subprocess_vars variable reached the child"
+    elif [ "$HAS_A" != 1 ]; then
+        fail S-off "mode off: the blocked_read variable was withheld, though env.get() is not enforced in mode off"
+    else
+        pass S-off "mode off: the subprocess list still scrubs; blocked_read is not applied (as env.get())"
+    fi
 else
-    pass S-off "mode off: the subprocess list still scrubs; blocked_read is not applied (as env.get())"
+    for id in R-notice R-audit R-hook S-off; do unviable "$id" printenv; done
 fi
 
 # ---------------------------------------------------------------------------
@@ -307,23 +325,22 @@ fi
 echo ""
 echo "--- B: bare command names still resolve when a scrub policy is set ---"
 
-D="$(newdir)"; mkcfg "$D" enforce true scrub
-run_arm "$D" printenv_bare vm
-case "$OUT" in *"EXIT=0 "*) bexit=0;; *) bexit=1;; esac
-if [ "$bexit" = 0 ] && [ "$HAS_C" = 1 ] && [ "$HAS_B" = 0 ]; then
-    pass B-01 'process.run("printenv") (bare name) runs under a scrub policy, and the scrubbed variable is gone'
+if viable printenv_bare vm; then
+    D="$(newdir)"; mkcfg "$D" enforce true scrub
+    run_arm "$D" printenv_bare vm
+    case "$OUT" in *"EXIT=0 "*) bexit=0;; *) bexit=1;; esac
+    if [ "$bexit" = 0 ] && [ "$HAS_C" = 1 ] && [ "$HAS_B" = 0 ]; then
+        pass B-01 'process.run("printenv") (bare name) runs under a scrub policy, and the scrubbed variable is gone'
+    else
+        fail B-01 "bare-name process.run under a scrub policy (exit0=$((1-bexit)), ran=$HAS_C, scrubbed var seen=$HAS_B)"; show
+    fi
 else
-    fail B-01 "bare-name process.run under a scrub policy (exit0=$((1-bexit)), ran=$HAS_C, scrubbed var seen=$HAS_B)"; show
+    unviable B-01 printenv_bare
 fi
 
 for route in php go; do
     id="B-$route"
-    D0="$(newdir)"; mkcfg "$D0" enforce true none
-    run_arm "$D0" "$route" vm
-    if [ "$HAS_C" != 1 ]; then
-        skip "$id" "$route does not run here even with no policy (rc=$RC) -- toolchain missing"
-        continue
-    fi
+    if ! viable "$route" vm; then unviable "$id" "$route"; continue; fi
     D="$(newdir)"; mkcfg "$D" enforce true scrub
     run_arm "$D" "$route" vm
     if [ "$HAS_C" = 1 ] && [ "$HAS_B" = 0 ]; then
@@ -341,10 +358,11 @@ echo ""
 echo "--- P: proxy variables are stripped from children when network is disabled ---"
 
 p_arm() { # p_arm ID ROUTE NETWORK POLICY EXPECT_PROXY(0|1) DESC
+    if ! viable "$2" vm; then unviable "$1" "$2"; return; fi
     local D; D="$(newdir)"; mkcfg "$D" enforce "$3" "$4"
     run_arm "$D" "$2" vm
     if [ "$HAS_C" != 1 ]; then
-        fail "$1" "route did not run (rc=$RC)"; show
+        fail "$1" "route ran with no policy but not in this configuration (rc=$RC)"; show
     elif [ "$HAS_P" = "$5" ]; then
         pass "$1" "$6"
     else
@@ -365,10 +383,11 @@ echo "--- W: a VM async fn's children are scrubbed like the main thread's ---"
 
 for route in async_run async_shell; do
     id="W-$route"
+    if ! viable "$route" vm; then unviable "$id" "$route"; continue; fi
     D="$(newdir)"; mkcfg "$D" enforce true scrub
     run_arm "$D" "$route" vm
     if [ "$HAS_C" != 1 ]; then
-        fail "$id" "route did not run (rc=$RC)"; show
+        fail "$id" "route ran with no policy but not with a scrub policy (rc=$RC)"; show
     elif [ "$HAS_B" = 1 ]; then
         fail "$id" "blocked_subprocess_vars variable reached a child started from an async fn"
     else
@@ -386,23 +405,26 @@ done
 # old thread_local copy was set once at load, so a reload never reached it.
 echo ""
 echo "--- L: a mid-run reload reaches the next child ---"
-L_TRUST="$NAAB_TRUST_STORE_DIR"
-export NAAB_TRUST_STORE_DIR="$(mktemp -d "$TMPBASE/trust.XXXXXX")"
-LD="$(newdir)"; LN="$(newdir)"
-"$NAAB" --keygen "$TMPBASE/l-key.pem" >/dev/null 2>&1
-"$NAAB" --trust-key "$TMPBASE/l-key.pem.pub" >/dev/null 2>&1
-mkcfg "$LD" enforce true none
-mkcfg "$LN" enforce true both
-(cd "$LD" && NAAB_SIGNING_KEY="$TMPBASE/l-key.pem" "$NAAB" --sign-governance >/dev/null 2>&1)
-(cd "$LN" && NAAB_SIGNING_KEY="$TMPBASE/l-key.pem" "$NAAB" --sign-governance >/dev/null 2>&1)
-if [ ! -f "$LD/govern.json.sig" ] || [ ! -f "$LN/govern.json.sig" ]; then
-    skip L-01 "could not sign the reload fixtures -- cannot measure"
+if ! viable printenv vm; then
+    unviable L-01 printenv
 else
-    cat > "$LD/p.naab" <<EOF
+    L_TRUST="$NAAB_TRUST_STORE_DIR"
+    export NAAB_TRUST_STORE_DIR="$(mktemp -d "$TMPBASE/trust.XXXXXX")"
+    LD="$(newdir)"; LN="$(newdir)"
+    "$NAAB" --keygen "$TMPBASE/l-key.pem" >/dev/null 2>&1
+    "$NAAB" --trust-key "$TMPBASE/l-key.pem.pub" >/dev/null 2>&1
+    mkcfg "$LD" enforce true none
+    mkcfg "$LN" enforce true both
+    (cd "$LD" && NAAB_SIGNING_KEY="$TMPBASE/l-key.pem" "$NAAB" --sign-governance >/dev/null 2>&1)
+    (cd "$LN" && NAAB_SIGNING_KEY="$TMPBASE/l-key.pem" "$NAAB" --sign-governance >/dev/null 2>&1)
+    if [ ! -f "$LD/govern.json.sig" ] || [ ! -f "$LN/govern.json.sig" ]; then
+        skip L-01 "could not sign the reload fixtures -- cannot measure"
+    else
+        cat > "$LD/p.naab" <<EOF
 use env
 use process
 main {
-    let r1 = process.run("/usr/bin/printenv", [])
+    let r1 = process.run("$PRINTENV_N", [])
     print("BEFORE_RELOAD " + r1["stdout"])
     let s = <<python
 import os, time
@@ -420,40 +442,45 @@ def _swap(src, dst):
 time.sleep(1)
 _swap("$LN/govern.json.sig", "$LD/govern.json.sig")
 _swap("$LN/govern.json", "$LD/govern.json")
-"swapped"
+print("SWAPPED_OK")
 >>
     let h = env.get("HOME")
-    let r2 = process.run("/usr/bin/printenv", [])
+    let r2 = process.run("$PRINTENV_N", [])
     print("AFTER_RELOAD " + r2["stdout"])
 }
 EOF
-    start_swap_operator "$LD"
-    TA="TA$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
-    TB="TB$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
-    TC="TC$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
-    OUT="$(cd "$LD" && NAAB_ES_BR="$TA" NAAB_ES_BS="$TB" NAAB_ES_NO="$TC" \
-           timeout 120 "$NAAB" p.naab --timeout 90 2>&1)"
-    stop_swap_operators
-    BEFORE="${OUT%%AFTER_RELOAD*}"
-    case "$OUT" in *AFTER_RELOAD*) AFTER="${OUT#*AFTER_RELOAD}" ;; *) AFTER="" ;; esac
-    has() { case "$1" in *"$2"*) echo 1;; *) echo 0;; esac; }
-    if [ -z "$AFTER" ] || [ "$(has "$BEFORE" "$TC")" != 1 ] || [ "$(has "$AFTER" "$TC")" != 1 ]; then
-        fail L-01 "the program did not run both spawns (rc not checked; output follows)"; show
-    elif [ "$(has "$BEFORE" "$TA")" != 1 ] || [ "$(has "$BEFORE" "$TB")" != 1 ]; then
-        fail L-00 "control: before the reload the child should see both variables (A=$(has "$BEFORE" "$TA") B=$(has "$BEFORE" "$TB"))"
-    else
-        pass L-00 "control: before the reload the child sees both variables"
-        case "$OUT" in *"Reload rejected"*) fail L-01 "the tightening reload was rejected"; show ;;
-        *)
-            if [ "$(has "$AFTER" "$TB")" = 0 ] && [ "$(has "$AFTER" "$TA")" = 0 ]; then
-                pass L-01 "after the reload the next child is scrubbed of both (subprocess list and blocked_read)"
-            else
-                fail L-01 "after the reload: blocked_subprocess_vars seen=$(has "$AFTER" "$TB"), blocked_read seen=$(has "$AFTER" "$TA")"
-            fi ;;
-        esac
+        start_swap_operator "$LD"
+        TA="$(token TA)"; TB="$(token TB)"; TC="$(token TC)"
+        OUT="$(cd "$LD" && NAAB_ES_BR="$TA" NAAB_ES_BS="$TB" NAAB_ES_NO="$TC" \
+               timeout 120 "$NAAB" p.naab --timeout 90 2>&1)"
+        stop_swap_operators
+        BEFORE="${OUT%%AFTER_RELOAD*}"
+        case "$OUT" in *AFTER_RELOAD*) AFTER="${OUT#*AFTER_RELOAD}" ;; *) AFTER="" ;; esac
+        has() { case "$1" in *"$2"*) echo 1;; *) echo 0;; esac; }
+        if [ "$(has "$BEFORE" "$TC")" != 1 ]; then
+            fail L-01 "the first spawn did not run, though the route is viable"; show
+        elif [ -z "$AFTER" ] && [ ! -f "$LD/.swap_done" ]; then
+            # The swap is driven from a <<python>> block and an external operator;
+            # where that machinery does not work the reload is never staged.
+            skip L-01 "the config swap did not happen in this environment -- cannot stage the reload"
+        elif [ -z "$AFTER" ]; then
+            fail L-01 "the config was swapped but the program never reached its second spawn"; show
+        elif [ "$(has "$BEFORE" "$TA")" != 1 ] || [ "$(has "$BEFORE" "$TB")" != 1 ]; then
+            fail L-00 "control: before the reload the child should see both variables (A=$(has "$BEFORE" "$TA") B=$(has "$BEFORE" "$TB"))"
+        else
+            pass L-00 "control: before the reload the child sees both variables"
+            case "$OUT" in *"Reload rejected"*) fail L-01 "the tightening reload was rejected"; show ;;
+            *)
+                if [ "$(has "$AFTER" "$TB")" = 0 ] && [ "$(has "$AFTER" "$TA")" = 0 ]; then
+                    pass L-01 "after the reload the next child is scrubbed of both (subprocess list and blocked_read)"
+                else
+                    fail L-01 "after the reload: blocked_subprocess_vars seen=$(has "$AFTER" "$TB"), blocked_read seen=$(has "$AFTER" "$TA")"
+                fi ;;
+            esac
+        fi
     fi
+    export NAAB_TRUST_STORE_DIR="$L_TRUST"
 fi
-export NAAB_TRUST_STORE_DIR="$L_TRUST"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $SKIP unmeasurable"
