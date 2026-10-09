@@ -13,8 +13,10 @@
 #     that prints "blocked" and exits 3; `! "$NAAB" prog | grep -q SECRET`
 #     then PASSES whether or not the secret was printed;
 #   * when the producer is still writing after grep has matched and exited,
-#     it takes SIGPIPE and the pipeline reports 141. Above the pipe's
-#     capacity that is certain; below it, it is a race -- a flake.
+#     its write fails: it takes SIGPIPE (141), or -- where SIGPIPE is
+#     ignored, as on GitHub's runners -- gets EPIPE, prints "write error:
+#     Broken pipe" and exits 1. Above the pipe's capacity that is certain;
+#     below it, it is a race -- a flake.
 #
 #     "$NAAB" prog 2>&1 | grep -q blocked        <- defect
 #     grep -q blocked <<<"$("$NAAB" prog 2>&1)"   <- safe: no pipe, no producer
@@ -24,7 +26,7 @@
 # fixed site by site four times (c47eefc7, 05f26e02, 7cc189db, 24d6d1d8). The
 # tree still held 1,414 sites when this guard landed. One of them made
 # test_r13_fixes.sh T-API2-1 SKIP on every run: `strings naab-lang | grep -q`
-# returns 141 under pipefail because strings is still writing.
+# fails under pipefail because strings is still writing.
 #
 # ZERO, NOT A BASELINE. Every site was converted when this landed, and the
 # fix is mechanical (`tools/testlint/pipefail_grep.py fix` rewrites the
@@ -36,7 +38,8 @@
 #          here-string form true. If bash ever stops doing this the guard is
 #          moot, and this arm says so instead of passing silently
 #   PG-02  PREMISE, measured here: a producer that outgrows the pipe makes
-#          `| grep -q` false by SIGPIPE (141) -- deterministic, not a race
+#          `| grep -q` false (141, or 1 where SIGPIPE is ignored) --
+#          deterministic, not a race
 #   PG-03  the tree holds no site (tests/ tools/ examples/ .github/ .claude/
 #          run-all-tests.sh, plus helpers those suites source)
 #   PG-04  POSITIVE CONTROL: a site planted into a REAL registered suite is
@@ -93,13 +96,13 @@ fi
 
 # PG-02 -- SIGPIPE. seq writes ~1.3 MB; grep -q matches the first line and
 # exits, so seq is writing into a closed pipe.
-( set -o pipefail; seq 1 200000 | grep -q '^1$' ); PIPED=$?
+( set -o pipefail; seq 1 200000 2>/dev/null | grep -q '^1$' ); PIPED=$?
 ( set -o pipefail; grep -q '^1$' <<<"$(seq 1 200000)" ); HERE=$?
 if [ "$PIPED" -ne 0 ] && [ "$HERE" -eq 0 ]; then
     ok "PG-02" "producer outgrowing the pipe: piped form $PIPED, here-string form 0"
 else
     bad "PG-02" "premise did not reproduce: piped=$PIPED here-string=$HERE" \
-        "expected piped non-zero (141 = SIGPIPE) and here-string 0"
+        "expected piped non-zero (141 = SIGPIPE, or 1 = EPIPE where SIGPIPE is ignored) and here-string 0"
 fi
 
 # PG-03 -- the tree. This file is excluded by name, and only this file: PG-01
@@ -143,14 +146,16 @@ fi
 
 # PG-06 -- the mechanical rewrite fixes the verdict, measured. The snippet is
 # run as written and as `fix-stdin` rewrites it; X is 1 MB with the match on
-# its first line, so the piped form takes SIGPIPE every time.
+# its first line, so the piped form's write fails every time. Only stdout
+# is compared: where SIGPIPE is ignored (GitHub's runners) echo also prints
+# "write error: Broken pipe" on stderr, and that line is not the verdict.
 SNIP='set -o pipefail
 X="match
 $(head -c 1048576 /dev/zero | tr "\0" x)"
 if echo "$X" | grep -q match; then echo FOUND; else echo MISSED; fi'
 FIXED="$(printf '%s\n' "$SNIP" | python3 "$TOOL" fix-stdin 2>&1)"
-BEFORE="$(bash -c "$SNIP" 2>&1)"
-AFTER="$(bash -c "$FIXED" 2>&1)"
+BEFORE="$(bash -c "$SNIP" 2>/dev/null)"
+AFTER="$(bash -c "$FIXED" 2>/dev/null)"
 RESCAN="$(printf '%s\n' "$FIXED" | python3 "$TOOL" scan-stdin 2>&1)"
 if [ "$BEFORE" = "MISSED" ] && [ "$AFTER" = "FOUND" ] \
    && grep -q 'grep <<<"$X" -q match' <<<"$FIXED" && grep -q '^0 site(s) left' <<<"$RESCAN"; then

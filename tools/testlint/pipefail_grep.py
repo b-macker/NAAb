@@ -11,14 +11,16 @@ report "the pattern was found":
     `! naab-lang prog | grep -q SECRET` then PASSES whether or not the secret
     was printed;
   * when the producer writes again after grep has matched and exited, it takes
-    SIGPIPE and the pipeline reports 141 -- a timing-dependent false result.
+    SIGPIPE and the pipeline reports 141 -- or, where SIGPIPE is ignored (GitHub's
+    runners start processes that way), the write fails with EPIPE and the
+    producer exits 1. Either way a false result, timing-dependent below the
+    pipe's capacity and certain above it.
 
 Measured (bash 5, Linux): `(printf 'match\\n'; exit 3) | grep -q match` -> 3;
 `(printf 'match\\n'; sleep .2; printf 'more\\n') | grep -q match` -> 141.
 `echo "$VAR" | grep -q` gave 0 false results in 2,000 trials at 5 lines and
-300 at 40 KB: echo writes its argument in one go, so it can only take SIGPIPE
-once the text outgrows the pipe (64 KB). It is reported too -- the fix is
-free and the size limit is not something a test author checks.
+300 at 40 KB, and 181 in 300 at 100 KB. It is reported too -- the fix is
+free and the size of a captured output is not something a test author checks.
 
 The fix is to stop piping: `grep -q PAT <<<"$OUTPUT"`, where OUTPUT was
 captured with `OUTPUT=$(cmd 2>&1)`. A here-string is written by the shell
