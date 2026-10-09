@@ -56,9 +56,12 @@
 #   AR-06c  a `scorer` naming no `scorers` entry falls back silently. The
 #           template ships exactly that: `"scorer": "security"` against a
 #           scorer keyed `security_review`.
-#   AR-10d  only the exact strings "hard"/"soft" are levels; "HARD" enforces
-#           ADVISORY while the banner says green/HARD. ("block", "error" and
-#           the documented tier "detect" were probed and behave the same.)
+#   AR-10d  only "hard"/"soft" are levels; any other string (AR-10d probes
+#           "block") enforces ADVISORY while the banner prints it. ("error"
+#           and the documented tier "detect" were probed and behave the same.)
+#           This arm used "HARD" until level names became case-insensitive
+#           (2026-10-09, the project owner's decision); AR-10e now pins that
+#           "HARD" blocks exactly like "hard".
 #   AR-12d  fail_policy blocks only on the exact string "closed"; "CLOSED"
 #           fails OPEN, silently.
 #   AR-15d  see fail_strategy above.
@@ -100,7 +103,8 @@
 # The pinned arms were checked the other way: "fix" what each one pins, and it
 # must go red (same date, 48 arms):
 #
-#   P1  "HARD" also maps to HARD                     AR-10d
+#   P1  "HARD" also maps to HARD                     AR-10d (then; now AR-10e
+#                                                    asserts it, as decided)
 #   P2  "CLOSED" also blocks                         AR-12d
 #   P3  partial failures under continue reported     AR-15a AR-15e
 #   P4  an empty detection list is an error          AR-02c
@@ -540,17 +544,28 @@ if [ "$R_OK" = 1 ]; then
     fi
 else skip "AR-10c" "stub failed to start"; fi
 
-# PINNED, not endorsed: only the exact strings "hard"/"soft" are levels. Any
-# other value enforces ADVISORY while the banner prints what was configured.
-# AR-07a is the pair: the same config with "hard" blocks.
-run_review ar10d '{"enabled": true, "detection": ["det_a"], "enforcement": {"green": "HARD"}}' "$FX_ONE"
+# PINNED, not endorsed: only "hard"/"soft" are levels. Any other value enforces
+# ADVISORY while the banner prints what was configured. AR-07a is the pair:
+# the same config with "hard" blocks.
+run_review ar10d '{"enabled": true, "detection": ["det_a"], "enforcement": {"green": "block"}}' "$FX_ONE"
 if [ "$R_OK" = 1 ]; then
-    if [ "$R_EXIT" -eq 0 ] && ran && in_err "green/HARD"; then
-        pass "AR-10d" "green: \"HARD\" (uppercase) — runs as advisory under a HARD banner (PINNED, not endorsed)"
+    if [ "$R_EXIT" -eq 0 ] && ran && in_err "green/block"; then
+        pass "AR-10d" "green: \"block\" (not a level) — runs as advisory under a block banner (PINNED, not endorsed)"
     else
         fail "AR-10d" "unrecognised level string changed behaviour — confirm and update this arm" "exit=$R_EXIT"
     fi
 else skip "AR-10d" "stub failed to start"; fi
+
+# Level names are case-insensitive (2026-10-09): "HARD" is "hard". This arm
+# was AR-10d's subject, pinned as advisory; it is the decided behaviour now.
+run_review ar10e '{"enabled": true, "detection": ["det_a"], "enforcement": {"green": "HARD"}}' "$FX_ONE"
+if [ "$R_OK" = 1 ]; then
+    if [ "$R_EXIT" -eq 3 ] && ! ran; then
+        pass "AR-10e" "green: \"HARD\" (uppercase) blocks exactly like \"hard\""
+    else
+        fail "AR-10e" "\"HARD\" did not enforce as hard" "exit=$R_EXIT"
+    fi
+else skip "AR-10e" "stub failed to start"; fi
 
 # ============================================================
 # AR-11 cache
