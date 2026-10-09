@@ -41,7 +41,7 @@
 #          (root only: as non-root no column can host the artifact)
 #
 # The baseline has a root and a nonroot section: RLIMIT_NPROC does not bind
-# root, so the same build contains less when run as root (12 cells differ);
+# root, so the same build contains less when run as root (3 cells differ as of 2026-10-09: go read/write/net at standard/shell);
 # the section follows the uid.
 #
 # Linux only: the containment being mapped (rlimits, fork/exec gating) is the

@@ -424,7 +424,7 @@ get, get_args, set_var (NOT set — the function is set_var), has, delete_var, l
 - Always check `len(args) > N` before indexing `args[N]` — out-of-bounds throws; the scanner flags unguarded access
 - Do NOT use `env.get("NAAB_ARGS")` or Python `sys.argv` — use `env.get_args()` for CLI args
 - **Governance enforcement**: govern.json `capabilities.env_vars` controls access:
-  - `blocked_read`: env.get() throws, env.has() returns false, env.list()/get_all() filters out blocked vars
+  - `blocked_read`: env.get() throws, env.has() returns false, env.list()/get_all() filters out blocked vars; in enforce mode the variable is also withheld from every child process the program starts (polyglot blocks, `process.run`, embedded Python's `os.environ`), but not from operator hooks
   - `allowed_read`: if non-empty, only listed vars are readable (SOFT enforcement)
   - `blocked_write`/`allowed_write`: same semantics for env.set_var()/delete_var()/load_dotenv()
   - All four arrays participate in `extends`/`merge_arrays` inheritance

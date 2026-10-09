@@ -1,9 +1,10 @@
 // NAAb Subprocess Helpers Implementation
 // Contains common utility functions for executing subprocesses
 //
-// Uses fork()/execvp() for subprocess execution. This avoids shell
-// interpretation entirely, preventing command injection vulnerabilities.
-// Arguments are passed directly to the kernel via execvp's argv array.
+// Uses fork()/execve() for subprocess execution, trying each PATH candidate
+// as execvp() would (execCandidates). This avoids shell interpretation
+// entirely, preventing command injection vulnerabilities: arguments are passed
+// directly to the kernel via the argv array.
 
 #include "naab/subprocess_helpers.h"
 #include "naab/sandbox.h"           // For ScopedSandbox::getCurrent(), SandboxConfig
