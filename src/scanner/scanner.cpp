@@ -296,6 +296,12 @@ static void loadCheckConfigs(const json& category_json,
         }
         if (check_val.contains("level") && check_val["level"].is_string()) {
             cc.level = check_val["level"].get<std::string>();
+            // Level names are case-insensitive, as in the governance loader
+            // (normalizeLevelName): every comparison below is lower-case.
+            std::string lower = cc.level;
+            std::transform(lower.begin(), lower.end(), lower.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            if (lower == "hard" || lower == "soft" || lower == "advisory") cc.level = lower;
         }
         // Load numeric options
         for (auto& [key, val] : check_val.items()) {

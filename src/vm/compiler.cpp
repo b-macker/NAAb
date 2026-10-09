@@ -77,6 +77,7 @@ CompiledFunction* Compiler::compile(ast::Program& program, const std::string& so
 
     CompiledFunction* fn = newFunction("<script>");
     fn->source_file = source_file;
+    fn->has_main_block = (program.getMainBlock() != nullptr);
     beginFunction(fn);
 
     // Visit the program

@@ -111,7 +111,11 @@ def tokenize(text):
 class Extractor:
     """Walks loadFromJson() and records every JSON path it reads."""
 
-    HELPERS = ("parseEnforcementLevel", "parseRationale", "warnEnableNeedsLevel",
+    # parseLevelOnly / parseLevelIfValid are parseEnforcementLevel for keys
+    # that set only a level; they forward object values to it, so walking them
+    # attributes the same reads.
+    HELPERS = ("parseEnforcementLevel", "parseLevelOnly", "parseLevelIfValid",
+               "parseRationale", "warnEnableNeedsLevel",
                "warnIgnoredEnableFlag", "loadFromJson")
     DECL_TYPES = ("auto", "json", "string")
 
@@ -188,7 +192,7 @@ class Extractor:
     def _find_function(self, name):
         for i in range(1, self.n - 2):
             if (self.t[i][1] == name and self.t[i + 1][1] == "(" and
-                    self.t[i - 1][1] in ("void", ">", "bool")):
+                    self.t[i - 1][1] in ("void", ">", "bool", "EnforcementLevel")):
                 pc = self.close(i + 1)
                 if self.t[pc + 1][1] == "{":
                     return {"params": self.parse_params(i + 2, pc), "body": (pc + 1, self.close(pc + 1))}

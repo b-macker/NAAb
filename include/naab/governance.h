@@ -3615,6 +3615,15 @@ public:
     // the projection would refuse a free transition, but a CRITICAL suspension
     // must still hold at the moment a proposal becomes real.
     std::string checkCriticalSuspension(const std::string& agent_config);
+    // F7 pipeline separation of duties: adjacent stages `prev_stage` and
+    // `stage` share `shared_config`. Enforced through enforce() at the
+    // configured level, so HARD is uncatchable like every other HARD block.
+    void checkPipelineSeparation(size_t prev_stage, size_t stage,
+                                 const std::string& shared_config);
+    // requirements.main_block: both engines call this before running a
+    // top-level program, through enforce(), so the level means what it does
+    // everywhere else (HARD exits 3, SOFT honours the override).
+    void checkMainBlockRequired(bool has_main_block);
 
     // Output admissibility — post-CDD gate on response coherence
     struct OutputAdmissibilityResult {

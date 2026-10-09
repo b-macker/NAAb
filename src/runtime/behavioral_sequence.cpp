@@ -647,7 +647,7 @@ bool BehavioralSequenceDetector::globMatch(const std::string& text,
     return true;
 }
 
-std::string BehavioralSequenceDetector::eventTypeToString(RuntimeEventType type) const {
+static std::string stepNameFor(RuntimeEventType type) {
     switch (type) {
         case RuntimeEventType::ENV_READ:        return "env.get";
         case RuntimeEventType::ENV_WRITE:       return "env.set_var";
@@ -675,6 +675,47 @@ std::string BehavioralSequenceDetector::eventTypeToString(RuntimeEventType type)
         case RuntimeEventType::REFUSAL_ATTESTATION: return "refusal_attestation";
     }
     return "unknown";
+}
+
+std::string BehavioralSequenceDetector::eventTypeToString(RuntimeEventType type) const {
+    return stepNameFor(type);
+}
+
+std::string deadEnumStepSpelling(const std::string& matcher) {
+    static const std::pair<const char*, RuntimeEventType> kEnumNames[] = {
+        {"ENV_READ", RuntimeEventType::ENV_READ},
+        {"ENV_WRITE", RuntimeEventType::ENV_WRITE},
+        {"FILE_READ", RuntimeEventType::FILE_READ},
+        {"FILE_WRITE", RuntimeEventType::FILE_WRITE},
+        {"NET_CONNECT", RuntimeEventType::NET_CONNECT},
+        {"SHELL_EXEC", RuntimeEventType::SHELL_EXEC},
+        {"AGENT_SEND", RuntimeEventType::AGENT_SEND},
+        {"AGENT_RESPONSE", RuntimeEventType::AGENT_RESPONSE},
+        {"TAINT_VIOLATION", RuntimeEventType::TAINT_VIOLATION},
+        {"TAINT_SANITIZED", RuntimeEventType::TAINT_SANITIZED},
+        {"ENCODE", RuntimeEventType::ENCODE},
+        {"DECODE", RuntimeEventType::DECODE},
+        {"PROCESS_EXEC", RuntimeEventType::PROCESS_EXEC},
+        {"CONFIG_RELOAD", RuntimeEventType::CONFIG_RELOAD},
+        {"CHECK_FAILED", RuntimeEventType::CHECK_FAILED},
+        {"TOOL_CALL", RuntimeEventType::TOOL_CALL},
+        {"TOOL_RESULT", RuntimeEventType::TOOL_RESULT},
+        {"TOOL_ERROR", RuntimeEventType::TOOL_ERROR},
+        {"TOOL_BLOCKED", RuntimeEventType::TOOL_BLOCKED},
+        {"CODEGEN_EXEC", RuntimeEventType::CODEGEN_EXEC},
+        {"CODEGEN_BLOCKED", RuntimeEventType::CODEGEN_BLOCKED},
+        {"PULSE_DEGRADED", RuntimeEventType::PULSE_DEGRADED},
+        {"PULSE_IMPAIRED", RuntimeEventType::PULSE_IMPAIRED},
+        {"REFUSAL_ATTESTATION", RuntimeEventType::REFUSAL_ATTESTATION},
+    };
+    for (const auto& [name, type] : kEnumNames) {
+        if (matcher != name) continue;
+        std::string canonical = stepNameFor(type);
+        // matchesStep's own test: exact, or the normalised spelling.
+        if (matcher == canonical || normalizeEventTypeName(matcher) == canonical) return "";
+        return canonical;
+    }
+    return "";
 }
 
 SequenceMatchResult BehavioralSequenceDetector::wouldMatch(const RuntimeEvent& event) const {

@@ -1034,6 +1034,7 @@ std::string GovernanceEngine::lookupRationale(const std::string& rule_name) cons
     if (rule_name.rfind("codegen", 0) == 0) return rules().codegen.rationale;
     // Output admissibility
     if (rule_name == "output_admissibility") return rules().circuit_breaker.rationale;
+    if (rule_name == "pipeline_separation") return rules().pipeline_separation.rationale;
     // Custom rules
     if (rule_name.rfind("custom.", 0) == 0) {
         std::string id = rule_name.substr(7);
@@ -7673,6 +7674,55 @@ int GovernanceEngine::getRemainingBudget(const std::string& config) const {
     return ac->risk_budget - consumed;
 }
 
+// F7: pipeline separation of duties.
+//
+// This lived in agentPipeline() as a hand-rolled branch that threw a plain
+// std::runtime_error at HARD and SOFT. It was written five days before
+// GovernanceHardError (fd97d0ae, "NAAb try/catch can no longer swallow HARD
+// governance violations"), which migrated enforce() and never reached this
+// site because it did not go through enforce(). So a configured HARD block was
+// caught by a script's try/catch and the run carried on at exit 0 -- the exact
+// bypass that commit closed everywhere else -- and DETECT fell into the
+// advisory branch. Going through enforce() gives this check the same level
+// semantics as every other one: HARD uncatchable, SOFT honouring the override,
+// DETECT catchable, ADVISORY recorded (and subject to advisory escalation).
+void GovernanceEngine::checkPipelineSeparation(size_t prev_stage, size_t stage,
+                                               const std::string& shared_config) {
+    const auto& sep = rules().pipeline_separation;
+    if (!sep.enabled) return;
+    clearTrace();
+    addTrace(fmt::format("pipeline_separation: adjacent stages {} and {} share agent config '{}'",
+                         prev_stage, stage, shared_config));
+    enforce("pipeline_separation", sep.level,
+        formatError(sep.level,
+            fmt::format("Pipeline separation violation — adjacent stages {} and {} "
+                "share agent config '{}'\n\n"
+                "  Pipeline stages should use distinct agent configurations\n"
+                "  to ensure separation of duties.\n",
+                prev_stage, stage, shared_config),
+            "", "pipeline_separation",
+            lookupRationale("pipeline_separation"), "", ""));
+}
+
+// requirements.main_block. Both engines hand-rolled this: the tree-walker
+// threw a plain runtime_error (exit 1, not 3, and its message printed a literal
+// "{{ }}" because the text never went through fmt), and the VM's test could
+// never be true. Same class as checkPipelineSeparation above.
+void GovernanceEngine::checkMainBlockRequired(bool has_main_block) {
+    if (!rules().require_main_block || has_main_block) return;
+    const auto level = rules().main_block_level;
+    clearTrace();
+    addTrace("requirements.main_block: the program has no main { } block");
+    enforce("requirements.main_block", level,
+        formatError(level,
+            "Program requires a main { } block\n",
+            "", "requirements.main_block",
+            "All programs must have a main { } block when governance requires it.\n"
+            "Wrap your top-level code in: main { ... }",
+            "fn run() { print(42) }",
+            "main {\n    print(42)\n}"));
+}
+
 // F6: CRITICAL governance level = all autonomous actions suspended.
 //
 // Split out of checkAdmission() so the commit half of propose/commit can apply
@@ -7882,7 +7932,12 @@ GovernanceEngine::checkOutputAdmissibility(
             {"baseline_state", rules().context_drift.adaptive_baseline_enabled
                                    ? (state->baseline_complete ? "complete" : "calibrating")
                                    : "disabled"},
-            {"on_undetermined", oac.on_undetermined}
+            {"on_undetermined", oac.on_undetermined},
+            // What happens to THIS response. `action` is the CONFIGURED
+            // action-on-fail and is present on passing events too, so it read
+            // as "quarantine" on every turn of a run that quarantined nothing.
+            {"disposition", (determined || oac.on_undetermined == "pass") ? "admitted"
+                            : oac.on_undetermined == "block" ? "blocked" : "quarantined"}
         };
         std::string snap = snapshotCddState(handle_id);
         if (!snap.empty()) oa_fields["cdd_snapshot"] = snap;
@@ -7934,6 +7989,8 @@ GovernanceEngine::checkOutputAdmissibility(
         {"coherence",   fmt::format("{:.4f}", state->coherence_score)},
         {"threshold",   fmt::format("{:.4f}", oac.threshold)},
         {"action",      oac.action},
+        {"disposition", oac.action == "block" ? "blocked"
+                        : oac.action == "attest" ? "attested" : "quarantined"},
         {"pulse_override", pulse_override ? "true" : "false"}
     };
     std::string oa_snap = snapshotCddState(handle_id);

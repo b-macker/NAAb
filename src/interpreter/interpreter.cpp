@@ -1028,35 +1028,8 @@ void Interpreter::visit(ast::Program& node) {
     }
 
     // Governance: Check require_main_block before execution
-    if (governance_ && governance_->isActive() && governance_->requiresMainBlock() && module_loading_depth_ == 0) {
-        if (!node.getMainBlock()) {
-            auto level = governance_->getRules().main_block_level;
-            std::string err = governance_->checkLanguageAllowed("__main_block_check__");
-            // Use enforce directly via a check
-            std::string msg = "Governance error: Program requires a main {{ }} block ["
-                + std::string(level == governance::EnforcementLevel::HARD ? "HARD-MANDATORY" :
-                              level == governance::EnforcementLevel::SOFT ? "SOFT-MANDATORY" : "ADVISORY")
-                + "]\n\n"
-                "  Rule: main block required\n\n"
-                "  Help:\n"
-                "  - All programs must have a main {{ }} block when governance requires it\n"
-                "  - Wrap your top-level code in: main {{ ... }}\n\n"
-                "  Example:\n"
-                "    main {{\n"
-                "        let x = 42\n"
-                "        print(x)\n"
-                "    }}\n";
-            if (level == governance::EnforcementLevel::HARD) {
-                throw std::runtime_error(msg);
-            } else if (level == governance::EnforcementLevel::SOFT) {
-                if (!governance_->isOverrideEnabled()) {
-                    throw std::runtime_error(msg + "\n  This rule is enforced by the project's governance configuration.\n");
-                }
-                fprintf(stderr, "[governance] OVERRIDE requirements.main_block: %s\n", msg.c_str());
-            } else {
-                fprintf(stderr, "[governance] WARNING requirements.main_block: Program has no main block\n");
-            }
-        }
+    if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
+        governance_->checkMainBlockRequired(node.getMainBlock() != nullptr);
     }
 
     // Execute main block if present (skip when loading as module)

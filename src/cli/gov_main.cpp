@@ -15,8 +15,11 @@
 //   3  — HARD governance violation
 //   4  — config error
 
+#include "naab/compiler.h"
 #include "naab/governance.h"
 #include "naab/language_descriptors.h"
+#include "naab/lexer.h"
+#include "naab/parser.h"
 #include "naab/scanner.h"
 #include <nlohmann/json.hpp>
 
@@ -190,29 +193,81 @@ static int cmdLint(const std::vector<std::string>& args) {
     // Run static governance checks on the NAAb source
     // These check methods work purely on source strings — no execution needed.
     std::vector<std::string> errors;
+    bool hard_blocked = false;
+    bool not_checked = false;  // could not be checked in full (parse/compile failure)
 
     auto runCheck = [&](const std::string& result) {
         if (!result.empty()) errors.push_back(result);
     };
 
-    runCheck(engine.checkBannedFunctions("naab", source));
-    runCheck(engine.checkPlaceholders(source));
-    runCheck(engine.checkSecrets(source));
-    runCheck(engine.checkTemporaryCode(source));
-    runCheck(engine.checkSimulationMarkers(source));
-    runCheck(engine.checkMockData(source));
-    runCheck(engine.checkApologeticLanguage(source));
-    runCheck(engine.checkDeadCode(source));
-    runCheck(engine.checkDebugArtifacts("naab", source));
-    runCheck(engine.checkUnsafeDeserialization(source));
-    runCheck(engine.checkSqlInjection(source));
-    runCheck(engine.checkPathTraversal(source));
-    runCheck(engine.checkShellInjection(source));
-    runCheck(engine.checkCodeInjection("naab", source, source));
-    runCheck(engine.checkHardcodedUrls(source));
-    runCheck(engine.checkHardcodedIps(source));
-    runCheck(engine.checkHardcodedResults(source));
-    runCheck(engine.checkCustomRules("naab", source));
+    // A HARD finding throws GovernanceHardError. It is caught here rather than
+    // in main() so the SARIF/JUnit reports below are still written: CI lints
+    // module files and uploads those reports, and a report that goes missing
+    // exactly when a file is blocked drops the finding it was written for.
+    try {
+        runCheck(engine.checkBannedFunctions("naab", source));
+        runCheck(engine.checkPlaceholders(source));
+        runCheck(engine.checkSecrets(source));
+        runCheck(engine.checkTemporaryCode(source));
+        runCheck(engine.checkSimulationMarkers(source));
+        runCheck(engine.checkMockData(source));
+        runCheck(engine.checkApologeticLanguage(source));
+        runCheck(engine.checkDeadCode(source));
+        runCheck(engine.checkDebugArtifacts("naab", source));
+        runCheck(engine.checkUnsafeDeserialization(source));
+        runCheck(engine.checkSqlInjection(source));
+        runCheck(engine.checkPathTraversal(source));
+        runCheck(engine.checkShellInjection(source));
+        runCheck(engine.checkCodeInjection("naab", source, source));
+        runCheck(engine.checkHardcodedUrls(source));
+        runCheck(engine.checkHardcodedIps(source));
+        runCheck(engine.checkHardcodedResults(source));
+        runCheck(engine.checkCustomRules("naab", source));
+
+        // What a run checks before it executes anything, and lint used to skip:
+        // the whole-source PII and incomplete-logic checks and the intent
+        // preflight (main.cpp, VM path), and the per-function checks -- contracts,
+        // complexity floor, oversimplification, ... -- which the VM compiler
+        // applies to every function body it compiles. Compiling here applies
+        // exactly those, through the compiler's own body extraction, and executes
+        // nothing. Without this a module linted in CI got fewer checks than the
+        // same file run, which matters because a module cannot be run under
+        // requirements.main_block.
+        runCheck(engine.checkPii(source));
+        runCheck(engine.checkIncompleteLogic(source, 0, source_path));
+
+        std::unique_ptr<naab::ast::Program> program;
+        try {
+            naab::lexer::Lexer lexer(source);
+            auto tokens = lexer.tokenize();
+            naab::parser::Parser parser(tokens);
+            parser.setSource(source, source_path);
+            program = parser.parseProgram();
+        } catch (const naab::governance::GovernanceHardError&) {
+            throw;
+        } catch (const std::exception& e) {
+            // A file that does not parse cannot be checked function by function,
+            // so it is not clean whatever the source-text checks said.
+            std::cerr << "naab-gov lint: cannot parse " << source_path << ": " << e.what() << "\n";
+            not_checked = true;
+        }
+        if (program) {
+            runCheck(engine.preflightIntentCheck(*program, source));
+            naab::vm::Compiler compiler;
+            compiler.setGovernance(&engine);
+            compiler.compile(*program, source_path);
+        }
+    } catch (const naab::governance::GovernanceHardError& e) {
+        std::cerr << e.what() << "\n";
+        hard_blocked = true;
+    } catch (const std::exception& e) {
+        // A DETECT-level finding reaches here as the compiler's exception, and
+        // the engine has recorded it (wasBlocked() below). Anything else is a
+        // compile failure: the functions after it were never checked.
+        std::cerr << "naab-gov lint: " << e.what() << "\n";
+        errors.push_back(e.what());
+        not_checked = true;
+    }
 
     // Print summary to stderr
     std::string summary = engine.formatSummary();
@@ -245,8 +300,11 @@ static int cmdLint(const std::vector<std::string>& args) {
     }
 
     // Determine exit code
-    if (naab::governance::g_governance_hard_block || engine.wasBlocked()) {
+    if (hard_blocked || naab::governance::g_governance_hard_block || engine.wasBlocked()) {
         return 3;
+    }
+    if (not_checked) {
+        return 1;
     }
     std::string qg = engine.evaluateQualityGate();
     if (!qg.empty()) {

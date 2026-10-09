@@ -561,6 +561,14 @@ private:
     mutable std::mutex mutex_;
 };
 
+// A pattern step written in the enum's UPPERCASE_UNDERSCORE spelling matches
+// only when lowercasing it and turning '_' into '.' happens to produce the
+// event's step name. 7 of 24 do (FILE_READ -> file.read); the other 17 match no
+// event type (TOOL_CALL -> "tool.call", but the event is "tool_call"). Returns
+// the step name to write instead, or "" when `matcher` is not such a spelling.
+// The config loader warns with it, so a dead step is reported at load.
+std::string deadEnumStepSpelling(const std::string& matcher);
+
 // --- Context Drift Analyzer ---
 class ContextDriftAnalyzer {
 public:

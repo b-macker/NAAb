@@ -58,6 +58,23 @@ tools/llm_bridge/run_harness.sh /tmp/rp-DC1 --replay tools/llm_bridge/runs/D-C1/
    results of its last calls, so the reply is empty. Whether the budget should
    grant one final tool-less turn is a design question: it costs one more model
    call per exhausted budget. **Open.**
+   A live living-script run (Gemini, 2026-10-09) showed three empty developer
+   replies with 610-1476 output tokens (observed by the reviewer; the run's
+   telemetry was not available here, so WHICH budget ended each loop is
+   undetermined -- the developer config allows 3 calls per turn and 2 loop
+   turns, and both exits produce this shape). Tracing it found the loop's
+   other budget misreported: leaving on the `max_tool_loop_turns` bound with
+   the model still calling tools kept the loop's initial `text_response` label, so AGENT_TOOL_LOOP_END, the
+   transcript and the response dict all called an empty reply a normal
+   completion, and `score.py`'s `exit_reason == "text_response"` test counted it
+   as a success. It now reads `max_tool_loop_turns`, and RESPONSE_SUPPRESSED
+   carries `tool_calls_made`/`tool_loop_exit_reason` with the reason
+   `tool loop ended without a final text turn`.
+   **Decided 2026-10-09 (project owner): grant the final turn.** When the loop
+   stops on `max_tool_calls_per_turn` or `max_tool_loop_turns`, the engine makes
+   one more call with the tool definitions kept and tool use forbidden, the
+   unexecuted calls answered "not executed"; the call is charged and refused by
+   the same budgets as the loop's own. Reported as `tool_loop_final_turn`.
 3. **The output contract does not apply to an empty reply.** `agentSend()`
    validates only `if (config && !content.empty() && ...)`
    (`src/stdlib/agent_impl.cpp`, output contract block). The guard has been
@@ -65,4 +82,21 @@ tools/llm_bridge/run_harness.sh /tmp/rp-DC1 --replay tools/llm_bridge/runs/D-C1/
    replies as `RESPONSE_SUPPRESSED` telemetry. Its commit gives no reason for
    exempting them. So a role whose contract requires fields can hand the script
    `""`. Traced, not decided. Making an empty reply a contract violation would
-   tighten behaviour, so it needs its own change. **Open.**
+   tighten behaviour, so it needs its own change. **Decided 2026-10-09 (project
+   owner): an empty reply is a violation**, and the violation is now enforced
+   after the accounting commit (it used to throw before it, so a violating
+   reply's call was never counted).
+
+**Replays after both decisions (2026-10-09, observed).** All seven archived
+fixtures were replayed against the build carrying them. D-A1, D-B1, D-C1 and
+D-S1 came back unchanged (exit, verdict, CONTRACT_VIOLATION and
+OUTPUT_INADMISSIBLE counts). A1, B1 and C1 keep exit 1 but end differently: the
+worker's final turn is granted, and in a replay its reply comes from the
+fixture's queue -- the archived run never made that call, so there is no
+recorded reply for it -- which held no text, so the output contract refuses the
+empty reply (`CONTRACT_VIOLATION: empty response (the final tool-less turn
+after max_tool_calls_per_turn returned no text)`) where the harness used to
+die on `json.parse("")`. What a MODEL does with the final turn is therefore
+unmeasured by these fixtures; it needs a new bridge run. Item 1 (the harness
+crashing on an empty reply) is untouched and still reachable through D-C1's
+route (a `fan_out` critic refused by its contract).

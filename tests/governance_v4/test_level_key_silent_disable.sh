@@ -74,7 +74,12 @@ warns() {
 }
 
 N_BAD=$(warns '{"version":"5.0","mode":"enforce","code_quality":{"no_secrets":{"level":"off"}}}')
-N_TYPO=$(warns '{"version":"5.0","mode":"enforce","code_quality":{"no_secrets":{"level":"HARD"}}}')
+# A near-miss TYPO. This used to be "HARD", when levels were case-sensitive;
+# level names are case-insensitive since 2026-10-09 (the project owner's
+# decision -- case-sensitivity disabled checks written "HARD"), so the
+# capitalised form is now a VALID level and test_reported_outcomes.sh LC-01/02
+# pin that. A misspelling is still unknown and must still be reported.
+N_TYPO=$(warns '{"version":"5.0","mode":"enforce","code_quality":{"no_secrets":{"level":"hrad"}}}')
 N_GOOD=$(warns '{"version":"5.0","mode":"enforce","code_quality":{"no_secrets":{"level":"hard"}}}')
 N_TWO=$(warns '{"version":"5.0","mode":"enforce","code_quality":{"no_secrets":{"level":"off"},"no_pii":{"level":"nope"}}}')
 
@@ -86,12 +91,12 @@ else
          "this is the silent-switch failure the enabled flag already had"
 fi
 
-# --- LK-02: case matters, and a near-miss is still unknown ----------------
+# --- LK-02: a near-miss is still unknown ----------------------------------
 if [ "${N_TYPO:-0}" -ge 1 ]; then
-    pass "LK-02" "a near-miss (\"HARD\") is reported, not quietly accepted"
+    pass "LK-02" "a near-miss (\"hrad\") is reported, not quietly accepted"
 else
-    fail "LK-02" "\"HARD\" was not reported" \
-         "levels are case-sensitive, so a capitalised one disables the check"
+    fail "LK-02" "\"hrad\" was not reported" \
+         "a misspelt level must not disable the check silently"
 fi
 
 # --- LK-03: a VALID level stays silent (control) -------------------------
