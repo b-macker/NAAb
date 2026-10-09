@@ -3394,12 +3394,25 @@ public:
     std::string runExecutionContracts();
 
     // --- NAAb Function Body Quality Check ---
-    // Scans ALL NAAb function bodies for stubs/oversimplification
+    // Scans ALL NAAb function bodies for stubs/oversimplification.
+    // imported_module: the function belongs to a module being imported. Its
+    // content checks (placeholders, incomplete logic, secrets, PII) and its
+    // contract still run; the heuristics (oversimplification, cosmetic
+    // sanitizer, complexity floor), the grouped DX advisories and plugin
+    // rules do not -- the split ae4bfb67 drew (A31).
     std::string checkNaabFunctionBody(const std::string& function_name,
                                        const std::string& source_code,
                                        int line = 0,
                                        const std::string& source_file = "",
-                                       int param_count = -1);
+                                       int param_count = -1,
+                                       bool imported_module = false);
+
+    // The whole-source checks applied to a NAAb file before it runs: secrets,
+    // PII and incomplete logic over the full text. Function-body checks cannot
+    // see what sits outside a function, such as a top-level `export let`.
+    // Applied to the entry file and to every imported module, on both engines.
+    std::string checkNaabSourceText(const std::string& source,
+                                    const std::string& source_file);
 
     // --- Polyglot Optimization Checks ---
     std::string checkPolyglotOptimization(const std::string& language,

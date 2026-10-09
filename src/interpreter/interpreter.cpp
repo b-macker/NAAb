@@ -31,6 +31,7 @@
 #include <fmt/core.h>
 #include <iostream>
 #include <sstream>
+#include <iterator>
 #include <fstream>
 #include <string>
 #include <type_traits>
@@ -918,6 +919,25 @@ void Interpreter::executeStmt(ast::Stmt& stmt) {
 // ============================================================================
 
 void Interpreter::visit(ast::Program& node) {
+    // Whole-source checks (secrets, PII, incomplete logic) on every NAAb file
+    // this engine runs: the entry file and each imported module. The VM runs
+    // the same helper (main.cpp for the entry file, Compiler::compileModule for
+    // imports). Before, the tree-walker had none, so a top-level `export let`
+    // holding a secret ran here and blocked on the VM. Governance plugins are
+    // exempt, as their function bodies are. (A31)
+    if (governance_ && governance_->isActive() && plugin_loading_depth_ == 0 &&
+        !current_file_.empty()) {
+        std::ifstream src(current_file_);
+        if (src.is_open()) {
+            std::string text((std::istreambuf_iterator<char>(src)),
+                             std::istreambuf_iterator<char>());
+            std::string err = governance_->checkNaabSourceText(text, current_file_);
+            if (!err.empty()) {
+                throw std::runtime_error(err);
+            }
+        }
+    }
+
     // Phase 3.1: Process module imports first
     for (auto& import_stmt : node.getModuleImports()) {
         import_stmt->accept(*this);
@@ -1131,8 +1151,8 @@ void Interpreter::visit(ast::Program& node) {
 
 void Interpreter::visit(ast::FunctionDecl& node) {
     // EVA-8: GOV-6 extended — scan ALL function bodies (not just exported)
-    // Full checks skip during module loading (expensive regex/heuristic overhead).
-    // Behavioral contracts (must_call, must_contain) always run — they are user-defined.
+    // During module loading the heuristic checks are skipped (expensive regex,
+    // false violations); content checks and behavioral contracts run (A31).
     if (governance_) {
         auto loc = node.getLocation();
         if (loc.line > 0 && !current_file_.empty()) {
@@ -1171,11 +1191,22 @@ void Interpreter::visit(ast::FunctionDecl& node) {
                         if (!err.empty()) {
                             throw std::runtime_error(err);
                         }
-                    } else {
-                        // Module loading: only behavioral contracts (must_call, must_contain)
+                    } else if (plugin_loading_depth_ > 0) {
+                        // A governance plugin is the operator's governance code:
+                        // only behavioral contracts, as before
                         std::string err = governance_->checkFunctionBehavioralContract(
                             node.getName(), body_text, loc.line,
                             static_cast<int>(node.getParams().size()));
+                        if (!err.empty()) {
+                            throw std::runtime_error(err);
+                        }
+                    } else {
+                        // Module loading: content checks and the contract, not
+                        // the heuristics (imported_module mode, A31)
+                        std::string err = governance_->checkNaabFunctionBody(
+                            node.getName(), body_text, loc.line, current_file_,
+                            static_cast<int>(node.getParams().size()),
+                            /*imported_module=*/true);
                         if (!err.empty()) {
                             throw std::runtime_error(err);
                         }

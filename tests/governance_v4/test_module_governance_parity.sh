@@ -7,14 +7,20 @@
 # `module_loading_depth_ == 0` guard."
 #
 # What this actually means:
-#   - checkNaabFunctionBody() (full: placeholders, oversimplification,
-#     complexity floor, secrets, PII) runs ONLY for the main program
+#   - checkNaabFunctionBody() runs in full for the main program; for an
+#     imported module it runs in imported_module mode: the content checks
+#     (placeholders, incomplete logic, secrets, PII) and the contract run, the
+#     heuristics (oversimplification, complexity floor, cosmetic sanitizer)
+#     do not. Until 2026-10-09 a module got the contract only; Group A pinned
+#     that, and was flipped when the project owner decided the content checks
+#     reach modules (docs/open-investigations.md A31, and
+#     test_module_source_checks.sh for every check and the history)
 #   - checkFunctionBehavioralContract() (lightweight: must_call, must_contain,
 #     arity) runs for BOTH modules and main program
 #   - The main{} block is NOT executed during module import
 #
 # This test verifies all three properties on both engines:
-#   A. A placeholder in a MODULE function body must NOT trigger a governance block
+#   A. A placeholder in a MODULE function body MUST trigger a governance block
 #   B. The same placeholder in a MAIN-FILE function body MUST trigger a block
 #   C. A must_call contract on a module function MUST still fire during import
 #   D. Main block in a module must NOT execute during import
@@ -179,7 +185,7 @@ write_govern '{
 # ---------------------------------------------------------------------------
 # Group A: Module with a placeholder — must NOT be blocked
 # ---------------------------------------------------------------------------
-echo "--- Group A: Module import skips full body governance ---"
+echo "--- Group A: Module import runs the content checks ---"
 
 # Module file: exported function with a TODO placeholder
 cat > "$TEST_TMP/mod_placeholder.naab" << 'NAAB'
@@ -200,19 +206,20 @@ main {
 }
 NAAB
 
-# The placeholder in the module must not trigger a governance block.
+# The placeholder in the module must trigger a governance block (A31; this
+# group asserted the opposite until 2026-10-09).
 # Governance errors emit "no_placeholders" or "placeholder" in the message.
-check_parity "MOD-A1" "!placeholder|no_placeholder" \
-    "module function placeholder is NOT blocked on import" \
+check_parity "MOD-A1" "placeholder|no_placeholder" \
+    "module function placeholder IS blocked on import" \
     "test_a_import.naab"
 
-# And the import must succeed
-check_parity "MOD-A2" "IMPORT_OK" \
-    "module import succeeds despite placeholder in module body" \
+# And the importer's main must not run
+check_parity "MOD-A2" "!IMPORT_OK" \
+    "the importer does not run past a module with a placeholder" \
     "test_a_import.naab"
 
-check_exit_parity "MOD-A3" "0" \
-    "importing a module with placeholder exits 0" \
+check_exit_parity "MOD-A3" "3" \
+    "importing a module with a placeholder exits 3" \
     "test_a_import.naab"
 
 # ---------------------------------------------------------------------------
