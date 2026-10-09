@@ -143,7 +143,7 @@ EOF
     local fired; fired=$(echo "$out" | grep -oE "behavioral_sequences\.[a-z_]+" | sort -u | tr '\n' ' ')
     case "$out" in
         *"INTEGRITY BLOCK"*) echo "INFRA|$fired|$tc" ;;
-        *) if echo "$out" | grep -q DONE; then echo "COMPLETED|$fired|$tc"
+        *) if grep <<<"$out" -q DONE; then echo "COMPLETED|$fired|$tc"
            else echo "BLOCKED|$fired|$tc"; fi ;;
     esac
 }
@@ -170,7 +170,7 @@ else
 fi
 
 if [ "$VAC" = "1" ]; then
-    if echo "$FIRED_DEF" | grep -q "tool_rapid_fire"; then
+    if grep <<<"$FIRED_DEF" -q "tool_rapid_fire"; then
         pass "DP-02" "built-in tool_rapid_fire fires (it never did before the name fix)"
     else
         fail "DP-02" "built-in tool_rapid_fire did not fire" "fired=[${FIRED_DEF:-none}] — default step names may have regressed to the enum spelling"
@@ -178,7 +178,7 @@ if [ "$VAC" = "1" ]; then
     CTL=', "patterns": [ { "name": "ctl", "sequence": ["tool_call","tool_call","tool_call","tool_call","tool_call"], "max_gap": 3, "level": "advisory" } ]'
     R_CTL="$(run_arm "$ENVTOOL" "$CTL" 5)"
     REST2="${R_CTL#*|}"; FIRED_CTL="${REST2%|*}"
-    if echo "$FIRED_CTL" | grep -q "ctl"; then
+    if grep <<<"$FIRED_CTL" -q "ctl"; then
         pass "DP-03" "POSITIVE CONTROL: the same shape spelled lowercase also fires"
     else
         fail "DP-03" "control pattern did not fire" "tool events may not reach the matcher at all, which would void DP-02"
@@ -193,7 +193,7 @@ R_DEC="$(run_arm "$PROCTOOL" ', "default_pattern_enforcement": "declared"' 1)"
 O_OBS="${R_OBS%%|*}"; F_OBS="$(x="${R_OBS#*|}"; echo "${x%|*}")"
 O_DEC="${R_DEC%%|*}"; F_DEC="$(x="${R_DEC#*|}"; echo "${x%|*}")"
 
-if echo "$F_OBS" | grep -q "tool_shell_escape" && [ "$O_OBS" = "COMPLETED" ]; then
+if grep <<<"$F_OBS" -q "tool_shell_escape" && [ "$O_OBS" = "COMPLETED" ]; then
     pass "DP-04" "observe: SOFT built-in fires but the run completes"
 else
     fail "DP-04" "observe mode wrong" "outcome=$O_OBS fired=[${F_OBS:-none}] (want COMPLETED + tool_shell_escape)"
@@ -222,7 +222,7 @@ EOF
     (cd "$W" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
     OUT6=$(cd "$W" && timeout 120s "$NAAB" t.naab 2>&1)
     stop_stub
-    if echo "$OUT6" | grep -q "unknown behavioral_sequences.default_pattern_enforcement"; then
+    if grep <<<"$OUT6" -q "unknown behavioral_sequences.default_pattern_enforcement"; then
         pass "DP-06" "unrecognised value warns and names the valid ones"
     else
         fail "DP-06" "no warning for an unrecognised value" "silently keeping the default is the A1c shape"
@@ -287,12 +287,12 @@ F_PROBE="$(glob_fired probe.naab)"
 F_STAGE="$(glob_fired stage.naab)"
 F_BENIGN="$(glob_fired benign.naab)"
 
-if echo "$F_CRED" | grep -q credential_harvesting; then
+if grep <<<"$F_CRED" -q credential_harvesting; then
     pass "DP-07" "credential_harvesting fires on a realistic env var name"
 else
     fail "DP-07" "credential_harvesting silent on MY_API_KEY" "fired=[${F_CRED:-none}] — the alternation glob may be unsplit again"
 fi
-if echo "$F_PROBE" | grep -q sandbox_probe_escape && echo "$F_STAGE" | grep -q data_staging; then
+if grep <<<"$F_PROBE" -q sandbox_probe_escape && grep <<<"$F_STAGE" -q data_staging; then
     pass "DP-08" "sandbox_probe_escape and data_staging fire on realistic inputs"
 else
     fail "DP-08" "a repaired pattern stayed silent" "probe=[${F_PROBE:-none}] stage=[${F_STAGE:-none}]"

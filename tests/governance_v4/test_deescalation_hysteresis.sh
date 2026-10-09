@@ -183,7 +183,7 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-echo "$OUTPUT" | grep -q "DONE" && pass "D-01" "5 sends complete" \
+grep <<<"$OUTPUT" -q "DONE" && pass "D-01" "5 sends complete" \
     || fail "D-01" "sends did not complete" "$(echo "$OUTPUT" | head -3)"
 
 # Scenario turn N is telemetry turn N+1 (turn 1 is the calibration warm-up).

@@ -195,10 +195,10 @@ if os.path.exists(p):
 print(",".join(sorted(names)) or "NONE")
 PY
 )
-if ! echo "$D4_OUT" | grep -q "CAUGHT"; then
+if ! grep <<<"$D4_OUT" -q "CAUGHT"; then
     fail "B9A-04" "the DETECT block was not raised or not catchable" \
         "output=[$(echo "$D4_OUT" | tr '\n' ' ' | head -c 120)] — the arm never reached its own premise"
-elif echo "$D4_PATTERNS" | grep -q "dd_after"; then
+elif grep <<<"$D4_PATTERNS" -q "dd_after"; then
     pass "B9A-04" "an unrelated pattern still fires after a caught DETECT block ($D4_PATTERNS)"
 else
     fail "B9A-04" "the later pattern never fired after a caught DETECT block" \

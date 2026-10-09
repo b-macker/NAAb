@@ -114,7 +114,7 @@ EOF
 }
 
 warned_for() {  # $1 = key, $2 = output
-    echo "$2" | grep -q "limits.data.$1\" is parsed but not enforced"
+    grep <<<"$2" -q "limits.data.$1\" is parsed but not enforced"
 }
 
 cat > "$W/t.naab" << 'EOF'
@@ -126,7 +126,7 @@ for pair in "LD-01:string_length" "LD-03:nesting_depth"; do
     id="${pair%%:*}"; key="${pair#*:}"
     out="$(run_limits "{\"$key\": 8}")"
     if warned_for "$key" "$out"; then
-        if [ "$key" = nesting_depth ] && ! echo "$out" | grep -q 'max_json_depth'; then
+        if [ "$key" = nesting_depth ] && ! grep <<<"$out" -q 'max_json_depth'; then
             fail "$id" "nesting_depth warned but did not name max_json_depth" \
                  "an operator told only that their key is dead cannot find the one that works"
         else
@@ -151,7 +151,7 @@ done
 
 # --- LD-07: silence when the block is absent -------------------------------
 OUT7="$(run_limits '{}')"
-if echo "$OUT7" | grep -q 'is parsed but not enforced'; then
+if grep <<<"$OUT7" -q 'is parsed but not enforced'; then
     fail LD-07 "warned with no keys set" "the warning fires on block presence, not on a key"
 else
     pass LD-07 "no warning when limits.data is absent"
@@ -167,7 +167,7 @@ main {
 EOF
 INERT_OUT="$(run_limits '{"string_length": 4}' long.naab)"
 INERT_BLOCKED=1
-echo "$INERT_OUT" | grep -q 'abcdefghijklmnopqrstuvwxyz' && INERT_BLOCKED=0
+grep <<<"$INERT_OUT" -q 'abcdefghijklmnopqrstuvwxyz' && INERT_BLOCKED=0
 
 # Live side: max_json_depth 1 must block deeply nested JSON, proving the
 # comparison is between two reachable code paths rather than two no-ops.
@@ -184,7 +184,7 @@ main {
 EOF
 LIVE_OUT="$(run_limits '{"max_json_depth": 1}' deep.naab)"
 
-if [ "$INERT_BLOCKED" -eq 0 ] && echo "$LIVE_OUT" | grep -q 'PARSE_BLOCKED'; then
+if [ "$INERT_BLOCKED" -eq 0 ] && grep <<<"$LIVE_OUT" -q 'PARSE_BLOCKED'; then
     pass LD-08 "the warning is true — inert key does not block, live key does"
 elif [ "$INERT_BLOCKED" -ne 0 ]; then
     fail LD-08 "string_length DID block — the key is not inert after all" \

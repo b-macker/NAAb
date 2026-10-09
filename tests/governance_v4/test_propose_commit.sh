@@ -121,7 +121,7 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$WDIR" && timeout 30s "$NAAB" test_a.naab 2>&1) || true
-if echo "$OUTPUT" | grep -q "PROPOSE_DENIED"; then
+if grep <<<"$OUTPUT" -q "PROPOSE_DENIED"; then
     pass "A-01" "agent.propose fail-closed without propose_candidates_max"
 else
     fail "A-01" "propose worked without being enabled" "$(echo "$OUTPUT" | head -3)"
@@ -170,37 +170,37 @@ NAABEOF
 
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test_bc.naab 2>&1) || true
 
-if echo "$OUTPUT" | grep -q "TOTAL=3" && echo "$OUTPUT" | grep -q "CANDS=3"; then
+if grep <<<"$OUTPUT" -q "TOTAL=3" && grep <<<"$OUTPUT" -q "CANDS=3"; then
     pass "B-01" "propose returned 3 candidates"
 else
     fail "B-01" "candidate count wrong" "$(echo "$OUTPUT" | grep -E 'TOTAL=|CANDS=' | head -2)"
 fi
-if echo "$OUTPUT" | grep -q "ADMISSIBLE=3"; then
+if grep <<<"$OUTPUT" -q "ADMISSIBLE=3"; then
     pass "B-02" "all clean candidates admissible (OA disabled)"
 else
     fail "B-02" "admissible count wrong" "$(echo "$OUTPUT" | grep ADMISSIBLE=)"
 fi
-if echo "$OUTPUT" | grep -q "MSGS_BEFORE=0"; then
+if grep <<<"$OUTPUT" -q "MSGS_BEFORE=0"; then
     pass "B-03" "propose committed no conversation state"
 else
     fail "B-03" "propose leaked into history" "$(echo "$OUTPUT" | grep MSGS_BEFORE)"
 fi
-if echo "$OUTPUT" | grep -q "SELECTED_INDEX=[0-9]"; then
+if grep <<<"$OUTPUT" -q "SELECTED_INDEX=[0-9]"; then
     pass "C-01" "select_admissible picked a candidate"
 else
     fail "C-01" "selection failed" "$(echo "$OUTPUT" | grep SELECTED_INDEX)"
 fi
-if echo "$OUTPUT" | grep -q "COMMIT_CONTENT=candidate"; then
+if grep <<<"$OUTPUT" -q "COMMIT_CONTENT=candidate"; then
     pass "C-02" "commit returned the selected candidate content"
 else
     fail "C-02" "commit content wrong" "$(echo "$OUTPUT" | grep COMMIT_CONTENT | head -1)"
 fi
-if echo "$OUTPUT" | grep -q "MSGS_AFTER=2"; then
+if grep <<<"$OUTPUT" -q "MSGS_AFTER=2"; then
     pass "C-03" "commit appended exactly one user/assistant pair"
 else
     fail "C-03" "history length wrong after commit" "$(echo "$OUTPUT" | grep MSGS_AFTER)"
 fi
-if echo "$OUTPUT" | grep -q "REPLAY_DENIED"; then
+if grep <<<"$OUTPUT" -q "REPLAY_DENIED"; then
     pass "D-01" "replayed proposal rejected (single use)"
 else
     fail "D-01" "replay was allowed" "$(echo "$OUTPUT" | grep REPLAY | head -1)"
@@ -245,12 +245,12 @@ NAABEOF
 
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test_d.naab 2>&1) || true
 
-if echo "$OUTPUT" | grep -q "FORGE_DENIED"; then
+if grep <<<"$OUTPUT" -q "FORGE_DENIED"; then
     pass "D-02" "forged proposal nonce rejected"
 else
     fail "D-02" "forged nonce accepted" "$(echo "$OUTPUT" | head -5)"
 fi
-if echo "$OUTPUT" | grep -q "STALE_DENIED"; then
+if grep <<<"$OUTPUT" -q "STALE_DENIED"; then
     pass "D-03" "stale proposal (superseded by send) rejected"
 else
     fail "D-03" "stale proposal accepted" "$(echo "$OUTPUT" | grep STALE | head -1)"
@@ -387,9 +387,9 @@ EOF
 
 # F-01: elevated level, VALID lease -> propose must be allowed (the run 12 case)
 R_VALID=$(run_gate_case valid 20 600)
-if ! echo "$R_VALID" | grep -qE 'LEVEL=(elevated|high|critical)'; then
+if ! grep <<<"$R_VALID" -qE 'LEVEL=(elevated|high|critical)'; then
     fail "F-01" "Staging never escalated — gate was not exercised" "got: ${R_VALID:-<no output>}"
-elif echo "$R_VALID" | grep -q 'PROPOSE_OK'; then
+elif grep <<<"$R_VALID" -q 'PROPOSE_OK'; then
     pass "F-01" "Elevated level with a valid lease permits propose ($R_VALID)"
 else
     fail "F-01" "Valid lease still denied at elevated level" "got: ${R_VALID:-<no output>}"
@@ -397,7 +397,7 @@ fi
 
 # F-02: lease expires after 1 turn -> must still deny (anti-regression)
 R_EXPIRED=$(run_gate_case expired 1 0)
-if echo "$R_EXPIRED" | grep -q 'PROPOSE_DENIED'; then
+if grep <<<"$R_EXPIRED" -q 'PROPOSE_DENIED'; then
     pass "F-02" "Expired lease still denies propose"
 else
     fail "F-02" "Expired lease no longer denies — gate weakened" "got: ${R_EXPIRED:-<no output>}"
@@ -405,9 +405,9 @@ fi
 
 # F-03: no lease configured -> level test retained (anti-regression)
 R_NOLEASE=$(run_gate_case nolease 0 0)
-if ! echo "$R_NOLEASE" | grep -qE 'LEVEL=(elevated|high|critical)'; then
+if ! grep <<<"$R_NOLEASE" -qE 'LEVEL=(elevated|high|critical)'; then
     fail "F-03" "Staging never escalated — level test was not exercised" "got: ${R_NOLEASE:-<no output>}"
-elif echo "$R_NOLEASE" | grep -q 'PROPOSE_DENIED'; then
+elif grep <<<"$R_NOLEASE" -q 'PROPOSE_DENIED'; then
     pass "F-03" "No-lease config keeps the governance-level test"
 else
     fail "F-03" "No-lease config fell through to permanently allowed" "got: ${R_NOLEASE:-<no output>}"
@@ -483,7 +483,7 @@ EOF
 # G-01: wall-clock lease expires during the gap -> commit must refuse, and the
 # message must carry the "step-up" substring the re-auth pattern matches on.
 R_G1=$(run_commit_lease_case wallclock 2 0 true)
-if echo "$R_G1" | grep -q 'COMMIT_DENIED|stepup=true'; then
+if grep <<<"$R_G1" -q 'COMMIT_DENIED|stepup=true'; then
     pass "G-01" "Wall-clock lease expiry blocks commit with the re-auth message"
 else
     fail "G-01" "Commit landed under an expired wall-clock lease" "got: $R_G1"
@@ -492,7 +492,7 @@ fi
 # G-02: turn-based lease only -> commit must still succeed. Guards the no-op
 # claim; a failure here means the gate is firing where it provably cannot.
 R_G2=$(run_commit_lease_case turnonly 0 20 true)
-if echo "$R_G2" | grep -q 'COMMIT_OK|turns=1'; then
+if grep <<<"$R_G2" -q 'COMMIT_OK|turns=1'; then
     pass "G-02" "Turn-only lease still commits (gate is not over-broad)"
 else
     fail "G-02" "Turn-lease commit was refused — gate is over-broad" "got: $R_G2"
@@ -501,7 +501,7 @@ fi
 # G-03: step-up disabled -> no re-auth path exists, so the refusal must use the
 # hard wording rather than telling the caller to run a challenge it cannot run.
 R_G3=$(run_commit_lease_case nostepup 2 0 false)
-if echo "$R_G3" | grep -q 'COMMIT_DENIED|stepup=false'; then
+if grep <<<"$R_G3" -q 'COMMIT_DENIED|stepup=false'; then
     pass "G-03" "Step-up disabled yields the hard lease-expired refusal"
 else
     fail "G-03" "Wrong refusal wording with step-up disabled" "got: $R_G3"
@@ -597,7 +597,7 @@ EOF
 
 # H-01: reload lands between propose and commit -> commit must refuse.
 R_H1=$(run_reload_case changed 1)
-if echo "$R_H1" | grep -q 'COMMIT_DENIED|config_changed=true'; then
+if grep <<<"$R_H1" -q 'COMMIT_DENIED|config_changed=true'; then
     pass "H-01" "Config reload between propose and commit invalidates the proposal"
 else
     fail "H-01" "Proposal committed across a config reload" "got: $R_H1"
@@ -606,7 +606,7 @@ fi
 # H-02: no reload -> commit must still succeed. Without this the stamp could be
 # refusing every commit and H-01 would still pass.
 R_H2=$(run_reload_case unchanged 0)
-if echo "$R_H2" | grep -q 'COMMIT_OK|turns=1'; then
+if grep <<<"$R_H2" -q 'COMMIT_OK|turns=1'; then
     pass "H-02" "Commit still succeeds when the config did not change"
 else
     fail "H-02" "Commit refused with no config change — stamp is over-broad" "got: $R_H2"
@@ -652,7 +652,7 @@ EOF
 # I-01: the hole. Expired lease + step-up disabled must now deny, with the hard
 # wording since there is no challenge to point the caller at.
 R_I1=$(run_propose_lease_case nostepup 2 false)
-if echo "$R_I1" | grep -q 'PROPOSE_DENIED|stepup=false'; then
+if grep <<<"$R_I1" -q 'PROPOSE_DENIED|stepup=false'; then
     pass "I-01" "Expired lease denies propose with step-up disabled"
 else
     fail "I-01" "Expired lease passed propose with step-up disabled" "got: $R_I1"
@@ -661,7 +661,7 @@ fi
 # I-02: no lease configured + step-up disabled -> propose must still work. This
 # is the shape two existing test configs use, and guards the no-op claim.
 R_I2=$(run_propose_lease_case nolease 0 false)
-if echo "$R_I2" | grep -q 'PROPOSE_OK'; then
+if grep <<<"$R_I2" -q 'PROPOSE_OK'; then
     pass "I-02" "No lease + step-up disabled still permits propose (not over-broad)"
 else
     fail "I-02" "Unleased config denied — hoisted check is over-broad" "got: $R_I2"
@@ -669,7 +669,7 @@ fi
 
 # I-03: anti-regression on Group F — with step-up on the renewable wording stays.
 R_I3=$(run_propose_lease_case stepup 2 true)
-if echo "$R_I3" | grep -q 'PROPOSE_DENIED|stepup=true'; then
+if grep <<<"$R_I3" -q 'PROPOSE_DENIED|stepup=true'; then
     pass "I-03" "Expired lease keeps the step-up wording when step-up is enabled"
 else
     fail "I-03" "Refusal wording changed with step-up enabled" "got: $R_I3"
@@ -782,7 +782,7 @@ EOF
     local out rc=0 raw
     raw=$( (cd "$d" && timeout 60s "$NAAB" t.naab 2>&1) ) || rc=$?
     out=$( echo "$raw" | grep -oE 'PROPOSED\|candidates=[0-9]+|PRE_COMMIT|COMMIT_OK\|turn=-?[0-9]+|COMMIT_DENIED_CRITICAL|COMMIT_OTHER.*' | tr '\n' ' ' )
-    if echo "$raw" | grep -q "governance level CRITICAL"; then out="$out HARDBLOCK_CRITICAL"; fi
+    if grep <<<"$raw" -q "governance level CRITICAL"; then out="$out HARDBLOCK_CRITICAL"; fi
     out="$out rc=$rc"
     # Staging read from telemetry, not inferred: a gate test whose escalation
     # never fired would pass vacuously — the denied case and "the level never
@@ -796,14 +796,14 @@ EOF
 # J-01 — the defect. Escalate to CRITICAL across the deliberation gap; the
 # commit must be refused even though the proposal was generated legitimately.
 R_CRIT=$(run_critical_case escalate 0.0 1)
-if ! echo "$R_CRIT" | grep -q 'PROPOSED|candidates='; then
+if ! grep <<<"$R_CRIT" -q 'PROPOSED|candidates='; then
     fail "J-01" "propose never produced candidates — commit gate not exercised" "got: ${R_CRIT:-<no output>}"
-elif ! echo "$R_CRIT" | grep -q 'LEVEL=critical'; then
+elif ! grep <<<"$R_CRIT" -q 'LEVEL=critical'; then
     fail "J-01" "staging never reached CRITICAL — gate was not exercised" "got: ${R_CRIT:-<no output>}"
-elif ! echo "$R_CRIT" | grep -q 'PRE_COMMIT'; then
+elif ! grep <<<"$R_CRIT" -q 'PRE_COMMIT'; then
     fail "J-01" "execution never reached the commit — a blocked sibling send is not this gate" \
          "got: ${R_CRIT:-<no output>}"
-elif echo "$R_CRIT" | grep -qE 'COMMIT_DENIED_CRITICAL|HARDBLOCK_CRITICAL'; then
+elif grep <<<"$R_CRIT" -qE 'COMMIT_DENIED_CRITICAL|HARDBLOCK_CRITICAL'; then
     pass "J-01" "CRITICAL reached across the gap refuses the commit ($R_CRIT)"
 else
     fail "J-01" "commit landed at CRITICAL — a suspended action became real" "got: ${R_CRIT:-<no output>}"
@@ -812,9 +812,9 @@ fi
 # J-02 — the control. Without escalation the same script must commit, or J-01
 # proves only that commits fail, not that the suspension is what stopped it.
 R_CALM=$(run_critical_case calm 0.99 99)
-if echo "$R_CALM" | grep -q 'LEVEL=critical'; then
+if grep <<<"$R_CALM" -q 'LEVEL=critical'; then
     skip "J-02" "control escalated to CRITICAL anyway — cannot isolate the gate"
-elif echo "$R_CALM" | grep -q 'COMMIT_OK'; then
+elif grep <<<"$R_CALM" -q 'COMMIT_OK'; then
     pass "J-02" "Control: without CRITICAL the same commit succeeds ($R_CALM)"
 else
     fail "J-02" "Control commit failed for another reason — J-01 is unattributable" "got: ${R_CALM:-<no output>}"

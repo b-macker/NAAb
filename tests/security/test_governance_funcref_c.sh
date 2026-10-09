@@ -63,7 +63,7 @@ result=$(run_script "$script" 2>&1 || true)
 out=$(extract_out "$result")
 ec=$(extract_exit "$result")
 
-if echo "$out" | grep -qi "taint\|governance\|blocked\|untrusted"; then
+if grep <<<"$out" -qi "taint\|governance\|blocked\|untrusted"; then
     ok "taint violation reported"
 elif [[ "$ec" -ne 0 ]]; then
     ok "execution blocked (exit $ec, output: ${out:0:80})"
@@ -87,7 +87,7 @@ main {
 result=$(run_script "$script" 2>&1 || true)
 out=$(extract_out "$result")
 
-if echo "$out" | grep -qi "taint.*untrusted\|taint tracking violation"; then
+if grep <<<"$out" -qi "taint.*untrusted\|taint tracking violation"; then
     fail "false-positive taint violation on non-tainted arg"
 else
     ok "no false-positive taint violation"
@@ -112,7 +112,7 @@ result=$(run_script "$script" 2>&1 || true)
 out=$(extract_out "$result")
 ec=$(extract_exit "$result")
 
-if echo "$out" | grep -qi "taint\|governance\|blocked\|untrusted"; then
+if grep <<<"$out" -qi "taint\|governance\|blocked\|untrusted"; then
     ok "taint propagated through reference call to sink"
 elif [[ "$ec" -ne 0 ]]; then
     ok "blocked (exit $ec)"
@@ -136,7 +136,7 @@ result=$(run_script "$script" 2>&1 || true)
 out=$(extract_out "$result")
 ec=$(extract_exit "$result")
 
-if echo "$out" | grep -qi "taint\|governance\|blocked\|untrusted"; then
+if grep <<<"$out" -qi "taint\|governance\|blocked\|untrusted"; then
     ok "env.delete_var taint check fired"
 elif [[ "$ec" -ne 0 ]]; then
     ok "blocked (exit $ec)"

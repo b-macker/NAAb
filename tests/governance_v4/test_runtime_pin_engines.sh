@@ -316,7 +316,7 @@ for c, r in bad: print("BAD", c, r)
 PY
 )"
 n11="$(printf '%s\n' "$o11" | head -1 | tr -d '\r')"
-if [ "${n11:-0}" -ge 10 ] && ! printf '%s' "$o11" | grep -q '^BAD'; then
+if [ "${n11:-0}" -ge 10 ] && ! grep <<<"$o11" -q '^BAD'; then
     ok RP-11 "all $n11 registered executor classes override getRuntimeVersion()"
 else
     bad RP-11 "a registered executor cannot report its version (or the scan found too few classes)" "$o11"

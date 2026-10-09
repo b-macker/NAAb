@@ -128,7 +128,7 @@ EOF
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 COH=$(echo "$OUT" | grep FINAL_COHERENCE | sed 's/.*=//')
-if echo "$OUT" | grep -q "FINAL_COHERENCE"; then
+if grep <<<"$OUT" -q "FINAL_COHERENCE"; then
     pass "A-01" "sends completed with record_validation"
 else
     fail "A-01" "run failed" "$(echo "$OUT" | head -3)"
@@ -138,7 +138,7 @@ if grep -qE '"event_type":"VALIDATION_RECORDED"' "$WDIR/tele.jsonl" 2>/dev/null;
 else
     fail "A-02" "no VALIDATION_RECORDED event"
 fi
-if grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'validation_outcome'; then
+if grep -q 'validation_outcome' <<<"$(grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"')"; then
     pass "A-03" "validation_outcome fired in CDD_TURN signals_detail"
 else
     fail "A-03" "validation_outcome never fired" "$(grep '"CDD_TURN"' "$WDIR/tele.jsonl" | grep -o '"signals_detail":"[^"]*"' | tail -2)"
@@ -176,7 +176,7 @@ EOF
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 COH=$(echo "$OUT" | grep FINAL_COHERENCE | sed 's/.*=//')
-if ! grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'validation_outcome'; then
+if ! grep -q 'validation_outcome' <<<"$(grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"')"; then
     pass "B-01" "validation_outcome did not fire on passing results"
 else
     fail "B-01" "validation_outcome fired despite passing"
@@ -208,7 +208,7 @@ main {
 EOF
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
-if echo "$OUT" | grep -q DONE && ! grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'validation_outcome'; then
+if grep <<<"$OUT" -q DONE && ! grep -q 'validation_outcome' <<<"$(grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"')"; then
     pass "C-01" "signal default-on but never fires without record_validation"
 else
     fail "C-01" "validation_outcome fired with no result fed"
@@ -238,7 +238,7 @@ main {
 EOF
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
-if ! grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'validation_outcome'; then
+if ! grep -q 'validation_outcome' <<<"$(grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"')"; then
     pass "D-01" "per-agent context_drift_signals:{validation_outcome:false} disables the signal"
 else
     fail "D-01" "signal fired despite per-agent override"
@@ -318,7 +318,7 @@ main {
 EOF
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
-if grep -E '"event_type":"AGENT_RESPONSE"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"config_name":"developer"'; then
+if grep -q '"config_name":"developer"' <<<"$(grep -E '"event_type":"AGENT_RESPONSE"' "$WDIR/tele.jsonl" 2>/dev/null)"; then
     pass "F-01" "AGENT_RESPONSE carries config_name=developer"
 else
     fail "F-01" "AGENT_RESPONSE missing config_name" "$(grep '"AGENT_RESPONSE"' "$WDIR/tele.jsonl" | head -1)"
@@ -369,7 +369,7 @@ if [ -n "$CP" ] && awk "BEGIN{exit !($CP < 1.0)}"; then
 else
     fail "G-02" "recovery fully erased the failure" "c_pass=$CP"
 fi
-if grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q 'validation_recovery=+'; then
+if grep -q 'validation_recovery=+' <<<"$(grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null)"; then
     pass "G-03" "validation_recovery credit surfaced in CDD_TURN penalties_detail"
 else
     fail "G-03" "no validation_recovery in telemetry" "$(grep '"CDD_TURN"' "$WDIR/tele.jsonl" | grep -o '"penalties_detail":"[^"]*"' | tail -2)"
@@ -501,7 +501,7 @@ main {
 EOF
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
-if grep -E '"event_type":"VALIDATION_RECORDED"' "$WDIR/tele.jsonl" 2>/dev/null | grep -qE '"detail_keywords":"[1-9]'; then
+if grep -qE '"detail_keywords":"[1-9]' <<<"$(grep -E '"event_type":"VALIDATION_RECORDED"' "$WDIR/tele.jsonl" 2>/dev/null)"; then
     pass "J-01" "VALIDATION_RECORDED carries detail_keywords count"
 else
     fail "J-01" "no detail_keywords in VALIDATION_RECORDED" "$(grep 'VALIDATION_RECORDED' "$WDIR/tele.jsonl" | head -1)"
@@ -509,7 +509,7 @@ fi
 CHAL_J=$(grep -E '"event_type":"AGENT_CHALLENGE_(PASS|FAIL)"' "$WDIR/tele.jsonl" 2>/dev/null | head -1)
 if [ -n "$CHAL_J" ]; then
     pass "J-02" "step-up challenge fired after validation-failure escalation"
-    if echo "$CHAL_J" | grep -q '"challenge_type":"validation"'; then
+    if grep <<<"$CHAL_J" -q '"challenge_type":"validation"'; then
         pass "J-03" "challenge type is 'validation' (competence, grounded in the defect)"
     else
         fail "J-03" "challenge did not use validation type" "$CHAL_J"
@@ -574,13 +574,13 @@ else
          "coherence=$C_AFTER — the failure was recorded and never scored"
 fi
 
-if echo "$OUT" | grep -q 'PASS_APPLIED=false'; then
+if grep <<<"$OUT" -q 'PASS_APPLIED=false'; then
     pass "K-02" "Superseded pass reported applied=false to the caller"
 else
     fail "K-02" "Superseded pass not reported" "$(echo "$OUT" | grep APPLIED=)"
 fi
 
-if grep '"event_type":"VALIDATION_RECORDED"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"applied":"false"'; then
+if grep -q '"applied":"false"' <<<"$(grep '"event_type":"VALIDATION_RECORDED"' "$WDIR/tele.jsonl" 2>/dev/null)"; then
     pass "K-03" "Supersession visible in VALIDATION_RECORDED telemetry"
 else
     fail "K-03" "No applied=false in telemetry" \
@@ -588,7 +588,7 @@ else
 fi
 
 # The failure is scored once, not once per recorded result.
-if echo "$OUT" | grep -q 'FAIL_APPLIED=true'; then
+if grep <<<"$OUT" -q 'FAIL_APPLIED=true'; then
     pass "K-04" "The failure itself was applied normally"
 else
     fail "K-04" "Failure was not applied" "$(echo "$OUT" | grep APPLIED=)"
@@ -667,13 +667,13 @@ else
     fail "L-02" "shrink consumed the outstanding failure" \
          "c_shrink=$LS c_honest=$LH — one shrink laundered the failure away"
 fi
-if grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q 'validation_credit_withheld=evidence_shrank'; then
+if grep -q 'validation_credit_withheld=evidence_shrank' <<<"$(grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null)"; then
     pass "L-03" "withheld credit is named in CDD_TURN penalties_detail"
 else
     fail "L-03" "a refused credit is reported as an absence" \
          "indistinguishable from a turn where no validation ran"
 fi
-if grep -E '"event_type":"VALIDATION_RECORDED"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"evidence_count":"4"'; then
+if grep -q '"evidence_count":"4"' <<<"$(grep -E '"event_type":"VALIDATION_RECORDED"' "$WDIR/tele.jsonl" 2>/dev/null)"; then
     pass "L-04" "evidence_count recorded in VALIDATION_RECORDED telemetry"
 else
     fail "L-04" "evidence_count missing from telemetry" \
@@ -744,7 +744,7 @@ else
     fail "M-02" "reset erased the evidence baseline" \
          "c_post_reset=$MP — resetting a degraded agent clears its erosion history"
 fi
-if grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'validation_outcome'; then
+if grep -q 'validation_outcome' <<<"$(grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"')"; then
     pass "M-03" "S22 named in penalties_detail for the shrink"
 else
     fail "M-03" "shrink penalty not attributed to validation_outcome" \

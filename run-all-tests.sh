@@ -3737,6 +3737,21 @@ else
     echo "  test_shell_path_handoff.sh: not found, skipping"
 fi
 
+PIPEFAIL_GREP_SCRIPT="tests/self-audit/test_pipefail_grep.sh"
+if [ -f "$PIPEFAIL_GREP_SCRIPT" ]; then
+    # Gate on `PRODUCER | grep -q` under pipefail: false when the producer
+    # exits non-zero after printing the match, and 141 when it is still
+    # writing after grep exits. Reads files only; no build needed.
+    if run_shell_test "$PIPEFAIL_GREP_SCRIPT" 2>&1; then
+        echo "  test_pipefail_grep.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_pipefail_grep.sh")
+    fi
+else
+    echo "  test_pipefail_grep.sh: not found, skipping"
+fi
+
 TIMING_SCRIPT="tests/self-audit/test_test_timing.sh"
 if [ -f "$TIMING_SCRIPT" ]; then
     # tools/testtiming wraps this whole run in CI (report-only). This checks the

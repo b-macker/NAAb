@@ -250,7 +250,7 @@ else
     fail "PU-02" "30 clean turns past a suspicion of 5 never degraded" \
          "the uniformity signal is dead, not merely re-scoped"
 fi
-if echo "${WHY2:-}" | grep -q "uniform_passes"; then
+if grep <<<"${WHY2:-}" -q "uniform_passes"; then
     pass "PU-02b" "degradation attributed to uniform_passes"
 elif [ "${DEG2:-0}" -gt 0 ]; then
     fail "PU-02b" "degraded for a reason other than uniform_passes: '${WHY2:-}'" \
@@ -326,7 +326,7 @@ else
     fail "PU-03" "streak reached $MAXP3 despite enforcement every turn" \
          "a blocked turn is being counted as a clean turn"
 fi
-if echo "${WHY3:-}" | grep -q "uniform_passes"; then
+if grep <<<"${WHY3:-}" -q "uniform_passes"; then
     fail "PU-03b" "uniform_passes fired on a run that was blocked every turn" \
          "the reset is not reaching the signal"
 else
@@ -401,7 +401,7 @@ PYEOF
 
     # Both directions must be recorded — recording only the degrade would leave
     # a recovery indistinguishable from a verdict that never moved.
-    if echo "$PT" | grep -q -- "->healthy"; then
+    if grep <<<"$PT" -q -- "->healthy"; then
         pass "PU-05b" "recovery transitions recorded, not just degradations"
     elif [ "${PT_N:-0}" -gt 0 ]; then
         fail "PU-05b" "only degradations recorded, no recovery" \

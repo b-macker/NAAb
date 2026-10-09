@@ -46,7 +46,7 @@ run() { (cd "$W" && HOME="$H" timeout 120 "$NAAB" --tree-walk b.naab 2>&1); }
 
 out=$(run)
 so=$(find "$H" -name 'BLOCK_LIB_*.so' 2>/dev/null | head -1)
-if printf '%s\n' "$out" | grep -qx "7" && [ -n "$so" ]; then
+if grep <<<"$out" -qx "7" && [ -n "$so" ]; then
     ok "DE-00" "CONTROL: the block compiles, loads and returns 7"
 else
     skip "DE-00" "the block did not compile and load here (UNMEASURABLE): $(printf '%s' "$out" | tail -1)"

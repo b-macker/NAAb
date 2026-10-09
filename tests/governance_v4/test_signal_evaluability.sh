@@ -132,14 +132,14 @@ PY
 OFF=$(Q off); STARVED=$(Q starved)
 
 # --- SE-01: a starved signal is named ------------------------------------
-if echo "$STARVED" | grep -q "tool_chain_integrity"; then
+if grep <<<"$STARVED" -q "tool_chain_integrity"; then
     pass "SE-01" "signal with no inputs is reported starved"
 else
     fail "SE-01" "starved signal not reported" "signals_starved='$STARVED'"
 fi
 
 # --- SE-02: a disabled signal is named, with reason 'disabled' ------------
-if echo "$OFF" | grep -q "response_degenerate" && [ "$(Q reason response_degenerate)" = "disabled" ]; then
+if grep <<<"$OFF" -q "response_degenerate" && [ "$(Q reason response_degenerate)" = "disabled" ]; then
     pass "SE-02" "config-disabled signal reported as off/disabled"
 else
     fail "SE-02" "disabled signal not reported correctly" \
@@ -148,7 +148,7 @@ fi
 
 # --- SE-03: a signal WITH inputs is in neither list (control) -------------
 # mandate_alignment has mandate_keywords, because system_prompt is set.
-if ! echo "$OFF" | grep -q "mandate_alignment" && ! echo "$STARVED" | grep -q "mandate_alignment"; then
+if ! grep <<<"$OFF" -q "mandate_alignment" && ! grep <<<"$STARVED" -q "mandate_alignment"; then
     pass "SE-03" "signal with inputs appears in neither list (control)"
 else
     fail "SE-03" "a signal that had its inputs was reported inert" \
@@ -167,7 +167,7 @@ else
 fi
 
 # --- SE-05: uninstrumented signals are absent from BOTH lists -------------
-if echo "$OFF$STARVED" | grep -qE "scope_creep|vocabulary_contraction"; then
+if grep <<<"$OFF$STARVED" -qE "scope_creep|vocabulary_contraction"; then
     fail "SE-05" "an uninstrumented signal was classified" \
          "scope_creep/vocabulary_contraction gate on turn_types, which is not checked here"
 else
@@ -211,7 +211,7 @@ NAABEOF
         | grep -o '"signals_off":"[^"]*"' | sed 's/.*":"//; s/"$//'
 }
 OFF_U=$(run_case_off_uninstrumented)
-if echo "$OFF_U" | grep -q "context_growth"; then
+if grep <<<"$OFF_U" -q "context_growth"; then
     pass "SE-07" "per-agent disabled signal reported off even without an instrumented precondition"
 else
     fail "SE-07" "disabled context_growth absent from signals_off" \
@@ -220,7 +220,7 @@ fi
 
 # --- SE-06: config keys, not telemetry labels ----------------------------
 # The four divergent signals must appear under their govern.json spelling.
-if echo "$OFF$STARVED" | grep -qE "vocab_contraction|capability_underutil\b|contradictions\b"; then
+if grep <<<"$OFF$STARVED" -qE "vocab_contraction|capability_underutil\b|contradictions\b"; then
     fail "SE-06" "telemetry labels used instead of config keys" \
          "a reader copying these into govern.json would disable nothing"
 else

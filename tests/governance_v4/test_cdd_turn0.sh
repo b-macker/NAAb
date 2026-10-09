@@ -130,7 +130,7 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "DONE"; then
+if grep <<<"$OUTPUT" -q "DONE"; then
     pass "T0-01" "Two sends complete"
 else
     fail "T0-01" "Sends did not complete" "$(echo "$OUTPUT" | head -3)"
@@ -140,7 +140,7 @@ TURN1=$(cdd_turn_line "$WDIR/telemetry.jsonl" 1)
 TURN2=$(cdd_turn_line "$WDIR/telemetry.jsonl" 2)
 
 # T0-A: instruction_recall must fire on the FIRST send (response ignores prompt)
-if echo "$TURN1" | grep -q '"signals_detail":"[^"]*instruction_recall'; then
+if grep <<<"$TURN1" -q '"signals_detail":"[^"]*instruction_recall'; then
     pass "T0-02" "instruction_recall evaluated on the first send (turn 0 analyzed)"
 else
     fail "T0-02" "First send not analyzed by CDD" "$TURN1"
@@ -148,12 +148,12 @@ fi
 
 # T0-B: identical second response must trip response_repetition
 # (requires turn 0's fingerprint recorded AND full-content hashing)
-if echo "$TURN2" | grep -q '"signals_detail":"[^"]*response_repetition'; then
+if grep <<<"$TURN2" -q '"signals_detail":"[^"]*response_repetition'; then
     pass "T0-03" "Verbatim duplicate of the first response detected at send 2"
 else
     fail "T0-03" "S21 missed duplicate of first response" "$TURN2"
 fi
-if echo "$TURN2" | grep -q '"response_repetition_count":"1"'; then
+if grep <<<"$TURN2" -q '"response_repetition_count":"1"'; then
     pass "T0-04" "response_repetition_count reflects the duplicate"
 else
     fail "T0-04" "repetition count wrong" "$TURN2"

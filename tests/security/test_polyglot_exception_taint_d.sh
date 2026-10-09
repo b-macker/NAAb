@@ -70,7 +70,7 @@ result=$(run_script "$script")
 out=$(extract_out "$result")
 ec=$(extract_exit "$result")
 
-if echo "$out" | grep -qi "taint\|governance\|blocked\|untrusted"; then
+if grep <<<"$out" -qi "taint\|governance\|blocked\|untrusted"; then
     ok "taint violation caught on exception → http.post"
 elif [[ "$ec" -ne 0 ]]; then
     ok "blocked (exit $ec)"
@@ -98,7 +98,7 @@ result=$(run_script "$script")
 out=$(extract_out "$result")
 ec=$(extract_exit "$result")
 
-if echo "$out" | grep -qi "taint\|governance\|blocked\|untrusted"; then
+if grep <<<"$out" -qi "taint\|governance\|blocked\|untrusted"; then
     ok "taint violation caught on exception → file.write"
 elif [[ "$ec" -ne 0 ]]; then
     ok "blocked (exit $ec)"
@@ -128,7 +128,7 @@ out=$(extract_out "$result")
 ec=$(extract_exit "$result")
 
 # io.println is not a sink — should not produce taint violation
-if echo "$out" | grep -qi "taint tracking violation"; then
+if grep <<<"$out" -qi "taint tracking violation"; then
     fail "false-positive: io.println should not be a taint sink"
 else
     ok "io.println not blocked (correct — not a configured sink)"
@@ -157,13 +157,13 @@ result=$(run_script "$script")
 out=$(extract_out "$result")
 ec=$(extract_exit "$result")
 
-if echo "$out" | grep -q "still_safe"; then
+if grep <<<"$out" -q "still_safe"; then
     ok "script ran normally after catch block"
 elif [[ "$ec" -eq 0 ]]; then
     ok "exited cleanly (exit 0)"
 else
     # Non-zero is OK if it's because shell executor isn't available
-    if echo "$out" | grep -qi "executor\|not.*available\|python\|shell"; then
+    if grep <<<"$out" -qi "executor\|not.*available\|python\|shell"; then
         skip "executor not available — taint scoping not testable (acceptable)"
     else
         fail "unexpected failure: exit $ec: ${out:0:120}"

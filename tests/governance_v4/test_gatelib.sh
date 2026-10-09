@@ -64,7 +64,7 @@ gate_GL_DEMO() {
 # The defect, preserved verbatim: under -E the trailing `|` is an empty
 # alternative, so this matches any non-empty line.
 gate_GL_BAD() {
-    if echo "x" | grep -qE 'CREATED|agent=|'; then
+    if grep <<<"x" -qE 'CREATED|agent=|'; then
         pass GL-BAD "matched"
     else
         fail GL-BAD "did not match"

@@ -104,7 +104,7 @@ NAABEOF
 out=$(timeout 10s "$NAAB" "$WORKDIR/test_t2.naab" --vm --no-governance 2>&1) || ec=$?
 ec=${ec:-0}
 
-if echo "$out" | grep -q "hello" && [[ "$ec" -eq 0 ]]; then
+if grep <<<"$out" -q "hello" && [[ "$ec" -eq 0 ]]; then
     ok "normal script runs without regression"
 else
     fail "normal script failed: ${out:0:120}"

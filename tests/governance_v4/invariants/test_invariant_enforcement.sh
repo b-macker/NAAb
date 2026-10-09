@@ -205,7 +205,7 @@ start_swap_operator "$R2DIR"
 OUT=$(cd "$R2DIR" && timeout 30s "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
 if [ "$RATCH_PY_GATED" -eq 1 ]; then
     skip "I-RATCH-02" "$PYTHON_SHELL_OFF_REASON"
-elif echo "$OUT" | grep -qi "ratchet"; then
+elif grep <<<"$OUT" -qi "ratchet"; then
     ok "I-RATCH-02" "capability loosening rejected with ratchet message"
 else
     fail "I-RATCH-02" "expected ratchet rejection (exit $RC)"
@@ -323,7 +323,7 @@ print("python still works after network tightening")
 NAABEOF
 start_swap_operator "$R4DIR"
 OUT=$(cd "$R4DIR" && timeout 30s "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
-if [ $RC -eq 0 ] && echo "$OUT" | grep -q "python still works after network tightening"; then
+if [ $RC -eq 0 ] && grep <<<"$OUT" -q "python still works after network tightening"; then
     ok "I-RATCH-04" "network tightened → python unaffected"
 else
     fail "I-RATCH-04" "expected exit 0 with python output (exit $RC)"
@@ -380,7 +380,7 @@ print("still strict")
 NAABEOF
 start_swap_operator "$R5DIR"
 OUT=$(cd "$R5DIR" && timeout 30s "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
-if echo "$OUT" | grep -qi "ratchet"; then
+if grep <<<"$OUT" -qi "ratchet"; then
     ok "I-RATCH-05" "numeric limit loosening rejected with ratchet message"
 else
     fail "I-RATCH-05" "expected ratchet rejection (exit $RC)"
@@ -506,7 +506,7 @@ main {
 }
 EOF
 OUT=$(cd "$E3DIR" && "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
-if [ $RC -eq 3 ] && echo "$OUT" | grep -qi "ESCALATED"; then
+if [ $RC -eq 3 ] && grep <<<"$OUT" -qi "ESCALATED"; then
     ok "I-ESC-03" "N-th advisory escalates to a block (exit 3, ESCALATED)"
 else
     fail "I-ESC-03" "expected exit 3 + ESCALATED, got exit $RC"
@@ -655,7 +655,7 @@ main {
 }
 EOF
 OUT=$(cd "$EP1DIR" && "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
-if echo "$OUT" | grep -q "EPOCH="; then
+if grep <<<"$OUT" -q "EPOCH="; then
     ok "I-EPOCH-01" "epoch accessible via governance.health()"
 else
     fail "I-EPOCH-01" "epoch not accessible (exit $RC, output: ${OUT:0:200})"
@@ -689,7 +689,7 @@ main {
 }
 EOF
 OUT=$(cd "$EP3DIR" && "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
-if echo "$OUT" | grep -qi "VERDICT=healthy\|VERDICT=degraded\|VERDICT=impaired"; then
+if grep <<<"$OUT" -qi "VERDICT=healthy\|VERDICT=degraded\|VERDICT=impaired"; then
     VERDICT=$(echo "$OUT" | grep -oi 'VERDICT=[a-z]*' | head -1 | cut -d= -f2)
     ok "I-EPOCH-03" "governance.health() returns verdict ($VERDICT)"
 else
@@ -751,7 +751,7 @@ main {
 }
 EOF
 OUT=$(cd "$EP5DIR" && "$NAAB" test.naab 2>&1) && RC=$? || RC=$?
-if echo "$OUT" | grep -q "INSTRUMENTED=true"; then
+if grep <<<"$OUT" -q "INSTRUMENTED=true"; then
     ok "I-EPOCH-05" "governance.health() includes instrumentation fields"
 else
     fail "I-EPOCH-05" "instrumentation fields missing (output: ${OUT:0:200})"

@@ -109,7 +109,7 @@ EOF
 }
 
 warned_for() {  # $1 = sub-block name ; 0 if the ignored-key warning was printed
-    echo "$2" | grep -q "restrictions.$1.enabled\": false has no effect"
+    grep <<<"$2" -q "restrictions.$1.enabled\": false has no effect"
 }
 
 # Count evidence that the CHECK itself ran, excluding the ignored-key warning.

@@ -70,7 +70,7 @@ run() {
     rm -f "$W/out.csv" "$W/app.log"
     local o rc
     o=$(cd "$W" && timeout 60s "$NAAB" ${3:-} t.naab 2>&1); rc=$?
-    if echo "$o" | grep -q "MARKER"; then echo "$rc|ran"; else echo "$rc|blocked"; fi
+    if grep <<<"$o" -q "MARKER"; then echo "$rc|ran"; else echo "$rc|blocked"; fi
 }
 
 DENY='{ "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "elevated" },

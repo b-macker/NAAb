@@ -161,7 +161,7 @@ print(2 + 2)
 EOF
 OUT_T1=$(run_test "$T1DIR" "--governance-dashboard") && RC_T1=0 || RC_T1=$?
 STDERR_T1=$(cat "$T1DIR/stderr.txt" 2>/dev/null || echo "")
-if echo "$STDERR_T1" | grep -qiE "passed|Checks:|Governance.*PASS"; then
+if grep <<<"$STDERR_T1" -qiE "passed|Checks:|Governance.*PASS"; then
     DASH_T1=$(echo "$STDERR_T1" | grep -iE "passed|Checks:|Governance.*PASS" | head -1)
     ok "T1:  PASS  What is trying to form? (dashboard: $DASH_T1)"
     record_result "T1" "PASS"
@@ -190,7 +190,7 @@ puts "should_not_reach"
 }
 EOF
 OUT_T2a=$(run_test "$T2aDir") && RC_T2a=0 || RC_T2a=$?
-if [ $RC_T2a -eq 3 ] && ! echo "$OUT_T2a" | grep -q "should_not_reach"; then
+if [ $RC_T2a -eq 3 ] && ! grep <<<"$OUT_T2a" -q "should_not_reach"; then
     ok "T2a: PASS  Standing: ruby blocked (exit 3, no execution)"
     record_result "T2a" "PASS"
 else
@@ -231,7 +231,7 @@ EOF
 OUT_T2b=$(run_test "$T2bDir") && RC_T2b=0 || RC_T2b=$?
 STDERR_T2b=$(cat "$T2bDir/stderr.txt" 2>/dev/null || echo "")
 COMBINED_T2b="$OUT_T2b $STDERR_T2b"
-if [ $RC_T2b -ne 0 ] && echo "$COMBINED_T2b" | grep -qi "approval"; then
+if [ $RC_T2b -ne 0 ] && grep <<<"$COMBINED_T2b" -qi "approval"; then
     ok "T2b: PASS  Standing: approval_required blocks without token (exit $RC_T2b)"
     record_result "T2b" "PASS"
 else
@@ -263,10 +263,10 @@ EOF
 OUT_T3=$("$NAAB" "$T3DIR/test.naab" 2>"$T3DIR/stderr.txt") && RC_T3=0 || RC_T3=$?
 STDERR_T3=$(cat "$T3DIR/stderr.txt" 2>/dev/null || echo "")
 COMBINED_T3="$OUT_T3 $STDERR_T3"
-if [ $RC_T3 -ne 0 ] && echo "$COMBINED_T3" | grep -qi "signat\|INTEGRITY"; then
+if [ $RC_T3 -ne 0 ] && grep <<<"$COMBINED_T3" -qi "signat\|INTEGRITY"; then
     ok "T3:  PASS  Authority: broken signature rejected (exit $RC_T3)"
     record_result "T3" "PASS"
-elif ! echo "$OUT_T3" | grep -q "should_not_reach"; then
+elif ! grep <<<"$OUT_T3" -q "should_not_reach"; then
     ok "T3:  PASS  Authority: execution prevented (exit $RC_T3)"
     record_result "T3" "PASS"
 else
@@ -300,7 +300,7 @@ EOF
 OUT_T4=$(run_test "$T4DIR") && RC_T4=0 || RC_T4=$?
 STDERR_T4=$(cat "$T4DIR/stderr.txt" 2>/dev/null || echo "")
 COMBINED_T4="$OUT_T4 $STDERR_T4"
-if [ $RC_T4 -ne 0 ] && echo "$COMBINED_T4" | grep -qiE "stale|expir|age|old"; then
+if [ $RC_T4 -ne 0 ] && grep <<<"$COMBINED_T4" -qiE "stale|expir|age|old"; then
     ok "T4:  PASS  Evidence freshness: stale signature blocked (exit $RC_T4)"
     record_result "T4" "PASS"
 else
@@ -364,7 +364,7 @@ main {
 EOF
 OUT_T5b=$(run_test "$T5bDir") && RC_T5b=0 || RC_T5b=$?
 STDERR_T5b=$(cat "$T5bDir/stderr.txt" 2>/dev/null || echo "")
-if echo "$STDERR_T5b" | grep -qi "upgraded.*unrestricted"; then
+if grep <<<"$STDERR_T5b" -qi "upgraded.*unrestricted"; then
     ok "T5b: PASS  Scope: fail-closed sandbox upgrade detected"
     record_result "T5b" "PASS"
 else
@@ -455,12 +455,12 @@ main {
 }
 EOF
 OUT_T6b=$(run_test "$T6bDir") && RC_T6b=0 || RC_T6b=$?
-if [ $RC_T6b -ne 0 ] && echo "$OUT_T6b" | grep -qi "taint"; then
+if [ $RC_T6b -ne 0 ] && grep <<<"$OUT_T6b" -qi "taint"; then
     ok "T6b: PASS  Custody: taint blocks unsanitized env.get -> file.write (exit $RC_T6b)"
     record_result "T6b" "PASS"
 else
     STDERR_T6b=$(cat "$T6bDir/stderr.txt" 2>/dev/null || echo "")
-    if echo "$STDERR_T6b" | grep -qi "taint"; then
+    if grep <<<"$STDERR_T6b" -qi "taint"; then
         ok "T6b: PASS  Custody: taint blocks unsanitized (exit $RC_T6b, taint in stderr)"
         record_result "T6b" "PASS"
     else
@@ -509,7 +509,7 @@ main {
 }
 EOF
 OUT_T6c=$(run_test "$T6cDir") && RC_T6c=0 || RC_T6c=$?
-if echo "$OUT_T6c" | grep -q "TAINT_CLEARED"; then
+if grep <<<"$OUT_T6c" -q "TAINT_CLEARED"; then
     ok "T6c: PASS  Custody: taint cleared by sanitizer allows write"
     record_result "T6c" "PASS"
 else
@@ -542,7 +542,7 @@ puts "caught"
 }
 EOF
 OUT_T7a=$(run_test "$T7aDir") && RC_T7a=0 || RC_T7a=$?
-if [ $RC_T7a -eq 3 ] && ! echo "$OUT_T7a" | grep -q "caught"; then
+if [ $RC_T7a -eq 3 ] && ! grep <<<"$OUT_T7a" -q "caught"; then
     ok "T7a: PASS  Route closed: HARD block uncatchable by try/catch (exit 3)"
     record_result "T7a" "PASS"
 else
@@ -570,7 +570,7 @@ puts "blocked"
 EOF
 OUT_T7b=$("$NAAB" "$T7bDir/test.naab" 2>&1) && RC_T7b=0 || RC_T7b=$?
 BANNED='--no-governance|--governance-override|--sandbox-level|NAAB_SIGNING_KEY|--sign-governance|bypass.*governance'
-if echo "$OUT_T7b" | grep -qiE -- "$BANNED"; then
+if grep <<<"$OUT_T7b" -qiE -- "$BANNED"; then
     fail "T7b: FAIL  Bypass hint leaked in error output" "$(echo "$OUT_T7b" | grep -iE "$BANNED" | head -1)"
     record_result "T7b" "FAIL"
 else
@@ -682,7 +682,7 @@ EOF
 OUT_T8c=$(run_test "$T8cDir") && RC_T8c=0 || RC_T8c=$?
 STDERR_T8c=$(cat "$T8cDir/stderr.txt" 2>/dev/null || echo "")
 COMBINED_T8c="$OUT_T8c $STDERR_T8c"
-if [ $RC_T8c -eq 3 ] && echo "$COMBINED_T8c" | grep -qi "ESCALAT"; then
+if [ $RC_T8c -eq 3 ] && grep <<<"$COMBINED_T8c" -qi "ESCALAT"; then
     ok "T8c: PASS  Enforcement ESCALATE: 3rd advisory -> HARD (exit 3, ESCALATED)"
     record_result "T8c" "PASS"
 else
@@ -718,7 +718,7 @@ main {
 }
 EOF
 OUT_T8d=$(run_test "$T8dDir") && RC_T8d=0 || RC_T8d=$?
-if [ $RC_T8d -eq 0 ] && echo "$OUT_T8d" | grep -q "DETECT_CAUGHT"; then
+if [ $RC_T8d -eq 0 ] && grep <<<"$OUT_T8d" -q "DETECT_CAUGHT"; then
     ok "T8d: PASS  Enforcement DETECT: catchable by try/catch (exit 0, caught)"
     record_result "T8d" "PASS"
 else
@@ -746,7 +746,7 @@ main {
 }
 EOF
 OUT_T8e=$(run_test "$T8eDir") && RC_T8e=0 || RC_T8e=$?
-if [ $RC_T8e -eq 0 ] && echo "$OUT_T8e" | grep -q "CONTINUE_OK"; then
+if [ $RC_T8e -eq 0 ] && grep <<<"$OUT_T8e" -q "CONTINUE_OK"; then
     ok "T8e: PASS  Enforcement CONTINUE: clean code passes all gates (exit 0)"
     record_result "T8e" "PASS"
 else
@@ -774,7 +774,7 @@ print(7 * 6)
 }
 EOF
 OUT_T9=$(run_test "$T9DIR") && RC_T9=0 || RC_T9=$?
-if [ $RC_T9 -eq 0 ] && echo "$OUT_T9" | grep -q "BOUND=42"; then
+if [ $RC_T9 -eq 0 ] && grep <<<"$OUT_T9" -q "BOUND=42"; then
     ok "T9:  PASS  Protected effect binds: polyglot executed, result=42"
     record_result "T9" "PASS"
 else
@@ -807,7 +807,7 @@ main {
 }
 EOF
 OUT_T10=$(run_test "$T10DIR") && RC_T10=0 || RC_T10=$?
-if echo "$OUT_T10" | grep -q "EPOCH_OK"; then
+if grep <<<"$OUT_T10" -q "EPOCH_OK"; then
     ok "T10: PASS  Epoch readable: governance_epoch accessible and >= 0"
     record_result "T10" "PASS"
 else
@@ -836,7 +836,7 @@ main {
 EOF
 OUT_P1=$(run_test "$P1DIR" "--governance-dashboard") && RC_P1=0 || RC_P1=$?
 STDERR_P1=$(cat "$P1DIR/stderr.txt" 2>/dev/null || echo "")
-if echo "$STDERR_P1" | grep -qiE "Checks:.*[0-9]+ passed"; then
+if grep <<<"$STDERR_P1" -qiE "Checks:.*[0-9]+ passed"; then
     CHECKS_P1=$(echo "$STDERR_P1" | grep -oi "Checks:.*" | head -1)
     ok "P1:  PASS  Boundary resolutions: dashboard shows $CHECKS_P1"
     record_result "P1" "PASS"
@@ -893,7 +893,7 @@ if [ "$HAS_REFUSAL" = true ]; then
 elif [ $RC_P2 -eq 3 ]; then
     # HARD block happened (exit 3), but attestation may not be in telemetry
     # Check if attestation is in stderr or combined output
-    if echo "$OUT_P2" | grep -qi "attestation\|refusal"; then
+    if grep <<<"$OUT_P2" -qi "attestation\|refusal"; then
         ok "P2:  PASS  Proof of non-formation: HARD block with refusal info (exit 3)"
         record_result "P2" "PASS"
     else
@@ -1148,7 +1148,7 @@ if [ -n "$SCORE_LINE" ]; then
     fi
 else
     # No explicit "Risk score" line; check for any scoring info
-    if echo "$STDERR_L3" | grep -qi "score\|advisory\|weight"; then
+    if grep <<<"$STDERR_L3" -qi "score\|advisory\|weight"; then
         ok "L3: VERIFIED  Score math: scoring data present in dashboard"
     else
         fail "L3: FAILED  No scoring information in dashboard" "stderr=${STDERR_L3:0:300}"
@@ -1175,7 +1175,7 @@ echo "  L5: Escalation math verification:"
 # Use T8c's data (3 advisories with weight_multiplier=2.0, soft_after=3)
 STDERR_T8c_FULL=$(cat "$T8cDir/stderr.txt" 2>/dev/null || echo "")
 ESC_LINES=$(echo "$STDERR_T8c_FULL" | grep -i "escalat\|advisory\|occurrence\|weight" || echo "")
-if echo "$STDERR_T8c_FULL" | grep -qi "ESCALAT"; then
+if grep <<<"$STDERR_T8c_FULL" -qi "ESCALAT"; then
     echo "      Config: soft_after=3, weight_multiplier=2.0, base advisory level"
     echo "      Occ 1: advisory (base weight)"
     echo "      Occ 2: advisory (weight * 2.0)"
@@ -1222,9 +1222,9 @@ run_2nd_pass() {
     fi
     if [ -n "$expect_grep" ] && [ "$result" = "PASS" ]; then
         if [ "$negate" = "negate" ]; then
-            if echo "$combined" | grep -qi "$expect_grep"; then result="FAIL"; fi
+            if grep <<<"$combined" -qi "$expect_grep"; then result="FAIL"; fi
         else
-            if ! echo "$combined" | grep -qi "$expect_grep"; then result="FAIL"; fi
+            if ! grep <<<"$combined" -qi "$expect_grep"; then result="FAIL"; fi
         fi
     fi
 
@@ -1262,7 +1262,7 @@ run_2nd_pass "T6c" "$T6cDir" "" "0" "TAINT_CLEARED"
 run_2nd_pass "T7a" "$T7aDir" "" "3" "caught" "negate"
 # T7b: no bypass hints
 OUT_T7b_2=$("$NAAB" "$T7bDir/test.naab" 2>&1) && RC_T7b_2=0 || RC_T7b_2=$?
-if echo "$OUT_T7b_2" | grep -qiE -- "$BANNED"; then
+if grep <<<"$OUT_T7b_2" -qiE -- "$BANNED"; then
     PASS2_IDS+=("T7b"); PASS2_RESULTS+=("FAIL")
 else
     PASS2_IDS+=("T7b"); PASS2_RESULTS+=("PASS")

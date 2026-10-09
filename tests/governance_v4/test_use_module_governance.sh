@@ -39,23 +39,23 @@ cat > "$W/deny.json" <<'J'
 { "version":"5.0","mode":"enforce","capabilities":{"filesystem":{"mode":"none"}} }
 J
 OUT=$(cd "$W" && cp allow.json govern.json && timeout 20 "$NAAB" probe.naab 2>&1); EC=$?
-if echo "$OUT" | grep -q "USED=USE_SECRET"; then
+if grep <<<"$OUT" -q "USED=USE_SECRET"; then
     ok "UM-00" "CONTROL: use module under a permissive fs policy works (VM)"
 else bad "UM-00" "use module broken under permissive policy" "exit $EC; $(echo "$OUT"|head -2)"; fi
 
 OUT=$(cd "$W" && cp deny.json govern.json && timeout 20 "$NAAB" probe.naab 2>&1); EC=$?
-if [ "$EC" = "3" ] && echo "$OUT" | grep -qi "Filesystem access is not allowed"; then
+if [ "$EC" = "3" ] && grep <<<"$OUT" -qi "Filesystem access is not allowed"; then
     ok "UM-01" "CONTROL (VM): use module under mode:none is blocked — gate exists (passed pre-fix via A25/ModuleResolver)"
 else bad "UM-01" "VM path lost its gate" "exit $EC; $(echo "$OUT"|head -2)"; fi
 
 # THE FIX: the tree-walker reaches ModuleRegistry, which was ungated.
 OUT=$(cd "$W" && cp deny.json govern.json && timeout 20 "$NAAB" --tree-walk probe.naab 2>&1); EC=$?
-if [ "$EC" != "0" ] && ! echo "$OUT" | grep -q "USED=USE_SECRET" && echo "$OUT" | grep -qi "Filesystem access is not allowed"; then
+if [ "$EC" != "0" ] && ! grep <<<"$OUT" -q "USED=USE_SECRET" && grep <<<"$OUT" -qi "Filesystem access is not allowed"; then
     ok "UM-02" "FIX (--tree-walk): use module under mode:none is blocked (was USED=USE_SECRET / PASS / exit 0)"
 else bad "UM-02" "tree-walk still bypasses filesystem governance via ModuleRegistry" "exit $EC; $(echo "$OUT"|head -2)"; fi
 
 OUT=$(cd "$W" && cp allow.json govern.json && timeout 20 "$NAAB" --tree-walk probe.naab 2>&1); EC=$?
-if echo "$OUT" | grep -q "USED=USE_SECRET"; then
+if grep <<<"$OUT" -q "USED=USE_SECRET"; then
     ok "UM-03" "CONTROL (--tree-walk): a permitted use module still works (no over-block on the changed engine)"
 else bad "UM-03" "the fix over-blocks a permitted use on tree-walk" "exit $EC; $(echo "$OUT"|head -2)"; fi
 

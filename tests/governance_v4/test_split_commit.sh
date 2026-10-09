@@ -122,12 +122,12 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 30s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "CONTENT1=alpha response content here"; then
+if grep <<<"$OUTPUT" -q "CONTENT1=alpha response content here"; then
     pass "A-01" "Stub-backed send returns fixture content"
 else
     fail "A-01" "Send did not return stub content" "$(echo "$OUTPUT" | head -3)"
 fi
-if echo "$OUTPUT" | grep -q "MSGS=4"; then
+if grep <<<"$OUTPUT" -q "MSGS=4"; then
     pass "A-02" "Two successful sends commit 4 history messages"
 else
     fail "A-02" "History length wrong after 2 sends" "$(echo "$OUTPUT" | grep MSGS)"
@@ -210,12 +210,12 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "BLOCKED=[1-9]"; then
+if grep <<<"$OUTPUT" -q "BLOCKED=[1-9]"; then
     pass "B-01" "OA gate (DETECT) blocked at least one low-coherence turn"
 else
     fail "B-01" "No turn was blocked — OA gate never fired" "$(echo "$OUTPUT" | grep -E 'OK=|BLOCKED=' | head -2)"
 fi
-if echo "$OUTPUT" | grep -q "SPLIT_COMMIT_PASS"; then
+if grep <<<"$OUTPUT" -q "SPLIT_COMMIT_PASS"; then
     pass "B-02" "History length == 2 x successful sends (blocked turns excluded)"
 else
     fail "B-02" "Blocked turns leaked into handle history" "$(echo "$OUTPUT" | grep -E 'OK=|BLOCKED=|MSGS=' | head -3)"
@@ -223,7 +223,7 @@ fi
 # action=block emits OUTPUT_ADMISSIBILITY_EVAL result=fail inside the gate
 # before the throw (OUTPUT_INADMISSIBLE is quarantine/attest only)
 if grep -q "OUTPUT_ADMISSIBILITY_EVAL" "$WDIR/telemetry.jsonl" 2>/dev/null && \
-   grep "OUTPUT_ADMISSIBILITY_EVAL" "$WDIR/telemetry.jsonl" | grep -q '"result": *"fail"'; then
+   grep -q '"result": *"fail"' <<<"$(grep "OUTPUT_ADMISSIBILITY_EVAL" "$WDIR/telemetry.jsonl")"; then
     pass "B-03" "OUTPUT_ADMISSIBILITY_EVAL fail telemetry emitted for blocked turns"
 else
     fail "B-03" "No failing OUTPUT_ADMISSIBILITY_EVAL telemetry found"
@@ -344,17 +344,17 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "QUARANTINED=[1-9]"; then
+if grep <<<"$OUTPUT" -q "QUARANTINED=[1-9]"; then
     pass "D-01" "Quarantine fired for low-coherence turns"
 else
     fail "D-01" "No turn was quarantined" "$(echo "$OUTPUT" | grep -E 'ADMISSIBLE=|QUARANTINED=' | head -2)"
 fi
-if echo "$OUTPUT" | grep -q "GOT_CONTENT=8"; then
+if grep <<<"$OUTPUT" -q "GOT_CONTENT=8"; then
     pass "D-02" "Quarantined responses still returned to caller"
 else
     fail "D-02" "Quarantined responses were not returned" "$(echo "$OUTPUT" | grep GOT_CONTENT)"
 fi
-if echo "$OUTPUT" | grep -q "EXCLUDE_PASS"; then
+if grep <<<"$OUTPUT" -q "EXCLUDE_PASS"; then
     pass "D-03" "inadmissible_history=exclude kept quarantined content out of history"
 else
     fail "D-03" "Quarantined content leaked into history" "$(echo "$OUTPUT" | grep -E 'MSGS=|ADMISSIBLE=' | head -2)"
@@ -401,7 +401,7 @@ NAABEOF
 
 OUTPUT=$(cd "$WDIR" && timeout 15s "$NAAB" test.naab 2>&1)
 RC=$?
-if [ $RC -eq 0 ] && echo "$OUTPUT" | grep -q "config parsed fine"; then
+if [ $RC -eq 0 ] && grep <<<"$OUTPUT" -q "config parsed fine"; then
     pass "E-01" "New config fields (inadmissible_history, gate_tool_calls, propose_candidates_max, api_base) parse"
 else
     fail "E-01" "Config with new fields failed to load (rc=$RC)" "$(echo "$OUTPUT" | head -3)"
@@ -426,7 +426,7 @@ mv "$WDIR/govern.json" "$WDIR/govern.json.bak"
 cp "$WDIR/govern2.json" "$WDIR/govern.json"
 sign_govern "$WDIR"
 OUTPUT=$(cd "$WDIR" && timeout 15s "$NAAB" test.naab 2>&1)
-if echo "$OUTPUT" | grep -q "api_base ignored"; then
+if grep <<<"$OUTPUT" -q "api_base ignored"; then
     pass "E-02" "Non-loopback http api_base rejected with warning"
 else
     fail "E-02" "Insecure api_base was not rejected" "$(echo "$OUTPUT" | head -3)"

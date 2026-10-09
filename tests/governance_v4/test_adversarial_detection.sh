@@ -160,7 +160,7 @@ run_group() {  # $1=name $2=fixture-json -> echoes "EXIT=n <markers>"
     local out ec
     out=$(cd "$d" && timeout 90s "$NAAB" test.naab 2>&1); ec=$?
     stop_stub
-    echo "EXIT=$ec $(echo "$out" | grep -cE '^SENT=') sends|$(echo "$out" | grep -q ALL_SENDS_COMPLETED && echo COMPLETED || echo HALTED)"
+    echo "EXIT=$ec $(echo "$out" | grep -cE '^SENT=') sends|$(grep <<<"$out" -q ALL_SENDS_COMPLETED && echo COMPLETED || echo HALTED)"
 }
 
 echo ""
@@ -210,7 +210,7 @@ else
     else
         fail "A-01" "Off-mandate agent was NOT stopped" "$R_ADV — governance did not catch a misbehaving agent"
     fi
-    if echo "$R_ADV" | grep -q HALTED; then
+    if grep <<<"$R_ADV" -q HALTED; then
         pass "A-02" "Run halted before completing its sends"
     else
         fail "A-02" "Off-mandate agent completed every send" "$R_ADV"
@@ -237,7 +237,7 @@ CTL_EXIT=$(echo "$R_CTL" | grep -oE 'EXIT=[0-9]+' | cut -d= -f2)
 if [ "$R_CTL" = "STUB_FAIL" ]; then
     skip "B-01" "stub failed to start"; skip "B-02" "stub failed"
 else
-    if [ "${CTL_EXIT:-1}" -eq 0 ] && echo "$R_CTL" | grep -q COMPLETED; then
+    if [ "${CTL_EXIT:-1}" -eq 0 ] && grep <<<"$R_CTL" -q COMPLETED; then
         pass "B-01" "On-mandate agent completes under the identical config (exit 0)"
     else
         fail "B-01" "Control run was blocked — detector does not discriminate" \

@@ -157,7 +157,7 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "SENT=14"; then
+if grep <<<"$OUTPUT" -q "SENT=14"; then
     pass "W1-01" "14 windowed sends complete"
 else
     fail "W1-01" "Windowed sends did not complete" "$(echo "$OUTPUT" | head -3)"
@@ -229,7 +229,7 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "SENT=5"; then
+if grep <<<"$OUTPUT" -q "SENT=5"; then
     pass "W2-01" "5 windowed sends complete"
 else
     fail "W2-01" "Windowed sends did not complete" "$(echo "$OUTPUT" | head -3)"
@@ -302,7 +302,7 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "SENT=14"; then
+if grep <<<"$OUTPUT" -q "SENT=14"; then
     pass "W3-01" "14 non-windowed sends complete"
 else
     fail "W3-01" "Non-windowed sends did not complete" "$(echo "$OUTPUT" | head -3)"

@@ -88,15 +88,15 @@ else
     # ============================================================
     echo -e "${CYAN}Phase 1: Baseline${NC}"
 
-    echo "$OUTPUT" | grep -q 'P1_CREATED: true' && \
+    grep <<<"$OUTPUT" -q 'P1_CREATED: true' && \
         pass "G1" "Agent created successfully" || \
         fail "G1" "Agent creation failed" "$(echo "$OUTPUT" | grep 'P1_CREATED\|p1_create_error' | head -1)"
 
-    echo "$OUTPUT" | grep -q 'P1_01_COHERENCE_FRESH: true' && \
+    grep <<<"$OUTPUT" -q 'P1_01_COHERENCE_FRESH: true' && \
         pass "G2" "Fresh coherence >= 0.85" || \
         fail "G2" "Fresh coherence too low" "$(echo "$OUTPUT" | grep 'P1_01' | head -2)"
 
-    echo "$OUTPUT" | grep -q 'P1_02_LEVEL_NORMAL: true' && \
+    grep <<<"$OUTPUT" -q 'P1_02_LEVEL_NORMAL: true' && \
         pass "G3" "Initial governance level is normal" || \
         fail "G3" "Initial level not normal" "$(echo "$OUTPUT" | grep 'P1_02' | head -2)"
 
@@ -105,19 +105,19 @@ else
     # ============================================================
     echo -e "${CYAN}Phase 2: Coherence Erosion${NC}"
 
-    echo "$OUTPUT" | grep -q 'P2_01_COHERENCE_DROPPED: true' && \
+    grep <<<"$OUTPUT" -q 'P2_01_COHERENCE_DROPPED: true' && \
         pass "G4" "Coherence dropped after circular prompts" || \
         fail "G4" "Coherence did not drop" "$(echo "$OUTPUT" | grep 'P2_01' | head -2)"
 
-    echo "$OUTPUT" | grep -q 'P2_02_BELOW_BASELINE: true' && \
+    grep <<<"$OUTPUT" -q 'P2_02_BELOW_BASELINE: true' && \
         pass "G5" "Coherence measurably below 1.0" || \
         fail "G5" "Coherence still near 1.0" "$(echo "$OUTPUT" | grep 'P2_02' | head -1)"
 
-    echo "$OUTPUT" | grep -q 'P2_03_SIGNIFICANT_DROP: true' && \
+    grep <<<"$OUTPUT" -q 'P2_03_SIGNIFICANT_DROP: true' && \
         pass "G6" "Coherence erosion >= 0.1 (circular weight = 0.15)" || \
         fail "G6" "Erosion too small" "$(echo "$OUTPUT" | grep 'P2_03' | head -2)"
 
-    echo "$OUTPUT" | grep -q 'P2_04_TURNS_COMPLETED: true' && \
+    grep <<<"$OUTPUT" -q 'P2_04_TURNS_COMPLETED: true' && \
         pass "G7" "Multiple circular turns completed" || \
         fail "G7" "Too few turns completed" "$(echo "$OUTPUT" | grep 'P2_04' | head -2)"
 
@@ -126,15 +126,15 @@ else
     # ============================================================
     echo -e "${CYAN}Phase 3: Governance Reacts to Pressure${NC}"
 
-    echo "$OUTPUT" | grep -q 'P3_01_GOVERNANCE_REACTED: true' && \
+    grep <<<"$OUTPUT" -q 'P3_01_GOVERNANCE_REACTED: true' && \
         pass "G8" "Governance reacted (level change or step-up challenge)" || \
         fail "G8" "No governance reaction" "$(echo "$OUTPUT" | grep 'P3_01' | head -4)"
 
-    echo "$OUTPUT" | grep -q 'P3_02_TURNS_COMPLETED: true' && \
+    grep <<<"$OUTPUT" -q 'P3_02_TURNS_COMPLETED: true' && \
         pass "G9" "Escalation turns completed (>= 2)" || \
         fail "G9" "Too few escalation turns" "$(echo "$OUTPUT" | grep 'P3_02' | head -2)"
 
-    echo "$OUTPUT" | grep -q 'P3_04_ABOVE_BASELINE: true' && \
+    grep <<<"$OUTPUT" -q 'P3_04_ABOVE_BASELINE: true' && \
         pass "G10" "Governance above baseline (level or challenges)" || \
         fail "G10" "Governance stayed at baseline" "$(echo "$OUTPUT" | grep 'P3_04\|P3_01' | head -3)"
 
@@ -149,15 +149,15 @@ else
     # ============================================================
     echo -e "${CYAN}Phase 4: Step-Up Challenge${NC}"
 
-    echo "$OUTPUT" | grep -q 'P4_01_CHALLENGE_FIRED: true' && \
+    grep <<<"$OUTPUT" -q 'P4_01_CHALLENGE_FIRED: true' && \
         pass "G12" "Step-up challenge was evaluated" || \
         fail "G12" "No challenge fired" "$(echo "$OUTPUT" | grep 'P4_01' | head -4)"
 
-    echo "$OUTPUT" | grep -q 'P4_02_OUTCOME_RECORDED: true' && \
+    grep <<<"$OUTPUT" -q 'P4_02_OUTCOME_RECORDED: true' && \
         pass "G13" "Challenge outcome recorded (passed, failed, or threw)" || \
         fail "G13" "No challenge outcome" "$(echo "$OUTPUT" | grep 'P4_02\|P4_01' | head -4)"
 
-    echo "$OUTPUT" | grep -q 'P4_03_OBSERVABLE_EFFECT: true' && \
+    grep <<<"$OUTPUT" -q 'P4_03_OBSERVABLE_EFFECT: true' && \
         pass "G14" "Challenge had observable effect" || \
         fail "G14" "No observable challenge effect" "$(echo "$OUTPUT" | grep 'P4_03' | head -1)"
 
@@ -166,19 +166,19 @@ else
     # ============================================================
     echo -e "${CYAN}Phase 5: Governance Stops Agent${NC}"
 
-    echo "$OUTPUT" | grep -q 'P5_01_AGENT_STOPPED: true' && \
+    grep <<<"$OUTPUT" -q 'P5_01_AGENT_STOPPED: true' && \
         pass "G15" "Governance stopped the agent (send threw)" || \
         fail "G15" "Agent not stopped" "$(echo "$OUTPUT" | grep 'P5_01\|P5_TURN' | tail -5)"
 
-    echo "$OUTPUT" | grep -q 'P5_02_GOVERNANCE_ERROR: true' && \
+    grep <<<"$OUTPUT" -q 'P5_02_GOVERNANCE_ERROR: true' && \
         pass "G16" "Error is governance-caused (budget/challenge/admission)" || \
         fail "G16" "Non-governance error" "$(echo "$OUTPUT" | grep 'P5_02_MSG' | head -1)"
 
-    echo "$OUTPUT" | grep -q 'P5_03_REASONABLE_COUNT: true' && \
+    grep <<<"$OUTPUT" -q 'P5_03_REASONABLE_COUNT: true' && \
         pass "G17" "Total sends in reasonable range (3-35)" || \
         fail "G17" "Send count unreasonable" "$(echo "$OUTPUT" | grep 'P5_03' | head -2)"
 
-    echo "$OUTPUT" | grep -q 'P5_04_AGENT_DEAD: true' && \
+    grep <<<"$OUTPUT" -q 'P5_04_AGENT_DEAD: true' && \
         pass "G18" "Agent is effectively dead" || \
         fail "G18" "Agent still alive after governance stop"
 
@@ -187,19 +187,19 @@ else
     # ============================================================
     echo -e "${CYAN}Phase 6: Telemetry Verification${NC}"
 
-    echo "$OUTPUT" | grep -q 'P6_01_HASH_CHAIN: true' && \
+    grep <<<"$OUTPUT" -q 'P6_01_HASH_CHAIN: true' && \
         pass "G19" "Telemetry hash chain intact" || \
         fail "G19" "Hash chain broken" "$(echo "$OUTPUT" | grep 'P6_01' | head -2)"
 
-    echo "$OUTPUT" | grep -q 'P6_02_EVENT_DIVERSITY: true' && \
+    grep <<<"$OUTPUT" -q 'P6_02_EVENT_DIVERSITY: true' && \
         pass "G20" "4+ distinct telemetry event types" || \
         fail "G20" "Insufficient event diversity" "$(echo "$OUTPUT" | grep 'P6_02' | head -3)"
 
-    echo "$OUTPUT" | grep -q 'P6_03_RUN_ID_CONSISTENT: true' && \
+    grep <<<"$OUTPUT" -q 'P6_03_RUN_ID_CONSISTENT: true' && \
         pass "G21" "All events share same run_id" || \
         fail "G21" "Run ID inconsistency" "$(echo "$OUTPUT" | grep 'P6_03' | head -1)"
 
-    echo "$OUTPUT" | grep -q 'P6_04_TIMESTAMPS_ORDERED: true' && \
+    grep <<<"$OUTPUT" -q 'P6_04_TIMESTAMPS_ORDERED: true' && \
         pass "G22" "Timestamps are non-decreasing" || \
         fail "G22" "Timestamp ordering violated" "$(echo "$OUTPUT" | grep 'P6_04' | head -1)"
 
@@ -213,14 +213,14 @@ else
         STDERR_CONTENT=$(cat "$STDERR_FILE")
 
         # Check for governance dashboard in stderr
-        if echo "$STDERR_CONTENT" | grep -qi "Governance\|dashboard\|governance summary\|CDD\|BSD\|coherence"; then
+        if grep <<<"$STDERR_CONTENT" -qi "Governance\|dashboard\|governance summary\|CDD\|BSD\|coherence"; then
             echo -e "  ${GREEN}✓${NC} Governance activity visible in stderr"
         else
             echo -e "  ${YELLOW}!${NC} No governance activity in stderr (dashboard may not have fired)"
         fi
 
         # Check for circuit breaker / level change in stderr
-        if echo "$STDERR_CONTENT" | grep -qi "level\|elevated\|circuit\|step.up\|challenge"; then
+        if grep <<<"$STDERR_CONTENT" -qi "level\|elevated\|circuit\|step.up\|challenge"; then
             echo -e "  ${GREEN}✓${NC} Level change / step-up activity in stderr"
         else
             echo -e "  ${YELLOW}!${NC} No level change in stderr"

@@ -289,7 +289,7 @@ OUT_B1=$(cd "$WDIR" && timeout 90s "$NAAB" test.naab 2>&1) || true
 stop_stub
 REQ_B1=$(wc -l < "$WDIR/keys.log" 2>/dev/null || echo 0)
 NKB1=$(distinct_keys "$WDIR")
-if [ "$REQ_B1" = "3" ] && [ "$NKB1" = "1" ] && echo "$OUT_B1" | grep -q "BATCH_DONE:3"; then
+if [ "$REQ_B1" = "3" ] && [ "$NKB1" = "1" ] && grep <<<"$OUT_B1" -q "BATCH_DONE:3"; then
     pass "CK-07" "single-key config unaffected by the stagger (3 sends, 1 key)"
 else
     fail "CK-07" "single-key config broken by the stagger" \

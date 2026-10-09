@@ -190,29 +190,29 @@ if [ -n "$CHAL" ]; then
 else
     fail "F-01" "No challenge fired for fresh handle at elevated level" "$(grep -c CDD_TURN "$TELE" 2>/dev/null) CDD turns"
 fi
-if echo "$CHAL" | grep -q '"challenge_type":"mandate"'; then
+if grep <<<"$CHAL" -q '"challenge_type":"mandate"'; then
     pass "F-02" "Challenge type is 'mandate' (delivered info only; pre-fix: 'instruction')"
 else
     fail "F-02" "Challenge quizzed undelivered information" "$CHAL"
 fi
-if echo "$CHAL" | grep -q '"event_type":"AGENT_CHALLENGE_PASS"'; then
+if grep <<<"$CHAL" -q '"event_type":"AGENT_CHALLENGE_PASS"'; then
     pass "F-03" "Mandate challenge is passable on the first turn"
 else
     fail "F-03" "First-turn challenge failed (structurally unpassable?)" "$CHAL"
 fi
-if echo "$OUTPUT" | grep -q "B_CONTENT=quarterly ledger data summarized"; then
+if grep <<<"$OUTPUT" -q "B_CONTENT=quarterly ledger data summarized"; then
     pass "F-04" "Fresh handle's send completed after passing the challenge"
 else
     fail "F-04" "Send did not complete" "$(echo "$OUTPUT" | tail -3)"
 fi
 # Telemetry attribution: challenge events carry handle_id and config_name
 # (previously only under the non-standard "agent" key).
-if echo "$CHAL" | grep -q '"config_name":"bravo"'; then
+if grep <<<"$CHAL" -q '"config_name":"bravo"'; then
     pass "F-05" "Challenge telemetry includes config_name attribution"
 else
     fail "F-05" "Challenge telemetry missing config_name" "$CHAL"
 fi
-if echo "$CHAL" | grep -qE '"handle_id":"[0-9]+"'; then
+if grep <<<"$CHAL" -qE '"handle_id":"[0-9]+"'; then
     pass "F-06" "Challenge telemetry includes handle_id"
 else
     fail "F-06" "Challenge telemetry missing handle_id" "$CHAL"

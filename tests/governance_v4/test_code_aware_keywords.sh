@@ -179,22 +179,22 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "MANDATE_DRIFT=0"; then
+if grep <<<"$OUTPUT" -q "MANDATE_DRIFT=0"; then
     pass "T1-01" "on-mandate code: mandate_alignment signal never fired"
 else
     fail "T1-01" "mandate drift fired on on-mandate code" "$OUTPUT"
 fi
-if echo "$OUTPUT" | grep -q "SEMANTIC_INSTABILITY=0"; then
+if grep <<<"$OUTPUT" -q "SEMANTIC_INSTABILITY=0"; then
     pass "T1-02" "on-mandate code: semantic_stability signal never fired"
 else
     fail "T1-02" "semantic instability fired on consecutive on-task code" "$OUTPUT"
 fi
-if echo "$OUTPUT" | grep -q "ALIGNMENT_OK"; then
+if grep <<<"$OUTPUT" -q "ALIGNMENT_OK"; then
     pass "T1-03" "mandate_alignment mean >= 0.3 for on-mandate code"
 else
     fail "T1-03" "mandate_alignment too low for on-mandate code" "$OUTPUT"
 fi
-if echo "$OUTPUT" | grep -q "COHERENCE_OK"; then
+if grep <<<"$OUTPUT" -q "COHERENCE_OK"; then
     pass "T1-04" "coherence stays >= 0.9 over 6 code-only turns"
 else
     fail "T1-04" "coherence degraded on on-mandate code-only agent" "$OUTPUT"
@@ -240,10 +240,10 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "MANDATE_DRIFT=0"; then
+if grep <<<"$OUTPUT" -q "MANDATE_DRIFT=0"; then
     fail "T2-01" "mandate_alignment did NOT fire on off-mandate code (signal blinded)" "$OUTPUT"
 else
-    if echo "$OUTPUT" | grep -q "MANDATE_DRIFT="; then
+    if grep <<<"$OUTPUT" -q "MANDATE_DRIFT="; then
         pass "T2-01" "mandate_alignment still fires on off-mandate code"
     else
         fail "T2-01" "test did not produce mandate drift output" "$OUTPUT"
@@ -289,7 +289,7 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "SPLIT_OK"; then
+if grep <<<"$OUTPUT" -q "SPLIT_OK"; then
     pass "T3-01" "camelCase identifiers match English mandate words (alignment >= 0.5)"
 else
     fail "T3-01" "camelCase splitting not effective in C++ path" "$OUTPUT"

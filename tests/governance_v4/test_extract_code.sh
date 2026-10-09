@@ -74,14 +74,14 @@ echo ""
 # extract_code needs no governance; run without it. Fall back to a minimal
 # inline govern.json only if the agent module refuses to load unconfigured.
 OUT=$(cd "$TEST_TMP" && timeout 30s "$NAAB" --no-governance t.naab 2>&1) || true
-if ! echo "$OUT" | grep -q "^T1|"; then
+if ! grep <<<"$OUT" -q "^T1|"; then
     cat > "$TEST_TMP/govern.json" <<'GEOF'
 { "version": "5.0", "mode": "advisory", "security": { "sandbox_level": "elevated" } }
 GEOF
     OUT=$(cd "$TEST_TMP" && timeout 30s "$NAAB" t.naab 2>&1) || true
 fi
 
-if ! echo "$OUT" | grep -q "^T1|"; then
+if ! grep <<<"$OUT" -q "^T1|"; then
     fail "T0" "extract_code test harness did not run" "$(echo "$OUT" | head -4)"
 else
     pass "T0" "test program executed"
@@ -105,12 +105,12 @@ else
     check "T8" "just plain text no fences" "no fence — input returned unchanged"
 
     # Explicit anti-leak assertions for the two headline bugs.
-    if echo "$OUT" | grep "^T3|" | grep -q "TEXTBODY\|\`\`\`"; then
+    if grep -q "TEXTBODY\|\`\`\`" <<<"$(echo "$OUT" | grep "^T3|")"; then
         fail "T3-leak" "T3 leaked the non-target block or fence markers"
     else
         pass "T3-leak" "T3 output free of the text block and fence markers"
     fi
-    if echo "$OUT" | grep "^T4|" | grep -q "Here:\|\`\`\`"; then
+    if grep -q "Here:\|\`\`\`" <<<"$(echo "$OUT" | grep "^T4|")"; then
         fail "T4-leak" "T4 leaked prose or fence markers"
     else
         pass "T4-leak" "T4 output free of prose and fence markers"

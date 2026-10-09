@@ -127,7 +127,7 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "HEALTH_OK"; then
+if [ "$EXIT_CODE" -eq 0 ] && grep <<<"$OUTPUT" -q "HEALTH_OK"; then
     pass "A01" "govern.json with semantic signal fields parses correctly"
 else
     fail "A01" "Config parsing failed" "exit=$EXIT_CODE output=$(echo "$OUTPUT" | head -3)"
@@ -161,7 +161,7 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "HEALTH_OK"; then
+if [ "$EXIT_CODE" -eq 0 ] && grep <<<"$OUTPUT" -q "HEALTH_OK"; then
     pass "A02" "Semantic signals work with default config — no impact on existing behavior"
 else
     fail "A02" "Default config broken" "exit=$EXIT_CODE"
@@ -194,7 +194,7 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" --governance-dashboard "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "OK"; then
+if [ "$EXIT_CODE" -eq 0 ] && grep <<<"$OUTPUT" -q "OK"; then
     pass "A03" "Dashboard runs with semantic signals enabled"
 else
     fail "A03" "Dashboard crashed with semantic signals" "exit=$EXIT_CODE"
@@ -231,7 +231,7 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "HEALTH_OK"; then
+if [ "$EXIT_CODE" -eq 0 ] && grep <<<"$OUTPUT" -q "HEALTH_OK"; then
     pass "A04" "Extreme threshold values clamped without crash"
 else
     fail "A04" "Extreme thresholds caused crash" "exit=$EXIT_CODE"
@@ -342,7 +342,7 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-if echo "$OUTPUT" | grep -q "KEYWORDS_OK" && echo "$OUTPUT" | grep -q "EXCLUSION_OK"; then
+if grep <<<"$OUTPUT" -q "KEYWORDS_OK" && grep <<<"$OUTPUT" -q "EXCLUSION_OK"; then
     pass "A06" "Keyword extraction spec: >3 chars, lowercase, non-alnum split"
 else
     fail "A06" "Keyword extraction spec failed" "$OUTPUT"
@@ -391,7 +391,7 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-if echo "$OUTPUT" | grep -q "JACCARD_OK" && echo "$OUTPUT" | grep -q "THRESHOLD_NO_FIRE"; then
+if grep <<<"$OUTPUT" -q "JACCARD_OK" && grep <<<"$OUTPUT" -q "THRESHOLD_NO_FIRE"; then
     pass "A07" "Jaccard similarity formula correct (0.333 >= 0.25 threshold)"
 else
     fail "A07" "Jaccard formula test failed" "$OUTPUT"
@@ -439,7 +439,7 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-if echo "$OUTPUT" | grep -q "ZERO_OVERLAP_OK" && echo "$OUTPUT" | grep -q "THRESHOLD_FIRES"; then
+if grep <<<"$OUTPUT" -q "ZERO_OVERLAP_OK" && grep <<<"$OUTPUT" -q "THRESHOLD_FIRES"; then
     pass "A08" "Jaccard with zero overlap fires signal (0.0 < 0.25 threshold)"
 else
     fail "A08" "Zero overlap test failed" "$OUTPUT"
@@ -470,7 +470,7 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "CONFIG_OK"; then
+if [ "$EXIT_CODE" -eq 0 ] && grep <<<"$OUTPUT" -q "CONFIG_OK"; then
     pass "A09" "exclude_infrastructure_errors config parses correctly"
 else
     fail "A09" "exclude_infrastructure_errors config parse failed" "exit=$EXIT_CODE"
@@ -593,9 +593,9 @@ main {
 NAABEOF
 
     OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test_env.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-    if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "SSC_PRESENT: 0" && echo "$OUTPUT" | grep -q "MDC_PRESENT: 0"; then
+    if [ "$EXIT_CODE" -eq 0 ] && grep <<<"$OUTPUT" -q "SSC_PRESENT: 0" && grep <<<"$OUTPUT" -q "MDC_PRESENT: 0"; then
         pass "B01" "agent.create() environment includes semantic fields (both 0 at creation)"
-    elif [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "SSC_PRESENT"; then
+    elif [ "$EXIT_CODE" -eq 0 ] && grep <<<"$OUTPUT" -q "SSC_PRESENT"; then
         pass "B01" "agent.create() environment includes semantic_stability_count"
     else
         fail "B01" "Semantic fields missing from environment dict" "exit=$EXIT_CODE output=$(echo "$OUTPUT" | head -5)"
@@ -649,7 +649,7 @@ NAABEOF
         # This is a legitimate outcome, not a test failure. Report it.
         echo -e "  ${YELLOW}NOTE${NC} [B02] SSC=$SSC_VAL after 2 on-topic turns — LLM responses may have low keyword overlap"
         pass "B02" "On-topic test completed (SSC=$SSC_VAL — LLM keyword overlap varies)"
-    elif echo "$OUTPUT" | grep -qiE "API key|INVALID_ARGUMENT|attempts exhausted|status 40[013]"; then
+    elif grep <<<"$OUTPUT" -qiE "API key|INVALID_ARGUMENT|attempts exhausted|status 40[013]"; then
         # SKIP, not pass. The sends never landed, so signal 10 was never exercised
         # — "the signal did not fire" and "the signal never ran" are the same
         # observation here, and only one of them is a result. Group B is gated on
@@ -663,7 +663,7 @@ NAABEOF
     fi
 
     # B03: Response dict contains semantic analysis section
-    if echo "$OUTPUT" | grep -q "SEMANTIC_DICT_PRESENT"; then
+    if grep <<<"$OUTPUT" -q "SEMANTIC_DICT_PRESENT"; then
         pass "B03" "Response dict contains 'semantic' section"
     elif [ "$B02_API_ERROR" = true ]; then
         skip "B03" "Semantic section not observable (API error in B02)"
@@ -926,7 +926,7 @@ NAABEOF
     # SKIP, not pass — see B02. The catch prints ERROR= for ANY exception, and
     # this branch is tested BEFORE SSC is read, so a failed send is scored as a
     # satisfied assertion about a signal that never ran.
-    if echo "$OUTPUT" | grep -q "ERROR="; then
+    if grep <<<"$OUTPUT" -q "ERROR="; then
         skip "C01" "On-topic pair never ran (error — signal not exercised)"
     elif [ "${SSC:-}" = "0" ]; then
         pass "C01" "SSC=0 after on-topic pair (high keyword overlap confirmed)"
@@ -1006,7 +1006,7 @@ NAABEOF
     OUTPUT=$(cd "$WORKDIR" && timeout 180 "$NAAB" "test_c02.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
     SSC=$(echo "$OUTPUT" | grep -oP 'SSC=\K[0-9]+' | head -1)
     COH=$(echo "$OUTPUT" | grep -oP 'COHERENCE=\K[0-9.]+' | head -1)
-    if echo "$OUTPUT" | grep -q "ERROR="; then
+    if grep <<<"$OUTPUT" -q "ERROR="; then
         skip "C02" "Off-topic shift never ran (error — signal not exercised)"
     elif [ "${SSC:-0}" -ge 1 ]; then
         pass "C02" "SSC=$SSC after topic shift (Jaccard detected divergence, coherence=$COH)"
@@ -1089,12 +1089,12 @@ main {
 NAABEOF
 
     OUTPUT=$(cd "$WORKDIR" && timeout 180 "$NAAB" "test_c03.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-    if echo "$OUTPUT" | grep -q "ERROR="; then
+    if grep <<<"$OUTPUT" -q "ERROR="; then
         skip "C03" "Mandate alignment never ran (error — signal not exercised)"
-    elif echo "$OUTPUT" | grep -q "RANGE_OK"; then
+    elif grep <<<"$OUTPUT" -q "RANGE_OK"; then
         MA=$(echo "$OUTPUT" | grep -oP 'MA=\K[0-9.]+' | head -1)
         pass "C03" "Mandate alignment in [0.0, 1.0] (MA=$MA)"
-    elif echo "$OUTPUT" | grep -q "MA_NULL"; then
+    elif grep <<<"$OUTPUT" -q "MA_NULL"; then
         echo -e "  ${YELLOW}NOTE${NC} mandate_alignment is null — may need more turns for rolling window"
         pass "C03" "Mandate alignment infrastructure exercised (value not yet computed)"
     else

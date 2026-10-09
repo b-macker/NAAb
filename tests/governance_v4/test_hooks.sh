@@ -39,7 +39,7 @@ check() {
 
 check_grep() {
     local id="$1" desc="$2" pattern="$3" text="$4"
-    if echo "$text" | grep -q "$pattern" 2>/dev/null; then
+    if grep <<<"$text" -q "$pattern" 2>/dev/null; then
         echo "  PASS [$id] $desc"
         PASS=$((PASS + 1))
     else
@@ -50,7 +50,7 @@ check_grep() {
 
 check_not_grep() {
     local id="$1" desc="$2" pattern="$3" text="$4"
-    if echo "$text" | grep -q "$pattern" 2>/dev/null; then
+    if grep <<<"$text" -q "$pattern" 2>/dev/null; then
         echo "  FAIL [$id] $desc (found '$pattern' but shouldn't)"
         FAIL=$((FAIL + 1))
     else

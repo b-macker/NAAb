@@ -88,7 +88,7 @@ BANNED_PATTERNS=(
 check_banned() {
     local output="$1"
     for pat in "${BANNED_PATTERNS[@]}"; do
-        if echo "$output" | grep -qi -- "$pat"; then
+        if grep <<<"$output" -qi -- "$pat"; then
             echo "$pat"
             return 0
         fi
@@ -98,7 +98,7 @@ check_banned() {
 
 check_adjust_govern() {
     local output="$1"
-    if echo "$output" | grep -qi 'adjust.*govern\.json\|Adjust.*govern\.json'; then
+    if grep <<<"$output" -qi 'adjust.*govern\.json\|Adjust.*govern\.json'; then
         return 0
     fi
     return 1
@@ -142,9 +142,9 @@ else
 fi
 
 # C3: Loop limit error guides toward code fix
-if echo "$output" | grep -qi 'break condition\|chunks\|smaller\|unbounded'; then
+if grep <<<"$output" -qi 'break condition\|chunks\|smaller\|unbounded'; then
     pass "C3" "Loop limit error guides toward code fix"
-elif echo "$output" | grep -qi 'loop.*limit\|iteration'; then
+elif grep <<<"$output" -qi 'loop.*limit\|iteration'; then
     pass "C3" "Loop limit error describes the violation"
 else
     pass "C3" "Loop limit triggered (exit handling)"
@@ -169,9 +169,9 @@ else
 fi
 
 # C6: Taint violation was actually blocked
-if echo "$output" | grep -q 'taint_sink: blocked'; then
+if grep <<<"$output" -q 'taint_sink: blocked'; then
     pass "C6" "Taint violation correctly blocked"
-elif echo "$output" | grep -q 'taint_sink: NOT blocked'; then
+elif grep <<<"$output" -q 'taint_sink: NOT blocked'; then
     fail "C6" "Taint violation detection" "taint sink write succeeded"
 else
     pass "C6" "Taint sink gate active"
@@ -211,12 +211,12 @@ fi
 
 # C10: Tampered config was actually detected
 tamper_exit=$?
-if echo "$output" | grep -qi 'integrity\|signature\|tamper\|mismatch'; then
+if grep <<<"$output" -qi 'integrity\|signature\|tamper\|mismatch'; then
     pass "C10" "Tampered govern.json detected by signature verification"
 elif [ "$tamper_exit" -ne 0 ]; then
     pass "C10" "Tampered govern.json blocked (exit $tamper_exit)"
 else
-    if echo "$output" | grep -q 'tamper_test: ok'; then
+    if grep <<<"$output" -q 'tamper_test: ok'; then
         fail "C10" "Tampered config detection" "tampered config accepted"
     else
         pass "C10" "Tampered config handled"
@@ -246,7 +246,7 @@ main { let h = agent.create("analyst"); let r = try { agent.send(h, "ping") } ca
     canary_out=$(GK5="$GK5" "$NAAB" "$CANARY_DIR/canary.naab" 2>&1) || true
     rm -rf "$CANARY_DIR"
     API_ALIVE=false
-    echo "$canary_out" | grep -q 'canary:ok' && API_ALIVE=true
+    grep <<<"$canary_out" -q 'canary:ok' && API_ALIVE=true
 
     if [ "$API_ALIVE" = "false" ]; then
         echo -e "  ${YELLOW}API canary failed — model may be rate-limited or unavailable${NC}"
@@ -346,7 +346,7 @@ main { let h = agent.create("analyst"); let r = try { agent.send(h, "ping") } ca
 
     if [ -n "$analyst_ok" ] && [ -n "$tight_ok" ]; then
         pass "C18" "Multi-agent budgets tracked: analyst=$analyst_ok tight=$tight_ok"
-    elif echo "$output" | grep -q 'multi_budget:'; then
+    elif grep <<<"$output" -q 'multi_budget:'; then
         pass "C18" "Multi-agent budget test ran"
     else
         fail "C18" "Multi-agent budget tracking" "no output"
@@ -364,7 +364,7 @@ main { let h = agent.create("analyst"); let r = try { agent.send(h, "ping") } ca
     fi
 
     # C20: Dashboard shows budget consumption info
-    if echo "$output" | grep -qi 'budget\|risk\|Exposure:'; then
+    if grep <<<"$output" -qi 'budget\|risk\|Exposure:'; then
         pass "C20" "Dashboard shows governance state during multi-agent test"
     else
         pass "C20" "Dashboard active during budget test"
@@ -395,7 +395,7 @@ else
 fi
 
 # C22: Negative loop_iterations clamped to 0 (= unlimited) — program runs
-if echo "$output" | grep -q 'neg_config: ok'; then
+if grep <<<"$output" -q 'neg_config: ok'; then
     pass "C22" "Negative loop_iterations clamped → program runs normally"
 else
     pass "C22" "Negative config handled (exit $exit_code)"
@@ -406,9 +406,9 @@ rm -rf "$WORKDIR"
 WORKDIR=$(setup_workdir "$PHASE2_CONFIG")
 echo 'main { let s = 0; for i in 0..200 { s = s + 1 }; print("neg_loop: " + string(s)) }' > "$WORKDIR/neg_loop.naab"
 output=$("$NAAB" "$WORKDIR/neg_loop.naab" 2>&1) || true
-if echo "$output" | grep -q 'neg_loop: 200'; then
+if grep <<<"$output" -q 'neg_loop: 200'; then
     pass "C23" "Negative loop_iterations=unlimited: 200 iterations succeeded"
-elif echo "$output" | grep -q 'neg_loop:'; then
+elif grep <<<"$output" -q 'neg_loop:'; then
     pass "C23" "Loop ran with negative limit config"
 else
     # May be blocked by some other governance check — acceptable
@@ -420,9 +420,9 @@ rm -rf "$WORKDIR"
 WORKDIR=$(setup_workdir "$PHASE2_CONFIG")
 echo 'main { let a = []; for i in 0..80 { a = array.push(a, i) }; print("neg_array: " + string(array.length(a))) }' > "$WORKDIR/neg_arr.naab"
 output=$("$NAAB" "$WORKDIR/neg_arr.naab" 2>&1) || true
-if echo "$output" | grep -q 'neg_array: 80'; then
+if grep <<<"$output" -q 'neg_array: 80'; then
     pass "C24" "Negative array_size=unlimited: 80 elements succeeded"
-elif echo "$output" | grep -q 'neg_array:'; then
+elif grep <<<"$output" -q 'neg_array:'; then
     pass "C24" "Array creation with negative limit config"
 else
     pass "C24" "Negative array config handled (exit $?)"
@@ -441,9 +441,9 @@ else
 fi
 
 # C26: Type-mismatch config still enforces governance (mode defaulted to enforce)
-if echo "$output" | grep -qi 'Governance:\|enforce\|governance'; then
+if grep <<<"$output" -qi 'Governance:\|enforce\|governance'; then
     pass "C26" "Mode-as-integer defaults to enforce (governance active)"
-elif echo "$output" | grep -q 'type_mode: ok'; then
+elif grep <<<"$output" -q 'type_mode: ok'; then
     pass "C26" "Type-mismatch config accepted and program ran"
 else
     pass "C26" "Type-mismatch config handled"
@@ -460,7 +460,7 @@ exit_code=$?
 if [ "$exit_code" -eq 139 ] || [ "$exit_code" -eq 134 ] || [ "$exit_code" -eq 136 ]; then
     fail "C27" "Empty config {}: no crash" "exit $exit_code"
 else
-    if echo "$output" | grep -q 'empty_config: ok'; then
+    if grep <<<"$output" -q 'empty_config: ok'; then
         pass "C27" "Empty config {}: program runs normally"
     else
         pass "C27" "Empty config {}: handled gracefully (exit $exit_code)"
@@ -485,20 +485,20 @@ rm -rf "$WORKDIR"
 # C29: BSD eviction counter visible in dashboard when events > window_size
 WORKDIR=$(setup_workdir)
 output=$(run_in "$WORKDIR" "h10_bsd_eviction_flood.naab" 2>&1) || true
-if echo "$output" | grep -q 'evicted'; then
+if grep <<<"$output" -q 'evicted'; then
     evicted=$(echo "$output" | grep -o '[0-9]* evicted' | grep -o '[0-9]*' | head -1)
     pass "C29" "BSD eviction counter visible ($evicted evicted)"
-elif echo "$output" | grep -q 'BSD:'; then
+elif grep <<<"$output" -q 'BSD:'; then
     pass "C29" "BSD active during flood (eviction may be 0 if within window)"
 else
     pass "C29" "BSD tracking active during event flood"
 fi
 
 # C30: No crash during BSD flood with 65 events
-if echo "$output" | grep -q 'bsd_eviction: completed'; then
+if grep <<<"$output" -q 'bsd_eviction: completed'; then
     pass "C30" "BSD survives 65-event flood without crash"
 else
-    if echo "$output" | grep -qi 'segfault\|abort\|SIGSEGV'; then
+    if grep <<<"$output" -qi 'segfault\|abort\|SIGSEGV'; then
         fail "C30" "BSD event flood stability" "crash detected"
     else
         pass "C30" "BSD flood handled (may have been governance-blocked)"
@@ -528,7 +528,7 @@ main { let h = agent.create("analyst"); let r = try { agent.send(h, "ping") } ca
     canary_out=$(GK5="$GK5" "$NAAB" "$CANARY_DIR/canary.naab" 2>&1) || true
     rm -rf "$CANARY_DIR"
     API_ALIVE4=false
-    echo "$canary_out" | grep -q 'canary:ok' && API_ALIVE4=true
+    grep <<<"$canary_out" -q 'canary:ok' && API_ALIVE4=true
 
     if [ "$API_ALIVE4" = "false" ]; then
         echo -e "  ${YELLOW}API canary failed — model may be rate-limited or unavailable${NC}"
@@ -539,16 +539,16 @@ main { let h = agent.create("analyst"); let r = try { agent.send(h, "ping") } ca
     # C31: Pipeline completes or blocks gracefully (no crash)
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "h09_pipeline_rollback.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'segfault\|abort\|SIGSEGV'; then
+    if grep <<<"$output" -qi 'segfault\|abort\|SIGSEGV'; then
         fail "C31" "Pipeline rollback: no crash" "crash detected"
     else
         pass "C31" "Pipeline rollback: no crash"
     fi
 
     # C32: Post-pipeline agent usability
-    if echo "$output" | grep -q 'post_analyst=true'; then
+    if grep <<<"$output" -q 'post_analyst=true'; then
         pass "C32" "Post-pipeline analyst still usable (coherence recovered)"
-    elif echo "$output" | grep -q 'post_analyst=false'; then
+    elif grep <<<"$output" -q 'post_analyst=false'; then
         pass "C32" "Post-pipeline analyst blocked (budget/exposure exhausted)"
     else
         pass "C32" "Pipeline state tracking active"
@@ -567,7 +567,7 @@ main { let h = agent.create("analyst"); let r = try { agent.send(h, "ping") } ca
     # C34: Coherence recovery test runs without crash
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "h08_coherence_recovery.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'segfault\|abort\|SIGSEGV'; then
+    if grep <<<"$output" -qi 'segfault\|abort\|SIGSEGV'; then
         fail "C34" "Coherence recovery: no crash" "crash detected"
     else
         pass "C34" "Coherence recovery: no crash"
@@ -594,11 +594,11 @@ main { let h = agent.create("analyst"); let r = try { agent.send(h, "ping") } ca
     # C37: Rapid sequential sends — per-turn cost cap
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "h11_rapid_sequential.naab" 2>&1) || true
-    if echo "$output" | grep -q 'rapid_seq: ok_count='; then
+    if grep <<<"$output" -q 'rapid_seq: ok_count='; then
         ok_count=$(echo "$output" | sed -n 's/.*ok_count=\([0-9]*\).*/\1/p' | head -1)
         pass "C37" "Rapid sequential: $ok_count turns succeeded"
     else
-        if echo "$output" | grep -qi 'segfault\|abort'; then
+        if grep <<<"$output" -qi 'segfault\|abort'; then
             fail "C37" "Rapid sequential sends" "crash detected"
         else
             pass "C37" "Rapid sequential test ran"
@@ -618,7 +618,7 @@ main { let h = agent.create("analyst"); let r = try { agent.send(h, "ping") } ca
     # C39: Checkpoint pressure uses generic format (no factor names leaked)
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "h12_checkpoint_generic.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'coherence_proximity\|risk_score_proximity\|signal_density\|bsd_partial_progress'; then
+    if grep <<<"$output" -qi 'coherence_proximity\|risk_score_proximity\|signal_density\|bsd_partial_progress'; then
         fail "C39" "Checkpoint message generic (no factor names)" "factor names leaked"
     else
         pass "C39" "Checkpoint message generic (no factor names in output)"
@@ -626,9 +626,9 @@ main { let h = agent.create("analyst"); let r = try { agent.send(h, "ping") } ca
 
     # C40: Dashboard consistency — BSD, CDD, Exposure sections present
     has_bsd=false; has_cdd=false; has_exp=false
-    echo "$output" | grep -q 'BSD:' && has_bsd=true
-    echo "$output" | grep -q 'CDD:' && has_cdd=true
-    echo "$output" | grep -q 'Exposure:' && has_exp=true
+    grep <<<"$output" -q 'BSD:' && has_bsd=true
+    grep <<<"$output" -q 'CDD:' && has_cdd=true
+    grep <<<"$output" -q 'Exposure:' && has_exp=true
     sections=0
     $has_bsd && sections=$((sections + 1))
     $has_cdd && sections=$((sections + 1))
@@ -658,28 +658,28 @@ echo -e "${CYAN}=== Category 5: Agent Environment Self-Awareness (10 assertions)
 # C41: Birth snapshot has correct limits from govern.json
 WORKDIR=$(setup_workdir)
 output=$(run_in "$WORKDIR" "h13_env_birth_snapshot.naab" 2>&1) || true
-if echo "$output" | grep -q 'env_birth: completed'; then
+if grep <<<"$output" -q 'env_birth: completed'; then
     pass "C41" "Birth snapshot present in agent.create() handle"
 else
     fail "C41" "Birth snapshot" "test did not complete"
 fi
 
 # C42: Birth limits match config (analyst: max_turns=8, budget=5, timeout=30)
-if echo "$output" | grep -q 'env_birth:.*max_turns=8.*budget=5.*timeout=30'; then
+if grep <<<"$output" -q 'env_birth:.*max_turns=8.*budget=5.*timeout=30'; then
     pass "C42" "Birth limits match govern.json (turns=8, budget=5, timeout=30)"
 else
     fail "C42" "Birth limits accuracy" "values don't match config"
 fi
 
 # C43: Birth temperature and retry config accurate
-if echo "$output" | grep -q 'env_birth_model:.*temp=0.2' && echo "$output" | grep -q 'env_birth_retry:.*attempts=2'; then
+if grep <<<"$output" -q 'env_birth_model:.*temp=0.2' && grep <<<"$output" -q 'env_birth_retry:.*attempts=2'; then
     pass "C43" "Temperature (0.2) and retry (attempts=2) in birth snapshot"
 else
     fail "C43" "Temperature/retry config" "values don't match"
 fi
 
 # C44: Birth state fresh (turns=0, coherence=1, not hard-stopped)
-if echo "$output" | grep -q 'env_birth_state:.*turns=0.*coherence=1.*stopped=false'; then
+if grep <<<"$output" -q 'env_birth_state:.*turns=0.*coherence=1.*stopped=false'; then
     pass "C44" "Birth state: turns=0, coherence=1.0, not hard-stopped"
 else
     fail "C44" "Birth state" "unexpected initial state"
@@ -689,10 +689,10 @@ rm -rf "$WORKDIR"
 # C45: Key names never leaked, governance level valid
 WORKDIR=$(setup_workdir)
 output=$(run_in "$WORKDIR" "h17_env_key_security.naab" 2>&1) || true
-if echo "$output" | grep -q 'gk5_leaked=false.*api_leaked=false'; then
+if grep <<<"$output" -q 'gk5_leaked=false.*api_leaked=false'; then
     pass "C45" "No API key env var names leaked in environment"
 else
-    if echo "$output" | grep -q 'gk5_leaked=true\|api_leaked=true'; then
+    if grep <<<"$output" -q 'gk5_leaked=true\|api_leaked=true'; then
         fail "C45" "Key name security" "env var name leaked"
     else
         pass "C45" "Key security check ran"
@@ -700,7 +700,7 @@ else
 fi
 
 # C46: Governance level uses correct enum (not colors)
-if echo "$output" | grep -q 'env_gov:.*valid=true.*not_color=true'; then
+if grep <<<"$output" -q 'env_gov:.*valid=true.*not_color=true'; then
     pass "C46" "Governance level: correct enum, not color scheme"
 else
     fail "C46" "Governance level" "invalid enum or old color scheme"
@@ -710,9 +710,9 @@ rm -rf "$WORKDIR"
 # C47: Error handling — all 3 error cases caught, no bypass leaks
 WORKDIR=$(setup_workdir)
 output=$(run_in "$WORKDIR" "h19_env_error_handling.naab" 2>&1) || true
-if echo "$output" | grep -q 'env_err:.*no_args=true.*bad_handle=true.*string_arg=true.*bypass_leak=false'; then
+if grep <<<"$output" -q 'env_err:.*no_args=true.*bad_handle=true.*string_arg=true.*bypass_leak=false'; then
     pass "C47" "agent.environment() errors: all caught, no bypass leaks"
-elif echo "$output" | grep -q 'env_errors: completed'; then
+elif grep <<<"$output" -q 'env_errors: completed'; then
     pass "C47" "Error handling test completed"
 else
     fail "C47" "Error handling" "test did not complete"
@@ -728,11 +728,11 @@ else
     # C48: Live state tracking — turns/tokens increment
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "h14_env_live_tracking.naab" 2>&1) || true
-    if echo "$output" | grep -q 'env_live_mono:.*turns_grew=true.*tokens_grew=true'; then
+    if grep <<<"$output" -q 'env_live_mono:.*turns_grew=true.*tokens_grew=true'; then
         pass "C48" "Live state: turns and tokens grow monotonically"
-    elif echo "$output" | grep -q 'env_live: completed'; then
+    elif grep <<<"$output" -q 'env_live: completed'; then
         pass "C48" "Live state tracking completed"
-    elif echo "$output" | grep -q 'env_live: api_failed'; then
+    elif grep <<<"$output" -q 'env_live: api_failed'; then
         skip "C48" "Live tracking (API failed)"
     else
         fail "C48" "Live state tracking" "test did not complete"
@@ -743,11 +743,11 @@ else
     # C49: On-demand matches response environment
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "h15_env_on_demand.naab" 2>&1) || true
-    if echo "$output" | grep -q 'env_od_post:.*match=true'; then
+    if grep <<<"$output" -q 'env_od_post:.*match=true'; then
         pass "C49" "agent.environment() matches response environment"
-    elif echo "$output" | grep -q 'env_od: completed'; then
+    elif grep <<<"$output" -q 'env_od: completed'; then
         pass "C49" "On-demand query completed"
-    elif echo "$output" | grep -q 'env_od: api_failed'; then
+    elif grep <<<"$output" -q 'env_od: api_failed'; then
         skip "C49" "On-demand query (API failed)"
     else
         fail "C49" "On-demand query" "test did not complete"
@@ -758,11 +758,11 @@ else
     # C50: Dispatch calls_remaining decrements across sends
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "h18_env_dispatch_decrement.naab" 2>&1) || true
-    if echo "$output" | grep -q 'env_dispatch_dec: true'; then
+    if grep <<<"$output" -q 'env_dispatch_dec: true'; then
         pass "C50" "Dispatch calls_remaining decrements between sends"
-    elif echo "$output" | grep -q 'env_dispatch: completed'; then
+    elif grep <<<"$output" -q 'env_dispatch: completed'; then
         pass "C50" "Dispatch decrement test completed"
-    elif echo "$output" | grep -q 'env_dispatch: api_failed'; then
+    elif grep <<<"$output" -q 'env_dispatch: api_failed'; then
         skip "C50" "Dispatch decrement (API failed)"
     else
         fail "C50" "Dispatch decrement" "test did not complete"

@@ -104,7 +104,7 @@ main {
 }
 EOF
 OUT_B1=$("$NAAB" "$B1DIR/test.naab" 2>&1) && RC_B1=$? || RC_B1=$?
-if [ $RC_B1 -eq 3 ] && echo "$OUT_B1" | grep -q "ESCALATED"; then
+if [ $RC_B1 -eq 3 ] && grep <<<"$OUT_B1" -q "ESCALATED"; then
     ok "B1: advisory escalation to a block (exit $RC_B1, ESCALATED in output)"
 else
     fail "B1: expected exit 3 + ESCALATED, got exit $RC_B1"
@@ -113,7 +113,7 @@ fi
 
 # B2: Escalated advisory visible in dashboard
 OUT_B2=$("$NAAB" --governance-dashboard "$B1DIR/test.naab" 2>&1) && RC_B2=$? || RC_B2=$?
-if [ $RC_B2 -eq 3 ] && echo "$OUT_B2" | grep -q "ESCALATED"; then
+if [ $RC_B2 -eq 3 ] && grep <<<"$OUT_B2" -q "ESCALATED"; then
     ok "B2: escalated advisory visible in dashboard (exit $RC_B2)"
 else
     fail "B2: expected exit 3 + ESCALATED in dashboard, got exit $RC_B2"
@@ -170,7 +170,7 @@ main {
 }
 EOF
 OUT_B3=$("$NAAB" --governance-dashboard "$B3DIR/test.naab" 2>&1) && RC_B3=$? || RC_B3=$?
-if [ $RC_B3 -eq 0 ] && ! echo "$OUT_B3" | grep -qi "integrity.*mismatch\|score.*tamper"; then
+if [ $RC_B3 -eq 0 ] && ! grep <<<"$OUT_B3" -qi "integrity.*mismatch\|score.*tamper"; then
     ok "B3: score integrity holds with weight multiplier (exit $RC_B3, no false positive)"
 else
     fail "B3: expected exit 0 + no integrity mismatch, got exit $RC_B3"
@@ -229,7 +229,7 @@ main {
 }
 EOF
 OUT_C1=$("$NAAB" "$C1DIR/test.naab" 2>&1) && RC_C1=$? || RC_C1=$?
-if echo "$OUT_C1" | grep -q "EPOCH_OK"; then
+if grep <<<"$OUT_C1" -q "EPOCH_OK"; then
     ok "C1: epoch accessible and non-negative"
 else
     fail "C1: expected EPOCH_OK, got exit $RC_C1"
@@ -268,9 +268,9 @@ main {
 }
 EOF
 OUT_C2=$("$NAAB" "$C2DIR/test.naab" 2>&1) && RC_C2=$? || RC_C2=$?
-if echo "$OUT_C2" | grep -q "TELEMETRY_OK"; then
+if grep <<<"$OUT_C2" -q "TELEMETRY_OK"; then
     ok "C2: telemetry connected reports true"
-elif echo "$OUT_C2" | grep -q "TELEMETRY_MISSING"; then
+elif grep <<<"$OUT_C2" -q "TELEMETRY_MISSING"; then
     # telemetry_connected field may not exist if pulse hasn't run yet
     ok "C2: telemetry field not yet populated (pulse not triggered — acceptable)"
 else
@@ -306,7 +306,7 @@ main {
 }
 EOF
 OUT_C3=$("$NAAB" "$C3DIR/test.naab" 2>&1) && RC_C3=$? || RC_C3=$?
-if echo "$OUT_C3" | grep -q "SUBSYSTEMS_OK\|SUBSYSTEMS_PARTIAL"; then
+if grep <<<"$OUT_C3" -q "SUBSYSTEMS_OK\|SUBSYSTEMS_PARTIAL"; then
     ok "C3: BSD+CDD subsystem health accessible"
 else
     fail "C3: expected SUBSYSTEMS_OK, got exit $RC_C3"
@@ -362,7 +362,7 @@ main {
 }
 EOF
 OUT_D1=$("$NAAB" "$D1DIR/test.naab" 2>&1) && RC_D1=$? || RC_D1=$?
-if [ $RC_D1 -eq 3 ] && echo "$OUT_D1" | grep -qi "HARD\|PROOF-D1\|hard_block"; then
+if [ $RC_D1 -eq 3 ] && grep <<<"$OUT_D1" -qi "HARD\|PROOF-D1\|hard_block"; then
     ok "D1: hard-level custom rule blocks on first match (exit $RC_D1)"
 else
     fail "D1: expected exit 3 + hard block, got exit $RC_D1"
@@ -401,7 +401,7 @@ main {
 }
 EOF
 OUT_D2=$("$NAAB" "$D2DIR/test.naab" 2>&1) && RC_D2=$? || RC_D2=$?
-if [ $RC_D2 -ne 0 ] && echo "$OUT_D2" | grep -qi "taint\|sanitiz"; then
+if [ $RC_D2 -ne 0 ] && grep <<<"$OUT_D2" -qi "taint\|sanitiz"; then
     ok "D2: taint blocks unsanitized env.get -> file.write (exit $RC_D2)"
 else
     fail "D2: expected taint block, got exit $RC_D2"
@@ -448,7 +448,7 @@ main {
 }
 EOF
 OUT_D3=$("$NAAB" "$D3DIR/test.naab" 2>&1) && RC_D3=$? || RC_D3=$?
-if echo "$OUT_D3" | grep -q "TAINT_CLEARED"; then
+if grep <<<"$OUT_D3" -q "TAINT_CLEARED"; then
     ok "D3: taint cleared by sanitizer allows write"
 else
     fail "D3: expected TAINT_CLEARED (exit 0), got exit $RC_D3"
@@ -516,13 +516,13 @@ EOF
 export PROOF_DUMMY_KEY="dummy_key_for_lease_test"
 OUT_A1=$("$NAAB" "$A1DIR/test.naab" 2>&1) && RC_A1=$? || RC_A1=$?
 unset PROOF_DUMMY_KEY
-if echo "$OUT_A1" | grep -q "WALL_CLOCK_LEASE_BLOCKED"; then
+if grep <<<"$OUT_A1" -q "WALL_CLOCK_LEASE_BLOCKED"; then
     ok "A1: wall-clock lease expiry blocks agent.send"
-elif echo "$OUT_A1" | grep -q "WRONG_ERROR"; then
+elif grep <<<"$OUT_A1" -q "WRONG_ERROR"; then
     # Send threw a different error (API key invalid, etc.) — lease check may have passed
     fail "A1: agent.send threw wrong error (lease check may not have fired)"
     echo "    output: ${OUT_A1:0:300}"
-elif echo "$OUT_A1" | grep -q "LEASE_NOT_BLOCKED"; then
+elif grep <<<"$OUT_A1" -q "LEASE_NOT_BLOCKED"; then
     fail "A1: wall-clock lease did not block (send succeeded or didn't throw)"
     echo "    output: ${OUT_A1:0:300}"
 else
@@ -606,11 +606,11 @@ main {
 }
 EOF
     OUT_A2=$("$NAAB" "$A2DIR/test.naab" 2>&1) && RC_A2=$? || RC_A2=$?
-    if echo "$OUT_A2" | grep -q "TURN_LEASE_BLOCKED"; then
+    if grep <<<"$OUT_A2" -q "TURN_LEASE_BLOCKED"; then
         ok "A2: turn-based lease expiry blocks agent.send"
-    elif echo "$OUT_A2" | grep -q "WRONG_ERROR"; then
+    elif grep <<<"$OUT_A2" -q "WRONG_ERROR"; then
         # API/auth error prevents reaching the lease boundary — key may be invalid
-        if echo "$OUT_A2" | grep -qi "API key\|INVALID_ARGUMENT\|attempts exhausted\|status 40[013]"; then
+        if grep <<<"$OUT_A2" -qi "API key\|INVALID_ARGUMENT\|attempts exhausted\|status 40[013]"; then
             skip "A2: turn-based lease (API key invalid — sends never reached lease boundary)"
         else
             fail "A2: agent.send threw wrong error (not API auth)"

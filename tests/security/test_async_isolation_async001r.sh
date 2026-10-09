@@ -56,9 +56,9 @@ fi
 ec_b=0
 out_b=$("$NAAB" "$WORK_DIR/script_b.naab" --no-governance --timeout 10 2>&1) || ec_b=$?
 
-if [[ "$ec_b" -eq 0 ]] && echo "$out_b" | grep -q "42"; then
+if [[ "$ec_b" -eq 0 ]] && grep <<<"$out_b" -q "42"; then
     ok "Script B completed normally after Script A timeout (no contamination)"
-elif echo "$out_b" | grep -qi "timeout\|time.limit\|execution.*limit"; then
+elif grep <<<"$out_b" -qi "timeout\|time.limit\|execution.*limit"; then
     fail "Script B killed by contaminated global_shutdown_: ${out_b:0:120}"
 else
     fail "Script B failed for unexpected reason (exit $ec_b): ${out_b:0:120}"
@@ -84,9 +84,9 @@ NAAB
 ec_c=0
 out_c=$("$NAAB" "$WORK_DIR/script_c.naab" --no-governance --timeout 10 2>&1) || ec_c=$?
 
-if [[ "$ec_c" -eq 0 ]] && echo "$out_c" | grep -q "alive"; then
+if [[ "$ec_c" -eq 0 ]] && grep <<<"$out_c" -q "alive"; then
     ok "Script C alive after two prior timeouts"
-elif echo "$out_c" | grep -qi "timeout\|time.limit"; then
+elif grep <<<"$out_c" -qi "timeout\|time.limit"; then
     fail "Script C killed by residual global_shutdown_: ${out_c:0:120}"
 else
     fail "Script C failed (exit $ec_c): ${out_c:0:120}"

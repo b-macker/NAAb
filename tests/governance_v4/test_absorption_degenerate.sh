@@ -155,7 +155,7 @@ if [ -n "${COH:-}" ] && awk "BEGIN{exit !($COH == 1.0)}"; then
 else
     fail "A-01" "Default-off regression" "coherence=$COH"
 fi
-if ! grep -E '"event_type":"CDD_TURN"' "$TEST_TMP/a/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'response_degenerate'; then
+if ! grep -q 'response_degenerate' <<<"$(grep -E '"event_type":"CDD_TURN"' "$TEST_TMP/a/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"')"; then
     pass "A-02" "response_degenerate absent from telemetry when disabled"
 else
     fail "A-02" "signal fired while disabled"
@@ -172,7 +172,7 @@ if [ -n "${COH:-}" ] && awk "BEGIN{exit !($COH < 0.85)}"; then
 else
     fail "B-01" "No penalty for degenerate responses" "coherence=$COH"
 fi
-if grep -E '"event_type":"CDD_TURN"' "$TEST_TMP/b/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'response_degenerate'; then
+if grep -q 'response_degenerate' <<<"$(grep -E '"event_type":"CDD_TURN"' "$TEST_TMP/b/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"')"; then
     pass "B-02" "response_degenerate fired in CDD_TURN signals_detail"
 else
     fail "B-02" "signal never fired"
@@ -294,7 +294,7 @@ main {
 EOF
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
-if echo "$OUT" | grep -q "CANDIDATES=3"; then
+if grep <<<"$OUT" -q "CANDIDATES=3"; then
     pass "F-01" "propose returned 3 candidates"
 else
     fail "F-01" "propose failed" "$(echo "$OUT" | tail -2)"
@@ -302,7 +302,7 @@ fi
 # Candidate 0 keeps default temp 1.0 (omitted from payload); candidates 1-2
 # carry stepped temperatures 1.15 / 1.30 in the captured request bodies.
 TEMPS=$(cat "$WDIR"/req_*.json 2>/dev/null | grep -o '"temperature": *[0-9.]*' | sort -u)
-if echo "$TEMPS" | grep -q "1.15" && echo "$TEMPS" | grep -q "1.3"; then
+if grep <<<"$TEMPS" -q "1.15" && grep <<<"$TEMPS" -q "1.3"; then
     pass "F-02" "Stepped temperatures present in candidate requests ($(echo $TEMPS | tr '\n' ' '))"
 else
     fail "F-02" "No temperature diversity in requests" "temps=[$TEMPS]"

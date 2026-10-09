@@ -112,7 +112,7 @@ WORKDIR=$(setup_workdir "phase1-depth-tight.json")
 
 # A1: All depth config loads without Unknown key warnings
 output=$(run_in "$WORKDIR" "depth_06_taint_gate.naab" 2>&1) || true
-if echo "$output" | grep -q 'Unknown key'; then
+if grep <<<"$output" -q 'Unknown key'; then
     fail "A1" "No unknown key warnings with depth config" \
         "$(echo "$output" | grep 'Unknown key' | head -3)"
 else
@@ -120,28 +120,28 @@ else
 fi
 
 # A2: Governance loads in enforce mode
-if echo "$output" | grep -q '\[governance\] Loaded:.*mode: enforce'; then
+if grep <<<"$output" -q '\[governance\] Loaded:.*mode: enforce'; then
     pass "A2" "Governance loads in enforce mode"
 else
     fail "A2" "Governance loads in enforce mode"
 fi
 
 # A3: BSD is active in dashboard
-if echo "$output" | grep -q 'BSD:'; then
+if grep <<<"$output" -q 'BSD:'; then
     pass "A3" "BSD active in dashboard"
 else
     fail "A3" "BSD active in dashboard"
 fi
 
 # A4: CDD is active in dashboard
-if echo "$output" | grep -q 'CDD:.*enabled'; then
+if grep <<<"$output" -q 'CDD:.*enabled'; then
     pass "A4" "CDD enabled in dashboard"
 else
     fail "A4" "CDD enabled in dashboard"
 fi
 
 # A5: Exposure tracking in dashboard
-if echo "$output" | grep -q 'Exposure:'; then
+if grep <<<"$output" -q 'Exposure:'; then
     pass "A5" "Exposure tracking in dashboard"
 else
     # Exposure only shows when agents are used
@@ -149,35 +149,35 @@ else
 fi
 
 # A6: Taint lineage in dashboard
-if echo "$output" | grep -q 'Lineage:'; then
+if grep <<<"$output" -q 'Lineage:'; then
     pass "A6" "Taint lineage in dashboard"
 else
     fail "A6" "Taint lineage in dashboard"
 fi
 
 # A7: Circuit breaker config accepted (check no config error)
-if echo "$output" | grep -qi 'config error\|parse error.*circuit'; then
+if grep <<<"$output" -qi 'config error\|parse error.*circuit'; then
     fail "A7" "Circuit breaker config accepted"
 else
     pass "A7" "Circuit breaker config accepted"
 fi
 
 # A8: Pipeline separation config accepted
-if echo "$output" | grep -qi 'config error\|parse error.*pipeline'; then
+if grep <<<"$output" -qi 'config error\|parse error.*pipeline'; then
     fail "A8" "Pipeline separation config accepted"
 else
     pass "A8" "Pipeline separation config accepted"
 fi
 
 # A9: Temporal coupling config accepted
-if echo "$output" | grep -qi 'config error\|parse error.*temporal'; then
+if grep <<<"$output" -qi 'config error\|parse error.*temporal'; then
     fail "A9" "Temporal coupling config accepted"
 else
     pass "A9" "Temporal coupling config accepted"
 fi
 
 # A10: Governance health config accepted
-if echo "$output" | grep -qi 'config error\|parse error.*governance_health'; then
+if grep <<<"$output" -qi 'config error\|parse error.*governance_health'; then
     fail "A10" "Governance health config accepted"
 else
     pass "A10" "Governance health config accepted"
@@ -198,10 +198,10 @@ WORKDIR=$(setup_workdir "phase1-depth-tight.json")
 
 # A11: Taint gate blocks unsanitized polyglot → file.write
 output=$(run_in "$WORKDIR" "depth_06_taint_gate.naab" 2>&1) || true
-if echo "$output" | grep -qi 'BLOCKED\|taint.*block\|TAINT_VIOLATION'; then
+if grep <<<"$output" -qi 'BLOCKED\|taint.*block\|TAINT_VIOLATION'; then
     pass "A11" "Taint gate blocks unsanitized write"
 else
-    if echo "$output" | grep -q 'taint gate: NOT blocked'; then
+    if grep <<<"$output" -q 'taint gate: NOT blocked'; then
         fail "A11" "Taint gate blocks unsanitized write" "write succeeded without sanitization"
     else
         pass "A11" "Taint gate active (may not have triggered on this path)"
@@ -209,35 +209,35 @@ else
 fi
 
 # A12: Sanitized write succeeds
-if echo "$output" | grep -q 'sanitized write: succeeded'; then
+if grep <<<"$output" -q 'sanitized write: succeeded'; then
     pass "A12" "Sanitized write succeeds"
 else
     fail "A12" "Sanitized write succeeds"
 fi
 
 # A13: BSD events are recorded
-if echo "$output" | grep -q 'BSD:.*[0-9].*events'; then
+if grep <<<"$output" -q 'BSD:.*[0-9].*events'; then
     pass "A13" "BSD records events from taint flow"
 else
     pass "A13" "BSD events (may be 0 in non-agent test)"
 fi
 
 # A14: Taint lineage tracks values
-if echo "$output" | grep -q 'Lineage:.*[0-9].*tainted'; then
+if grep <<<"$output" -q 'Lineage:.*[0-9].*tainted'; then
     pass "A14" "Taint lineage tracks polyglot output"
 else
     fail "A14" "Taint lineage tracks polyglot output"
 fi
 
 # A15: CDD records 0 turns (no agent calls)
-if echo "$output" | grep -q 'CDD:.*0 turns'; then
+if grep <<<"$output" -q 'CDD:.*0 turns'; then
     pass "A15" "CDD 0 turns when no agents used"
 else
     pass "A15" "CDD turn count correct"
 fi
 
 # A16: Telemetry events written
-if echo "$output" | grep -q 'Telemetry:.*events'; then
+if grep <<<"$output" -q 'Telemetry:.*events'; then
     pass "A16" "Telemetry events recorded"
 else
     fail "A16" "Telemetry events recorded"
@@ -268,7 +268,7 @@ else
 
     # A17: Pipeline with same agent in adjacent stages → HARD block
     output=$(run_in "$WORKDIR" "depth_01_pipeline_separation.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'separation\|BLOCK\|same.*config\|adjacent'; then
+    if grep <<<"$output" -qi 'separation\|BLOCK\|same.*config\|adjacent'; then
         pass "A17" "Pipeline separation blocks same-agent adjacent stages"
     else
         fail "A17" "Pipeline separation blocks same-agent adjacent stages" \
@@ -277,8 +277,8 @@ else
 
     # A18: Pipeline with different agents → succeeds
     output=$(run_in "$WORKDIR" "depth_02_pipeline_separation_ok.naab" 2>&1) || true
-    if echo "$output" | grep -q 'pipeline_ok result:'; then
-        if echo "$output" | grep -qi 'separation.*block\|HARD.*block.*separation'; then
+    if grep <<<"$output" -q 'pipeline_ok result:'; then
+        if grep <<<"$output" -qi 'separation.*block\|HARD.*block.*separation'; then
             fail "A18" "Pipeline with different agents succeeds" "blocked despite different agents"
         else
             pass "A18" "Pipeline with different agents succeeds"
@@ -288,28 +288,28 @@ else
     fi
 
     # A19: Pipeline separation error message mentions separation or duty
-    if echo "$output" | grep -qi 'separation\|duty\|adjacent'; then
+    if grep <<<"$output" -qi 'separation\|duty\|adjacent'; then
         pass "A19" "Separation error is descriptive"
     else
         pass "A19" "Separation error (may not fire on valid pipeline)"
     fi
 
     # A20: CDD turns increment on pipeline calls
-    if echo "$output" | grep -q 'CDD:.*[1-9].*turns'; then
+    if grep <<<"$output" -q 'CDD:.*[1-9].*turns'; then
         pass "A20" "CDD turns increment on pipeline"
     else
         pass "A20" "CDD turns (pipeline may have failed before CDD)"
     fi
 
     # A21: Exposure counter shows pipeline actions
-    if echo "$output" | grep -q 'Exposure:.*[1-9]'; then
+    if grep <<<"$output" -q 'Exposure:.*[1-9]'; then
         pass "A21" "Exposure counter increments on pipeline"
     else
         pass "A21" "Exposure counter (pipeline may have been blocked pre-execution)"
     fi
 
     # A22: Dashboard reflects pipeline activity
-    if echo "$output" | grep -q 'Checks:.*[1-9]'; then
+    if grep <<<"$output" -q 'Checks:.*[1-9]'; then
         pass "A22" "Dashboard shows checks from pipeline"
     else
         pass "A22" "Dashboard checks count"
@@ -317,7 +317,7 @@ else
 
     # A23: Risk budget consumed
     output2=$(run_in "$WORKDIR" "depth_03_risk_budget.naab" 2>&1) || true
-    if echo "$output2" | grep -qi 'budget\|exhausted\|BLOCK'; then
+    if grep <<<"$output2" -qi 'budget\|exhausted\|BLOCK'; then
         pass "A23" "Risk budget consumed by agent turns"
     else
         pass "A23" "Risk budget tracked (may not exhaust in 5 turns)"
@@ -358,11 +358,11 @@ else
 
     # A25: Exposure limit — max_autonomous_actions=10
     output=$(run_in "$WORKDIR" "depth_04_exposure_limit.naab" 2>&1) || true
-    if echo "$output" | grep -q 'exposure blocked'; then
+    if grep <<<"$output" -q 'exposure blocked'; then
         pass "A25" "Exposure limit blocks at max_autonomous_actions"
     else
         # Other blocks (risk budget, circuit breaker, coherence floor) may fire first
-        if echo "$output" | grep -qi 'blocked\|Exposure:.*[0-9]\|BLOCK'; then
+        if grep <<<"$output" -qi 'blocked\|Exposure:.*[0-9]\|BLOCK'; then
             pass "A25" "Exposure tracking active (earlier block may have intervened)"
         else
             fail "A25" "Exposure limit enforcement"
@@ -371,7 +371,7 @@ else
 
     # A26: Batch operations counted
     output=$(run_in "$WORKDIR" "depth_09_batch_exposure.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'blocked\|Exposure:.*[2-9]'; then
+    if grep <<<"$output" -qi 'blocked\|Exposure:.*[2-9]'; then
         pass "A26" "Batch operations count toward exposure"
     else
         pass "A26" "Batch exposure counting (API errors may prevent reaching limit)"
@@ -379,7 +379,7 @@ else
 
     # A27: Fan-out uses unique agent slots
     output=$(run_in "$WORKDIR" "depth_10_fan_out_exposure.naab" 2>&1) || true
-    if echo "$output" | grep -q 'fan_out completed\|Exposure:.*[1-9].*unique'; then
+    if grep <<<"$output" -q 'fan_out completed\|Exposure:.*[1-9].*unique'; then
         pass "A27" "Fan-out counts toward unique agents"
     else
         pass "A27" "Fan-out agent counting (API errors acceptable)"
@@ -387,10 +387,10 @@ else
 
     # A28: Circuit breaker builds pressure
     output=$(run_in "$WORKDIR" "depth_07_circuit_breaker.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'BLOCKED\|circuit\|CRITICAL\|ELEVATED\|governance level'; then
+    if grep <<<"$output" -qi 'BLOCKED\|circuit\|CRITICAL\|ELEVATED\|governance level'; then
         pass "A28" "Circuit breaker pressure builds"
     else
-        if echo "$output" | grep -q 'CDD:.*[1-9].*turns'; then
+        if grep <<<"$output" -q 'CDD:.*[1-9].*turns'; then
             pass "A28" "CDD analyzing turns (circuit breaker threshold may not be reached)"
         else
             fail "A28" "Circuit breaker pressure detection"
@@ -399,10 +399,10 @@ else
 
     # A29: Coherence velocity on contradictions
     output=$(run_in "$WORKDIR" "depth_08_coherence_velocity.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'blocked\|velocity\|coherence'; then
+    if grep <<<"$output" -qi 'blocked\|velocity\|coherence'; then
         pass "A29" "Coherence velocity detects contradictions"
     else
-        if echo "$output" | grep -q 'CDD:.*[1-9]'; then
+        if grep <<<"$output" -q 'CDD:.*[1-9]'; then
             pass "A29" "CDD active during contradictory turns"
         else
             fail "A29" "Coherence velocity detection"
@@ -418,14 +418,14 @@ else
     fi
 
     # A31: Governance level in dashboard (may show NORMAL if thresholds not hit)
-    if echo "$output" | grep -qi 'governance.*level\|Mode:.*enforce'; then
+    if grep <<<"$output" -qi 'governance.*level\|Mode:.*enforce'; then
         pass "A31" "Governance level visible in dashboard"
     else
         pass "A31" "Dashboard mode shown"
     fi
 
     # A32: Exposure tracking shows counts
-    if echo "$output" | grep -q 'Exposure:'; then
+    if grep <<<"$output" -q 'Exposure:'; then
         pass "A32" "Exposure tracking shows action count"
     else
         # Some tests may not use agents
@@ -448,23 +448,23 @@ WORKDIR=$(setup_workdir "phase1-depth-tight.json")
 
 # A33: Dashboard does not leak config internals
 output=$(run_in "$WORKDIR" "depth_06_taint_gate.naab" 2>&1) || true
-if echo "$output" | grep -qi 'api_key\|GK5\|signing.pem\|NAAB_SIGNING_KEY'; then
+if grep <<<"$output" -qi 'api_key\|GK5\|signing.pem\|NAAB_SIGNING_KEY'; then
     fail "A33" "Dashboard does not leak API keys or signing paths"
 else
     pass "A33" "Dashboard does not leak API keys or signing paths"
 fi
 
 # A34: Dashboard does not leak governance bypass hints
-if echo "$output" | grep -qi 'no-governance\|governance-override\|override.*flag'; then
+if grep <<<"$output" -qi 'no-governance\|governance-override\|override.*flag'; then
     fail "A34" "Dashboard does not leak bypass hints"
 else
     pass "A34" "Dashboard does not leak bypass hints"
 fi
 
 # A35: Error messages do not leak sanitizer list
-if echo "$output" | grep -qi 'sanitize_\|validate_.*function\|sanitizers.*list'; then
+if grep <<<"$output" -qi 'sanitize_\|validate_.*function\|sanitizers.*list'; then
     # Check if it's in a governance error vs normal output
-    if echo "$output" | grep -i 'sanitize_' | grep -qi 'error\|block\|violation'; then
+    if grep -qi 'error\|block\|violation' <<<"$(echo "$output" | grep -i 'sanitize_')"; then
         fail "A35" "Error messages do not leak sanitizer list"
     else
         pass "A35" "Sanitizer names in non-error context only"
@@ -474,11 +474,11 @@ else
 fi
 
 # A36: Governance summary shows structured format
-if echo "$output" | grep -q '─── Agent Governance Summary ───'; then
+if grep <<<"$output" -q '─── Agent Governance Summary ───'; then
     pass "A36" "Governance summary has structured format"
 else
     # May not have agent summary without agent calls
-    if echo "$output" | grep -q 'Governance:'; then
+    if grep <<<"$output" -q 'Governance:'; then
         pass "A36" "Governance summary present"
     else
         fail "A36" "Governance summary present"
@@ -486,9 +486,9 @@ else
 fi
 
 # A37: Telemetry path doesn't leak in dashboard
-if echo "$output" | grep -q 'telemetry\.jsonl\|Telemetry:'; then
+if grep <<<"$output" -q 'telemetry\.jsonl\|Telemetry:'; then
     # Telemetry filename is OK, but full paths should not leak
-    if echo "$output" | grep -q '/home/.*telemetry'; then
+    if grep <<<"$output" -q '/home/.*telemetry'; then
         fail "A37" "Telemetry does not leak full paths"
     else
         pass "A37" "Telemetry shows filename only (no full path)"
@@ -499,24 +499,24 @@ fi
 
 # A38: Multiple runs don't corrupt state
 output2=$(run_in "$WORKDIR" "depth_06_taint_gate.naab" 2>&1) || true
-if echo "$output2" | grep -q '\[governance\] Loaded:'; then
+if grep <<<"$output2" -q '\[governance\] Loaded:'; then
     pass "A38" "Second run loads governance cleanly"
 else
     fail "A38" "Second run loads governance cleanly"
 fi
 
 # A39: Config with all features has no parse warnings
-if echo "$output" | grep -qi 'parse.*warning\|json.*error\|malformed'; then
+if grep <<<"$output" -qi 'parse.*warning\|json.*error\|malformed'; then
     fail "A39" "No parse warnings with full depth config"
 else
     pass "A39" "No parse warnings with full depth config"
 fi
 
 # A40: Sandbox level matches config
-if echo "$output" | grep -q 'Sandbox: elevated'; then
+if grep <<<"$output" -q 'Sandbox: elevated'; then
     pass "A40" "Sandbox level matches govern.json config"
 else
-    if echo "$output" | grep -q 'elevated'; then
+    if grep <<<"$output" -q 'elevated'; then
         pass "A40" "Sandbox level correct"
     else
         fail "A40" "Sandbox level matches config"

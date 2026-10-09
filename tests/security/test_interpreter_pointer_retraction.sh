@@ -63,7 +63,7 @@ echo '{ "governance": { "version": "1.0", "mode": "audit" } }' > govern.json
 # The REPL is `naab-lang` with NO subcommand. Anything else prints usage text,
 # and usage text satisfies loose greps -- see the header.
 REPL_OUT="$(printf '.exit\n' | timeout 60 "$NAAB" 2>&1)"
-if ! echo "$REPL_OUT" | grep -q "NAAb REPL"; then
+if ! grep <<<"$REPL_OUT" -q "NAAb REPL"; then
     echo "  FAIL [IP-01] REPL did not start (UNMEASURABLE, not a pass)"
     echo "$REPL_OUT" | head -3 | sed 's/^/       /'
     echo ""
@@ -76,10 +76,10 @@ echo "=== Group A: the REPL survives .clear and keeps evaluating ==="
 OUT_A="$(printf 'let a = 41\n.clear\nlet b = 1 + 1\nb\n.exit\n' | timeout 60 "$NAAB" 2>&1)"; rc=$?
 if [ "$rc" -ge 128 ]; then
     bad "A-01" "REPL died with signal (exit $rc) across .clear"
-elif ! echo "$OUT_A" | grep -q "Environment cleared."; then
+elif ! grep <<<"$OUT_A" -q "Environment cleared."; then
     bad "A-01" ".clear did not run -- the scenario under test never happened"
     echo "$OUT_A" | head -5 | sed 's/^/       /'
-elif echo "$OUT_A" | grep -qE '(^|[^0-9])2([^0-9]|$)' && echo "$OUT_A" | grep -q "Bye!"; then
+elif grep <<<"$OUT_A" -qE '(^|[^0-9])2([^0-9]|$)' && grep <<<"$OUT_A" -q "Bye!"; then
     ok "A-01" "REPL ran .clear, evaluated after it, and exited cleanly"
 else
     bad "A-01" "REPL did not evaluate after .clear (exit $rc)"
@@ -90,7 +90,9 @@ echo "=== Group B: ordinary single-interpreter runs unaffected by the guard ==="
 cat > plain.naab <<'EOF'
 main { print("PLAIN_OK") }
 EOF
-if timeout 60 "$NAAB" plain.naab 2>/dev/null | grep -q "PLAIN_OK"; then
+# Exit status and output asserted separately (not `| grep -q` under pipefail).
+OUT_B="$(timeout 60 "$NAAB" plain.naab 2>/dev/null)"; rc=$?
+if [ "$rc" -eq 0 ] && grep -q "PLAIN_OK" <<<"$OUT_B"; then
     ok "B-01" "single-interpreter run unaffected"
 else
     bad "B-01" "the guard changed the common path"

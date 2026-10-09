@@ -25,7 +25,7 @@ check() {
     local file="$3"
     local output
     output=$("$NAAB" "$file" 2>&1 || true)
-    if echo "$output" | grep -qi "$pattern"; then
+    if grep <<<"$output" -qi "$pattern"; then
         echo "  PASS: $desc"
         PASS=$((PASS + 1))
     else

@@ -105,7 +105,7 @@ EOF
     OUT=$("$NAAB" "$WORK_DIR/test_path.naab" 2>&1)
     CODE=$?
     set -e
-    if [ "$CODE" -ne 0 ] && ! echo "$OUT" | grep -q "bad"; then
+    if [ "$CODE" -ne 0 ] && ! grep <<<"$OUT" -q "bad"; then
         pass "T-RCE2-1: env.set_var(PATH) throws (exit=$CODE)"
     else
         fail "T-RCE2-1: expected error but got exit=$CODE (out=$OUT)"
@@ -123,7 +123,7 @@ EOF
     OUT=$("$NAAB" "$WORK_DIR/test_bash_env.naab" 2>&1)
     CODE=$?
     set -e
-    if [ "$CODE" -ne 0 ] && ! echo "$OUT" | grep -q "bad"; then
+    if [ "$CODE" -ne 0 ] && ! grep <<<"$OUT" -q "bad"; then
         pass "T-RCE2-2: env.set_var(BASH_ENV) throws (exit=$CODE)"
     else
         fail "T-RCE2-2: expected error but got exit=$CODE (out=$OUT)"
@@ -158,7 +158,7 @@ EOF
     OUT=$("$NAAB" "$WORK_DIR/test_lower.naab" 2>&1)
     CODE=$?
     set -e
-    if [ "$CODE" -ne 0 ] && ! echo "$OUT" | grep -q "bad"; then
+    if [ "$CODE" -ne 0 ] && ! grep <<<"$OUT" -q "bad"; then
         pass "T-RCE3-1: env.set_var(ld_preload) throws — case-insensitive block works"
     else
         fail "T-RCE3-1: lowercase ld_preload bypassed denylist (exit=$CODE, out=$OUT)"
@@ -176,7 +176,7 @@ EOF
     OUT=$("$NAAB" "$WORK_DIR/test_mixed.naab" 2>&1)
     CODE=$?
     set -e
-    if [ "$CODE" -ne 0 ] && ! echo "$OUT" | grep -q "bad"; then
+    if [ "$CODE" -ne 0 ] && ! grep <<<"$OUT" -q "bad"; then
         pass "T-RCE3-2: env.set_var(PythonPath) throws — case-insensitive block works"
     else
         fail "T-RCE3-2: mixed-case PythonPath bypassed denylist (exit=$CODE, out=$OUT)"

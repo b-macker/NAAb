@@ -117,7 +117,7 @@ if run_arm "on_on" true true; then
     else
         fail "BC-01" "no CDD_TURN even with BSD on — fixture is broken, BC-02 proves nothing" "$ARM_ERR"
     fi
-    if echo "$ARM_ERR" | grep -q 'context_drift.enabled.*no effect'; then
+    if grep <<<"$ARM_ERR" -q 'context_drift.enabled.*no effect'; then
         fail "BC-04" "warned about an effective context_drift config" "$ARM_ERR"
     else
         pass "BC-04" "control: no warning when behavioral_sequences is enabled"
@@ -133,7 +133,7 @@ if run_arm "off_on" false true; then
     else
         pass "BC-02" "CDD now runs without BSD ($ARM_CDD) — coupling was removed, update BC-03"
     fi
-    if echo "$ARM_ERR" | grep -q 'context_drift.enabled.*no effect'; then
+    if grep <<<"$ARM_ERR" -q 'context_drift.enabled.*no effect'; then
         pass "BC-03" "config load warns that context_drift.enabled is inert"
     else
         fail "BC-03" "no warning — an inert context_drift config loads silently" \
@@ -145,7 +145,7 @@ fi
 
 # ── BC-05: control — CDD not asked for, so no warning ──
 if run_arm "off_off" false false; then
-    if echo "$ARM_ERR" | grep -q 'context_drift.enabled.*no effect'; then
+    if grep <<<"$ARM_ERR" -q 'context_drift.enabled.*no effect'; then
         fail "BC-05" "warned when context_drift was never enabled" "$ARM_ERR"
     else
         pass "BC-05" "control: no warning when context_drift is disabled too"

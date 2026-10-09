@@ -210,7 +210,7 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 90s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-echo "$OUTPUT" | grep -q "DONE" && pass "M-01" "10 interleaved sends complete (8 scenario + 2 warm-up)" \
+grep <<<"$OUTPUT" -q "DONE" && pass "M-01" "10 interleaved sends complete (8 scenario + 2 warm-up)" \
     || fail "M-01" "sends did not complete" "$(echo "$OUTPUT" | head -3)"
 
 # Scenario turn N is telemetry turn N+2 (turns 1-2 are the per-handle warm-ups).

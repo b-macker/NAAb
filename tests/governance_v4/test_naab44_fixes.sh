@@ -43,7 +43,7 @@ check() {
 
 check_grep() {
     local id="$1" desc="$2" pattern="$3" text="$4"
-    if echo "$text" | grep -q "$pattern" 2>/dev/null; then
+    if grep <<<"$text" -q "$pattern" 2>/dev/null; then
         echo "  PASS [$id] $desc"
         PASS=$((PASS + 1))
     else
@@ -140,9 +140,9 @@ NAABEOF
 
 OUT_A02=$("$NAAB" "$ADIR2/test.naab" 2>/dev/null) || true
 # governance_level might be 0, "normal", or null (when CB disabled — no level computed)
-if echo "$OUT_A02" | grep -q "governance_level: normal" 2>/dev/null || \
-   echo "$OUT_A02" | grep -q "governance_level: 0" 2>/dev/null || \
-   echo "$OUT_A02" | grep -q "governance_level: null" 2>/dev/null; then
+if grep <<<"$OUT_A02" -q "governance_level: normal" 2>/dev/null || \
+   grep <<<"$OUT_A02" -q "governance_level: 0" 2>/dev/null || \
+   grep <<<"$OUT_A02" -q "governance_level: null" 2>/dev/null; then
     echo "  PASS [A-02] governance_level is normal/0/null when both disabled"
     PASS=$((PASS + 1))
 else

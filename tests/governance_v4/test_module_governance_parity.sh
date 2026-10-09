@@ -423,7 +423,7 @@ main {
 NAAB
 
 VM_NOGOV=$(cd "$TEST_TMP" && timeout 30s "$NAAB" test_e_nogov.naab 2>&1) || true
-if echo "$VM_NOGOV" | grep -q "NOGOV_OK"; then
+if grep <<<"$VM_NOGOV" -q "NOGOV_OK"; then
     pass "MOD-E2" "control: disabling no_placeholders lets the code through (block is governance, not syntax)"
 else
     fail "MOD-E2" "control failed: code doesn't run even with placeholders disabled" \

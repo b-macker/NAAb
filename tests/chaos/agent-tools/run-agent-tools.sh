@@ -93,15 +93,15 @@ if command -v curl >/dev/null 2>&1; then
             "https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent?key=${kval}" \
             -H 'Content-Type: application/json' \
             -d '{"contents":[{"parts":[{"text":"hi"}]}]}' 2>&1)
-        if echo "$probe" | grep -q '"text"'; then
+        if grep <<<"$probe" -q '"text"'; then
             HAS_LIVE_KEY=true
             echo -e "  ${GREEN}API key check: $kname works${NC}"
             break
-        elif echo "$probe" | grep -q '"RESOURCE_EXHAUSTED"\|"retry in"'; then
+        elif grep <<<"$probe" -q '"RESOURCE_EXHAUSTED"\|"retry in"'; then
             HAS_LIVE_KEY=true
             echo -e "  ${YELLOW}API key check: $kname valid but rate-limited (runtime will rotate)${NC}"
             break
-        elif echo "$probe" | grep -q '"INVALID_ARGUMENT"\|"API_KEY_INVALID"'; then
+        elif grep <<<"$probe" -q '"INVALID_ARGUMENT"\|"API_KEY_INVALID"'; then
             continue
         else
             HAS_LIVE_KEY=true
@@ -120,43 +120,43 @@ if should_run 1; then
     W=$(setup_workdir)
     OUT=$(run_test "$W" "chaos_18_tool_registration.naab" 2>&1) || true
 
-    echo "$OUT" | grep -q "t1_valid_registration: true" && \
+    grep <<<"$OUT" -q "t1_valid_registration: true" && \
         pass "C18.1" "Valid registration succeeds" || \
         fail "C18.1" "Valid registration failed"
 
-    echo "$OUT" | grep -q "t2_path_traversal_blocked: true" && \
+    grep <<<"$OUT" -q "t2_path_traversal_blocked: true" && \
         pass "C18.2" "Path traversal name blocked" || \
         fail "C18.2" "Path traversal name not blocked"
 
-    echo "$OUT" | grep -q "t3_special_chars_blocked: true" && \
+    grep <<<"$OUT" -q "t3_special_chars_blocked: true" && \
         pass "C18.3" "Special chars in name blocked" || \
         fail "C18.3" "Special chars in name not blocked"
 
-    echo "$OUT" | grep -q "t4_empty_name_blocked: true" && \
+    grep <<<"$OUT" -q "t4_empty_name_blocked: true" && \
         pass "C18.4" "Empty name blocked" || \
         fail "C18.4" "Empty name not blocked"
 
-    echo "$OUT" | grep -q "t5_no_description_blocked: true" && \
+    grep <<<"$OUT" -q "t5_no_description_blocked: true" && \
         pass "C18.5" "Missing description blocked" || \
         fail "C18.5" "Missing description not blocked"
 
-    echo "$OUT" | grep -q "t6_non_function_blocked: true" && \
+    grep <<<"$OUT" -q "t6_non_function_blocked: true" && \
         pass "C18.6" "Non-function arg blocked" || \
         fail "C18.6" "Non-function arg not blocked"
 
-    echo "$OUT" | grep -q "t7_reserved_name_blocked: true" && \
+    grep <<<"$OUT" -q "t7_reserved_name_blocked: true" && \
         pass "C18.7" "Reserved name (print) blocked" || \
         fail "C18.7" "Reserved name not blocked"
 
-    echo "$OUT" | grep -q "t8_reregistration_ok: true" && \
+    grep <<<"$OUT" -q "t8_reregistration_ok: true" && \
         pass "C18.8" "Re-registration succeeds with warning" || \
         fail "C18.8" "Re-registration failed"
 
-    echo "$OUT" | grep -q "t9_long_name_blocked: true" && \
+    grep <<<"$OUT" -q "t9_long_name_blocked: true" && \
         pass "C18.9" "Long name (>128 chars) blocked" || \
         fail "C18.9" "Long name not blocked"
 
-    echo "$OUT" | grep -q "chaos_18_completed: true" && \
+    grep <<<"$OUT" -q "chaos_18_completed: true" && \
         pass "C18.10" "Test completed" || \
         fail "C18.10" "Test did not complete" "$(echo "$OUT" | tail -5)"
 fi
@@ -167,7 +167,7 @@ if should_run 2; then
     W=$(setup_workdir)
     OUT=$(run_test "$W" "chaos_19_tool_environment.naab" 2>&1) || true
 
-    echo "$OUT" | grep -q "t1_tools_enabled: true" && \
+    grep <<<"$OUT" -q "t1_tools_enabled: true" && \
         pass "C19.1" "Birth env shows tools_enabled=true" || \
         fail "C19.1" "Birth env missing tools_enabled"
 
@@ -181,23 +181,23 @@ if should_run 2; then
         pass "C19.3" "Birth env shows tools_available >= 1 (got $t3_val)" || \
         fail "C19.3" "Birth env tools_available < 1 (got $t3_val)"
 
-    echo "$OUT" | grep -q "t4_live_tools_enabled: true" && \
+    grep <<<"$OUT" -q "t4_live_tools_enabled: true" && \
         pass "C19.4" "Live env shows tools_enabled=true" || \
         fail "C19.4" "Live env missing tools_enabled"
 
-    echo "$OUT" | grep -q "t5_initial_calls_zero: true" && \
+    grep <<<"$OUT" -q "t5_initial_calls_zero: true" && \
         pass "C19.5" "Initial tool_calls_total = 0" || \
         fail "C19.5" "Initial tool_calls_total != 0"
 
-    echo "$OUT" | grep -q "t5_initial_blocked_zero: true" && \
+    grep <<<"$OUT" -q "t5_initial_blocked_zero: true" && \
         pass "C19.6" "Initial tool_calls_blocked = 0" || \
         fail "C19.6" "Initial tool_calls_blocked != 0"
 
-    echo "$OUT" | grep -q "t6_disabled_tools_enabled: false" && \
+    grep <<<"$OUT" -q "t6_disabled_tools_enabled: false" && \
         pass "C19.7" "Disabled agent shows tools_enabled=false" || \
         fail "C19.7" "Disabled agent shows tools_enabled=true"
 
-    echo "$OUT" | grep -q "chaos_19_completed: true" && \
+    grep <<<"$OUT" -q "chaos_19_completed: true" && \
         pass "C19.8" "Test completed" || \
         fail "C19.8" "Test did not complete" "$(echo "$OUT" | tail -5)"
 fi
@@ -213,13 +213,13 @@ if should_run 3; then
         W=$(setup_workdir)
         OUT=$(run_test "$W" "chaos_20_tool_action_matrix.naab" 2>&1) || true
 
-        echo "$OUT" | grep -q "chaos_20_completed: true" && \
+        grep <<<"$OUT" -q "chaos_20_completed: true" && \
             pass "C20.1" "Action matrix test completed" || \
             fail "C20.1" "Action matrix test did not complete" "$(echo "$OUT" | tail -5)"
 
         # If tool_exec was blocked, error should not leak other actions
-        if echo "$OUT" | grep -q "t2_error_leaks_actions:"; then
-            echo "$OUT" | grep -q "t2_error_leaks_actions: false" && \
+        if grep <<<"$OUT" -q "t2_error_leaks_actions:"; then
+            grep <<<"$OUT" -q "t2_error_leaks_actions: false" && \
                 pass "C20.2" "Error does not leak other allowed_actions" || \
                 fail "C20.2" "Error leaks other allowed_actions values"
         else
@@ -241,7 +241,7 @@ if should_run 4; then
         W=$(setup_workdir)
         OUT=$(run_test "$W" "chaos_21_tool_basic_loop.naab" 2>&1) || true
 
-        echo "$OUT" | grep -q "t1_send_succeeded: true" && \
+        grep <<<"$OUT" -q "t1_send_succeeded: true" && \
             pass "C21.1" "agent.send() succeeded" || \
             fail "C21.1" "agent.send() failed" "$(echo "$OUT" | grep 'send_error' | head -1)"
 
@@ -260,7 +260,7 @@ if should_run 4; then
             pass "C21.4" "Tool results present (got $t5_val)" || \
             fail "C21.4" "No tool results (got $t5_val)"
 
-        echo "$OUT" | grep -q "chaos_21_completed: true" && \
+        grep <<<"$OUT" -q "chaos_21_completed: true" && \
             pass "C21.5" "Test completed" || \
             fail "C21.5" "Test did not complete" "$(echo "$OUT" | tail -5)"
     fi
@@ -277,11 +277,11 @@ if should_run 5; then
         W=$(setup_workdir)
         OUT=$(run_test "$W" "chaos_22_tool_budget.naab" 2>&1) || true
 
-        echo "$OUT" | grep -q "t1_within_budget: true" && \
+        grep <<<"$OUT" -q "t1_within_budget: true" && \
             pass "C22.1" "Tool calls within budget (max_tool_calls_per_turn=2)" || \
             fail "C22.1" "Tool calls exceeded budget"
 
-        echo "$OUT" | grep -q "chaos_22_completed: true" && \
+        grep <<<"$OUT" -q "chaos_22_completed: true" && \
             pass "C22.2" "Budget test completed" || \
             fail "C22.2" "Budget test did not complete" "$(echo "$OUT" | tail -5)"
 
@@ -311,7 +311,7 @@ if should_run 6; then
             pass "C23.1" "Only registered+allowed tool available (got $t1_val)" || \
             fail "C23.1" "Expected 1 available tool, got $t1_val"
 
-        echo "$OUT" | grep -q "chaos_23_completed: true" && \
+        grep <<<"$OUT" -q "chaos_23_completed: true" && \
             pass "C23.2" "Dual-gate test completed" || \
             fail "C23.2" "Dual-gate test did not complete" "$(echo "$OUT" | tail -5)"
     fi
@@ -328,7 +328,7 @@ if should_run 7; then
         W=$(setup_workdir)
         OUT=$(run_test "$W" "chaos_24_tool_result_scan.naab" 2>&1) || true
 
-        echo "$OUT" | grep -q "t1_has_content: true" && \
+        grep <<<"$OUT" -q "t1_has_content: true" && \
             pass "C24.1" "Tool result scan: content returned" || \
             fail "C24.1" "No content after tool result scan"
 
@@ -337,7 +337,7 @@ if should_run 7; then
             pass "C24.2" "Normal tool results not blocked (blocked=$t3_blocked)" || \
             fail "C24.2" "Normal tool results were blocked (blocked=$t3_blocked)"
 
-        echo "$OUT" | grep -q "chaos_24_completed: true" && \
+        grep <<<"$OUT" -q "chaos_24_completed: true" && \
             pass "C24.3" "Result scan test completed" || \
             fail "C24.3" "Result scan test did not complete" "$(echo "$OUT" | tail -5)"
     fi

@@ -116,7 +116,7 @@ else
 fi
 
 read -r EC2 _ <<<"$(timed normal.naab)"
-if [ "$EC2" = "0" ] && ( cd "$W" && "$NAAB" normal.naab 2>/dev/null | grep -q READ_OK ); then
+if [ "$EC2" = "0" ] && ( cd "$W" && grep -q READ_OK <<<"$("$NAAB" normal.naab 2>/dev/null)" ); then
     ok "PB-02" "POSITIVE CONTROL: a normal path still resolves and reads"
 else
     bad "PB-02" "the bound broke ordinary filesystem access" \

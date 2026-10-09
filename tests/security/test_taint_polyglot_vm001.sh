@@ -55,7 +55,7 @@ secret
 EOF
 
 out=$(timeout 15 "$NAAB" "$WORKDIR/test_t1.naab" --vm 2>&1) || true
-if echo "$out" | grep -qi "taint\|blocked\|governance\|sink\|denied"; then
+if grep <<<"$out" -qi "taint\|blocked\|governance\|sink\|denied"; then
     ok "http.post blocked — taint propagated through polyglot block"
 else
     fail "http.post was NOT blocked — taint laundering possible: ${out:0:200}"
@@ -84,9 +84,9 @@ out=$(timeout 15 "$NAAB" "$WORKDIR/test_t2.naab" --vm 2>&1) || ec=$?
 ec=${ec:-0}
 # V-GOV-006: polyglot output is ALWAYS tainted → http.post must be blocked.
 # If Python is unavailable the polyglot block itself fails (different error).
-if echo "$out" | grep -qi "taint\|blocked\|governance\|sink\|denied"; then
+if grep <<<"$out" -qi "taint\|blocked\|governance\|sink\|denied"; then
     ok "http.post blocked — V-GOV-006: polyglot output unconditionally tainted"
-elif echo "$out" | grep -qi "python.*not.*found\|no executor\|executor.*python\|python.*unavail"; then
+elif grep <<<"$out" -qi "python.*not.*found\|no executor\|executor.*python\|python.*unavail"; then
     echo "  SKIP: T2 — Python executor unavailable"
 elif [[ "$ec" -ne 0 ]]; then
     ok "exited non-zero (polyglot or network failure acceptable): ${out:0:80}"
@@ -110,7 +110,7 @@ trap 'cleanup; rm -rf "$NOGOV"' EXIT
 cp "$WORKDIR/test_t1.naab" "$NOGOV/test_t1.naab"
 out=$(timeout 15 "$NAAB" "$NOGOV/test_t1.naab" --vm --no-governance 2>&1) || ec=$?
 ec=${ec:-0}
-if echo "$out" | grep -qi "taint\|governance block\|hard block"; then
+if grep <<<"$out" -qi "taint\|governance block\|hard block"; then
     fail "governance fired despite --no-governance: ${out:0:120}"
 else
     ok "--no-governance: script not blocked by taint governance"

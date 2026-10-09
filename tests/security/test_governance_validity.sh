@@ -85,7 +85,7 @@ echo "--- Section 1: Authority Decay ---"
 # T1: --key-info shows metadata for installed key
 echo "[T1] --key-info shows key metadata"
 OUT=$("$NAAB" --key-info "$TEST_FP" 2>&1)
-if echo "$OUT" | grep -q "Key: $TEST_FP" && echo "$OUT" | grep -q "Revoked:.*no"; then
+if grep <<<"$OUT" -q "Key: $TEST_FP" && grep <<<"$OUT" -q "Revoked:.*no"; then
     ok "T1: --key-info displays correct metadata"
 else
     fail "T1: --key-info output unexpected: $OUT"
@@ -95,7 +95,7 @@ fi
 echo "[T2] --revoke-key revokes a key"
 "$NAAB" --revoke-key "$TEST_FP" "adversarial test revocation" 2>"$WORKDIR/revoke.out"
 OUT=$("$NAAB" --key-info "$TEST_FP" 2>&1)
-if echo "$OUT" | grep -q "Revoked:.*YES" && echo "$OUT" | grep -q "adversarial test revocation"; then
+if grep <<<"$OUT" -q "Revoked:.*YES" && grep <<<"$OUT" -q "adversarial test revocation"; then
     ok "T2: key correctly marked as revoked"
 else
     fail "T2: revocation not reflected in metadata: $OUT"
@@ -109,7 +109,7 @@ make_script "$TDIR/test.naab"
 
 # Run with revoked key — should fail because the only trusted key is revoked
 OUT=$(NAAB_SIGNING_KEY="$WORKDIR/test-key.pem" "$NAAB" "$TDIR/test.naab" 2>&1 || true)
-if echo "$OUT" | grep -qi "revoked\|no trusted\|INTEGRITY BLOCK\|missing"; then
+if grep <<<"$OUT" -qi "revoked\|no trusted\|INTEGRITY BLOCK\|missing"; then
     ok "T3: revoked key blocked signature verification"
 else
     fail "T3: revoked key did not block verification: $OUT"
@@ -136,7 +136,7 @@ NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR4/gove
 make_script "$TDIR4/test.naab"
 
 OUT=$(NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" "$TDIR4/test.naab" 2>&1 || true)
-if echo "$OUT" | grep -q "2"; then
+if grep <<<"$OUT" -q "2"; then
     ok "T4: fresh key restores trust and program runs"
 else
     fail "T4: fresh key did not restore trust: $OUT"
@@ -145,7 +145,7 @@ fi
 # T5: --revoke-key on nonexistent fingerprint fails gracefully
 echo "[T5] Revoking nonexistent key fails gracefully"
 OUT=$("$NAAB" --revoke-key "nonexistent-fp-12345" "test" 2>&1 || true)
-if echo "$OUT" | grep -qi "not found\|Error\|fail"; then
+if grep <<<"$OUT" -qi "not found\|Error\|fail"; then
     ok "T5: nonexistent key revocation fails gracefully"
 else
     fail "T5: no error for nonexistent key: $OUT"
@@ -165,7 +165,7 @@ make_govern "$TDIR6" '{"mode": "enforce", "trust": {"max_signature_age_days": 0}
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR6/govern.json" 2>/dev/null
 make_script "$TDIR6/test.naab"
 OUT=$("$NAAB" "$TDIR6/test.naab" 2>&1 || true)
-if echo "$OUT" | grep -q "2" && ! echo "$OUT" | grep -qi "stale"; then
+if grep <<<"$OUT" -q "2" && ! grep <<<"$OUT" -qi "stale"; then
     ok "T6: no staleness warning when disabled"
 else
     fail "T6: unexpected staleness behavior: $OUT"
@@ -186,11 +186,11 @@ BASE_SIG=$(echo "$SIG_CONTENT" | sed 's/:[^:]*$//')
 echo "${BASE_SIG}:${NINETY_DAYS_AGO}" > "$TDIR7/govern.json.sig"
 make_script "$TDIR7/test.naab"
 OUT=$("$NAAB" "$TDIR7/test.naab" 2>&1 || true)
-if echo "$OUT" | grep -qi "stale\|days old\|WARNING.*[Ss]ignature"; then
+if grep <<<"$OUT" -qi "stale\|days old\|WARNING.*[Ss]ignature"; then
     ok "T7: stale signature produces advisory warning"
 else
     # Program should still run (advisory = warn only)
-    if echo "$OUT" | grep -q "2"; then
+    if grep <<<"$OUT" -q "2"; then
         ok "T7: stale signature advisory — program still ran (warning may be suppressed)"
     else
         fail "T7: stale signature not detected: $OUT"
@@ -246,7 +246,7 @@ STRIPPED=$(echo "$SIG_CONTENT" | sed 's/:[^:]*$//')
 echo "$STRIPPED" > "$TDIR10/govern.json.sig"
 make_script "$TDIR10/test.naab"
 OUT=$("$NAAB" "$TDIR10/test.naab" 2>&1 || true)
-if echo "$OUT" | grep -q "2"; then
+if grep <<<"$OUT" -q "2"; then
     ok "T10: old-format signature (no timestamp) still verifies"
 else
     fail "T10: old-format signature rejected: $OUT"
@@ -264,7 +264,7 @@ TDIR11="$WORKDIR/t11"
 make_govern "$TDIR11" '{"mode": "enforce"}'
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR11/govern.json" 2>/dev/null
 OUT=$(cd "$TDIR11" && "$NAAB" --attest 2>&1 || true)
-if echo "$OUT" | grep -qi "No prerequisites"; then
+if grep <<<"$OUT" -qi "No prerequisites"; then
     ok "T11: --attest reports no prerequisites configured"
 else
     fail "T11: unexpected --attest output: $OUT"
@@ -278,7 +278,7 @@ make_govern "$TDIR12" '{"mode": "enforce", "prerequisites": {"enabled": true, "c
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR12/govern.json" 2>/dev/null
 OUT=$(cd "$TDIR12" && "$NAAB" --attest 2>&1)
 RC=$?
-if [ $RC -eq 0 ] && echo "$OUT" | grep -q "PASS"; then
+if [ $RC -eq 0 ] && grep <<<"$OUT" -q "PASS"; then
     ok "T12: env var attestation passed"
 else
     fail "T12: env var attestation failed (rc=$RC): $OUT"
@@ -292,7 +292,7 @@ make_govern "$TDIR13" '{"mode": "enforce", "prerequisites": {"enabled": true, "c
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR13/govern.json" 2>/dev/null
 RC=0
 OUT=$(cd "$TDIR13" && "$NAAB" --attest 2>&1) || RC=$?
-if [ $RC -ne 0 ] && echo "$OUT" | grep -q "FAIL"; then
+if [ $RC -ne 0 ] && grep <<<"$OUT" -q "FAIL"; then
     ok "T13: missing env var attestation correctly fails"
 else
     fail "T13: missing env var was not detected (rc=$RC): $OUT"
@@ -305,7 +305,7 @@ make_govern "$TDIR14" '{"mode": "enforce", "prerequisites": {"enabled": true, "c
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR14/govern.json" 2>/dev/null
 OUT=$(cd "$TDIR14" && "$NAAB" --attest 2>&1)
 RC=$?
-if [ $RC -eq 0 ] && echo "$OUT" | grep -q "PASS"; then
+if [ $RC -eq 0 ] && grep <<<"$OUT" -q "PASS"; then
     ok "T14: tool attestation passed for 'sh'"
 else
     fail "T14: tool attestation failed (rc=$RC): $OUT"
@@ -318,7 +318,7 @@ make_govern "$TDIR15" '{"mode": "enforce", "prerequisites": {"enabled": true, "c
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR15/govern.json" 2>/dev/null
 RC=0
 OUT=$(cd "$TDIR15" && "$NAAB" --attest 2>&1) || RC=$?
-if [ $RC -ne 0 ] && echo "$OUT" | grep -q "FAIL"; then
+if [ $RC -ne 0 ] && grep <<<"$OUT" -q "FAIL"; then
     ok "T15: nonexistent tool attestation correctly fails"
 else
     fail "T15: nonexistent tool not detected (rc=$RC): $OUT"
@@ -331,7 +331,7 @@ make_govern "$TDIR16" '{"mode": "enforce", "prerequisites": {"enabled": true, "c
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR16/govern.json" 2>/dev/null
 OUT=$(cd "$TDIR16" && "$NAAB" --attest 2>&1)
 RC=$?
-if [ $RC -eq 0 ] && echo "$OUT" | grep -q "PASS"; then
+if [ $RC -eq 0 ] && grep <<<"$OUT" -q "PASS"; then
     ok "T16: command 'true' attestation passed"
 else
     fail "T16: command attestation failed (rc=$RC): $OUT"
@@ -344,7 +344,7 @@ make_govern "$TDIR17" '{"mode": "enforce", "prerequisites": {"enabled": true, "c
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR17/govern.json" 2>/dev/null
 RC=0
 OUT=$(cd "$TDIR17" && "$NAAB" --attest 2>&1) || RC=$?
-if [ $RC -ne 0 ] && echo "$OUT" | grep -q "FAIL"; then
+if [ $RC -ne 0 ] && grep <<<"$OUT" -q "FAIL"; then
     ok "T17: command 'false' attestation correctly fails"
 else
     fail "T17: command 'false' was not detected (rc=$RC): $OUT"
@@ -357,7 +357,7 @@ make_govern "$TDIR18" '{"mode": "enforce", "prerequisites": {"enabled": false, "
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR18/govern.json" 2>/dev/null
 make_script "$TDIR18/test.naab"
 OUT=$("$NAAB" "$TDIR18/test.naab" 2>&1 || true)
-if echo "$OUT" | grep -q "2"; then
+if grep <<<"$OUT" -q "2"; then
     ok "T18: disabled prerequisites do not block execution"
 else
     fail "T18: disabled prerequisites blocked execution: $OUT"
@@ -376,7 +376,7 @@ make_govern "$TDIR19" '{"mode": "enforce", "capabilities": {"network": {"enabled
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR19/govern.json" 2>/dev/null
 make_script "$TDIR19/test.naab"
 OUT=$("$NAAB" --governance-dashboard "$TDIR19/test.naab" 2>&1 || true)
-if echo "$OUT" | grep -qi "CONTRA-002\|contradiction\|network.*disabled.*allowed_hosts"; then
+if grep <<<"$OUT" -qi "CONTRA-002\|contradiction\|network.*disabled.*allowed_hosts"; then
     ok "T19: CONTRA-002 detected"
 elif [ -z "$OUT" ]; then
     skip "T19: no dashboard output — nothing to search, detection not exercised"
@@ -397,7 +397,7 @@ make_govern "$TDIR20" '{"mode": "enforce", "languages": {"allowed": ["python", "
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR20/govern.json" 2>/dev/null
 make_script "$TDIR20/test.naab"
 OUT=$("$NAAB" --governance-dashboard "$TDIR20/test.naab" 2>&1 || true)
-if echo "$OUT" | grep -qi "CONTRA-007\|contradiction\|both.*allowed.*blocked\|advisory"; then
+if grep <<<"$OUT" -qi "CONTRA-007\|contradiction\|both.*allowed.*blocked\|advisory"; then
     ok "T20: CONTRA-007 detected"
 elif [ -z "$OUT" ]; then
     skip "T20: no dashboard output — detection not exercised"
@@ -412,7 +412,7 @@ make_govern "$TDIR21" '{"mode": "enforce", "audit": {"level": "full", "output_fi
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR21/govern.json" 2>/dev/null
 make_script "$TDIR21/test.naab"
 OUT=$("$NAAB" --governance-dashboard "$TDIR21/test.naab" 2>&1 || true)
-if echo "$OUT" | grep -qi "CONTRA-009\|contradiction\|audit.*full.*output_file\|advisory"; then
+if grep <<<"$OUT" -qi "CONTRA-009\|contradiction\|audit.*full.*output_file\|advisory"; then
     ok "T21: CONTRA-009 detected"
 elif [ -z "$OUT" ]; then
     skip "T21: no dashboard output — detection not exercised"
@@ -427,7 +427,7 @@ make_govern "$TDIR22" '{"mode": "enforce"}'
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR22/govern.json" 2>/dev/null
 make_script "$TDIR22/test.naab"
 OUT=$("$NAAB" "$TDIR22/test.naab" 2>&1 || true)
-if echo "$OUT" | grep -q "2" && ! echo "$OUT" | grep -qi "CONTRA-"; then
+if grep <<<"$OUT" -q "2" && ! grep <<<"$OUT" -qi "CONTRA-"; then
     ok "T22: clean config — no contradictions"
 else
     fail "T22: clean config produced contradictions: $OUT"
@@ -440,7 +440,7 @@ make_govern "$TDIR23" '{"mode": "enforce", "contradiction_detection": {"enabled"
 NAAB_SIGNING_KEY="$WORKDIR/test-key2.pem" "$NAAB" --sign-governance "$TDIR23/govern.json" 2>/dev/null
 make_script "$TDIR23/test.naab"
 OUT=$("$NAAB" --governance-dashboard "$TDIR23/test.naab" 2>&1 || true)
-if ! echo "$OUT" | grep -qi "CONTRA-"; then
+if ! grep <<<"$OUT" -qi "CONTRA-"; then
     ok "T23: disabled contradiction detection produces no findings"
 else
     fail "T23: disabled contradiction detection still fired: $OUT"

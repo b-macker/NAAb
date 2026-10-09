@@ -110,7 +110,7 @@ else
 
     FIRST_PENALTY=$(echo "$OUTPUT" | grep -oP 'SUMMARY_FIRST_PENALTY_SEEN: \K\w+' | head -1)
     if [ -z "$FIRST_PENALTY" ]; then
-        echo "$OUTPUT" | grep -q '^FIRST_PENALTY|' && FIRST_PENALTY="true" || FIRST_PENALTY="false"
+        grep <<<"$OUTPUT" -q '^FIRST_PENALTY|' && FIRST_PENALTY="true" || FIRST_PENALTY="false"
     fi
 
     USAGE_TOOL_TOTAL=$(echo "$OUTPUT" | grep -oP 'USAGE_TOOL_CALLS_TOTAL: \K[0-9]+' | head -1)

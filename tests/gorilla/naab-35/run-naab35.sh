@@ -97,16 +97,16 @@ if command -v curl >/dev/null 2>&1; then
             "https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent?key=${kval}" \
             -H 'Content-Type: application/json' \
             -d '{"contents":[{"parts":[{"text":"hi"}]}]}' 2>&1)
-        if echo "$probe" | grep -q '"text"'; then
+        if grep <<<"$probe" -q '"text"'; then
             HAS_LIVE_KEY=true
             echo -e "  ${GREEN}API key check: $kname works${NC}"
             break
-        elif echo "$probe" | grep -q '"RESOURCE_EXHAUSTED"\|"retry in"'; then
+        elif grep <<<"$probe" -q '"RESOURCE_EXHAUSTED"\|"retry in"'; then
             # Key is valid but rate-limited — runtime will rotate keys
             HAS_LIVE_KEY=true
             echo -e "  ${YELLOW}API key check: $kname valid but rate-limited (runtime will rotate)${NC}"
             break
-        elif echo "$probe" | grep -q '"INVALID_ARGUMENT"\|"API_KEY_INVALID"'; then
+        elif grep <<<"$probe" -q '"INVALID_ARGUMENT"\|"API_KEY_INVALID"'; then
             echo -e "  ${RED}API key check: $kname invalid${NC}"
             continue
         else
@@ -130,23 +130,23 @@ if should_run 1; then
     WORKDIR=$(setup_workdir "phase1-tool-config.json")
     output=$(run_in "$WORKDIR" "cat1_registration.naab" 2>&1) || true
 
-    echo "$output" | grep -q 'a1_valid_reg: true' && \
+    grep <<<"$output" -q 'a1_valid_reg: true' && \
         pass "A1" "Valid tool registration succeeds" || \
         fail "A1" "Valid registration failed" "$(echo "$output" | grep 'a1_error' | head -1)"
 
-    echo "$output" | grep -q 'a2_second_reg: true' && \
+    grep <<<"$output" -q 'a2_second_reg: true' && \
         pass "A2" "Second tool registration succeeds" || \
         fail "A2" "Second registration failed"
 
-    echo "$output" | grep -q 'a3_null_byte_blocked: true' && \
+    grep <<<"$output" -q 'a3_null_byte_blocked: true' && \
         pass "A3" "Null byte in tool name blocked" || \
         fail "A3" "Null byte not blocked"
 
-    echo "$output" | grep -q 'a4_no_desc_blocked: true' && \
+    grep <<<"$output" -q 'a4_no_desc_blocked: true' && \
         pass "A4" "Missing description blocked" || \
         fail "A4" "Missing description not blocked"
 
-    echo "$output" | grep -q 'a5_non_fn_blocked: true' && \
+    grep <<<"$output" -q 'a5_non_fn_blocked: true' && \
         pass "A5" "Non-function arg blocked" || \
         fail "A5" "Non-function not blocked"
 
@@ -160,7 +160,7 @@ if should_run 1; then
         pass "A7" "Available tools = 3 (intersection of registered + config)" || \
         fail "A7" "Expected 3 available, got $a7_val"
 
-    echo "$output" | grep -q 'a8_disabled_tools: false' && \
+    grep <<<"$output" -q 'a8_disabled_tools: false' && \
         pass "A8" "Disabled agent shows tools_enabled=false" || \
         fail "A8" "Disabled agent wrong tools_enabled"
 
@@ -169,11 +169,11 @@ if should_run 1; then
         pass "A9" "Partial agent shows 1 available (dual-gate)" || \
         fail "A9" "Expected 1 partial available, got $a9_val"
 
-    echo "$output" | grep -q 'a10_initial_total: 0' && \
+    grep <<<"$output" -q 'a10_initial_total: 0' && \
         pass "A10" "Initial usage counters = 0" || \
         fail "A10" "Initial usage counters non-zero"
 
-    echo "$output" | grep -q 'cat1_completed: true' || \
+    grep <<<"$output" -q 'cat1_completed: true' || \
         fail "A10x" "Category 1 did not complete" "$(echo "$output" | tail -3)"
 fi
 
@@ -188,11 +188,11 @@ if should_run 2; then
         WORKDIR=$(setup_workdir "phase1-tool-config.json")
         output=$(run_in "$WORKDIR" "cat2_live_tool_loop.naab" 2>&1) || true
 
-        echo "$output" | grep -q 'a1_send_ok: true' && \
+        grep <<<"$output" -q 'a1_send_ok: true' && \
             pass "B1" "agent.send() with tools succeeded" || \
             fail "B1" "agent.send() failed" "$(echo "$output" | grep 'send_error' | head -1)"
 
-        echo "$output" | grep -q 'a2_has_content: true' && \
+        grep <<<"$output" -q 'a2_has_content: true' && \
             pass "B2" "Response has text content" || \
             fail "B2" "No text content in response"
 
@@ -211,7 +211,7 @@ if should_run 2; then
             pass "B5" "Tool results present (got $b5_val)" || \
             fail "B5" "No tool results"
 
-        echo "$output" | grep -q 'a6_result_keys: true' && \
+        grep <<<"$output" -q 'a6_result_keys: true' && \
             pass "B6" "Tool result has name/success/latency keys" || \
             fail "B6" "Tool result missing expected keys"
 
@@ -235,7 +235,7 @@ if should_run 2; then
             pass "B10" "Environment tool_calls_total >= 1 ($b10_val)" || \
             fail "B10" "Environment tool_calls_total = 0"
 
-        echo "$output" | grep -q 'cat2_completed: true' || \
+        grep <<<"$output" -q 'cat2_completed: true' || \
             fail "B10x" "Category 2 did not complete" "$(echo "$output" | tail -3)"
     fi
 fi
@@ -257,17 +257,17 @@ if should_run 3; then
         output=$(run_in "$WORKDIR" "cat3_governance_blocking.naab" 2>&1) || true
 
         # A1: TOOL_EXEC blocking (may be inconclusive if LLM doesn't call tools)
-        if echo "$output" | grep -q 'a1_tool_exec_blocked: true'; then
+        if grep <<<"$output" -q 'a1_tool_exec_blocked: true'; then
             pass "C1" "TOOL_EXEC missing → blocked"
-        elif echo "$output" | grep -q 'a1_inconclusive'; then
+        elif grep <<<"$output" -q 'a1_inconclusive'; then
             pass "C1" "LLM did not call tools (TOOL_EXEC not tested, valid)"
-        elif echo "$output" | grep -q 'a1_tool_exec_blocked: false'; then
+        elif grep <<<"$output" -q 'a1_tool_exec_blocked: false'; then
             fail "C1" "TOOL_EXEC missing but tools not blocked"
         else
             fail "C1" "TOOL_EXEC test did not produce expected output" "$(echo "$output" | grep 'a1_' | head -2)"
         fi
 
-        echo "$output" | grep -q 'a2_no_action_leak: true' && \
+        grep <<<"$output" -q 'a2_no_action_leak: true' && \
             pass "C2" "TOOL_EXEC error does not leak actions list" || \
             fail "C2" "TOOL_EXEC error leaks allowed_actions"
     fi
@@ -278,35 +278,35 @@ if should_run 3; then
         pass "C3" "Dual-gate: only registered tool available (got $a3_val)" || \
         fail "C3" "Dual-gate: expected 1, got $a3_val"
 
-    echo "$output" | grep -q 'a4_reserved_blocked: true' && \
+    grep <<<"$output" -q 'a4_reserved_blocked: true' && \
         pass "C4" "Reserved name (len) blocked" || \
         fail "C4" "Reserved name not blocked"
 
-    echo "$output" | grep -q 'a5_path_traversal_blocked: true' && \
+    grep <<<"$output" -q 'a5_path_traversal_blocked: true' && \
         pass "C5" "Path traversal name blocked" || \
         fail "C5" "Path traversal not blocked"
 
-    echo "$output" | grep -q 'a6_empty_desc_blocked: true' && \
+    grep <<<"$output" -q 'a6_empty_desc_blocked: true' && \
         pass "C6" "Empty description blocked" || \
         fail "C6" "Empty description not blocked"
 
-    echo "$output" | grep -q 'a7_disabled_config: true' && \
+    grep <<<"$output" -q 'a7_disabled_config: true' && \
         pass "C7" "Disabled agent config confirmed" || \
         fail "C7" "Disabled agent config wrong"
 
-    echo "$output" | grep -q 'a8_long_name_blocked: true' && \
+    grep <<<"$output" -q 'a8_long_name_blocked: true' && \
         pass "C8" "Long name (200 chars) blocked" || \
         fail "C8" "Long name not blocked"
 
-    echo "$output" | grep -q 'a9_special_chars_blocked: true' && \
+    grep <<<"$output" -q 'a9_special_chars_blocked: true' && \
         pass "C9" "Special chars in name blocked" || \
         fail "C9" "Special chars not blocked"
 
-    echo "$output" | grep -q 'a10_string_fn_blocked: true' && \
+    grep <<<"$output" -q 'a10_string_fn_blocked: true' && \
         pass "C10" "String as function arg blocked" || \
         fail "C10" "String function not blocked"
 
-    echo "$output" | grep -q 'cat3_completed: true' || \
+    grep <<<"$output" -q 'cat3_completed: true' || \
         fail "C10x" "Category 3 did not complete" "$(echo "$output" | tail -3)"
 fi
 
@@ -321,7 +321,7 @@ if should_run 4; then
         WORKDIR=$(setup_workdir "phase1-tool-config.json")
         output=$(run_in "$WORKDIR" "cat4_budget_response.naab" 2>&1) || true
 
-        echo "$output" | grep -q 'a1_within_budget: true' && \
+        grep <<<"$output" -q 'a1_within_budget: true' && \
             pass "D1" "Tool calls within budget cap" || \
             fail "D1" "Tool calls exceeded budget"
 
@@ -330,7 +330,7 @@ if should_run 4; then
             pass "D2" "Budget remaining >= 0 ($d2_val)" || \
             fail "D2" "Budget remaining invalid ($d2_val)"
 
-        echo "$output" | grep -q 'a3_turns_within_cap: true' && \
+        grep <<<"$output" -q 'a3_turns_within_cap: true' && \
             pass "D3" "Tool loop turns within cap" || \
             fail "D3" "Tool loop turns exceeded cap"
 
@@ -339,7 +339,7 @@ if should_run 4; then
             pass "D4" "Exit reason present: $d4_val" || \
             fail "D4" "No exit reason"
 
-        echo "$output" | grep -q 'a5_results_match_calls: true' && \
+        grep <<<"$output" -q 'a5_results_match_calls: true' && \
             pass "D5" "Results array length matches calls made" || \
             fail "D5" "Results/calls mismatch"
 
@@ -348,23 +348,23 @@ if should_run 4; then
             pass "D6" "Stop reason present: $d6_val" || \
             fail "D6" "No stop reason"
 
-        echo "$output" | grep -q 'a7_trace_present: true' && \
+        grep <<<"$output" -q 'a7_trace_present: true' && \
             pass "D7" "Trace dict has model + provider" || \
             fail "D7" "Trace dict missing model/provider"
 
-        echo "$output" | grep -q 'a8_usage_matches_calls: true' && \
+        grep <<<"$output" -q 'a8_usage_matches_calls: true' && \
             pass "D8" "Usage total matches tool calls made" || \
             fail "D8" "Usage total doesn't match calls"
 
-        echo "$output" | grep -q 'a9_has_latency: true' && \
+        grep <<<"$output" -q 'a9_has_latency: true' && \
             pass "D9" "Usage latency > 0 when tools called" || \
             fail "D9" "Usage latency = 0 despite tool calls"
 
-        echo "$output" | grep -q 'a10_has_content: true' && \
+        grep <<<"$output" -q 'a10_has_content: true' && \
             pass "D10" "Response has text content" || \
             fail "D10" "Response has no text content"
 
-        echo "$output" | grep -q 'cat4_completed: true' || \
+        grep <<<"$output" -q 'cat4_completed: true' || \
             fail "D10x" "Category 4 did not complete" "$(echo "$output" | tail -3)"
     fi
 fi

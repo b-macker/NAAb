@@ -161,7 +161,7 @@ write_script "$WDIR" 8
 OUTPUT=$(cd "$WDIR" && timeout 90s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-echo "$OUTPUT" | grep -q "DONE" && pass "EA-01" "8 sends complete" \
+grep <<<"$OUTPUT" -q "DONE" && pass "EA-01" "8 sends complete" \
     || fail "EA-01" "sends did not complete" "$(echo "$OUTPUT" | head -3)"
 COUNT=$(last_entity_count "$WDIR/telemetry.jsonl")
 if [ "$COUNT" = "0" ]; then

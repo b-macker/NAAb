@@ -89,15 +89,15 @@ if command -v curl >/dev/null 2>&1; then
             "https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent?key=${kval}" \
             -H 'Content-Type: application/json' \
             -d '{"contents":[{"parts":[{"text":"hi"}]}]}' 2>&1)
-        if echo "$probe" | grep -q '"text"'; then
+        if grep <<<"$probe" -q '"text"'; then
             HAS_LIVE_KEY=true
             echo -e "  ${GREEN}API key check: $kname works${NC}"
             break
-        elif echo "$probe" | grep -q '"RESOURCE_EXHAUSTED"\|"retry in"'; then
+        elif grep <<<"$probe" -q '"RESOURCE_EXHAUSTED"\|"retry in"'; then
             HAS_LIVE_KEY=true
             echo -e "  ${YELLOW}API key check: $kname valid but rate-limited${NC}"
             break
-        elif echo "$probe" | grep -q '"INVALID_ARGUMENT"\|"API_KEY_INVALID"'; then
+        elif grep <<<"$probe" -q '"INVALID_ARGUMENT"\|"API_KEY_INVALID"'; then
             continue
         else
             HAS_LIVE_KEY=true
@@ -132,7 +132,7 @@ if should_run 1; then
         W=$(setup_workdir "phase1-pulse-basic.json")
         OUT=$(run_in "$W" "gorilla_pulse_env.naab" "--governance-dashboard") || true
 
-        echo "$OUT" | grep -q "t1_pre_verdict: healthy" && \
+        grep <<<"$OUT" -q "t1_pre_verdict: healthy" && \
             pass "G36.1" "Pre-agent verdict is healthy" || \
             fail "G36.1" "Pre-agent verdict not healthy" "$(echo "$OUT" | grep t1_)"
 
@@ -142,7 +142,7 @@ if should_run 1; then
             pass "G36.2" "Birth env has governance_health ($birth_health)" || \
             fail "G36.2" "Birth env missing governance_health" "got: '$birth_health'"
 
-        echo "$OUT" | grep -q "t3_send_success: true" && \
+        grep <<<"$OUT" -q "t3_send_success: true" && \
             pass "G36.3" "Agent send succeeded" || \
             fail "G36.3" "Agent send failed" "$(echo "$OUT" | grep -i error | head -3)"
 
@@ -152,28 +152,28 @@ if should_run 1; then
             pass "G36.4" "Live env has governance_health ($live_health)" || \
             fail "G36.4" "Live env missing governance_health" "got: '$live_health'"
 
-        echo "$OUT" | grep -q "t5_post_verdict: healthy" && \
+        grep <<<"$OUT" -q "t5_post_verdict: healthy" && \
             pass "G36.5" "Post-agent verdict is healthy" || \
             fail "G36.5" "Post-agent verdict not healthy" "$(echo "$OUT" | grep t5_)"
 
-        echo "$OUT" | grep -q "t6_verdict_is_safe_string: true" && \
+        grep <<<"$OUT" -q "t6_verdict_is_safe_string: true" && \
             pass "G36.6" "Verdict is a safe string (not enum name)" || \
             fail "G36.6" "Verdict is not a safe string" "$(echo "$OUT" | grep t6_)"
 
-        echo "$OUT" | grep -q "t7_no_entropy_leak: true" && \
+        grep <<<"$OUT" -q "t7_no_entropy_leak: true" && \
             pass "G36.7" "No entropy field in agent environment" || \
             fail "G36.7" "Entropy leaked to agent environment" "$(echo "$OUT" | grep t7_)"
 
-        echo "$OUT" | grep -q "t7_no_degraded_leak: true" && \
+        grep <<<"$OUT" -q "t7_no_degraded_leak: true" && \
             pass "G36.8" "No consecutive_degraded in agent environment" || \
             fail "G36.8" "consecutive_degraded leaked to agent environment" "$(echo "$OUT" | grep t7_)"
 
         # Dashboard shows pulse line
-        echo "$OUT" | grep -q "Pulse:" && \
+        grep <<<"$OUT" -q "Pulse:" && \
             pass "G36.9" "Dashboard shows Pulse line after agent activity" || \
             fail "G36.9" "Dashboard missing Pulse line" "$(echo "$OUT" | tail -10)"
 
-        echo "$OUT" | grep -q "gorilla_pulse_env_completed: true" && \
+        grep <<<"$OUT" -q "gorilla_pulse_env_completed: true" && \
             pass "G36.10" "Test completed" || \
             fail "G36.10" "Test did not complete" "$(echo "$OUT" | tail -5)"
     fi
@@ -201,29 +201,29 @@ if should_run 2; then
 
         # All 3 turns should succeed
         for i in 0 1 2; do
-            echo "$OUT" | grep -q "t1_turn_${i}_success: true" && \
+            grep <<<"$OUT" -q "t1_turn_${i}_success: true" && \
                 pass "G36.$((11+i))" "Turn $i succeeded" || \
                 fail "G36.$((11+i))" "Turn $i failed" "$(echo "$OUT" | grep "t1_turn_${i}")"
         done
 
-        echo "$OUT" | grep -q "t2_checks_positive: true" && \
+        grep <<<"$OUT" -q "t2_checks_positive: true" && \
             pass "G36.14" "Pulse checks positive after 3 turns" || \
             fail "G36.14" "Pulse checks not positive" "$(echo "$OUT" | grep t2_)"
 
-        echo "$OUT" | grep -q "t3_env_health:" && \
+        grep <<<"$OUT" -q "t3_env_health:" && \
             pass "G36.15" "Environment health visible after multi-turn" || \
             fail "G36.15" "Environment health missing" "$(echo "$OUT" | grep t3_)"
 
-        echo "$OUT" | grep -q "t4_turns_match: true" && \
+        grep <<<"$OUT" -q "t4_turns_match: true" && \
             pass "G36.16" "Usage shows 3 turns" || \
             fail "G36.16" "Usage turn count mismatch" "$(echo "$OUT" | grep t4_)"
 
         # Dashboard should show pulse with checks from multi-turn
-        echo "$OUT" | grep "Pulse:" | grep -qP "[1-9][0-9]* checks" && \
+        grep -qP "[1-9][0-9]* checks" <<<"$(echo "$OUT" | grep "Pulse:")" && \
             pass "G36.17" "Dashboard shows >0 checks after multi-turn" || \
             pass "G36.17" "Dashboard shows checks (may be 0 if checks happen elsewhere)"
 
-        echo "$OUT" | grep -q "gorilla_pulse_multi_completed: true" && \
+        grep <<<"$OUT" -q "gorilla_pulse_multi_completed: true" && \
             pass "G36.18" "Test completed" || \
             fail "G36.18" "Test did not complete" "$(echo "$OUT" | tail -5)"
     fi
@@ -245,19 +245,19 @@ if should_run 3; then
         W=$(setup_workdir "phase2-pulse-no-cb.json")
         OUT=$(run_in "$W" "gorilla_pulse_dashboard.naab" "--governance-dashboard") || true
 
-        echo "$OUT" | grep -q "t1_send_success: true" && \
+        grep <<<"$OUT" -q "t1_send_success: true" && \
             pass "G36.19" "Agent send succeeds with CB disabled" || \
             fail "G36.19" "Agent send failed with CB disabled" "$(echo "$OUT" | grep -i error | head -3)"
 
-        echo "$OUT" | grep -q "t2_verdict: healthy" && \
+        grep <<<"$OUT" -q "t2_verdict: healthy" && \
             pass "G36.20" "Verdict healthy with CB disabled + agent" || \
             fail "G36.20" "Verdict not healthy" "$(echo "$OUT" | grep t2_)"
 
-        echo "$OUT" | grep -q "Pulse:" && \
+        grep <<<"$OUT" -q "Pulse:" && \
             pass "G36.21" "Dashboard pulse line present with CB disabled" || \
             fail "G36.21" "Dashboard pulse line missing with CB disabled"
 
-        echo "$OUT" | grep -q "gorilla_pulse_dashboard_completed: true" && \
+        grep <<<"$OUT" -q "gorilla_pulse_dashboard_completed: true" && \
             pass "G36.22" "Test completed with CB disabled" || \
             fail "G36.22" "Test did not complete" "$(echo "$OUT" | tail -5)"
     fi

@@ -24,7 +24,7 @@ print(x) }
 EOF
 PROBE_OUT=$("$NAAB" --no-governance "$PROBE_DIR/probe.naab" 2>&1 || true)
 rm -rf "$PROBE_DIR"
-if echo "$PROBE_OUT" | grep -q "No executor found\|not available"; then
+if grep <<<"$PROBE_OUT" -q "No executor found\|not available"; then
     echo "  test_governance_enforcement.sh: SKIPPED (no python/shell executor)"
     exit 0
 fi
@@ -62,7 +62,7 @@ echo "done"
 print(x) }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t1.naab" 2>&1 || true)
-if echo "$OUTPUT" | grep -qi "banned function"; then
+if grep <<<"$OUTPUT" -qi "banned function"; then
     fail "T1: BUG-1 — 'curl |' false-positive on hostname"
 else
     ok "T1: BUG-1 — banned_functions pipe char escaped correctly"
@@ -80,7 +80,7 @@ print(result)
 print(x) }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t2.naab" 2>&1 || true)
-if echo "$OUTPUT" | grep -qi "banned function.*eval"; then
+if grep <<<"$OUTPUT" -qi "banned function.*eval"; then
     ok "T2: BUG-1 — eval( correctly caught in python block"
 else
     fail "T2: BUG-1 — eval( not caught"
@@ -97,7 +97,7 @@ rm -rf /tmp/safe
 print(x) }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t3.naab" 2>&1 || true)
-if echo "$OUTPUT" | grep -qi "banned function"; then
+if grep <<<"$OUTPUT" -qi "banned function"; then
     fail "T3: 'rm -rf /tmp/safe' should NOT match 'rm -rf /' (substring issue)"
 else
     ok "T3: multi-word banned function doesn't over-match"
@@ -118,7 +118,7 @@ main {
 }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t4.naab" 2>&1 || true)
-if echo "$OUTPUT" | grep -qi "secret\|API.*Key\|redacted"; then
+if grep <<<"$OUTPUT" -qi "secret\|API.*Key\|redacted"; then
     ok "T4: BUG-2 — secret in NAAb string caught"
 else
     fail "T4: BUG-2 — secret in NAAb string not caught"
@@ -134,7 +134,7 @@ print(api_key)
 print(x) }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t5.naab" 2>&1 || true)
-if echo "$OUTPUT" | grep -qi "secret\|API.*Key\|redacted"; then
+if grep <<<"$OUTPUT" -qi "secret\|API.*Key\|redacted"; then
     ok "T5: secret in polyglot block caught"
 else
     fail "T5: secret in polyglot block not caught"
@@ -156,7 +156,7 @@ print("hi")
 print(x) }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t6.naab" 2>&1 || true)
-if echo "$OUTPUT" | grep -qi "blocked import.*subprocess\|Blocked import"; then
+if grep <<<"$OUTPUT" -qi "blocked import.*subprocess\|Blocked import"; then
     ok "T6: BUG-3 — per_language imports.blocked works without restrictions.imports"
 else
     fail "T6: BUG-3 — subprocess not caught"
@@ -175,7 +175,7 @@ cat > "$WORK_DIR/t7.naab" <<'EOF'
 main { print(42) }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t7.naab" 2>&1)
-if echo "$OUTPUT" | grep -q "elevating to soft"; then
+if grep <<<"$OUTPUT" -q "elevating to soft"; then
     fail "T7: BUG-6 — EVA elevation warning still printing"
 else
     ok "T7: BUG-6 — EVA elevation is silent"
@@ -196,7 +196,7 @@ main {
 }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t8.naab" 2>&1 || true)
-if echo "$OUTPUT" | grep -qi "null\|Hint\|env.get\|??"; then
+if grep <<<"$OUTPUT" -qi "null\|Hint\|env.get\|??"; then
     ok "T8: BUG-7 — null method call has helpful error"
 else
     fail "T8: BUG-7 — null method call error lacks hint"
@@ -215,7 +215,7 @@ cat > "$WORK_DIR/t9.naab" <<'EOF'
 main { print(42) }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t9.naab" 2>&1)
-if echo "$OUTPUT" | grep -q "Mode:.*enforce"; then
+if grep <<<"$OUTPUT" -q "Mode:.*enforce"; then
     ok "T9: DX-1 — dashboard shows mode"
 else
     fail "T9: DX-1 — dashboard missing mode info"
@@ -238,7 +238,7 @@ print("hello")
 print(x) }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t10.naab" 2>&1 || true)
-if echo "$OUTPUT" | grep -qi "placeholder\|TODO"; then
+if grep <<<"$OUTPUT" -qi "placeholder\|TODO"; then
     ok "T10: placeholder in polyglot comment caught"
 else
     fail "T10: placeholder in polyglot comment not caught"
@@ -254,7 +254,7 @@ print(msg)
 print(x) }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t11.naab" 2>&1 || true)
-if echo "$OUTPUT" | grep -qi "placeholder"; then
+if grep <<<"$OUTPUT" -qi "placeholder"; then
     fail "T11: EVA-10 — placeholder inside string should NOT be caught"
 else
     ok "T11: EVA-10 — placeholder inside string correctly ignored"
@@ -275,7 +275,7 @@ echo "hello";
 print(x) }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t12.naab" 2>&1 || true)
-if echo "$OUTPUT" | grep -qi "blocked\|not allowed\|php"; then
+if grep <<<"$OUTPUT" -qi "blocked\|not allowed\|php"; then
     ok "T12: blocked language (PHP) gives clear error"
 else
     fail "T12: blocked language not caught"
@@ -297,7 +297,7 @@ main {
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t13.naab" 2>&1)
 EXIT_CODE=$?
-if [ $EXIT_CODE -eq 0 ] && echo "$OUTPUT" | grep -q "42"; then
+if [ $EXIT_CODE -eq 0 ] && grep <<<"$OUTPUT" -q "42"; then
     ok "T13: clean program passes governance"
 else
     fail "T13: clean program failed (exit $EXIT_CODE)"
@@ -312,7 +312,7 @@ cat > "$WORK_DIR/govern.json" <<'EOF'
 {"version":"5.0","mode":"enforce","securty":{"sandbox_level":"restricted"}}
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t13.naab" 2>&1)
-if echo "$OUTPUT" | grep -qi "unknown key.*securty\|did you mean.*security"; then
+if grep <<<"$OUTPUT" -qi "unknown key.*securty\|did you mean.*security"; then
     ok "T14: schema typo 'securty' triggers suggestion"
 else
     fail "T14: no typo warning for 'securty'"
@@ -334,7 +334,7 @@ print("test")
 print(x) }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t15.naab" 2>&1 || true)
-if echo "$OUTPUT" | grep -qi "placeholder\|FIXME\|HARD"; then
+if grep <<<"$OUTPUT" -qi "placeholder\|FIXME\|HARD"; then
     ok "T15: restrictions.no_placeholders with object format works"
 else
     fail "T15: object format not parsed in restrictions"
@@ -352,7 +352,7 @@ main {
 }
 EOF
 OUTPUT=$("$NAAB" "$WORK_DIR/t16.naab" 2>&1 || true)
-if echo "$OUTPUT" | grep -qi "secret\|AWS\|redacted"; then
+if grep <<<"$OUTPUT" -qi "secret\|AWS\|redacted"; then
     ok "T16: restrictions.no_secrets string format works"
 else
     fail "T16: restrictions.no_secrets string format not working"

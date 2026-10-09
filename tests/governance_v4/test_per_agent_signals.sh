@@ -161,26 +161,26 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 90s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "CONTROL_DRIFT=0"; then
+if grep <<<"$OUTPUT" -q "CONTROL_DRIFT=0"; then
     fail "P-01" "control agent never fired mandate_alignment on off-mandate code" "$OUTPUT"
 else
-    if echo "$OUTPUT" | grep -q "CONTROL_DRIFT="; then
+    if grep <<<"$OUTPUT" -q "CONTROL_DRIFT="; then
         pass "P-01" "control agent fires mandate_alignment (global config intact)"
     else
         fail "P-01" "no control drift output" "$OUTPUT"
     fi
 fi
-if echo "$OUTPUT" | grep -q "QUIET_DRIFT=0"; then
+if grep <<<"$OUTPUT" -q "QUIET_DRIFT=0"; then
     pass "P-02" "per-agent override suppresses mandate_alignment for quiet agent"
 else
     fail "P-02" "override did not suppress signal" "$OUTPUT"
 fi
-if echo "$OUTPUT" | grep -q "OVERRIDE_EXPOSED=true"; then
+if grep <<<"$OUTPUT" -q "OVERRIDE_EXPOSED=true"; then
     pass "P-03" "cdd_signal_overrides exposed in agent environment state"
 else
     fail "P-03" "override not visible in environment dict" "$OUTPUT"
 fi
-if echo "$OUTPUT" | grep -q "CONTROL_HAS_OVERRIDES=false"; then
+if grep <<<"$OUTPUT" -q "CONTROL_HAS_OVERRIDES=false"; then
     pass "P-04" "agents without overrides have no cdd_signal_overrides key"
 else
     fail "P-04" "control agent unexpectedly has overrides" "$OUTPUT"
@@ -253,7 +253,7 @@ else
 fi
 
 REJ_LINE=$(grep '"event_type":"CONFIG_ADJUSTMENT"' "$WDIR/telemetry.jsonl" 2>/dev/null | tail -1)
-if echo "$REJ_LINE" | grep -q '"accepted":"false"' && echo "$REJ_LINE" | grep -q '"reason":"ratchet"'; then
+if grep <<<"$REJ_LINE" -q '"accepted":"false"' && grep <<<"$REJ_LINE" -q '"reason":"ratchet"'; then
     pass "R-02" "rejected reload emits CONFIG_ADJUSTMENT (accepted=false, reason=ratchet)"
 else
     fail "R-02" "no rejected CONFIG_ADJUSTMENT event" "$REJ_LINE"
@@ -390,21 +390,21 @@ sign_govern "$WDIR"
 OUTPUT=$(cd "$WDIR" && timeout 90s "$NAAB" test.naab 2>"$WDIR/stderr.txt") || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "DRIFT_BEFORE=0"; then
+if grep <<<"$OUTPUT" -q "DRIFT_BEFORE=0"; then
     pass "A-01" "override suppresses mandate_alignment before reload"
 else
     fail "A-01" "signal fired despite override" "$OUTPUT"
 fi
-if echo "$OUTPUT" | grep -q "DRIFT_AFTER=0"; then
+if grep <<<"$OUTPUT" -q "DRIFT_AFTER=0"; then
     fail "A-02" "re-enabled signal did not fire on live handle after tightening reload" "$OUTPUT $(grep -i 'reload\|ratchet' "$WDIR/stderr.txt" | head -3)"
 else
-    if echo "$OUTPUT" | grep -q "DRIFT_AFTER="; then
+    if grep <<<"$OUTPUT" -q "DRIFT_AFTER="; then
         pass "A-02" "tightening reload accepted; live handle picks up re-enabled signal"
     else
         fail "A-02" "no post-reload drift output" "$OUTPUT"
     fi
 fi
-if echo "$OUTPUT" | grep -q "OVERRIDES_AFTER=false"; then
+if grep <<<"$OUTPUT" -q "OVERRIDES_AFTER=false"; then
     pass "A-03" "override mask cleared on live handle after override removal"
 else
     fail "A-03" "stale override mask after reload" "$OUTPUT"
@@ -465,7 +465,7 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 90s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "DRIFT=0" && echo "$OUTPUT" | grep -q "OVERRIDE_KEPT=true"; then
+if grep <<<"$OUTPUT" -q "DRIFT=0" && grep <<<"$OUTPUT" -q "OVERRIDE_KEPT=true"; then
     pass "Q-01" "agent.reset preserves the per-agent override mask"
 else
     fail "Q-01" "override lost across agent.reset" "$OUTPUT"

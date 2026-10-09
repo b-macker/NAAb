@@ -120,12 +120,12 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "TOOL_CALLS=1"; then
+if grep <<<"$OUTPUT" -q "TOOL_CALLS=1"; then
     pass "A-01" "tool call executed with gate off"
 else
     fail "A-01" "tool did not execute" "$(echo "$OUTPUT" | head -4)"
 fi
-if echo "$OUTPUT" | grep -q "TOOL_SUCCESS=true"; then
+if grep <<<"$OUTPUT" -q "TOOL_SUCCESS=true"; then
     pass "A-02" "tool executed successfully (not blocked)"
 else
     fail "A-02" "tool result not successful" "$(echo "$OUTPUT" | grep TOOL_ | head -2)"
@@ -249,7 +249,7 @@ if grep -q '"reason": *"admissibility_gate"\|admissibility_gate' "$WDIR/telemetr
 else
     fail "B-01" "gate did not fire" "$(echo "$OUTPUT" | tail -4)"
 fi
-if echo "$OUTPUT" | grep -q "TOOL_ERROR=admissibility_gate"; then
+if grep <<<"$OUTPUT" -q "TOOL_ERROR=admissibility_gate"; then
     pass "B-02" "tool result marked blocked by admissibility gate"
 else
     fail "B-02" "tool result not marked as gate-blocked" "$(echo "$OUTPUT" | grep -E 'TOOL_|NO_TOOL' | head -2)"

@@ -132,13 +132,13 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 30s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "MIN_TOKENS=512"; then
+if grep <<<"$OUTPUT" -q "MIN_TOKENS=512"; then
     pass "A-01" "min_tokens parses and is exposed in agent environment limits"
 else
     fail "A-01" "min_tokens missing from environment limits" "$OUTPUT"
 fi
 
-if echo "$OUTPUT" | grep -q "CONTENT=alpha response"; then
+if grep <<<"$OUTPUT" -q "CONTENT=alpha response"; then
     pass "A-02" "send succeeds with min_tokens > max_tokens (floor wins, not an error)"
 else
     fail "A-02" "send failed with min_tokens set" "$OUTPUT"
@@ -227,7 +227,7 @@ sign_govern "$WDIR"
 OUTPUT=$(cd "$WDIR" && timeout 30s "$NAAB" test.naab 2>"$WDIR/stderr.txt") || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "R1=first stub reply" && echo "$OUTPUT" | grep -q "R2=second stub reply"; then
+if grep <<<"$OUTPUT" -q "R1=first stub reply" && grep <<<"$OUTPUT" -q "R2=second stub reply"; then
     pass "B-01" "sends succeed before and after mid-run reload (scoped reset is non-fatal)"
 else
     fail "B-01" "send sequence across reload failed" "$OUTPUT $(tail -3 "$WDIR/stderr.txt" 2>/dev/null)"
@@ -247,19 +247,19 @@ else
 fi
 
 ADJ_LINE=$(grep '"event_type":"CONFIG_ADJUSTMENT"' "$TELEM" 2>/dev/null | tail -1)
-if echo "$ADJ_LINE" | grep -q '"accepted":"true"'; then
+if grep <<<"$ADJ_LINE" -q '"accepted":"true"'; then
     pass "B-04" "event marks reload as accepted"
 else
     fail "B-04" "event missing accepted=true" "$ADJ_LINE"
 fi
 
-if echo "$ADJ_LINE" | grep -q '"changed_agents":"[^"]*test_agent'; then
+if grep <<<"$ADJ_LINE" -q '"changed_agents":"[^"]*test_agent'; then
     pass "B-05" "event lists the changed agent (system_prompt/max_tokens diff detected)"
 else
     fail "B-05" "changed_agents does not include test_agent" "$ADJ_LINE"
 fi
 
-if echo "$ADJ_LINE" | grep -q 'operator adjustment test'; then
+if grep <<<"$ADJ_LINE" -q 'operator adjustment test'; then
     pass "B-06" "event carries update_reason"
 else
     fail "B-06" "update_reason missing from event" "$ADJ_LINE"
@@ -342,13 +342,13 @@ fi
 
 TELEM="$WDIR/telemetry.jsonl"
 REJ_LINE=$(grep '"event_type":"CONFIG_ADJUSTMENT"' "$TELEM" 2>/dev/null | tail -1)
-if echo "$REJ_LINE" | grep -q '"accepted":"false"' && echo "$REJ_LINE" | grep -q '"reason":"ratchet"'; then
+if grep <<<"$REJ_LINE" -q '"accepted":"false"' && grep <<<"$REJ_LINE" -q '"reason":"ratchet"'; then
     pass "C-02" "rejected reload emits CONFIG_ADJUSTMENT (accepted=false, reason=ratchet)"
 else
     fail "C-02" "no rejected CONFIG_ADJUSTMENT event" "$REJ_LINE"
 fi
 
-if echo "$REJ_LINE" | grep -q 'min_tokens'; then
+if grep <<<"$REJ_LINE" -q 'min_tokens'; then
     pass "C-03" "rejected event names the violated field"
 else
     fail "C-03" "violation detail missing min_tokens" "$REJ_LINE"
@@ -421,7 +421,7 @@ sign_govern "$WDIR"
 OUTPUT=$(cd "$WDIR" && timeout 30s "$NAAB" test.naab 2>"$WDIR/stderr.txt") || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "R1_OK=true"; then
+if grep <<<"$OUTPUT" -q "R1_OK=true"; then
     pass "D-01" "rate_normalized + rate_normalized_floor config parses and runs"
 else
     fail "D-01" "config with rate_normalized_floor failed to run" "$OUTPUT $(tail -3 "$WDIR/stderr.txt" 2>/dev/null)"

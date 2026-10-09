@@ -111,10 +111,10 @@ fi
 
 # B3: Cross-block taint blocked
 output2=$(run_in "$WORKDIR" "depth_22_taint_cross_block.naab" 2>&1) || true
-if echo "$output2" | grep -qi 'cross_block: blocked\|TAINT'; then
+if grep <<<"$output2" -qi 'cross_block: blocked\|TAINT'; then
     pass "B3" "Cross-block taint propagation blocked"
 else
-    if echo "$output2" | grep -q 'cross_block: NOT blocked'; then
+    if grep <<<"$output2" -q 'cross_block: NOT blocked'; then
         fail "B3" "Cross-block taint propagation blocked" "write succeeded"
     else
         pass "B3" "Cross-block taint gate active"
@@ -122,7 +122,7 @@ else
 fi
 
 # B4: Sanitized cross-block write succeeds
-if echo "$output2" | grep -q 'cross_block sanitized: succeeded'; then
+if grep <<<"$output2" -q 'cross_block sanitized: succeeded'; then
     pass "B4" "Sanitized cross-block write succeeds"
 else
     fail "B4" "Sanitized cross-block write succeeds"
@@ -137,8 +137,8 @@ else
 fi
 
 # B6: BSD events from taint don't leak config
-if echo "$output" | grep -qi 'sanitize_\|validate_' | head -1; then
-    if echo "$output" | grep -i 'sanitize_' | grep -qi 'error\|block\|violation'; then
+if grep <<<"$output" -qi 'sanitize_\|validate_' | head -1; then
+    if grep -qi 'error\|block\|violation' <<<"$(echo "$output" | grep -i 'sanitize_')"; then
         fail "B6" "BSD taint errors don't leak sanitizer names"
     else
         pass "B6" "Sanitizer names only in non-error context"
@@ -152,7 +152,7 @@ checks=$(echo "$output2" | grep -o 'Checks:.*[0-9]* passed' | grep -o '[0-9]*' |
 if [ -n "$checks" ] && [ "$checks" -gt 0 ] 2>/dev/null; then
     pass "B7" "Dashboard shows governance checks ($checks passed)"
 else
-    if echo "$output2" | grep -q 'Governance:.*PASS\|Governance:.*FINDINGS'; then
+    if grep <<<"$output2" -q 'Governance:.*PASS\|Governance:.*FINDINGS'; then
         pass "B7" "Governance check results present"
     else
         fail "B7" "Governance checks visible"
@@ -160,7 +160,7 @@ else
 fi
 
 # B8: No crash on multi-language taint flow
-if echo "$output2" | grep -qi 'segfault\|abort\|core dump\|SIGSEGV'; then
+if grep <<<"$output2" -qi 'segfault\|abort\|core dump\|SIGSEGV'; then
     fail "B8" "No crash on multi-language taint flow"
 else
     pass "B8" "No crash on multi-language taint flow"
@@ -178,10 +178,10 @@ else
 fi
 
 # B10: Telemetry events recorded
-if echo "$output2" | grep -q 'Telemetry:.*[0-9].*events'; then
+if grep <<<"$output2" -q 'Telemetry:.*[0-9].*events'; then
     pass "B10" "Telemetry events recorded"
 else
-    if echo "$output2" | grep -q 'telemetry'; then
+    if grep <<<"$output2" -q 'telemetry'; then
         pass "B10" "Telemetry active"
     else
         fail "B10" "Telemetry events recorded"
@@ -217,10 +217,10 @@ else
 
     # B12: Rate-normalized signals scale penalties
     output=$(run_in "$WORKDIR" "depth_14_rate_normalized.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'blocked\|caught\|BLOCK'; then
+    if grep <<<"$output" -qi 'blocked\|caught\|BLOCK'; then
         pass "B12" "Rate-normalized penalties caught contradictions"
     else
-        if echo "$output" | grep -q 'CDD:.*[1-9]'; then
+        if grep <<<"$output" -q 'CDD:.*[1-9]'; then
             pass "B12" "CDD active with rate normalization"
         else
             fail "B12" "Rate-normalized signal scaling"
@@ -229,10 +229,10 @@ else
 
     # B13: Coherence floor denies admission
     output=$(run_in "$WORKDIR" "depth_16_coherence_floor.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'admission denied\|coherence_floor\|floor\|BLOCK'; then
+    if grep <<<"$output" -qi 'admission denied\|coherence_floor\|floor\|BLOCK'; then
         pass "B13" "Coherence floor denies admission after decay"
     else
-        if echo "$output" | grep -q 'CDD:.*[3-9]'; then
+        if grep <<<"$output" -q 'CDD:.*[3-9]'; then
             pass "B13" "CDD tracked decay across turns"
         else
             pass "B13" "CDD active (floor may not have been reached)"
@@ -241,7 +241,7 @@ else
 
     # B14: Coherence velocity detects rapid drop
     output=$(run_in "$WORKDIR" "depth_11_checkpoint_cooldown.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'blocked\|cooldown\|checkpoint'; then
+    if grep <<<"$output" -qi 'blocked\|cooldown\|checkpoint'; then
         pass "B14" "Checkpoint/velocity mechanism active"
     else
         pass "B14" "CDD checkpoint tracking active"
@@ -249,10 +249,10 @@ else
 
     # B15: Coherence recovery helps pipeline
     output=$(run_in "$WORKDIR" "depth_12_coherence_recovery.naab" 2>&1) || true
-    if echo "$output" | grep -q 'recovery pipeline: completed'; then
+    if grep <<<"$output" -q 'recovery pipeline: completed'; then
         pass "B15" "Coherence recovery allowed pipeline to complete"
     else
-        if echo "$output" | grep -q 'recovery pipeline: blocked'; then
+        if grep <<<"$output" -q 'recovery pipeline: blocked'; then
             pass "B15" "Pipeline blocked (coherence decayed too far for recovery)"
         else
             pass "B15" "Coherence recovery mechanism active"
@@ -280,7 +280,7 @@ else
     if [ -n "$exp" ]; then
         pass "B18" "Exposure tracks unique agents: $exp"
     else
-        if echo "$output" | grep -q 'Exposure:'; then
+        if grep <<<"$output" -q 'Exposure:'; then
             pass "B18" "Exposure tracking active"
         else
             pass "B18" "Exposure section present"
@@ -289,7 +289,7 @@ else
 
     # B19: Mixed pressure from BSD+CDD
     output=$(run_in "$WORKDIR" "depth_20_mixed_pressure.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'blocked\|mixed pressure'; then
+    if grep <<<"$output" -qi 'blocked\|mixed pressure'; then
         pass "B19" "Mixed BSD+CDD pressure produces governance response"
     else
         pass "B19" "Mixed pressure test executed"
@@ -297,7 +297,7 @@ else
 
     # B20: Governance health check fires after turns threshold
     output=$(run_in "$WORKDIR" "depth_19_governance_health.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'health\|instrumentation\|BSD.*0 events.*warning'; then
+    if grep <<<"$output" -qi 'health\|instrumentation\|BSD.*0 events.*warning'; then
         pass "B20" "Governance health check fires"
     else
         cdd_t=$(echo "$output" | grep -o 'CDD:.*[0-9]* turns' | grep -o '[0-9]*' | head -1)
@@ -329,10 +329,10 @@ else
 
     # B21: 3-stage pipeline blocked (max_pipeline_depth=2)
     output=$(run_in "$WORKDIR" "depth_15_pipeline_depth.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'blocked at depth\|pipeline.*depth\|max.*depth\|BLOCK.*pipeline'; then
+    if grep <<<"$output" -qi 'blocked at depth\|pipeline.*depth\|max.*depth\|BLOCK.*pipeline'; then
         pass "B21" "3-stage pipeline blocked by max_pipeline_depth=2"
     else
-        if echo "$output" | grep -q 'pipeline_depth: 3-stage pipeline NOT blocked'; then
+        if grep <<<"$output" -q 'pipeline_depth: 3-stage pipeline NOT blocked'; then
             fail "B21" "3-stage pipeline blocked by max_pipeline_depth" "not blocked"
         else
             pass "B21" "Pipeline depth enforcement active"
@@ -340,10 +340,10 @@ else
     fi
 
     # B22: 2-stage pipeline succeeds
-    if echo "$output" | grep -q 'pipeline_depth: 2-stage pipeline succeeded'; then
+    if grep <<<"$output" -q 'pipeline_depth: 2-stage pipeline succeeded'; then
         pass "B22" "2-stage pipeline within depth limit succeeds"
     else
-        if echo "$output" | grep -q '2-stage also blocked'; then
+        if grep <<<"$output" -q '2-stage also blocked'; then
             fail "B22" "2-stage pipeline within limit" "incorrectly blocked"
         else
             pass "B22" "2-stage pipeline (may have been blocked by other mechanism)"
@@ -352,10 +352,10 @@ else
 
     # B23: Budget asymmetry — small budget exhausts first
     output=$(run_in "$WORKDIR" "depth_21_budget_asymmetry.naab" 2>&1) || true
-    if echo "$output" | grep -q 'small_blocked=true.*big_blocked=false'; then
+    if grep <<<"$output" -q 'small_blocked=true.*big_blocked=false'; then
         pass "B23" "Smaller risk budget exhausts first"
     else
-        if echo "$output" | grep -q 'small_blocked=true'; then
+        if grep <<<"$output" -q 'small_blocked=true'; then
             pass "B23" "Small budget agent blocked"
         else
             pass "B23" "Budget tracking active (both may exhaust or neither)"
@@ -363,7 +363,7 @@ else
     fi
 
     # B24: Budget consumption visible in exposure
-    if echo "$output" | grep -q 'Exposure:.*[1-9]'; then
+    if grep <<<"$output" -q 'Exposure:.*[1-9]'; then
         pass "B24" "Budget test shows exposure tracking"
     else
         pass "B24" "Exposure tracking during budget test"
@@ -371,10 +371,10 @@ else
 
     # B25: Temporal coupling — lock-step agents
     output=$(run_in "$WORKDIR" "depth_17_multi_agent_timing.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'temporal.*coupling\|correlation\|correlated'; then
+    if grep <<<"$output" -qi 'temporal.*coupling\|correlation\|correlated'; then
         pass "B25" "Temporal coupling detected lock-step agents"
     else
-        if echo "$output" | grep -q 'temporal coupling: completed'; then
+        if grep <<<"$output" -q 'temporal coupling: completed'; then
             pass "B25" "Temporal coupling test executed (correlation may be below threshold)"
         else
             pass "B25" "Temporal coupling monitoring active"
@@ -406,14 +406,14 @@ else
     fi
 
     # B29: Dashboard shows mode: enforce throughout
-    if echo "$output" | grep -q 'Mode:.*enforce\|mode: enforce'; then
+    if grep <<<"$output" -q 'Mode:.*enforce\|mode: enforce'; then
         pass "B29" "Governance mode stays enforce throughout"
     else
         fail "B29" "Governance mode stays enforce"
     fi
 
     # B30: No crashes across all depth tests
-    if echo "$output" | grep -qi 'segfault\|abort\|core dump\|SIGSEGV\|stack overflow'; then
+    if grep <<<"$output" -qi 'segfault\|abort\|core dump\|SIGSEGV\|stack overflow'; then
         fail "B30" "No crashes in depth tests"
     else
         pass "B30" "No crashes in depth tests"
@@ -438,7 +438,7 @@ cat > "$WORKDIR/test_max.naab" << 'NAAB'
 main { print("max config ok") }
 NAAB
 output=$("$NAAB" "$WORKDIR/test_max.naab" 2>&1) || true
-if echo "$output" | grep -q 'max config ok'; then
+if grep <<<"$output" -q 'max config ok'; then
     pass "B31" "Max-value depth config executes without crash"
 else
     fail "B31" "Max-value config execution"
@@ -461,7 +461,7 @@ JSON
 cp "$WORKDIR/govern_minimal.json" "$WORKDIR/govern.json"
 (cd "$WORKDIR" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
 output=$("$NAAB" "$WORKDIR/test_max.naab" 2>&1) || true
-if echo "$output" | grep -q 'max config ok'; then
+if grep <<<"$output" -q 'max config ok'; then
     pass "B32" "All depth features disabled — still executes"
 else
     fail "B32" "All features disabled execution"
@@ -487,7 +487,7 @@ cat > "$WORKDIR/govern.json" << 'JSON'
 JSON
 (cd "$WORKDIR" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
 output=$("$NAAB" "$WORKDIR/test_max.naab" 2>&1) || true
-if echo "$output" | grep -qi 'segfault\|abort\|core dump'; then
+if grep <<<"$output" -qi 'segfault\|abort\|core dump'; then
     fail "B33" "Zero thresholds don't crash"
 else
     pass "B33" "Zero thresholds don't crash"
@@ -515,7 +515,7 @@ cat > "$WORKDIR/govern.json" << 'JSON'
 JSON
 (cd "$WORKDIR" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
 output=$("$NAAB" "$WORKDIR/test_max.naab" 2>&1) || true
-if echo "$output" | grep -qiE 'segfault|abort|[^a-z]nan[^a-z]|[^a-z]inf[^a-z]'; then
+if grep <<<"$output" -qiE 'segfault|abort|[^a-z]nan[^a-z]|[^a-z]inf[^a-z]'; then
     fail "B34" "Extreme CDD weights don't cause NaN/crash"
 else
     pass "B34" "Extreme CDD weights don't cause NaN/crash"
@@ -541,7 +541,7 @@ cat > "$WORKDIR/govern.json" << 'JSON'
 JSON
 (cd "$WORKDIR" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
 output=$("$NAAB" "$WORKDIR/test_max.naab" 2>&1) || true
-if echo "$output" | grep -q 'max config ok'; then
+if grep <<<"$output" -q 'max config ok'; then
     pass "B35" "risk_budget=0 (unlimited) accepted"
 else
     fail "B35" "risk_budget=0 accepted"
@@ -552,21 +552,21 @@ fi
 cp "$PHASE_CONFIG" "$WORKDIR/govern.json"
 (cd "$WORKDIR" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
 output=$("$NAAB" --governance-dashboard "$WORKDIR/test_max.naab" 2>&1) || true
-if echo "$output" | grep -q 'max config ok'; then
+if grep <<<"$output" -q 'max config ok'; then
     pass "B36" "All features concurrent — execution succeeds"
 else
     fail "B36" "Concurrent features execution"
 fi
 
 # B37: Dashboard with all features doesn't have Unknown key warnings
-if echo "$output" | grep -q 'Unknown key'; then
+if grep <<<"$output" -q 'Unknown key'; then
     fail "B37" "No Unknown key warnings" "$(echo "$output" | grep 'Unknown key' | head -2)"
 else
     pass "B37" "No Unknown key warnings with full depth config"
 fi
 
 # B38: Governance PASS on simple program with all features
-if echo "$output" | grep -q 'Governance:.*PASS\|Governance.*passed'; then
+if grep <<<"$output" -q 'Governance:.*PASS\|Governance.*passed'; then
     pass "B38" "Governance PASS on simple program"
 else
     pass "B38" "Governance result present"
@@ -574,14 +574,14 @@ fi
 
 # B39: Config reloads cleanly on second run
 output2=$("$NAAB" "$WORKDIR/test_max.naab" 2>&1) || true
-if echo "$output2" | grep -q 'max config ok'; then
+if grep <<<"$output2" -q 'max config ok'; then
     pass "B39" "Config reloads cleanly on second run"
 else
     fail "B39" "Config reload"
 fi
 
 # B40: No memory leak indicators (process completes)
-if echo "$output" | grep -qi 'out of memory\|bad_alloc\|memory limit'; then
+if grep <<<"$output" -qi 'out of memory\|bad_alloc\|memory limit'; then
     fail "B40" "No memory issues with all depth features"
 else
     pass "B40" "No memory issues with all depth features"

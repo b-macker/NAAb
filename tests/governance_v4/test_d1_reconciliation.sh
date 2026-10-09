@@ -153,7 +153,7 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "HEALTH_OK"; then
+if [ "$EXIT_CODE" -eq 0 ] && grep <<<"$OUTPUT" -q "HEALTH_OK"; then
     pass "A01" "govern.json with all D1 fields parses correctly"
 else
     fail "A01" "Config parsing failed" "exit=$EXIT_CODE output=$(echo "$OUTPUT" | head -3)"
@@ -186,7 +186,7 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "HEALTH_OK"; then
+if [ "$EXIT_CODE" -eq 0 ] && grep <<<"$OUTPUT" -q "HEALTH_OK"; then
     pass "A02" "D1 signals work with default config — no impact on existing behavior"
 else
     fail "A02" "Default config broken" "exit=$EXIT_CODE"
@@ -219,7 +219,7 @@ main { print("DASHBOARD_OK") }
 NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" --governance-dashboard "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "DASHBOARD_OK"; then
+if [ "$EXIT_CODE" -eq 0 ] && grep <<<"$OUTPUT" -q "DASHBOARD_OK"; then
     pass "A03" "Dashboard runs with D1 signals enabled"
 else
     fail "A03" "Dashboard crashed with D1 signals" "exit=$EXIT_CODE"
@@ -263,7 +263,7 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "CLAMP_OK"; then
+if [ "$EXIT_CODE" -eq 0 ] && grep <<<"$OUTPUT" -q "CLAMP_OK"; then
     pass "A04" "Extreme threshold values handled (no crash)"
 else
     fail "A04" "Extreme thresholds caused crash" "exit=$EXIT_CODE"
@@ -298,7 +298,7 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
-if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "ORPHAN_CTX_OK"; then
+if [ "$EXIT_CODE" -eq 0 ] && grep <<<"$OUTPUT" -q "ORPHAN_CTX_OK"; then
     pass "A05" "step_up_contextual=true without step_up_enabled=true (no crash)"
 else
     fail "A05" "Orphan contextual config caused crash" "exit=$EXIT_CODE"
@@ -430,7 +430,7 @@ NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
 
-if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "AGENT_CREATED"; then
+if [ "$EXIT_CODE" -eq 0 ] && grep <<<"$OUTPUT" -q "AGENT_CREATED"; then
     pass "A07" "Agent creation works with D1 config"
 else
     fail "A07" "Agent creation failed with D1 config" "exit=$EXIT_CODE output=$(echo "$OUTPUT" | head -5)"
@@ -765,7 +765,7 @@ NAABEOF
     fi
 
     # B02: Agent created successfully
-    if echo "$OUTPUT" | grep -q "AGENT_CREATED"; then
+    if grep <<<"$OUTPUT" -q "AGENT_CREATED"; then
         pass "B02" "Agent created successfully"
     else
         fail "B02" "Agent creation failed"
@@ -815,7 +815,7 @@ NAABEOF
         FIRST_RECONCIL=$(grep "RECONCILIATION_TURN" "$TELEM_FILE" | head -1)
         FIELDS_OK=true
         for field in "handle_id" "turn" "tool_integrity_count" "claim_mismatch_count" "claim_accuracy_rolling" "coherence" "signals_fired"; do
-            if ! echo "$FIRST_RECONCIL" | grep -q "\"$field\"" 2>/dev/null; then
+            if ! grep <<<"$FIRST_RECONCIL" -q "\"$field\"" 2>/dev/null; then
                 FIELDS_OK=false
                 break
             fi

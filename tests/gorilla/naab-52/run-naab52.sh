@@ -128,7 +128,7 @@ else
     fi
 
     # S02: Agent created
-    if echo "$OUTPUT" | grep -q "AGENT_CREATED"; then
+    if grep <<<"$OUTPUT" -q "AGENT_CREATED"; then
         pass "S02" "Agent created successfully"
     else
         fail "S02" "Agent creation failed"
@@ -219,7 +219,7 @@ else
         FIRST_RECONCIL=$(grep "RECONCILIATION_TURN" "$TELEM_FILE" | head -1)
         MISSING_FIELDS=""
         for field in "handle_id" "turn" "tool_integrity_count" "claim_mismatch_count" "claim_accuracy_rolling" "instruction_recall_count" "plan_drift_count" "entity_consistency_count" "coherence" "signals_fired"; do
-            if ! echo "$FIRST_RECONCIL" | grep -q "\"$field\"" 2>/dev/null; then
+            if ! grep <<<"$FIRST_RECONCIL" -q "\"$field\"" 2>/dev/null; then
                 MISSING_FIELDS="$MISSING_FIELDS $field"
             fi
         done

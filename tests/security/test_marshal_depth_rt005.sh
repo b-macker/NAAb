@@ -34,7 +34,7 @@ main {
 }
 NAAB_PROBE
 )
-if echo "$check_out" | grep -qi "python.*not.*available\|executor.*not.*found\|HAVE_PYBIND11\|no.*python"; then
+if grep <<<"$check_out" -qi "python.*not.*available\|executor.*not.*found\|HAVE_PYBIND11\|no.*python"; then
     HAVE_PYTHON=0
 fi
 
@@ -73,7 +73,7 @@ out=$(timeout 10s "$NAAB" --no-governance "$WORKDIR/test_t1.naab" 2>&1) || ec=$?
 # SIGSEGV=139, SIGABRT=134 — both indicate a crash (depth limit NOT enforced)
 if [[ "$ec" -eq 139 ]] || [[ "$ec" -eq 134 ]]; then
     fail "runtime crashed (SIGSEGV/SIGABRT) — valueToPyObject depth limit not enforced"
-elif echo "$out" | grep -qi "depth\|maximum.*depth\|marshalling error\|nested.*structure"; then
+elif grep <<<"$out" -qi "depth\|maximum.*depth\|marshalling error\|nested.*structure"; then
     ok "clear depth error from valueToPyObject — no crash"
 elif [[ "$ec" -ne 0 ]]; then
     skip "non-zero exit without crash — depth limit or other error caught"
@@ -108,12 +108,12 @@ out=$(timeout 10s "$NAAB" --no-governance "$WORKDIR/test_t2.naab" 2>&1) || ec=$?
 
 if [[ "$ec" -eq 139 ]] || [[ "$ec" -eq 134 ]]; then
     fail "runtime crashed on 30-level list — false positive crash"
-elif echo "$out" | grep -qi "depth\|maximum.*depth\|marshalling error"; then
+elif grep <<<"$out" -qi "depth\|maximum.*depth\|marshalling error"; then
     fail "false positive — 30-level nesting hit depth limit: ${out:0:120}"
 elif [[ "$ec" -eq 0 ]]; then
     ok "30-level list marshalled without error"
 else
-    if echo "$out" | grep -qi "executor\|python\|not found\|not available"; then
+    if grep <<<"$out" -qi "executor\|python\|not found\|not available"; then
         skip "no Python executor — depth limit not triggered (acceptable)"
     else
         ok "non-zero exit for non-depth reason: ${out:0:80}"
@@ -133,7 +133,7 @@ out=$(timeout 10s "$NAAB" --no-governance "$WORKDIR/test_t2.naab" 2>&1) || true
 # and its blocks return nothing to look at: UNMEASURABLE, not a pass and not a
 # failure. Only that self-declared limitation skips -- anything else that
 # produces no result still fails.
-if echo "$out" | grep -qx "ok"; then
+if grep <<<"$out" -qx "ok"; then
     ok "30-level structure marshalled and the Python block returned \"ok\""
 elif [[ "$out" == *"Python support not available"* ]]; then
     skip "C1: this build has no embedded Python executor -- UNMEASURABLE, T2 unverified here"
@@ -144,7 +144,7 @@ fi
 echo "[C2] CONTROL: the 70-level structure is stopped by the depth limit"
 ec=0
 out=$(timeout 10s "$NAAB" --no-governance "$WORKDIR/test_t1.naab" 2>&1) || ec=$?
-if [[ "$ec" -ne 0 ]] && echo "$out" | grep -qi "maximum depth"; then
+if [[ "$ec" -ne 0 ]] && grep <<<"$out" -qi "maximum depth"; then
     ok "70-level structure refused with a depth error (exit $ec)"
 else
     fail "70-level structure was not refused by the depth limit (exit $ec): ${out:0:120}"

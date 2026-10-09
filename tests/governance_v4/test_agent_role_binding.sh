@@ -74,7 +74,7 @@ EOF
 
 # AB-01: tool reads the role-blocked path -> HARD block naming the agent
 OUT=$(mk_run "$TT/blocked.txt" 'print("REACHED_END")'); EC=$?
-if [ "$EC" = "3" ] && echo "$OUT" | grep -q "Agent 'restricted_agent' blocked from path"; then
+if [ "$EC" = "3" ] && grep <<<"$OUT" -q "Agent 'restricted_agent' blocked from path"; then
     ok "AB-01" "agent tool reading a role-blocked path is HARD-blocked, naming the acting agent"
 else
     bad "AB-01" "the tool read the role-blocked path (fix not active)" "exit $EC; $(echo "$OUT" | grep -iE 'TOOL_SUCCESS|SECRET|blocked' | head -2)"
@@ -83,7 +83,7 @@ fi
 # AB-02: NO-LEAK — tool reads an ALLOWED path, then the SCRIPT reads the
 # role-blocked path; the script is not the agent, so it must SUCCEED.
 OUT=$(mk_run "$TT/allowed.txt" 'let c = file.read("'"$TT"'/blocked.txt") print("SCRIPT_READ=" + string(c))'); EC=$?
-if echo "$OUT" | grep -q "SCRIPT_READ=SECRET_BLOCKED" && echo "$OUT" | grep -q "TOOL_SUCCESS=true"; then
+if grep <<<"$OUT" -q "SCRIPT_READ=SECRET_BLOCKED" && grep <<<"$OUT" -q "TOOL_SUCCESS=true"; then
     ok "AB-02" "NO-LEAK: the tool role does not bind the orchestration script after the tool returns"
 else
     bad "AB-02" "the agent role leaked to the surrounding script (over-binding)" "exit $EC; $(echo "$OUT" | grep -iE 'SCRIPT_READ|blocked|Error' | head -2)"
@@ -91,7 +91,7 @@ fi
 
 # AB-03: tool reads an ALLOWED path -> succeeds (no over-block)
 OUT=$(mk_run "$TT/allowed.txt" 'print("END")'); EC=$?
-if echo "$OUT" | grep -q "TOOL_SUCCESS=true"; then
+if grep <<<"$OUT" -q "TOOL_SUCCESS=true"; then
     ok "AB-03" "CONTROL: a tool reading a non-blocked path still succeeds (no over-block)"
 else
     bad "AB-03" "the fix over-blocks a permitted tool read" "exit $EC; $(echo "$OUT" | grep -iE 'TOOL_SUCCESS|blocked|Error' | head -2)"

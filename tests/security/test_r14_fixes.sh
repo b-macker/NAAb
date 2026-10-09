@@ -116,7 +116,7 @@ EOF
     SET_OUT=$(NAAB_LOCK_KEY=real "$NAAB" "$WORK_DIR/test_set_internal.naab" 2>&1)
     SET_CODE=$?
     set -e
-    if [ "$SET_CODE" -ne 0 ] && ! echo "$SET_OUT" | grep -q "bad"; then
+    if [ "$SET_CODE" -ne 0 ] && ! grep <<<"$SET_OUT" -q "bad"; then
         pass "T-ENV1-1: env.set_var(NAAB_LOCK_KEY) throws (exit=$SET_CODE)"
     else
         fail "T-ENV1-1: expected error but got exit=$SET_CODE (out=$SET_OUT)"
@@ -134,7 +134,7 @@ EOF
     DEL_OUT=$(NAAB_LOCK_KEY=real "$NAAB" "$WORK_DIR/test_del_internal.naab" 2>&1)
     DEL_CODE=$?
     set -e
-    if [ "$DEL_CODE" -ne 0 ] && ! echo "$DEL_OUT" | grep -q "bad"; then
+    if [ "$DEL_CODE" -ne 0 ] && ! grep <<<"$DEL_OUT" -q "bad"; then
         pass "T-ENV1-2: env.delete_var(NAAB_LOCK_KEY) throws (exit=$DEL_CODE)"
     else
         fail "T-ENV1-2: expected error but got exit=$DEL_CODE (out=$DEL_OUT)"
@@ -169,7 +169,7 @@ EOF
     LD_OUT=$("$NAAB" "$WORK_DIR/test_ldpreload.naab" 2>&1)
     LD_CODE=$?
     set -e
-    if [ "$LD_CODE" -ne 0 ] && ! echo "$LD_OUT" | grep -q "bad"; then
+    if [ "$LD_CODE" -ne 0 ] && ! grep <<<"$LD_OUT" -q "bad"; then
         pass "T-RCE1-1: env.set_var(LD_PRELOAD) throws (exit=$LD_CODE)"
     else
         fail "T-RCE1-1: expected error but got exit=$LD_CODE (out=$LD_OUT)"
@@ -187,7 +187,7 @@ EOF
     PY_OUT=$("$NAAB" "$WORK_DIR/test_pythonpath.naab" 2>&1)
     PY_CODE=$?
     set -e
-    if [ "$PY_CODE" -ne 0 ] && ! echo "$PY_OUT" | grep -q "bad"; then
+    if [ "$PY_CODE" -ne 0 ] && ! grep <<<"$PY_OUT" -q "bad"; then
         pass "T-RCE1-2: env.set_var(PYTHONPATH) throws (exit=$PY_CODE)"
     else
         fail "T-RCE1-2: expected error but got exit=$PY_CODE (out=$PY_OUT)"

@@ -123,7 +123,7 @@ fi
 (cd "$WDIR" && timeout 30s "$NAAB" t.naab >/dev/null 2>&1)
 (cd "$WDIR" && timeout 30s "$NAAB" t.naab >/dev/null 2>&1)
 VOUT=$(cd "$WDIR" && "$NAAB" --verify-telemetry-chain tele.jsonl 2>&1); VEXIT=$?
-if [ "$VEXIT" -eq 0 ] && ! echo "$VOUT" | grep -q "BREAK\|LEGACY RESTART"; then
+if [ "$VEXIT" -eq 0 ] && ! grep <<<"$VOUT" -q "BREAK\|LEGACY RESTART"; then
     pass "A-02" "three sequential runs, shared file: continuous chain, no breaks"
 else
     fail "A-02" "cross-run continuity broken" "$VOUT"
@@ -174,7 +174,7 @@ fi
 # Delete a middle event → BREAK
 sed '2d' "$WDIR/tele.jsonl" > "$WDIR/cut_ev.jsonl"
 VOUT=$(cd "$WDIR" && "$NAAB" --verify-telemetry-chain cut_ev.jsonl 2>&1); VEXIT=$?
-if [ "$VEXIT" -eq 1 ] && echo "$VOUT" | grep -q "BREAK"; then
+if [ "$VEXIT" -eq 1 ] && grep <<<"$VOUT" -q "BREAK"; then
     pass "A-05" "deleting a middle event is detected (BREAK, exit 1)"
 else
     fail "A-05" "middle-event deletion not detected" "exit=$VEXIT"
@@ -183,7 +183,7 @@ fi
 # Delete an entire interior run (lines 3-4 = run 2 of 3) → BREAK via anchor
 sed '3,4d' "$WDIR/tele.jsonl" > "$WDIR/cut_run.jsonl"
 VOUT=$(cd "$WDIR" && "$NAAB" --verify-telemetry-chain cut_run.jsonl 2>&1); VEXIT=$?
-if [ "$VEXIT" -eq 1 ] && echo "$VOUT" | grep -q "BREAK"; then
+if [ "$VEXIT" -eq 1 ] && grep <<<"$VOUT" -q "BREAK"; then
     pass "A-06" "deleting an entire interior run is detected (BREAK, exit 1)"
 else
     fail "A-06" "interior-run deletion not detected" "exit=$VEXIT"
@@ -192,7 +192,7 @@ fi
 # Truncate the final run's tail (drop its RunEnd) → advisory warning, exit 0
 sed '$d' "$WDIR/tele.jsonl" > "$WDIR/trunc.jsonl"
 VOUT=$(cd "$WDIR" && "$NAAB" --verify-telemetry-chain trunc.jsonl 2>&1); VEXIT=$?
-if [ "$VEXIT" -eq 0 ] && echo "$VOUT" | grep -q "WARNING.*no RunEnd"; then
+if [ "$VEXIT" -eq 0 ] && grep <<<"$VOUT" -q "WARNING.*no RunEnd"; then
     pass "A-07" "final-run tail truncation warns (crash-indistinguishable, exit 0)"
 else
     fail "A-07" "final-run truncation handling wrong" "exit=$VEXIT $VOUT"
@@ -201,7 +201,7 @@ fi
 # Mutate an event → TAMPER
 sed '1s/"event_type":"RunStart"/"event_type":"RunStarX"/' "$WDIR/tele.jsonl" > "$WDIR/tamper.jsonl"
 VOUT=$(cd "$WDIR" && "$NAAB" --verify-telemetry-chain tamper.jsonl 2>&1); VEXIT=$?
-if [ "$VEXIT" -eq 1 ] && echo "$VOUT" | grep -q "TAMPER"; then
+if [ "$VEXIT" -eq 1 ] && grep <<<"$VOUT" -q "TAMPER"; then
     pass "A-08" "mutating an event is detected (TAMPER, exit 1)"
 else
     fail "A-08" "event mutation not detected" "exit=$VEXIT"
@@ -224,7 +224,7 @@ e, h = mk({"run_id": "r2", "event_type": "GovernanceCheck", "n": 4}, h); evs.app
 open(sys.argv[1], "w").write("\n".join(json.dumps(x, sort_keys=True, separators=(',', ':')) for x in evs) + "\n")
 PYEOF
 VOUT=$(cd "$WDIR" && "$NAAB" --verify-telemetry-chain legacy.jsonl 2>&1); VEXIT=$?
-if [ "$VEXIT" -eq 0 ] && echo "$VOUT" | grep -q "LEGACY RESTART"; then
+if [ "$VEXIT" -eq 0 ] && grep <<<"$VOUT" -q "LEGACY RESTART"; then
     pass "A-09" "legacy per-run genesis restart classified as warning, not break"
 else
     fail "A-09" "legacy restart handling wrong" "exit=$VEXIT $VOUT"
@@ -278,7 +278,7 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "DONE"; then
+if grep <<<"$OUTPUT" -q "DONE"; then
     pass "B-01" "agent sends complete with decision_snapshots enabled"
 else
     fail "B-01" "agent sends failed" "$(echo "$OUTPUT" | head -3)"
@@ -577,7 +577,7 @@ else
 fi
 
 VOUT=$(cd "$WDIR" && "$NAAB" --verify-telemetry-chain tele.jsonl 2>&1); VEXIT=$?
-if [ "$VEXIT" -eq 0 ] && ! echo "$VOUT" | grep -q "BREAK\|LEGACY RESTART"; then
+if [ "$VEXIT" -eq 0 ] && ! grep <<<"$VOUT" -q "BREAK\|LEGACY RESTART"; then
     pass "E-02" "runs emitting health warnings verify clean on a shared file"
 else
     fail "E-02" "health warnings break chain verification" "exit=$VEXIT $VOUT"
@@ -702,7 +702,7 @@ else
 fi
 
 VOUT=$(cd "$WDIR" && "$NAAB" --verify-telemetry-chain tele.jsonl 2>&1); VEXIT=$?
-if [ "$VEXIT" -eq 0 ] && ! echo "$VOUT" | grep -q "BREAK"; then
+if [ "$VEXIT" -eq 0 ] && ! grep <<<"$VOUT" -q "BREAK"; then
     pass "F-03" "chain verifies after a run that wrote reports twice"
 else
     fail "F-03" "repeated writeReports breaks chain accounting" "exit=$VEXIT $VOUT"

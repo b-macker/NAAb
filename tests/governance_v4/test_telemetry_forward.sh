@@ -59,7 +59,7 @@ main {
 NAABEOF
 
 OUTPUT1=$(cd "$T1DIR" && timeout 10s "$NAAB" test_config.naab 2>/dev/null) || true
-if echo "$OUTPUT1" | grep -q "42"; then
+if grep <<<"$OUTPUT1" -q "42"; then
     ok "Webhook config fields parsed without error"
 else
     fail "Webhook config broke execution"
@@ -145,7 +145,7 @@ NAAB_TEST_SIEM_KEY="test-api-key-12345" \
     timeout 10s "$NAAB" "$T3DIR/test_auth.naab" 2>/dev/null || true
 # If it ran without crash, the env var was resolved
 OUTPUT3=$(NAAB_TEST_SIEM_KEY="test-api-key-12345" timeout 10s "$NAAB" "$T3DIR/test_auth.naab" 2>/dev/null) || true
-if echo "$OUTPUT3" | grep -q "auth_test_ok"; then
+if grep <<<"$OUTPUT3" -q "auth_test_ok"; then
     ok "Webhook auth env var resolved without error"
 else
     fail "Auth env var resolution broke execution"
@@ -189,7 +189,7 @@ OUTPUT4=$(cd "$T4DIR" && timeout 15s "$NAAB" test_nonblock.naab 2>/dev/null) || 
 END=$(date +%s)
 ELAPSED=$((END - START))
 
-if echo "$OUTPUT4" | grep -q "nonblock_ok"; then
+if grep <<<"$OUTPUT4" -q "nonblock_ok"; then
     if [ "$ELAPSED" -lt 10 ]; then
         ok "Execution completed in ${ELAPSED}s despite unreachable webhook (non-blocking)"
     else

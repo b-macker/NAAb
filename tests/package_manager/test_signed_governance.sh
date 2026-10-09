@@ -262,7 +262,7 @@ if [ -f "$PROJ/naab_modules/govpkg/naab.toml" ] && \
 else
     bad "C-02" "the refusal left the install half-done"
 fi
-if echo "$OUT" | grep -q "sign-governance"; then
+if grep <<<"$OUT" -q "sign-governance"; then
     ok "C-03" "the message says how to proceed"
 else
     bad "C-03" "no actionable message: $(echo "$OUT" | head -2)"
@@ -274,7 +274,7 @@ fi
 echo "--- Group D: buffered output"
 new_project pipe no
 PIPED="$(run_pm install testorg/plain@1.0.0 | cat)"
-if echo "$PIPED" | grep -q "Installed plain"; then
+if grep <<<"$PIPED" -q "Installed plain"; then
     ok "D-01" "package-manager stdout survives a pipe"
 else
     bad "D-01" "stdout was discarded when not a terminal"

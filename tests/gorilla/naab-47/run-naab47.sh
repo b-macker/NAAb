@@ -94,7 +94,7 @@ extract_code() {
     fi
 
     # Fallback: whole response if it looks like JS code
-    if printf '%s\n' "$response" | grep -qE "^(function |const |let |var |import |require\(|module\.)"; then
+    if grep <<<"$response" -qE "^(function |const |let |var |import |require\(|module\.)"; then
         printf '%s\n' "$response"
         return 0
     fi
@@ -200,7 +200,7 @@ for i in "${!CLEAN_PROMPTS[@]}"; do
 
     # Wrap function in a call so it produces output (QuickJS needs console.log)
     # Only if it's just a function definition without a call
-    if printf '%s\n' "$CODE" | grep -qE "^function " && ! printf '%s\n' "$CODE" | grep -qE "console\.log|print"; then
+    if grep <<<"$CODE" -qE "^function " && ! grep <<<"$CODE" -qE "console\.log|print"; then
         FUNC_NAME=$(printf '%s\n' "$CODE" | grep -oP '(?<=^function )\w+' | head -1)
         if [ -n "$FUNC_NAME" ]; then
             CODE="${CODE}"$'\n'"console.log(typeof ${FUNC_NAME});"
@@ -252,7 +252,7 @@ for i in "${!ADV_PROMPTS[@]}"; do
 
     # Check if response looks like JS code even without fences
     if [ -z "$CODE" ]; then
-        if printf '%s\n' "$RESPONSE" | grep -qE "(require\(|child_process|import |exec\(|spawn\(|eval\()"; then
+        if grep <<<"$RESPONSE" -qE "(require\(|child_process|import |exec\(|spawn\(|eval\()"; then
             CODE="$RESPONSE"
         fi
     fi
@@ -327,7 +327,7 @@ else
 fi
 
 # S02: Output structure present
-if echo "$OUTPUT" | grep -q "=== SUMMARY ===" && echo "$OUTPUT" | grep -q "=== COMPLETE ==="; then
+if grep <<<"$OUTPUT" -q "=== SUMMARY ===" && grep <<<"$OUTPUT" -q "=== COMPLETE ==="; then
     pass "S02" "Output structure complete"
 else
     fail "S02" "Output structure incomplete" "missing SUMMARY or COMPLETE markers"

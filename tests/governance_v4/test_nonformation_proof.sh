@@ -187,19 +187,19 @@ else
     fail "C-01" "no RefusalAttestation in telemetry" "$(wc -l < "$TELE_B" 2>/dev/null) telemetry line(s)"
 fi
 
-if echo "$ATT" | grep -q '"execution_prevented":true'; then
+if grep <<<"$ATT" -q '"execution_prevented":true'; then
     pass "C-02" "attestation asserts execution_prevented=true"
 else
     fail "C-02" "execution_prevented not asserted" "${ATT:0:200}"
 fi
 
-if echo "$ATT" | grep -q '"rule_name":"languages.blocked"'; then
+if grep <<<"$ATT" -q '"rule_name":"languages.blocked"'; then
     pass "C-03" "attestation names the rule that refused"
 else
     fail "C-03" "rule_name missing or wrong" "${ATT:0:200}"
 fi
 
-if echo "$ATT" | grep -q '"binding_status":"non-binding"'; then
+if grep <<<"$ATT" -q '"binding_status":"non-binding"'; then
     pass "C-04" "attestation declares itself non-binding evidence"
 else
     fail "C-04" "binding_status missing" "${ATT:0:200}"
@@ -210,8 +210,8 @@ fi
 # fact always empty, because the signing (private) key was handed to
 # ed25519Fingerprint(), which only accepts public keys. A signature you cannot
 # attribute to a key is not proof of who refused.
-if echo "$ATT" | grep -qE '"signature":"[A-Za-z0-9+/=]{40,}"' &&
-   echo "$ATT" | grep -qE '"key_fingerprint":"[0-9a-f]{16,}"'; then
+if grep <<<"$ATT" -qE '"signature":"[A-Za-z0-9+/=]{40,}"' &&
+   grep <<<"$ATT" -qE '"key_fingerprint":"[0-9a-f]{16,}"'; then
     pass "C-05" "attestation is Ed25519-signed and the key fingerprint is non-empty"
 else
     fail "C-05" "attestation unsigned or fingerprint empty" "${ATT:0:300}"
@@ -293,7 +293,7 @@ else
 fi
 
 ATT_E="$(refusal_event "$TELE_E")"
-if echo "$ATT_E" | grep -q '"execution_prevented":true'; then
+if grep <<<"$ATT_E" -q '"execution_prevented":true'; then
     pass "E-03" "capability refusal is attested the same way"
 else
     fail "E-03" "no attestation for the capability refusal" "${ATT_E:0:200}"

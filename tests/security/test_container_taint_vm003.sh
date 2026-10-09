@@ -57,7 +57,7 @@ main {
 NAAB
 
 out=$("$NAAB" "$WORK_DIR/vm003_t1.naab" 2>&1 || true)
-if echo "$out" | grep -qi "taint\|sink\|blocked\|governance.*error\|denied\|violation"; then
+if grep <<<"$out" -qi "taint\|sink\|blocked\|governance.*error\|denied\|violation"; then
     ok "taint propagated through dict — http.post blocked"
 else
     fail "expected taint block, got: $out"
@@ -81,7 +81,7 @@ main {
 NAAB
 
 out=$("$NAAB" "$WORK_DIR/vm003_t2.naab" 2>&1 || true)
-if echo "$out" | grep -qi "taint.*violat\|taint.*block\|sink.*taint\|tainted.*denied"; then
+if grep <<<"$out" -qi "taint.*violat\|taint.*block\|sink.*taint\|tainted.*denied"; then
     fail "false positive — clean dict read blocked: $out"
 else
     ok "clean dict read not blocked (no false positive)"
@@ -105,7 +105,7 @@ main {
 NAAB
 
 SECRET_KEY="s3cr3t" out=$("$NAAB" --no-governance "$WORK_DIR/vm003_t3.naab" 2>&1 || true)
-if echo "$out" | grep -qi "governance.*error\|taint.*block\|violation"; then
+if grep <<<"$out" -qi "governance.*error\|taint.*block\|violation"; then
     fail "governance fired with --no-governance: $out"
 else
     ok "no-governance: ran without governance error"
@@ -130,7 +130,7 @@ main {
 NAAB
 
 out=$("$NAAB" "$WORK_DIR/vm003_t4.naab" 2>&1 || true)
-if echo "$out" | grep -qi "taint\|sink\|blocked\|governance.*error\|denied\|violation"; then
+if grep <<<"$out" -qi "taint\|sink\|blocked\|governance.*error\|denied\|violation"; then
     ok "taint propagated through dict.put/get — http.post blocked"
 else
     fail "expected taint block via put/get, got: $out"

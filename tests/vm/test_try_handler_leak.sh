@@ -42,7 +42,7 @@ NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
 # also yields two empty outputs that match, so ask the binary to identify
 # itself. A missing binary is a suite failure rather than a skip — this test
 # has no platform prerequisite to skip on.
-if ! "$NAAB" --version 2>/dev/null | grep -qi naab; then
+if ! grep -qi naab <<<"$("$NAAB" --version 2>/dev/null)"; then
     echo "  FAIL [SETUP] $NAAB does not identify as naab-lang" >&2
     echo "       -> build it first; an absent binary makes every comparison vacuous" >&2
     exit 1

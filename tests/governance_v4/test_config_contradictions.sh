@@ -92,7 +92,7 @@ GOVEOF
 OUT=$(emit c11_pos '"w": { "provider": "gemini", "model": "m",
       "api_key_env": ["K1","K2","K3"], "retry": { "max_attempts": 1 },
       "max_tokens": 50, "max_turns": 5, "system_prompt": "x" }' "")
-if echo "$OUT" | grep -q "CONTRA-011"; then
+if grep <<<"$OUT" -q "CONTRA-011"; then
     pass "CC-01" "rotation keys without within-call failover is reported"
 else
     fail "CC-01" "CONTRA-011 did not fire on 3 keys + max_attempts 1" "$(echo "$OUT" | head -2)"
@@ -102,7 +102,7 @@ fi
 OUT=$(emit c11_neg '"w": { "provider": "gemini", "model": "m",
       "api_key_env": ["K1","K2","K3"], "retry": { "max_attempts": 3 },
       "max_tokens": 50, "max_turns": 5, "system_prompt": "x" }' "")
-if echo "$OUT" | grep -q "CONTRA-011"; then
+if grep <<<"$OUT" -q "CONTRA-011"; then
     fail "CC-02" "CONTRA-011 fires even with retry configured" \
          "the pattern ignores max_attempts; CC-01 proves nothing"
 else
@@ -113,7 +113,7 @@ fi
 OUT=$(emit c11_single '"w": { "provider": "gemini", "model": "m",
       "api_key_env": "K1", "retry": { "max_attempts": 1 },
       "max_tokens": 50, "max_turns": 5, "system_prompt": "x" }' "")
-if echo "$OUT" | grep -q "CONTRA-011"; then
+if grep <<<"$OUT" -q "CONTRA-011"; then
     fail "CC-04" "CONTRA-011 fires on a single key" \
          "no rotation was requested, so no intent is being defeated"
 else
@@ -132,7 +132,7 @@ fi
 OUT=$(emit c12_pos '"w": { "provider": "gemini", "model": "m", "api_key_env": "K",
       "max_tokens": 50, "max_turns": 40, "system_prompt": "x" }' \
       '"context_drift": { "enabled": true, "adaptive_baseline_enabled": false }')
-if echo "$OUT" | grep -q "CONTRA-012"; then
+if grep <<<"$OUT" -q "CONTRA-012"; then
     pass "CC-03" "unrecoverable context_growth combination is reported"
 else
     fail "CC-03" "CONTRA-012 did not fire" "$(echo "$OUT" | head -2)"
@@ -143,7 +143,7 @@ OUT=$(emit c12_win '"w": { "provider": "gemini", "model": "m", "api_key_env": "K
       "max_tokens": 50, "max_turns": 40, "context_window": 20,
       "context_strategy": "recent", "system_prompt": "x" }' \
       '"context_drift": { "enabled": true }')
-if echo "$OUT" | grep -q "CONTRA-012"; then
+if grep <<<"$OUT" -q "CONTRA-012"; then
     fail "CC-05" "CONTRA-012 fires despite a context_window" \
          "the pattern ignores windowing; CC-03 proves nothing"
 else
@@ -154,7 +154,7 @@ fi
 OUT=$(emit c12_short '"w": { "provider": "gemini", "model": "m", "api_key_env": "K",
       "max_tokens": 50, "max_turns": 6, "system_prompt": "x" }' \
       '"context_drift": { "enabled": true }')
-if echo "$OUT" | grep -q "CONTRA-012"; then
+if grep <<<"$OUT" -q "CONTRA-012"; then
     fail "CC-06" "CONTRA-012 fires on a short run" \
          "it cannot reach the growth crossing; this is the noise guard"
 else
@@ -166,7 +166,7 @@ OUT=$(emit c12_off '"w": { "provider": "gemini", "model": "m", "api_key_env": "K
       "max_tokens": 50, "max_turns": 40, "system_prompt": "x",
       "context_drift_signals": { "context_growth": false } }' \
       '"context_drift": { "enabled": true }')
-if echo "$OUT" | grep -q "CONTRA-012"; then
+if grep <<<"$OUT" -q "CONTRA-012"; then
     fail "CC-08" "CONTRA-012 ignores a per-agent signal override" \
          "the signal is off for this agent, so it cannot fire at all"
 else

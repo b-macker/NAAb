@@ -89,7 +89,7 @@ BANNED_PATTERNS=(
 check_banned() {
     local output="$1"
     for pat in "${BANNED_PATTERNS[@]}"; do
-        if echo "$output" | grep -qi -- "$pat"; then
+        if grep <<<"$output" -qi -- "$pat"; then
             echo "$pat"
             return 0
         fi
@@ -246,52 +246,52 @@ if should_run 1; then
     fi
 
     # A1: calibrate() returns {success: true}
-    echo "$output" | grep -q 'a1_calibrate_success: true' && \
+    grep <<<"$output" -q 'a1_calibrate_success: true' && \
         pass "A1" "calibrate() returns {success: true}" || \
         fail "A1" "calibrate() didn't return success" "$(echo "$output" | grep 'a1_' | head -1)"
 
     # A2: calibration() nested dict has weight matching input
-    echo "$output" | grep -q 'a2_weight_match: true' && \
+    grep <<<"$output" -q 'a2_weight_match: true' && \
         pass "A2" "calibration() weight matches input" || \
         fail "A2" "calibration() weight mismatch" "$(echo "$output" | grep 'a2_' | head -1)"
 
     # A3: observation_count increments
-    echo "$output" | grep -q 'a3_observation_count: true' && \
+    grep <<<"$output" -q 'a3_observation_count: true' && \
         pass "A3" "observation_count increments on repeat" || \
         fail "A3" "observation_count didn't increment" "$(echo "$output" | grep 'a3_' | head -1)"
 
     # A4: overwrite — latest weight wins
-    echo "$output" | grep -q 'a4_overwrite_latest: true' && \
+    grep <<<"$output" -q 'a4_overwrite_latest: true' && \
         pass "A4" "overwrite same rule — latest weight wins" || \
         fail "A4" "overwrite didn't take latest" "$(echo "$output" | grep 'a4_' | head -1)"
 
     # A5: negative weight clamped to 0
-    echo "$output" | grep -q 'a5_negative_clamped: true' && \
+    grep <<<"$output" -q 'a5_negative_clamped: true' && \
         pass "A5" "negative weight clamped to 0" || \
         fail "A5" "negative weight not clamped" "$(echo "$output" | grep 'a5_' | head -1)"
 
     # A6: multiple rules accumulate independently
-    echo "$output" | grep -q 'a6_multi_rules: true' && \
+    grep <<<"$output" -q 'a6_multi_rules: true' && \
         pass "A6" "multiple rules accumulate independently" || \
         fail "A6" "multiple rules failed" "$(echo "$output" | grep 'a6_' | head -1)"
 
     # A7: bad arity throws
-    echo "$output" | grep -q 'a7_bad_arity: true' && \
+    grep <<<"$output" -q 'a7_bad_arity: true' && \
         pass "A7" "bad args (2 args) throws" || \
         fail "A7" "bad arity didn't throw" "$(echo "$output" | grep 'a7_' | head -1)"
 
     # A8: bad type throws
-    echo "$output" | grep -q 'a8_bad_type: true' && \
+    grep <<<"$output" -q 'a8_bad_type: true' && \
         pass "A8" "bad type (string weight) throws" || \
         fail "A8" "bad type didn't throw" "$(echo "$output" | grep 'a8_' | head -1)"
 
     # A9: reason string matches input
-    echo "$output" | grep -q 'a9_reason_match: true' && \
+    grep <<<"$output" -q 'a9_reason_match: true' && \
         pass "A9" "calibration() reason matches input" || \
         fail "A9" "reason mismatch" "$(echo "$output" | grep 'a9_' | head -1)"
 
     # A10: updated_at is non-empty string
-    echo "$output" | grep -q 'a10_updated_at: true' && \
+    grep <<<"$output" -q 'a10_updated_at: true' && \
         pass "A10" "calibration() updated_at non-empty" || \
         fail "A10" "updated_at empty/missing" "$(echo "$output" | grep 'a10_' | head -1)"
 
@@ -315,43 +315,43 @@ if should_run 2; then
         fail "BAN-2" "Output leaks bypass hint" "$leaked"
     fi
 
-    echo "$output" | grep -q 'b1_sorted_nonmutating: true' && \
+    grep <<<"$output" -q 'b1_sorted_nonmutating: true' && \
         pass "B1" "array.sorted() non-mutating" || \
         fail "B1" "sorted() mutated original" "$(echo "$output" | grep 'b1_' | head -1)"
 
-    echo "$output" | grep -q 'b2_sort_mutating: true' && \
+    grep <<<"$output" -q 'b2_sort_mutating: true' && \
         pass "B2" "array.sort() mutates in place" || \
         fail "B2" "sort() didn't mutate" "$(echo "$output" | grep 'b2_' | head -1)"
 
-    echo "$output" | grep -q 'b3_sorted_comparator: true' && \
+    grep <<<"$output" -q 'b3_sorted_comparator: true' && \
         pass "B3" "array.sorted() with comparator" || \
         fail "B3" "sorted() comparator failed" "$(echo "$output" | grep 'b3_' | head -1)"
 
-    echo "$output" | grep -q 'b4_struct_get: true' && \
+    grep <<<"$output" -q 'b4_struct_get: true' && \
         pass "B4" "struct .get() works" || \
         fail "B4" "struct .get() failed" "$(echo "$output" | grep 'b4_' | head -1)"
 
-    echo "$output" | grep -q 'b5_struct_get_missing: true' && \
+    grep <<<"$output" -q 'b5_struct_get_missing: true' && \
         pass "B5" "struct .get() returns null for missing" || \
         fail "B5" "struct .get() missing key failed" "$(echo "$output" | grep 'b5_' | head -1)"
 
-    echo "$output" | grep -q 'b6_struct_has: true' && \
+    grep <<<"$output" -q 'b6_struct_has: true' && \
         pass "B6" "struct .has() works" || \
         fail "B6" "struct .has() failed" "$(echo "$output" | grep 'b6_' | head -1)"
 
-    echo "$output" | grep -q 'b7_struct_keys: true' && \
+    grep <<<"$output" -q 'b7_struct_keys: true' && \
         pass "B7" "struct .keys() returns array" || \
         fail "B7" "struct .keys() failed" "$(echo "$output" | grep 'b7_' | head -1)"
 
-    echo "$output" | grep -q 'b8_struct_values: true' && \
+    grep <<<"$output" -q 'b8_struct_values: true' && \
         pass "B8" "struct .values() returns array" || \
         fail "B8" "struct .values() failed" "$(echo "$output" | grep 'b8_' | head -1)"
 
-    echo "$output" | grep -q 'b9_struct_size: true' && \
+    grep <<<"$output" -q 'b9_struct_size: true' && \
         pass "B9" "struct .size() returns count" || \
         fail "B9" "struct .size() failed" "$(echo "$output" | grep 'b9_' | head -1)"
 
-    echo "$output" | grep -q 'b10_string_ops: true' && \
+    grep <<<"$output" -q 'b10_string_ops: true' && \
         pass "B10" "string operations (upper/lower/trim/contains)" || \
         fail "B10" "string ops failed" "$(echo "$output" | grep 'b10_' | head -1)"
 
@@ -488,7 +488,7 @@ if should_run 4; then
     d1_output=$(run_in "$WORKDIR_D1" "cat4_detect_catch.naab") && d1_exit=0 || d1_exit=$?
 
     # D1: DETECT violation catchable
-    if echo "$d1_output" | grep -q 'DETECT_CAUGHT: true' && [ "$d1_exit" -eq 0 ]; then
+    if grep <<<"$d1_output" -q 'DETECT_CAUGHT: true' && [ "$d1_exit" -eq 0 ]; then
         pass "D1" "DETECT violation catchable by try/catch"
     else
         fail "D1" "DETECT not catchable" "exit=$d1_exit, $(echo "$d1_output" | grep 'DETECT_CAUGHT' | head -1)"
@@ -505,21 +505,21 @@ if should_run 4; then
     fi
 
     # D3: Caught DETECT error contains rule info
-    if echo "$d1_output" | grep -q 'd3_has_info: true'; then
+    if grep <<<"$d1_output" -q 'd3_has_info: true'; then
         pass "D3" "caught DETECT error contains rule info"
     else
         fail "D3" "caught DETECT error lacks rule info" "$(echo "$d1_output" | grep 'd3_' | head -1)"
     fi
 
     # D4: Execution continues after DETECT catch
-    if echo "$d1_output" | grep -q 'CONTINUED'; then
+    if grep <<<"$d1_output" -q 'CONTINUED'; then
         pass "D4" "execution continues after DETECT catch"
     else
         fail "D4" "execution didn't continue after catch"
     fi
 
     # D5: Multiple DETECT catches in same program
-    if echo "$d1_output" | grep -q 'CAUGHT_1: true' && echo "$d1_output" | grep -q 'CAUGHT_2: true'; then
+    if grep <<<"$d1_output" -q 'CAUGHT_1: true' && grep <<<"$d1_output" -q 'CAUGHT_2: true'; then
         pass "D5" "multiple DETECT catches in same program"
     else
         fail "D5" "multiple catches failed" "$(echo "$d1_output" | grep 'CAUGHT_' | head -2)"
@@ -539,7 +539,7 @@ if should_run 4; then
     WORKDIR_D7=$(setup_workdir "cat4-detect")
     d7_output=$(run_subprocess "$WORKDIR_D7" "cat4_hard_trycatch.naab") && d7_exit=0 || d7_exit=$?
 
-    if [ "$d7_exit" -eq 3 ] && ! echo "$d7_output" | grep -q "caught"; then
+    if [ "$d7_exit" -eq 3 ] && ! grep <<<"$d7_output" -q "caught"; then
         pass "D7" "HARD block uncatchable by try/catch"
     else
         fail "D7" "HARD block was catchable" "exit=$d7_exit, $(echo "$d7_output" | grep 'caught' | head -1)"
@@ -608,7 +608,7 @@ if should_run 5; then
     e3_output=$(run_subprocess "$WORKDIR_E3" "cat5_e3_dunder_import.naab") && e3_exit=0 || e3_exit=$?
     if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
         skip "E3" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
-    elif [ "$e3_exit" -ne 0 ] && ! echo "$e3_output" | grep -q "bypass"; then
+    elif [ "$e3_exit" -ne 0 ] && ! grep <<<"$e3_output" -q "bypass"; then
         pass "E3" "__import__(\"os\") blocked (exit $e3_exit)"
     else
         fail "E3" "__import__(\"os\") not blocked" "exit=$e3_exit"
@@ -619,7 +619,7 @@ if should_run 5; then
     e4_output=$(run_subprocess "$WORKDIR_E4" "cat5_e4_importlib.naab") && e4_exit=0 || e4_exit=$?
     if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
         skip "E4" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
-    elif [ "$e4_exit" -ne 0 ] && ! echo "$e4_output" | grep -q "bypass"; then
+    elif [ "$e4_exit" -ne 0 ] && ! grep <<<"$e4_output" -q "bypass"; then
         pass "E4" "importlib.import_module blocked (exit $e4_exit)"
     else
         fail "E4" "importlib.import_module not blocked" "exit=$e4_exit"
@@ -630,7 +630,7 @@ if should_run 5; then
     e5_output=$(run_subprocess "$WORKDIR_E5" "cat5_e5_concat.naab") && e5_exit=0 || e5_exit=$?
     if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
         skip "E5" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
-    elif [ "$e5_exit" -ne 0 ] && ! echo "$e5_output" | grep -q "bypass"; then
+    elif [ "$e5_exit" -ne 0 ] && ! grep <<<"$e5_output" -q "bypass"; then
         pass "E5" "__import__(concat) blocked (exit $e5_exit)"
     else
         fail "E5" "__import__(concat) not blocked" "exit=$e5_exit"
@@ -659,7 +659,7 @@ if should_run 5; then
     e8_output=$(run_subprocess "$WORKDIR_E8" "cat5_e8_json_allowed.naab") && e8_exit=0 || e8_exit=$?
     if py_gated_skip "E8"; then
         :
-    elif [ "$e8_exit" -eq 0 ] && echo "$e8_output" | grep -q "ok"; then
+    elif [ "$e8_exit" -eq 0 ] && grep <<<"$e8_output" -q "ok"; then
         pass "E8" "import json allowed (exit 0)"
     else
         fail "E8" "import json failed" "exit=$e8_exit, $(echo "$e8_output" | head -1)"
@@ -670,14 +670,14 @@ if should_run 5; then
     e9_output=$(run_subprocess "$WORKDIR_E9" "cat5_e9_math_allowed.naab") && e9_exit=0 || e9_exit=$?
     if py_gated_skip "E9"; then
         :
-    elif [ "$e9_exit" -eq 0 ] && echo "$e9_output" | grep -q "4"; then
+    elif [ "$e9_exit" -eq 0 ] && grep <<<"$e9_output" -q "4"; then
         pass "E9" "import math allowed (exit 0)"
     else
         fail "E9" "import math failed" "exit=$e9_exit, $(echo "$e9_output" | head -1)"
     fi
 
     # E10: Blocked import error mentions governance/blocked/policy
-    if echo "$e1_output" | grep -qiE "governance|blocked|policy|prohibited|denied"; then
+    if grep <<<"$e1_output" -qiE "governance|blocked|policy|prohibited|denied"; then
         pass "E10" "blocked import error mentions governance"
     else
         fail "E10" "blocked import error lacks governance mention" "$(echo "$e1_output" | head -3)"
@@ -728,7 +728,7 @@ NAABEOF
     f1_output=$(cd "$WORKDIR_UNI" && timeout 30 "$NAAB" f1_subscript_m.naab 2>&1) && f1_exit=0 || f1_exit=$?
     if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
         skip "F1" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
-    elif [ "$f1_exit" -ne 0 ] && printf '%s' "$f1_output" | grep -qE "denied by sandbox|Governance error|Dangerous pattern"; then
+    elif [ "$f1_exit" -ne 0 ] && grep <<<"$f1_output" -qE "denied by sandbox|Governance error|Dangerous pattern"; then
         pass "F1" "subscript U+2098 in os.system blocked"
     else
         fail "F1" "subscript bypass not detected" "exit=$f1_exit"
@@ -751,7 +751,7 @@ NAABEOF
     f2_output=$(cd "$WORKDIR_UNI" && timeout 30 "$NAAB" f2_subscript_o.naab 2>&1) && f2_exit=0 || f2_exit=$?
     if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
         skip "F2" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
-    elif [ "$f2_exit" -ne 0 ] && printf '%s' "$f2_output" | grep -qE "denied by sandbox|Governance error|Dangerous pattern"; then
+    elif [ "$f2_exit" -ne 0 ] && grep <<<"$f2_output" -qE "denied by sandbox|Governance error|Dangerous pattern"; then
         pass "F2" "subscript U+2092 in os.system blocked"
     else
         fail "F2" "subscript os bypass not detected" "exit=$f2_exit"
@@ -773,7 +773,7 @@ NAABEOF
     f3_output=$(cd "$WORKDIR_UNI" && timeout 30 "$NAAB" f3_fullwidth_o.naab 2>&1) && f3_exit=0 || f3_exit=$?
     if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
         skip "F3" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
-    elif [ "$f3_exit" -ne 0 ] && printf '%s' "$f3_output" | grep -qE "denied by sandbox|Governance error|Dangerous pattern"; then
+    elif [ "$f3_exit" -ne 0 ] && grep <<<"$f3_output" -qE "denied by sandbox|Governance error|Dangerous pattern"; then
         pass "F3" "fullwidth U+FF4F in os.system blocked"
     else
         fail "F3" "fullwidth bypass not detected" "exit=$f3_exit"
@@ -793,7 +793,7 @@ NAABEOF
     f4_output=$(cd "$WORKDIR_UNI" && timeout 30 "$NAAB" f4_ascii_control.naab 2>&1) && f4_exit=0 || f4_exit=$?
     if [ "$PYTHON_EXPR_OK" -ne 1 ]; then
         skip "F4" "UNMEASURABLE - no python expression executor; a disabled block cannot demonstrate a refusal"
-    elif [ "$f4_exit" -ne 0 ] && printf '%s' "$f4_output" | grep -qE "denied by sandbox|Governance error|Dangerous pattern"; then
+    elif [ "$f4_exit" -ne 0 ] && grep <<<"$f4_output" -qE "denied by sandbox|Governance error|Dangerous pattern"; then
         pass "F4" "ASCII os.system still blocked (control)"
     else
         fail "F4" "ASCII os.system not blocked" "exit=$f4_exit"
@@ -802,7 +802,7 @@ NAABEOF
     # F5: use agent loads in VM
     WORKDIR_F5=$(setup_workdir "cat6-unicode-stdlib")
     f5_output=$(run_subprocess "$WORKDIR_F5" "cat6_f5_agent.naab") && f5_exit=0 || f5_exit=$?
-    if [ "$f5_exit" -eq 0 ] && echo "$f5_output" | grep -q "agent_ok"; then
+    if [ "$f5_exit" -eq 0 ] && grep <<<"$f5_output" -q "agent_ok"; then
         pass "F5" "use agent loads in VM"
     else
         fail "F5" "use agent failed" "exit=$f5_exit, $(echo "$f5_output" | head -1)"
@@ -811,7 +811,7 @@ NAABEOF
     # F6: use codegen loads in VM
     WORKDIR_F6=$(setup_workdir "cat6-unicode-stdlib")
     f6_output=$(run_subprocess "$WORKDIR_F6" "cat6_f6_codegen.naab") && f6_exit=0 || f6_exit=$?
-    if [ "$f6_exit" -eq 0 ] && echo "$f6_output" | grep -q "codegen_ok"; then
+    if [ "$f6_exit" -eq 0 ] && grep <<<"$f6_output" -q "codegen_ok"; then
         pass "F6" "use codegen loads in VM"
     else
         fail "F6" "use codegen failed" "exit=$f6_exit, $(echo "$f6_output" | head -1)"
@@ -820,7 +820,7 @@ NAABEOF
     # F7: use governance loads + works
     WORKDIR_F7=$(setup_workdir "cat6-unicode-stdlib")
     f7_output=$(run_subprocess "$WORKDIR_F7" "cat6_f7_governance.naab") && f7_exit=0 || f7_exit=$?
-    if [ "$f7_exit" -eq 0 ] && echo "$f7_output" | grep -q "healthy"; then
+    if [ "$f7_exit" -eq 0 ] && grep <<<"$f7_output" -q "healthy"; then
         pass "F7" "use governance loads + works"
     else
         fail "F7" "use governance failed" "exit=$f7_exit, $(echo "$f7_output" | head -1)"
@@ -829,7 +829,7 @@ NAABEOF
     # F8: use orchestra loads + works
     WORKDIR_F8=$(setup_workdir "cat6-unicode-stdlib")
     f8_output=$(run_subprocess "$WORKDIR_F8" "cat6_f8_orchestra.naab") && f8_exit=0 || f8_exit=$?
-    if [ "$f8_exit" -eq 0 ] && echo "$f8_output" | grep -qi "approved"; then
+    if [ "$f8_exit" -eq 0 ] && grep <<<"$f8_output" -qi "approved"; then
         pass "F8" "use orchestra loads + works"
     else
         fail "F8" "use orchestra failed" "exit=$f8_exit, $(echo "$f8_output" | head -1)"
@@ -838,7 +838,7 @@ NAABEOF
     # F9: All 25 modules importable
     WORKDIR_F9=$(setup_workdir "cat6-unicode-stdlib")
     f9_output=$(run_subprocess "$WORKDIR_F9" "cat6_f9_all25.naab") && f9_exit=0 || f9_exit=$?
-    if [ "$f9_exit" -eq 0 ] && echo "$f9_output" | grep -q "all_25: true"; then
+    if [ "$f9_exit" -eq 0 ] && grep <<<"$f9_output" -q "all_25: true"; then
         pass "F9" "all 25 modules importable"
     else
         fail "F9" "not all 25 modules loaded" "exit=$f9_exit, $(echo "$f9_output" | head -3)"
@@ -848,7 +848,7 @@ NAABEOF
     WORKDIR_F10=$(setup_workdir "cat6-unicode-stdlib")
     cp "$SCRIPT_DIR/src/cat6_f10_treewalk.naab" "$WORKDIR_F10/"
     f10_output=$(cd "$WORKDIR_F10" && timeout 30 "$NAAB" --tree-walk cat6_f10_treewalk.naab 2>/dev/null) && f10_exit=0 || f10_exit=$?
-    if [ "$f10_exit" -eq 0 ] && echo "$f10_output" | grep -q "tw_agent_ok"; then
+    if [ "$f10_exit" -eq 0 ] && grep <<<"$f10_output" -q "tw_agent_ok"; then
         pass "F10" "previously-missing modules work in --tree-walk"
     else
         fail "F10" "tree-walk module test failed" "exit=$f10_exit, $(echo "$f10_output" | head -3)"

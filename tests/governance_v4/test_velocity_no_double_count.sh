@@ -168,7 +168,7 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-echo "$OUTPUT" | grep -q "DONE" && pass "V-01" "6 sends complete" \
+grep <<<"$OUTPUT" -q "DONE" && pass "V-01" "6 sends complete" \
     || fail "V-01" "sends did not complete" "$(echo "$OUTPUT" | head -3)"
 
 T3=$(cdd_turn_line "$WDIR/telemetry.jsonl" 3)
@@ -179,19 +179,19 @@ T6=$(cdd_turn_line "$WDIR/telemetry.jsonl" 6)
 # Without this the later assertions still hold for the wrong reason: a warm-up
 # that fired recall teaches the baseline to absorb it, and coherence lands
 # somewhere else entirely.
-if echo "$T3" | grep -q '"coherence":"1.0000"'; then
+if grep <<<"$T3" -q '"coherence":"1.0000"'; then
     pass "V-01b" "Warm-up window is clean (coherence 1.0 at end of baseline)"
 else
     fail "V-01b" "Warm-up fired a signal — baseline is contaminated" "$T3"
 fi
-if echo "$T5" | grep -q '"baseline_state":"complete"'; then
+if grep <<<"$T5" -q '"baseline_state":"complete"'; then
     pass "V-01c" "Baseline completed before the drift turns"
 else
     fail "V-01c" "Still calibrating at send 5 — statistical signals cannot charge" "$T5"
 fi
 
 # Send 5 took recall (0.08) + repetition (0.15): coherence 0.69
-if echo "$T5" | grep -q '"coherence":"0.6900"'; then
+if grep <<<"$T5" -q '"coherence":"0.6900"'; then
     pass "V-02" "Send 5 penalized 0.23 by content signals (coherence 0.69)"
 else
     fail "V-02" "Send-5 coherence unexpected" "$T5"
@@ -200,22 +200,22 @@ fi
 # Send 6 is clean: velocity -0.23 must be DETECTED but NOT penalized.
 # -0.23 clears velocity_drop (-0.15) with margin; see the header on why this
 # margin is the point and not an incidental value.
-if echo "$T6" | grep -q '"velocity":"-0.2300"'; then
+if grep <<<"$T6" -q '"velocity":"-0.2300"'; then
     pass "V-03" "Velocity -0.23 still reported in CDD_TURN telemetry"
 else
     fail "V-03" "Velocity not reported" "$T6"
 fi
-if echo "$T6" | grep -q '"coherence":"0.6900"'; then
+if grep <<<"$T6" -q '"coherence":"0.6900"'; then
     pass "V-04" "Clean turn NOT penalized: coherence unchanged at 0.69"
 else
     fail "V-04" "Clean turn was penalized (velocity double-count)" "$T6"
 fi
-if echo "$T6" | grep -q '"signals_detail":"[^"]*coherence_velocity'; then
+if grep <<<"$T6" -q '"signals_detail":"[^"]*coherence_velocity'; then
     pass "V-05" "S6 firing still visible in signals_detail (detection preserved)"
 else
     fail "V-05" "S6 detection lost from telemetry" "$T6"
 fi
-if echo "$T6" | grep -q '"penalties_detail":"[^"]*coherence_velocity'; then
+if grep <<<"$T6" -q '"penalties_detail":"[^"]*coherence_velocity'; then
     fail "V-06" "S6 still applies a penalty" "$T6"
 else
     pass "V-06" "No coherence_velocity entry in penalties_detail"

@@ -25,7 +25,7 @@ print(x) }
 EOF
 PROBE_OUT=$("$NAAB" --no-governance "$PROBE_DIR/probe.naab" 2>&1 || true)
 rm -rf "$PROBE_DIR"
-if echo "$PROBE_OUT" | grep -q "No executor found\|not available"; then
+if grep <<<"$PROBE_OUT" -q "No executor found\|not available"; then
     echo "  test_pass2_audit.sh: SKIPPED (no python/shell executor on this platform)"
     exit 0
 fi
@@ -67,7 +67,7 @@ main {
 }
 EOF
 OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_clean.naab 2>&1)
-if echo "$OUTPUT" | grep -q "Governance: PASS"; then
+if grep <<<"$OUTPUT" -q "Governance: PASS"; then
     ok "compact output on clean execution"
 else
     fail "compact output on clean execution"
@@ -87,7 +87,7 @@ echo "done"
 }
 EOF
 OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_determ.naab 2>&1 || true)
-if echo "$OUTPUT" | grep -q "Determinism"; then
+if grep <<<"$OUTPUT" -q "Determinism"; then
     ok "determinism audit detects date command"
 else
     fail "determinism audit detects date command"
@@ -107,7 +107,7 @@ print(random.randint(1, 100))
 }
 EOF
 OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_random.naab 2>&1 || true)
-if echo "$OUTPUT" | grep -q "random function"; then
+if grep <<<"$OUTPUT" -q "random function"; then
     ok "determinism audit detects random in python"
 else
     fail "determinism audit detects random in python"
@@ -126,7 +126,7 @@ print(2 + 2)
 }
 EOF
 OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_pure.naab 2>&1 || true)
-if echo "$OUTPUT" | grep -q "Determinism"; then
+if grep <<<"$OUTPUT" -q "Determinism"; then
     fail "pure math should not trigger determinism"
     echo "    Got: $OUTPUT"
 else
@@ -137,7 +137,7 @@ fi
 # Test 5: Resource usage reported
 # ---------------------------------------------------------------------------
 OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_determ.naab 2>&1 || true)
-if echo "$OUTPUT" | grep -q "Resource Usage"; then
+if grep <<<"$OUTPUT" -q "Resource Usage"; then
     ok "resource usage section in report"
 else
     fail "resource usage section in report"
@@ -162,7 +162,7 @@ echo "hello"
 }
 EOF
 OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_multi.naab 2>&1 || true)
-if echo "$OUTPUT" | grep -q "2 blocks executed"; then
+if grep <<<"$OUTPUT" -q "2 blocks executed"; then
     ok "multi-block: correct block count"
 else
     fail "multi-block: correct block count"
@@ -172,7 +172,7 @@ fi
 # ---------------------------------------------------------------------------
 # Test 7: Coverage section present
 # ---------------------------------------------------------------------------
-if echo "$OUTPUT" | grep -q "Coverage"; then
+if grep <<<"$OUTPUT" -q "Coverage"; then
     ok "coverage section in report"
 else
     fail "coverage section in report"
@@ -182,7 +182,7 @@ fi
 # ---------------------------------------------------------------------------
 # Test 8: Verdict line present
 # ---------------------------------------------------------------------------
-if echo "$OUTPUT" | grep -q "Verdict:"; then
+if grep <<<"$OUTPUT" -q "Verdict:"; then
     ok "verdict line in report"
 else
     fail "verdict line in report"
@@ -204,7 +204,7 @@ echo $user_data
 }
 EOF
 OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_taint.naab 2>&1 || true)
-if echo "$OUTPUT" | grep -q "Taint.*tracking.*violation\|taint flow\|runtime"; then
+if grep <<<"$OUTPUT" -q "Taint.*tracking.*violation\|taint flow\|runtime"; then
     ok "taint flow audit — tainted var reaches shell sink"
 else
     fail "taint flow audit — tainted var reaches shell sink"
@@ -223,7 +223,7 @@ date
 }
 EOF
 OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_auto.naab 2>&1 || true)
-if echo "$OUTPUT" | grep -q "Governance"; then
+if grep <<<"$OUTPUT" -q "Governance"; then
     ok "pass 2 runs automatically without flags"
 else
     fail "pass 2 runs automatically without flags"

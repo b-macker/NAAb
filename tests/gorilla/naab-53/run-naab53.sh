@@ -160,7 +160,7 @@ fi
 
 # E02: Level changed from normal
 if [ "$LEVEL_CHANGES" -gt 0 ]; then
-    if grep "GOVERNANCE_LEVEL_CHANGE" "$TELEM" | grep -q '"from_level":"normal"'; then
+    if grep -q '"from_level":"normal"' <<<"$(grep "GOVERNANCE_LEVEL_CHANGE" "$TELEM")"; then
         pass "E02" "Escalation from 'normal'"
     else
         fail "E02" "Escalation not from 'normal'" "$(grep GOVERNANCE_LEVEL_CHANGE "$TELEM" | head -1)"
@@ -184,7 +184,7 @@ fi
 
 # E04: coherence_at_escalation field present in GOVERNANCE_LEVEL_CHANGE
 if [ "$LEVEL_CHANGES" -gt 0 ]; then
-    if grep "GOVERNANCE_LEVEL_CHANGE" "$TELEM" | grep -q "coherence_at_escalation"; then
+    if grep -q "coherence_at_escalation" <<<"$(grep "GOVERNANCE_LEVEL_CHANGE" "$TELEM")"; then
         pass "E04" "coherence_at_escalation field present in GOVERNANCE_LEVEL_CHANGE"
     else
         fail "E04" "coherence_at_escalation missing from GOVERNANCE_LEVEL_CHANGE"
@@ -340,7 +340,7 @@ fi
 
 # T02: RECONCILIATION_TURN has escalation_effectiveness field
 if [ "$RECON_TURNS" -gt 0 ]; then
-    if grep "RECONCILIATION_TURN" "$TELEM" | grep -q "escalation_effectiveness"; then
+    if grep -q "escalation_effectiveness" <<<"$(grep "RECONCILIATION_TURN" "$TELEM")"; then
         pass "T02" "RECONCILIATION_TURN has escalation_effectiveness field"
     else
         fail "T02" "RECONCILIATION_TURN missing escalation_effectiveness field"

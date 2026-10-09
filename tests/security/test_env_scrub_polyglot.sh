@@ -63,11 +63,11 @@ cp "$WORKDIR/test_blocklist.naab" "$BASELINE_DIR/test.naab"
 out=$("$NAAB" --no-governance "$BASELINE_DIR/test.naab" 2>&1) || true
 rm -rf "$BASELINE_DIR"
 # Without governance, all vars should be visible (baseline)
-if echo "$out" | grep -q "leaked_secret_value"; then
+if grep <<<"$out" -q "leaked_secret_value"; then
     ok "baseline: canary visible without governance"
 else
     # Python might not be available
-    if echo "$out" | grep -qi "python.*not.*found\|no executor\|executor.*python"; then
+    if grep <<<"$out" -qi "python.*not.*found\|no executor\|executor.*python"; then
         echo "  SKIP: Python executor unavailable — skipping all tests"
         echo ""
         echo "Results: 0/0 passed (all skipped)"
@@ -80,7 +80,7 @@ echo ""
 # Now test WITH governance
 out=$("$NAAB" "$WORKDIR/test_blocklist.naab" 2>&1) || true
 blocked_count=0
-if echo "$out" | grep -q "NOT_FOUND.*NOT_FOUND.*NOT_FOUND"; then
+if grep <<<"$out" -q "NOT_FOUND.*NOT_FOUND.*NOT_FOUND"; then
     blocked_count=3
 elif echo "$out" | grep -c "NOT_FOUND" > /dev/null 2>&1; then
     blocked_count=$(echo "$out" | grep -o "NOT_FOUND" | wc -l)
@@ -93,7 +93,7 @@ else
 fi
 
 # SAFE_VAR should still be visible
-if echo "$out" | grep -q "this_should_be_visible"; then
+if grep <<<"$out" -q "this_should_be_visible"; then
     ok "blocklist: non-blocked var still accessible"
 else
     fail "blocklist: SAFE_VAR should be accessible but wasn't: ${out:0:200}"
@@ -135,7 +135,7 @@ cp "$WORKDIR/govern_allow.json" "$WORKDIR/govern.json"
 out=$("$NAAB" "$WORKDIR/test_allowlist.naab" 2>&1) || true
 
 # In allowlist mode, only SAFE_VAR should be accessible
-if echo "$out" | grep -q "this_should_be_visible"; then
+if grep <<<"$out" -q "this_should_be_visible"; then
     ok "allowlist: allowed var is accessible"
 else
     fail "allowlist: SAFE_VAR should be accessible: ${out:0:200}"
@@ -171,9 +171,9 @@ print(os.environ.get("NAAB_SIGNING_KEY", "SCRUBBED"))
 EOF
 
 out=$("$NAAB" "$WORKDIR/test_naab_secrets.naab" 2>&1) || true
-if echo "$out" | grep -q "SCRUBBED"; then
+if grep <<<"$out" -q "SCRUBBED"; then
     ok "NAAb internal secrets scrubbed from polyglot subprocesses"
-elif echo "$out" | grep -q "test_key.pem"; then
+elif grep <<<"$out" -q "test_key.pem"; then
     fail "NAAB_SIGNING_KEY leaked to polyglot subprocess!"
 else
     # This used to pass, on the reasoning that the secret was "not in output

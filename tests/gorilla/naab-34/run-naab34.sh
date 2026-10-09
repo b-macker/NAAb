@@ -112,35 +112,35 @@ if should_run 1; then
     output=$(run_in "$WORKDIR" "cg_01_handle_forge.naab" 2>&1) || true
 
     # A1: Each handle gets unique nonce
-    if echo "$output" | grep -q 'cg01_nonce_unique: true'; then
+    if grep <<<"$output" -q 'cg01_nonce_unique: true'; then
         pass "A1" "Each handle gets a unique __nonce"
     else
         fail "A1" "Each handle gets a unique __nonce" "nonces were identical"
     fi
 
     # A2: Swapped nonce (from another handle) rejected
-    if echo "$output" | grep -q 'cg01_swap_blocked: true'; then
+    if grep <<<"$output" -q 'cg01_swap_blocked: true'; then
         pass "A2" "Swapped nonce (cross-handle) rejected"
     else
         fail "A2" "Swapped nonce (cross-handle) rejected"
     fi
 
     # A3: Mutated nonce (appended char) rejected
-    if echo "$output" | grep -q 'cg01_mutate_blocked: true'; then
+    if grep <<<"$output" -q 'cg01_mutate_blocked: true'; then
         pass "A3" "Mutated nonce (appended char) rejected"
     else
         fail "A3" "Mutated nonce (appended char) rejected"
     fi
 
     # A4: Empty string nonce rejected
-    if echo "$output" | grep -q 'cg01_empty_blocked: true'; then
+    if grep <<<"$output" -q 'cg01_empty_blocked: true'; then
         pass "A4" "Empty string nonce rejected"
     else
         fail "A4" "Empty string nonce rejected"
     fi
 
     # A5: Forge error doesn't leak HMAC/nonce/secret internals
-    if echo "$output" | grep -q 'cg01_swap_leaks_internals: false'; then
+    if grep <<<"$output" -q 'cg01_swap_leaks_internals: false'; then
         pass "A5" "Forge error doesn't leak HMAC/nonce/secret internals"
     else
         fail "A5" "Forge error doesn't leak HMAC/nonce/secret internals"
@@ -157,28 +157,28 @@ if should_run 2; then
     output=$(run_in "$WORKDIR" "cg_02_action_block.naab" 2>&1) || true
 
     # A6: Agent without AGENT_SEND created
-    if echo "$output" | grep -q 'cg02_created: true'; then
+    if grep <<<"$output" -q 'cg02_created: true'; then
         pass "A6" "Agent without AGENT_SEND created successfully"
     else
         fail "A6" "Agent without AGENT_SEND created successfully"
     fi
 
     # A7: Send blocked by action matrix
-    if echo "$output" | grep -q 'cg02_send_blocked: true'; then
+    if grep <<<"$output" -q 'cg02_send_blocked: true'; then
         pass "A7" "Send to agent without AGENT_SEND blocked"
     else
         fail "A7" "Send to agent without AGENT_SEND blocked"
     fi
 
     # A8: Error mentions action matrix restriction
-    if echo "$output" | grep -q 'cg02_error_mentions_restriction: true'; then
+    if grep <<<"$output" -q 'cg02_error_mentions_restriction: true'; then
         pass "A8" "Block error references action matrix restriction"
     else
         fail "A8" "Block error references action matrix restriction"
     fi
 
     # A9: Error doesn't leak allowed action list values
-    if echo "$output" | grep -q 'cg02_error_leaks_actions: false'; then
+    if grep <<<"$output" -q 'cg02_error_leaks_actions: false'; then
         pass "A9" "Block error doesn't leak allowed action list"
     else
         fail "A9" "Block error doesn't leak allowed action list"
@@ -189,14 +189,14 @@ if should_run 2; then
     output2=$(run_in "$WORKDIR2" "cg_03_action_allow.naab" 2>&1) || true
 
     # A10: AGENT_SEND in matrix = not blocked by matrix
-    if echo "$output2" | grep -q 'cg03_send_only_matrix_blocked: false'; then
+    if grep <<<"$output2" -q 'cg03_send_only_matrix_blocked: false'; then
         pass "A10" "Agent WITH AGENT_SEND not blocked by action matrix"
     else
         fail "A10" "Agent WITH AGENT_SEND not blocked by action matrix"
     fi
 
     # A11: Empty allowed_actions = not blocked by matrix
-    if echo "$output2" | grep -q 'cg03_full_access_matrix_blocked: false'; then
+    if grep <<<"$output2" -q 'cg03_full_access_matrix_blocked: false'; then
         pass "A11" "Agent with empty allowed_actions not blocked by matrix"
     else
         fail "A11" "Agent with empty allowed_actions not blocked by matrix"
@@ -211,35 +211,35 @@ if should_run 3; then
     output=$(run_in "$WORKDIR" "cg_04_config_env.naab" 2>&1) || true
 
     # A12: No unknown key warnings
-    if echo "$output" | grep -qi 'unknown key\|unknown field\|unrecognized'; then
+    if grep <<<"$output" -qi 'unknown key\|unknown field\|unrecognized'; then
         fail "A12" "No unknown key warnings for new config fields" "Found unknown key warning"
     else
         pass "A12" "No unknown key warnings for new config fields"
     fi
 
     # A13: Governance loaded
-    if echo "$output" | grep -q 'cg04_config_loaded: true'; then
+    if grep <<<"$output" -q 'cg04_config_loaded: true'; then
         pass "A13" "Governance loads with all continuous governance config"
     else
         fail "A13" "Governance loads with all continuous governance config"
     fi
 
     # A14: Network-restricted agent created
-    if echo "$output" | grep -q 'cg04_net_restricted_created: true'; then
+    if grep <<<"$output" -q 'cg04_net_restricted_created: true'; then
         pass "A14" "Agent with network_allowed=false created successfully"
     else
         fail "A14" "Agent with network_allowed=false created successfully"
     fi
 
     # A15: Environment has challenges_passed
-    if echo "$output" | grep -q 'cg04_has_challenges_passed: true'; then
+    if grep <<<"$output" -q 'cg04_has_challenges_passed: true'; then
         pass "A15" "Environment includes challenges_passed counter"
     else
         fail "A15" "Environment includes challenges_passed counter"
     fi
 
     # A16: Environment has challenges_failed
-    if echo "$output" | grep -q 'cg04_has_challenges_failed: true'; then
+    if grep <<<"$output" -q 'cg04_has_challenges_failed: true'; then
         pass "A16" "Environment includes challenges_failed counter"
     else
         fail "A16" "Environment includes challenges_failed counter"
@@ -254,28 +254,28 @@ if should_run 4; then
     output=$(run_in "$WORKDIR" "cg_05_multi_agent.naab" 2>&1) || true
 
     # A17: Both agents created
-    if echo "$output" | grep -q 'cg05_both_created: true'; then
+    if grep <<<"$output" -q 'cg05_both_created: true'; then
         pass "A17" "Restricted + unrestricted agents coexist"
     else
         fail "A17" "Restricted + unrestricted agents coexist"
     fi
 
     # A18: Restricted agent blocked
-    if echo "$output" | grep -q 'cg05_restricted_blocked: true'; then
+    if grep <<<"$output" -q 'cg05_restricted_blocked: true'; then
         pass "A18" "Restricted agent send blocked (no AGENT_SEND)"
     else
         fail "A18" "Restricted agent send blocked (no AGENT_SEND)"
     fi
 
     # A19: Unrestricted agent NOT blocked by matrix
-    if echo "$output" | grep -q 'cg05_unrestricted_matrix_blocked: false'; then
+    if grep <<<"$output" -q 'cg05_unrestricted_matrix_blocked: false'; then
         pass "A19" "Unrestricted agent send not blocked by action matrix"
     else
         fail "A19" "Unrestricted agent send not blocked by action matrix"
     fi
 
     # A20: Key health available for multi-key agent
-    if echo "$output" | grep -q 'cg05_key_health_available: true'; then
+    if grep <<<"$output" -q 'cg05_key_health_available: true'; then
         pass "A20" "Key health available for multi-key agent"
     else
         fail "A20" "Key health available for multi-key agent"
