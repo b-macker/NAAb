@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <fstream>
+#include <iterator>
 
 namespace naab {
 namespace vm {
@@ -89,6 +90,21 @@ CompiledFunction* Compiler::compile(ast::Program& program, const std::string& so
 CompiledFunction* Compiler::compileModule(ast::Program& program, const std::string& source_file) {
     source_file_ = source_file;
     skip_main_ = true;  // Skip main blocks when compiling modules
+
+    // An imported module gets the whole-source checks the entry file gets in
+    // main.cpp. Its function bodies get checkNaabFunctionBody() in
+    // imported_module mode below. Before, a module got neither (A31).
+    if (governance_ && governance_->isActive() && !source_file.empty()) {
+        std::ifstream src(source_file);
+        if (src.is_open()) {
+            std::string text((std::istreambuf_iterator<char>(src)),
+                             std::istreambuf_iterator<char>());
+            std::string err = governance_->checkNaabSourceText(text, source_file);
+            if (!err.empty()) {
+                throw std::runtime_error(err);
+            }
+        }
+    }
 
     CompiledFunction* fn = newFunction("<module>");
     fn->source_file = source_file;
@@ -1072,8 +1088,8 @@ void Compiler::visit(ast::FunctionDecl& node) {
     int line = node.getLocation().line;
 
     // Governance: function body quality checks (oversimplification, complexity floor, etc.)
-    // Full checks skip during module loading (expensive regex/heuristic overhead).
-    // Behavioral contracts (must_call, must_contain) always run — they are user-defined.
+    // During module loading the heuristic checks are skipped (expensive regex,
+    // false violations); content checks and behavioral contracts run (A31).
     if (governance_ && governance_->isActive() && line > 0 && !source_file_.empty()) {
         std::ifstream src_file(source_file_);
         if (src_file.is_open()) {
@@ -1126,10 +1142,12 @@ void Compiler::visit(ast::FunctionDecl& node) {
                         throw std::runtime_error(err);
                     }
                 } else {
-                    // Module loading: only behavioral contracts (must_call, must_contain)
-                    std::string err = governance_->checkFunctionBehavioralContract(
-                        node.getName(), body_text, line,
-                        static_cast<int>(node.getParams().size()));
+                    // Module loading: content checks and the contract, not the
+                    // heuristics (imported_module mode, A31)
+                    std::string err = governance_->checkNaabFunctionBody(
+                        node.getName(), body_text, line, source_file_,
+                        static_cast<int>(node.getParams().size()),
+                        /*imported_module=*/true);
                     if (!err.empty()) {
                         throw std::runtime_error(err);
                     }
@@ -1211,8 +1229,8 @@ void Compiler::visit(ast::FunctionDeclStmt& node) {
     int line = decl->getLocation().line;
 
     // Governance: function body quality checks (oversimplification, complexity floor, etc.)
-    // Full checks skip during module loading (expensive regex/heuristic overhead).
-    // Behavioral contracts (must_call, must_contain) always run — they are user-defined.
+    // During module loading the heuristic checks are skipped (expensive regex,
+    // false violations); content checks and behavioral contracts run (A31).
     if (governance_ && governance_->isActive() && line > 0 && !source_file_.empty()) {
         std::ifstream src_file(source_file_);
         if (src_file.is_open()) {
@@ -1264,10 +1282,12 @@ void Compiler::visit(ast::FunctionDeclStmt& node) {
                         throw std::runtime_error(err);
                     }
                 } else {
-                    // Module loading: only behavioral contracts (must_call, must_contain)
-                    std::string err = governance_->checkFunctionBehavioralContract(
-                        decl->getName(), body_text, line,
-                        static_cast<int>(decl->getParams().size()));
+                    // Module loading: content checks and the contract, not the
+                    // heuristics (imported_module mode, A31)
+                    std::string err = governance_->checkNaabFunctionBody(
+                        decl->getName(), body_text, line, source_file_,
+                        static_cast<int>(decl->getParams().size()),
+                        /*imported_module=*/true);
                     if (!err.empty()) {
                         throw std::runtime_error(err);
                     }

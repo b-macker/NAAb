@@ -601,6 +601,7 @@ private:
     GeneratorValue* active_generator_ = nullptr;
 
     int module_loading_depth_ = 0;  // >0 = loading module, skip main blocks
+    int plugin_loading_depth_ = 0;  // >0 = loading a governance plugin (exempt from code checks)
 
     // Block loading
     std::unique_ptr<runtime::BlockLoader> block_loader_;

@@ -916,6 +916,13 @@ void Interpreter::loadPluginFile(const std::string& path) {
 
     try {
         // Execute plugin AST (skip main blocks, skip governance on function bodies)
+        // plugin_loading_depth_ keeps the plugin out of the code checks that
+        // imported modules now get (A31); it unwinds with this scope.
+        struct PluginDepth {
+            int& depth;
+            explicit PluginDepth(int& d) : depth(d) { ++depth; }
+            ~PluginDepth() { --depth; }
+        } plugin_depth(plugin_loading_depth_);
         ++module_loading_depth_;
         module->ast->accept(*this);
         --module_loading_depth_;

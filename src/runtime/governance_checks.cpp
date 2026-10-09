@@ -1,6 +1,7 @@
 // governance_checks.cpp — GovernanceEngine check implementations
 // Extracted from governance.cpp lines 2718-5602
 
+#include <optional>
 #include "naab/governance.h"
 #include "naab/language_registry.h"
 #include "naab/subprocess_helpers.h"  // ScopedRuntimeVersionProbe (runtime pins)
@@ -4447,25 +4448,55 @@ std::string GovernanceEngine::runExecutionContracts() {
 
 // --- NAAb Function Body Quality Check ---
 
+std::string GovernanceEngine::checkNaabSourceText(const std::string& source,
+                                                  const std::string& source_file) {
+    // What the VM ran on the entry source in main.cpp before compiling, now
+    // one call for every NAAb file that runs: the entry file on both engines
+    // (the tree-walker had no equivalent, so a top-level `export let` with a
+    // secret ran there) and every imported module (none had any). (A31)
+    // Scoped: the VM entry path never set a location here, and leaving one
+    // set makes later runtime rows look like located static ones, which
+    // deduplicate_checks collapses (test_dedup_runtime.sh DC-01).
+    ScopedCheckContext ctx(source_file, 0);
+    std::string err = checkSecrets(source, 0);
+    if (!err.empty()) return err;
+    err = checkPii(source, 0);
+    if (!err.empty()) return err;
+    return checkIncompleteLogic(source, 0, source_file);
+}
+
 std::string GovernanceEngine::checkNaabFunctionBody(
     const std::string& function_name,
     const std::string& source_code,
     int line,
     const std::string& source_file,
-    int param_count) {
+    int param_count,
+    bool imported_module) {
 
-    setCheckContext(source_file, line);
+    // An imported module's functions are checked while the importer runs.
+    // Scope the location to these checks, or every runtime check after the
+    // import inherits the module's file and line -- and deduplicate_checks
+    // then collapses runtime rows it must keep (test_dedup_runtime.sh).
+    std::optional<ScopedCheckContext> module_ctx;
+    if (imported_module) {
+        module_ctx.emplace(source_file, line);
+    } else {
+        setCheckContext(source_file, line);
+    }
 
     auto& os_cfg = rules().code_quality.no_oversimplification;
     auto& il_cfg = rules().code_quality.no_incomplete_logic;
     auto& ph_cfg = rules().code_quality.no_placeholders;
 
-    // Skip if all checks disabled (but still allow complexity_floor, secrets, PII, and plugins if enabled)
-    auto& cf_cfg_early = rules().code_quality.complexity_floor;
-    bool has_plugins = !rules().governance_plugins.empty();
-    bool has_secrets = rules().code_quality.no_secrets.enabled;
-    bool has_pii = rules().code_quality.no_pii.enabled;
-    if (!os_cfg.enabled && !il_cfg.enabled && !ph_cfg.enabled && !cf_cfg_early.enabled && !has_plugins && !has_secrets && !has_pii) return "";
+    // There was an early return here: when none of seven named checks was
+    // enabled, nothing below ran. It decided for checks it did not list -- the
+    // behavioural contract among them -- so under a contracts-only config an
+    // entry-file must_call breach ran, while the same function imported was
+    // blocked (the module path called the contract directly). Every check
+    // below is guarded by its own setting; the early return only saved the
+    // string stripping, which is now done on first use instead. The one check
+    // whose old reach is kept on purpose is duplicate_calls (see there).
+    // (docs/open-investigations.md A31)
 
     // EVA-10: Pre-strip strings to prevent false positives from string literals
     // e.g. a legitimate string "TODO" shouldn't trigger checkPlaceholders
@@ -4474,29 +4505,42 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     // ("# don't") opened a string that hid the code after it -- a TODO between
     // "# don't" and "# it's" ran under a HARD no_placeholders config
     // (tests/governance_v4/test_naab_comment_apostrophe.sh).
-    std::string stripped = stripStringLiterals(source_code, naab::lang::findLanguage("naab"));
+    std::string stripped_text;
+    bool stripped_done = false;
+    auto stripped = [&]() -> const std::string& {
+        if (!stripped_done) {
+            stripped_text = stripStringLiterals(source_code, naab::lang::findLanguage("naab"));
+            stripped_done = true;
+        }
+        return stripped_text;
+    };
 
     // Run applicable checks on the stripped source code
     std::string err;
 
     if (ph_cfg.enabled) {
-        err = checkPlaceholders(stripped, line);
+        err = checkPlaceholders(stripped(), line);
         if (!err.empty()) return err;
     }
 
-    if (os_cfg.enabled) {
-        err = checkOversimplification(stripped, line);
+    // An imported module skips the heuristics: ae4bfb67 kept them off module
+    // loading (expensive regex, and 3e7c94e1's false violations). Its content
+    // checks -- placeholders, incomplete logic, secrets, PII -- run (A31).
+    if (os_cfg.enabled && !imported_module) {
+        err = checkOversimplification(stripped(), line);
         if (!err.empty()) return err;
     }
 
     if (il_cfg.enabled) {
-        err = checkIncompleteLogic(stripped, line, source_file);
+        err = checkIncompleteLogic(stripped(), line, source_file);
         if (!err.empty()) return err;
 
         // Cosmetic sanitizer check — uses inverted logic: checks for PRESENCE
         // of real sanitization ops rather than listing specific cosmetic patterns
-        err = checkCosmeticSanitizer(function_name, stripped, line);
-        if (!err.empty()) return err;
+        if (!imported_module) {
+            err = checkCosmeticSanitizer(function_name, stripped(), line);
+            if (!err.empty()) return err;
+        }
     }
 
     // Secrets/PII checks — use RAW source (secrets CAN be in string literals)
@@ -4511,7 +4555,7 @@ std::string GovernanceEngine::checkNaabFunctionBody(
 
     // Complexity floor check for NAAb functions
     auto& cf_cfg = rules().code_quality.complexity_floor;
-    if (cf_cfg.enabled && cf_cfg.check_naab) {
+    if (cf_cfg.enabled && cf_cfg.check_naab && !imported_module) {
         // Skip if function contains polyglot blocks and skip_if_has_polyglot_block is set
         bool has_polyglot = source_code.find("<<") != std::string::npos;
         if (!has_polyglot || !cf_cfg.skip_if_has_polyglot_block) {
@@ -4527,22 +4571,33 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     // FIX-DX-6: Detect duplicate function calls — deferred to grouped output
     {
         auto& dc_cfg = rules().code_quality.duplicate_calls;
-        if (dc_cfg.enabled) {
+        // duplicate_calls defaults ON, and it used to run only when one of
+        // the checks the removed early return listed was enabled. Kept that
+        // way deliberately: running it everywhere would add a grouped advisory
+        // to every governed program whose config enables none of them.
+        const bool dc_legacy_gate =
+            os_cfg.enabled || il_cfg.enabled || ph_cfg.enabled ||
+            rules().code_quality.complexity_floor.enabled ||
+            !rules().governance_plugins.empty() ||
+            rules().code_quality.no_secrets.enabled ||
+            rules().code_quality.no_pii.enabled;
+        if (dc_cfg.enabled && dc_legacy_gate && !imported_module) {
+            const std::string& stripped_body = stripped();
             std::unordered_map<std::string, int> call_counts;
             size_t ci = 0;
-            while (ci < stripped.size()) {
-                if (std::isalpha(static_cast<unsigned char>(stripped[ci])) || stripped[ci] == '_') {
+            while (ci < stripped_body.size()) {
+                if (std::isalpha(static_cast<unsigned char>(stripped_body[ci])) || stripped_body[ci] == '_') {
                     std::string word1;
-                    while (ci < stripped.size() &&
-                           (std::isalnum(static_cast<unsigned char>(stripped[ci])) || stripped[ci] == '_'))
-                        word1 += stripped[ci++];
-                    if (ci < stripped.size() && stripped[ci] == '.') {
+                    while (ci < stripped_body.size() &&
+                           (std::isalnum(static_cast<unsigned char>(stripped_body[ci])) || stripped_body[ci] == '_'))
+                        word1 += stripped_body[ci++];
+                    if (ci < stripped_body.size() && stripped_body[ci] == '.') {
                         ci++;
                         std::string word2;
-                        while (ci < stripped.size() &&
-                               (std::isalnum(static_cast<unsigned char>(stripped[ci])) || stripped[ci] == '_'))
-                            word2 += stripped[ci++];
-                        if (ci < stripped.size() && stripped[ci] == '(') {
+                        while (ci < stripped_body.size() &&
+                               (std::isalnum(static_cast<unsigned char>(stripped_body[ci])) || stripped_body[ci] == '_'))
+                            word2 += stripped_body[ci++];
+                        if (ci < stripped_body.size() && stripped_body[ci] == '(') {
                             call_counts[word1 + "." + word2 + "("]++;
                         }
                     }
@@ -4562,7 +4617,7 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     // Keep il_cfg.enabled check for backward compatibility
     {
         auto& ptc_cfg = rules().code_quality.polyglot_try_catch;
-        if (il_cfg.enabled && ptc_cfg.enabled) {
+        if (il_cfg.enabled && ptc_cfg.enabled && !imported_module) {
             bool has_polyglot_block = source_code.find("<<") != std::string::npos;
             bool has_try_block = source_code.find("try") != std::string::npos;
             if (has_polyglot_block && !has_try_block) {
@@ -4571,7 +4626,9 @@ std::string GovernanceEngine::checkNaabFunctionBody(
         }
     }
 
-    // Plugin rules (NAAb-based governance checks)
+    // Plugin rules (NAAb-based governance checks). Not run for an imported
+    // module's functions -- they never were, and A31 did not decide them.
+    if (imported_module) return "";
     err = checkPluginRules("naab_function", {
         {"function_name", interpreter::NaabVal::makeString(function_name)},
         {"source_code", interpreter::NaabVal::makeString(source_code)},

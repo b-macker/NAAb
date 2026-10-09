@@ -2228,14 +2228,13 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                // VM path: check NAAb source for secrets/PII/incomplete logic
-                // (tree-walker does this per-function in checkNaabFunctionBody)
+                // VM path: whole-source checks on the entry file (secrets, PII,
+                // incomplete logic). The tree-walker runs the same helper from
+                // visit(Program), and both engines run it on every imported
+                // module -- the per-function checks never see a top-level
+                // `export let` (A31).
                 if (gov_loaded && vm_governance.isActive()) {
-                    std::string sec_err = vm_governance.checkSecrets(source, 0);
-                    if (!sec_err.empty()) throw std::runtime_error(sec_err);
-                    sec_err = vm_governance.checkPii(source, 0);
-                    if (!sec_err.empty()) throw std::runtime_error(sec_err);
-                    sec_err = vm_governance.checkIncompleteLogic(source, 0, filename);
+                    std::string sec_err = vm_governance.checkNaabSourceText(source, filename);
                     if (!sec_err.empty()) throw std::runtime_error(sec_err);
                 }
 
