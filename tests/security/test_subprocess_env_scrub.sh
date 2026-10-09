@@ -285,6 +285,22 @@ else
     esac
 fi
 
+# mode "off": the subprocess lists still apply (they did before, set at load
+# whatever the mode), and blocked_read does not (env.get() is not enforced).
+# Loosening the first would be a silent regression for any config that keeps
+# its scrub lists while governance is switched off.
+D="$(newdir)"; mkcfg "$D" off true both
+run_arm "$D" printenv vm
+if [ "$HAS_C" != 1 ]; then
+    fail S-off "route did not run under mode off (rc=$RC)"; show
+elif [ "$HAS_B" = 1 ]; then
+    fail S-off "mode off: a blocked_subprocess_vars variable reached the child"
+elif [ "$HAS_A" != 1 ]; then
+    fail S-off "mode off: the blocked_read variable was withheld, though env.get() is not enforced in mode off"
+else
+    pass S-off "mode off: the subprocess list still scrubs; blocked_read is not applied (as env.get())"
+fi
+
 # ---------------------------------------------------------------------------
 # Group B: a scrub policy must not break PATH lookup
 # ---------------------------------------------------------------------------

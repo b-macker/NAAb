@@ -71,8 +71,12 @@ static bool equalsIgnoreCase(const std::string& a, const std::string& b) {
 
 EnvScrubPolicy currentEnvScrubPolicy(EnvScrubScope scope) {
     EnvScrubPolicy policy;
+    // Not gated on engine->isActive(): that is false in mode "off", and the
+    // subprocess lists applied in every mode when they were copied out at load.
+    // Gating here would silently stop scrubbing for a config that keeps its
+    // lists while governance is off. blocked_read has its own mode test below.
     auto* engine = governance::GovernanceEngine::getCurrent();
-    if (!engine || !engine->isActive()) return policy;
+    if (!engine) return policy;
     auto rules = engine->getRulesPtr();
     if (!rules) return policy;
     const auto& ev = rules->capabilities.env_vars;
