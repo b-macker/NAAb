@@ -891,6 +891,18 @@ handoff pattern recurred in two new tests the same week. Reading the gotchas
 list does not apply it. After writing a test, check the new code for the shapes
 of the documented traps; they are mechanical and cheap to find.
 
+When the same trap has been fixed by hand more than twice, the remedy is a
+gate, not another fix. The `pipefail` inversion had four site-by-site fixes
+(c47eefc7, 05f26e02, 7cc189db, 24d6d1d8) and a CLAUDE.md entry, and the tree
+still held 1,414 sites when `tests/self-audit/test_pipefail_grep.sh` landed —
+one of which had made a security arm SKIP on every run. The gate's own scanner
+was then a broken probe twice before it was trusted: a per-line quote tracker
+read a `<<shell` inside a multi-line string as a heredoc and hid the rest of a
+file (6 sites), and the first cross-line tracker lost 13 sites to
+`"$(grep '"a"' f)"`. Both were found by running two implementations over the
+same tree and reading every line where they disagreed — a disagreement is a
+finding about one of them, and agreement was not checked until there was some.
+
 ### Arms that share a directory share everything left running in it
 
 Background helpers outlive the scope that started them unless something outside

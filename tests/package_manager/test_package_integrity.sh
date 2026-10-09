@@ -240,7 +240,7 @@ sed -i.bak 's/^version = "1.0.0"/version = "0.9.0"/' "$PROJ/naab_modules/solo/na
 rm -f "$PROJ/naab_modules/solo/naab.toml.bak"
 mk_tarball solo 1.0.0 "" "TAMPERED"     # same name and ref, different bytes
 OUT="$(run_install testorg/solo@1.0.0)"; RC=$?
-if [ $RC -ne 0 ] && echo "$OUT" | grep -q "Integrity check failed"; then
+if [ $RC -ne 0 ] && grep <<<"$OUT" -q "Integrity check failed"; then
     ok "B-02" "the gate fires on a mismatch (rc=$RC)"
 else
     bad "B-02" "mismatch was not rejected (rc=$RC): $(echo "$OUT" | head -3)"
@@ -269,7 +269,7 @@ CBASE_OUT="$( cd "$PROJ" && env -u GITHUB_TOKEN -u GH_TOKEN \
     -u http_proxy -u HTTP_PROXY -u https_proxy -u HTTPS_PROXY \
     HOME="$WDIR/home" NAAB_PKG_API_BASE="http://naab-pkg-probe.invalid" \
     timeout 20 "$NAAB" install testorg/child@9.9.9 2>&1 )"
-if echo "$CBASE_OUT" | grep -q "NAAB_PKG_API_BASE ignored (loopback only)"; then
+if grep <<<"$CBASE_OUT" -q "NAAB_PKG_API_BASE ignored (loopback only)"; then
     ok "C-01" "a non-loopback override is refused and says so"
 else
     bad "C-01" "no loopback warning: $(echo "$CBASE_OUT" | head -2)"

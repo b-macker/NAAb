@@ -128,7 +128,7 @@ else
     fi
     FIRST_PENALTY=$(echo "$OUTPUT" | grep -oP 'SUMMARY_FIRST_PENALTY_SEEN: \K\w+' | head -1)
     if [ -z "$FIRST_PENALTY" ]; then
-        echo "$OUTPUT" | grep -q '^FIRST_PENALTY|' && FIRST_PENALTY="true" || FIRST_PENALTY="false"
+        grep <<<"$OUTPUT" -q '^FIRST_PENALTY|' && FIRST_PENALTY="true" || FIRST_PENALTY="false"
     fi
     HEALTH=$(echo "$OUTPUT" | grep -oP 'HEALTH_VERDICT: \K\w+' | head -1)
     EPOCH=$(echo "$OUTPUT" | grep -oP 'HEALTH_EPOCH: \K[0-9]+' | head -1)

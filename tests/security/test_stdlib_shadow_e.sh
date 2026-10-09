@@ -42,7 +42,7 @@ main {
 NAABEOF
 
 out=$("$NAAB" "$WORKDIR/test_e1.naab" --no-governance 2>&1) || true
-if echo "$out" | grep -q "PWNED"; then
+if grep <<<"$out" -q "PWNED"; then
     fail "local time.naab shadowed stdlib — 'PWNED' in output"
 else
     ok "stdlib time loaded (local shadow blocked)"
@@ -89,7 +89,7 @@ main {
 NAABEOF
 
 out=$("$NAAB" "$WORKDIR/test_e3.naab" --no-governance 2>&1) || true
-if echo "$out" | grep -q "MATH_PWNED"; then
+if grep <<<"$out" -q "MATH_PWNED"; then
     fail "local math.naab shadowed stdlib math"
 else
     ok "stdlib math protected from local shadow"
@@ -116,7 +116,7 @@ main {
 NAABEOF
 
 out=$("$NAAB" "$WORKDIR/test_e4.naab" --no-governance 2>&1) || true
-if echo "$out" | grep -q "local_hello"; then
+if grep <<<"$out" -q "local_hello"; then
     ok "path-separated import loaded local module correctly"
 else
     # Both branches passed before, so E4 could not fail. "Syntax may differ" is a

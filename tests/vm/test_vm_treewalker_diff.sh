@@ -19,7 +19,7 @@ NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
 # reported "18 passed, 0 failed" having run nothing. An existence test is not
 # enough for the same reason (/bin/true exists and is executable), so ask the
 # binary to identify itself.
-if ! "$NAAB" --version 2>/dev/null | grep -qi naab; then
+if ! grep -qi naab <<<"$("$NAAB" --version 2>/dev/null)"; then
     echo "  FAIL [SETUP] $NAAB does not identify as naab-lang" >&2
     echo "       -> build it first; engine-vs-engine comparison is vacuous without it" >&2
     exit 1
@@ -56,7 +56,7 @@ KNOWN_DIVERGENCES="D01 D02 D09 D16 D17 D18"
 
 is_known() {
     local id="$1"
-    echo "$KNOWN_DIVERGENCES" | grep -qw "$id"
+    grep <<<"$KNOWN_DIVERGENCES" -qw "$id"
 }
 
 # run_diff ID CONFIG CODE [ENV_SETUP]

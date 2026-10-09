@@ -176,7 +176,7 @@ echo ""
 # without ever being exercised: a run that never de-escalates cannot show that a
 # de-escalation is excluded.
 DE=$(echo "$DASH" | grep -c "level 2->1\|level 1->0" || true)
-if echo "$DASH" | grep -qi "Escalation: level"; then
+if grep <<<"$DASH" -qi "Escalation: level"; then
     pass "EE-00" "the run produced a recorded level transition"
 else
     fail "EE-00" "no level transition occurred" "nothing below is exercised"
@@ -187,7 +187,7 @@ fi
 # dashboard line gained a "trigger X -> Y" suffix when the measure
 # changed to penalty rate, and a pattern ending in ")" broke on it
 # while the window was in fact correct.
-if echo "$LINE" | grep -q "${WINDOW}-turn window"; then
+if grep <<<"$LINE" -q "${WINDOW}-turn window"; then
     pass "EE-01" "the configured escalation_effectiveness_window ($WINDOW) is honoured"
 else
     fail "EE-01" "the configured window was ignored" \
@@ -203,7 +203,7 @@ else
          "recordEscalation() fires on any level change; it must ignore to_level <= from_level"
 fi
 
-if echo "$LINE" | grep -q "effectiveness="; then
+if grep <<<"$LINE" -q "effectiveness="; then
     pass "EE-03" "an effectiveness value was reported (the window completed)"
 else
     fail "EE-03" "no effectiveness value reported" \

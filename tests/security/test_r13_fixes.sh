@@ -46,7 +46,7 @@ EOF
     OUT_A=$(unset NAAB_LOCK_KEY; "$NAAB" --lock-check "$WORK_DIR/simple.naab" 2>&1)
     CODE_A=$?
     set -e
-    if [ "$CODE_A" -ne 0 ] && echo "$OUT_A" | grep -qi "TAMPER"; then
+    if [ "$CODE_A" -ne 0 ] && grep <<<"$OUT_A" -qi "TAMPER"; then
         pass "T-SC3-A: .sig exists + no key → fail closed (exit=$CODE_A)"
     else
         fail "T-SC3-A: expected fail-closed but got exit=$CODE_A (out=$OUT_A)"
@@ -58,7 +58,7 @@ EOF
     OUT_B=$(unset NAAB_LOCK_KEY; "$NAAB" --lock-check "$WORK_DIR/simple.naab" 2>&1)
     CODE_B=$?
     set -e
-    if [ "$CODE_B" -eq 0 ] && echo "$OUT_B" | grep -qi "unverified"; then
+    if [ "$CODE_B" -eq 0 ] && grep <<<"$OUT_B" -qi "unverified"; then
         pass "T-SC3-B: no .sig + no key → warn and proceed (exit=$CODE_B)"
     else
         fail "T-SC3-B: unexpected result exit=$CODE_B (out=$OUT_B)"
@@ -76,7 +76,7 @@ echo "=== T-API2: V-API-002 constant-time comparison ==="
 
 if [ ! -x "$NAAB" ]; then
     skip "T-API2-1: naab-lang not built"
-elif strings "$NAAB" 2>/dev/null | grep -q "constantTimeCompare"; then
+elif grep -q "constantTimeCompare" <<<"$(strings "$NAAB" 2>/dev/null)"; then
     pass "T-API2-1: constantTimeCompare symbol present in naab-lang binary"
 else
     skip "T-API2-1: cannot verify constant-time symbol from binary (strings check inconclusive)"
@@ -105,7 +105,7 @@ main {
 }
 EOF
     GET_OUT=$(NAAB_LOCK_KEY=secret123 "$NAAB" "$WORK_DIR/test_env_get.naab" 2>/dev/null || true)
-    if echo "$GET_OUT" | grep -q "secret123"; then
+    if grep <<<"$GET_OUT" -q "secret123"; then
         fail "T-SC2-1: env.get leaked NAAB_LOCK_KEY value"
     else
         pass "T-SC2-1: env.get does not expose NAAB_LOCK_KEY"
@@ -120,7 +120,7 @@ main {
 }
 EOF
     HAS_OUT=$(NAAB_LOCK_KEY=secret123 "$NAAB" "$WORK_DIR/test_env_has.naab" 2>/dev/null || true)
-    if echo "$HAS_OUT" | grep -q "false"; then
+    if grep <<<"$HAS_OUT" -q "false"; then
         pass "T-SC2-2: env.has(\"NAAB_LOCK_KEY\") returns false (key hidden)"
     else
         fail "T-SC2-2: env.has leaked key existence (output: $HAS_OUT)"
@@ -139,7 +139,7 @@ echo "=== T-LSP2: V-LSP-002 workspace symbol cap ==="
 LSP_SERVER="$ROOT/build/naab-lsp"
 if [ ! -x "$LSP_SERVER" ]; then
     skip "T-LSP2-1: naab-lsp not built"
-elif strings "$LSP_SERVER" 2>/dev/null | grep -q "10000 symbols"; then
+elif grep -q "10000 symbols" <<<"$(strings "$LSP_SERVER" 2>/dev/null)"; then
     pass "T-LSP2-1: naab-lsp binary contains workspace symbol truncation message"
 else
     skip "T-LSP2-1: cannot verify LSP cap from binary (strings check inconclusive)"

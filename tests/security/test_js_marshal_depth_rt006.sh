@@ -55,7 +55,7 @@ if [[ "$ec" -eq 139 ]] || [[ "$ec" -eq 134 ]]; then
     fail "Runtime crashed (SIGSEGV/SIGABRT exit $ec) — depth limit not enforced in JS marshalling"
 elif [[ "$ec" -eq 124 ]]; then
     fail "Timed out — possible infinite recursion without depth limit"
-elif echo "$out" | grep -qi "depth\|maximum\|marshall\|exceeded\|RangeError"; then
+elif grep <<<"$out" -qi "depth\|maximum\|marshall\|exceeded\|RangeError"; then
     ok "Clear depth error produced — no crash (exit $ec)"
 elif [[ "$ec" -ne 0 ]]; then
     ok "Non-zero exit without crash — depth limit or JS exception caught (exit $ec)"
@@ -95,13 +95,13 @@ if [[ "$ec" -eq 139 ]] || [[ "$ec" -eq 134 ]]; then
     fail "Runtime crashed (SIGSEGV/SIGABRT) at depth 30 — depth limit too aggressive or bug"
 elif [[ "$ec" -eq 124 ]]; then
     fail "Timed out at depth 30"
-elif [[ "$ec" -eq 0 ]] && echo "$out" | grep -q "ok"; then
+elif [[ "$ec" -eq 0 ]] && grep <<<"$out" -q "ok"; then
     ok "30-level list succeeded — depth limit not triggered at safe depth"
 elif [[ "$ec" -ne 0 ]]; then
     # JS executor might not be available
-    if echo "$out" | grep -qi "javascript.*not.*available\|executor.*not\|not.*compiled\|not.*built"; then
+    if grep <<<"$out" -qi "javascript.*not.*available\|executor.*not\|not.*compiled\|not.*built"; then
         skip "T2 skipped — JavaScript executor not available"
-    elif echo "$out" | grep -qi "depth\|maximum\|RangeError"; then
+    elif grep <<<"$out" -qi "depth\|maximum\|RangeError"; then
         fail "Depth error at only 30 levels — false positive depth guard"
     else
         skip "Non-zero exit (exit $ec) — JS may not be available: ${out:0:80}"
@@ -141,7 +141,7 @@ if [[ "$ec" -eq 139 ]] || [[ "$ec" -eq 134 ]]; then
     fail "Runtime crashed (SIGSEGV/SIGABRT) on deeply nested dict — dict depth guard missing"
 elif [[ "$ec" -eq 124 ]]; then
     fail "Timed out — possible infinite recursion on nested dict"
-elif echo "$out" | grep -qi "depth\|maximum\|marshall\|exceeded\|RangeError"; then
+elif grep <<<"$out" -qi "depth\|maximum\|marshall\|exceeded\|RangeError"; then
     ok "Clear depth error for nested dict — no crash"
 elif [[ "$ec" -ne 0 ]]; then
     skip "Non-zero exit without crash — depth limit caught or JS unavailable (exit $ec)"

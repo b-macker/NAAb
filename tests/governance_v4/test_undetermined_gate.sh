@@ -268,7 +268,7 @@ if run_case "d_objective" "$IDENTICAL_FIXTURE" true "" 0; then
              "coherence=$D_COH undetermined=$(oa_count "$D_TELE" undetermined) pass=$(oa_count "$D_TELE" pass)"
     fi
     # And those fails are NOT labelled undetermined: the label is one-directional.
-    if ! grep '"event_type":"OUTPUT_INADMISSIBLE"' "$D_TELE" 2>/dev/null | grep -q '"undetermined":"true"'; then
+    if ! grep -q '"undetermined":"true"' <<<"$(grep '"event_type":"OUTPUT_INADMISSIBLE"' "$D_TELE" 2>/dev/null)"; then
         pass "D-02" "Real failures are not mislabelled undetermined"
     else
         fail "D-02" "A coherence failure was labelled undetermined"
@@ -341,7 +341,7 @@ if run_case "c_quarantine" "$VARIED_FIXTURE" true ', "on_undetermined": "quarant
     else
         fail "C-02" "Different turns held" "A=[$A_TURNS] C=[$C_TURNS]"
     fi
-    if grep '"event_type":"OUTPUT_INADMISSIBLE"' "$C_TELE" 2>/dev/null | grep -q '"undetermined":"true"'; then
+    if grep -q '"undetermined":"true"' <<<"$(grep '"event_type":"OUTPUT_INADMISSIBLE"' "$C_TELE" 2>/dev/null)"; then
         pass "C-03" "OUTPUT_INADMISSIBLE distinguishes an undetermined hold from incoherence"
     else
         fail "C-03" "Undetermined holds indistinguishable from real inadmissibility" \
@@ -365,7 +365,7 @@ if run_case "e_streak" "$VARIED_FIXTURE" true ', "on_undetermined": "quarantine"
     # a build that emits no undetermined verdicts at all survives trivially,
     # and the mutation run confirmed E-01/E-02 pass vacuously without this.
     E_UNDET=$(oa_count "$E_TELE" "undetermined")
-    if ! echo "$OUT" | grep -q "FINAL_COHERENCE="; then
+    if ! grep <<<"$OUT" -q "FINAL_COHERENCE="; then
         fail "E-01" "Undetermined holds terminated the agent" "$(echo "$OUT" | tail -3)"
         fail "E-02" "Streak fired on undetermined holds" \
              "streak_exceeded=$(grep -c '"event_type":"QUARANTINE_STREAK_EXCEEDED"' "$E_TELE" 2>/dev/null || true)"

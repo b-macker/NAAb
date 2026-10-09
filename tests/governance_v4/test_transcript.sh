@@ -110,7 +110,7 @@ else
 fi
 
 # A-02: Script still runs fine
-if echo "$OUTPUT" | grep -q "created"; then
+if grep <<<"$OUTPUT" -q "created"; then
     pass "A-02" "Agent create works without transcript config"
 else
     fail "A-02" "Agent create failed without transcript config" "$(echo "$OUTPUT" | head -3)"
@@ -194,77 +194,77 @@ else
 fi
 
 # B-04: agent_send entry has error:true (API key not available)
-if grep '"type":"agent_send"' "$WDIR/transcript.jsonl" 2>/dev/null | grep -q '"error":true'; then
+if grep -q '"error":true' <<<"$(grep '"type":"agent_send"' "$WDIR/transcript.jsonl" 2>/dev/null)"; then
     pass "B-04" "agent_send error entry has error:true"
 else
     fail "B-04" "agent_send error entry missing error:true"
 fi
 
 # B-05: agent_send entry has error_message
-if grep '"type":"agent_send"' "$WDIR/transcript.jsonl" 2>/dev/null | grep -q '"error_message"'; then
+if grep -q '"error_message"' <<<"$(grep '"type":"agent_send"' "$WDIR/transcript.jsonl" 2>/dev/null)"; then
     pass "B-05" "agent_send error entry has error_message"
 else
     fail "B-05" "agent_send error entry missing error_message"
 fi
 
 # B-06: agent_create entry has handle_id
-if grep '"type":"agent_create"' "$WDIR/transcript.jsonl" 2>/dev/null | grep -q '"handle_id"'; then
+if grep -q '"handle_id"' <<<"$(grep '"type":"agent_create"' "$WDIR/transcript.jsonl" 2>/dev/null)"; then
     pass "B-06" "agent_create entry has handle_id"
 else
     fail "B-06" "agent_create entry missing handle_id"
 fi
 
 # B-07: agent_create entry has config snapshot
-if grep '"type":"agent_create"' "$WDIR/transcript.jsonl" 2>/dev/null | grep -q '"config"'; then
+if grep -q '"config"' <<<"$(grep '"type":"agent_create"' "$WDIR/transcript.jsonl" 2>/dev/null)"; then
     pass "B-07" "agent_create entry has config snapshot"
 else
     fail "B-07" "agent_create entry missing config"
 fi
 
 # B-08: agent_create config has provider and model
-if grep '"type":"agent_create"' "$WDIR/transcript.jsonl" 2>/dev/null | grep -q '"provider":"gemini"'; then
+if grep -q '"provider":"gemini"' <<<"$(grep '"type":"agent_create"' "$WDIR/transcript.jsonl" 2>/dev/null)"; then
     pass "B-08" "agent_create config has correct provider"
 else
     fail "B-08" "agent_create config missing/wrong provider"
 fi
 
 # B-09: agent_create has timestamp
-if grep '"type":"agent_create"' "$WDIR/transcript.jsonl" 2>/dev/null | grep -q '"timestamp"'; then
+if grep -q '"timestamp"' <<<"$(grep '"type":"agent_create"' "$WDIR/transcript.jsonl" 2>/dev/null)"; then
     pass "B-09" "agent_create has timestamp"
 else
     fail "B-09" "agent_create missing timestamp"
 fi
 
 # B-10: agent_create has run_id
-if grep '"type":"agent_create"' "$WDIR/transcript.jsonl" 2>/dev/null | grep -q '"run_id"'; then
+if grep -q '"run_id"' <<<"$(grep '"type":"agent_create"' "$WDIR/transcript.jsonl" 2>/dev/null)"; then
     pass "B-10" "agent_create has run_id"
 else
     fail "B-10" "agent_create missing run_id"
 fi
 
 # B-11: agent_send has wall_time_ms
-if grep '"type":"agent_send"' "$WDIR/transcript.jsonl" 2>/dev/null | grep -q '"wall_time_ms"'; then
+if grep -q '"wall_time_ms"' <<<"$(grep '"type":"agent_send"' "$WDIR/transcript.jsonl" 2>/dev/null)"; then
     pass "B-11" "agent_send error entry has wall_time_ms"
 else
     fail "B-11" "agent_send error entry missing wall_time_ms"
 fi
 
 # B-12: agent_send has agent name
-if grep '"type":"agent_send"' "$WDIR/transcript.jsonl" 2>/dev/null | grep -q '"agent":"test_agent"'; then
+if grep -q '"agent":"test_agent"' <<<"$(grep '"type":"agent_send"' "$WDIR/transcript.jsonl" 2>/dev/null)"; then
     pass "B-12" "agent_send has correct agent name"
 else
     fail "B-12" "agent_send missing/wrong agent name"
 fi
 
 # B-13: agent_send has prompt
-if grep '"type":"agent_send"' "$WDIR/transcript.jsonl" 2>/dev/null | grep -q '"prompt"'; then
+if grep -q '"prompt"' <<<"$(grep '"type":"agent_send"' "$WDIR/transcript.jsonl" 2>/dev/null)"; then
     pass "B-13" "agent_send has prompt field"
 else
     fail "B-13" "agent_send missing prompt"
 fi
 
 # B-14: Script completed successfully (try/catch caught the error)
-if echo "$OUTPUT" | grep -q "DONE"; then
+if grep <<<"$OUTPUT" -q "DONE"; then
     pass "B-14" "Script completed with try/catch error handling"
 else
     fail "B-14" "Script did not complete" "$(echo "$OUTPUT" | tail -3)"
@@ -341,7 +341,7 @@ else
 fi
 
 # C-03: Both agents still created successfully
-if echo "$OUTPUT" | grep -q "BOTH_CREATED"; then
+if grep <<<"$OUTPUT" -q "BOTH_CREATED"; then
     pass "C-03" "Both agents created even with filter active"
 else
     fail "C-03" "Agent creation failed with filter" "$(echo "$OUTPUT" | head -3)"
@@ -399,56 +399,56 @@ OUTPUT=$(cd "$WDIR2" && timeout 10s "$NAAB" test_deep.naab 2>&1) || true
 TFILE="$WDIR2/transcript.jsonl"
 
 # D-01: Config has model field
-if grep '"type":"agent_create"' "$TFILE" 2>/dev/null | grep -q '"model":"gemini-2.0-flash"'; then
+if grep -q '"model":"gemini-2.0-flash"' <<<"$(grep '"type":"agent_create"' "$TFILE" 2>/dev/null)"; then
     pass "D-01" "Create config has model"
 else
     fail "D-01" "Create config missing model"
 fi
 
 # D-02: Config has max_tokens
-if grep '"type":"agent_create"' "$TFILE" 2>/dev/null | grep -q '"max_tokens":2048'; then
+if grep -q '"max_tokens":2048' <<<"$(grep '"type":"agent_create"' "$TFILE" 2>/dev/null)"; then
     pass "D-02" "Create config has max_tokens=2048"
 else
     fail "D-02" "Create config missing/wrong max_tokens"
 fi
 
 # D-03: Config has temperature
-if grep '"type":"agent_create"' "$TFILE" 2>/dev/null | grep -q '"temperature":0.5'; then
+if grep -q '"temperature":0.5' <<<"$(grep '"type":"agent_create"' "$TFILE" 2>/dev/null)"; then
     pass "D-03" "Create config has temperature=0.5"
 else
     fail "D-03" "Create config missing/wrong temperature"
 fi
 
 # D-04: Config has system_prompt (truncated)
-if grep '"type":"agent_create"' "$TFILE" 2>/dev/null | grep -q '"system_prompt"'; then
+if grep -q '"system_prompt"' <<<"$(grep '"type":"agent_create"' "$TFILE" 2>/dev/null)"; then
     pass "D-04" "Create config has system_prompt"
 else
     fail "D-04" "Create config missing system_prompt"
 fi
 
 # D-05: Config has max_turns
-if grep '"type":"agent_create"' "$TFILE" 2>/dev/null | grep -q '"max_turns":10'; then
+if grep -q '"max_turns":10' <<<"$(grep '"type":"agent_create"' "$TFILE" 2>/dev/null)"; then
     pass "D-05" "Create config has max_turns=10"
 else
     fail "D-05" "Create config missing/wrong max_turns"
 fi
 
 # D-06: Config has risk_budget
-if grep '"type":"agent_create"' "$TFILE" 2>/dev/null | grep -q '"risk_budget":50'; then
+if grep -q '"risk_budget":50' <<<"$(grep '"type":"agent_create"' "$TFILE" 2>/dev/null)"; then
     pass "D-06" "Create config has risk_budget=50"
 else
     fail "D-06" "Create config missing/wrong risk_budget"
 fi
 
 # D-07: Config has standing_lease_turns
-if grep '"type":"agent_create"' "$TFILE" 2>/dev/null | grep -q '"standing_lease_turns":3'; then
+if grep -q '"standing_lease_turns":3' <<<"$(grep '"type":"agent_create"' "$TFILE" 2>/dev/null)"; then
     pass "D-07" "Create config has standing_lease_turns=3"
 else
     fail "D-07" "Create config missing/wrong standing_lease_turns"
 fi
 
 # D-08: Config has response_format
-if grep '"type":"agent_create"' "$TFILE" 2>/dev/null | grep -q '"response_format":"json"'; then
+if grep -q '"response_format":"json"' <<<"$(grep '"type":"agent_create"' "$TFILE" 2>/dev/null)"; then
     pass "D-08" "Create config has response_format=json"
 else
     fail "D-08" "Create config missing/wrong response_format"

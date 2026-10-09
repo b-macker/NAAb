@@ -37,7 +37,7 @@ int main() { return 0; }
 }
 EOF
 
-if "$NAAB" "$WORK/test_rce6_ab.naab" 2>&1 | grep -qiE "absolute|not permitted|error"; then
+if grep -qiE "absolute|not permitted|error" <<<"$("$NAAB" "$WORK/test_rce6_ab.naab" 2>&1)"; then
     pass "T-RCE6-1: C++ angle-bracket #include </etc/passwd> rejected"
 elif ! "$NAAB" "$WORK/test_rce6_ab.naab" > /dev/null 2>&1; then
     pass "T-RCE6-1: C++ angle-bracket #include </etc/passwd> rejected (non-zero exit)"
@@ -51,7 +51,7 @@ fi
 # The line continuation is in the NAAb source, not in the shell heredoc.
 printf 'main {\n    let result = <<cpp\n#inc\\\nlude "/etc/passwd"\nint main() { return 0; }\n>>\n    io.write(result)\n}\n' > "$WORK/test_rce6_splice.naab"
 
-if "$NAAB" "$WORK/test_rce6_splice.naab" 2>&1 | grep -qiE "absolute|not permitted|error"; then
+if grep -qiE "absolute|not permitted|error" <<<"$("$NAAB" "$WORK/test_rce6_splice.naab" 2>&1)"; then
     pass "T-RCE6-2: C++ line-spliced #include rejected"
 elif ! "$NAAB" "$WORK/test_rce6_splice.naab" > /dev/null 2>&1; then
     pass "T-RCE6-2: C++ line-spliced #include rejected (non-zero exit)"
@@ -74,7 +74,7 @@ fn main() {
 }
 EOF
 
-if "$NAAB" "$WORK/test_rce6_rust_raw.naab" 2>&1 | grep -qiE "absolute|not permitted|error"; then
+if grep -qiE "absolute|not permitted|error" <<<"$("$NAAB" "$WORK/test_rce6_rust_raw.naab" 2>&1)"; then
     pass "T-RCE6-3: Rust raw-string include_str! rejected"
 elif ! "$NAAB" "$WORK/test_rce6_rust_raw.naab" > /dev/null 2>&1; then
     pass "T-RCE6-3: Rust raw-string include_str! rejected (non-zero exit)"
@@ -91,7 +91,7 @@ _api_start=$(grep -n 'command == "api"' "$MAIN_CPP" | head -1 | cut -d: -f1)
 _api_end=$(grep -n 'command == "version"' "$MAIN_CPP" | head -1 | cut -d: -f1)
 if [ -n "$_api_start" ] && [ -n "$_api_end" ]; then
     _block=$(sed -n "${_api_start},${_api_end}p" "$MAIN_CPP")
-    if echo "$_block" | grep -q "global_lock_check" && echo "$_block" | grep -q "V-SC-005"; then
+    if grep <<<"$_block" -q "global_lock_check" && grep <<<"$_block" -q "V-SC-005"; then
         pass "T-SC5-1: api command contains global_lock_check guard (V-SC-005)"
     else
         fail "T-SC5-1: global_lock_check guard not found inside api command block"

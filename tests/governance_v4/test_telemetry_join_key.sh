@@ -164,7 +164,7 @@ case "$JK2" in
 esac
 
 # --- JK-03: the key must never be the unassigned sentinel ------------------
-if echo "$JK1 $JK2" | grep -q "'-1'"; then
+if grep <<<"$JK1 $JK2" -q "'-1'"; then
     fail "JK-03" "turn_at_request emitted as the -1 sentinel" \
          "assigned only inside a guard that did not run"
 else

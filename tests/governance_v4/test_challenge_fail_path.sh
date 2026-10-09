@@ -161,7 +161,7 @@ if [ "$EXIT_A" -eq 3 ]; then
 else
     fail "A-01" "Wrong exit code" "exit=$EXIT_A, expected 3"
 fi
-if echo "$OUT" | grep -q "Step-up challenge failed"; then
+if grep <<<"$OUT" -q "Step-up challenge failed"; then
     pass "A-02" "Kill message surfaced on stdout (harness-detectable signature)"
 else
     fail "A-02" "No 'Step-up challenge failed' in output" "$(echo "$OUT" | tail -3)"
@@ -172,7 +172,7 @@ if [ -n "$CHAL_A" ]; then
 else
     fail "A-03" "No AGENT_CHALLENGE_FAIL event" "$(grep -c CDD_TURN "$WDIR/tele.jsonl" 2>/dev/null) CDD turns"
 fi
-if echo "$CHAL_A" | grep -q '"challenge_type":"validation"'; then
+if grep <<<"$CHAL_A" -q '"challenge_type":"validation"'; then
     pass "A-04" "Failed challenge was the validation (competence) type"
 else
     fail "A-04" "Unexpected challenge type" "$CHAL_A"
@@ -185,7 +185,7 @@ else
 fi
 # Escalation lands during send2's post-response CDD, so send2 completes and
 # the CHALLENGE gates send3 — which must never finish after the failed gate.
-if echo "$OUT" | grep -q "SEND2_OK" && ! echo "$OUT" | grep -q "SEND3_OK"; then
+if grep <<<"$OUT" -q "SEND2_OK" && ! grep <<<"$OUT" -q "SEND3_OK"; then
     pass "A-06" "Gated send (send3) never completed; pre-gate send2 did"
 else
     fail "A-06" "Unexpected send completion pattern" "$(echo "$OUT" | grep -c SEND2_OK)x SEND2, $(echo "$OUT" | grep -c SEND3_OK)x SEND3"
@@ -215,13 +215,13 @@ mk_govern "$STUB_PORT" "" > "$WDIR/govern.json"; sign_govern "$WDIR"
 printf '%s' "$TEST_NAAB" > "$WDIR/test.naab"
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1); EXIT_B=$?
 stop_stub
-if [ "$EXIT_B" -eq 0 ] && echo "$OUT" | grep -q "SEND3_OK"; then
+if [ "$EXIT_B" -eq 0 ] && grep <<<"$OUT" -q "SEND3_OK"; then
     pass "B-01" "On-topic answer passes; script completes (exit 0)"
 else
     fail "B-01" "Control run did not complete" "exit=$EXIT_B $(echo "$OUT" | tail -2)"
 fi
 CHAL_B=$(grep '"event_type":"AGENT_CHALLENGE_PASS"' "$WDIR/tele.jsonl" 2>/dev/null | head -1)
-if echo "$CHAL_B" | grep -q '"challenge_type":"validation"'; then
+if grep <<<"$CHAL_B" -q '"challenge_type":"validation"'; then
     pass "B-02" "Same validation-type challenge, passed with on-topic answer"
 else
     fail "B-02" "No validation-type CHALLENGE_PASS" "$CHAL_B"
@@ -264,17 +264,17 @@ main {
 EOF
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1); EXIT_C=$?
 stop_stub
-if [ "$EXIT_C" -eq 0 ] && echo "$OUT" | grep -q "SEND3_BLOCKED" && echo "$OUT" | grep -q "SEND4_OK"; then
+if [ "$EXIT_C" -eq 0 ] && grep <<<"$OUT" -q "SEND3_BLOCKED" && grep <<<"$OUT" -q "SEND4_OK"; then
     pass "C-01" "First fail blocked catchably; run continued and completed"
 else
     fail "C-01" "Streak-tolerant path broken" "exit=$EXIT_C blocked=$(echo "$OUT" | grep -c SEND3_BLOCKED) s4=$(echo "$OUT" | grep -c SEND4_OK)"
 fi
-if grep '"event_type":"AGENT_CHALLENGE_FAIL"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"failure_streak":"1"'; then
+if grep -q '"failure_streak":"1"' <<<"$(grep '"event_type":"AGENT_CHALLENGE_FAIL"' "$WDIR/tele.jsonl" 2>/dev/null)"; then
     pass "C-02" "CHALLENGE_FAIL telemetry carries failure_streak=1"
 else
     fail "C-02" "failure_streak missing/wrong" "$(grep 'CHALLENGE_FAIL' "$WDIR/tele.jsonl" | head -1)"
 fi
-if grep '"event_type":"AGENT_CHALLENGE_FAIL"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"max_allowed":"2"'; then
+if grep -q '"max_allowed":"2"' <<<"$(grep '"event_type":"AGENT_CHALLENGE_FAIL"' "$WDIR/tele.jsonl" 2>/dev/null)"; then
     pass "C-03" "CHALLENGE_FAIL telemetry carries max_allowed=2"
 else
     fail "C-03" "max_allowed missing/wrong"
@@ -320,12 +320,12 @@ main {
 EOF
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1); EXIT_D=$?
 stop_stub
-if [ "$EXIT_D" -eq 3 ] && ! echo "$OUT" | grep -q "SEND4_OK"; then
+if [ "$EXIT_D" -eq 3 ] && ! grep <<<"$OUT" -q "SEND4_OK"; then
     pass "D-01" "Second consecutive fail terminates (exit 3, NAAb catch cannot swallow)"
 else
     fail "D-01" "Streak limit not enforced" "exit=$EXIT_D s4=$(echo "$OUT" | grep -c SEND4_OK)"
 fi
-if grep '"event_type":"AGENT_CHALLENGE_FAIL"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"failure_streak":"2"'; then
+if grep -q '"failure_streak":"2"' <<<"$(grep '"event_type":"AGENT_CHALLENGE_FAIL"' "$WDIR/tele.jsonl" 2>/dev/null)"; then
     pass "D-02" "Second CHALLENGE_FAIL carries failure_streak=2"
 else
     fail "D-02" "failure_streak=2 not recorded" "$(grep -c CHALLENGE_FAIL "$WDIR/tele.jsonl") fail events"
@@ -495,7 +495,7 @@ if [ -n "$CHAL_F" ]; then
 else
     fail "F-02" "No challenge despite sub-OA coherence + flag on" "$(grep -c GOVERNANCE_LEVEL_CHANGE "$WDIR/tele.jsonl" 2>/dev/null) level changes"
 fi
-if [ "$EXIT_F" -eq 0 ] && echo "$OUT" | grep -q "SEND5_OK"; then
+if [ "$EXIT_F" -eq 0 ] && grep <<<"$OUT" -q "SEND5_OK"; then
     RECOV=$(echo "$OUT" | grep SEND5_OK | sed 's/.*coh=//')
     if awk "BEGIN{exit !($RECOV > $COH_F)}"; then
         pass "F-03" "Challenge pass recovered coherence ($COH_F -> $RECOV); run completed"
@@ -628,13 +628,13 @@ main {
 EOF
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>"$WDIR/stderr.txt"); EXIT_H=$?
 stop_stub
-if [ "$EXIT_H" -eq 0 ] && echo "$OUT" | grep -q "SEND4_OK"; then
+if [ "$EXIT_H" -eq 0 ] && grep <<<"$OUT" -q "SEND4_OK"; then
     pass "H-01" "Empty challenge response no longer terminates the run (exit 0)"
 else
     fail "H-01" "Empty challenge response still kills the run" \
          "exit=$EXIT_H s4=$(echo "$OUT" | grep -c SEND4_OK) reqs=$(ls "$WDIR"/req_*.json 2>/dev/null | wc -l) err=$( { grep -iE 'Agent error|^Error|error:' "$WDIR/stderr.txt"; echo "$OUT" | grep -iE 'Agent error|^Error'; } 2>/dev/null | head -2 | tr '\n' ' ')"
 fi
-if grep '"event_type":"AGENT_CHALLENGE_SKIPPED"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"reason":"empty_response"'; then
+if grep -q '"reason":"empty_response"' <<<"$(grep '"event_type":"AGENT_CHALLENGE_SKIPPED"' "$WDIR/tele.jsonl" 2>/dev/null)"; then
     pass "H-02" "Skip is auditable: AGENT_CHALLENGE_SKIPPED carries reason=empty_response"
 else
     fail "H-02" "No AGENT_CHALLENGE_SKIPPED/empty_response telemetry" \
@@ -642,7 +642,7 @@ else
 fi
 # The precise regression: an empty response must not be scored at all. A
 # CHALLENGE_FAIL carrying keyword_ratio=-1.0 is the run 8 signature.
-if grep '"event_type":"AGENT_CHALLENGE_FAIL"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"keyword_ratio":"-1'; then
+if grep -q '"keyword_ratio":"-1' <<<"$(grep '"event_type":"AGENT_CHALLENGE_FAIL"' "$WDIR/tele.jsonl" 2>/dev/null)"; then
     fail "H-03" "Empty response still scored as a challenge failure" \
          "$(grep '"event_type":"AGENT_CHALLENGE_FAIL"' "$WDIR/tele.jsonl" | head -1)"
 else
@@ -766,7 +766,7 @@ if [ "$((ENT_PASS + ENT_FAIL))" -lt 1 ]; then
     skip "I-02" "No entity challenge fired"
     skip "I-03" "No entity challenge fired"
 else
-    if [ "$EXIT_I" -eq 0 ] && echo "$OUT" | grep -q "ALL_SENDS_OK"; then
+    if [ "$EXIT_I" -eq 0 ] && grep <<<"$OUT" -q "ALL_SENDS_OK"; then
         pass "I-01" "One-sentence entity answer no longer kills the run (exit 0)"
     else
         fail "I-01" "Compliant one-sentence entity answer still fails the challenge" \
@@ -780,7 +780,7 @@ else
     fi
     # The denominator must be visible in telemetry — a low ratio was previously
     # unattributable between a bad answer and an oversized expected set.
-    if grep '"challenge_type":"entity"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"expected_keyword_mode":"per_sighting_best"'; then
+    if grep -q '"expected_keyword_mode":"per_sighting_best"' <<<"$(grep '"challenge_type":"entity"' "$WDIR/tele.jsonl" 2>/dev/null)"; then
         pass "I-03" "Telemetry reports the scoring mode"
     else
         fail "I-03" "No expected_keyword_mode on the entity challenge event"

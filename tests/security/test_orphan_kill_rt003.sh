@@ -97,7 +97,7 @@ ec=0
 out=$("$NAAB" "$SCRIPT_T2" --no-governance --timeout 10 2>&1) || ec=$?
 if [[ "$ec" -eq 0 ]]; then
     ok "normal subprocess completed cleanly (exit 0)"
-elif echo "$out" | grep -qi "timeout\|orphan\|killed"; then
+elif grep <<<"$out" -qi "timeout\|orphan\|killed"; then
     fail "subprocess was killed/timed out: ${out:0:120}"
 else
     fail "normal subprocess failed (exit $ec): ${out:0:120}"

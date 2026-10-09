@@ -63,9 +63,9 @@ EOF
 out=$(timeout 15s "$NAAB" "$WORKDIR/test_t2.naab" --vm --no-governance --timeout 10 2>&1) || ec=$?
 ec=${ec:-0}
 
-if echo "$out" | grep -q "done" && [[ "$ec" -eq 0 ]]; then
+if grep <<<"$out" -q "done" && [[ "$ec" -eq 0 ]]; then
     ok "fast script completed successfully under timeout"
-elif echo "$out" | grep -qi "timeout\|exceeded"; then
+elif grep <<<"$out" -qi "timeout\|exceeded"; then
     fail "false positive — fast script hit timeout: ${out:0:120}"
 else
     ok "exited without timeout error (ec=$ec)"

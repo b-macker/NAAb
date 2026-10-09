@@ -49,7 +49,7 @@ echo "=== Governance Depth Runtime Tests ==="
 
 # --- T1: CDD enabled, governance loads without errors ---
 output=$(run "test_cdd_basic.naab" 2>&1)
-if echo "$output" | grep -q '\[governance\] Loaded:'; then
+if grep <<<"$output" -q '\[governance\] Loaded:'; then
     pass "T1: CDD config loads successfully"
 else
     fail "T1: CDD config loads successfully"
@@ -57,11 +57,11 @@ fi
 
 # --- T2: BSD default patterns fire on taint events ---
 output=$(run "test_bsd_taint_wiring.naab" 2>&1) || true
-if echo "$output" | grep -qi 'TAINT_VIOLATION\|taint.*block\|Taint'; then
+if grep <<<"$output" -qi 'TAINT_VIOLATION\|taint.*block\|Taint'; then
     pass "T2: BSD sees taint events"
 else
     # Even if taint doesn't fire, check BSD is recording events
-    if echo "$output" | grep -q 'BSD:.*events'; then
+    if grep <<<"$output" -q 'BSD:.*events'; then
         pass "T2: BSD recording events (taint may not have matched pattern)"
     else
         fail "T2: BSD taint event wiring"
@@ -70,7 +70,7 @@ fi
 
 # --- T3: Circuit breaker config parsed (visible in dashboard) ---
 output=$("$NAAB" --governance-dashboard "$SCRIPT_DIR/test_cdd_basic.naab" 2>&1) || true
-if echo "$output" | grep -q '\[governance\] Loaded:'; then
+if grep <<<"$output" -q '\[governance\] Loaded:'; then
     pass "T3: Circuit breaker config accepted without error"
 else
     fail "T3: Circuit breaker config parsing"
@@ -79,7 +79,7 @@ fi
 # --- T4: Exposure tracking max_pipeline_depth is parsed ---
 # Just verify the config loads — actual depth enforcement needs agent.pipeline()
 output=$(run "test_cdd_basic.naab" 2>&1)
-if echo "$output" | grep -q 'Unknown key.*exposure_tracking'; then
+if grep <<<"$output" -q 'Unknown key.*exposure_tracking'; then
     fail "T4: exposure_tracking recognized by schema"
 else
     pass "T4: exposure_tracking recognized by schema"
@@ -87,7 +87,7 @@ fi
 
 # --- T5: Pipeline separation config parsed ---
 output=$(run "test_cdd_basic.naab" 2>&1)
-if echo "$output" | grep -q 'Unknown key.*pipeline_separation'; then
+if grep <<<"$output" -q 'Unknown key.*pipeline_separation'; then
     fail "T5: pipeline_separation recognized by schema"
 else
     pass "T5: pipeline_separation recognized by schema"
@@ -95,7 +95,7 @@ fi
 
 # --- T6: Governance health config parsed ---
 output=$(run "test_cdd_basic.naab" 2>&1)
-if echo "$output" | grep -q 'Unknown key.*governance_health'; then
+if grep <<<"$output" -q 'Unknown key.*governance_health'; then
     fail "T6: governance_health recognized by schema"
 else
     pass "T6: governance_health recognized by schema"
@@ -104,7 +104,7 @@ fi
 # --- T7: gate_cross_block taint enforcement ---
 # Write a test that has cross-block taint flow
 output=$(run "test_cross_block_taint.naab" 2>&1) || true
-if echo "$output" | grep -qi 'cross.block\|taint\|unsanitized'; then
+if grep <<<"$output" -qi 'cross.block\|taint\|unsanitized'; then
     pass "T7: Cross-block taint gate produces output"
 else
     pass "T7: Cross-block taint gate (no cross-block flow in simple test)"
@@ -133,7 +133,7 @@ cat > "$TEST_TMP/govern.json" << 'JSON'
 JSON
 sign_govern "$TEST_TMP"
 output=$("$NAAB" "$TEST_TMP/test_rate.naab" 2>&1) || true
-if echo "$output" | grep -q 'rate test ok'; then
+if grep <<<"$output" -q 'rate test ok'; then
     pass "T8: rate_normalized=true accepted, execution succeeds"
 else
     fail "T8: rate_normalized config"
@@ -163,7 +163,7 @@ cat > "$TEST_TMP/govern.json" << 'JSON'
 JSON
 sign_govern "$TEST_TMP"
 output=$("$NAAB" "$TEST_TMP/test_recovery.naab" 2>&1) || true
-if echo "$output" | grep -q 'recovery test ok'; then
+if grep <<<"$output" -q 'recovery test ok'; then
     pass "T9: coherence_recovery config accepted"
 else
     fail "T9: coherence_recovery config"
@@ -191,7 +191,7 @@ cat > "$TEST_TMP/govern.json" << 'JSON'
 JSON
 sign_govern "$TEST_TMP"
 output=$("$NAAB" "$TEST_TMP/test_cooldown.naab" 2>&1) || true
-if echo "$output" | grep -q 'cooldown test ok'; then
+if grep <<<"$output" -q 'cooldown test ok'; then
     pass "T10: checkpoint_cooldown_turns config accepted"
 else
     fail "T10: checkpoint_cooldown config"
@@ -224,7 +224,7 @@ cat > "$TEST_TMP/govern.json" << 'JSON'
 JSON
 sign_govern "$TEST_TMP"
 output=$("$NAAB" "$TEST_TMP/test_cb.naab" 2>&1) || true
-if echo "$output" | grep -q 'circuit breaker test ok'; then
+if grep <<<"$output" -q 'circuit breaker test ok'; then
     pass "T11: circuit_breaker full config accepted"
 else
     fail "T11: circuit_breaker config"
@@ -252,7 +252,7 @@ cat > "$TEST_TMP/govern.json" << 'JSON'
 JSON
 sign_govern "$TEST_TMP"
 output=$("$NAAB" "$TEST_TMP/test_health.naab" 2>&1) || true
-if echo "$output" | grep -q 'health test ok'; then
+if grep <<<"$output" -q 'health test ok'; then
     pass "T12: governance_health full config accepted"
 else
     fail "T12: governance_health config"
@@ -279,7 +279,7 @@ cat > "$TEST_TMP/govern.json" << 'JSON'
 JSON
 sign_govern "$TEST_TMP"
 output=$("$NAAB" "$TEST_TMP/test_sep.naab" 2>&1) || true
-if echo "$output" | grep -q 'separation test ok'; then
+if grep <<<"$output" -q 'separation test ok'; then
     pass "T13: pipeline_separation hard level accepted"
 else
     fail "T13: pipeline_separation config"
@@ -307,7 +307,7 @@ cat > "$TEST_TMP/govern.json" << 'JSON'
 JSON
 sign_govern "$TEST_TMP"
 output=$("$NAAB" "$TEST_TMP/test_tc.naab" 2>&1) || true
-if echo "$output" | grep -q 'temporal coupling test ok'; then
+if grep <<<"$output" -q 'temporal coupling test ok'; then
     pass "T14: temporal_coupling config accepted"
 else
     fail "T14: temporal_coupling config"
@@ -346,7 +346,7 @@ cat > "$TEST_TMP/govern.json" << 'JSON'
 JSON
 sign_govern "$TEST_TMP"
 output=$("$NAAB" "$TEST_TMP/test_vel.naab" 2>&1) || true
-if echo "$output" | grep -q 'velocity signal test ok'; then
+if grep <<<"$output" -q 'velocity signal test ok'; then
     pass "T15: All CDD signal configs accepted"
 else
     fail "T15: CDD signal configs"
@@ -379,7 +379,7 @@ cat > "$TEST_TMP/govern.json" << 'JSON'
 JSON
 sign_govern "$TEST_TMP"
 output=$("$NAAB" "$TEST_TMP/test_budget.naab" 2>&1) || true
-if echo "$output" | grep -q 'risk budget test ok'; then
+if grep <<<"$output" -q 'risk budget test ok'; then
     pass "T16: Per-agent risk_budget config accepted"
 else
     fail "T16: risk_budget config"
@@ -411,7 +411,7 @@ cat > "$TEST_TMP/govern.json" << 'JSON'
 JSON
 sign_govern "$TEST_TMP"
 output=$("$NAAB" "$TEST_TMP/test_gate.naab" 2>&1) || true
-if echo "$output" | grep -q 'taint gate test ok'; then
+if grep <<<"$output" -q 'taint gate test ok'; then
     pass "T17: gate_cross_block + cross_block_level config accepted"
 else
     fail "T17: taint gate config"
@@ -453,7 +453,7 @@ cat > "$TEST_TMP/govern.json" << 'JSON'
 JSON
 sign_govern "$TEST_TMP"
 output=$("$NAAB" "$TEST_TMP/test_accel.naab" 2>&1) || true
-if echo "$output" | grep -q 'acceleration test ok'; then
+if grep <<<"$output" -q 'acceleration test ok'; then
     pass "T18: pipeline_inherited + coherence_acceleration weights accepted"
 else
     fail "T18: checkpoint weight config"
@@ -469,7 +469,7 @@ fi
 
 # --- T20: Dashboard with depth features shows no unknown key warnings ---
 output=$("$NAAB" --governance-dashboard "$SCRIPT_DIR/test_cdd_basic.naab" 2>&1) || true
-if echo "$output" | grep -q 'Unknown key'; then
+if grep <<<"$output" -q 'Unknown key'; then
     fail "T20: No unknown key warnings with depth config"
     echo "  Found: $(echo "$output" | grep 'Unknown key')"
 else

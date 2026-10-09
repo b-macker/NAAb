@@ -228,7 +228,7 @@ elif [ $v9rc -eq 0 ]; then
 else
     bad LC-09 "the table declares a comment form a language's own parser rejects" "$v9"
 fi
-if ! printf '%s' "$v9" | grep -q "python .*\[python3\] confirmed"; then
+if ! grep <<<"$v9" -q "python .*\[python3\] confirmed"; then
     skip LC-10 "python3 cannot parse here -- the verifier controls are UNMEASURABLE"
     skip LC-11 "python3 cannot parse here"
     skip LC-12 "ruby not installed or python3 cannot parse here"

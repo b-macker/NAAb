@@ -176,7 +176,7 @@ NAABEOF
 
 # Run once to establish fingerprint baseline — should succeed
 OUTPUT=$(cd "$T5DIR" && timeout 10 "$NAAB" test.naab 2>"$WORKDIR/t5-run1.err" || true)
-if echo "$OUTPUT" | grep -q "hello from t5"; then
+if grep <<<"$OUTPUT" -q "hello from t5"; then
     ok "T5a: baseline run succeeds with original key"
 else
     fail "T5a: baseline run failed: $(cat "$WORKDIR/t5-run1.err")"

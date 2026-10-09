@@ -175,7 +175,7 @@ OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 TELE="$WDIR/telemetry.jsonl"
 
-if echo "$OUTPUT" | grep -q "DONE"; then
+if grep <<<"$OUTPUT" -q "DONE"; then
     pass "CB-01" "3 sends complete"
 else
     fail "CB-01" "sends did not complete" "$(echo "$OUTPUT" | head -3)"

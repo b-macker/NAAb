@@ -207,7 +207,7 @@ fi
 # probe_broken() is why a bare-name command (which measures PATH, not the
 # sandbox) no longer reads as CONTAINED. Its own both-direction check.
 sout="$(python3 "$TOOL" --selftest 2>&1)"; src=$?
-if [ $src -eq 0 ] && printf '%s\n' "$sout" | grep -q "SELFTEST 0 fail"; then
+if [ $src -eq 0 ] && grep <<<"$sout" -q "SELFTEST 0 fail"; then
     ok PM-05 "probe_broken() selftest passes both directions"
 else
     bad PM-05 "probe_broken() selftest failed" "$sout"

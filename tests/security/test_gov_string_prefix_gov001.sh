@@ -66,14 +66,14 @@ NAAB
 
 ec=0
 out=$("$NAAB" "$WORK_DIR/injection/t1.naab" --no-governance 2>&1) || ec=$?
-if [[ "$ec" -ne 0 ]] || ! echo "$out" | grep -q "ok"; then
+if [[ "$ec" -ne 0 ]] || ! grep <<<"$out" -q "ok"; then
     skip "T1 skipped — Python not available or unexpected output: ${out:0:80}"
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/injection/t1.naab" 2>&1) || ec2=$?
-    if [[ "$ec2" -eq 0 ]] && echo "$out2" | grep -q "ok"; then
+    if [[ "$ec2" -eq 0 ]] && grep <<<"$out2" -q "ok"; then
         ok "f-string os.system not blocked — string prefix properly consumed by stripStringLiterals"
-    elif echo "$out2" | grep -qi "injection\|blocked\|governance\|command"; then
+    elif grep <<<"$out2" -qi "injection\|blocked\|governance\|command"; then
         fail "False positive: f-string content triggered command-injection: ${out2:0:120}"
     else
         skip "Script completed (Python may be unavailable or governance not triggered): ${out2:0:80}"
@@ -102,14 +102,14 @@ NAAB
 
 ec=0
 out=$("$NAAB" "$WORK_DIR/injection/t2.naab" --no-governance 2>&1) || ec=$?
-if [[ "$ec" -ne 0 ]] || ! echo "$out" | grep -q "safe"; then
+if [[ "$ec" -ne 0 ]] || ! grep <<<"$out" -q "safe"; then
     skip "T2 skipped — Python not available: ${out:0:80}"
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/injection/t2.naab" 2>&1) || ec2=$?
-    if [[ "$ec2" -eq 0 ]] && echo "$out2" | grep -q "safe"; then
+    if [[ "$ec2" -eq 0 ]] && grep <<<"$out2" -q "safe"; then
         ok "r-string os.system not blocked — raw prefix consumed correctly"
-    elif echo "$out2" | grep -qi "injection\|blocked\|governance"; then
+    elif grep <<<"$out2" -qi "injection\|blocked\|governance"; then
         fail "False positive: r-string content triggered injection check: ${out2:0:120}"
     else
         skip "Completed (Python may be unavailable): ${out2:0:80}"
@@ -145,12 +145,12 @@ cp "$WORK_DIR/injection/t3.naab" "$T3_PROBE_DIR/t3.naab"
 ec=0
 out=$("$NAAB" "$T3_PROBE_DIR/t3.naab" --no-governance 2>&1) || ec=$?
 rm -rf "$T3_PROBE_DIR"
-if [[ "$ec" -ne 0 ]] || ! echo "$out" | grep -qi "ran\|dangerous"; then
+if [[ "$ec" -ne 0 ]] || ! grep <<<"$out" -qi "ran\|dangerous"; then
     skip "T3 skipped — Python not available: ${out:0:80}"
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/injection/t3.naab" 2>&1) || ec2=$?
-    if echo "$out2" | grep -qi "injection\|blocked\|governance\|command\|denied"; then
+    if grep <<<"$out2" -qi "injection\|blocked\|governance\|command\|denied"; then
         ok "Real os.system() correctly blocked — governance check still active"
     elif [[ "$ec2" -ne 0 ]]; then
         ok "Real os.system() blocked with non-zero exit (exit $ec2)"
@@ -193,9 +193,9 @@ NAAB
 
 ec=0
 out=$("$NAAB" "$WORK_DIR/placeholder/t4.naab" 2>&1) || ec=$?
-if [[ "$ec" -eq 0 ]] && echo "$out" | grep -q "42"; then
+if [[ "$ec" -eq 0 ]] && grep <<<"$out" -q "42"; then
     ok "NAAb string with TODO not blocked — placeholder inside string is stripped"
-elif echo "$out" | grep -qi "placeholder\|TODO\|governance\|blocked"; then
+elif grep <<<"$out" -qi "placeholder\|TODO\|governance\|blocked"; then
     fail "False positive: TODO inside NAAb string triggered no_placeholders: ${out:0:120}"
 else
     fail "Unexpected failure (exit $ec): ${out:0:120}"

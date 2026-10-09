@@ -152,7 +152,7 @@ enc_self_test() {
     #     hides it is worse than none, since it argues the assertion is lying.
     #     Rendering is in-process precisely so this assertion does not depend on
     #     a platform's text tools; see the note on enc_escaped_diff.
-    enc_escaped_diff expected "$b" actual "$a" | grep -q '\\r' \
+    grep -q '\\r' <<<"$(enc_escaped_diff expected "$b" actual "$a")" \
         || { echo "!! enc_escaped_diff did not surface the CR"
              enc_platform_probe
              rc=1; }
@@ -160,7 +160,7 @@ enc_self_test() {
     # (5) NEGATIVE CONTROL for (4). A renderer that emitted a literal \r for
     #     every input would satisfy (4) unconditionally, and (4) would then be
     #     asserting nothing. Clean ASCII must render with no \r.
-    enc_escaped_diff expected "$b" actual "$b" | grep -q '\\r' \
+    grep -q '\\r' <<<"$(enc_escaped_diff expected "$b" actual "$b")" \
         && { echo "!! enc_escaped_diff invented a CR on clean input"; rc=1; }
 
     rm -rf "$tmp"

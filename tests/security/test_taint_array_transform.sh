@@ -49,7 +49,7 @@ main {
 EOF
 
 out=$("$NAAB" "$WORKDIR/test_map.naab" 2>&1) || true
-if echo "$out" | grep -qi "taint\|blocked\|governance\|sink\|denied"; then
+if grep <<<"$out" -qi "taint\|blocked\|governance\|sink\|denied"; then
     ok "file.write blocked — taint propagated through array.map_fn"
 else
     fail "file.write NOT blocked — taint lost through array.map_fn: ${out:0:200}"
@@ -75,7 +75,7 @@ main {
 EOF
 
 out=$("$NAAB" "$WORKDIR/test_filter.naab" 2>&1) || true
-if echo "$out" | grep -qi "taint\|blocked\|governance\|sink\|denied"; then
+if grep <<<"$out" -qi "taint\|blocked\|governance\|sink\|denied"; then
     ok "file.write blocked — taint propagated through array.filter_fn"
 else
     fail "file.write NOT blocked — taint lost through array.filter_fn: ${out:0:200}"
@@ -101,7 +101,7 @@ main {
 EOF
 
 out=$("$NAAB" "$WORKDIR/test_reduce.naab" 2>&1) || true
-if echo "$out" | grep -qi "taint\|blocked\|governance\|sink\|denied"; then
+if grep <<<"$out" -qi "taint\|blocked\|governance\|sink\|denied"; then
     ok "file.write blocked — taint propagated through array.reduce_fn"
 else
     fail "file.write NOT blocked — taint lost through array.reduce_fn: ${out:0:200}"
@@ -140,7 +140,7 @@ EOF
 out=$("$NAAB" "$WORKDIR/test_sanitized.naab" 2>&1) || ec=$?
 ec=${ec:-0}
 # After sanitization, file.write should succeed (or fail for unrelated reasons like missing dir)
-if echo "$out" | grep -qi "taint.*block\|tainted.*sink"; then
+if grep <<<"$out" -qi "taint.*block\|tainted.*sink"; then
     fail "file.write blocked despite sanitization — false positive"
 else
     ok "sanitized data passes through without taint block"
@@ -152,7 +152,7 @@ echo ""
 # ---------------------------------------------------------------------------
 echo "[T5] array.map_fn taint propagation works in tree-walk mode"
 out=$("$NAAB" --tree-walk "$WORKDIR/test_map.naab" 2>&1) || true
-if echo "$out" | grep -qi "taint\|blocked\|governance\|sink\|denied"; then
+if grep <<<"$out" -qi "taint\|blocked\|governance\|sink\|denied"; then
     ok "file.write blocked in tree-walk — taint propagated through array.map_fn"
 else
     fail "file.write NOT blocked in tree-walk — taint lost: ${out:0:200}"

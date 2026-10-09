@@ -32,7 +32,7 @@ NAABEOF
 out=$("$NAAB" "$WORKDIR/test_g1.naab" --vm --no-governance 2>&1) || ec=$?
 ec=${ec:-0}
 
-if echo "$out" | grep -qi "not supported\|compiler error\|tree-walk\|block-loading"; then
+if grep <<<"$out" -qi "not supported\|compiler error\|tree-walk\|block-loading"; then
     ok "clear compile-time error message produced"
 elif [[ "$ec" -ne 0 ]]; then
     ok "non-zero exit (no crash, error reported)"
@@ -40,7 +40,7 @@ else
     fail "expected error exit, got 0: ${out:0:120}"
 fi
 
-if echo "$out" | grep -q "should not reach"; then
+if grep <<<"$out" -q "should not reach"; then
     fail "execution continued past invalid use statement"
 else
     ok "execution did not continue past invalid statement"
@@ -64,7 +64,7 @@ NAABEOF
 out=$("$NAAB" "$WORKDIR/test_g2.naab" --vm --no-governance 2>&1) || ec=$?
 ec=${ec:-0}
 
-if echo "$out" | grep -q "5"; then
+if grep <<<"$out" -q "5"; then
     ok "use math works correctly in VM mode"
 elif [[ "$ec" -eq 0 ]]; then
     ok "use math ran without error"
@@ -84,7 +84,7 @@ ec=${ec:-0}
 
 # Tree-walker may fail for other reasons (block not found in registry), but
 # must NOT produce "VM mode" / "Compiler error" message
-if echo "$out" | grep -qi "not supported in VM mode\|compiler error.*tree-walk"; then
+if grep <<<"$out" -qi "not supported in VM mode\|compiler error.*tree-walk"; then
     fail "tree-walker incorrectly hit the VM compiler error path"
 else
     ok "tree-walker took its own code path (no VM compiler error)"

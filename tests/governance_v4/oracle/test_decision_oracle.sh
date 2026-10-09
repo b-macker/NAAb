@@ -70,7 +70,7 @@ check() {
 
 check_contains() {
     local id="$1" desc="$2" output="$3" pattern="$4"
-    if echo "$output" | grep -qi "$pattern"; then
+    if grep <<<"$output" -qi "$pattern"; then
         echo "  PASS [$id] $desc"
         PASS=$((PASS + 1))
     else
@@ -81,7 +81,7 @@ check_contains() {
 
 check_not_contains() {
     local id="$1" desc="$2" output="$3" pattern="$4"
-    if echo "$output" | grep -qi "$pattern"; then
+    if grep <<<"$output" -qi "$pattern"; then
         echo "  FAIL [$id] $desc (found '$pattern' unexpectedly)"
         FAIL=$((FAIL + 1))
     else

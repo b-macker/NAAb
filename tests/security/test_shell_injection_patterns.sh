@@ -41,7 +41,7 @@ ${code}
 }
 NAABEOF
     out=$("$NAAB" "$test_file" 2>&1) || true
-    if echo "$out" | grep -qi "shell injection\|governance.*block\|HARD.*block"; then
+    if grep <<<"$out" -qi "shell injection\|governance.*block\|HARD.*block"; then
         ok "$label"
     else
         fail "$label: expected block, got: ${out:0:200}"
@@ -90,7 +90,7 @@ print("hello world")
 }
 EOF
 out=$("$NAAB" "$test_file" 2>&1) || true
-if echo "$out" | grep -qi "shell injection"; then
+if grep <<<"$out" -qi "shell injection"; then
     fail "safe code should not trigger shell injection"
 else
     ok "safe code not blocked"

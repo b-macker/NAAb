@@ -43,7 +43,7 @@ echo "=== naab-gov check: one output shape for both verdicts ==="
 if [ ! -x "$GOV" ]; then
     echo "  SKIP [OS-00] naab-gov not built -- UNMEASURABLE, not a pass"; exit 0
 fi
-if ! "$GOV" --version 2>/dev/null | grep -qi naab-gov; then
+if ! grep -qi naab-gov <<<"$("$GOV" --version 2>/dev/null)"; then
     echo "  FAIL [OS-00] $GOV does not identify as naab-gov -- comparison would be vacuous"; exit 1
 fi
 if ! command -v python3 >/dev/null 2>&1; then

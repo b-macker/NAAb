@@ -43,13 +43,13 @@ main {
 NAABEOF
 
 out=$("$NAAB" "$WORKDIR/test_f1.naab" --sandbox-level standard --no-governance 2>&1) || true
-if echo "$out" | grep -qi "symlink\|denied\|security\|ELOOP\|nofollow"; then
+if grep <<<"$out" -qi "symlink\|denied\|security\|ELOOP\|nofollow"; then
     ok "symlink read denied under sandbox"
-elif echo "$out" | grep -q "secret_content"; then
+elif grep <<<"$out" -q "secret_content"; then
     fail "symlink followed — secret content leaked: $out"
 else
     # Non-zero exit without specific message is also acceptable
-    if [[ $? -ne 0 ]] || echo "$out" | grep -qi "error\|fail\|denied"; then
+    if [[ $? -ne 0 ]] || grep <<<"$out" -qi "error\|fail\|denied"; then
         ok "read failed (exit/error — symlink not followed)"
     else
         ok "no secret_content in output (symlink not followed)"
@@ -76,7 +76,7 @@ NAABEOF
 out=$("$NAAB" "$WORKDIR/test_f2.naab" --sandbox-level standard --no-governance 2>&1) || true
 original_content=$(cat "$WORKDIR/original.txt" 2>/dev/null || echo "")
 
-if echo "$out" | grep -qi "symlink\|denied\|security\|nofollow"; then
+if grep <<<"$out" -qi "symlink\|denied\|security\|nofollow"; then
     ok "symlink write denied under sandbox"
 elif [[ "$original_content" == "original" ]]; then
     ok "original file not overwritten via symlink"
@@ -101,11 +101,11 @@ main {
 NAABEOF
 
 out=$("$NAAB" "$WORKDIR/test_f3.naab" --sandbox-level standard --no-governance 2>&1) || true
-if echo "$out" | grep -q "hello_sandbox"; then
+if grep <<<"$out" -q "hello_sandbox"; then
     ok "normal file read succeeded under sandbox"
 else
     # sandbox may deny based on allowed paths — that's also acceptable
-    if echo "$out" | grep -qi "denied\|sandbox\|capability"; then
+    if grep <<<"$out" -qi "denied\|sandbox\|capability"; then
         ok "sandbox path restriction (not a symlink false-positive)"
     else
         fail "expected 'hello_sandbox' in output, got: ${out:0:100}"
@@ -141,9 +141,9 @@ main {
 NAABEOF
 
 out=$("$NAAB" "$WORKDIR/test_f4.naab" --sandbox-level unrestricted --no-governance 2>&1) || true
-if echo "$out" | grep -q "path is a symlink"; then
+if grep <<<"$out" -q "path is a symlink"; then
     ok "unrestricted sandbox still refuses the symlink (O_NOFOLLOW is level-independent)"
-elif echo "$out" | grep -q "secret_content"; then
+elif grep <<<"$out" -q "secret_content"; then
     fail "unrestricted sandbox followed a symlink — the TOCTOU guard now varies with level"
 else
     skip "unrestricted read produced neither the refusal nor the content: ${out:0:80}"

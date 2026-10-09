@@ -115,17 +115,17 @@ A_OUT=$(run_case "$TEST_TMP/a" 50 9999999)
 # in tests/security/test_error_msg_leaks.sh is that errors never point at
 # specific configuration keys -- and the ambiguity that caused two misdiagnoses
 # was never "which key", it was "which of the two budgets". Scope answers it.
-if echo "$A_OUT" | grep -q "per-agent budget for agent 'budgeted'"; then
+if grep <<<"$A_OUT" -q "per-agent budget for agent 'budgeted'"; then
     pass "LA-01" "per-agent budget error names the scope that bound"
 else
     fail "LA-01" "per-agent budget error does not say which budget bound" \
          "$(echo "$A_OUT" | grep -i 'token budget' | head -1)"
 fi
 
-if echo "$A_OUT" | grep -qi "token budget exhausted" && \
-   ! echo "$A_OUT" | grep -q "max_tokens_per_run"; then
+if grep <<<"$A_OUT" -qi "token budget exhausted" && \
+   ! grep <<<"$A_OUT" -q "max_tokens_per_run"; then
     pass "LA-02" "per-agent error does NOT name the run-level sibling"
-elif ! echo "$A_OUT" | grep -qi "token budget exhausted"; then
+elif ! grep <<<"$A_OUT" -qi "token budget exhausted"; then
     fail "LA-02" "the per-agent limit never bound — case A proves nothing" \
          "no 'Token budget exhausted' in output"
 else
@@ -156,10 +156,10 @@ B_OUT=$(run_case "$TEST_TMP/b" 9999999 60)
 # defect stands, naming it, and FAILS the moment the sanitizer is fixed -- which
 # forces this comment and LA-02's control story to be updated rather than
 # silently rotting.
-if echo "$B_OUT" | grep -q "max_tokens_per_run"; then
+if grep <<<"$B_OUT" -q "max_tokens_per_run"; then
     fail "LA-03" "sanitizer no longer mangles the run-level key — UPDATE THIS TEST" \
          "the known defect appears fixed; make this a plain assertion and drop the xfail wording"
-elif echo "$B_OUT" | grep -q "max_<redacted>"; then
+elif grep <<<"$B_OUT" -q "max_<redacted>"; then
     pass "LA-03" "run-level key mangled to max_<redacted> — known ErrorSanitizer defect, documented"
 else
     fail "LA-03" "run-level limit did not bind — LA-02's control is absent" \
@@ -174,7 +174,7 @@ fi
 # string in a COMMENT trips it exactly as a string literal would. That is how
 # this suite's first draft failed the leak check.
 _k1="govern"; _k2="json"
-if echo "$A_OUT" | grep -qiE "increase.*${_k1}\.${_k2}|max_total_tokens in ${_k1}"; then
+if grep <<<"$A_OUT" -qiE "increase.*${_k1}\.${_k2}|max_total_tokens in ${_k1}"; then
     fail "LA-04" "error points at a config key or how to raise it" \
          "the enforced policy is: never name specific configuration keys"
 else

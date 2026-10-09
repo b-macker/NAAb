@@ -80,14 +80,14 @@ GOVEOF
 }
 
 OUT=$(emit "vocab_contraction")
-if echo "$OUT" | grep -q "vocabulary_contraction"; then
+if grep <<<"$OUT" -q "vocabulary_contraction"; then
     pass "SK-01" "telemetry label 'vocab_contraction' suggests 'vocabulary_contraction'"
 else
     fail "SK-01" "no canonical key suggested for a telemetry label" "$OUT"
 fi
 
 OUT=$(emit "capability_underutil")
-if echo "$OUT" | grep -q "capability_underutilization"; then
+if grep <<<"$OUT" -q "capability_underutilization"; then
     pass "SK-02" "telemetry label 'capability_underutil' suggests its config key"
 else
     fail "SK-02" "no canonical key suggested" "$OUT"
@@ -95,10 +95,10 @@ fi
 
 # Control: a real typo must NOT be told it is a telemetry label.
 OUT=$(emit "vocab_contractionX")
-if echo "$OUT" | grep -q "unknown context_drift_signals key" && \
-   ! echo "$OUT" | grep -q "telemetry label"; then
+if grep <<<"$OUT" -q "unknown context_drift_signals key" && \
+   ! grep <<<"$OUT" -q "telemetry label"; then
     pass "SK-03" "genuine typo still gets the plain warning (control)"
-elif ! echo "$OUT" | grep -q "unknown context_drift_signals key"; then
+elif ! grep <<<"$OUT" -q "unknown context_drift_signals key"; then
     fail "SK-03" "genuine typo produced no warning at all" "$OUT"
 else
     fail "SK-03" "genuine typo wrongly described as a telemetry label" \
@@ -107,7 +107,7 @@ fi
 
 # The alias must stay rejected, not silently start working.
 OUT=$(emit "vocab_contraction")
-if echo "$OUT" | grep -q "NOT overridden"; then
+if grep <<<"$OUT" -q "NOT overridden"; then
     pass "SK-04" "alias is refused, not silently accepted"
 else
     fail "SK-04" "alias no longer refused — it may be silently accepted now" \

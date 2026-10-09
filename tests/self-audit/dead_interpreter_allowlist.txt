@@ -38,6 +38,7 @@ tests/security/test_r34_fixes.sh	structural	greps source for cycle detection; de
 tests/security/test_error_msg_leaks.sh	structural	scans error strings in src/ for leaked bypass flags
 tests/governance_v4/test_inert_key_sweep.sh	structural	static sweep: config keys that no code reads
 tests/governance_v4/test_template_coverage.sh	structural	static check: key paths loadFromJson() reads vs govern-template.json; never runs naab-lang
+tests/self-audit/test_pipefail_grep.sh	structural	scans shell scripts for `| grep -q` under pipefail; never runs naab-lang
 tests/self-audit/test_coverage_visibility.sh	structural	every test directory and suite is registered and tracked
 
 tests/self-audit/test_skip_tally.sh	tool	tests the skip-tally helper on planted suite output; never runs naab-lang

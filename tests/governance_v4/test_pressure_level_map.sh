@@ -217,12 +217,12 @@ fi
 echo -e "${CYAN}--- Group B: the reachable rungs fire, in order ---${NC}"
 if [ -n "${R:-}" ]; then
 FIRST_ELEV_COH=$(echo "$R" | awk '$4=="elevated"{print $2; exit}')
-if echo "$LEVELS" | grep -q elevated; then
+if grep <<<"$LEVELS" -q elevated; then
     pass "B-01" "ELEVATED reached (first at coherence $FIRST_ELEV_COH)"
 else
     fail "B-01" "ELEVATED never reached" "levels seen: $LEVELS"
 fi
-if echo "$LEVELS" | grep -q high; then
+if grep <<<"$LEVELS" -q high; then
     pass "B-02" "HIGH reached"
 else
     fail "B-02" "HIGH never reached" "levels seen: $LEVELS"
@@ -253,7 +253,7 @@ else
     fail "C-02" "Pressure exceeded the documented ceiling" \
          "max=$MAXP — a factor weight or the factor set changed"
 fi
-if ! echo "$LEVELS" | grep -q critical; then
+if ! grep <<<"$LEVELS" -q critical; then
     pass "C-03" "CRITICAL not reached by drift alone (ceiling 0.70 < threshold 0.80)"
 else
     fail "C-03" "CRITICAL reached — the ceiling analysis is stale" "levels: $LEVELS"
@@ -271,7 +271,7 @@ else
 R2=$(rows "$WDIR/tele.jsonl")
 LEVELS2=$(echo "$R2" | awk '{print $4}' | sort -u | tr '\n' ' ')
 CRIT_TELE=$(grep -c '"to_level":"critical"' "$WDIR/tele.jsonl" 2>/dev/null || true)
-if echo "$LEVELS2" | grep -q critical || [ "${CRIT_TELE:-0}" -ge 1 ]; then
+if grep <<<"$LEVELS2" -q critical || [ "${CRIT_TELE:-0}" -ge 1 ]; then
     pass "D-01" "CRITICAL fires once its threshold is under the ceiling (control)"
 else
     fail "D-01" "CRITICAL unreachable even below the ceiling — escalation is broken" \

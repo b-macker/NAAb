@@ -108,7 +108,7 @@ run() {
     printf '%s\n' "$2" > "$W/t.naab"
     local o rc
     o=$(cd "$W" && timeout 60s "$NAAB" ${3:-} t.naab 2>&1); rc=$?
-    if echo "$o" | grep -q "MARKER"; then echo "$rc|ran"; else echo "$rc|blocked"; fi
+    if grep <<<"$o" -q "MARKER"; then echo "$rc|ran"; else echo "$rc|blocked"; fi
 }
 
 # filesystem ENABLED, one directory explicitly blocked. This is the shape the
@@ -198,7 +198,7 @@ use io
 main { io.write_file("govern.json", "{\"pwned\":true}") print("MARKER") }
 NAAB_EOF
 out=$(cd "$W" && timeout 60s "$NAAB" t.naab 2>&1); rc=$?
-if echo "$out" | grep -q "MARKER"; then
+if grep <<<"$out" -q "MARKER"; then
     fail "IE-07" "io.write_file cannot overwrite govern.json" "the write ran (exit $rc)"
 elif [ "$rc" != "3" ]; then
     fail "IE-07" "io.write_file cannot overwrite govern.json" "blocked, but exit $rc not 3"
@@ -227,14 +227,14 @@ for eng in "" "--tree-walk"; do
     printf '%s\n' "$DOTBLOCK" > "$W/govern.json"
     printf '%s\n' "$P_DOTENV_DEFAULT" > "$W/t.naab"
     o=$(cd "$W" && timeout 60s "$NAAB" ${eng:-} t.naab 2>&1); rc=$?
-    blocked=$(echo "$o" | grep -q MARKER && echo no || echo yes)
+    blocked=$(grep <<<"$o" -q MARKER && echo no || echo yes)
 
     reset_workspace
     printf 'K=v\n' > "$W/.env"
     printf '%s\n' "$PERMIT" > "$W/govern.json"
     printf '%s\n' "$P_DOTENV_DEFAULT" > "$W/t.naab"
     po=$(cd "$W" && timeout 60s "$NAAB" ${eng:-} t.naab 2>&1); prc=$?
-    permitted=$(echo "$po" | grep -q MARKER && echo yes || echo no)
+    permitted=$(grep <<<"$po" -q MARKER && echo yes || echo no)
 
     label="env.load_dotenv() gates the \".env\" default (${eng:-vm})"
     if [ "$blocked" != "yes" ]; then

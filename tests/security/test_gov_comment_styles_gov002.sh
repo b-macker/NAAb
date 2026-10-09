@@ -77,7 +77,7 @@ else
         fail "False positive: SQL -- comment triggered custom pattern: ${out2:0:120}"
     elif [[ "$ec2" -eq 0 ]]; then
         ok "SQL -- comment with FORBIDDEN_KEYWORD not blocked — comment properly stripped"
-    elif echo "$out2" | grep -qi "FORBIDDEN\|hallucinated\|custom.*rule\|governance\|blocked"; then
+    elif grep <<<"$out2" -qi "FORBIDDEN\|hallucinated\|custom.*rule\|governance\|blocked"; then
         fail "False positive: SQL -- comment triggered custom pattern: ${out2:0:120}"
     else
         skip "SQL executor not available or other non-governance exit: ${out2:0:80}"
@@ -197,16 +197,16 @@ NAAB
 
 ec=0
 out=$("$NAAB" "$WORK_DIR/t4.naab" --no-governance 2>&1) || ec=$?
-if [[ "$ec" -ne 0 ]] || ! echo "$out" | grep -q "clean"; then
+if [[ "$ec" -ne 0 ]] || ! grep <<<"$out" -q "clean"; then
     skip "T4 skipped — Python not available: ${out:0:80}"
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/t4.naab" 2>&1) || ec2=$?
     if [[ "$out2" == *"$DETECTED"* ]]; then
         fail "False positive: Python # comment triggered custom pattern: ${out2:0:120}"
-    elif [[ "$ec2" -eq 0 ]] && echo "$out2" | grep -q "clean"; then
+    elif [[ "$ec2" -eq 0 ]] && grep <<<"$out2" -q "clean"; then
         ok "Python # comment with FORBIDDEN_KEYWORD not blocked — # comments properly stripped"
-    elif echo "$out2" | grep -qi "FORBIDDEN\|hallucinated\|governance\|blocked"; then
+    elif grep <<<"$out2" -qi "FORBIDDEN\|hallucinated\|governance\|blocked"; then
         fail "False positive: Python # comment triggered custom pattern: ${out2:0:120}"
     else
         skip "Completed (Python may be unavailable): ${out2:0:80}"

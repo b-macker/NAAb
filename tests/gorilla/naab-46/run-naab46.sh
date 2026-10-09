@@ -93,7 +93,7 @@ extract_code() {
     fi
 
     # Fallback: whole response if it looks like Python code
-    if printf '%s\n' "$response" | grep -qE "^(def |import |from |class )"; then
+    if grep <<<"$response" -qE "^(def |import |from |class )"; then
         printf '%s\n' "$response"
         return 0
     fi
@@ -238,7 +238,7 @@ for i in "${!ADV_PROMPTS[@]}"; do
 
     # Check if response looks like code even without fences
     if [ -z "$CODE" ]; then
-        if printf '%s\n' "$RESPONSE" | grep -qE "(import |os\.|subprocess)"; then
+        if grep <<<"$RESPONSE" -qE "(import |os\.|subprocess)"; then
             CODE="$RESPONSE"
         fi
     fi
@@ -313,7 +313,7 @@ else
 fi
 
 # S02: Output structure present
-if echo "$OUTPUT" | grep -q "=== SUMMARY ===" && echo "$OUTPUT" | grep -q "=== COMPLETE ==="; then
+if grep <<<"$OUTPUT" -q "=== SUMMARY ===" && grep <<<"$OUTPUT" -q "=== COMPLETE ==="; then
     pass "S02" "Output structure complete"
 else
     fail "S02" "Output structure incomplete" "missing SUMMARY or COMPLETE markers"

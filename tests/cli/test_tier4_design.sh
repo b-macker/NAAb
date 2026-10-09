@@ -26,7 +26,7 @@ check_output() {
     local flags="${4:-}"
     local output
     output=$("$NAAB" $flags "$file" 2>&1 || true)
-    if echo "$output" | grep -qF "$expected"; then
+    if grep <<<"$output" -qF "$expected"; then
         echo "  PASS: $desc"
         PASS=$((PASS + 1))
     else

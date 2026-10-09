@@ -87,39 +87,39 @@ if should_run 1; then
     W=$(setup_workdir "govern-pulse-basic.json")
     OUT=$(run_test "$W" "chaos_pulse_health.naab") || true
 
-    echo "$OUT" | grep -q "t1_is_dict: true" && \
+    grep <<<"$OUT" -q "t1_is_dict: true" && \
         pass "P1.1" "health() returns a dict" || \
         fail "P1.1" "health() did not return a dict" "$(echo "$OUT" | tail -3)"
 
-    echo "$OUT" | grep -q "t2_verdict: healthy" && \
+    grep <<<"$OUT" -q "t2_verdict: healthy" && \
         pass "P1.2" "Initial verdict is 'healthy'" || \
         fail "P1.2" "Initial verdict not 'healthy'" "$(echo "$OUT" | grep t2_)"
 
-    echo "$OUT" | grep -q "t3_active: true" && \
+    grep <<<"$OUT" -q "t3_active: true" && \
         pass "P1.3" "active=true with governance enabled" || \
         fail "P1.3" "active not true" "$(echo "$OUT" | grep t3_)"
 
-    echo "$OUT" | grep -qP "t4_total_checks: [0-9]+" && \
+    grep <<<"$OUT" -qP "t4_total_checks: [0-9]+" && \
         pass "P1.4" "total_checks field exists" || \
         fail "P1.4" "total_checks missing" "$(echo "$OUT" | grep t4_)"
 
-    echo "$OUT" | grep -qP "t5_consecutive_passes: [0-9]+" && \
+    grep <<<"$OUT" -qP "t5_consecutive_passes: [0-9]+" && \
         pass "P1.5" "consecutive_passes field exists" || \
         fail "P1.5" "consecutive_passes missing" "$(echo "$OUT" | grep t5_)"
 
-    echo "$OUT" | grep -q "t6_bsd_connected:" && \
+    grep <<<"$OUT" -q "t6_bsd_connected:" && \
         pass "P1.6" "bsd_connected field exists" || \
         fail "P1.6" "bsd_connected missing" "$(echo "$OUT" | grep t6_)"
 
-    echo "$OUT" | grep -q "t7_cdd_connected:" && \
+    grep <<<"$OUT" -q "t7_cdd_connected:" && \
         pass "P1.7" "cdd_connected field exists" || \
         fail "P1.7" "cdd_connected missing" "$(echo "$OUT" | grep t7_)"
 
-    echo "$OUT" | grep -q "t9_verdict_after_activity: healthy" && \
+    grep <<<"$OUT" -q "t9_verdict_after_activity: healthy" && \
         pass "P1.8" "Verdict still healthy after normal activity" || \
         fail "P1.8" "Verdict changed after normal activity" "$(echo "$OUT" | grep t9_)"
 
-    echo "$OUT" | grep -q "chaos_pulse_health_completed: true" && \
+    grep <<<"$OUT" -q "chaos_pulse_health_completed: true" && \
         pass "P1.9" "Test completed without crash" || \
         fail "P1.9" "Test did not complete" "$(echo "$OUT" | tail -5)"
 fi
@@ -130,7 +130,7 @@ if should_run 2; then
     W=$(setup_workdir "govern-pulse-basic.json")
     OUT=$(run_test "$W" "chaos_pulse_counters.naab") || true
 
-    echo "$OUT" | grep -q "t1_checks_incremented: true" && \
+    grep <<<"$OUT" -q "t1_checks_incremented: true" && \
         pass "P2.1" "total_checks incremented after activity" || \
         fail "P2.1" "total_checks did not increment" "$(echo "$OUT" | grep t1_)"
 
@@ -140,15 +140,15 @@ if should_run 2; then
         pass "P2.2" "total_checks is numeric (got $check_count)" || \
         fail "P2.2" "total_checks is not numeric" "got: '$check_count'"
 
-    echo "$OUT" | grep -q "t2_passes_positive: true" && \
+    grep <<<"$OUT" -q "t2_passes_positive: true" && \
         pass "P2.3" "consecutive_passes >= 0" || \
         fail "P2.3" "consecutive_passes negative" "$(echo "$OUT" | grep t2_)"
 
-    echo "$OUT" | grep -q "t3_verdict: healthy" && \
+    grep <<<"$OUT" -q "t3_verdict: healthy" && \
         pass "P2.4" "Verdict healthy after valid code" || \
         fail "P2.4" "Verdict not healthy" "$(echo "$OUT" | grep t3_)"
 
-    echo "$OUT" | grep -q "chaos_pulse_counters_completed: true" && \
+    grep <<<"$OUT" -q "chaos_pulse_counters_completed: true" && \
         pass "P2.5" "Test completed without crash" || \
         fail "P2.5" "Test did not complete" "$(echo "$OUT" | tail -5)"
 fi
@@ -160,19 +160,19 @@ if should_run 3; then
     OUT=$(run_test "$W" "chaos_pulse_counters.naab" "--governance-dashboard") || true
 
     # Dashboard goes to stderr (captured in OUT since 2>&1)
-    echo "$OUT" | grep -q "Pulse:" && \
+    grep <<<"$OUT" -q "Pulse:" && \
         pass "P3.1" "Dashboard contains 'Pulse:' line" || \
         fail "P3.1" "Dashboard missing 'Pulse:' line" "$(echo "$OUT" | grep -i pulse)"
 
-    echo "$OUT" | grep "Pulse:" | grep -q "HEALTHY" && \
+    grep -q "HEALTHY" <<<"$(echo "$OUT" | grep "Pulse:")" && \
         pass "P3.2" "Dashboard shows HEALTHY verdict" || \
         fail "P3.2" "Dashboard verdict not HEALTHY" "$(echo "$OUT" | grep Pulse:)"
 
-    echo "$OUT" | grep "Pulse:" | grep -qP "[0-9]+ checks" && \
+    grep -qP "[0-9]+ checks" <<<"$(echo "$OUT" | grep "Pulse:")" && \
         pass "P3.3" "Dashboard shows check count" || \
         fail "P3.3" "Dashboard missing check count" "$(echo "$OUT" | grep Pulse:)"
 
-    echo "$OUT" | grep "Pulse:" | grep -qP "[0-9]+ consecutive passes" && \
+    grep -qP "[0-9]+ consecutive passes" <<<"$(echo "$OUT" | grep "Pulse:")" && \
         pass "P3.4" "Dashboard shows consecutive passes" || \
         fail "P3.4" "Dashboard missing consecutive passes" "$(echo "$OUT" | grep Pulse:)"
 fi
@@ -183,12 +183,12 @@ if should_run 4; then
     W=$(setup_workdir "govern-pulse-none.json")
     OUT=$(run_test "$W" "chaos_pulse_no_governance.naab") || true
 
-    echo "$OUT" | grep -q "t1_verdict_no_gov: healthy" && \
+    grep <<<"$OUT" -q "t1_verdict_no_gov: healthy" && \
         pass "P4.1" "Verdict 'healthy' when health disabled (no false positives)" || \
         fail "P4.1" "Verdict not 'healthy'" "$(echo "$OUT" | grep t1_)"
 
     # active is true because governance IS loaded, just health monitoring is off
-    echo "$OUT" | grep -q "chaos_pulse_no_gov_completed: true" && \
+    grep <<<"$OUT" -q "chaos_pulse_no_gov_completed: true" && \
         pass "P4.2" "Test completed without crash" || \
         fail "P4.2" "Test did not complete" "$(echo "$OUT" | tail -5)"
 fi
@@ -200,20 +200,20 @@ if should_run 5; then
     OUT=$(run_test "$W" "chaos_pulse_health.naab" "--governance-dashboard") || true
 
     # Pulse should still work even with CB disabled
-    echo "$OUT" | grep -q "t2_verdict: healthy" && \
+    grep <<<"$OUT" -q "t2_verdict: healthy" && \
         pass "P5.1" "Verdict healthy with CB disabled" || \
         fail "P5.1" "Verdict not healthy with CB disabled" "$(echo "$OUT" | grep t2_)"
 
-    echo "$OUT" | grep -q "t3_active: true" && \
+    grep <<<"$OUT" -q "t3_active: true" && \
         pass "P5.2" "active=true with CB disabled" || \
         fail "P5.2" "active not true with CB disabled" "$(echo "$OUT" | grep t3_)"
 
-    echo "$OUT" | grep -q "chaos_pulse_health_completed: true" && \
+    grep <<<"$OUT" -q "chaos_pulse_health_completed: true" && \
         pass "P5.3" "Test completed without crash (CB disabled)" || \
         fail "P5.3" "Test crashed with CB disabled" "$(echo "$OUT" | tail -5)"
 
     # Dashboard should still show pulse line
-    echo "$OUT" | grep -q "Pulse:" && \
+    grep <<<"$OUT" -q "Pulse:" && \
         pass "P5.4" "Dashboard pulse line present with CB disabled" || \
         fail "P5.4" "Dashboard pulse line missing with CB disabled"
 fi
@@ -224,15 +224,15 @@ if should_run 6; then
     W=$(setup_workdir "govern-pulse-basic.json")
     OUT=$(run_test "$W" "chaos_pulse_weight_parse.naab") || true
 
-    echo "$OUT" | grep -q "t1_config_parsed: true" && \
+    grep <<<"$OUT" -q "t1_config_parsed: true" && \
         pass "P6.1" "Config with new weights parsed successfully" || \
         fail "P6.1" "Config parse failed" "$(echo "$OUT" | grep t1_)"
 
-    echo "$OUT" | grep -q "t2_verdict: healthy" && \
+    grep <<<"$OUT" -q "t2_verdict: healthy" && \
         pass "P6.2" "No crash from weight parsing" || \
         fail "P6.2" "Crash from weight parsing" "$(echo "$OUT" | grep t2_)"
 
-    echo "$OUT" | grep -q "chaos_pulse_weight_parse_completed: true" && \
+    grep <<<"$OUT" -q "chaos_pulse_weight_parse_completed: true" && \
         pass "P6.3" "Test completed" || \
         fail "P6.3" "Test did not complete" "$(echo "$OUT" | tail -5)"
 fi
@@ -246,12 +246,12 @@ if should_run 7; then
     OUT=$(run_test "$W" "chaos_pulse_counters.naab" "--governance-dashboard") || true
 
     # If BSD is enabled and no crash, the event type enum is valid
-    echo "$OUT" | grep -q "chaos_pulse_counters_completed: true" && \
+    grep <<<"$OUT" -q "chaos_pulse_counters_completed: true" && \
         pass "P7.1" "BSD event types registered (no crash)" || \
         fail "P7.1" "Crash with BSD pulse event types" "$(echo "$OUT" | tail -5)"
 
     # Dashboard should show BSD section (behavioral sequences enabled)
-    echo "$OUT" | grep -qP "BSD|behavioral" && \
+    grep <<<"$OUT" -qP "BSD|behavioral" && \
         pass "P7.2" "BSD subsystem active (pulse can emit events)" || \
         pass "P7.2" "BSD section not in dashboard (may be no events — acceptable)"
 fi
@@ -265,27 +265,27 @@ if should_run 8; then
     OUT=$("$NAAB" "$W/chaos_pulse_health.naab" 2>&1) || true
 
     # Check that pulse internals are NOT in output
-    ! echo "$OUT" | grep -q "computePulseVerdict" && \
+    ! grep <<<"$OUT" -q "computePulseVerdict" && \
         pass "P8.1" "No computePulseVerdict in output" || \
         fail "P8.1" "computePulseVerdict leaked in output"
 
-    ! echo "$OUT" | grep -q "consecutive_degraded" && \
+    ! grep <<<"$OUT" -q "consecutive_degraded" && \
         pass "P8.2" "No consecutive_degraded in output" || \
         fail "P8.2" "consecutive_degraded leaked in output"
 
-    ! echo "$OUT" | grep -q "PulseVerdict" && \
+    ! grep <<<"$OUT" -q "PulseVerdict" && \
         pass "P8.3" "No PulseVerdict enum in output" || \
         fail "P8.3" "PulseVerdict leaked in output"
 
-    ! echo "$OUT" | grep -q "PULSE_DEGRADED" && \
+    ! grep <<<"$OUT" -q "PULSE_DEGRADED" && \
         pass "P8.4" "No PULSE_DEGRADED constant in output" || \
         fail "P8.4" "PULSE_DEGRADED leaked in output"
 
-    ! echo "$OUT" | grep -q "pulse_\." && \
+    ! grep <<<"$OUT" -q "pulse_\." && \
         pass "P8.5" "No pulse_ member access in output" || \
         fail "P8.5" "pulse_ member leaked in output"
 
-    echo "$OUT" | grep -q "chaos_pulse_health_completed: true" && \
+    grep <<<"$OUT" -q "chaos_pulse_health_completed: true" && \
         pass "P8.6" "Leak check completed" || \
         fail "P8.6" "Leak check did not complete" "$(echo "$OUT" | tail -3)"
 fi

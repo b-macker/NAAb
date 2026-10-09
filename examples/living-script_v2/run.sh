@@ -83,11 +83,11 @@ RUN_TRUNCATED=""
 
 detect_gov_kill() {  # $1=exit code, $2=captured stdout -- echoes kill kind, or nothing
     [ "$1" -eq 3 ] || return 0
-    if echo "$2" | grep -q "Agent exceeded maximum quarantine streak"; then
+    if grep <<<"$2" -q "Agent exceeded maximum quarantine streak"; then
         echo "quarantine_streak"
-    elif echo "$2" | grep -q "Step-up challenge failed"; then
+    elif grep <<<"$2" -q "Step-up challenge failed"; then
         echo "challenge_failure"
-    elif echo "$2" | grep -q "escalated after repeated occurrences" \
+    elif grep <<<"$2" -q "escalated after repeated occurrences" \
          || grep -q "\[governance\] ESCALATED" "${STDERR_FILE:-/dev/null}" 2>/dev/null; then
         echo "advisory_escalation"
     fi
@@ -101,7 +101,7 @@ incomplete_reason() {
 }
 
 govkill_block() {  # $1=block label, $2=phase marker regex
-    if run_incomplete && ! echo "$OUTPUT" | grep -q "$2"; then
+    if run_incomplete && ! grep <<<"$OUTPUT" -q "$2"; then
         skip "$1" "not reached ($(incomplete_reason))"
         return 0
     fi
@@ -170,7 +170,7 @@ else
     GOV_KILL=$(detect_gov_kill "$EXIT_CODE" "$OUTPUT")
 
     # Truncation that is NOT a governance kill
-    if [ -z "$GOV_KILL" ] && ! echo "$OUTPUT" | grep -q "=== LIVING SCRIPT V2 COMPLETE ==="; then
+    if [ -z "$GOV_KILL" ] && ! grep <<<"$OUTPUT" -q "=== LIVING SCRIPT V2 COMPLETE ==="; then
         LAST_PHASE=$(echo "$OUTPUT" | grep -oP '^PHASE\|\K[A-Z_]+' | tail -1)
         RUN_TRUNCATED="exit=$EXIT_CODE, last phase=${LAST_PHASE:-none}"
         echo -e "${RED}================================================================${NC}"
@@ -261,7 +261,7 @@ else
         gk_fail "L1-03" "No adjustments tracked (ADJUSTMENTS=$ADJUSTMENTS)"
     fi
 
-    if echo "$OUTPUT" | grep -q 'PHASE|INIT|'; then
+    if grep <<<"$OUTPUT" -q 'PHASE|INIT|'; then
         pass "L1-04" "PM agent created (INIT phase reached)"
     else
         gk_fail "L1-04" "PM agent not created (no INIT phase)"
@@ -294,25 +294,25 @@ else
         gk_fail "L2-02" "Pytest never ran"
     fi
 
-    if echo "$OUTPUT" | grep -q 'IMPLEMENT|build_engine.py|written'; then
+    if grep <<<"$OUTPUT" -q 'IMPLEMENT|build_engine.py|written'; then
         pass "L2-03" "build_engine.py written"
     else
         gk_fail "L2-03" "build_engine.py not written"
     fi
 
-    if echo "$OUTPUT" | grep -q 'IMPLEMENT|test_build.py|written'; then
+    if grep <<<"$OUTPUT" -q 'IMPLEMENT|test_build.py|written'; then
         pass "L2-04" "test_build.py written"
     else
         gk_fail "L2-04" "test_build.py not written"
     fi
 
-    if echo "$OUTPUT" | grep -q 'IMPLEMENT|deploy.sh|written'; then
+    if grep <<<"$OUTPUT" -q 'IMPLEMENT|deploy.sh|written'; then
         pass "L2-05" "deploy.sh written"
     else
         gk_fail "L2-05" "deploy.sh not written"
     fi
 
-    if echo "$OUTPUT" | grep -q 'DEPLOY|syntax_ok=true'; then
+    if grep <<<"$OUTPUT" -q 'DEPLOY|syntax_ok=true'; then
         pass "L2-06" "Shell deploy.sh syntax valid"
     else
         gk_fail "L2-06" "Shell deploy.sh syntax not validated"
@@ -323,13 +323,13 @@ else
     # ============================================================
     echo -e "${CYAN}Level 3: Cross-Run Memory${NC}"
 
-    if echo "$OUTPUT" | grep -q "MEMORY|"; then
+    if grep <<<"$OUTPUT" -q "MEMORY|"; then
         pass "L3-01" "Memory loaded or fresh start"
     else
         gk_fail "L3-01" "No memory markers"
     fi
 
-    if echo "$OUTPUT" | grep -q "MEMORY|saved"; then
+    if grep <<<"$OUTPUT" -q "MEMORY|saved"; then
         pass "L3-02" "Memory saved"
     else
         gk_fail "L3-02" "Memory not saved"
@@ -341,7 +341,7 @@ else
     echo -e "${CYAN}Level 4: Phase Presence${NC}"
 
     for phase in INIT TOOL_REGISTRATION PREFLIGHT TOOL_EXEC DESIGN IMPLEMENT REFINE REVIEW PROPOSE_SELECT FAN_OUT_REVIEW FEATURES SHELL_CODEGEN_BOUNDARY INTROSPECTION SEPARATION_OF_DUTIES RATCHET ENGINE_RATCHET BATCH_PIPELINE GOVERNANCE_HEALTH TELEMETRY_AUDIT TRANSCRIPT_AUDIT EVIDENCE_AUDIT CROSS_RUN_MEMORY FINAL_VERDICT; do
-        if echo "$OUTPUT" | grep -q "PHASE|${phase}|"; then
+        if grep <<<"$OUTPUT" -q "PHASE|${phase}|"; then
             pass "L4-$phase" "Phase $phase reached"
         else
             gk_fail "L4-$phase" "Phase $phase not reached"
@@ -355,19 +355,19 @@ else
 
     if ! govkill_block "L5-*" 'PHASE|DESIGN|'; then
 
-    if echo "$OUTPUT" | grep -q 'TURN|engine_lead|design'; then
+    if grep <<<"$OUTPUT" -q 'TURN|engine_lead|design'; then
         pass "L5-01" "engine_lead design response received"
     else
         gk_fail "L5-01" "No engine_lead design response"
     fi
 
-    if echo "$OUTPUT" | grep -q 'TURN|deploy_lead|design'; then
+    if grep <<<"$OUTPUT" -q 'TURN|deploy_lead|design'; then
         pass "L5-02" "deploy_lead design response received"
     else
         gk_fail "L5-02" "No deploy_lead design response"
     fi
 
-    if echo "$OUTPUT" | grep -q 'TURN|test_lead|design'; then
+    if grep <<<"$OUTPUT" -q 'TURN|test_lead|design'; then
         pass "L5-03" "test_lead design response received"
     else
         gk_fail "L5-03" "No test_lead design response"
@@ -382,25 +382,25 @@ else
 
     if ! govkill_block "L6-*" 'PHASE|IMPLEMENT|'; then
 
-    if echo "$OUTPUT" | grep -qE 'CONVERGENCE.*BuildEngine|CODE_EXTRACT.*build_engine.*extracted=true'; then
+    if grep <<<"$OUTPUT" -qE 'CONVERGENCE.*BuildEngine|CODE_EXTRACT.*build_engine.*extracted=true'; then
         pass "L6-01" "build_engine.py contains class BuildEngine"
     else
         gk_fail "L6-01" "build_engine.py missing class BuildEngine"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'CONVERGENCE.*DependencyGraph|CODE_EXTRACT.*build_engine.*extracted=true'; then
+    if grep <<<"$OUTPUT" -qE 'CONVERGENCE.*DependencyGraph|CODE_EXTRACT.*build_engine.*extracted=true'; then
         pass "L6-02" "build_engine.py contains class DependencyGraph"
     else
         gk_fail "L6-02" "build_engine.py missing class DependencyGraph"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'CONVERGENCE.*BuildError|ENGINE\|import_ok=true'; then
+    if grep <<<"$OUTPUT" -qE 'CONVERGENCE.*BuildError|ENGINE\|import_ok=true'; then
         pass "L6-03" "build_engine.py contains class BuildError"
     else
         gk_fail "L6-03" "build_engine.py missing class BuildError"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'CONVERGENCE.*def (build|resolve)|IMPLEMENT.*build_engine.*written'; then
+    if grep <<<"$OUTPUT" -qE 'CONVERGENCE.*def (build|resolve)|IMPLEMENT.*build_engine.*written'; then
         pass "L6-04" "build_engine.py contains build/resolve method"
     else
         gk_fail "L6-04" "build_engine.py missing build/resolve method"
@@ -415,13 +415,13 @@ else
 
     if ! govkill_block "L7-*" 'PHASE|IMPLEMENT|'; then
 
-    if echo "$OUTPUT" | grep -qE 'IMPLEMENT\|deploy\.sh\|written|DEPLOY\|syntax_ok=true'; then
+    if grep <<<"$OUTPUT" -qE 'IMPLEMENT\|deploy\.sh\|written|DEPLOY\|syntax_ok=true'; then
         pass "L7-01" "deploy.sh generated"
     else
         gk_fail "L7-01" "deploy.sh not generated"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'DEPLOY\|syntax_ok=true|DEPLOY\|repaired=true'; then
+    if grep <<<"$OUTPUT" -qE 'DEPLOY\|syntax_ok=true|DEPLOY\|repaired=true'; then
         pass "L7-02" "deploy.sh shell syntax valid"
     else
         gk_fail "L7-02" "deploy.sh syntax not validated"
@@ -433,7 +433,7 @@ else
     # -E — a trailing EMPTY alternative, which matches every non-empty line, so
     # L7-03 could not fail on any run that produced output at all.
     # The real evidence is the telemetry audit line: TELEMETRY_AUDIT|type=CODEGEN_EXEC|count=N
-    if echo "$OUTPUT" | grep -q 'type=CODEGEN_EXEC|count=[1-9]'; then
+    if grep <<<"$OUTPUT" -q 'type=CODEGEN_EXEC|count=[1-9]'; then
         pass "L7-03" "Shell codegen.run executed"
     else
         gk_fail "L7-03" "Shell codegen.run not executed"
@@ -448,13 +448,13 @@ else
 
     if ! govkill_block "L8-*" 'PHASE|IMPLEMENT|'; then
 
-    if echo "$OUTPUT" | grep -qE 'TESTMASS\|tests=[1-9]|CONVERGENCE\|test_build\.py\|valid=true|IMPLEMENT\|test_build\.py\|written'; then
+    if grep <<<"$OUTPUT" -qE 'TESTMASS\|tests=[1-9]|CONVERGENCE\|test_build\.py\|valid=true|IMPLEMENT\|test_build\.py\|written'; then
         pass "L8-01" "test_build.py contains test functions"
     else
         gk_fail "L8-01" "test_build.py missing test functions"
     fi
 
-    if echo "$OUTPUT" | grep -q 'PYTEST|exit='; then
+    if grep <<<"$OUTPUT" -q 'PYTEST|exit='; then
         pass "L8-02" "pytest ran on test_build.py"
     else
         gk_fail "L8-02" "pytest did not run on test_build.py"
@@ -469,15 +469,15 @@ else
 
     if ! govkill_block "L9-*" 'PHASE|PROPOSE_SELECT|'; then
 
-    if echo "$OUTPUT" | grep -q 'PROPOSE_SELECT|candidates='; then
+    if grep <<<"$OUTPUT" -q 'PROPOSE_SELECT|candidates='; then
         pass "L9-01" "Propose generated candidates"
     else
         gk_fail "L9-01" "No propose candidates generated"
     fi
 
-    if echo "$OUTPUT" | grep -q 'PROPOSE_SELECT|committed=true'; then
+    if grep <<<"$OUTPUT" -q 'PROPOSE_SELECT|committed=true'; then
         pass "L9-02" "At least 1 candidate committed"
-    elif echo "$OUTPUT" | grep -q 'PROPOSE_SELECT|admissible_count=0'; then
+    elif grep <<<"$OUTPUT" -q 'PROPOSE_SELECT|admissible_count=0'; then
         skip "L9-02" "No candidate cleared admissibility threshold (gate working)"
     else
         gk_fail "L9-02" "No candidate committed"
@@ -494,13 +494,13 @@ else
 
     # Was 'FAN_OUT|judges=|FAN_OUT_REVIEW|' under -E: trailing empty alternative,
     # so L10-01 passed on any non-empty output. BRE keeps the pipes literal.
-    if echo "$OUTPUT" | grep -q 'PHASE|FAN_OUT_REVIEW|'; then
+    if grep <<<"$OUTPUT" -q 'PHASE|FAN_OUT_REVIEW|'; then
         pass "L10-01" "Fan-out review executed"
     else
         gk_fail "L10-01" "Fan-out review not executed"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FAN_OUT_REVIEW\|.*verdict=|FAN_OUT_REVIEW\|final_verdict='; then
+    if grep <<<"$OUTPUT" -qE 'FAN_OUT_REVIEW\|.*verdict=|FAN_OUT_REVIEW\|final_verdict='; then
         pass "L10-02" "Consensus vote computed"
     else
         gk_fail "L10-02" "No consensus vote"
@@ -515,25 +515,25 @@ else
 
     if ! govkill_block "L11-*" 'FEATURE|1|'; then
 
-    if echo "$OUTPUT" | grep -q 'FEATURE|1|start'; then
+    if grep <<<"$OUTPUT" -q 'FEATURE|1|start'; then
         pass "L11-01" "Feature 1 started"
     else
         gk_fail "L11-01" "Feature 1 not started"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE\|1\|(engine_updated|pipeline_updated|complete)'; then
+    if grep <<<"$OUTPUT" -qE 'FEATURE\|1\|(engine_updated|pipeline_updated|complete)'; then
         pass "L11-02" "Feature 1 pipeline updated"
     else
         gk_fail "L11-02" "Feature 1 pipeline not updated"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE\\|1\\|.*pytest|PYTEST\\|exit='; then
+    if grep <<<"$OUTPUT" -qE 'FEATURE\\|1\\|.*pytest|PYTEST\\|exit='; then
         pass "L11-03" "Feature 1 pytest ran"
     else
         gk_fail "L11-03" "Feature 1 pytest did not run"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE\\|1\\|(complete|convergence)'; then
+    if grep <<<"$OUTPUT" -qE 'FEATURE\\|1\\|(complete|convergence)'; then
         pass "L11-04" "Feature 1 convergence"
     else
         gk_fail "L11-04" "Feature 1 did not converge"
@@ -548,25 +548,25 @@ else
 
     if ! govkill_block "L12-*" 'FEATURE|2|'; then
 
-    if echo "$OUTPUT" | grep -q 'FEATURE|2|start'; then
+    if grep <<<"$OUTPUT" -q 'FEATURE|2|start'; then
         pass "L12-01" "Feature 2 started"
     else
         gk_fail "L12-01" "Feature 2 not started"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE\|2\|(engine_updated|pipeline_updated|complete)'; then
+    if grep <<<"$OUTPUT" -qE 'FEATURE\|2\|(engine_updated|pipeline_updated|complete)'; then
         pass "L12-02" "Feature 2 pipeline updated"
     else
         gk_fail "L12-02" "Feature 2 pipeline not updated"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE\\|2\\|.*pytest|PYTEST\\|exit='; then
+    if grep <<<"$OUTPUT" -qE 'FEATURE\\|2\\|.*pytest|PYTEST\\|exit='; then
         pass "L12-03" "Feature 2 pytest ran"
     else
         gk_fail "L12-03" "Feature 2 pytest did not run"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE\\|2\\|(complete|convergence)'; then
+    if grep <<<"$OUTPUT" -qE 'FEATURE\\|2\\|(complete|convergence)'; then
         pass "L12-04" "Feature 2 convergence"
     else
         gk_fail "L12-04" "Feature 2 did not converge"
@@ -581,25 +581,25 @@ else
 
     if ! govkill_block "L13-*" 'FEATURE|3|'; then
 
-    if echo "$OUTPUT" | grep -q 'FEATURE|3|start'; then
+    if grep <<<"$OUTPUT" -q 'FEATURE|3|start'; then
         pass "L13-01" "Feature 3 started"
     else
         gk_fail "L13-01" "Feature 3 not started"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE\|3\|(engine_updated|pipeline_updated|complete)'; then
+    if grep <<<"$OUTPUT" -qE 'FEATURE\|3\|(engine_updated|pipeline_updated|complete)'; then
         pass "L13-02" "Feature 3 pipeline updated"
     else
         gk_fail "L13-02" "Feature 3 pipeline not updated"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE\\|3\\|.*pytest|PYTEST\\|exit='; then
+    if grep <<<"$OUTPUT" -qE 'FEATURE\\|3\\|.*pytest|PYTEST\\|exit='; then
         pass "L13-03" "Feature 3 pytest ran"
     else
         gk_fail "L13-03" "Feature 3 pytest did not run"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE\\|3\\|(complete|convergence)'; then
+    if grep <<<"$OUTPUT" -qE 'FEATURE\\|3\\|(complete|convergence)'; then
         pass "L13-04" "Feature 3 convergence"
     else
         gk_fail "L13-04" "Feature 3 did not converge"
@@ -617,7 +617,7 @@ else
     CODEGEN_RUN_LINE=$(echo "$OUTPUT" | grep 'SHELL_CODEGEN|basic|output=' | head -1)
     if [ -n "$CODEGEN_RUN_LINE" ]; then
         pass "L14-01" "codegen.run(\"shell\") produced output"
-        if echo "$CODEGEN_RUN_LINE" | grep -q "contains_42=true"; then
+        if grep <<<"$CODEGEN_RUN_LINE" -q "contains_42=true"; then
             pass "L14-02" "Shell codegen output contains expected value 42"
         else
             fail "L14-02" "Shell codegen output does not contain 42"
@@ -634,7 +634,7 @@ else
         fail "L14-03" "codegen.run_with_args(\"shell\") produced no output"
     fi
 
-    if echo "$OUTPUT" | grep -q "SHELL_CODEGEN|strict_threw=true"; then
+    if grep <<<"$OUTPUT" -q "SHELL_CODEGEN|strict_threw=true"; then
         pass "L14-04" "codegen.run_strict threw on exit 1"
     else
         fail "L14-04" "codegen.run_strict did not throw on exit 1"
@@ -649,19 +649,19 @@ else
 
     if ! govkill_block "L15-*" 'PHASE|SEPARATION_OF_DUTIES|'; then
 
-    if echo "$OUTPUT" | grep -q 'SEPARATION|deploy_dev|shell_allowed='; then
+    if grep <<<"$OUTPUT" -q 'SEPARATION|deploy_dev|shell_allowed='; then
         pass "L15-01" "deploy_dev shell access reported"
     else
         gk_fail "L15-01" "deploy_dev shell access not reported"
     fi
 
-    if echo "$OUTPUT" | grep -q 'SEPARATION|engine_reviewer|tool_calls=0'; then
+    if grep <<<"$OUTPUT" -q 'SEPARATION|engine_reviewer|tool_calls=0'; then
         pass "L15-02" "engine_reviewer has no tool access"
     else
         gk_fail "L15-02" "engine_reviewer tool restriction not confirmed"
     fi
 
-    if echo "$OUTPUT" | grep -q 'SEPARATION|pm_agent_send=true'; then
+    if grep <<<"$OUTPUT" -q 'SEPARATION|pm_agent_send=true'; then
         pass "L15-03" "PM has AGENT_SEND permission"
     else
         gk_fail "L15-03" "PM AGENT_SEND not confirmed"
@@ -676,19 +676,19 @@ else
 
     if ! govkill_block "L16-*" 'PHASE|RATCHET|'; then
 
-    if echo "$OUTPUT" | grep -q "RATCHET|loosen_blocked=true"; then
+    if grep <<<"$OUTPUT" -q "RATCHET|loosen_blocked=true"; then
         pass "L16-01" "Loosening blocked by ratchet guard"
     else
         fail "L16-01" "Loosening not blocked"
     fi
 
-    if echo "$OUTPUT" | grep -q "RATCHET|tighten_ok=true"; then
+    if grep <<<"$OUTPUT" -q "RATCHET|tighten_ok=true"; then
         pass "L16-02" "Tightening accepted (one-way decrease)"
     else
         fail "L16-02" "Tightening rejected"
     fi
 
-    if echo "$OUTPUT" | grep -q "RATCHET|field_blocked=true"; then
+    if grep <<<"$OUTPUT" -q "RATCHET|field_blocked=true"; then
         pass "L16-03" "Non-allowed field blocked"
     else
         fail "L16-03" "Non-allowed field not blocked"
@@ -703,7 +703,7 @@ else
 
     if ! govkill_block "L17-*" 'PHASE|ENGINE_RATCHET|'; then
 
-    if echo "$OUTPUT" | grep -q 'ENGINE_RATCHET|loosened_write='; then
+    if grep <<<"$OUTPUT" -q 'ENGINE_RATCHET|loosened_write='; then
         pass "L17-01" "Loosened config written to disk"
     else
         fail "L17-01" "Loosened config write not attempted"
@@ -716,13 +716,13 @@ else
     fi
     if [ "${ER_REJECT:-0}" -ge 1 ]; then
         pass "L17-02" "Engine rejected loosening (CONFIG_ADJUSTMENT ratchet in telemetry)"
-    elif echo "$OUTPUT" | grep -q 'ENGINE_RATCHET|engine_rejected_loosening=true'; then
+    elif grep <<<"$OUTPUT" -q 'ENGINE_RATCHET|engine_rejected_loosening=true'; then
         pass "L17-02" "Engine rejected loosening (script marker)"
     else
         gk_fail "L17-02" "Engine loosening rejection not confirmed"
     fi
 
-    if echo "$OUTPUT" | grep -q 'ENGINE_RATCHET|restored='; then
+    if grep <<<"$OUTPUT" -q 'ENGINE_RATCHET|restored='; then
         pass "L17-03" "Original config restored after probe"
     else
         gk_fail "L17-03" "Config restore not confirmed"
@@ -744,7 +744,7 @@ else
         fail "L18-01" "agent.batch returned no results"
     fi
 
-    if echo "$OUTPUT" | grep -q "BATCH_PIPELINE|seq_plan="; then
+    if grep <<<"$OUTPUT" -q "BATCH_PIPELINE|seq_plan="; then
         pass "L18-02" "Sequential refinement plan created"
     else
         fail "L18-02" "Sequential refinement plan not created"
@@ -759,13 +759,13 @@ else
 
     if ! govkill_block "L19-*" 'PHASE|INTROSPECTION|'; then
 
-    if echo "$OUTPUT" | grep -q "INTROSPECTION|pm|.*tools_enabled="; then
+    if grep <<<"$OUTPUT" -q "INTROSPECTION|pm|.*tools_enabled="; then
         pass "L19-01" "PM environment queried (tools_enabled reported)"
     else
         fail "L19-01" "PM environment not queried"
     fi
 
-    if echo "$OUTPUT" | grep -q "INTROSPECTION|engine_lead_usage|"; then
+    if grep <<<"$OUTPUT" -q "INTROSPECTION|engine_lead_usage|"; then
         pass "L19-02" "engine_lead usage queried"
     else
         fail "L19-02" "engine_lead usage not queried"
@@ -801,7 +801,7 @@ else
         fail "L20-02" "Negative control breached" "made ${TE_NEG} tool calls"
     fi
 
-    if echo "$OUTPUT" | grep -q 'TOOL_EXEC|dual_gate_held=true'; then
+    if grep <<<"$OUTPUT" -q 'TOOL_EXEC|dual_gate_held=true'; then
         pass "L20-03" "Dual gate held"
     else
         gk_fail "L20-03" "Dual gate not confirmed"
@@ -846,7 +846,7 @@ else
         fail "L22-01" "Insufficient telemetry event types" "got ${TELEM_TYPES:-0}"
     fi
 
-    if echo "$OUTPUT" | grep -q 'TELEMETRY_AUDIT|consequence_found='; then
+    if grep <<<"$OUTPUT" -q 'TELEMETRY_AUDIT|consequence_found='; then
         pass "L22-02" "Consequence events found"
     else
         fail "L22-02" "No consequence events found"
@@ -876,13 +876,13 @@ else
         fail "L23-01" "Transcript empty or absent"
     fi
 
-    if echo "$OUTPUT" | grep -q "TRANSCRIPT_AUDIT|every_entry_hashed=true"; then
+    if grep <<<"$OUTPUT" -q "TRANSCRIPT_AUDIT|every_entry_hashed=true"; then
         pass "L23-02" "All transcript entries hashed"
     else
         fail "L23-02" "Transcript entries missing hashes"
     fi
 
-    if echo "$OUTPUT" | grep -q "TRANSCRIPT_AUDIT|ref_matches_entries="; then
+    if grep <<<"$OUTPUT" -q "TRANSCRIPT_AUDIT|ref_matches_entries="; then
         pass "L23-03" "TRANSCRIPT_REF matches reported"
     else
         fail "L23-03" "TRANSCRIPT_REF match not reported"
@@ -942,8 +942,8 @@ else
         _cf="$WORKDIR/${_chain}.jsonl"
         if [ ! -f "$_cf" ]; then
             gk_fail "L24-06-${_chain}" "${_chain}.jsonl absent"
-        elif (cd "$WORKDIR" && "$NAAB" --verify-telemetry-chain "${_chain}.jsonl" 2>&1) \
-                | grep -q "Chain verified:"; then
+        elif _vout="$(cd "$WORKDIR" && "$NAAB" --verify-telemetry-chain "${_chain}.jsonl" 2>&1)" \
+                && grep -q "Chain verified:" <<<"$_vout"; then
             pass "L24-06-${_chain}" "${_chain} hash chain verifies end to end"
         else
             fail "L24-06-${_chain}" "${_chain} hash chain BROKEN or TAMPERED" \
@@ -999,7 +999,7 @@ else
     echo -e "${CYAN}Level 26: Agent Topology${NC}"
 
     # L26-01: PM delegation
-    if echo "$OUTPUT" | grep -qE 'delegate_engine|TOOL_RESULT'; then
+    if grep <<<"$OUTPUT" -qE 'delegate_engine|TOOL_RESULT'; then
         pass "L26-01" "PM tool calls resulted in delegation"
     elif [ -f "$WORKDIR/telemetry.jsonl" ] && grep -q 'TOOL_RESULT' "$WORKDIR/telemetry.jsonl" 2>/dev/null; then
         pass "L26-01" "PM delegation observed in telemetry"
@@ -1144,7 +1144,7 @@ if [ -n "${GOV_KILL:-}" ]; then
 elif [ -n "${RUN_TRUNCATED:-}" ]; then
     fail "RUN-01" "Run did not reach completion ($RUN_TRUNCATED)" \
          "$SKIP_COUNT checks never evaluated"
-elif echo "${OUTPUT:-}" | grep -q "=== LIVING SCRIPT V2 COMPLETE ==="; then
+elif grep <<<"${OUTPUT:-}" -q "=== LIVING SCRIPT V2 COMPLETE ==="; then
     pass "RUN-01" "Run completed the full arc without governance termination"
 else
     skip "RUN-01" "No run output to evaluate"

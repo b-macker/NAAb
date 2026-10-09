@@ -173,7 +173,7 @@ NAABEOF
     # and it makes SC-04 (which expects BLOCKED) pass while SC-05 fails.
     start_swap_operator "$d"
     local _o; _o=$(cd "$d" && timeout 60s "$NAAB" --agent-id runbook_author t.naab 2>&1)
-    if echo "$_o" | grep -q "EXEC_ALLOWED"; then echo ALLOWED; else echo BLOCKED; fi
+    if grep <<<"$_o" -q "EXEC_ALLOWED"; then echo ALLOWED; else echo BLOCKED; fi
 }
 
 CONTROL=$(run_exec true "true")
@@ -242,7 +242,7 @@ NAABEOF
         local out
         start_swap_operator "$d"
         out=$(cd "$d" && timeout 60s "$NAAB" --agent-id runbook_author t.naab 2>&1)
-        if echo "$out" | grep -qi "ratchet\|loosen"; then
+        if grep <<<"$out" -qi "ratchet\|loosen"; then
             pass "$1" "$4"
         else
             fail "$1" "$4" "no ratchet/loosening message: $(echo "$out" | tail -2 | tr '\n' ' ')"

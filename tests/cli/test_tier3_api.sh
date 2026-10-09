@@ -26,7 +26,7 @@ check_output() {
     local flags="${4:-}"
     local output
     output=$("$NAAB" $flags "$file" 2>&1 || true)
-    if echo "$output" | grep -q "$expected"; then
+    if grep <<<"$output" -q "$expected"; then
         echo "  PASS: $desc"
         PASS=$((PASS + 1))
     else
@@ -44,7 +44,7 @@ check_error() {
     local flags="${4:-}"
     local output
     output=$("$NAAB" $flags "$file" 2>&1 || true)
-    if echo "$output" | grep -qi "$pattern"; then
+    if grep <<<"$output" -qi "$pattern"; then
         echo "  PASS: $desc"
         PASS=$((PASS + 1))
     else

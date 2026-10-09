@@ -112,9 +112,9 @@ RUN_TRUNCATED=""
 
 detect_gov_kill() {  # $1=exit code, $2=captured stdout — echoes kill kind, or nothing
     [ "$1" -eq 3 ] || return 0
-    if echo "$2" | grep -q "Agent exceeded maximum quarantine streak"; then
+    if grep <<<"$2" -q "Agent exceeded maximum quarantine streak"; then
         echo "quarantine_streak"
-    elif echo "$2" | grep -q "Step-up challenge failed"; then
+    elif grep <<<"$2" -q "Step-up challenge failed"; then
         echo "challenge_failure"
     # Third kill path, and the least obvious: advisory_escalation turns the
     # soft_after-th repeat of an ADVISORY rule into a hard block
@@ -122,7 +122,7 @@ detect_gov_kill() {  # $1=exit code, $2=captured stdout — echoes kill kind, or
     # user-facing text still reads "[ADVISORY]", so matching on the two
     # agent-kill messages alone reported a by-design termination as a mystery
     # crash. The escalation banner only goes to stderr, hence the file check.
-    elif echo "$2" | grep -q "escalated after repeated occurrences" \
+    elif grep <<<"$2" -q "escalated after repeated occurrences" \
          || grep -q "\[governance\] ESCALATED" "${STDERR_FILE:-/dev/null}" 2>/dev/null; then
         echo "advisory_escalation"
     fi
@@ -142,7 +142,7 @@ incomplete_reason() {
 # the block's phase marker is absent. With no kill, a missing phase still
 # FAILs through the block's own checks — regression detection is unchanged.
 govkill_block() {  # $1=block label, $2=phase marker regex
-    if run_incomplete && ! echo "$OUTPUT" | grep -q "$2"; then
+    if run_incomplete && ! grep <<<"$OUTPUT" -q "$2"; then
         skip "$1" "not reached ($(incomplete_reason))"
         return 0
     fi
@@ -226,7 +226,7 @@ else
     # Truncation that is NOT a governance kill: the script stopped without its
     # final marker. Reported once, loudly, as its own failure — the downstream
     # phase checks then SKIP instead of restating the same event ~87 times.
-    if [ -z "$GOV_KILL" ] && ! echo "$OUTPUT" | grep -q "=== LIVING SCRIPT COMPLETE ==="; then
+    if [ -z "$GOV_KILL" ] && ! grep <<<"$OUTPUT" -q "=== LIVING SCRIPT COMPLETE ==="; then
         LAST_PHASE=$(echo "$OUTPUT" | grep -oP '^PHASE\|\K[A-Z_]+' | tail -1)
         RUN_TRUNCATED="exit=$EXIT_CODE, last phase=${LAST_PHASE:-none}"
         echo -e "${RED}================================================================${NC}"
@@ -460,7 +460,7 @@ else
     # ============================================================
     echo -e "${CYAN}Initial Code Extraction${NC}"
 
-    if echo "$OUTPUT" | grep -q 'IMPLEMENT|pipeline_extract_empty'; then
+    if grep <<<"$OUTPUT" -q 'IMPLEMENT|pipeline_extract_empty'; then
         RETRY_LEN=$(echo "$OUTPUT" | grep -oP 'IMPLEMENT\|pipeline_retry_result\|len=\K[0-9]+' | head -1)
         TRUNC=$(echo "$OUTPUT" | grep -oP 'IMPLEMENT\|pipeline_extract_empty\|retrying\|truncated=\K\w+' | head -1)
         if [ "${RETRY_LEN:-0}" -ge 20 ]; then
@@ -483,12 +483,12 @@ else
     # ============================================================
     echo -e "${CYAN}models.py Importability${NC}"
 
-    if echo "$OUTPUT" | grep -q 'MODELS|import_ok=true'; then
+    if grep <<<"$OUTPUT" -q 'MODELS|import_ok=true'; then
         pass "MODELS-01" "models.py imported cleanly on the first attempt"
-    elif echo "$OUTPUT" | grep -q 'MODELS|repaired=true'; then
+    elif grep <<<"$OUTPUT" -q 'MODELS|repaired=true'; then
         MERR=$(echo "$OUTPUT" | grep -oP 'MODELS\|import_error=\K.*' | head -1)
         pass "MODELS-01" "models.py was broken but repaired (${MERR:-unknown})"
-    elif echo "$OUTPUT" | grep -q 'MODELS|repaired=false'; then
+    elif grep <<<"$OUTPUT" -q 'MODELS|repaired=false'; then
         MSTILL=$(echo "$OUTPUT" | grep -oP 'MODELS\|repaired=false\|still=\K.*' | head -1)
         fail "MODELS-01" "models.py does not import and the repair failed" \
              "${MSTILL:-unknown}; every pytest run will fail at collection"
@@ -498,10 +498,10 @@ else
 
     # The per-validation view: if models.py stops importing, say so where the
     # tests start failing rather than leaving it to be inferred from pytest.
-    if echo "$OUTPUT" | grep -q 'VALIDATE|.*models_imports=false'; then
+    if grep <<<"$OUTPUT" -q 'VALIDATE|.*models_imports=false'; then
         fail "MODELS-02" "models.py unimportable during validation" \
              "pytest cannot collect while this holds"
-    elif echo "$OUTPUT" | grep -q 'VALIDATE|.*models_imports=true'; then
+    elif grep <<<"$OUTPUT" -q 'VALIDATE|.*models_imports=true'; then
         pass "MODELS-02" "models.py importable at validation time"
     else
         skip "MODELS-02" "No models_imports validation result"
@@ -538,7 +538,7 @@ assert 'refinement_iterations' in d
     echo -e "${CYAN}Level 4: Phase Transitions & Evolution${NC}"
 
     for phase in TOOL_REGISTRATION PREFLIGHT TOOL_EXEC DESIGN IMPLEMENT REFINE PROPOSE_SELECT FEATURES PARALLEL_REVIEW BATCH_PIPELINE FINAL_REVIEW SCORING INTROSPECTION RATCHET ENGINE_RATCHET HEALTH_PULSE LEASE_EPOCH TELEMETRY_AUDIT TRANSCRIPT_AUDIT EVIDENCE_AUDIT TAINT_AUDIT INTEGRITY_PROBE CODEGEN_BOUNDARY; do
-        if echo "$OUTPUT" | grep -q "PHASE|${phase}|"; then
+        if grep <<<"$OUTPUT" -q "PHASE|${phase}|"; then
             pass "L4-$phase" "Phase $phase reached"
         else
             gk_fail "L4-$phase" "Phase $phase not reached"
@@ -556,7 +556,7 @@ assert 'refinement_iterations' in d
     REWRITES=$(echo "$OUTPUT" | grep -c 'REFINE|developer_rewrote' || true)
     if [ "$REWRITES" -gt 0 ]; then
         pass "L4-REWRITE" "Developer rewrote code ($REWRITES times)"
-    elif echo "$OUTPUT" | grep -q 'IMPLEMENT|pipeline_extract_empty'; then
+    elif grep <<<"$OUTPUT" -q 'IMPLEMENT|pipeline_extract_empty'; then
         skip "L4-REWRITE" "Refinement had no extracted pipeline to rewrite (see PIPE-01)"
     else
         gk_fail "L4-REWRITE" "No code rewrites during refinement"
@@ -665,7 +665,7 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L7-*" 'PHASE|PROPOSE_SELECT|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|PROPOSE_SELECT|"; then
+    if grep <<<"$OUTPUT" -q "PHASE|PROPOSE_SELECT|"; then
         pass "L7-01" "Propose/Select phase reached"
     else
         fail "L7-01" "Propose/Select phase not reached"
@@ -676,7 +676,7 @@ assert 'refinement_iterations' in d
     # extraction failure, not the propose/commit path — report them as SKIP and
     # let PIPE-01 below carry the actual defect.
     PROPOSE_SKIPPED=""
-    echo "$OUTPUT" | grep -q 'PROPOSE_SELECT|skipped_reason=no_pipeline_code' && PROPOSE_SKIPPED=1
+    grep <<<"$OUTPUT" -q 'PROPOSE_SELECT|skipped_reason=no_pipeline_code' && PROPOSE_SKIPPED=1
 
     PROPOSE_CANDIDATES=$(echo "$OUTPUT" | grep -oP 'PROPOSE_SELECT\|candidates=\K[0-9]+' | tail -1)
     PROPOSE_CANDIDATES=${PROPOSE_CANDIDATES:-0}
@@ -693,9 +693,9 @@ assert 'refinement_iterations' in d
     # propose/commit path. Distinguishing the two matters: run 4 generated 3
     # candidates at coherence 0.51 against a 0.60 threshold, refused all of
     # them, and that read as an outright failure.
-    if echo "$OUTPUT" | grep -q "PROPOSE_SELECT|committed=true"; then
+    if grep <<<"$OUTPUT" -q "PROPOSE_SELECT|committed=true"; then
         pass "L7-03" "Proposal committed"
-    elif echo "$OUTPUT" | grep -q 'PROPOSE_SELECT|admissible_count=0|'; then
+    elif grep <<<"$OUTPUT" -q 'PROPOSE_SELECT|admissible_count=0|'; then
         skip "L7-03" "No candidate cleared the admissibility threshold — all refused (gate working)"
     elif [ -n "$PROPOSE_SKIPPED" ]; then
         skip "L7-03" "Phase skipped — no pipeline code to propose against (see PIPE-01)"
@@ -741,7 +741,7 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L8-*" 'PHASE|PARALLEL_REVIEW|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|PARALLEL_REVIEW|"; then
+    if grep <<<"$OUTPUT" -q "PHASE|PARALLEL_REVIEW|"; then
         pass "L8-01" "Parallel review phase reached"
     else
         fail "L8-01" "Parallel review phase not reached"
@@ -773,7 +773,7 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L9-*" 'PHASE|SCORING|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|SCORING|"; then
+    if grep <<<"$OUTPUT" -q "PHASE|SCORING|"; then
         pass "L9-01" "Scoring phase reached"
     else
         fail "L9-01" "Scoring phase not reached"
@@ -802,7 +802,7 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L10-*" 'PHASE|PREFLIGHT|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|PREFLIGHT|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|PREFLIGHT|start"; then
         pass "L10-01" "Preflight phase reached"
     else
         fail "L10-01" "Preflight phase not reached"
@@ -815,19 +815,19 @@ assert 'refinement_iterations' in d
         fail "L10-02" "Agent config validation incomplete" "got ${PREFLIGHT_CHECKS:-0}, expected 7"
     fi
 
-    if echo "$OUTPUT" | grep -q "PREFLIGHT|invalid_check=handled"; then
+    if grep <<<"$OUTPUT" -q "PREFLIGHT|invalid_check=handled"; then
         pass "L10-03" "Invalid config handled gracefully"
     else
         fail "L10-03" "Invalid config not handled"
     fi
 
-    if echo "$OUTPUT" | grep -q "PREFLIGHT|codegen_enabled=true"; then
+    if grep <<<"$OUTPUT" -q "PREFLIGHT|codegen_enabled=true"; then
         pass "L10-04" "Codegen enabled confirmed"
     else
         fail "L10-04" "Codegen not enabled"
     fi
 
-    if echo "$OUTPUT" | grep -q "PREFLIGHT|.*has_python=true"; then
+    if grep <<<"$OUTPUT" -q "PREFLIGHT|.*has_python=true"; then
         pass "L10-05" "Python in supported languages"
     else
         fail "L10-05" "Python not in supported languages"
@@ -842,7 +842,7 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L11-*" 'PHASE|BATCH_PIPELINE|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|BATCH_PIPELINE|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|BATCH_PIPELINE|start"; then
         pass "L11-01" "Batch/Pipeline phase reached"
     else
         fail "L11-01" "Batch/Pipeline phase not reached"
@@ -855,19 +855,19 @@ assert 'refinement_iterations' in d
         fail "L11-02" "Batch returned insufficient responses" "got ${BATCH_RESP:-0}, expected 2"
     fi
 
-    if echo "$OUTPUT" | grep -q "BATCH_PIPELINE|pipeline_ok=true"; then
+    if grep <<<"$OUTPUT" -q "BATCH_PIPELINE|pipeline_ok=true"; then
         pass "L11-03" "Pipeline chaining succeeded"
     else
         fail "L11-03" "Pipeline chaining failed"
     fi
 
-    if echo "$OUTPUT" | grep -q "BATCH_PIPELINE|seq_plan=true"; then
+    if grep <<<"$OUTPUT" -q "BATCH_PIPELINE|seq_plan=true"; then
         pass "L11-04" "Sequential refinement plan created"
     else
         fail "L11-04" "Sequential refinement plan failed"
     fi
 
-    if echo "$OUTPUT" | grep -q "BATCH_PIPELINE|.*seq_plan_pattern=sequential_refinement"; then
+    if grep <<<"$OUTPUT" -q "BATCH_PIPELINE|.*seq_plan_pattern=sequential_refinement"; then
         pass "L11-05" "Sequential refinement plan valid"
     else
         fail "L11-05" "Sequential refinement plan pattern mismatch"
@@ -882,19 +882,19 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L12-*" 'PHASE|INTROSPECTION|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|INTROSPECTION|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|INTROSPECTION|start"; then
         pass "L12-01" "Introspection phase reached"
     else
         fail "L12-01" "Introspection phase not reached"
     fi
 
-    if echo "$OUTPUT" | grep -q "INTROSPECTION|environment|"; then
+    if grep <<<"$OUTPUT" -q "INTROSPECTION|environment|"; then
         pass "L12-02" "agent.environment() returned data"
     else
         fail "L12-02" "agent.environment() failed"
     fi
 
-    if echo "$OUTPUT" | grep -q "INTROSPECTION|usage|"; then
+    if grep <<<"$OUTPUT" -q "INTROSPECTION|usage|"; then
         pass "L12-03" "agent.usage() returned data"
     else
         fail "L12-03" "agent.usage() failed"
@@ -907,7 +907,7 @@ assert 'refinement_iterations' in d
         fail "L12-04" "agent.messages() returned no history"
     fi
 
-    if echo "$OUTPUT" | grep -q "INTROSPECTION|key_health|"; then
+    if grep <<<"$OUTPUT" -q "INTROSPECTION|key_health|"; then
         pass "L12-05" "agent.key_health() returned data"
     else
         fail "L12-05" "agent.key_health() failed"
@@ -920,19 +920,19 @@ assert 'refinement_iterations' in d
         fail "L12-06" "agent.dispatch_status() too few calls" "got ${DISPATCH_CALLS:-0}"
     fi
 
-    if echo "$OUTPUT" | grep -q "INTROSPECTION|register_tool=true"; then
+    if grep <<<"$OUTPUT" -q "INTROSPECTION|register_tool=true"; then
         pass "L12-07" "agent.register_tool() succeeded"
     else
         fail "L12-07" "agent.register_tool() failed"
     fi
 
-    if echo "$OUTPUT" | grep -q "INTROSPECTION|agent_run|"; then
+    if grep <<<"$OUTPUT" -q "INTROSPECTION|agent_run|"; then
         pass "L12-08" "agent.run() one-shot succeeded"
     else
         fail "L12-08" "agent.run() failed"
     fi
 
-    if echo "$OUTPUT" | grep -q "INTROSPECTION|calibrate|success=true"; then
+    if grep <<<"$OUTPUT" -q "INTROSPECTION|calibrate|success=true"; then
         pass "L12-09" "governance.calibrate() succeeded"
     else
         fail "L12-09" "governance.calibrate() failed"
@@ -945,13 +945,13 @@ assert 'refinement_iterations' in d
         fail "L12-10" "governance.calibration() returned no overrides"
     fi
 
-    if echo "$OUTPUT" | grep -q "INTROSPECTION|codegen_run=OK"; then
+    if grep <<<"$OUTPUT" -q "INTROSPECTION|codegen_run=OK"; then
         pass "L12-11" "codegen.run() executed"
     else
         fail "L12-11" "codegen.run() failed"
     fi
 
-    if echo "$OUTPUT" | grep -q "INTROSPECTION|codegen_args=OK"; then
+    if grep <<<"$OUTPUT" -q "INTROSPECTION|codegen_args=OK"; then
         pass "L12-12" "codegen.run_with_args() executed"
     else
         fail "L12-12" "codegen.run_with_args() failed"
@@ -966,31 +966,31 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L13-*" 'PHASE|RATCHET|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|RATCHET|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|RATCHET|start"; then
         pass "L13-01" "Ratchet phase reached"
     else
         fail "L13-01" "Ratchet phase not reached"
     fi
 
-    if echo "$OUTPUT" | grep -q "RATCHET|loosen_blocked=true"; then
+    if grep <<<"$OUTPUT" -q "RATCHET|loosen_blocked=true"; then
         pass "L13-02" "Loosening blocked by ratchet guard"
     else
         fail "L13-02" "Loosening not blocked"
     fi
 
-    if echo "$OUTPUT" | grep -q "RATCHET|tighten_ok=true"; then
+    if grep <<<"$OUTPUT" -q "RATCHET|tighten_ok=true"; then
         pass "L13-03" "Tightening accepted (one-way decrease)"
     else
         fail "L13-03" "Tightening rejected"
     fi
 
-    if echo "$OUTPUT" | grep -q "RATCHET|field_blocked=true"; then
+    if grep <<<"$OUTPUT" -q "RATCHET|field_blocked=true"; then
         pass "L13-04" "Non-allowed field blocked (system_prompt)"
     else
         fail "L13-04" "Non-allowed field not blocked"
     fi
 
-    if echo "$OUTPUT" | grep -q "RATCHET|free_adjust_ok=true"; then
+    if grep <<<"$OUTPUT" -q "RATCHET|free_adjust_ok=true"; then
         pass "L13-05" "Free adjustment accepted (max_tokens increase)"
     else
         fail "L13-05" "Free adjustment rejected"
@@ -1003,7 +1003,7 @@ assert 'refinement_iterations' in d
     # ============================================================
     echo -e "${CYAN}Level 14: Upstream Provenance${NC}"
 
-    if echo "$OUTPUT" | grep -q "BATCH_PIPELINE|provenance_present=true"; then
+    if grep <<<"$OUTPUT" -q "BATCH_PIPELINE|provenance_present=true"; then
         pass "L14-01" "Pipeline upstream provenance present"
         PROV_STAGE=$(echo "$OUTPUT" | grep -oP 'provenance_present=true\|stage=\K[0-9-]+' | head -1)
         PROV_COH=$(echo "$OUTPUT" | grep -oP 'upstream_coherence=\K[0-9.e+-]+' | head -1)
@@ -1012,7 +1012,7 @@ assert 'refinement_iterations' in d
         else
             gk_fail "L14-02" "Provenance present but missing fields (stage='$PROV_STAGE' coherence='$PROV_COH')"
         fi
-    elif echo "$OUTPUT" | grep -q "BATCH_PIPELINE|provenance_present=false"; then
+    elif grep <<<"$OUTPUT" -q "BATCH_PIPELINE|provenance_present=false"; then
         skip "L14-01" "Pipeline ran but no provenance (single-stage or first-stage result)"
         skip "L14-02" "No provenance data to inspect"
     else
@@ -1027,7 +1027,7 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L15-*" 'PHASE|HEALTH_PULSE|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|HEALTH_PULSE|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|HEALTH_PULSE|start"; then
         pass "L15-01" "Health pulse phase reached"
     else
         fail "L15-01" "Health pulse phase not reached"
@@ -1073,13 +1073,13 @@ assert 'refinement_iterations' in d
         skip "L15-03" "No epoch data"
     fi
 
-    if echo "$OUTPUT" | grep -q "HEALTH_PULSE|available_keys="; then
+    if grep <<<"$OUTPUT" -q "HEALTH_PULSE|available_keys="; then
         pass "L15-04" "Health keys enumerated"
     else
         skip "L15-04" "No health keys"
     fi
 
-    if echo "$OUTPUT" | grep -q "HEALTH_PULSE|baseline_verdict="; then
+    if grep <<<"$OUTPUT" -q "HEALTH_PULSE|baseline_verdict="; then
         pass "L15-05" "Baseline health comparison available"
     else
         skip "L15-05" "No baseline health comparison"
@@ -1094,7 +1094,7 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L16-*" 'PHASE|LEASE_EPOCH|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|LEASE_EPOCH|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|LEASE_EPOCH|start"; then
         pass "L16-01" "Lease/epoch phase reached"
     else
         fail "L16-01" "Lease/epoch phase not reached"
@@ -1107,19 +1107,19 @@ assert 'refinement_iterations' in d
         fail "L16-02" "Insufficient lease data" "got $LEASE_AGENTS agents"
     fi
 
-    if echo "$OUTPUT" | grep -q "LEASE_EPOCH|.*|challenges_p="; then
+    if grep <<<"$OUTPUT" -q "LEASE_EPOCH|.*|challenges_p="; then
         pass "L16-03" "Challenge pass/fail counters visible"
     else
         fail "L16-03" "Challenge counters not visible"
     fi
 
-    if echo "$OUTPUT" | grep -q "LEASE_EPOCH|.*|ctx_window="; then
+    if grep <<<"$OUTPUT" -q "LEASE_EPOCH|.*|ctx_window="; then
         pass "L16-04" "Context window/strategy visible per-agent"
     else
         fail "L16-04" "Context config not visible"
     fi
 
-    if echo "$OUTPUT" | grep -q "LEASE_EPOCH|developer|cdd_overrides="; then
+    if grep <<<"$OUTPUT" -q "LEASE_EPOCH|developer|cdd_overrides="; then
         pass "L16-05" "CDD signal overrides visible"
     else
         fail "L16-05" "CDD signal overrides not visible"
@@ -1134,7 +1134,7 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L17-*" 'PHASE|TELEMETRY_AUDIT|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|TELEMETRY_AUDIT|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|TELEMETRY_AUDIT|start"; then
         pass "L17-01" "Telemetry audit phase reached"
     else
         fail "L17-01" "Telemetry audit phase not reached"
@@ -1175,13 +1175,13 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L18-*" 'PHASE|CODEGEN_BOUNDARY|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|CODEGEN_BOUNDARY|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|CODEGEN_BOUNDARY|start"; then
         pass "L18-01" "Codegen boundary phase reached"
     else
         fail "L18-01" "Codegen boundary phase not reached"
     fi
 
-    if echo "$OUTPUT" | grep -q "CODEGEN_BOUNDARY|strict_threw=true"; then
+    if grep <<<"$OUTPUT" -q "CODEGEN_BOUNDARY|strict_threw=true"; then
         pass "L18-02" "codegen.run_strict() throws on invalid code"
     else
         fail "L18-02" "codegen.run_strict() didn't throw on invalid code"
@@ -1190,7 +1190,7 @@ assert 'refinement_iterations' in d
     CODEGEN_RUN_VAL=$(echo "$OUTPUT" | grep -oP 'CODEGEN_BOUNDARY\|run_output=\K.*' | head -1)
     if [ -n "$CODEGEN_RUN_VAL" ]; then
         pass "L18-03" "codegen.run() produced output: $CODEGEN_RUN_VAL"
-        if echo "$CODEGEN_RUN_VAL" | grep -q "42"; then
+        if grep <<<"$CODEGEN_RUN_VAL" -q "42"; then
             pass "L18-03b" "codegen.run() output contains expected value 42"
         else
             fail "L18-03b" "codegen.run() output '$CODEGEN_RUN_VAL' does not contain 42"
@@ -1203,7 +1203,7 @@ assert 'refinement_iterations' in d
     CODEGEN_ARGS_VAL=$(echo "$OUTPUT" | grep -oP 'CODEGEN_BOUNDARY\|args_output=\K.*' | head -1)
     if [ -n "$CODEGEN_ARGS_VAL" ]; then
         pass "L18-04" "codegen.run_with_args() produced output: $CODEGEN_ARGS_VAL"
-        if echo "$CODEGEN_ARGS_VAL" | grep -q "42"; then
+        if grep <<<"$CODEGEN_ARGS_VAL" -q "42"; then
             pass "L18-04b" "codegen.run_with_args() output contains expected value 42"
         else
             fail "L18-04b" "codegen.run_with_args() output '$CODEGEN_ARGS_VAL' does not contain 42"
@@ -1213,13 +1213,13 @@ assert 'refinement_iterations' in d
         fail "L18-04b" "codegen.run_with_args() no output to verify"
     fi
 
-    if echo "$OUTPUT" | grep -q "has_python=true"; then
+    if grep <<<"$OUTPUT" -q "has_python=true"; then
         pass "L18-05" "Python in supported codegen languages"
     else
         fail "L18-05" "Python not in codegen languages"
     fi
 
-    if echo "$OUTPUT" | grep -q "CODEGEN_BOUNDARY|still_enabled=true"; then
+    if grep <<<"$OUTPUT" -q "CODEGEN_BOUNDARY|still_enabled=true"; then
         pass "L18-06" "Codegen still enabled after calls"
     else
         skip "L18-06" "Codegen budget may be exhausted"
@@ -1234,19 +1234,19 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L19-*" 'PHASE|TOOL_REGISTRATION|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|TOOL_REGISTRATION|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|TOOL_REGISTRATION|start"; then
         pass "L19-01" "Tool registration phase reached"
     else
         fail "L19-01" "Tool registration phase not reached"
     fi
 
-    if echo "$OUTPUT" | grep -q "TOOL_REGISTRATION|validate_python=true"; then
+    if grep <<<"$OUTPUT" -q "TOOL_REGISTRATION|validate_python=true"; then
         pass "L19-02" "validate_python tool registered"
     else
         fail "L19-02" "validate_python tool not registered"
     fi
 
-    if echo "$OUTPUT" | grep -q "TOOL_REGISTRATION|check_schema=true"; then
+    if grep <<<"$OUTPUT" -q "TOOL_REGISTRATION|check_schema=true"; then
         pass "L19-03" "check_schema tool registered"
     else
         fail "L19-03" "check_schema tool not registered"
@@ -1259,7 +1259,7 @@ assert 'refinement_iterations' in d
         fail "L19-04" "Insufficient tools registered" "got ${TOOLS_TOTAL:-0}, expected 2"
     fi
 
-    if echo "$OUTPUT" | grep -q "PREFLIGHT|developer_tools_enabled="; then
+    if grep <<<"$OUTPUT" -q "PREFLIGHT|developer_tools_enabled="; then
         pass "L19-05" "Developer tools_enabled reported in environment"
     else
         fail "L19-05" "Developer tools_enabled not reported"
@@ -1281,25 +1281,25 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L20-*" 'SEPARATION|'; then
 
-    if echo "$OUTPUT" | grep -q "SEPARATION|developer|allowed_actions="; then
+    if grep <<<"$OUTPUT" -q "SEPARATION|developer|allowed_actions="; then
         pass "L20-01" "Developer allowed_actions visible"
     else
         fail "L20-01" "Developer allowed_actions not visible"
     fi
 
-    if echo "$OUTPUT" | grep -q "SEPARATION|tester|allowed_actions="; then
+    if grep <<<"$OUTPUT" -q "SEPARATION|tester|allowed_actions="; then
         pass "L20-02" "Tester allowed_actions visible"
     else
         fail "L20-02" "Tester allowed_actions not visible"
     fi
 
-    if echo "$OUTPUT" | grep -q 'SEPARATION|developer|allowed_actions=.*TOOL_EXEC'; then
+    if grep <<<"$OUTPUT" -q 'SEPARATION|developer|allowed_actions=.*TOOL_EXEC'; then
         pass "L20-03" "Developer has TOOL_EXEC permission"
     else
         skip "L20-03" "Developer TOOL_EXEC not confirmed (may be in array format)"
     fi
 
-    if echo "$OUTPUT" | grep -q 'SEPARATION|tester|.*network=false'; then
+    if grep <<<"$OUTPUT" -q 'SEPARATION|tester|.*network=false'; then
         pass "L20-04" "Tester network access restricted"
     else
         skip "L20-04" "Tester network restriction not confirmed"
@@ -1318,7 +1318,7 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L21-*" 'PHASE|ENGINE_RATCHET|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|ENGINE_RATCHET|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|ENGINE_RATCHET|start"; then
         pass "L21-01" "Engine ratchet phase reached"
     else
         fail "L21-01" "Engine ratchet phase not reached"
@@ -1329,9 +1329,9 @@ assert 'refinement_iterations' in d
     # earlier version of this check expected brackets around the result — a
     # format the script never emitted — and so reported "write not attempted"
     # for a write that had in fact succeeded and been refused by the ratchet.
-    if echo "$OUTPUT" | grep -q 'ENGINE_RATCHET|loosened_write=|'; then
+    if grep <<<"$OUTPUT" -q 'ENGINE_RATCHET|loosened_write=|'; then
         pass "L21-02" "Signed loosened config written to disk"
-    elif echo "$OUTPUT" | grep -q 'ENGINE_RATCHET|loosened_write='; then
+    elif grep <<<"$OUTPUT" -q 'ENGINE_RATCHET|loosened_write='; then
         ER_WRITE=$(echo "$OUTPUT" | grep -oP 'ENGINE_RATCHET\|loosened_write=\K[a-z_]+' | head -1)
         fail "L21-02" "Could not write loosened config" "${ER_WRITE:-unknown error}"
     else
@@ -1356,9 +1356,9 @@ assert 'refinement_iterations' in d
     fi
 
     ER_RESTORE=$(echo "$OUTPUT" | grep -oP 'ENGINE_RATCHET\|restored=\K\S*' | head -1)
-    if [ "${ER_RESTORE:-}" = "" ] && echo "$OUTPUT" | grep -q "ENGINE_RATCHET|restored="; then
+    if [ "${ER_RESTORE:-}" = "" ] && grep <<<"$OUTPUT" -q "ENGINE_RATCHET|restored="; then
         pass "L21-05" "Config restored after probe"
-    elif echo "$OUTPUT" | grep -q "ENGINE_RATCHET|restored="; then
+    elif grep <<<"$OUTPUT" -q "ENGINE_RATCHET|restored="; then
         fail "L21-05" "Config restore failed" "restored=$ER_RESTORE (govern.json may be left loosened)"
     else
         skip "L21-05" "Restore not reached"
@@ -1366,7 +1366,7 @@ assert 'refinement_iterations' in d
 
     # The run must survive the probe — a corrupted/unsigned govern.json would
     # take out every phase after this one.
-    if echo "$OUTPUT" | grep -q "=== LIVING SCRIPT COMPLETE ==="; then
+    if grep <<<"$OUTPUT" -q "=== LIVING SCRIPT COMPLETE ==="; then
         pass "L21-06" "Run survived the ratchet probe intact"
     else
         gk_fail "L21-06" "Run did not complete after ratchet probe"
@@ -1410,7 +1410,7 @@ assert 'refinement_iterations' in d
         else
             pass "L22-04" "Quarantine streak reached kill limit (max=${OA_STREAK}) — governance kill expected"
         fi
-        if echo "$OUTPUT" | grep -q '^OA|.*|inadmissible|'; then
+        if grep <<<"$OUTPUT" -q '^OA|.*|inadmissible|'; then
             pass "L22-05" "Quarantine events carry coherence/threshold/streak detail"
         else
             fail "L22-05" "Quarantine counted but no detail line emitted"
@@ -1431,7 +1431,7 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L23-*" 'PHASE|TRANSCRIPT_AUDIT|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|TRANSCRIPT_AUDIT|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|TRANSCRIPT_AUDIT|start"; then
         pass "L23-01" "Transcript audit phase reached"
     else
         fail "L23-01" "Transcript audit phase not reached"
@@ -1445,13 +1445,13 @@ assert 'refinement_iterations' in d
         gk_fail "L23-02" "Transcript too small" "got ${TA_LINES:-0} entries"
     fi
 
-    if echo "$OUTPUT" | grep -q "TRANSCRIPT_AUDIT|every_entry_hashed=true"; then
+    if grep <<<"$OUTPUT" -q "TRANSCRIPT_AUDIT|every_entry_hashed=true"; then
         pass "L23-03" "Every transcript entry carries an entry_hash"
     else
         fail "L23-03" "Transcript entries missing entry_hash" "after-the-fact edits would be undetectable"
     fi
 
-    if echo "$OUTPUT" | grep -q "TRANSCRIPT_AUDIT|ref_matches_entries=true"; then
+    if grep <<<"$OUTPUT" -q "TRANSCRIPT_AUDIT|ref_matches_entries=true"; then
         pass "L23-04" "TRANSCRIPT_REF count matches transcript entries (chain commits every entry)"
     else
         TA_REFS=$(echo "$OUTPUT" | grep -oP 'TRANSCRIPT_AUDIT\|.*\|transcript_ref=\K[0-9]+' | head -1)
@@ -1473,7 +1473,7 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L24-*" 'PHASE|EVIDENCE_AUDIT|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|EVIDENCE_AUDIT|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|EVIDENCE_AUDIT|start"; then
         pass "L24-01" "Evidence audit phase reached"
     else
         fail "L24-01" "Evidence audit phase not reached"
@@ -1554,8 +1554,8 @@ assert 'refinement_iterations' in d
         _cf="$WORKDIR/${_chain}.jsonl"
         if [ ! -f "$_cf" ]; then
             gk_fail "L24-06-${_chain}" "${_chain}.jsonl absent" "nothing to verify"
-        elif (cd "$WORKDIR" && "$NAAB" --verify-telemetry-chain "${_chain}.jsonl" 2>&1) \
-                | grep -q "Chain verified:"; then
+        elif _vout="$(cd "$WORKDIR" && "$NAAB" --verify-telemetry-chain "${_chain}.jsonl" 2>&1)" \
+                && grep -q "Chain verified:" <<<"$_vout"; then
             pass "L24-06-${_chain}" "${_chain} hash chain verifies end to end"
         else
             fail "L24-06-${_chain}" "${_chain} hash chain BROKEN or TAMPERED" \
@@ -1578,7 +1578,7 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L25-*" 'PHASE|TAINT_AUDIT|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|TAINT_AUDIT|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|TAINT_AUDIT|start"; then
         pass "L25-01" "Taint audit phase reached"
     else
         fail "L25-01" "Taint audit phase not reached"
@@ -1598,7 +1598,7 @@ assert 'refinement_iterations' in d
     TAINT_N=$(grep -c 'taint_tracking\.sink_violation' "$WORKDIR/telemetry.jsonl" 2>/dev/null || true)
     TAINT_N=${TAINT_N:-0}
 
-    if echo "$OUTPUT" | grep -q "TAINT_AUDIT|control_write=skipped"; then
+    if grep <<<"$OUTPUT" -q "TAINT_AUDIT|control_write=skipped"; then
         skip "L25-02" "control write skipped — no tester handle"
         skip "L25-03" "control write skipped — build-path count unattributable"
     elif [ "${TAINT_N:-0}" -ge 1 ]; then
@@ -1694,13 +1694,13 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L26-*" 'PHASE|INTEGRITY_PROBE|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|INTEGRITY_PROBE|start"; then
+    if grep <<<"$OUTPUT" -q "PHASE|INTEGRITY_PROBE|start"; then
         pass "L26-01" "Integrity probe phase reached"
     else
         fail "L26-01" "Integrity probe phase not reached"
     fi
 
-    if echo "$OUTPUT" | grep -q 'INTEGRITY_PROBE|blocked_flag_exit=[0-9]*|executed=false'; then
+    if grep <<<"$OUTPUT" -q 'INTEGRITY_PROBE|blocked_flag_exit=[0-9]*|executed=false'; then
         pass "L26-02" "Blocked flag refused — script did not execute"
     else
         IP=$(echo "$OUTPUT" | grep -oP 'INTEGRITY_PROBE\|blocked_flag_exit=\K[0-9]+\|executed=(true|false)' | head -1)
@@ -1709,7 +1709,7 @@ assert 'refinement_iterations' in d
 
     # Without this, a refusal above could just mean the binary or path was
     # broken rather than that the flag was rejected.
-    if echo "$OUTPUT" | grep -q 'INTEGRITY_PROBE|control_exit=0|executed=true'; then
+    if grep <<<"$OUTPUT" -q 'INTEGRITY_PROBE|control_exit=0|executed=true'; then
         pass "L26-03" "Control run without the flag executes normally"
     else
         IPC=$(echo "$OUTPUT" | grep -oP 'INTEGRITY_PROBE\|control_exit=\K[0-9]+\|executed=(true|false)' | head -1)
@@ -1731,7 +1731,7 @@ assert 'refinement_iterations' in d
 
     if [ "${TE_CALLS:-0}" -ge 1 ]; then
         pass "L19b-01" "Tool loop actually executed (${TE_CALLS} calls, ${TE_RESULTS:-0} results)"
-        if echo "$OUTPUT" | grep -q '^TOOL_RESULT|'; then
+        if grep <<<"$OUTPUT" -q '^TOOL_RESULT|'; then
             pass "L19b-02" "Per-tool results surfaced (name/success/latency)"
         else
             fail "L19b-02" "Tool calls made but no per-result detail"
@@ -1840,7 +1840,7 @@ assert 'refinement_iterations' in d
 
     if ! govkill_block "L6-*" 'PHASE|DYNAMIC|'; then
 
-    if echo "$OUTPUT" | grep -q "PHASE|DYNAMIC|"; then
+    if grep <<<"$OUTPUT" -q "PHASE|DYNAMIC|"; then
         pass "L6-01" "Dynamic team phase reached"
     else
         fail "L6-01" "Dynamic phase not reached"
@@ -1925,7 +1925,7 @@ print('true' if ok else 'false')
     # Final review happened and is actionable
     FINAL_ITERS=$(echo "$OUTPUT" | grep -oP 'FINAL_REVIEW\|iterations=\K[0-9]+' | head -1)
     FINAL_ITERS=${FINAL_ITERS:-0}
-    if echo "$OUTPUT" | grep -q "FINAL_REVIEW|verdict="; then
+    if grep <<<"$OUTPUT" -q "FINAL_REVIEW|verdict="; then
         pass "C04" "Final review verdict recorded ($FINAL_ITERS iterations)"
     else
         skip "C04" "No final review verdict"
@@ -1955,7 +1955,7 @@ print('true' if ok else 'false')
 
         OUTPUT2=$(cd "$WORKDIR" && timeout 1800 "$NAAB" --governance-dashboard "living-script.naab" 2>/dev/null) && EXIT2=0 || EXIT2=$?
         GOV_KILL2=$(detect_gov_kill "$EXIT2" "$OUTPUT2")
-        if echo "$OUTPUT2" | grep -q "MEMORY|loaded|runs=1"; then
+        if grep <<<"$OUTPUT2" -q "MEMORY|loaded|runs=1"; then
             pass "L3-03" "Second run loaded prior memory (runs=1)"
         elif [ -n "$GOV_KILL2" ]; then
             skip "L3-03" "Second run governance-killed ($GOV_KILL2) before memory report"
@@ -2101,7 +2101,7 @@ print('true' if ok else 'false')
 
     echo ""
     echo -e "${CYAN}Governance Notices (engine verdicts on operator edits):${NC}"
-    if echo "$OUTPUT" | grep -q '^GOV_NOTICE|'; then
+    if grep <<<"$OUTPUT" -q '^GOV_NOTICE|'; then
         echo "$OUTPUT" | grep '^GOV_NOTICE|' | while read -r line; do
             echo -e "  ${CYAN}$line${NC}"
         done
@@ -2151,7 +2151,7 @@ if [ -n "${GOV_KILL:-}" ]; then
 elif [ -n "${RUN_TRUNCATED:-}" ]; then
     fail "RUN-01" "Run did not reach completion ($RUN_TRUNCATED)" \
          "$SKIP_COUNT checks never evaluated"
-elif echo "${OUTPUT:-}" | grep -q "=== LIVING SCRIPT COMPLETE ==="; then
+elif grep <<<"${OUTPUT:-}" -q "=== LIVING SCRIPT COMPLETE ==="; then
     pass "RUN-01" "Run completed the full arc without governance termination"
 else
     skip "RUN-01" "No run output to evaluate"

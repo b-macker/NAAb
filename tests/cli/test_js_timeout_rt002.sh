@@ -43,9 +43,9 @@ if [[ "$elapsed" -ge 15 ]]; then
     fail "JS block ran for ≥15s — timeout not enforced (killed by shell timeout)"
 elif [[ "$elapsed" -ge 10 ]]; then
     fail "JS block ran for ${elapsed}s — timeout too slow (expected ≤8s for --timeout 3)"
-elif echo "$out" | grep -qi "interrupted\|timeout\|time limit\|exceeded"; then
+elif grep <<<"$out" -qi "interrupted\|timeout\|time limit\|exceeded"; then
     ok "JS block interrupted within ${elapsed}s with timeout message"
-elif echo "$out" | grep -qi "executor\|javascript\|not found\|not available\|node"; then
+elif grep <<<"$out" -qi "executor\|javascript\|not found\|not available\|node"; then
     # This check MUST precede the exit-code branches. A missing JS executor
     # exits NON-ZERO, so while it lived in the final `else` (reachable only when
     # ec == 0) it was unreachable — the old code caught that case one branch
@@ -89,9 +89,9 @@ EOF
 ec=0
 out=$(timeout 15s "$NAAB" "$WORKDIR/test_t2.naab" --vm --no-governance --timeout 10 2>&1) || ec=$?
 
-if echo "$out" | grep -qi "timeout\|time limit\|exceeded"; then
+if grep <<<"$out" -qi "timeout\|time limit\|exceeded"; then
     fail "false positive — short JS block hit timeout: ${out:0:120}"
-elif echo "$out" | grep -qi "executor\|javascript\|not found\|not available\|node"; then
+elif grep <<<"$out" -qi "executor\|javascript\|not found\|not available\|node"; then
     skip "no JS executor available — false-positive check not exercised"
 elif [[ "$ec" -eq 0 ]]; then
     ok "short JS block completed without timeout"

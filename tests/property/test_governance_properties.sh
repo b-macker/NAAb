@@ -58,7 +58,7 @@ main {
 }
 EOF
 OUT=$("$NAAB" "$P1DIR/test.naab" 2>&1) && RC=$? || RC=$?
-if echo "$OUT" | grep -q "EPOCH_OK"; then
+if grep <<<"$OUT" -q "EPOCH_OK"; then
     ok "P1: epoch accessible and non-negative"
 else
     fail "P1: epoch not accessible or negative (exit $RC)"
@@ -162,7 +162,7 @@ main {
 }
 EOF
 OUT=$("$NAAB" "$P4DIR/test.naab" 2>&1) && RC=$? || RC=$?
-if echo "$OUT" | grep -q "TAINT_CLEAN"; then
+if grep <<<"$OUT" -q "TAINT_CLEAN"; then
     ok "P4: clean code passes under hard taint (no false positive)"
 else
     fail "P4: clean code blocked by taint (exit $RC)"
@@ -217,7 +217,7 @@ main {
 }
 EOF
 OUT=$("$NAAB" --governance-dashboard "$P5DIR/test.naab" 2>&1) && RC=$? || RC=$?
-if [ $RC -eq 0 ] && ! echo "$OUT" | grep -qi "integrity.*mismatch\|score.*tamper"; then
+if [ $RC -eq 0 ] && ! grep <<<"$OUT" -qi "integrity.*mismatch\|score.*tamper"; then
     ok "P5: score integrity holds (no mismatch, exit $RC)"
 else
     fail "P5: score integrity issue (exit $RC)"

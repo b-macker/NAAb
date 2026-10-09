@@ -93,12 +93,12 @@ fi
 
 # F1-04/05: Runtime test — agent module loads, create fails gracefully
 output=$("$NAAB" "$TEST_SRC/test_max_agents.naab" 2>&1) || true
-if echo "$output" | grep -q 'F1_04_AGENT_LOADED: true'; then
+if grep <<<"$output" -q 'F1_04_AGENT_LOADED: true'; then
     pass "F1-04" "Agent module loads with max_unique_agents config"
 else
     fail "F1-04" "Agent module load failed" "$(echo "$output" | head -3)"
 fi
-if echo "$output" | grep -q 'F1_05_GRACEFUL_FAIL: true'; then
+if grep <<<"$output" -q 'F1_05_GRACEFUL_FAIL: true'; then
     pass "F1-05" "agent.create fails at API key (not crash)"
 else
     fail "F1-05" "agent.create did not fail gracefully" "$(echo "$output" | tail -3)"
@@ -115,7 +115,7 @@ echo "--- Fix 2: govern.json self-protection ---"
 # Must run from src/ dir so file.write("govern.json") resolves to the protected path
 output=$(cd "$TEST_SRC" && "$NAAB" test_self_protection.naab 2>&1)
 f2_01_exit=$?
-if [ "$f2_01_exit" -eq 3 ] || (echo "$output" | grep -qi 'blocked_paths\|blocked by governance\|File path blocked'); then
+if [ "$f2_01_exit" -eq 3 ] || (grep <<<"$output" -qi 'blocked_paths\|blocked by governance\|File path blocked'); then
     pass "F2-01" "Writing to govern.json blocked (exit=$f2_01_exit)"
 else
     fail "F2-01" "Writing to govern.json NOT blocked (exit=$f2_01_exit)" "$(echo "$output" | tail -2)"
@@ -124,7 +124,7 @@ fi
 # F2-02: Writing to govern.json.sig should exit 3
 output=$(cd "$TEST_SRC" && "$NAAB" test_self_protection_sig.naab 2>&1)
 f2_02_exit=$?
-if [ "$f2_02_exit" -eq 3 ] || (echo "$output" | grep -qi 'blocked_paths\|blocked by governance\|File path blocked'); then
+if [ "$f2_02_exit" -eq 3 ] || (grep <<<"$output" -qi 'blocked_paths\|blocked by governance\|File path blocked'); then
     pass "F2-02" "Writing to govern.json.sig blocked (exit=$f2_02_exit)"
 else
     fail "F2-02" "Writing to govern.json.sig NOT blocked (exit=$f2_02_exit)" "$(echo "$output" | tail -2)"
@@ -133,7 +133,7 @@ fi
 # F2-03: Normal file writes still work (not over-blocked)
 output=$(cd "$TEST_SRC" && "$NAAB" test_normal_write.naab 2>&1)
 f2_03_exit=$?
-if [ "$f2_03_exit" -eq 0 ] && echo "$output" | grep -q 'NORMAL_WRITE_OK'; then
+if [ "$f2_03_exit" -eq 0 ] && grep <<<"$output" -q 'NORMAL_WRITE_OK'; then
     pass "F2-03" "Normal file writes still work"
 else
     echo "  INFO [F2-03] Normal write may be sandbox-restricted (exit=$f2_03_exit)"
@@ -214,12 +214,12 @@ echo "--- Fix 4: Temporal coupling enforcement ---"
 
 # F4-01/02: Runtime test — config loads
 output=$("$NAAB" "$TEST_SRC/test_temporal_coupling.naab" 2>&1) || true
-if echo "$output" | grep -q 'F4_01_CONFIG_LOADED: true'; then
+if grep <<<"$output" -q 'F4_01_CONFIG_LOADED: true'; then
     pass "F4-01" "Governance loads with temporal_coupling.level config"
 else
     fail "F4-01" "Governance failed to load" "$(echo "$output" | head -3)"
 fi
-if echo "$output" | grep -q 'F4_02_HEALTH_ACTIVE: true'; then
+if grep <<<"$output" -q 'F4_02_HEALTH_ACTIVE: true'; then
     pass "F4-02" "governance.health() active with temporal coupling config"
 else
     fail "F4-02" "governance.health() not active" "$(echo "$output" | grep F4_02)"
@@ -230,7 +230,7 @@ if grep -q 'EnforcementLevel level.*ADVISORY' "$INCLUDE_DIR/naab/governance.h" |
     pass "F4-03" "TemporalCouplingConfig.level field exists"
 else
     # Try alternate grep (the pipe to head may fail)
-    if grep 'TemporalCouplingConfig' -A10 "$INCLUDE_DIR/naab/governance.h" | grep -q 'EnforcementLevel level'; then
+    if grep -q 'EnforcementLevel level' <<<"$(grep 'TemporalCouplingConfig' -A10 "$INCLUDE_DIR/naab/governance.h")"; then
         pass "F4-03" "TemporalCouplingConfig.level field exists"
     else
         fail "F4-03" "TemporalCouplingConfig.level field missing"
@@ -287,14 +287,14 @@ else
 fi
 
 # F6-03: FILE_WRITE → FILE_READ sequence
-if awk '/cross_agent_file_relay/,/push_back.*std::move/' "$SRC_DIR/runtime/behavioral_sequence.cpp" | grep -q 'file.write'; then
+if grep -q 'file.write' <<<"$(awk '/cross_agent_file_relay/,/push_back.*std::move/' "$SRC_DIR/runtime/behavioral_sequence.cpp")"; then
     pass "F6-03" "File relay uses FILE_WRITE -> FILE_READ steps"
 else
     fail "F6-03" "File relay steps incorrect"
 fi
 
 # F6-04: TOOL_CALL (not TOOL_EXEC) in tool chain
-if awk '/cross_agent_tool_chain/,/push_back.*std::move/' "$SRC_DIR/runtime/behavioral_sequence.cpp" | grep -q 'tool_call'; then
+if grep -q 'tool_call' <<<"$(awk '/cross_agent_tool_chain/,/push_back.*std::move/' "$SRC_DIR/runtime/behavioral_sequence.cpp")"; then
     pass "F6-04" "Tool chain uses TOOL_CALL (correct enum)"
 else
     fail "F6-04" "Tool chain uses wrong event type (should be TOOL_CALL)"
@@ -325,7 +325,7 @@ else
 fi
 
 # F6-08: AGENT_SEND step in tool chain (3-step pattern)
-if awk '/cross_agent_tool_chain/,/push_back.*std::move/' "$SRC_DIR/runtime/behavioral_sequence.cpp" | grep -q 'agent.send'; then
+if grep -q 'agent.send' <<<"$(awk '/cross_agent_tool_chain/,/push_back.*std::move/' "$SRC_DIR/runtime/behavioral_sequence.cpp")"; then
     pass "F6-08" "Tool chain includes AGENT_SEND step (3-step pattern)"
 else
     fail "F6-08" "Tool chain missing AGENT_SEND step"

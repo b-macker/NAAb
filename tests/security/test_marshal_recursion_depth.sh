@@ -70,9 +70,18 @@ main {
     print(x)
 }
 EOF
+# ran_clean FILE TOKEN: the program exited 0 AND printed TOKEN. Captured, not
+# piped into `grep -q`: under pipefail that pipeline also fails when the program
+# exits non-zero, which these probes want, but it fails too when grep exits
+# before the program stops writing -- so the exit status is asserted on its own.
+ran_clean() {
+    local out rc
+    out="$("$NAAB" "$1" 2>/dev/null)"; rc=$?
+    [ "$rc" -eq 0 ] && grep -q "$2" <<<"$out"
+}
 PY_LIVE=0; JS_LIVE=0
-"$NAAB" _alive_py.naab 2>/dev/null | grep -q PY_ALIVE && PY_LIVE=1
-"$NAAB" _alive_js.naab 2>/dev/null | grep -q JS_ALIVE && JS_LIVE=1
+ran_clean _alive_py.naab PY_ALIVE && PY_LIVE=1
+ran_clean _alive_js.naab JS_ALIVE && JS_LIVE=1
 
 run_exit() { "$NAAB" "$1" >/dev/null 2>&1; echo $?; }
 
@@ -119,7 +128,7 @@ main {
 }
 EOF
 if [ "$PY_LIVE" -eq 1 ]; then
-    if "$NAAB" deep_py.naab 2>/dev/null | grep -q "NESTED_OK"; then
+    if ran_clean deep_py.naab "NESTED_OK"; then
         ok "B-01" "ordinary nested python structure still marshals"
     else
         bad "B-01" "depth guard is over-broad -- legitimate nesting no longer marshals"
@@ -150,7 +159,7 @@ if [ "$PY_LIVE" -eq 1 ]; then
     out="$(timeout 30 "$NAAB" after_py.naab 2>&1)"; rc=$?
     if [ "$rc" -eq 124 ]; then
         bad "C-01" "TIMED OUT -- GIL held after the rejected block deadlocked the next one"
-    elif echo "$out" | grep -q "SECOND_BLOCK_RAN"; then
+    elif grep <<<"$out" -q "SECOND_BLOCK_RAN"; then
         ok "C-01" "a second python block runs after a rejected cyclic one"
     else
         bad "C-01" "second python block did not run (exit $rc)"

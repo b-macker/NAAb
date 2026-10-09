@@ -40,7 +40,7 @@ echo '{ "version": "4.0", "mode": "off" }' > "$PROBE_DIR/govern.json"
 printf 'main {\n    let xs = [3, 4, 5]\n    let t = 0\n    for x in xs {\n        t = t + x * x\n    }\n    print("probe:" + string(t))\n}\n' > "$PROBE_DIR/probe.naab"
 for engine in "" "--tree-walk"; do
     probe_out=$("$NAAB" $engine "$PROBE_DIR/probe.naab" 2>/dev/null || true)
-    if ! printf '%s\n' "$probe_out" | grep -qx "probe:50"; then
+    if ! grep <<<"$probe_out" -qx "probe:50"; then
         echo "FAIL: known-answer probe (${engine:-vm}) printed '${probe_out}', expected 'probe:50'"
         echo "      -- the engines are not running programs, so parity below would be vacuous"
         exit 1

@@ -73,7 +73,7 @@ EOF
     OUT=$("$NAAB" "$WORK_DIR/test_cpp_include.naab" 2>&1)
     CODE=$?
     set -e
-    if [ "$CODE" -ne 0 ] && ! echo "$OUT" | grep -q "^bad$"; then
+    if [ "$CODE" -ne 0 ] && ! grep <<<"$OUT" -q "^bad$"; then
         pass "T-RCE5-1: C++ absolute-path #include rejected by source scanner (exit=$CODE)"
     else
         fail "T-RCE5-1: C++ absolute-path #include was NOT rejected (exit=$CODE, out=$OUT)"
@@ -95,7 +95,7 @@ EOF
     OUT=$("$NAAB" "$WORK_DIR/test_rust_include.naab" 2>&1)
     CODE=$?
     set -e
-    if [ "$CODE" -ne 0 ] && ! echo "$OUT" | grep -q "^bad$"; then
+    if [ "$CODE" -ne 0 ] && ! grep <<<"$OUT" -q "^bad$"; then
         pass "T-RCE5-2: Rust include_str!(absolute) rejected by source scanner (exit=$CODE)"
     else
         fail "T-RCE5-2: Rust include_str!(absolute) was NOT rejected (exit=$CODE, out=$OUT)"

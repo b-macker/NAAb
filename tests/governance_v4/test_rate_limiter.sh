@@ -47,7 +47,7 @@ print("3")
 EOF
 
 out=$("$NAAB" "$WORKDIR/test_polyglot_rate.naab" 2>&1) || true
-if echo "$out" | grep -qi "rate limit\|rate.*exceeded"; then
+if grep <<<"$out" -qi "rate limit\|rate.*exceeded"; then
     ok "polyglot rate limit fires"
 else
     fail "polyglot rate limit should fire with 3 blocks at 1/sec: ${out:0:200}"
@@ -81,7 +81,7 @@ print("2")
 EOF
 
 out=$("$NAAB" "$WORKDIR/test_polyglot_nolimit.naab" 2>&1) || true
-if echo "$out" | grep -qi "rate limit"; then
+if grep <<<"$out" -qi "rate limit"; then
     fail "rate limit should NOT fire when max=0: ${out:0:200}"
 else
     ok "rate limit disabled when max=0"
@@ -117,7 +117,7 @@ main {
 EOF
 
 out=$("$NAAB" "$WORKDIR/test_stdlib_rate.naab" 2>&1) || true
-if echo "$out" | grep -qi "rate limit\|rate.*exceeded"; then
+if grep <<<"$out" -qi "rate limit\|rate.*exceeded"; then
     ok "stdlib rate limit fires"
 else
     fail "stdlib rate limit should fire with 5 calls at 2/sec: ${out:0:200}"
@@ -163,7 +163,7 @@ main {
 NAABEOF
 
 out=$("$NAAB" "$WORKDIR/test_file_rate.naab" 2>&1) || true
-if echo "$out" | grep -qi "rate limit\|rate.*exceeded"; then
+if grep <<<"$out" -qi "rate limit\|rate.*exceeded"; then
     ok "file ops rate limit fires"
 else
     fail "file ops rate limit should fire with 3 reads at 1/sec: ${out:0:200}"
@@ -187,7 +187,7 @@ EOF
 
 # Same test as T1 but explicitly confirm VM is default
 out=$("$NAAB" "$WORKDIR/test_polyglot_rate.naab" 2>&1) || true
-if echo "$out" | grep -qi "rate limit\|rate.*exceeded"; then
+if grep <<<"$out" -qi "rate limit\|rate.*exceeded"; then
     ok "VM polyglot rate limit fires"
 else
     fail "VM polyglot rate limit should fire: ${out:0:200}"
@@ -199,7 +199,7 @@ echo ""
 # ---------------------------------------------------------------------------
 echo "[T6] Tree-walker polyglot rate limit"
 out=$("$NAAB" --tree-walk "$WORKDIR/test_polyglot_rate.naab" 2>&1) || true
-if echo "$out" | grep -qi "rate limit\|rate.*exceeded"; then
+if grep <<<"$out" -qi "rate limit\|rate.*exceeded"; then
     ok "tree-walker polyglot rate limit fires"
 else
     fail "tree-walker polyglot rate limit should fire: ${out:0:200}"

@@ -119,22 +119,22 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 30s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-if echo "$OUTPUT" | grep -q "R1_TRUNC=true"; then
+if grep <<<"$OUTPUT" -q "R1_TRUNC=true"; then
     pass "T-01" "Per-response truncated flag set for MAX_TOKENS (regression)"
 else
     fail "T-01" "truncated flag missing on truncated response" "$(echo "$OUTPUT" | head -3)"
 fi
-if echo "$OUTPUT" | grep -q "R3_TRUNC=false"; then
+if grep <<<"$OUTPUT" -q "R3_TRUNC=false"; then
     pass "T-02" "truncated flag false for STOP response (regression)"
 else
     fail "T-02" "truncated flag wrong on complete response" "$(echo "$OUTPUT" | grep R3_TRUNC)"
 fi
-if echo "$OUTPUT" | grep -q "USAGE_TRUNC=2"; then
+if grep <<<"$OUTPUT" -q "USAGE_TRUNC=2"; then
     pass "T-03" "agent.usage() exposes accumulated truncation_count"
 else
     fail "T-03" "agent.usage() truncation_count wrong" "$(echo "$OUTPUT" | grep USAGE_TRUNC)"
 fi
-if echo "$OUTPUT" | grep -q "ENV_TRUNC=2"; then
+if grep <<<"$OUTPUT" -q "ENV_TRUNC=2"; then
     pass "T-04" "agent.environment() state exposes truncation_count"
 else
     fail "T-04" "environment state truncation_count wrong" "$(echo "$OUTPUT" | grep ENV_TRUNC)"

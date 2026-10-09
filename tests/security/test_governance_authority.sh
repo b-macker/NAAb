@@ -60,7 +60,7 @@ echo "=== govern.json authority (flag vs file, both engines) ==="
 if [ ! -x "$NAAB" ]; then
     echo "  SKIP [GA-00] naab-lang not built -- UNMEASURABLE, not a pass"; exit 0
 fi
-if ! "$NAAB" --version 2>/dev/null | grep -qi naab; then
+if ! grep -qi naab <<<"$("$NAAB" --version 2>/dev/null)"; then
     echo "  FAIL [GA-00] $NAAB does not identify as naab-lang -- comparison would be vacuous"
     exit 1
 fi

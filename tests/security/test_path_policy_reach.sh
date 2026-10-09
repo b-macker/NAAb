@@ -162,7 +162,7 @@ EOF
 LAST_OUTPUT=$( (cd "$W" && timeout 60s "$NAAB" bypass.naab) 2>&1 )
 if grep -q POLICY_REACH_SECRET "$W/leaked.txt" 2>/dev/null; then
     ok "PR-07" "the advisory tells the truth: a <<sh>> block read a blocked path"
-elif ! echo "$LAST_OUTPUT" | grep -q "block ran"; then
+elif ! grep <<<"$LAST_OUTPUT" -q "block ran"; then
     skip "PR-07" "the shell block did not execute here -- UNMEASURABLE, not a pass"
 else
     bad "PR-07" "the block ran but did not read the blocked path -- CONTRA-013 may now be false"
@@ -192,7 +192,7 @@ if [ "$PY_EMBEDDED" -ne 1 ]; then
     skip "PR-07b" "no embedded Python executor in this build (subprocess fallback has no audit hook) -- UNMEASURABLE"
 elif grep -q POLICY_REACH_SECRET "$W/leaked.txt" 2>/dev/null; then
     bad "PR-07b" "embedded Python read a blocked path -- the audit hook does not consult the path policy"
-elif echo "$LAST_OUTPUT" | grep -q "denied by sandbox policy"; then
+elif grep <<<"$LAST_OUTPUT" -q "denied by sandbox policy"; then
     ok "PR-07b" "embedded Python is held: the open() was refused at the audit hook"
 else
     skip "PR-07b" "the python block did not reach open() here -- UNMEASURABLE, not a pass"

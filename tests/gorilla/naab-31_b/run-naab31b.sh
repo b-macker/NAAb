@@ -93,10 +93,10 @@ echo -e "${CYAN}=== Category 1: Bypass Paths & Config Robustness (10 assertions)
 # C1: BSD survives event flood beyond window_size
 WORKDIR=$(setup_workdir "$PHASE2_CONFIG")
 output=$(run_in "$WORKDIR" "edge_02_bsd_event_flood.naab" 2>&1) || true
-if echo "$output" | grep -q 'bsd_flood: completed'; then
+if grep <<<"$output" -q 'bsd_flood: completed'; then
     pass "C1" "BSD survives 60 events with window_size=10 (no crash)"
 else
-    if echo "$output" | grep -qi 'segfault\|abort\|SIGSEGV'; then
+    if grep <<<"$output" -qi 'segfault\|abort\|SIGSEGV'; then
         fail "C1" "BSD ring buffer overflow" "crash detected"
     else
         fail "C1" "BSD event flood test" "unexpected output"
@@ -123,10 +123,10 @@ fi
 # C4: Taint after sanitize — clean write succeeds
 WORKDIR=$(setup_workdir)
 output=$(run_in "$WORKDIR" "edge_05_taint_after_sanitize.naab" 2>&1) || true
-if echo "$output" | grep -q 'taint_sanitize: clean write succeeded'; then
+if grep <<<"$output" -q 'taint_sanitize: clean write succeeded'; then
     pass "C4" "Sanitized taint write succeeds"
 else
-    if echo "$output" | grep -q 'taint_sanitize: clean write blocked'; then
+    if grep <<<"$output" -q 'taint_sanitize: clean write blocked'; then
         fail "C4" "Sanitized taint write succeeds" "blocked despite sanitize"
     else
         pass "C4" "Taint sanitization path active"
@@ -134,9 +134,9 @@ else
 fi
 
 # C5: Taint after sanitize — re-tainted write blocked
-if echo "$output" | grep -q 'taint_sanitize: retainted write blocked'; then
+if grep <<<"$output" -q 'taint_sanitize: retainted write blocked'; then
     pass "C5" "Re-tainted value blocked after sanitization"
-elif echo "$output" | grep -q 'taint_sanitize: retainted write NOT blocked'; then
+elif grep <<<"$output" -q 'taint_sanitize: retainted write NOT blocked'; then
     fail "C5" "Re-tainted value blocked" "write succeeded"
 else
     pass "C5" "Taint re-tracking active after sanitization"
@@ -146,9 +146,9 @@ rm -rf "$WORKDIR"
 # C6: Deep polyglot taint chain (Python→JS→Shell) blocked
 WORKDIR=$(setup_workdir)
 output=$(run_in "$WORKDIR" "edge_10_taint_polyglot_chain.naab" 2>&1) || true
-if echo "$output" | grep -qi 'deep_chain: blocked\|TAINT'; then
+if grep <<<"$output" -qi 'deep_chain: blocked\|TAINT'; then
     pass "C6" "Deep polyglot taint chain blocked"
-elif echo "$output" | grep -q 'deep_chain: NOT blocked'; then
+elif grep <<<"$output" -q 'deep_chain: NOT blocked'; then
     fail "C6" "Deep polyglot taint chain" "3-stage chain write succeeded"
 else
     pass "C6" "Deep taint chain gate active"
@@ -158,9 +158,9 @@ rm -rf "$WORKDIR"
 # C7: Pipeline separation blocks same-config adjacency (no API needed — config validation)
 WORKDIR=$(setup_workdir)
 output=$(run_in "$WORKDIR" "edge_09_separation_same_config.naab" 2>&1) || true
-if echo "$output" | grep -qi 'separation_same: blocked\|separation violation'; then
+if grep <<<"$output" -qi 'separation_same: blocked\|separation violation'; then
     pass "C7" "Pipeline separation blocks same-config adjacency"
-elif echo "$output" | grep -q 'separation_same: NOT blocked'; then
+elif grep <<<"$output" -q 'separation_same: NOT blocked'; then
     fail "C7" "Pipeline separation" "same-config pipeline succeeded"
 else
     # May need API key to actually run pipeline
@@ -174,7 +174,7 @@ rm -rf "$WORKDIR"
 
 # C8: No governance internals leaked in error messages
 all_errors=$(echo "$output" | grep -i 'error\|block\|denied\|violation' || true)
-if echo "$all_errors" | grep -qi 'no-governance\|governance-override\|sanitize_\|validate_'; then
+if grep <<<"$all_errors" -qi 'no-governance\|governance-override\|sanitize_\|validate_'; then
     fail "C8" "Error messages don't leak governance bypass info"
 else
     pass "C8" "Error messages don't leak governance bypass info"
@@ -184,7 +184,7 @@ fi
 WORKDIR=$(setup_workdir "$PHASE2_CONFIG")
 output=$(run_in "$WORKDIR" "edge_02_bsd_event_flood.naab" 2>&1) || true
 dashboard=$(echo "$output" | grep -iE 'BSD:|CDD:|Exposure:|Lineage:|Governance:' || true)
-if echo "$dashboard" | grep -qiE '[^a-z]nan[^a-z]|[^a-z]inf[^a-z]'; then
+if grep <<<"$dashboard" -qiE '[^a-z]nan[^a-z]|[^a-z]inf[^a-z]'; then
     fail "C9" "Dashboard has no NaN/Inf values" "found NaN or Inf"
 else
     pass "C9" "Dashboard has no NaN/Inf values"
@@ -195,7 +195,7 @@ rm -rf "$WORKDIR"
 WORKDIR=$(setup_workdir "$PHASE2_CONFIG")
 echo 'main { print("config_small_window: ok") }' > "$WORKDIR/small_test.naab"
 output=$("$NAAB" "$WORKDIR/small_test.naab" 2>&1) || true
-if echo "$output" | grep -q 'config_small_window: ok'; then
+if grep <<<"$output" -q 'config_small_window: ok'; then
     pass "C10" "Small BSD window_size=10 config accepted"
 else
     fail "C10" "Small BSD window config" "program failed to run"
@@ -221,10 +221,10 @@ else
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "edge_01_pipeline_partial_fail.naab" 2>&1) || true
 
-    if echo "$output" | grep -qi 'pipeline_partial:'; then
+    if grep <<<"$output" -qi 'pipeline_partial:'; then
         pass "C11" "Pipeline partial failure handled gracefully"
     else
-        if echo "$output" | grep -qi 'segfault\|abort'; then
+        if grep <<<"$output" -qi 'segfault\|abort'; then
             fail "C11" "Pipeline partial failure" "crash detected"
         else
             fail "C11" "Pipeline partial failure" "unexpected output"
@@ -232,9 +232,9 @@ else
     fi
 
     # C12: Post-pipeline analyst state consistent
-    if echo "$output" | grep -q 'pipeline_partial: analyst still usable'; then
+    if grep <<<"$output" -q 'pipeline_partial: analyst still usable'; then
         pass "C12" "Analyst usable after pipeline (budget intact)"
-    elif echo "$output" | grep -q 'pipeline_partial: analyst blocked'; then
+    elif grep <<<"$output" -q 'pipeline_partial: analyst blocked'; then
         pass "C12" "Analyst blocked post-pipeline (budget/exposure exhausted)"
     else
         pass "C12" "Pipeline state consistent (no crash)"
@@ -256,7 +256,7 @@ else
     if [ -n "$blocked" ]; then
         pass "C14" "Rapid agent churn: $blocked of 9 sends blocked"
     else
-        if echo "$output" | grep -q 'rapid_churn:'; then
+        if grep <<<"$output" -q 'rapid_churn:'; then
             pass "C14" "Rapid churn completed"
         else
             fail "C14" "Rapid agent churn" "unexpected output"
@@ -267,7 +267,7 @@ else
     # C15: Risk budget zero boundary — budget=3 exhausted
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "edge_06_budget_zero_boundary.naab" 2>&1) || true
-    if echo "$output" | grep -q 'budget_zero:'; then
+    if grep <<<"$output" -q 'budget_zero:'; then
         succeeded=$(echo "$output" | grep -o 'succeeded=[0-9]*' | grep -o '[0-9]*' | head -1)
         blocked_at=$(echo "$output" | sed -n 's/.*blocked_at=\([0-9-]*\).*/\1/p' | head -1)
         if [ -n "$succeeded" ]; then
@@ -283,7 +283,7 @@ else
     # C16: Exposure pre/post asymmetry — autonomous_actions counted
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "edge_07_exposure_pre_post_asymmetry.naab" 2>&1) || true
-    if echo "$output" | grep -q 'pre_post_asym:'; then
+    if grep <<<"$output" -q 'pre_post_asym:'; then
         actions=$(echo "$output" | grep -o 'actions=[0-9]*' | grep -o '[0-9]*' | head -1)
         pass "C16" "Exposure pre/post cycle: $actions actions completed"
     else
@@ -302,16 +302,16 @@ else
     # C18: Circuit breaker escalation doesn't crash
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "edge_08_circuit_breaker_escalation.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'segfault\|abort\|SIGSEGV'; then
+    if grep <<<"$output" -qi 'segfault\|abort\|SIGSEGV'; then
         fail "C18" "Circuit breaker escalation" "crash detected"
     else
         pass "C18" "Circuit breaker escalation stable (no crash)"
     fi
 
     # C19: Dashboard shows governance level or circuit breaker info
-    if echo "$output" | grep -qi 'Governance level\|circuit\|ELEVATED\|HIGH\|CRITICAL'; then
+    if grep <<<"$output" -qi 'Governance level\|circuit\|ELEVATED\|HIGH\|CRITICAL'; then
         pass "C19" "Circuit breaker level visible in output"
-    elif echo "$output" | grep -qi 'circuit_breaker: blocked\|circuit_breaker: completed'; then
+    elif grep <<<"$output" -qi 'circuit_breaker: blocked\|circuit_breaker: completed'; then
         pass "C19" "Circuit breaker test completed"
     else
         pass "C19" "Circuit breaker active (level may stay NORMAL)"
@@ -321,7 +321,7 @@ else
     # C20: Mixed taint+agent interleaving doesn't crash
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "edge_12_mixed_taint_and_agent.naab" 2>&1) || true
-    if echo "$output" | grep -qi 'segfault\|abort\|core dump'; then
+    if grep <<<"$output" -qi 'segfault\|abort\|core dump'; then
         fail "C20" "Mixed taint+agent interleaving" "crash detected"
     else
         pass "C20" "Mixed taint+agent interleaving stable"
@@ -347,12 +347,12 @@ else
     # C21: Pipeline depth=3 exceeds max_pipeline_depth=2
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "edge_04_pipeline_depth_exceed.naab" 2>&1) || true
-    if echo "$output" | grep -q 'depth_exceed: blocked'; then
+    if grep <<<"$output" -q 'depth_exceed: blocked'; then
         pass "C21" "3-stage pipeline blocked by max_pipeline_depth=2"
-    elif echo "$output" | grep -q 'depth_exceed: NOT blocked'; then
+    elif grep <<<"$output" -q 'depth_exceed: NOT blocked'; then
         fail "C21" "Pipeline depth enforcement" "3-stage pipeline succeeded"
     else
-        if echo "$output" | grep -qi 'blocked\|denied\|error'; then
+        if grep <<<"$output" -qi 'blocked\|denied\|error'; then
             pass "C21" "3-stage pipeline blocked (by depth or other limit)"
         else
             fail "C21" "Pipeline depth enforcement" "unexpected output"
@@ -360,9 +360,9 @@ else
     fi
 
     # C22: 2-stage pipeline still works after 3-stage rejected
-    if echo "$output" | grep -q 'depth_exceed: 2-stage succeeded'; then
+    if grep <<<"$output" -q 'depth_exceed: 2-stage succeeded'; then
         pass "C22" "2-stage pipeline succeeds after 3-stage rejection"
-    elif echo "$output" | grep -q 'depth_exceed: 2-stage also blocked'; then
+    elif grep <<<"$output" -q 'depth_exceed: 2-stage also blocked'; then
         pass "C22" "2-stage also blocked (earlier block may have intervened)"
     else
         pass "C22" "Pipeline depth check active"
@@ -394,9 +394,9 @@ else
     # C25: Coherence recovery at pipeline stage transition
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "edge_14_coherence_recovery_pipeline.naab" 2>&1) || true
-    if echo "$output" | grep -q 'recovery_pipeline: pipeline completed'; then
+    if grep <<<"$output" -q 'recovery_pipeline: pipeline completed'; then
         pass "C25" "Coherence recovery allowed pipeline to complete"
-    elif echo "$output" | grep -q 'recovery_pipeline: pipeline blocked'; then
+    elif grep <<<"$output" -q 'recovery_pipeline: pipeline blocked'; then
         pass "C25" "Pipeline blocked (coherence too low for recovery)"
     else
         pass "C25" "Coherence recovery mechanism active"
@@ -406,11 +406,11 @@ else
     # C26: Batch exposure — each handle counts independently
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "edge_15_batch_exposure_counting.naab" 2>&1) || true
-    if echo "$output" | grep -q 'batch_exposure: batch completed'; then
+    if grep <<<"$output" -q 'batch_exposure: batch completed'; then
         pass "C26" "Batch call completed"
-    elif echo "$output" | grep -q 'batch_exposure: blocked\|batch_exposure: batch blocked'; then
+    elif grep <<<"$output" -q 'batch_exposure: blocked\|batch_exposure: batch blocked'; then
         pass "C26" "Batch blocked (budget/exposure limit)"
-    elif echo "$output" | grep -q 'batch_exposure:'; then
+    elif grep <<<"$output" -q 'batch_exposure:'; then
         pass "C26" "Batch exposure tracking active"
     else
         fail "C26" "Batch exposure counting" "unexpected output"
@@ -428,7 +428,7 @@ else
     # C28: Governance health fires after check_after_turns
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "edge_11_governance_health_zero_events.naab" 2>&1) || true
-    if echo "$output" | grep -q 'health_zero:'; then
+    if grep <<<"$output" -q 'health_zero:'; then
         pass "C28" "Governance health check ran after 3+ turns"
     else
         fail "C28" "Governance health check" "no health output"
@@ -447,10 +447,10 @@ else
     WORKDIR=$(setup_workdir)
     output=$(run_in "$WORKDIR" "edge_16_dashboard_consistency.naab" 2>&1) || true
     has_bsd=false; has_cdd=false; has_exp=false; has_gov=false
-    echo "$output" | grep -q 'BSD:' && has_bsd=true
-    echo "$output" | grep -q 'CDD:' && has_cdd=true
-    echo "$output" | grep -q 'Exposure:' && has_exp=true
-    echo "$output" | grep -qi 'Governance:' && has_gov=true
+    grep <<<"$output" -q 'BSD:' && has_bsd=true
+    grep <<<"$output" -q 'CDD:' && has_cdd=true
+    grep <<<"$output" -q 'Exposure:' && has_exp=true
+    grep <<<"$output" -qi 'Governance:' && has_gov=true
 
     sections=0
     $has_bsd && sections=$((sections + 1))
@@ -482,7 +482,7 @@ echo -e "${CYAN}=== Category 4: Degraded & Robustness (10 assertions) ===${NC}"
 WORKDIR=$(setup_workdir)
 echo 'main { print("full_depth: ok") }' > "$WORKDIR/full_depth.naab"
 output=$("$NAAB" "$WORKDIR/full_depth.naab" 2>&1) || true
-if echo "$output" | grep -q 'full_depth: ok'; then
+if grep <<<"$output" -q 'full_depth: ok'; then
     pass "C31" "Full depth config accepted and program runs"
 else
     fail "C31" "Full depth config" "program failed"
@@ -497,7 +497,7 @@ exit_code=$?
 if [ "$exit_code" -eq 0 ] || [ "$exit_code" -eq 2 ]; then
     pass "C32" "Empty program with governance doesn't crash (exit=$exit_code)"
 else
-    if echo "$output" | grep -qi 'segfault\|abort'; then
+    if grep <<<"$output" -qi 'segfault\|abort'; then
         fail "C32" "Empty program governance" "crash detected"
     else
         pass "C32" "Empty program handled (exit=$exit_code)"
@@ -509,7 +509,7 @@ rm -rf "$WORKDIR"
 WORKDIR=$(setup_workdir "$PHASE2_CONFIG")
 echo 'main { print("small_window: ok") }' > "$WORKDIR/small.naab"
 output=$("$NAAB" --governance-dashboard "$WORKDIR/small.naab" 2>&1) || true
-if echo "$output" | grep -q 'small_window: ok'; then
+if grep <<<"$output" -q 'small_window: ok'; then
     pass "C33" "Phase2 small-window config runs correctly"
 else
     fail "C33" "Small window config" "program failed"
@@ -569,7 +569,7 @@ fi
 # C38: No error message leaks in dashboard output
 WORKDIR=$(setup_workdir)
 output=$(run_in "$WORKDIR" "edge_05_taint_after_sanitize.naab" 2>&1) || true
-if echo "$output" | grep -qi -- '--no-governance\|--governance-override'; then
+if grep <<<"$output" -qi -- '--no-governance\|--governance-override'; then
     fail "C38" "Dashboard doesn't leak bypass flags"
 else
     pass "C38" "Dashboard doesn't leak bypass flags"
@@ -583,8 +583,8 @@ echo 'main { let x = env.get("HOME"); print("run2: ok") }' > "$WORKDIR/r2.naab"
 out1=$("$NAAB" --governance-dashboard "$WORKDIR/r1.naab" 2>&1) || true
 out2=$("$NAAB" --governance-dashboard "$WORKDIR/r2.naab" 2>&1) || true
 r1_ok=false; r2_ok=false
-echo "$out1" | grep -q 'run1: ok' && r1_ok=true
-echo "$out2" | grep -q 'run2: ok' && r2_ok=true
+grep <<<"$out1" -q 'run1: ok' && r1_ok=true
+grep <<<"$out2" -q 'run2: ok' && r2_ok=true
 if $r1_ok && $r2_ok; then
     pass "C39" "Sequential runs: no state leaking between processes"
 else
@@ -598,14 +598,14 @@ echo 'main { print("sig_test: ok") }' > "$WORKDIR/sig.naab"
 # First run with valid signature
 out1=$("$NAAB" "$WORKDIR/sig.naab" 2>&1) || true
 sig1_ok=false
-echo "$out1" | grep -q 'sig_test: ok' && sig1_ok=true
+grep <<<"$out1" -q 'sig_test: ok' && sig1_ok=true
 
 # Tamper with govern.json
 echo '{"version":"5.0","mode":"enforce"}' > "$WORKDIR/govern.json"
 out2=$("$NAAB" "$WORKDIR/sig.naab" 2>&1)
 sig2_exit=$?
 sig2_blocked=false
-if [ "$sig2_exit" -ne 0 ] || echo "$out2" | grep -qi 'integrity\|signature\|tamper'; then
+if [ "$sig2_exit" -ne 0 ] || grep <<<"$out2" -qi 'integrity\|signature\|tamper'; then
     sig2_blocked=true
 fi
 

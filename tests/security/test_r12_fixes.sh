@@ -63,7 +63,7 @@ EOF
     TAMPER_OUT=$(NAAB_LOCK_KEY=testkey123 "$NAAB" --lock-check "$WORK_DIR/simple.naab" 2>&1)
     TAMPER_CODE=$?
     set -e
-    if echo "$TAMPER_OUT" | grep -qi "TAMPER" && [ "$TAMPER_CODE" -ne 0 ]; then
+    if grep <<<"$TAMPER_OUT" -qi "TAMPER" && [ "$TAMPER_CODE" -ne 0 ]; then
         pass "T-SC-3: tampered lockfile triggers TAMPER DETECTED exit"
     else
         fail "T-SC-3: tampered lockfile not detected (exit=$TAMPER_CODE, out=$TAMPER_OUT)"
@@ -97,7 +97,7 @@ if [ ! -x "$LSP_SERVER" ]; then
 else
     # Verify the binary was compiled with the bounds constants by checking the binary strings
     # (The constants 10000 and 1048576 appear in error strings if compiled in)
-    if strings "$LSP_SERVER" 2>/dev/null | grep -q "10000 edits"; then
+    if grep -q "10000 edits" <<<"$(strings "$LSP_SERVER" 2>/dev/null)"; then
         pass "T-LSP-1: naab-lsp binary contains rename edit limit error string"
     else
         skip "T-LSP-1: cannot verify LSP bounds from binary (strings check inconclusive)"
@@ -152,7 +152,7 @@ EOF
     fi
 
     # Verify it logged a warning about the unsafe pattern
-    if echo "$GOV_OUT" | grep -qi "Unsafe regex\|unsafe.*regex\|skipped"; then
+    if grep <<<"$GOV_OUT" -qi "Unsafe regex\|unsafe.*regex\|skipped"; then
         pass "T-GOV-2: naab-gov warned about unsafe/skipped ReDoS pattern"
     else
         fail "T-GOV-2: no unsafe regex warning found (output: $GOV_OUT)"
@@ -179,7 +179,7 @@ EOF
 
     SAFE_OUT=$(cd "$WORK_DIR" && timeout 5 "$NAAB_GOV" lint "$WORK_DIR/test.naab" 2>&1 || true)
     SAFE_CODE=$?
-    if [ "$SAFE_CODE" -ne 124 ] && ! echo "$SAFE_OUT" | grep -qi "Unsafe regex"; then
+    if [ "$SAFE_CODE" -ne 124 ] && ! grep <<<"$SAFE_OUT" -qi "Unsafe regex"; then
         pass "T-GOV-3: safe pattern accepted without warning"
     else
         fail "T-GOV-3: safe pattern rejected or timed out (exit=$SAFE_CODE, out=$SAFE_OUT)"

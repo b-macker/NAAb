@@ -91,7 +91,7 @@ use http
 main { let k = env.get("MY_API_KEY") ?? "x" let r = http.get("http://127.0.0.1:9/x") print("DONE") }
 GEOF
 OUT_PRE=$(cd "$W" && timeout 60s "$NAAB" cred.naab 2>&1) || true
-if echo "$OUT_PRE" | grep -q "INTEGRITY BLOCK"; then
+if grep <<<"$OUT_PRE" -q "INTEGRITY BLOCK"; then
     skip "B9-01" "config integrity blocked — arm cannot run"
     skip "B9-02" "config integrity blocked"
 elif [ ! -f "$W/tele.jsonl" ]; then
@@ -102,7 +102,7 @@ else
     if [ -z "$NAMES" ]; then
         fail "B9-01" "no BSD_MATCH at all — the pre-execution path is still silent" \
              "fired=[$(echo "$OUT_PRE" | grep -oE 'behavioral_sequences\.[a-z_]+' | sort -u | tr '\n' ' ')]"
-    elif echo "$PATHS" | grep -q pre_execution; then
+    elif grep <<<"$PATHS" -q pre_execution; then
         pass "B9-01" "pre-execution match is recorded (pattern=$NAMES path=$PATHS)"
     else
         fail "B9-01" "BSD_MATCH exists but not from the pre-execution path" "paths=[$PATHS]"
@@ -148,7 +148,7 @@ fi
 
 # ── B9-03: no nonce material anywhere in the evidence.
 echo -e "${CYAN}--- B9-03: agent.send pre-check detail carries no nonce ---${NC}"
-if grep -rq "__nonce" "$W/tele.jsonl" 2>/dev/null || echo "$OUT_PRE" | grep -q "__nonce"; then
+if grep -rq "__nonce" "$W/tele.jsonl" 2>/dev/null || grep <<<"$OUT_PRE" -q "__nonce"; then
     fail "B9-03" "nonce material reached the evidence" "handle __nonce must never enter telemetry or stderr"
 else
     # Positive control: the guard is only meaningful if the detail interpolation

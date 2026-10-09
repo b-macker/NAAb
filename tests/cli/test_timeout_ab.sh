@@ -40,7 +40,7 @@ elapsed=$(( end - start ))
 out=$(extract_out "$result")
 ec=$(extract_exit "$result")
 
-if echo "$out" | grep -qi "timeout"; then
+if grep <<<"$out" -qi "timeout"; then
     ok "error message contains 'timeout'"
 else
     fail "expected 'timeout' in output, got: $out"
@@ -69,7 +69,7 @@ result=$(run_naab "$script" --timeout 5 --no-governance || true)
 out=$(extract_out "$result")
 ec=$(extract_exit "$result")
 
-if echo "$out" | grep -q "hello"; then
+if grep <<<"$out" -q "hello"; then
     ok "script output 'hello'"
 else
     fail "expected 'hello' in output, got: $out"
@@ -126,7 +126,7 @@ result=$(run_naab "$script_ok" --timeout 5 --no-governance || true)
 out=$(extract_out "$result")
 ec=$(extract_exit "$result")
 
-if echo "$out" | grep -q "clean"; then
+if grep <<<"$out" -q "clean"; then
     ok "second script ran cleanly after prior timeout"
 else
     fail "second script did not produce expected output; got: $out (exit $ec)"

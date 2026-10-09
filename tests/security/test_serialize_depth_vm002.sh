@@ -49,7 +49,7 @@ ec=${ec:-0}
 # Check: must NOT be killed by SIGSEGV (exit 139) or SIGABRT (exit 134)
 if [[ "$ec" -eq 139 ]] || [[ "$ec" -eq 134 ]]; then
     fail "runtime crashed (SIGSEGV/SIGABRT) — depth limit not enforced"
-elif echo "$out" | grep -qi "depth\|serialization error\|maximum"; then
+elif grep <<<"$out" -qi "depth\|serialization error\|maximum"; then
     ok "clear depth error produced — no crash"
 elif [[ "$ec" -ne 0 ]]; then
     skip "non-zero exit without crash — depth limit or other error caught"
@@ -83,7 +83,7 @@ EOF
 out=$(timeout 10s "$NAAB" "$WORKDIR/test_t2.naab" --vm --no-governance 2>&1) || ec=$?
 ec=${ec:-0}
 
-if echo "$out" | grep -qi "depth\|serialization error"; then
+if grep <<<"$out" -qi "depth\|serialization error"; then
     fail "false positive — 30-level nesting hit depth limit: ${out:0:120}"
 elif [[ "$ec" -eq 139 ]] || [[ "$ec" -eq 134 ]]; then
     fail "runtime crashed on 30-level structure"
@@ -91,7 +91,7 @@ elif [[ "$ec" -eq 0 ]]; then
     ok "30-level nesting serialized without error"
 else
     # Non-zero exit for other reasons (no Python executor, etc.) is fine
-    if echo "$out" | grep -qi "executor\|python\|not found\|not available"; then
+    if grep <<<"$out" -qi "executor\|python\|not found\|not available"; then
         skip "no Python executor — depth limit not triggered (acceptable)"
     else
         ok "non-zero exit for non-depth reason: ${out:0:80}"

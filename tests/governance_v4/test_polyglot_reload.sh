@@ -66,8 +66,8 @@ main {
 NAABEOF
 
 OUTPUT=$(cd "$T1DIR" && timeout 20s "$NAAB" test_reload.naab --governance-dashboard 2>&1) || true
-if echo "$OUTPUT" | grep -q "block1_ok" && echo "$OUTPUT" | grep -q "block2_ok"; then
-    if echo "$OUTPUT" | grep -qi "reload"; then
+if grep <<<"$OUTPUT" -q "block1_ok" && grep <<<"$OUTPUT" -q "block2_ok"; then
+    if grep <<<"$OUTPUT" -qi "reload"; then
         ok "Config reload detected between polyglot blocks (reload message visible)"
     else
         ok "Both blocks executed correctly with reload hook active"
@@ -130,12 +130,12 @@ main {
 NAABEOF
 
 OUTPUT2=$(cd "$T2DIR" && timeout 20s "$NAAB" test_tighten.naab 2>&1) || true
-if echo "$OUTPUT2" | grep -q "before_tighten"; then
-    if echo "$OUTPUT2" | grep -q "SHOULD_NOT_APPEAR"; then
+if grep <<<"$OUTPUT2" -q "before_tighten"; then
+    if grep <<<"$OUTPUT2" -q "SHOULD_NOT_APPEAR"; then
         fail "Second shell block ran despite shell being disabled mid-run"
-    elif echo "$OUTPUT2" | grep -qi "BLOCKED.*shell\|Shell.*not allowed"; then
+    elif grep <<<"$OUTPUT2" -qi "BLOCKED.*shell\|Shell.*not allowed"; then
         ok "Tightened governance blocked second shell block (caught in try/catch)"
-    elif echo "$OUTPUT2" | grep -qi "shell\|not allowed"; then
+    elif grep <<<"$OUTPUT2" -qi "shell\|not allowed"; then
         ok "Tightened governance blocked second shell block"
     else
         # Block 2 didn't produce output — may have been blocked without message
@@ -170,7 +170,7 @@ main {
 NAABEOF
 
 OUTPUT3=$(cd "$T3DIR" && timeout 10s "$NAAB" test_pure.naab 2>/dev/null) || true
-if echo "$OUTPUT3" | grep -q "126"; then
+if grep <<<"$OUTPUT3" -q "126"; then
     ok "Pure NAAb code unaffected by reload hook"
 else
     fail "Pure NAAb code broke with reload hook"
@@ -222,7 +222,7 @@ NAABEOF
 OUTPUT4=$(cd "$T4DIR" && timeout 20s "$NAAB" test_seq.naab 2>/dev/null) || true
 COUNT4=0
 for i in 1 2 3 4 5; do
-    echo "$OUTPUT4" | grep -q "seq_$i" && COUNT4=$((COUNT4+1))
+    grep <<<"$OUTPUT4" -q "seq_$i" && COUNT4=$((COUNT4+1))
 done
 if [ "$COUNT4" -eq 5 ]; then
     ok "All 5 sequential polyglot blocks executed correctly"
@@ -288,14 +288,14 @@ T5_PY_GATED=0
 if python_refused_under_shell_off "$NAAB"; then T5_PY_GATED=1; fi
 if [ "$T5_PY_GATED" -eq 1 ]; then
     skip "Test 5 ratchet: $PYTHON_SHELL_OFF_REASON"
-elif echo "$OUTPUT5" | grep -qi "ratchet\|reject"; then
+elif grep <<<"$OUTPUT5" -qi "ratchet\|reject"; then
     # Ratchet rejection message visible — loosening was blocked
-    if echo "$OUTPUT5" | grep -q "after_loosen"; then
+    if grep <<<"$OUTPUT5" -q "after_loosen"; then
         ok "Ratchet rejected loosening; both blocks ran with original (strict) config"
     else
         ok "Ratchet rejected loosening attempt (visible in output)"
     fi
-elif echo "$OUTPUT5" | grep -q "after_loosen"; then
+elif grep <<<"$OUTPUT5" -q "after_loosen"; then
     # Both ran but no ratchet message — loosening was silently rejected
     ok "Loosening had no effect (ratchet enforced, original config preserved)"
 else

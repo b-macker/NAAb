@@ -59,9 +59,9 @@ skip() { local id="$1" desc="$2"; SKIP_COUNT=$((SKIP_COUNT + 1)); TOTAL=$((TOTAL
 GOV_KILL=""
 
 detect_gov_kill() {  # $1=exit code, $2=captured stdout — echoes kill kind, or nothing
-    if [ "$1" -eq 3 ] && echo "$2" | grep -q "Agent exceeded maximum quarantine streak"; then
+    if [ "$1" -eq 3 ] && grep <<<"$2" -q "Agent exceeded maximum quarantine streak"; then
         echo "quarantine_streak"
-    elif [ "$1" -eq 3 ] && echo "$2" | grep -q "Step-up challenge failed"; then
+    elif [ "$1" -eq 3 ] && grep <<<"$2" -q "Step-up challenge failed"; then
         echo "challenge_failure"
     fi
 }
@@ -259,7 +259,7 @@ assert 'refinement_iterations' in d
     echo -e "${CYAN}Level 4: Phase Transitions & Evolution${NC}"
 
     for phase in DESIGN IMPLEMENT REFINE FEATURES FINAL_REVIEW; do
-        if echo "$OUTPUT" | grep -q "PHASE|${phase}|"; then
+        if grep <<<"$OUTPUT" -q "PHASE|${phase}|"; then
             pass "L4-$phase" "Phase $phase reached"
         else
             gk_fail "L4-$phase" "Phase $phase not reached"
@@ -351,7 +351,7 @@ assert 'refinement_iterations' in d
     fi
 
     # main.py updated for new features
-    if echo "$OUTPUT" | grep -q "MAIN_UPDATED|"; then
+    if grep <<<"$OUTPUT" -q "MAIN_UPDATED|"; then
         MAIN_LEN=$(echo "$OUTPUT" | grep 'CODE_EXTRACT|main.py' | grep -oP 'len=\K[0-9]+' | head -1)
         pass "L5-07" "main.py updated for all operations (len=${MAIN_LEN:-?})"
     else
@@ -371,7 +371,7 @@ assert 'refinement_iterations' in d
     # ============================================================
     echo -e "${CYAN}Level 6: Dynamic Team${NC}"
 
-    if echo "$OUTPUT" | grep -q "PHASE|DYNAMIC|"; then
+    if grep <<<"$OUTPUT" -q "PHASE|DYNAMIC|"; then
         pass "L6-01" "Dynamic team phase reached"
     else
         gk_fail "L6-01" "Dynamic phase not reached"
@@ -441,7 +441,7 @@ print('true' if ok else 'false')
     # Final review happened and is actionable
     FINAL_ITERS=$(echo "$OUTPUT" | grep -oP 'FINAL_REVIEW\|iterations=\K[0-9]+' | head -1)
     FINAL_ITERS=${FINAL_ITERS:-0}
-    if echo "$OUTPUT" | grep -q "FINAL_REVIEW|verdict="; then
+    if grep <<<"$OUTPUT" -q "FINAL_REVIEW|verdict="; then
         pass "C04" "Final review verdict recorded ($FINAL_ITERS iterations)"
     else
         skip "C04" "No final review verdict"
@@ -471,7 +471,7 @@ print('true' if ok else 'false')
 
         OUTPUT2=$(cd "$WORKDIR" && timeout 1800 "$NAAB" --governance-dashboard "living-script.naab" 2>/dev/null) && EXIT2=0 || EXIT2=$?
         GOV_KILL2=$(detect_gov_kill "$EXIT2" "$OUTPUT2")
-        if echo "$OUTPUT2" | grep -q "MEMORY|loaded|runs=1"; then
+        if grep <<<"$OUTPUT2" -q "MEMORY|loaded|runs=1"; then
             pass "L3-03" "Second run loaded prior memory (runs=1)"
         elif [ -n "$GOV_KILL2" ]; then
             skip "L3-03" "Second run governance-killed ($GOV_KILL2) before memory report"

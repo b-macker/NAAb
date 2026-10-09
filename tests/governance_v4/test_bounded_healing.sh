@@ -370,7 +370,7 @@ NEOF
 start_stub "$W/fixture.json" "$W" >/dev/null 2>&1 || true
 
 R4=$(reload_probe coherence_natural_healing 0.02 0.20)
-if echo "$R4" | grep -qi 'coherence_natural_healing.*loosen'; then
+if grep <<<"$R4" -qi 'coherence_natural_healing.*loosen'; then
     pass BH-04 "raising coherence_natural_healing mid-run is a violation"
 else
     fail BH-04 "raising coherence_natural_healing was not refused" \
@@ -378,7 +378,7 @@ else
 fi
 
 R5=$(reload_probe coherence_recovery_amount 0.10 0.50)
-if echo "$R5" | grep -qi 'coherence_recovery_amount.*loosen'; then
+if grep <<<"$R5" -qi 'coherence_recovery_amount.*loosen'; then
     pass BH-05 "raising coherence_recovery_amount mid-run is a violation"
 else
     fail BH-05 "raising coherence_recovery_amount was not refused" \
@@ -387,7 +387,7 @@ fi
 
 # Control: the ratchet must be directional, not a blanket refusal of any change.
 R6=$(reload_probe coherence_natural_healing 0.20 0.02)
-if echo "$R6" | grep -qi 'coherence_natural_healing.*loosen'; then
+if grep <<<"$R6" -qi 'coherence_natural_healing.*loosen'; then
     fail BH-06 "lowering a coherence key was reported as loosening" \
          "the ratchet is refusing every change, not the loosening direction"
 else

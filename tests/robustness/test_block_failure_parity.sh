@@ -74,7 +74,7 @@ run() {  # $1 = engine flag or "", $2 = program text; sets OUT, RC
 
 langs="$(mkdir -p "$W/reg" && printf 'use codegen\nmain {\n    for x in codegen.supported_languages() { print(x) }\n}\n' > "$W/reg/r.naab" \
          && cd "$W/reg" && "$NAAB" r.naab --no-governance 2>/dev/null | tr -d '\r')"
-if ! printf '%s\n' "$langs" | grep -qx sql; then
+if ! grep <<<"$langs" -qx sql; then
     bad BF-00 "could not list the registered languages" "$langs"
     echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"; exit 1
 fi
@@ -85,7 +85,7 @@ for eng in "" --tree-walk; do
     e=${eng:-vm}; e=${e#--}
     run "$eng" $'main {\n    let a = <<sql\nSELECT 41 + 1 AS v\n>>\n    print("SQL_OK")\n}'
     [ $RC -eq 0 ] && [[ "$OUT" == *SQL_OK* ]] || c0+=" sql/$e(rc=$RC)"
-    if printf '%s\n' "$langs" | grep -qx javascript; then
+    if grep <<<"$langs" -qx javascript; then
         run "$eng" $'main {\n    let a = <<javascript\n1 + 1\n>>\n    print("JS=" + a)\n}'
         [ $RC -eq 0 ] && [[ "$OUT" == *"JS=2"* ]] || c0+=" javascript/$e(rc=$RC)"
     fi
@@ -125,7 +125,7 @@ done <<< "$langs"
              || bad BF-02 "a broken statement block was swallowed" "$f2"
 
 # --- BF-03: php runs as php without writing <?php ---
-if ! printf '%s\n' "$langs" | grep -qx php || ! command -v php >/dev/null 2>&1; then
+if ! grep <<<"$langs" -qx php || ! command -v php >/dev/null 2>&1; then
     skip BF-03 "php not registered or not installed -- UNMEASURABLE"
 else
     f3=""; f3c=""
@@ -148,7 +148,7 @@ f4=""; n4=0
 for spec in 'shell|echo "unterminated' 'shell|if true; then' 'shell|foo() {' 'shell|echo ((( open' \
             'ruby|def foo' 'ruby|puts "unterminated' 'node|function f() {' 'node|let a = (1 +'; do
     l="${spec%%|*}"; code="${spec#*|}"
-    printf '%s\n' "$langs" | grep -qx "$l" || continue
+    grep <<<"$langs" -qx "$l" || continue
     for eng in "" --tree-walk; do
         e=${eng:-vm}; e=${e#--}
         start=$SECONDS
@@ -166,7 +166,7 @@ if [ $n4 -eq 0 ]; then skip BF-04 "no persistent-process language registered -- 
 elif [ -z "$f4" ]; then ok BF-04 "incomplete input fails promptly ($n4 cases)"
 else bad BF-04 "incomplete input waited for the timeout, or did not fail" "$f4"; fi
 
-if printf '%s\n' "$langs" | grep -qx shell; then
+if grep <<<"$langs" -qx shell; then
     f4c=""
     for eng in "" --tree-walk; do
         e=${eng:-vm}; e=${e#--}
@@ -181,7 +181,7 @@ else
 fi
 
 # --- BF-05: a C++ statement block prints once ---
-if printf '%s\n' "$langs" | grep -qx cpp && command -v g++ >/dev/null 2>&1; then
+if grep <<<"$langs" -qx cpp && command -v g++ >/dev/null 2>&1; then
     f5=""
     for eng in "" --tree-walk; do
         e=${eng:-vm}; e=${e#--}

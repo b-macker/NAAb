@@ -86,8 +86,8 @@ new_home() {
 EOF
 }
 run_prog() { rm -f "$RAN_MARK" "$TAMPER_MARK"; (cd "$WORK" && HOME="$H" timeout 60 "$NAAB" --tree-walk prog.naab 2>&1 || true); }
-tamper_ran() { [ -e "$TAMPER_MARK" ] || echo "$1" | grep -q "TAMPERED_RAN"; }
-refused() { echo "$1" | grep -qi "tampered\|integrity.*check.*fail\|hash.*mismatch\|code_hash"; }
+tamper_ran() { [ -e "$TAMPER_MARK" ] || grep <<<"$1" -q "TAMPERED_RAN"; }
+refused() { grep <<<"$1" -qi "tampered\|integrity.*check.*fail\|hash.*mismatch\|code_hash"; }
 
 # T0 CONTROL: the untampered block loads and runs -- the harness reaches the
 # block at all. Without it, every refusal below could be a load that never
@@ -95,7 +95,7 @@ refused() { echo "$1" | grep -qi "tampered\|integrity.*check.*fail\|hash.*mismat
 echo "[T0] CONTROL: the untampered block loads and runs"
 new_home t0
 out=$(run_prog)
-if [ -f "$RAN_MARK" ] && echo "$out" | grep -q "PROGRAM_RAN"; then
+if [ -f "$RAN_MARK" ] && grep <<<"$out" -q "PROGRAM_RAN"; then
     ok "untampered block loaded, ran (wrote its marker) and the program continued"
 else
     fail "the untampered block did not run -- the arms below prove nothing: ${out:0:200}"
@@ -124,7 +124,7 @@ printf '%s' "$BLOCK_SOURCE" > "$LIB/python/test_integrity_block.py"
 out=$(run_prog)
 if refused "$out"; then
     fail "false positive integrity error on valid block: ${out:0:200}"
-elif echo "$out" | grep -q "PROGRAM_RAN"; then
+elif grep <<<"$out" -q "PROGRAM_RAN"; then
     ok "valid block loaded without integrity error"
 else
     fail "valid block did not run: ${out:0:200}"
@@ -141,7 +141,7 @@ echo ""
 echo "[T3] Tampering after a clean run (cached metadata) is still rejected"
 new_home t3
 out=$(run_prog)                       # clean run: writes the metadata cache
-if ! echo "$out" | grep -q "PROGRAM_RAN" || [ ! -f "$LIB/.block_cache.json" ]; then
+if ! grep <<<"$out" -q "PROGRAM_RAN" || [ ! -f "$LIB/.block_cache.json" ]; then
     fail "the clean run did not run or wrote no cache -- T3 cannot be judged: ${out:0:200}"
 else
     echo "$TAMPERED_SOURCE" > "$LIB/python/test_integrity_block.py"
