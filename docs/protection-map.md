@@ -209,7 +209,7 @@ Of 323 measured cells as root: 192 contained, 67 no-api, 25 **text-only**,
 39 **open** (plus 27 where the policy permits exec). As an ordinary user: 195
 contained, 25 text-only, 36 open. Before finding 3's fix (2026-10-08) it was
 176 contained and 55 open as root, 180 and 51 as an ordinary user: the 16 (15)
-cells that moved are every subprocess language's env read with shell enabled.
+cells that moved are every OPEN env cell: php, go, cpp, rust, shell and ruby with shell enabled.
 Every TEXT and OPEN cell but four is in a
 column where the project has **enabled** shell; the four are Python's env read
 (every `deny` column) and network at `unrestricted/deny`, both TEXT-only.
