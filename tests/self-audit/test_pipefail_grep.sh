@@ -74,7 +74,7 @@ echo "=== pipefail + grep -q guard ==="
 
 # PG-00 -- the scanner decides its planted cases right.
 ST_OUT="$(python3 "$TOOL" --selftest 2>&1)"; ST_RC=$?
-if [ "$ST_RC" -eq 0 ] && grep -q '0 failed' <<<"$ST_OUT"; then
+if [ "$ST_RC" -eq 0 ] && grep -q ', 0 failed$' <<<"$ST_OUT"; then
     ok "PG-00" "scanner self-test: $(grep 'case(s)' <<<"$ST_OUT")"
 else
     bad "PG-00" "scanner self-test failed (rc=$ST_RC)" "$(grep -v '^ok' <<<"$ST_OUT" | head -5)"
