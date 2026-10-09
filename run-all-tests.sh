@@ -3231,6 +3231,19 @@ else
     echo "  test_env_scrub_polyglot.sh: not found, skipping"
 fi
 
+SEC_SUBPROCESS_ENV_SCRUB_SCRIPT="tests/security/test_subprocess_env_scrub.sh"
+if [ -f "$SEC_SUBPROCESS_ENV_SCRUB_SCRIPT" ]; then
+    if run_shell_test "$SEC_SUBPROCESS_ENV_SCRUB_SCRIPT" 2>&1; then
+        echo "  test_subprocess_env_scrub.sh: ALL PASSED"
+    else
+        echo "  test_subprocess_env_scrub.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_subprocess_env_scrub.sh")
+    fi
+else
+    echo "  test_subprocess_env_scrub.sh: not found, skipping"
+fi
+
 SEC_ERROR_MSG_LEAKS_SCRIPT="tests/security/test_error_msg_leaks.sh"
 if [ -f "$SEC_ERROR_MSG_LEAKS_SCRIPT" ]; then
     if run_shell_test "$SEC_ERROR_MSG_LEAKS_SCRIPT" 2>&1; then

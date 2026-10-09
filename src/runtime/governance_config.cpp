@@ -6095,26 +6095,12 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         // EVA-11/EVA-12: Enforce minimum levels for anti-evasion checks
         enforceMinimumLevels(*new_rules);
 
-        // V-SC-006-ext: Apply subprocess env scrub policy from capabilities.env_vars
-        {
-            const auto& ev = new_rules->capabilities.env_vars;
-            runtime::EnvScrubPolicy policy;
-            if (!ev.subprocess_scrub_mode.empty() ||
-                !ev.blocked_subprocess_prefixes.empty() ||
-                !ev.blocked_subprocess_vars.empty() ||
-                !ev.allowed_subprocess_vars.empty()) {
-                policy.active = true;
-                if (ev.subprocess_scrub_mode == "allowlist") {
-                    policy.mode = runtime::EnvScrubMode::ALLOWLIST;
-                    policy.allowed_vars = ev.allowed_subprocess_vars;
-                } else {
-                    policy.mode = runtime::EnvScrubMode::BLOCKLIST;
-                    policy.blocked_vars = ev.blocked_subprocess_vars;
-                    policy.blocked_prefixes = ev.blocked_subprocess_prefixes;
-                }
-                runtime::setEnvScrubPolicy(policy);
-            }
-        }
+        // V-SC-006-ext: the subprocess env scrub policy is NOT copied out of
+        // these rules any more. runtime::currentEnvScrubPolicy() reads
+        // capabilities.env_vars from the calling thread's engine at every
+        // spawn, so a mid-run reload, an --env selection and a VM async worker
+        // all see the live policy. The copy this block used to make was
+        // thread_local and set once, here, on the loading thread.
 
         // Configure behavioral sequence + context drift detectors
         if (new_rules->behavioral_sequences.enabled) {

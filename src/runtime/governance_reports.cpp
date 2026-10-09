@@ -896,6 +896,10 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
         std::vector<char> env_block;
         LPVOID env_ptr = nullptr;
         if (!hook.inherit_governance_keys) {
+            // Hook scope: a hook is the operator's command, so blocked_read
+            // (program-facing) is not applied to it; the subprocess lists are.
+            const naab::runtime::EnvScrubPolicy hook_policy =
+                naab::runtime::currentEnvScrubPolicy(naab::runtime::EnvScrubScope::Hook);
             LPCH cur_env = ::GetEnvironmentStringsA();
             if (cur_env) {
                 for (LPCH p = cur_env; *p; ) {
@@ -904,7 +908,7 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
                     size_t eq = entry.find('=');
                     if (eq != std::string::npos) {
                         std::string key = entry.substr(0, eq);
-                        if (naab::runtime::shouldScrubEnvVar(key)) continue;
+                        if (naab::runtime::shouldScrubEnvVar(hook_policy, key)) continue;
                     }
                     for (char c : entry) env_block.push_back(c);
                     env_block.push_back('\0');
