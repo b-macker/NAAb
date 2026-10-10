@@ -5,7 +5,7 @@
 #include "naab/interpreter.h"  // For Value definition
 #include "naab/sandbox.h"      // For security sandbox
 #include "naab/resource_limits.h"
-#include "naab/subprocess_helpers.h"  // For getEnvScrubPolicy(), shouldScrubEnvVar()
+#include "naab/subprocess_helpers.h"  // buildChildEnvironment(), execCandidates(), currentEnvScrubPolicy()
 #include <cstring>       // For strerror
 #include <cerrno>        // For errno
 #include <climits>       // For INT_MIN, INT_MAX
@@ -74,6 +74,31 @@ bool PersistentProcessExecutor::start() {
             language_id_, strerror(errno)));
     }
 
+    // The child's environment is built HERE, before fork(): the scrub policy
+    // (NAAb secrets, blocked_read, the subprocess lists) and the containment
+    // layers that edit the environment -- L5 proxy stripping when network is
+    // disabled; L1/L6 only when exec is withheld, where this executor refuses
+    // to run anyway. The rlimit layers are NOT applied: this child is
+    // long-lived and serves every block of the run, so RLIMIT_CPU would kill
+    // it mid-run. Scrubbing used to happen in the child after fork(), which
+    // allocates and is not async-signal-safe (e5545b38 fixed that shape in
+    // execute_subprocess_with_pipes() only), and proxy stripping did not
+    // happen at all, so a <<shell>> child saw HTTPS_PROXY with network off.
+    const SubprocessContainment env_containment =
+        SubprocessContainment::fromCurrentSandbox(command_);
+    const std::vector<std::string> env_strings = buildChildEnvironment(
+        currentEnvScrubPolicy(EnvScrubScope::Program), &env_containment);
+    std::vector<char*> envp;
+    envp.reserve(env_strings.size() + 1);
+    for (const auto& kv : env_strings) envp.push_back(const_cast<char*>(kv.c_str()));
+    envp.push_back(nullptr);
+    const std::vector<std::string> exec_candidates = execCandidates(command_, env_strings);
+    // argv for execve: argv[0] = command, argv[1..n] = args_, argv[n+1] = nullptr
+    std::vector<char*> argv;
+    argv.push_back(const_cast<char*>(command_.c_str()));
+    for (const auto& arg : args_) argv.push_back(const_cast<char*>(arg.c_str()));
+    argv.push_back(nullptr);
+
     pid_t pid = fork();
     if (pid < 0) {
         // Fork failed — close all pipe fds
@@ -87,29 +112,7 @@ bool PersistentProcessExecutor::start() {
 
     if (pid == 0) {
         // === Child process ===
-        // V-SC-006: Scrub NAAb internal secrets from child environment
-        unsetenv("NAAB_GOVERN_KEY");
-        unsetenv("NAAB_LOCK_KEY");
-        unsetenv("NAAB_SIGNING_KEY");
-
-        // V-SC-006-ext: Apply env scrub policy (blocked_subprocess_vars)
-        // Must collect keys first — unsetenv() compacts environ, invalidating iterators
-        {
-            std::vector<std::string> keys_to_scrub;
-            for (char** e = environ; *e != nullptr; ++e) {
-                std::string_view entry(*e);
-                auto eq = entry.find('=');
-                if (eq != std::string_view::npos) {
-                    std::string key(entry.substr(0, eq));
-                    if (shouldScrubEnvVar(key)) {
-                        keys_to_scrub.push_back(key);
-                    }
-                }
-            }
-            for (const auto& key : keys_to_scrub) {
-                unsetenv(key.c_str());
-            }
-        }
+        // Environment: built in the parent (envp above); nothing here touches it.
 
         // Close unused pipe ends
         close(stdin_pipe[1]);   // Parent's write end
@@ -126,16 +129,11 @@ bool PersistentProcessExecutor::start() {
         close(stdout_pipe[1]);
         close(stderr_pipe[1]);
 
-        // Build argv for execvp
-        // argv[0] = command, argv[1..n] = args_, argv[n+1] = nullptr
-        std::vector<char*> argv;
-        argv.push_back(const_cast<char*>(command_.c_str()));
-        for (const auto& arg : args_) {
-            argv.push_back(const_cast<char*>(arg.c_str()));
+        // As execvp() would, but with the environment built above: try each
+        // PATH candidate in turn (argv/envp were prepared before fork()).
+        for (const auto& cand : exec_candidates) {
+            execve(cand.c_str(), argv.data(), envp.data());
         }
-        argv.push_back(nullptr);
-
-        execvp(command_.c_str(), argv.data());
 
         // If we get here, exec failed
         // Write error to stderr (which parent can read)

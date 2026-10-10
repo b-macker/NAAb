@@ -159,7 +159,7 @@
       "allow_backgrounding": false,
       "max_execution_time": 0
     },
-    "_comment_env_vars": "Environment variable access control — enforced at runtime in all env.get/set/has/list functions. read=false blocks all reads (HARD). blocked_read: case-insensitive blocklist (HARD — env.get() throws, env.has() returns false, env.list()/get_all() filters). allowed_read: if non-empty, only listed vars are readable (SOFT). write=false blocks all writes (HARD). blocked_write/allowed_write: same semantics for env.set_var()/delete_var()/load_dotenv(). All four arrays participate in extends/merge_arrays inheritance.",
+    "_comment_env_vars": "Environment variable access control — enforced at runtime in all env.get/set/has/list functions. read=false blocks all reads (HARD). blocked_read: case-insensitive blocklist (HARD — env.get() throws, env.has() returns false, env.list()/get_all() filters; in enforce mode the variable is also withheld from every child process the program starts — polyglot blocks, process.run, async fn children, embedded Python's os.environ — but not from operator hooks). allowed_read: if non-empty, only listed vars are readable (SOFT). write=false blocks all writes (HARD). blocked_write/allowed_write: same semantics for env.set_var()/delete_var()/load_dotenv(). All four arrays participate in extends/merge_arrays inheritance.",
     "env_vars": {
       "read": true,
       "write": false,
@@ -167,7 +167,7 @@
       "blocked_read": ["AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN"],
       "allowed_write": [],
       "blocked_write": ["PATH", "HOME", "LD_PRELOAD"],
-      "_comment_subprocess_scrub": "Subprocess environment scrubbing (V-SC-006-ext) for polyglot child processes. All four keys empty (the default) = only NAAb's own secrets (NAAB_GOVERN_KEY, NAAB_LOCK_KEY, NAAB_SIGNING_KEY) are removed. Setting any of them activates a policy. Read ONLY here, under capabilities.env_vars: the same keys at the top level of govern.json are ignored, with no warning.",
+      "_comment_subprocess_scrub": "Subprocess environment scrubbing (V-SC-006-ext) for polyglot child processes. All four keys empty (the default) = only NAAb's own secrets (NAAB_GOVERN_KEY, NAAB_LOCK_KEY, NAAB_SIGNING_KEY) and, in enforce mode, blocked_read are removed. Setting any of them activates a policy. Read ONLY here, under capabilities.env_vars: the same keys at the top level of govern.json are ignored, with no warning.",
       "_comment_subprocess_scrub_mode": "\"allowlist\" = pass only allowed_subprocess_vars plus essentials (PATH, HOME, LANG, TERM, TMPDIR, USER, SHELL, ...); any other value = blocklist using blocked_subprocess_vars and blocked_subprocess_prefixes.",
       "subprocess_scrub_mode": "",
       "_comment_allowed_subprocess_vars": "allowlist mode only: exact variable names passed through to the child.",

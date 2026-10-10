@@ -15,6 +15,17 @@
 #include <sstream>
 #include <string>
 #include <algorithm>
+#include <cctype>   // std::toupper (blocked_read is matched case-insensitively)
+#include <cstdlib>
+#if defined(_WIN32)
+#  define NAAB_PY_ENVIRON _environ
+#elif defined(__APPLE__)
+#  include <crt_externs.h>
+#  define NAAB_PY_ENVIRON (*_NSGetEnviron())
+#else
+extern char **environ;
+#  define NAAB_PY_ENVIRON environ
+#endif
 
 #ifndef _WIN32
 #  include <sys/resource.h>  // For setrlimit/getrlimit (RLIMIT_NPROC containment)
@@ -204,7 +215,18 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
     // Always scrub NAAb internal secrets; additionally apply policy-based scrubbing
     bool env_scrub_applied = true;
     {
-        const auto& policy = runtime::getEnvScrubPolicy();
+        const runtime::EnvScrubPolicy policy = runtime::currentEnvScrubPolicy();
+        // Names come from govern.json and go into Python source as string
+        // literals, so they are escaped rather than pasted in.
+        auto pyStr = [](const std::string& v) {
+            std::string out = "'";
+            for (char ch : v) {
+                if (ch == '\\' || ch == '\'') out += '\\';
+                if (ch == '\n' || ch == '\r') continue;
+                out += ch;
+            }
+            return out + "'";
+        };
         std::ostringstream scrub_code;
         scrub_code << "import os as _naab_os\n"
                    << "_naab_saved_env = {}\n"
@@ -212,6 +234,29 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
                    << "for _k in ['NAAB_GOVERN_KEY','NAAB_LOCK_KEY','NAAB_SIGNING_KEY']:\n"
                    << "    if _k in _naab_os.environ:\n"
                    << "        _naab_saved_env[_k] = _naab_os.environ.pop(_k)\n";
+
+        // blocked_read (enforce mode): the block may not read what env.get()
+        // may not, matched case-insensitively as checkEnvVarRead() does.
+        if (!policy.read_blocked_vars.empty()) {
+            for (char** e = NAAB_PY_ENVIRON; e && *e != nullptr; ++e) {
+                std::string entry(*e);
+                auto eq = entry.find('=');
+                if (eq == std::string::npos) continue;
+                std::string key = entry.substr(0, eq);
+                if (runtime::isReadBlockedEnvVar(policy, key)) runtime::noteWithheldEnvVar(key);
+            }
+            scrub_code << "_naab_read_blocked = set([";
+            for (const auto& v : policy.read_blocked_vars) {
+                std::string upper = v;
+                for (auto& ch : upper) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+                scrub_code << pyStr(upper) << ",";
+            }
+            scrub_code << "])\n"
+                       << "for _k in list(_naab_os.environ.keys()):\n"
+                       << "    if _k.upper() in _naab_read_blocked and _k not in _naab_saved_env:\n"
+                       << "        _naab_saved_env[_k] = _naab_os.environ.pop(_k)\n"
+                       << "del _naab_read_blocked\n";
+        }
 
         if (policy.active) {
             if (policy.mode == runtime::EnvScrubMode::ALLOWLIST) {
@@ -224,7 +269,7 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
                     scrub_code << "'" << v << "',";
                 }
                 for (const auto& v : policy.allowed_vars) {
-                    scrub_code << "'" << v << "',";
+                    scrub_code << pyStr(v) << ",";
                 }
                 scrub_code << "])\n"
                            << "for _k in list(_naab_os.environ.keys()):\n"
@@ -235,12 +280,12 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
                 // Blocklist: remove specific vars and prefixes
                 scrub_code << "_naab_blocked = set([";
                 for (const auto& v : policy.blocked_vars) {
-                    scrub_code << "'" << v << "',";
+                    scrub_code << pyStr(v) << ",";
                 }
                 scrub_code << "])\n"
                            << "_naab_prefixes = [";
                 for (const auto& p : policy.blocked_prefixes) {
-                    scrub_code << "'" << p << "',";
+                    scrub_code << pyStr(p) << ",";
                 }
                 scrub_code << "]\n"
                            << "for _k in list(_naab_os.environ.keys()):\n"

@@ -1,14 +1,17 @@
 // NAAb Subprocess Helpers Implementation
 // Contains common utility functions for executing subprocesses
 //
-// Uses fork()/execvp() for subprocess execution. This avoids shell
-// interpretation entirely, preventing command injection vulnerabilities.
-// Arguments are passed directly to the kernel via execvp's argv array.
+// Uses fork()/execve() for subprocess execution, trying each PATH candidate
+// as execvp() would (execCandidates). This avoids shell interpretation
+// entirely, preventing command injection vulnerabilities: arguments are passed
+// directly to the kernel via the argv array.
 
 #include "naab/subprocess_helpers.h"
 #include "naab/sandbox.h"           // For ScopedSandbox::getCurrent(), SandboxConfig
 #include "naab/paths.h"
 #include "naab/resource_limits.h"  // V-RT-003: isTimeoutTriggered() for orphan prevention
+#include "naab/governance.h"       // currentEnvScrubPolicy(): the thread's engine and its live rules
+#include <cctype>       // std::toupper (case-insensitive blocked_read match)
 #include <cstdio>       // For FILE, fopen, fclose, fprintf
 #include <fmt/core.h>   // For fmt::format
 #include <sstream>      // For std::ostringstream
@@ -46,26 +49,80 @@ namespace naab {
 namespace runtime {
 
 // --- Environment Scrubbing Policy (V-SC-006-ext) ---
-static thread_local EnvScrubPolicy t_env_scrub_policy;
+//
+// The policy is read from the governance engine bound to the calling thread,
+// every time a child is about to start. It used to be a thread_local copy that
+// loadFromFile() set once, on the thread that loaded the config: a VM async fn
+// (its own thread) got no scrubbing at all, and a mid-run reload never reached
+// it. The engine is already carried to the threads that start children (VM
+// async workers, agent pool workers), and its rules are the live ones, so
+// reading them here needs no copy to keep in step. The async polyglot pool
+// carries only the sandbox, but the only language dispatched to it is
+// QuickJS JavaScript, which has no process or environment API.
 
-void setEnvScrubPolicy(const EnvScrubPolicy& policy) {
-    t_env_scrub_policy = policy;
+static bool equalsIgnoreCase(const std::string& a, const std::string& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (std::toupper(static_cast<unsigned char>(a[i])) !=
+            std::toupper(static_cast<unsigned char>(b[i]))) return false;
+    }
+    return true;
 }
 
-const EnvScrubPolicy& getEnvScrubPolicy() {
-    return t_env_scrub_policy;
+EnvScrubPolicy currentEnvScrubPolicy(EnvScrubScope scope) {
+    EnvScrubPolicy policy;
+    // Not gated on engine->isActive(): that is false in mode "off", and the
+    // subprocess lists applied in every mode when they were copied out at load.
+    // Gating here would silently stop scrubbing for a config that keeps its
+    // lists while governance is off. blocked_read has its own mode test below.
+    auto* engine = governance::GovernanceEngine::getCurrent();
+    if (!engine) return policy;
+    auto rules = engine->getRulesPtr();
+    if (!rules) return policy;
+    const auto& ev = rules->capabilities.env_vars;
+    if (!ev.subprocess_scrub_mode.empty() ||
+        !ev.blocked_subprocess_prefixes.empty() ||
+        !ev.blocked_subprocess_vars.empty() ||
+        !ev.allowed_subprocess_vars.empty()) {
+        policy.active = true;
+        if (ev.subprocess_scrub_mode == "allowlist") {
+            policy.mode = EnvScrubMode::ALLOWLIST;
+            policy.allowed_vars = ev.allowed_subprocess_vars;
+        } else {
+            policy.mode = EnvScrubMode::BLOCKLIST;
+            policy.blocked_vars = ev.blocked_subprocess_vars;
+            policy.blocked_prefixes = ev.blocked_subprocess_prefixes;
+        }
+    }
+    // blocked_read follows env.get(): enforced in enforce mode, observed (not
+    // applied) in audit mode, nothing when off.
+    if (scope == EnvScrubScope::Program && rules->mode == governance::GovernanceMode::ENFORCE) {
+        policy.read_blocked_vars = ev.blocked_read;
+    }
+    return policy;
 }
 
-// Check if an env var key should be scrubbed based on the active policy.
-// Always scrubs NAAb internals. When policy is active, applies additional filtering.
-bool shouldScrubEnvVar(const std::string& key) {
+bool isReadBlockedEnvVar(const EnvScrubPolicy& policy, const std::string& key) {
+    for (const auto& blocked : policy.read_blocked_vars) {
+        if (equalsIgnoreCase(key, blocked)) return true;
+    }
+    return false;
+}
+
+// Check if an env var key should be scrubbed under `policy`.
+// Always scrubs NAAb internals and blocked_read; the subprocess lists apply
+// when the policy is active.
+bool shouldScrubEnvVar(const EnvScrubPolicy& policy, const std::string& key) {
     // Always scrub NAAb-internal secrets
     static const std::unordered_set<std::string> NAAB_SECRETS = {
         "NAAB_GOVERN_KEY", "NAAB_LOCK_KEY", "NAAB_SIGNING_KEY"
     };
     if (NAAB_SECRETS.count(key)) return true;
 
-    const auto& policy = t_env_scrub_policy;
+    // Deny wins: a blocked_read variable is withheld even when the allowlist
+    // below names it.
+    if (isReadBlockedEnvVar(policy, key)) return true;
+
     if (!policy.active) return false;
 
     if (policy.mode == EnvScrubMode::ALLOWLIST) {
@@ -77,7 +134,7 @@ bool shouldScrubEnvVar(const std::string& key) {
             "XDG_RUNTIME_DIR", "ANDROID_ROOT", "ANDROID_DATA",
             "PREFIX"
             // LD_LIBRARY_PATH intentionally excluded — loader hijack vector.
-            // Safe value set in apply_posix_containment() instead.
+            // L6 in buildChildEnvironment() sets the safe value where needed.
         };
         if (ESSENTIAL.count(key)) return false;
         for (const auto& allowed : policy.allowed_vars) {
@@ -97,6 +154,18 @@ bool shouldScrubEnvVar(const std::string& key) {
         }
     }
     return false;
+}
+
+void noteWithheldEnvVar(const std::string& key) {
+    static std::mutex mu;
+    static std::unordered_set<std::string> noted;
+    {
+        std::lock_guard<std::mutex> lock(mu);
+        if (!noted.insert(key).second) return;
+    }
+    fprintf(stderr,
+            "[governance] Withheld environment variable %s from a child process: "
+            "reading it is blocked by policy\n", key.c_str());
 }
 
 // Helper to read entire file contents into a string
@@ -184,31 +253,90 @@ static void apply_posix_containment(const SubprocessContainment& c) {
         setrlimit(RLIMIT_CPU, &rl);
     }
 
-    // L1: PATH restriction — strip to interpreter dir only
-    if (c.restrict_path && !c.interpreter_dir.empty()) {
-        setenv("PATH", c.interpreter_dir.c_str(), 1);
-    }
+    // L1 (PATH), L6 (LD_LIBRARY_PATH) and L5 (proxy variables) edit the
+    // ENVIRONMENT, so they are applied by buildChildEnvironment() in the parent
+    // and reach the child through execve()'s envp. They used to be setenv()/
+    // unsetenv() calls here, which execve() ignored whenever a prebuilt envp was
+    // passed -- i.e. whenever any env scrub policy was active.
+}
 
-    // L6: LD_LIBRARY_PATH restriction — scrub inherited, set safe default on Termux
-    if (c.restrict_path) {
-#ifdef __ANDROID__
-        const char* prefix = getenv("PREFIX");
-        if (prefix) {
-            std::string safe_ldpath = std::string(prefix) + "/lib";
-            setenv("LD_LIBRARY_PATH", safe_ldpath.c_str(), 1);
-        } else {
-            unsetenv("LD_LIBRARY_PATH");
+// See the declaration in subprocess_helpers.h.
+std::vector<std::string> buildChildEnvironment(
+    const EnvScrubPolicy& policy,
+    const SubprocessContainment* c,
+    const std::map<std::string, std::string>* overrides) {
+    static const std::unordered_set<std::string> kProxyVars = {
+        "http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY",
+        "ALL_PROXY", "no_proxy", "NO_PROXY"
+    };
+    const bool restrict_path = c && c->restrict_path;
+    const bool replace_path = restrict_path && !c->interpreter_dir.empty();
+    std::vector<std::string> out;
+    for (char** e = environ; *e != nullptr; ++e) {
+        std::string_view entry(*e);
+        auto eq = entry.find('=');
+        if (eq == std::string_view::npos) { out.emplace_back(entry); continue; }
+        std::string key(entry.substr(0, eq));
+        if (shouldScrubEnvVar(policy, key)) {
+            if (isReadBlockedEnvVar(policy, key)) noteWithheldEnvVar(key);
+            continue;
         }
-#else
-        unsetenv("LD_LIBRARY_PATH");
-#endif
+        if (overrides && overrides->count(key) > 0) continue;  // replaced below
+        if (key == "PATH" && replace_path) continue;           // L1, added below
+        if (key == "LD_LIBRARY_PATH" && restrict_path) continue;  // L6, below
+        if (c && c->strip_network_env && kProxyVars.count(key)) continue;  // L5
+        out.emplace_back(entry);
     }
+    // L1: PATH restriction -- the interpreter's own directory only.
+    if (replace_path) out.push_back("PATH=" + c->interpreter_dir);
+    // L6: no inherited LD_LIBRARY_PATH (loader hijack); Termux needs its own.
+#ifdef __ANDROID__
+    if (restrict_path) {
+        if (const char* prefix = getenv("PREFIX")) {
+            out.push_back("LD_LIBRARY_PATH=" + std::string(prefix) + "/lib");
+        }
+    }
+#endif
+    if (overrides) {
+        for (const auto& kv : *overrides) out.push_back(kv.first + "=" + kv.second);
+    }
+    return out;
+}
 
-    // L5: Network env stripping — remove proxy vars
-    if (c.strip_network_env) {
-        for (const char* v : {"http_proxy","https_proxy","HTTP_PROXY",
-                              "HTTPS_PROXY","ALL_PROXY","no_proxy","NO_PROXY"})
-            unsetenv(v);
+// See the declaration in subprocess_helpers.h.
+std::vector<std::string> execCandidates(const std::string& command,
+                                        const std::vector<std::string>& env) {
+    if (command.empty() || command.find('/') != std::string::npos) return {command};
+    std::string path = "/bin:/usr/bin";  // execvp's default when PATH is unset
+    for (const auto& kv : env) {
+        if (kv.compare(0, 5, "PATH=") == 0) { path = kv.substr(5); break; }
+    }
+    std::vector<std::string> out;
+    size_t start = 0;
+    while (true) {
+        size_t colon = path.find(':', start);
+        std::string dir = path.substr(start, colon == std::string::npos ? std::string::npos : colon - start);
+        out.push_back(dir.empty() ? command : dir + "/" + command);
+        if (colon == std::string::npos) break;
+        start = colon + 1;
+    }
+    return out;
+}
+
+// Child side of execCandidates(): try each candidate as execvp() would --
+// moving on when a candidate is missing or not executable, and running a file
+// with no recognised format through /bin/sh (execvp's ENOEXEC fallback).
+// Called between fork() and exec, so it only uses what the parent prepared:
+// `sh_argv` is {"/bin/sh", <slot>, args..., nullptr} with slot 1 free.
+static void execFirstCandidate(const std::vector<std::string>& candidates,
+                               char* const* argv, char* const* envp,
+                               std::vector<const char*>& sh_argv) {
+    for (const auto& cand : candidates) {
+        execve(cand.c_str(), argv, envp);
+        if (errno == ENOEXEC) {
+            sh_argv[1] = cand.c_str();
+            execve("/bin/sh", const_cast<char* const*>(sh_argv.data()), envp);
+        }
     }
 }
 #endif // !_WIN32
@@ -443,6 +571,7 @@ int execute_subprocess_with_pipes(
     LPVOID env_ptr = nullptr;
     {
         // Start with current process environment, filtering secrets
+        const EnvScrubPolicy scrub_policy = currentEnvScrubPolicy(EnvScrubScope::Program);
         LPCH cur_env = ::GetEnvironmentStringsA();
         if (cur_env) {
             for (LPCH p = cur_env; *p; ) {
@@ -452,7 +581,10 @@ int execute_subprocess_with_pipes(
                 if (eq != std::string::npos) {
                     std::string key = entry.substr(0, eq);
                     // V-SC-006-ext: Scrub based on active env scrub policy
-                    if (shouldScrubEnvVar(key)) continue;
+                    if (shouldScrubEnvVar(scrub_policy, key)) {
+                        if (isReadBlockedEnvVar(scrub_policy, key)) noteWithheldEnvVar(key);
+                        continue;
+                    }
                     // Skip keys that custom env overrides
                     if (env && !env->empty() && env->count(key) > 0) continue;
                     // Containment-aware filtering (L1/L5)
@@ -677,36 +809,26 @@ int execute_subprocess_with_pipes(
     }
     argv.push_back(nullptr);
 
-    // Build envp array — always filter when env scrub policy is active (V-SC-006-ext)
-    std::vector<std::string> env_strings;
+    // The child's whole environment is built HERE, before fork(): the scrub
+    // policy (NAAb secrets, blocked_read, the subprocess lists) and the
+    // containment edits (L1/L5/L6) all land in envp, and the command is looked
+    // up on THAT environment's PATH. The child only execve()s. Two paths used
+    // to exist -- execvp() with the inherited environment, or execve() with a
+    // filtered envp whenever a scrub policy was active -- and the second did
+    // no PATH search (bare names exited 127) and dropped the containment edits.
+    const EnvScrubPolicy scrub_policy = currentEnvScrubPolicy(EnvScrubScope::Program);
+    const std::vector<std::string> env_strings =
+        buildChildEnvironment(scrub_policy, containment, env && !env->empty() ? env : nullptr);
     std::vector<const char*> envp;
-    bool use_custom_env = (env && !env->empty()) || t_env_scrub_policy.active;
-    {
-        // Inherit current environment, filtering per active scrub policy
-        for (char** e = environ; *e != nullptr; ++e) {
-            std::string_view entry(*e);
-            auto eq = entry.find('=');
-            if (eq != std::string_view::npos) {
-                std::string key(entry.substr(0, eq));
-                if (shouldScrubEnvVar(key)) continue;
-                // Skip keys that custom env overrides
-                if (env && !env->empty() && env->count(key) > 0) continue;
-            }
-            env_strings.push_back(*e);
-        }
-        // Add/override with custom vars
-        if (env && !env->empty()) {
-            for (const auto& pair : *env) {
-                env_strings.push_back(pair.first + "=" + pair.second);
-            }
-        }
-        if (use_custom_env) {
-            for (const auto& s : env_strings) {
-                envp.push_back(s.c_str());
-            }
-            envp.push_back(nullptr);
-        }
-    }
+    envp.reserve(env_strings.size() + 1);
+    for (const auto& s : env_strings) envp.push_back(s.c_str());
+    envp.push_back(nullptr);
+    const std::vector<std::string> exec_candidates = execCandidates(command_path, env_strings);
+    std::vector<const char*> sh_argv;  // execvp's ENOEXEC fallback: /bin/sh <file> args...
+    sh_argv.push_back("/bin/sh");
+    sh_argv.push_back(nullptr);  // slot filled with the candidate in the child
+    for (const auto& arg : args) sh_argv.push_back(arg.c_str());
+    sh_argv.push_back(nullptr);
 
     // Fork and exec (avoids shell interpretation — no command injection possible)
     pid_t pid = fork();
@@ -723,12 +845,8 @@ int execute_subprocess_with_pipes(
     if (pid == 0) {
         // === ASYNC-SIGNAL-SAFETY ===
         // Between fork() and exec(), only async-signal-safe functions are safe.
-        // dup2, close, setrlimit, prctl, execve/execvp, _exit are all safe.
-        // unsetenv is technically not async-signal-safe, but these 3 calls on
-        // constant strings have near-zero practical risk (no allocation in glibc).
-        unsetenv("NAAB_GOVERN_KEY");
-        unsetenv("NAAB_LOCK_KEY");
-        unsetenv("NAAB_SIGNING_KEY");
+        // dup2, close, setrlimit, prctl, execve, _exit are all safe. Nothing
+        // here touches the environment: envp was built in the parent.
 
         // OS-level containment (post-fork, pre-exec)
         // setrlimit/prctl only affect this child — parent is unaffected.
@@ -742,14 +860,9 @@ int execute_subprocess_with_pipes(
         close(stdout_fd);
         close(stderr_fd);
 
-        if (use_custom_env) {
-            execve(command_path.c_str(),
-                   const_cast<char* const*>(argv.data()),
-                   const_cast<char* const*>(envp.data()));
-        } else {
-            execvp(command_path.c_str(),
-                   const_cast<char* const*>(argv.data()));
-        }
+        execFirstCandidate(exec_candidates,
+                           const_cast<char* const*>(argv.data()),
+                           const_cast<char* const*>(envp.data()), sh_argv);
         // exec failed
         _exit(127);
     }

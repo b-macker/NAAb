@@ -33,6 +33,14 @@
 # an ABSOLUTE path (e.g. asserting on absolute-path policy), because there a
 # relative path would not test the thing named.
 #
+# THE OTHER DIRECTION: a path the BINARY PRINTS is in its own vocabulary, and
+# native_path() does not translate it back. naab-lang builds paths with
+# std::filesystem, so under MSYS2 it prints D:\a\...\govern.json -- matching
+# that against "$dir/govern.json" OR against native_path "$dir" (D:/a/...)
+# fails, and an "is this my config?" probe reads every arm as not loaded
+# (test_subprocess_env_scrub.sh on build-windows). Match on something
+# vocabulary-free -- a unique basename, with backslashes folded to slashes.
+#
 # -m and not -w: cygpath -m yields C:/… with FORWARD slashes, which survives
 # being pasted into a NAAb string literal. -w yields backslashes, which the
 # lexer reads as escapes.

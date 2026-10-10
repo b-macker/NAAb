@@ -31,16 +31,39 @@ struct EnvScrubPolicy {
     std::vector<std::string> blocked_prefixes;
     // ALLOWLIST mode: only these vars are passed through (plus PATH, HOME, LANG, TERM, TMPDIR)
     std::vector<std::string> allowed_vars;
-    bool active = false;  // false = use default 3-var scrub only
+    bool active = false;  // false = the subprocess lists above are not in use
+    // capabilities.env_vars.blocked_read, in enforce mode only. Withheld from
+    // every child the PROGRAM starts, whatever `mode` says and even when
+    // `active` is false: a variable env.get() may not read must not be
+    // readable through `<<shell>>` or process.run("printenv") instead.
+    // Matched case-insensitively, as checkEnvVarRead() matches it.
+    std::vector<std::string> read_blocked_vars;
 };
 
-// Set/get the env scrub policy (thread-local, set by governance engine)
-void setEnvScrubPolicy(const EnvScrubPolicy& policy);
-const EnvScrubPolicy& getEnvScrubPolicy();
+// Who the child is started for. A HOOK is a command the operator configured
+// in govern.json, not program code, so blocked_read does not apply to it (a
+// hook may need the token a script must not read); the subprocess lists do.
+enum class EnvScrubScope { Program, Hook };
 
-// Check if an env var key should be scrubbed based on the active policy.
-// Used by both execute_subprocess_with_pipes() and PersistentProcessExecutor.
-bool shouldScrubEnvVar(const std::string& key);
+// The policy for a child started from THIS thread, read live from the
+// governance engine bound to the thread (GovernanceEngine::getCurrent()), so a
+// mid-run reload, --env selection or role edit is seen by the next spawn. A
+// thread with no engine gets the default (NAAb secrets only). It used to be a
+// separate thread_local copy set once by loadFromFile(), so a VM async fn's
+// children were never scrubbed and a reload never reached the policy.
+EnvScrubPolicy currentEnvScrubPolicy(EnvScrubScope scope = EnvScrubScope::Program);
+
+// Check if an env var key should be scrubbed under `policy`. NAAb's own
+// secrets (NAAB_GOVERN_KEY, NAAB_LOCK_KEY, NAAB_SIGNING_KEY) always are.
+bool shouldScrubEnvVar(const EnvScrubPolicy& policy, const std::string& key);
+
+// True when `key` is withheld because of blocked_read (not the other lists).
+bool isReadBlockedEnvVar(const EnvScrubPolicy& policy, const std::string& key);
+
+// Print, once per process per variable, that a blocked_read variable was
+// withheld from a child -- its NAME only, never its value. Without it, a CLI
+// tool that loses a credential (aws, gh) fails with its own unrelated error.
+void noteWithheldEnvVar(const std::string& key);
 
 // --- OS-Level Subprocess Containment ---
 // Applied post-fork/pre-exec (POSIX) or via per-child Job Object (Windows).
@@ -63,6 +86,30 @@ struct SubprocessContainment {
     // Factory: build from current ScopedSandbox + command path
     static SubprocessContainment fromCurrentSandbox(const std::string& command_path);
 };
+
+// The complete environment ("KEY=value" strings) for a child, built in the
+// PARENT before fork(): the inherited environment minus what `policy`
+// scrubs, with the containment layers that edit the environment applied --
+// L1 PATH restriction, L6 LD_LIBRARY_PATH, L5 proxy stripping -- and then
+// `overrides`, which win over inherited keys. The child must be started with
+// exactly this environment (execve). The containment edits used to be
+// setenv()/unsetenv() calls in the child, and whenever a scrub policy was
+// active the child was started with a prebuilt envp that ignored them, so
+// turning env hardening ON switched proxy stripping OFF. Every withheld
+// blocked_read variable is reported through noteWithheldEnvVar().
+std::vector<std::string> buildChildEnvironment(
+    const EnvScrubPolicy& policy,
+    const SubprocessContainment* containment,
+    const std::map<std::string, std::string>* overrides = nullptr);
+
+// Where execvp() would look for `command` given the child's environment `env`:
+// `command` itself when it contains a '/', else each PATH entry joined with it
+// (an empty entry means the current directory; no PATH means "/bin:/usr/bin").
+// The child execve()s each in turn, as execvp() does. Starting a bare name
+// through execve() alone does no PATH search at all -- that is how setting a
+// scrub key made php, go and process.run("printenv") exit 127.
+std::vector<std::string> execCandidates(const std::string& command,
+                                        const std::vector<std::string>& env);
 
 // The version line of a runtime BINARY, for runtime_versions pins: runs
 // `binary args...` (e.g. "node --version") and returns the first non-empty
