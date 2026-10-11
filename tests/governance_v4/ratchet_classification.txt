@@ -1,0 +1,73 @@
+# How the mid-run reload ratchet treats govern.json keys it does not NAME.
+#
+# Read by tools/ratchet_coverage.py and pinned by test_ratchet_coverage.sh.
+# A key the ratchet names in a string literal (its violation/notice text)
+# is credited automatically; this file covers the rest:
+#
+#   <key>  ratchet "<token>"   compared, under a message that does not spell
+#                              the key out; <token> MUST appear in a string
+#                              literal of the ratchet code, or the entry is
+#                              reported "hollow"
+#   <key>  inert    -- why     parsed, and nothing consults it
+#   <key>  startup  -- why     read once before the program runs; a reload
+#                              cannot change its effect
+#   <key>  neutral  -- why     changes no enforcement in either direction
+#
+# Every other key the loader reads is UNCLASSIFIED and listed in
+# ratchet_unclassified_baseline.txt -- the debt, which may only shrink. Moving
+# a key from there to here is a claim: an inert/startup/neutral line needs a
+# reason that says how it was established (traced, or observed), and a ratchet
+# line needs a reload test, because "named" proves the ratchet MENTIONS a key,
+# not that it compares it in the right direction.
+
+# --- Capability lists (checkCapabilityListRatchet, #303) --------------------
+capabilities.env_vars.blocked_read                 ratchet "capabilities.env_vars ({} lists)"
+capabilities.env_vars.allowed_read                 ratchet "capabilities.env_vars ({} lists)"
+capabilities.env_vars.blocked_write                ratchet "capabilities.env_vars ({} lists)"
+capabilities.env_vars.allowed_write                ratchet "capabilities.env_vars ({} lists)"
+capabilities.env_vars.subprocess_scrub_mode        ratchet "capabilities.env_vars subprocess scrub"
+capabilities.env_vars.blocked_subprocess_prefixes  ratchet "capabilities.env_vars subprocess scrub"
+capabilities.env_vars.blocked_subprocess_vars      ratchet "capabilities.env_vars subprocess scrub"
+capabilities.env_vars.allowed_subprocess_vars      ratchet "capabilities.env_vars subprocess scrub"
+capabilities.filesystem.allowed_paths              ratchet "capabilities.filesystem paths"
+capabilities.filesystem.blocked_paths              ratchet "capabilities.filesystem paths"
+languages.allowed                                  ratchet "languages"
+languages.blocked                                  ratchet "languages"
+codegen.allowed_languages                          ratchet "codegen languages"
+codegen.blocked_languages                          ratchet "codegen languages"
+agents.<name>.allowed_paths                        ratchet "agent.{} paths"
+agents.<name>.blocked_paths                        ratchet "agent.{} paths"
+agents.<name>.allowed_languages                    ratchet "agent.{} languages"
+agents.<name>.blocked_languages                    ratchet "agent.{} languages"
+
+# --- Taint lists (checkDetectionListRatchet) -------------------------------
+# Reported without key paths: naming the sanitizer/source/sink lists in output
+# is what tests/security/test_error_msg_leaks.sh forbids.
+taint_tracking.sources                             ratchet "source list"
+taint_tracking.sinks                               ratchet "sink list"
+taint_tracking.sanitizers                          ratchet "sanitizer list"
+
+# --- Import blocklists (checkDetectionListRatchet) --------------------------
+restrictions.imports.blocked.<lang>                ratchet "restrictions.imports.blocked.{}"
+languages.per_language.<lang_name>.imports.blocked ratchet "languages.per_language.{}.imports.blocked"
+languages.per_language.<lang_name>.banned_imports  ratchet "languages.per_language.{}.banned_imports"
+
+# --- Inert: parsed, consulted by nothing ------------------------------------
+code_quality.no_secrets.allowlist                  inert -- no check reads it (screened: every .allowlist reader traced); observed 2026-10-11: the exact secret listed here still blocks
+restrictions.dangerous_calls.allowlist             inert -- parsed in loadFromJson, no reader anywhere in src/ (screened, grep for every .allowlist reader)
+restrictions.dangerous_calls.blocklist_extra       inert -- parsed in loadFromJson, no reader anywhere in src/ (screened, grep)
+restrictions.imports.allowed.<lang>                inert -- checkImports() reads only the blocked lists; no other reader (screened, grep)
+restrictions.imports.mode                          inert -- checkImports() reads only the blocked lists; no other reader (screened, grep)
+languages.per_language.<lang_name>.imports.allowed inert -- checkImports() reads only imports.blocked and banned_imports (screened, grep)
+languages.per_language.<lang_name>.imports.mode    inert -- checkImports() reads only imports.blocked and banned_imports (screened, grep)
+
+# --- Startup only -----------------------------------------------------------
+integrity.blocked_flags                            startup -- read only by the CLI preflight in main.cpp before the program runs (isBlockedFlag callers traced); flags are parsed once, so a reload cannot un-refuse one. A CHILD naab-lang reads the file on disk, which a rejected reload does not revert either.
+
+# --- Top-level and sandbox keys ---------------------------------------------
+description                                        neutral -- free text; no check reads it (screened, grep for readers)
+version                                            neutral -- schema version string; read into rules_.version and consulted by no check (screened, grep)
+extends                                            startup -- resolved by loadFromFile at startup only; reloadIfChanged() parses with loadFromJson and never resolves it (CLAUDE.md, capability-mirrors gotcha)
+sandbox_level                                      startup -- the sandbox level is applied in main.cpp at startup; the reload sync only removes capabilities and never changes the level (traced)
+governance.sandbox_level                           startup -- second spelling of sandbox_level; same startup-only application (traced)
+security.sandbox_level                             startup -- third spelling of sandbox_level; same startup-only application (traced)
