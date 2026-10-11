@@ -52,6 +52,17 @@ restrictions.imports.blocked.<lang>                ratchet "restrictions.imports
 languages.per_language.<lang_name>.imports.blocked ratchet "languages.per_language.{}.imports.blocked"
 languages.per_language.<lang_name>.banned_imports  ratchet "languages.per_language.{}.banned_imports"
 
+# --- restrictions.* aliases of code_quality checks --------------------------
+# The alias writes both copies of the check (see reconcileCodeQualityMirrors),
+# so the ratchet compares it under the code_quality name.
+# Reload test: test_min_level_mirrors.sh RA-01..RA-03.
+restrictions.no_secrets.enabled                    ratchet "code_quality.no_secrets.enabled"
+restrictions.no_secrets.level                      ratchet "code_quality.no_secrets.level"
+restrictions.no_placeholders.enabled               ratchet "code_quality.no_placeholders.enabled"
+restrictions.no_placeholders.level                 ratchet "code_quality.no_placeholders.level"
+restrictions.no_hardcoded_results.enabled          ratchet "code_quality.no_hardcoded_results.enabled"
+restrictions.no_hardcoded_results.level            ratchet "code_quality.no_hardcoded_results.level"
+
 # --- Inert: parsed, consulted by nothing ------------------------------------
 code_quality.no_secrets.allowlist                  inert -- no check reads it (screened: every .allowlist reader traced); observed 2026-10-11: the exact secret listed here still blocks
 restrictions.dangerous_calls.allowlist             inert -- parsed in loadFromJson, no reader anywhere in src/ (screened, grep for every .allowlist reader)

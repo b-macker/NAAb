@@ -466,7 +466,8 @@
     },
     "no_pii": {
       "enabled": true,
-      "level": "advisory",
+      "level": "soft",
+      "_comment_level": "no_secrets and no_pii are never warn-only: an enabled check set to advisory runs at soft (detect is kept -- it blocks too). Without a level, no_pii runs at soft and no_secrets at hard.",
       "detect_ssn": true,
       "detect_credit_card": true,
       "detect_email": true,
