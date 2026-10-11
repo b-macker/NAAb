@@ -53,6 +53,64 @@ enum class EnvScrubScope { Program, Hook };
 // children were never scrubbed and a reload never reached the policy.
 EnvScrubPolicy currentEnvScrubPolicy(EnvScrubScope scope = EnvScrubScope::Program);
 
+// The subprocess-list half of a policy, from capabilities.env_vars'
+// subprocess_scrub_mode / blocked_subprocess_prefixes / blocked_subprocess_vars
+// / allowed_subprocess_vars. One builder for currentEnvScrubPolicy() and the
+// reload ratchet (checkRatchetViolation), which compares the policies two
+// configs build rather than their raw lists.
+inline EnvScrubPolicy envScrubListsFrom(const std::string& mode,
+                                        const std::vector<std::string>& blocked_prefixes,
+                                        const std::vector<std::string>& blocked_vars,
+                                        const std::vector<std::string>& allowed_vars) {
+    EnvScrubPolicy policy;
+    if (!mode.empty() || !blocked_prefixes.empty() || !blocked_vars.empty() ||
+        !allowed_vars.empty()) {
+        policy.active = true;
+        if (mode == "allowlist") {
+            policy.mode = EnvScrubMode::ALLOWLIST;
+            policy.allowed_vars = allowed_vars;
+        } else {
+            policy.mode = EnvScrubMode::BLOCKLIST;
+            policy.blocked_vars = blocked_vars;
+            policy.blocked_prefixes = blocked_prefixes;
+        }
+    }
+    return policy;
+}
+
+// The variables allowlist mode always passes to a child, whatever
+// allowed_subprocess_vars says.
+inline const std::vector<std::string>& essentialChildEnvVars() {
+    static const std::vector<std::string> kNames = {
+        "PATH", "HOME", "LANG", "TERM", "TMPDIR", "TMP", "TEMP",
+        "USER", "LOGNAME", "SHELL", "LC_ALL", "LC_CTYPE",
+        "XDG_RUNTIME_DIR", "ANDROID_ROOT", "ANDROID_DATA",
+        "PREFIX"
+        // LD_LIBRARY_PATH intentionally excluded -- loader hijack vector.
+        // L6 in buildChildEnvironment() sets the safe value where needed.
+    };
+    return kNames;
+}
+
+// The subprocess lists' own verdict: does `policy` scrub `key`, leaving aside
+// NAAb's secrets and blocked_read (shouldScrubEnvVar adds those)?
+inline bool subprocessListsScrub(const EnvScrubPolicy& policy, const std::string& key) {
+    if (!policy.active) return false;
+    if (policy.mode == EnvScrubMode::ALLOWLIST) {
+        // Scrub everything not allowed; the essential system vars always pass.
+        for (const auto& e : essentialChildEnvVars()) if (key == e) return false;
+        for (const auto& allowed : policy.allowed_vars) if (key == allowed) return false;
+        return true;
+    }
+    // BLOCKLIST mode: scrub if key matches any blocked var or prefix
+    for (const auto& blocked : policy.blocked_vars) if (key == blocked) return true;
+    for (const auto& prefix : policy.blocked_prefixes) {
+        if (key.size() >= prefix.size() && key.compare(0, prefix.size(), prefix) == 0)
+            return true;
+    }
+    return false;
+}
+
 // Check if an env var key should be scrubbed under `policy`. NAAb's own
 // secrets (NAAB_GOVERN_KEY, NAAB_LOCK_KEY, NAAB_SIGNING_KEY) always are.
 bool shouldScrubEnvVar(const EnvScrubPolicy& policy, const std::string& key);

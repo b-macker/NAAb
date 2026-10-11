@@ -427,7 +427,8 @@ get, get_args, set_var (NOT set — the function is set_var), has, delete_var, l
   - `blocked_read`: env.get() throws, env.has() returns false, env.list()/get_all() filters out blocked vars; in enforce mode the variable is also withheld from every child process the program starts (polyglot blocks, `process.run`, embedded Python's `os.environ`), but not from operator hooks
   - `allowed_read`: if non-empty, only listed vars are readable (SOFT enforcement)
   - `blocked_write`/`allowed_write`: same semantics for env.set_var()/delete_var()/load_dotenv()
-  - All four arrays participate in `extends`/`merge_arrays` inheritance
+  - All four arrays, the subprocess scrub lists and mode, and `read`/`write: false` participate in `extends`/`merge_arrays` inheritance
+  - A signed mid-run reload cannot loosen any of these lists (the reload ratchet compares them)
 
 ### io
 write, read_line, write_error

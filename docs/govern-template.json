@@ -8,7 +8,7 @@
   "_comment_modes": "mode: 'enforce' (default), 'audit' (dry-run), 'off' (disabled)",
   "_comment_levels": "Enforcement levels: 'hard' (block, no override), 'soft' (block, --governance-override allows), 'advisory' (warn only)",
 
-  "_comment_extends": "Policy inheritance — load a parent govern.json and merge its settings. Child values override parent by default. Array fields (blocked_commands, custom_rules, taint sources/sinks/sanitizers, agents, env_vars blocked_read/allowed_read/blocked_write/allowed_write) are controlled by meta.inheritance.merge_arrays. Parent can be absolute path or relative to this file. Circular references and depth > meta.inheritance.max_depth are rejected. Parent must pass signature verification.",
+  "_comment_extends": "Policy inheritance — load a parent govern.json and merge its settings. Child values override parent by default. Array fields (blocked_commands, custom_rules, taint sources/sinks/sanitizers, agents, every env_vars list, filesystem allowed_paths/blocked_paths, network allowed_hosts/blocked_hosts) are controlled by meta.inheritance.merge_arrays. env_vars read/write false, network.https_only true and env_vars.subprocess_scrub_mode are inherited unless the child sets them. A relative path entry from the parent resolves against the directory of the config the program runs under. Parent can be absolute path or relative to this file. Circular references and depth > meta.inheritance.max_depth are rejected. Parent must pass signature verification.",
   "extends": "./base-govern.json",
 
   "languages": {
@@ -159,7 +159,7 @@
       "allow_backgrounding": false,
       "max_execution_time": 0
     },
-    "_comment_env_vars": "Environment variable access control — enforced at runtime in all env.get/set/has/list functions. read=false blocks all reads (HARD). blocked_read: case-insensitive blocklist (HARD — env.get() throws, env.has() returns false, env.list()/get_all() filters; in enforce mode the variable is also withheld from every child process the program starts — polyglot blocks, process.run, async fn children, embedded Python's os.environ — but not from operator hooks). allowed_read: if non-empty, only listed vars are readable (SOFT). write=false blocks all writes (HARD). blocked_write/allowed_write: same semantics for env.set_var()/delete_var()/load_dotenv(). All four arrays participate in extends/merge_arrays inheritance.",
+    "_comment_env_vars": "Environment variable access control — enforced at runtime in all env.get/set/has/list functions. read=false blocks all reads (HARD). blocked_read: case-insensitive blocklist (HARD — env.get() throws, env.has() returns false, env.list()/get_all() filters; in enforce mode the variable is also withheld from every child process the program starts — polyglot blocks, process.run, async fn children, embedded Python's os.environ — but not from operator hooks). allowed_read: if non-empty, only listed vars are readable (SOFT). write=false blocks all writes (HARD). blocked_write/allowed_write: same semantics for env.set_var()/delete_var()/load_dotenv(). All four arrays, the subprocess scrub lists and mode, and read/write false participate in extends inheritance. A signed mid-run reload cannot loosen any of them: the reload ratchet compares them by effective access.",
     "env_vars": {
       "read": true,
       "write": false,
@@ -1212,7 +1212,7 @@
       "verify_on_load": false,
       "block_on_mismatch": false
     },
-    "_comment_inheritance": "Controls how 'extends' merges parent and child configs. merge_arrays: 'replace' (default — child array replaces parent) or 'append' (parent + child arrays concatenated with dedup). Applies to: blocked_commands, custom_rules, taint sources/sinks/sanitizers, agents, env_vars blocked_read/allowed_read/blocked_write/allowed_write. max_depth limits inheritance chain length. allow_circular is always rejected regardless of setting.",
+    "_comment_inheritance": "Controls how 'extends' merges parent and child configs. merge_arrays: 'replace' (default — child array replaces parent) or 'append' (parent + child arrays concatenated with dedup). Applies to: blocked_commands, custom_rules, taint sources/sinks/sanitizers, agents, every env_vars list, filesystem allowed_paths/blocked_paths, network allowed_hosts/blocked_hosts. max_depth limits inheritance chain length. allow_circular is always rejected regardless of setting.",
     "inheritance": {
       "max_depth": 5,
       "merge_strategy": "child_wins",

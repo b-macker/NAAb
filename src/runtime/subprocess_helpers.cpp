@@ -80,20 +80,8 @@ EnvScrubPolicy currentEnvScrubPolicy(EnvScrubScope scope) {
     auto rules = engine->getRulesPtr();
     if (!rules) return policy;
     const auto& ev = rules->capabilities.env_vars;
-    if (!ev.subprocess_scrub_mode.empty() ||
-        !ev.blocked_subprocess_prefixes.empty() ||
-        !ev.blocked_subprocess_vars.empty() ||
-        !ev.allowed_subprocess_vars.empty()) {
-        policy.active = true;
-        if (ev.subprocess_scrub_mode == "allowlist") {
-            policy.mode = EnvScrubMode::ALLOWLIST;
-            policy.allowed_vars = ev.allowed_subprocess_vars;
-        } else {
-            policy.mode = EnvScrubMode::BLOCKLIST;
-            policy.blocked_vars = ev.blocked_subprocess_vars;
-            policy.blocked_prefixes = ev.blocked_subprocess_prefixes;
-        }
-    }
+    policy = envScrubListsFrom(ev.subprocess_scrub_mode, ev.blocked_subprocess_prefixes,
+                               ev.blocked_subprocess_vars, ev.allowed_subprocess_vars);
     // blocked_read follows env.get(): enforced in enforce mode, observed (not
     // applied) in audit mode, nothing when off.
     if (scope == EnvScrubScope::Program && rules->mode == governance::GovernanceMode::ENFORCE) {
@@ -123,37 +111,8 @@ bool shouldScrubEnvVar(const EnvScrubPolicy& policy, const std::string& key) {
     // below names it.
     if (isReadBlockedEnvVar(policy, key)) return true;
 
-    if (!policy.active) return false;
-
-    if (policy.mode == EnvScrubMode::ALLOWLIST) {
-        // In allowlist mode, scrub everything NOT in the allowed list
-        // Always allow essential system vars
-        static const std::unordered_set<std::string> ESSENTIAL = {
-            "PATH", "HOME", "LANG", "TERM", "TMPDIR", "TMP", "TEMP",
-            "USER", "LOGNAME", "SHELL", "LC_ALL", "LC_CTYPE",
-            "XDG_RUNTIME_DIR", "ANDROID_ROOT", "ANDROID_DATA",
-            "PREFIX"
-            // LD_LIBRARY_PATH intentionally excluded — loader hijack vector.
-            // L6 in buildChildEnvironment() sets the safe value where needed.
-        };
-        if (ESSENTIAL.count(key)) return false;
-        for (const auto& allowed : policy.allowed_vars) {
-            if (key == allowed) return false;
-        }
-        return true;  // Not in allowlist → scrub
-    }
-
-    // BLOCKLIST mode: scrub if key matches any blocked var or prefix
-    for (const auto& blocked : policy.blocked_vars) {
-        if (key == blocked) return true;
-    }
-    for (const auto& prefix : policy.blocked_prefixes) {
-        if (key.size() >= prefix.size() &&
-            key.compare(0, prefix.size(), prefix) == 0) {
-            return true;
-        }
-    }
-    return false;
+    // The subprocess lists, decided where the reload ratchet decides them.
+    return subprocessListsScrub(policy, key);
 }
 
 void noteWithheldEnvVar(const std::string& key) {

@@ -3158,6 +3158,11 @@ public:
     std::string pathPolicyDenial(const std::string& filepath, bool write);
     std::string checkPathAccessImpl(const std::string& filepath, const std::string& mode,
                                     bool decide_only);
+    // A filesystem policy ENTRY (allowed_paths / blocked_paths, project or
+    // agent) as the gate compares it: project-relative entries rebased on the
+    // govern.json directory, canonicalised, '/' separators. Shared with the
+    // reload ratchet so both resolve entries identically.
+    std::string resolvePolicyPath(const std::string& entry) const;
 
     // --- Telemetry ---
     void writeTelemetry() const;
