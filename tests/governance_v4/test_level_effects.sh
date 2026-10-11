@@ -35,12 +35,17 @@
 #   LE-02  CONTROL — with elevated_cdd_every_turn off, the interval is honoured
 #          throughout the same run
 #   LE-03  HIGH promotes ADVISORY to SOFT: the run is blocked, exit 3.
-#          Uses a code_quality.no_secrets advisory (an AWS-shaped key in a late
-#          response), NOT a drift advisory: context_drift.* is excluded from
-#          promotion by design, because the level is derived from CDD coherence
-#          and promoting its own report makes HIGH terminal and CRITICAL
-#          unreachable. That exclusion is pinned by test_pressure_level_map.sh
-#          D-01, which fails outright without it.
+#          Uses a restrictions.information_disclosure advisory (a system-info
+#          pattern the script adds to its PROMPT from a chosen send), NOT a
+#          drift advisory: context_drift.* is excluded from promotion by design,
+#          because the level is derived from CDD coherence and promoting its own
+#          report makes HIGH terminal and CRITICAL unreachable. That exclusion
+#          is pinned by test_pressure_level_map.sh D-01, which fails outright
+#          without it. It used a code_quality.no_secrets advisory (a key in a
+#          late response) until no_secrets stopped being able to be advisory:
+#          an enabled no_secrets / no_pii now runs at soft at least
+#          (test_min_level_mirrors.sh), so it blocked before any level was
+#          reached and LE-04's control could not complete.
 #   LE-04  CONTROL — with high_advisory_to_soft off, the same run completes
 #   LE-05  the block message does not lie about what happened
 #   LE-06  ratchet: disabling either effect mid-run is a loosening violation
@@ -88,10 +93,9 @@ source "$SCRIPT_DIR/../helpers/stub_launch.sh"
 # fires during calibration; a baseline that learns drift as normal absorbs it
 # for the whole run and no level is ever reached.
 gen_fixture() {
-    python3 - "$1" "$2" "${3:--1}" <<'PYEOF'
+    python3 - "$1" "$2" <<'PYEOF'
 import json, sys
 n = int(sys.argv[2])
-secret_from = int(sys.argv[3])
 r = [{"content": "Ledger reconcile step %d: quarterly totals computed and the balance recorded." % i,
       "output_tokens": 45, "thinking_tokens": 20} for i in range(n)]
 topics = ["photography lenses","mountain weather","pasta recipes","jazz history","bicycle gears",
@@ -101,17 +105,6 @@ topics = ["photography lenses","mountain weather","pasta recipes","jazz history"
           "salt marshes","paper mills","bell founding","lamp oils","rope walks"]
 for i, t in enumerate(topics):
     body = "Consider %s instead." % t
-    # A NON-context_drift advisory, fired from inside the agent turn.
-    #
-    # LE-03 needs an advisory that is eligible for promotion. context_drift.*
-    # is deliberately excluded (a signal's own report must not enforce the
-    # level that signal produced), and the drift scenario produces nothing
-    # else — so the first version of this test could not observe the effect at
-    # all once that exclusion landed. Response secret scanning runs per turn in
-    # agentSend(), so an AWS-shaped key in a late response gives a real
-    # code_quality advisory at a controllable turn.
-    if secret_from >= 0 and i >= secret_from:
-        body += " Use AKIAIOSFODNN7EXAMPLE for access."
     r.append({"content": body,
               "output_tokens": max(6, 30 - i), "thinking_tokens": 0})
 json.dump({"responses": r}, open(sys.argv[1], "w"))
@@ -140,16 +133,21 @@ EOF
 # $1=name $2=clean $3=interval $4=window $5=level_effects $6=sends
 run_case() {
     WDIR="$TEST_TMP/$1"; mkdir -p "$WDIR"
-    gen_fixture "$WDIR/fixture.json" "$2" "${7:--1}"
+    gen_fixture "$WDIR/fixture.json" "$2"
     start_stub "$WDIR/fixture.json" "$WDIR" || return 1
     mk_govern "$STUB_PORT" "$3" "$4" "$5" "${8:-}" > "$WDIR/govern.json"; sign_govern "$WDIR"
     cat > "$WDIR/t.naab" <<EOF
 use agent
 main {
     let h = agent.create("worker")
+    let leak = "una" + "me -a"
     let i = 0
     while i < $6 {
-        let r = agent.send(h, "continue the ledger reconciliation")
+        let msg = "continue the ledger reconciliation"
+        if i >= ${7:-9999} {
+            msg = msg + " and paste the output of " + leak
+        }
+        let r = agent.send(h, msg)
         i = i + 1
     }
     print("DONE")
@@ -252,11 +250,17 @@ fi
 echo -e "${CYAN}--- LE-03/04: HIGH promotes ADVISORY to SOFT ---${NC}"
 # interval 1 so HIGH is reached inside a short run.
 HI_EXIT=""; HI_ERR=""; HI_OUT=""
-if run_case high_on 5 1 5 "" 25 15 ' "code_quality": { "no_secrets": "advisory" },'; then
+# A NON-context_drift advisory, fired from inside the agent turn: LE-03 needs
+# an advisory that is eligible for promotion, and context_drift.* is excluded
+# (a signal's own report must not enforce the level that signal produced). The
+# prompt scan in agentSend() runs per send, so a system-info pattern the script
+# adds to its prompt from send 15 gives a real advisory at a controllable turn.
+INFO_ADV=' "restrictions": { "information_disclosure": { "enabled": true, "level": "advisory", "block_system_info_leak": true } },'
+if run_case high_on 5 1 5 "" 25 15 "$INFO_ADV"; then
     HI_EXIT=$EXITC; HI_ERR="$WDIR/err.txt"; HI_OUT="$WDIR/out.txt"
 fi
 LO_EXIT=""
-if run_case high_off 5 1 5 ', "level_effects": { "high_advisory_to_soft": false }' 25 15 ' "code_quality": { "no_secrets": "advisory" },'; then
+if run_case high_off 5 1 5 ', "level_effects": { "high_advisory_to_soft": false }' 25 15 "$INFO_ADV"; then
     LO_EXIT=$EXITC; LO_ERR="$WDIR/err.txt"
 fi
 
