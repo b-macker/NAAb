@@ -3,6 +3,8 @@
 
 #include "naab/loopback_url.h"
 #include "naab/language_descriptors.h"
+#include "naab/env_policy.h"
+#include "naab/path_policy.h"
 #include <algorithm>
 #include <cctype>
 #include <vector>
@@ -1091,7 +1093,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& net = cap["network"];
             auto& nc = rules_.capabilities.network;
             if (net.contains("enabled") && net["enabled"].is_boolean()) { nc.enabled = net["enabled"].get<bool>(); rules_.network_allowed = nc.enabled; rules_.explicitly_set.insert("capabilities.network.enabled"); }
-            if (net.contains("https_only") && net["https_only"].is_boolean()) nc.https_only = net["https_only"].get<bool>();
+            if (net.contains("https_only") && net["https_only"].is_boolean()) { nc.https_only = net["https_only"].get<bool>(); rules_.explicitly_set.insert("capabilities.network.https_only"); }
             if (net.contains("allowed_hosts"))
                 for (auto& h : net["allowed_hosts"]) if (h.is_string()) nc.allowed_hosts.push_back(h.get<std::string>());
             if (net.contains("blocked_hosts"))
@@ -1218,8 +1220,8 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cap.contains("env_vars") && cap["env_vars"].is_object()) {
             auto& ev = cap["env_vars"];
             auto& ec = rules_.capabilities.env_vars;
-            if (ev.contains("read") && ev["read"].is_boolean()) ec.read = ev["read"].get<bool>();
-            if (ev.contains("write") && ev["write"].is_boolean()) ec.write = ev["write"].get<bool>();
+            if (ev.contains("read") && ev["read"].is_boolean()) { ec.read = ev["read"].get<bool>(); rules_.explicitly_set.insert("capabilities.env_vars.read"); }
+            if (ev.contains("write") && ev["write"].is_boolean()) { ec.write = ev["write"].get<bool>(); rules_.explicitly_set.insert("capabilities.env_vars.write"); }
             if (ev.contains("allowed_read"))
                 for (auto& v : ev["allowed_read"]) if (v.is_string()) ec.allowed_read.push_back(v.get<std::string>());
             if (ev.contains("blocked_read"))
@@ -4030,11 +4032,355 @@ static bool cddSignalValue(const ContextDriftConfig::Signals& s, int idx) {
     }
 }
 
+// ----------------------------------------------------------------------------
+// Capability lists in the reload ratchet.
+//
+// checkRatchetViolation() compared only scalar fields from the day it was
+// written (596dd798: limits, capability switches, levels, restriction flags),
+// so every allow/block LIST a gate reads live could be loosened by a signed
+// reload: removing a variable from env_vars.blocked_read let env.get() read it
+// on the next call, with no violation and no notice. Measured before this
+// change: the reload was accepted and the program printed the variable.
+//
+// Each list is compared by EFFECTIVE access, through the decision function its
+// gate uses, not by diffing entries. An entry diff is sound for these lists but
+// refuses ordinary tightenings: replacing blocked_commands "rm -rf" with "rm"
+// removes an entry while blocking more; a blocked variable replaced by a
+// prefix that covers it, a scrub blocklist switched to an allowlist, a
+// redundant path under a blocked directory dropped -- each is a removal that
+// widens nothing. A refused reload loses the WHOLE reload, tightenings
+// included, so over-refusal is not free. The comparison asks, for a finite set
+// of probes that is complete for each rule (argued per list below), whether
+// any probe the old config denied the new config permits -- and reports the
+// old and new verdict, so a HARD -> SOFT shift (blocked_read -> merely not on
+// allowed_read) reads as what it is.
+// ----------------------------------------------------------------------------
+namespace {
+
+// A probe that no configured entry names, standing for "everything else".
+// '=' cannot occur in an environment variable name, and no path, command or
+// language entry starts with \x01.
+const char* const kUnlistedEnvVar = "=";
+const char* const kUnlistedOther = "\x01" "naab-ratchet-unlisted";
+
+std::string probeLabel(const std::string& probe, const std::string& unlisted_label) {
+    if (probe == kUnlistedEnvVar || probe == kUnlistedOther) return unlisted_label;
+    return "'" + probe + "'";
+}
+
+const char* envDenialName(EnvListDenial d) {
+    switch (d) {
+        case EnvListDenial::Blocked:        return "blocked";
+        case EnvListDenial::NotAllowlisted: return "not allowlisted";
+        default:                            return "allowed";
+    }
+}
+
+// env_vars.<blocked|allowed>_<read|write>. Probes: every name in the four
+// lists, plus one name in none of them. A name absent from all four lists is
+// decided exactly as the unlisted probe is, so the set is complete.
+void ratchetEnvLists(const std::vector<std::string>& old_blocked,
+                     const std::vector<std::string>& old_allowed,
+                     const std::vector<std::string>& new_blocked,
+                     const std::vector<std::string>& new_allowed,
+                     const char* what,  // "read" / "write"
+                     std::vector<std::string>& violations,
+                     std::vector<std::string>& notices) {
+    std::vector<std::string> probes;
+    auto add = [&](const std::vector<std::string>& l) {
+        for (const auto& n : l) {
+            bool seen = false;
+            for (const auto& p : probes) if (envNameEquals(p, n)) { seen = true; break; }
+            if (!seen) probes.push_back(n);
+        }
+    };
+    add(old_blocked); add(old_allowed); add(new_blocked); add(new_allowed);
+    probes.push_back(kUnlistedEnvVar);
+
+    std::string loosened, tightened;
+    for (const auto& p : probes) {
+        const EnvListDenial o = envListDenial(old_blocked, old_allowed, p);
+        const EnvListDenial n = envListDenial(new_blocked, new_allowed, p);
+        if (o == n) continue;
+        std::string& out = (static_cast<int>(n) < static_cast<int>(o)) ? loosened : tightened;
+        if (!out.empty()) out += ", ";
+        out += probeLabel(p, "variables named in neither config") + " " +
+               envDenialName(o) + " -> " + envDenialName(n);
+    }
+    if (!loosened.empty())
+        violations.push_back(fmt::format("capabilities.env_vars ({} lists): {} (loosened)", what, loosened));
+    if (!tightened.empty())
+        notices.push_back(fmt::format("capabilities.env_vars ({} lists): {} (tightened)", what, tightened));
+}
+
+// env_vars subprocess scrub (subprocess_scrub_mode + the three subprocess
+// lists), via envScrubListsFrom()/subprocessListsScrub() -- what
+// buildChildEnvironment() applies. Probes: every listed name, the essential
+// names allowlist mode always passes, each blocked prefix followed by '=', and
+// the unlisted name. Complete: a name scrubbed only through prefix P behaves as
+// P + "=" under any new prefix list (a new prefix matching one matches the
+// other, since no prefix contains '='), and a name outside every list and
+// prefix behaves as the unlisted probe.
+void ratchetSubprocessScrub(const EnvVarsCapability& o, const EnvVarsCapability& n,
+                            std::vector<std::string>& violations,
+                            std::vector<std::string>& notices) {
+    using naab::runtime::envScrubListsFrom;
+    using naab::runtime::subprocessListsScrub;
+    const auto op = envScrubListsFrom(o.subprocess_scrub_mode, o.blocked_subprocess_prefixes,
+                                      o.blocked_subprocess_vars, o.allowed_subprocess_vars);
+    const auto np = envScrubListsFrom(n.subprocess_scrub_mode, n.blocked_subprocess_prefixes,
+                                      n.blocked_subprocess_vars, n.allowed_subprocess_vars);
+    std::vector<std::string> probes;
+    auto add = [&](const std::string& s) {
+        if (std::find(probes.begin(), probes.end(), s) == probes.end()) probes.push_back(s);
+    };
+    for (const auto* l : {&o.blocked_subprocess_vars, &n.blocked_subprocess_vars,
+                          &o.allowed_subprocess_vars, &n.allowed_subprocess_vars})
+        for (const auto& v : *l) add(v);
+    for (const auto& v : naab::runtime::essentialChildEnvVars()) add(v);
+    for (const auto* l : {&o.blocked_subprocess_prefixes, &n.blocked_subprocess_prefixes})
+        for (const auto& p : *l) add(p + kUnlistedEnvVar);
+    add(kUnlistedEnvVar);
+
+    auto label = [](const std::string& p) -> std::string {
+        if (p == kUnlistedEnvVar) return "variables named in neither config";
+        if (p.size() > 1 && p.back() == '=') return "'" + p.substr(0, p.size() - 1) + "*'";
+        return "'" + p + "'";
+    };
+    std::string loosened, tightened;
+    for (const auto& p : probes) {
+        const bool os = subprocessListsScrub(op, p), ns = subprocessListsScrub(np, p);
+        if (os == ns) continue;
+        std::string& out = os ? loosened : tightened;
+        if (!out.empty()) out += ", ";
+        out += label(p);
+    }
+    if (!loosened.empty())
+        violations.push_back(fmt::format(
+            "capabilities.env_vars subprocess scrub: {} now passed to child processes (loosened)", loosened));
+    if (!tightened.empty())
+        notices.push_back(fmt::format(
+            "capabilities.env_vars subprocess scrub: {} now withheld from child processes (tightened)", tightened));
+}
+
+// An allow/block pair of RUNTIME language names, decided by the two matchers
+// every language gate uses (languageListBlocks / languageListAdmits). Probes:
+// every runtime in the language table, every listed name, and one unknown
+// name. A runtime outside the table and the lists is decided as the unknown
+// probe is.
+template <class List>
+void ratchetLanguageLists(const List& old_allowed, const List& old_blocked,
+                          const List& new_allowed, const List& new_blocked,
+                          const std::string& what,
+                          std::vector<std::string>& violations,
+                          std::vector<std::string>& notices) {
+    auto denied = [](const List& allowed, const List& blocked, const std::string& rt) {
+        return naab::lang::languageListBlocks(blocked, rt) ||
+               (!allowed.empty() && !naab::lang::languageListAdmits(allowed, rt));
+    };
+    std::vector<std::string> probes;
+    auto add = [&](const std::string& s) {
+        if (std::find(probes.begin(), probes.end(), s) == probes.end()) probes.push_back(s);
+    };
+    for (const auto& d : naab::lang::allLanguages()) {
+        add(d.canonical);
+        for (const auto& v : d.runtime_variants) add(v);
+    }
+    for (const auto* l : {&old_allowed, &old_blocked, &new_allowed, &new_blocked})
+        for (const auto& v : *l) add(v);
+    add(kUnlistedOther);
+
+    std::string loosened, tightened;
+    for (const auto& p : probes) {
+        const bool od = denied(old_allowed, old_blocked, p);
+        const bool nd = denied(new_allowed, new_blocked, p);
+        if (od == nd) continue;
+        std::string& out = od ? loosened : tightened;
+        if (!out.empty()) out += ", ";
+        out += probeLabel(p, "languages named in neither config");
+    }
+    if (!loosened.empty())
+        violations.push_back(fmt::format("{}: {} now permitted (loosened)", what, loosened));
+    if (!tightened.empty())
+        notices.push_back(fmt::format("{}: {} now refused (tightened)", what, tightened));
+}
+
+// allowed_paths / blocked_paths, via decidePathAccess() and the engine's own
+// entry resolver. Probes: every resolved entry, plus one path no entry
+// matches. Complete: a path's verdict depends only on which entries prefix-
+// match it, and the longest entry that matches it is matched by exactly the
+// same entries (pathPrefixMatch respects '/' boundaries).
+void ratchetPathLists(const std::vector<std::string>& old_allowed,
+                      const std::vector<std::string>& old_blocked,
+                      const std::vector<std::string>& new_allowed,
+                      const std::vector<std::string>& new_blocked,
+                      PathPrecedence precedence,
+                      const std::function<std::string(const std::string&)>& resolve,
+                      const std::string& what,
+                      std::vector<std::string>& violations,
+                      std::vector<std::string>& notices) {
+    std::vector<std::pair<std::string, std::string>> probes;  // resolved, as written
+    auto add = [&](const std::string& entry) {
+        if (entry.empty()) return;  // an empty entry matches nothing
+        const std::string r = resolve(entry);
+        for (const auto& p : probes) if (p.first == r) return;
+        probes.emplace_back(r, entry);
+    };
+    for (const auto* l : {&old_allowed, &old_blocked, &new_allowed, &new_blocked})
+        for (const auto& e : *l) add(e);
+    probes.emplace_back(kUnlistedOther, kUnlistedOther);
+
+    std::string loosened, tightened;
+    for (const auto& [resolved, written] : probes) {
+        const bool od = decidePathAccess(resolved, old_allowed, old_blocked, precedence, resolve).result !=
+                        PathVerdict::Result::Allow;
+        const bool nd = decidePathAccess(resolved, new_allowed, new_blocked, precedence, resolve).result !=
+                        PathVerdict::Result::Allow;
+        if (od == nd) continue;
+        std::string& out = od ? loosened : tightened;
+        if (!out.empty()) out += ", ";
+        out += probeLabel(written, "paths matched by no entry");
+    }
+    if (!loosened.empty())
+        violations.push_back(fmt::format("{}: {} now accessible (loosened)", what, loosened));
+    if (!tightened.empty())
+        notices.push_back(fmt::format("{}: {} now refused (tightened)", what, tightened));
+}
+
+// shell.blocked_commands is a substring match (checkShellCommandAllowed, and
+// the <<shell>> block check). An old entry stays covered when some new entry
+// is a substring of it, since a command containing the old entry then contains
+// the new one. An empty entry is treated as covering only itself: the two
+// matchers disagree about it (the block check matches everything, process.run
+// skips it), and this keeps the stricter reading of both.
+void ratchetBlockedCommands(const std::vector<std::string>& old_list,
+                            const std::vector<std::string>& new_list,
+                            std::vector<std::string>& violations,
+                            std::vector<std::string>& notices) {
+    auto covered = [](const std::string& e, const std::vector<std::string>& by) {
+        for (const auto& n : by)
+            if (n.empty() ? e.empty() : e.find(n) != std::string::npos) return true;
+        return false;
+    };
+    std::string loosened, tightened;
+    for (const auto& e : old_list) {
+        if (covered(e, new_list)) continue;
+        if (!loosened.empty()) loosened += ", ";
+        loosened += "'" + e + "'";
+    }
+    for (const auto& e : new_list) {
+        if (covered(e, old_list)) continue;
+        if (!tightened.empty()) tightened += ", ";
+        tightened += "'" + e + "'";
+    }
+    if (!loosened.empty())
+        violations.push_back(fmt::format(
+            "capabilities.shell.blocked_commands: {} no longer blocked (loosened)", loosened));
+    if (!tightened.empty())
+        notices.push_back(fmt::format(
+            "capabilities.shell.blocked_commands: {} added (tightened)", tightened));
+}
+
+// network.allowed_hosts / blocked_hosts. Compared entry by entry (host names
+// ASCII case-insensitive): a removed block or an added allow is a loosening,
+// as is dropping the allowlist altogether. Conservative -- narrowing a block
+// to a parent domain reads as a removal. Note these lists reach the sandbox
+// only at startup (syncGovernanceToSandbox in main.cpp); the reload does not
+// refresh the sandbox's copy, so a reload changes them in neither direction at
+// runtime. Ratcheted so the installed rules never claim a looser policy than
+// the one that loaded.
+void ratchetHostLists(const NetworkCapability& o, const NetworkCapability& n,
+                      std::vector<std::string>& violations,
+                      std::vector<std::string>& notices) {
+    auto in = [](const std::string& h, const std::vector<std::string>& l) {
+        for (const auto& x : l) if (envNameEquals(h, x)) return true;
+        return false;
+    };
+    for (const auto& h : o.blocked_hosts)
+        if (!in(h, n.blocked_hosts))
+            violations.push_back(fmt::format("capabilities.network.blocked_hosts: '{}' removed (loosened)", h));
+    for (const auto& h : n.blocked_hosts)
+        if (!in(h, o.blocked_hosts))
+            notices.push_back(fmt::format("capabilities.network.blocked_hosts: '{}' added (tightened)", h));
+    if (!o.allowed_hosts.empty() && n.allowed_hosts.empty()) {
+        violations.push_back("capabilities.network.allowed_hosts: removed (loosened — every host now allowed)");
+    } else if (o.allowed_hosts.empty() && !n.allowed_hosts.empty()) {
+        notices.push_back("capabilities.network.allowed_hosts: added (tightened)");
+    } else {
+        for (const auto& h : n.allowed_hosts)
+            if (!in(h, o.allowed_hosts))
+                violations.push_back(fmt::format("capabilities.network.allowed_hosts: '{}' added (loosened)", h));
+        for (const auto& h : o.allowed_hosts)
+            if (!in(h, n.allowed_hosts))
+                notices.push_back(fmt::format("capabilities.network.allowed_hosts: '{}' removed (tightened)", h));
+    }
+}
+
+}  // namespace
+
+static void checkCapabilityListRatchet(
+    const GovernanceRules& old_r,
+    const GovernanceRules& new_r,
+    const std::function<std::string(const std::string&)>& resolve_path,
+    std::vector<std::string>& violations,
+    std::vector<std::string>& notices)
+{
+    const auto& oe = old_r.capabilities.env_vars;
+    const auto& ne = new_r.capabilities.env_vars;
+    // A master switch going false -> true is reported on its own line by the
+    // caller; with the switch off on either side the lists decide nothing.
+    if (oe.read && ne.read)
+        ratchetEnvLists(oe.blocked_read, oe.allowed_read, ne.blocked_read, ne.allowed_read,
+                        "read", violations, notices);
+    if (oe.write && ne.write)
+        ratchetEnvLists(oe.blocked_write, oe.allowed_write, ne.blocked_write, ne.allowed_write,
+                        "write", violations, notices);
+    ratchetSubprocessScrub(oe, ne, violations, notices);
+
+    ratchetPathLists(old_r.capabilities.filesystem.allowed_paths,
+                     old_r.capabilities.filesystem.blocked_paths,
+                     new_r.capabilities.filesystem.allowed_paths,
+                     new_r.capabilities.filesystem.blocked_paths,
+                     PathPrecedence::LongestPrefixWins, resolve_path,
+                     "capabilities.filesystem paths", violations, notices);
+
+    ratchetBlockedCommands(old_r.capabilities.shell.blocked_commands,
+                           new_r.capabilities.shell.blocked_commands, violations, notices);
+
+    // checkLanguageAllowed() reads the flat sets, which carry what
+    // languages.allowed / languages.blocked parsed to.
+    ratchetLanguageLists(old_r.allowed_languages, old_r.blocked_languages,
+                         new_r.allowed_languages, new_r.blocked_languages,
+                         "languages", violations, notices);
+    ratchetLanguageLists(old_r.codegen.allowed_languages, old_r.codegen.blocked_languages,
+                         new_r.codegen.allowed_languages, new_r.codegen.blocked_languages,
+                         "codegen languages", violations, notices);
+
+    ratchetHostLists(old_r.capabilities.network, new_r.capabilities.network, violations, notices);
+
+    // Per-agent overlays, for agents present in both configs (an added agent
+    // is a violation and a removed one is reported by the agent ratchet).
+    for (const auto& na : new_r.agents) {
+        const AgentConfig* oa = nullptr;
+        for (const auto& a : old_r.agents) if (a.name == na.name) { oa = &a; break; }
+        if (!oa) continue;
+        ratchetPathLists(oa->allowed_paths, oa->blocked_paths, na.allowed_paths, na.blocked_paths,
+                         PathPrecedence::DenyWins, resolve_path,
+                         "agent." + na.name + " paths", violations, notices);
+        ratchetLanguageLists(oa->allowed_languages, oa->blocked_languages,
+                             na.allowed_languages, na.blocked_languages,
+                             "agent." + na.name + " languages", violations, notices);
+    }
+}
+
 // Check that new_r is at least as strict as old_r. Returns true if ratchet OK.
 // Populates violations (loosening attempts) and notices (tightening changes).
+// `resolve_path` resolves a filesystem policy entry the way the gate does
+// (GovernanceEngine::resolvePolicyPath).
 static bool checkRatchetViolation(
     const GovernanceRules& old_r,
     const GovernanceRules& new_r,
+    const std::function<std::string(const std::string&)>& resolve_path,
     std::vector<std::string>& violations,
     std::vector<std::string>& notices)
 {
@@ -4163,6 +4509,14 @@ static bool checkRatchetViolation(
     chkRestrict(old_r.code_quality.no_incomplete_logic.enabled, new_r.code_quality.no_incomplete_logic.enabled, "code_quality.no_incomplete_logic.enabled");
     chkRestrict(old_r.code_quality.no_simulation_markers.enabled, new_r.code_quality.no_simulation_markers.enabled, "code_quality.no_simulation_markers.enabled");
     chkRestrict(old_r.taint_tracking.enabled, new_r.taint_tracking.enabled, "taint_tracking.enabled");
+
+    // --- D1. Capability lists and the switches beside them ---
+    // env_vars.read / write are master switches (false = every variable
+    // refused); https_only refuses plain-http requests and imports.
+    chkCap(old_r.capabilities.env_vars.read, new_r.capabilities.env_vars.read, "capabilities.env_vars.read");
+    chkCap(old_r.capabilities.env_vars.write, new_r.capabilities.env_vars.write, "capabilities.env_vars.write");
+    chkRestrict(old_r.capabilities.network.https_only, new_r.capabilities.network.https_only, "capabilities.network.https_only");
+    checkCapabilityListRatchet(old_r, new_r, resolve_path, violations, notices);
 
     // --- D2. capabilities.functions (F5) ---
     // Compares EFFECTIVE permissions per function, not raw entries, because
@@ -4993,7 +5347,8 @@ bool GovernanceEngine::reloadIfChanged() {
         // One-way ratchet: reject any loosening
         std::vector<std::string> violations;
         std::vector<std::string> notices;
-        if (!checkRatchetViolation(rules(), new_rules, violations, notices)) {
+        auto resolve_path = [this](const std::string& p) { return resolvePolicyPath(p); };
+        if (!checkRatchetViolation(rules(), new_rules, resolve_path, violations, notices)) {
             std::string detail;
             for (const auto& v : violations) {
                 if (!detail.empty()) detail += "; ";
@@ -5352,6 +5707,41 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
     mergeStringVec(cc.env_vars.allowed_read, bc.env_vars.allowed_read);
     mergeStringVec(cc.env_vars.blocked_write, bc.env_vars.blocked_write);
     mergeStringVec(cc.env_vars.allowed_write, bc.env_vars.allowed_write);
+
+    // The rest of the capability policy a gate reads. Until this was added a
+    // child silently dropped all of it: measured, a parent's
+    // blocked_subprocess_vars, blocked_subprocess_prefixes, scrub allowlist,
+    // filesystem allowed_paths/blocked_paths and env_vars.read:false each
+    // held when the parent was used directly and did nothing through
+    // `extends` (the blocked_read merge above was the only one that reached
+    // the child). Same rules as the fields above: arrays follow
+    // merge_arrays, and a switch the parent turns off stays off unless the
+    // child sets it explicitly (child_wins) -- the shell.enabled rule.
+    //
+    // Path entries are copied as written. A relative entry is resolved
+    // against the directory of the config the program RUNS under (the
+    // child's), like every other relative entry (resolvePolicyPath): a
+    // distributed parent's "secrets/" protects each project's secrets/.
+    auto inheritOff = [&](bool base_on, bool& child_on, const char* key) {
+        if (!base_on && (parent_wins || !child.explicitly_set.count(key))) child_on = false;
+    };
+    inheritOff(bc.env_vars.read, cc.env_vars.read, "capabilities.env_vars.read");
+    inheritOff(bc.env_vars.write, cc.env_vars.write, "capabilities.env_vars.write");
+    mergeStringVec(cc.env_vars.blocked_subprocess_prefixes, bc.env_vars.blocked_subprocess_prefixes);
+    mergeStringVec(cc.env_vars.blocked_subprocess_vars, bc.env_vars.blocked_subprocess_vars);
+    mergeStringVec(cc.env_vars.allowed_subprocess_vars, bc.env_vars.allowed_subprocess_vars);
+    if (!bc.env_vars.subprocess_scrub_mode.empty() &&
+        (parent_wins || cc.env_vars.subprocess_scrub_mode.empty())) {
+        cc.env_vars.subprocess_scrub_mode = bc.env_vars.subprocess_scrub_mode;
+    }
+    mergeStringVec(cc.filesystem.allowed_paths, bc.filesystem.allowed_paths);
+    mergeStringVec(cc.filesystem.blocked_paths, bc.filesystem.blocked_paths);
+    mergeStringVec(cc.network.allowed_hosts, bc.network.allowed_hosts);
+    mergeStringVec(cc.network.blocked_hosts, bc.network.blocked_hosts);
+    if (bc.network.https_only &&
+        (parent_wins || !child.explicitly_set.count("capabilities.network.https_only"))) {
+        cc.network.https_only = true;
+    }
 
     // --- Limits: child wins or parent wins, with gap-filling ---
     auto& cl = child.limits;

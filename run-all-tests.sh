@@ -2119,6 +2119,23 @@ else
     echo "  test_capability_mirrors.sh: not found, skipping"
 fi
 
+# A signed mid-run reload cannot loosen a capability LIST (env_vars, paths,
+# blocked_commands, languages, per-agent lists, hosts), and `extends` hands the
+# child every capability list its parent sets
+CAP_LIST_RATCHET_SCRIPT="tests/governance_v4/test_capability_list_ratchet.sh"
+if $IS_WINDOWS; then
+    echo "  test_capability_list_ratchet.sh: skipped (requires shell executor — POSIX-only)"
+elif [ -f "$CAP_LIST_RATCHET_SCRIPT" ]; then
+    if run_shell_test "$CAP_LIST_RATCHET_SCRIPT" 2>&1; then
+        echo "  test_capability_list_ratchet.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_capability_list_ratchet.sh")
+    fi
+else
+    echo "  test_capability_list_ratchet.sh: not found, skipping"
+fi
+
 UNCATCHABLE_SCRIPT="tests/governance_v4/test_uncatchable.sh"
 if [ -f "$UNCATCHABLE_SCRIPT" ]; then
     if run_shell_test "$UNCATCHABLE_SCRIPT" 2>&1; then
