@@ -50,6 +50,33 @@
 #   NS-01  network.https_only true -> false
 #   NH-01  network.blocked_hosts: entry removed (rejection only: the sandbox
 #          copy is made at startup and a reload never refreshes it)
+#   Detection lists (refused, same shape as above):
+#   TS-01  taint_tracking.sinks: entry removed
+#   TS-02  taint_tracking.sources: entry removed
+#   TS-03  taint_tracking.sanitizers: entry added
+#   TS-04  taint_tracking.level hard -> advisory
+#   TS-05  taint_tracking.level detect -> advisory. DETECT and APPROVAL_REQUIRED
+#          post-date the ratchet and ranked BELOW advisory, so this read as a
+#          tightening and was accepted
+#   PI-01  code_quality.no_pii.allowlist_patterns: entry added (PII built at
+#          runtime and run through codegen -- a literal is caught at startup,
+#          before any reload)
+#   IM-01  languages.per_language.python.imports.blocked: entry removed
+#   IM-02  restrictions.imports.blocked.python: entry removed
+#   IM-03  restrictions.imports dropped (enabled true -> false; an "enabled":
+#          false inside the object is ignored by design)
+#   IM-04  languages.per_language.python.banned_imports: entry removed
+#   MO-01  governance mode enforce -> off is refused. Never compared: the
+#          reload set active_ from the new mode, and a blocked variable was
+#          read after the swap (observed, exit 0)
+#   MO-02  a SIGNED reload to audit runs as enforce. The load path has always
+#          raised a signed audit config to enforce (F3); the reload path
+#          skipped that, installed AUDIT, and the variable was read
+#   MO-03  CONTROL: off -> enforce is accepted and enforced (a signed audit
+#          start is already enforce, so it would not be a tightening)
+#   LV-01  no_placeholders.level detect -> advisory is refused; LV-02 advisory
+#          -> detect is accepted. The old ranking put DETECT below ADVISORY, so
+#          it got both backwards (accepted the first, refused the second)
 #   Reload, accepted (a raw entry diff would refuse each; effect checked):
 #   ER-06  blocked_read entry re-cased (names compare case-insensitively)
 #   ES-04  scrub blocklist [V] -> allowlist []  (V still withheld)
@@ -58,6 +85,9 @@
 #   SC-02  blocked_commands entry replaced by a substring of itself
 #   T-01   tightening: blocked_read entry added -> accepted AND enforced
 #   T-02   tightening: languages.blocked entry added -> accepted AND enforced
+#   TS-06  taint sink replaced by a prefix covering it (still a sink)
+#   TS-07  taint_tracking.level advisory -> detect is a TIGHTENING: refused
+#          before the ranking fix, which read it as lowered
 #   Extends (each with the parent used directly as its control):
 #   XE-01  blocked_subprocess_vars      XE-02  blocked_subprocess_prefixes
 #   XE-03  subprocess_scrub_mode        XE-04  filesystem.blocked_paths
@@ -127,8 +157,9 @@ reload_run() {
     local d="$W/$name" n="$W/$name.next"
     mkdir -p "$d/vault" "$d/data" "$n"
     echo "$VAULT" > "$d/vault/x.txt"
-    printf '{ %s,\n  %s }\n' "$HDR" "$start" > "$d/govern.json"
-    printf '{ %s,\n  %s }\n' "$HDR" "$next" > "$n/govern.json"
+    # RL_MODE_START / RL_MODE_NEXT override the header's mode (mode arms only).
+    printf '{ %s,\n  %s }\n' "${HDR/\"mode\": \"enforce\"/\"mode\": \"${RL_MODE_START:-enforce}\"}" "$start" > "$d/govern.json"
+    printf '{ %s,\n  %s }\n' "${HDR/\"mode\": \"enforce\"/\"mode\": \"${RL_MODE_NEXT:-enforce}\"}" "$next" > "$n/govern.json"
     sign_dir "$d"; sign_dir "$n"
     if [ ! -f "$d/govern.json.sig" ] || [ ! -f "$n/govern.json.sig" ]; then OUT="__NOSIGN__"; RC=99; return; fi
     cat > "$d/r.naab" <<EOF
@@ -136,6 +167,7 @@ use env
 use file
 use http
 use codegen
+use string
 main {
     let s = <<python
 import os, time
@@ -359,6 +391,122 @@ refused NS-01 "network.https_only true -> false" "capabilities.network.https_onl
 reload_run NH01 "$(caps '"network": { "blocked_hosts": ["naab-lr-blocked.invalid"] }')" \
     "$(caps '"network": { "blocked_hosts": [] }')" "$P_NOP"
 refused NH-01 "network.blocked_hosts entry removed" "blocked_hosts" "__never__"
+
+# ---- detection lists ----------------------------------------------------------
+TT() { printf '"taint_tracking": { "enabled": true, %s }, ' "$1"; }
+P_TAINT="    let tv = env.get(\"HOME\")
+    file.write(\"tw.txt\", tv)
+    print(\"WROTE_$TOK\")"
+P_TAINT_SAN="    let tv = string.trim(env.get(\"HOME\"))
+    file.write(\"tw.txt\", tv)
+    print(\"WROTE_$TOK\")"
+SRC='"sources": ["env.get"]'
+reload_run TS01 "$(TT "$SRC, \"sinks\": [\"file.write\"]")$(caps '"env_vars": { }')" \
+    "$(TT "$SRC, \"sinks\": []")$(caps '"env_vars": { }')" "$P_TAINT"
+refused TS-01 "taint sink removed" "taint tracking: sink list narrowed" "WROTE_$TOK" "Taint tracking violation"
+
+reload_run TS02 "$(TT "$SRC, \"sinks\": [\"file.write\"]")$(caps '"env_vars": { }')" \
+    "$(TT '"sources": [], "sinks": ["file.write"]')$(caps '"env_vars": { }')" "$P_TAINT"
+refused TS-02 "taint source removed" "taint tracking: source list narrowed" "WROTE_$TOK" "Taint tracking violation"
+
+reload_run TS03 "$(TT "$SRC, \"sinks\": [\"file.write\"], \"sanitizers\": []")$(caps '"env_vars": { }')" \
+    "$(TT "$SRC, \"sinks\": [\"file.write\"], \"sanitizers\": [\"string.trim\"]")$(caps '"env_vars": { }')" "$P_TAINT_SAN"
+refused TS-03 "taint sanitizer added" "taint tracking: sanitizer list widened" "WROTE_$TOK" "Taint tracking violation"
+
+reload_run TS04 "$(TT "$SRC, \"sinks\": [\"file.write\"], \"level\": \"hard\"")$(caps '"env_vars": { }')" \
+    "$(TT "$SRC, \"sinks\": [\"file.write\"], \"level\": \"advisory\"")$(caps '"env_vars": { }')" "$P_TAINT"
+refused TS-04 "taint_tracking.level hard -> advisory" "taint_tracking.level" "WROTE_$TOK" "Taint tracking violation"
+
+reload_run TS05 "$(TT "$SRC, \"sinks\": [\"file.write\"], \"level\": \"detect\"")$(caps '"env_vars": { }')" \
+    "$(TT "$SRC, \"sinks\": [\"file.write\"], \"level\": \"advisory\"")$(caps '"env_vars": { }')" "$P_TAINT"
+refused TS-05 "taint_tracking.level detect -> advisory" "taint_tracking.level: detect -> advisory" "WROTE_$TOK" "Taint tracking violation"
+
+reload_run TS06 "$(TT "$SRC, \"sinks\": [\"file.write\"]")$(caps '"env_vars": { }')" \
+    "$(TT "$SRC, \"sinks\": [\"file.\"]")$(caps '"env_vars": { }')" "$P_TAINT"
+accepted TS-06 "a taint sink replaced by a prefix covering it" "Taint tracking violation"
+
+reload_run TS07 "$(TT "$SRC, \"sinks\": [\"file.write\"], \"level\": \"advisory\"")$(caps '"env_vars": { }')" \
+    "$(TT "$SRC, \"sinks\": [\"file.write\"], \"level\": \"detect\"")$(caps '"env_vars": { }')" "$P_TAINT"
+case "$OUT" in
+    *"Reload rejected"*) bad "TS-07" "taint_tracking.level advisory -> detect (a tightening) was refused" "$OUT" ;;
+    *"WROTE_$TOK"*) bad "TS-07" "accepted, but the detect level did not block the write" "$OUT" ;;
+    *swapped*) ok "TS-07" "taint_tracking.level advisory -> detect is accepted and enforced" ;;
+    *) skip "TS-07" "config swap did not happen -- UNMEASURABLE" ;;
+esac
+
+PII_ON='"code_quality": { "no_pii": { "enabled": true, "level": "hard"'
+P_PII='    let d = "123" + "-45-" + "6789"
+    let r = codegen.run("python", "x = \"ssn " + d + "\"")
+    print("CG_RAN")'
+reload_run PI01 "$PII_ON } }, \"codegen\": { \"enabled\": true }, $(caps '"env_vars": { }')" \
+    "$PII_ON, \"allowlist_patterns\": [\"123-45\"] } }, \"codegen\": { \"enabled\": true }, $(caps '"env_vars": { }')" "$P_PII"
+refused PI-01 "no_pii.allowlist_patterns entry added" "code_quality.no_pii.allowlist_patterns" "CG_RAN" "PII detected"
+
+P_IMP='    let im = <<python
+import socket
+"imported"
+>>
+    print("IMP_RAN")'
+PL() { printf '"languages": { "per_language": { "python": { %s } } }, ' "$1"; }
+reload_run IM01 "$(PL '"imports": { "blocked": ["socket"] }')$(caps '"env_vars": { }')" \
+    "$(PL '"imports": { "blocked": [] }')$(caps '"env_vars": { }')" "$P_IMP"
+refused IM-01 "per_language python imports.blocked entry removed" "languages.per_language.python.imports.blocked" "IMP_RAN" "Blocked import"
+
+RI() { printf '"restrictions": { "imports": { %s } }, ' "$1"; }
+reload_run IM02 "$(RI '"enabled": true, "blocked": { "python": ["socket"] }')$(caps '"env_vars": { }')" \
+    "$(RI '"enabled": true, "blocked": { }')$(caps '"env_vars": { }')" "$P_IMP"
+refused IM-02 "restrictions.imports.blocked.python entry removed" "restrictions.imports.blocked.python" "IMP_RAN" "Blocked import"
+
+# An "enabled": false INSIDE the object is ignored by design (presence
+# enables; the loader warns), so the way to switch the check off is to drop the
+# object -- which is what this reload does.
+reload_run IM03 "$(RI '"blocked": { "python": ["socket"] }')$(caps '"env_vars": { }')" \
+    "$(caps '"env_vars": { }')" "$P_IMP"
+refused IM-03 "restrictions.imports removed (enabled true -> false)" "restrictions.imports.enabled" "IMP_RAN" "Blocked import"
+
+reload_run IM04 "$(PL '"banned_imports": ["socket"]')$(caps '"env_vars": { }')" \
+    "$(PL '"banned_imports": []')$(caps '"env_vars": { }')" "$P_IMP"
+refused IM-04 "per_language python banned_imports entry removed" "languages.per_language.python.banned_imports" "IMP_RAN" "Blocked import"
+
+# ---- level ranking ---------------------------------------------------------------
+# levelToInt() ranked DETECT (and APPROVAL_REQUIRED) as 0, below ADVISORY, for
+# every ratcheted level. no_placeholders.level has been ratcheted since
+# 596dd798, so these two arms fail on the old ranking in opposite directions.
+PH() { printf '"code_quality": { "no_placeholders": { "enabled": true, "level": "%s" } }, "codegen": { "enabled": true }, ' "$1"; }
+P_PH='    let m = "TO" + "DO"
+    let r = codegen.run("python", "# " + m + ": finish this\nx = 1")
+    print("PH_RAN")'
+reload_run LV01 "$(PH detect)$(caps '"env_vars": { }')" "$(PH advisory)$(caps '"env_vars": { }')" "$P_PH"
+refused LV-01 "no_placeholders.level detect -> advisory" "code_quality.no_placeholders.level: detect -> advisory" "PH_RAN"
+reload_run LV02 "$(PH advisory)$(caps '"env_vars": { }')" "$(PH detect)$(caps '"env_vars": { }')" "$P_PH"
+case "$OUT" in
+    *"Reload rejected"*) bad "LV-02" "no_placeholders.level advisory -> detect (a tightening) was refused" "$OUT" ;;
+    *PH_RAN*) bad "LV-02" "accepted, but the detect level did not block" "$OUT" ;;
+    *swapped*) ok "LV-02" "no_placeholders.level advisory -> detect is accepted and enforced" ;;
+    *) skip "LV-02" "config swap did not happen -- UNMEASURABLE" ;;
+esac
+
+# ---- governance mode -----------------------------------------------------------
+B_READ="$(caps '"env_vars": { "blocked_read": ["NAAB_LR_SECRET"] }')"
+RL_MODE_START=enforce RL_MODE_NEXT=off reload_run MO01 "$B_READ" "$B_READ" "$P_READ"
+refused MO-01 "governance mode enforce -> off" "governance mode: enforce -> off" "$NAAB_LR_SECRET" "is blocked by policy"
+# A signed config cannot run in AUDIT (F3, enforceMinimumLevels): the load path
+# has always raised it to ENFORCE, and the reload path now does too -- before,
+# a signed reload to audit installed AUDIT and the variable was read.
+RL_MODE_START=enforce RL_MODE_NEXT=audit reload_run MO02 "$B_READ" "$B_READ" "$P_READ"
+if [ "$OUT" = "__NOSIGN__" ]; then skip "MO-02" "signing unavailable -- UNMEASURABLE"
+elif ! swapped; then skip "MO-02" "config swap did not happen -- UNMEASURABLE"
+else
+    case "$OUT" in
+        *"$NAAB_LR_SECRET"*) bad "MO-02" "a signed reload to audit relaxed enforcement (variable read)" "$OUT" ;;
+        *"overriding to ENFORCE"*"is blocked by policy"*) ok "MO-02" "a signed reload to audit is raised to enforce, as the load path does" ;;
+        *) bad "MO-02" "expected the F3 override and a held block" "$OUT" ;;
+    esac
+fi
+# Tightening control. Not audit -> enforce: a signed audit start is already
+# raised to enforce at load (F3), so that would be enforce -> enforce.
+RL_MODE_START=off RL_MODE_NEXT=enforce reload_run MO03 "$B_READ" "$B_READ" "$P_READ"
+accepted MO-03 "governance mode off -> enforce is accepted and enforced" "is blocked by policy"
 
 # ---- extends ------------------------------------------------------------------
 # ext_run NAME PARENT_MEMBERS CHILD_MEMBERS PROBE: runs PROBE under the parent

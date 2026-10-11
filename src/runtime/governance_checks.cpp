@@ -7238,10 +7238,7 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
            "  validate or transform the data — identity functions are detected.\n";
 
     // Determine enforcement level from config
-    EnforcementLevel taint_level = EnforcementLevel::HARD;
-    if (rules().taint_tracking.level == "soft") taint_level = EnforcementLevel::SOFT;
-    else if (rules().taint_tracking.level == "advisory") taint_level = EnforcementLevel::ADVISORY;
-    else if (rules().taint_tracking.level == "detect") taint_level = EnforcementLevel::DETECT;
+    EnforcementLevel taint_level = taintSinkLevel(rules().taint_tracking.level);
 
     // Record via enforce() so it appears in reports and audit trail
     std::string result = enforce("taint_tracking.sink_violation", taint_level, msg);
