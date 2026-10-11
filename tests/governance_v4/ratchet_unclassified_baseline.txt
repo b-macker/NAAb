@@ -5,8 +5,8 @@
 # A key here can be changed by a reload in EITHER direction with no ratchet
 # violation and no notice, wherever a check reads it live. Most are tuning
 # (thresholds, weights, telemetry paths) where that may well be fine; some are
-# not -- e.g. code_quality.no_pii.enabled and most per-check `.level` keys,
-# which a reload can switch off or lower today. Nothing here was judged; the
+# not -- e.g. code_quality.no_temporary_code.enabled and most per-check
+# `.level` keys, which a reload can switch off or lower today. Nothing here was judged; the
 # list is what was left over.
 #
 # HOW TO CHANGE IT
@@ -287,8 +287,6 @@ code_quality.no_hardcoded_ips.level
 code_quality.no_hardcoded_ips.patterns
 code_quality.no_hardcoded_results.check_dict_success_fields
 code_quality.no_hardcoded_results.check_return_true_false
-code_quality.no_hardcoded_results.enabled
-code_quality.no_hardcoded_results.level
 code_quality.no_hardcoded_urls.custom_patterns
 code_quality.no_hardcoded_urls.enabled
 code_quality.no_hardcoded_urls.level
@@ -328,8 +326,6 @@ code_quality.no_pii.detect_email
 code_quality.no_pii.detect_ip_address
 code_quality.no_pii.detect_phone
 code_quality.no_pii.detect_ssn
-code_quality.no_pii.enabled
-code_quality.no_pii.level
 code_quality.no_pii.mask_in_errors
 code_quality.no_placeholders.case_sensitive
 code_quality.no_placeholders.custom_markers
@@ -793,12 +789,6 @@ restrictions.information_disclosure.block_process_listing
 restrictions.information_disclosure.block_system_info_leak
 restrictions.information_disclosure.enabled
 restrictions.information_disclosure.level
-restrictions.no_hardcoded_results.enabled
-restrictions.no_hardcoded_results.level
-restrictions.no_placeholders.enabled
-restrictions.no_placeholders.level
-restrictions.no_secrets.enabled
-restrictions.no_secrets.level
 restrictions.obfuscation.enabled
 restrictions.obfuscation.level
 restrictions.polyglot_output.format

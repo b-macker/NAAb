@@ -584,6 +584,25 @@ static nlohmann::json applySettingDrop(const nlohmann::json& j) {
 
 static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_);
 
+// Rank an EnforcementLevel for comparison (higher = stricter). Shared by the
+// code-quality mirror reconcile and the reload ratchet.
+// DETECT and APPROVAL_REQUIRED were added after the ratchet was written
+// (4afa345a, 8ef3cbfc) and fell to the default 0 -- BELOW advisory -- so a
+// reload from detect or approval_required down to advisory read as a
+// tightening and was accepted. DETECT blocks (catchably), so it sits above
+// ADVISORY; APPROVAL_REQUIRED blocks unless a signed approval exists, stricter
+// than SOFT's command-line override and weaker than HARD.
+static int levelToInt(EnforcementLevel level) {
+    switch (level) {
+        case EnforcementLevel::ADVISORY:          return 1;
+        case EnforcementLevel::DETECT:            return 2;
+        case EnforcementLevel::SOFT:              return 3;
+        case EnforcementLevel::APPROVAL_REQUIRED: return 4;
+        case EnforcementLevel::HARD:              return 5;
+        default:                                  return 0;  // NONE: unset
+    }
+}
+
 // Each of the three capability switches is stored TWICE: a legacy flat field
 // (shell_allowed, network_allowed, filesystem_mode) and the v3 structured one
 // (capabilities.shell.enabled, .network.enabled, .filesystem.mode). Writers and
@@ -626,6 +645,47 @@ static void reconcileCapabilityMirrors(GovernanceRules& r) {
     r.capabilities.filesystem.mode = stricter;
 }
 
+// The same split, for three code_quality checks. no_secrets, no_placeholders
+// and no_hardcoded_results each keep a legacy flat pair (rules.no_secrets +
+// no_secrets_level, ...) beside the structured one (code_quality.no_secrets
+// .enabled/.level, ...):
+//   - the shorthand ("no_secrets": "hard" / true) sets ONLY the flat pair;
+//   - the object form and the restrictions.* alias set both;
+//   - the extends merge copies the structured struct and only the flat ENABLED
+//     flag;
+//   - checkSecrets/checkPlaceholders/checkHardcodedResults read the FLAT pair;
+//     the reload ratchet, the minimum-level rule and the function-body gate
+//     read the structured one.
+// Measured before this: a signed reload from "no_secrets": "hard" to false or
+// to "advisory" was accepted and a secret then ran (exit 0), while the object
+// form was refused; and the minimum-level rule wrote a copy checkSecrets never
+// reads. Reconciled to: enabled if either copy is, at the stricter level of the
+// copies that are enabled. An enabled copy's level can only rise, so the level
+// the checks read can only rise, or the check turns on where only the other
+// copy had it on; a disabled copy takes the enabled copy's level. Called after every parse (so an extends PARENT
+// written in the shorthand hands its level down: the merge copies only the
+// structured struct) and by enforceMinimumLevelsOnRules() after it raises a
+// level, which every load path runs after the extends merge.
+static void reconcileCodeQualityMirrors(GovernanceRules& r) {
+    auto pair = [](bool& flat_on, EnforcementLevel& flat_lv,
+                   bool& cq_on, EnforcementLevel& cq_lv) {
+        if (!flat_on && !cq_on) return;
+        EnforcementLevel lv;
+        if (flat_on && cq_on)
+            lv = levelToInt(flat_lv) >= levelToInt(cq_lv) ? flat_lv : cq_lv;
+        else
+            lv = flat_on ? flat_lv : cq_lv;
+        flat_on = cq_on = true;
+        flat_lv = cq_lv = lv;
+    };
+    pair(r.no_secrets, r.no_secrets_level,
+         r.code_quality.no_secrets.enabled, r.code_quality.no_secrets.level);
+    pair(r.no_placeholders, r.no_placeholders_level,
+         r.code_quality.no_placeholders.enabled, r.code_quality.no_placeholders.level);
+    pair(r.no_hardcoded_results, r.no_hardcoded_results_level,
+         r.code_quality.no_hardcoded_results.enabled, r.code_quality.no_hardcoded_results.level);
+}
+
 static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
 #ifdef NAAB_CONFIG_MUTATION
     loadFromJsonImpl(applySettingDrop(j), rules_);
@@ -633,6 +693,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     loadFromJsonImpl(j, rules_);
 #endif
     reconcileCapabilityMirrors(rules_);
+    reconcileCodeQualityMirrors(rules_);
 }
 
 static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
@@ -956,12 +1017,22 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             }
         };
 
-        if (cq.contains("no_secrets"))
+        // The shorthand is set explicitly too: mark it as the object form is
+        // marked, so the extends merge (child_wins) keeps a child's own value
+        // instead of copying the parent's structured copy over it, which the
+        // reconcile would then raise the child's level to.
+        if (cq.contains("no_secrets")) {
+            rules_.explicitly_set.insert("code_quality.no_secrets");
             parseCodeQualityField(cq["no_secrets"], rules_.no_secrets, rules_.no_secrets_level, "no_secrets");
-        if (cq.contains("no_placeholders"))
+        }
+        if (cq.contains("no_placeholders")) {
+            rules_.explicitly_set.insert("code_quality.no_placeholders");
             parseCodeQualityField(cq["no_placeholders"], rules_.no_placeholders, rules_.no_placeholders_level, "no_placeholders");
-        if (cq.contains("no_hardcoded_results"))
+        }
+        if (cq.contains("no_hardcoded_results")) {
+            rules_.explicitly_set.insert("code_quality.no_hardcoded_results");
             parseCodeQualityField(cq["no_hardcoded_results"], rules_.no_hardcoded_results, rules_.no_hardcoded_results_level, "no_hardcoded_results");
+        }
     }
 
     // Audit (legacy simple format)
@@ -3958,22 +4029,30 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
 
 // Static helper: enforce minimum enforcement levels on arbitrary rules
 static void enforceMinimumLevelsOnRules(GovernanceRules& rules) {
-    // F3: no_secrets and no_pii always minimum SOFT regardless of mode
-    if (rules.code_quality.no_secrets.enabled &&
-        rules.code_quality.no_secrets.level < EnforcementLevel::SOFT) {
-        rules.code_quality.no_secrets.level = EnforcementLevel::SOFT;
-    }
-    if (rules.code_quality.no_pii.enabled &&
-        rules.code_quality.no_pii.level < EnforcementLevel::SOFT) {
-        rules.code_quality.no_pii.level = EnforcementLevel::SOFT;
-    }
-
-    // Helper: silently elevate advisory to soft for anti-evasion checks
+    // Helper: silently elevate advisory to soft. "Minimum SOFT" means a check
+    // that is on may not be warn-only: ADVISORY is the one level that lets the
+    // content through. DETECT is left alone -- it blocks the content too (a
+    // script may catch the error, but the secret is not returned or run), and
+    // unlike SOFT it has no --governance-override, so raising it to SOFT would
+    // not be a tightening.
     auto elevate = [](auto& cfg, const char* /*name*/) {
         if (cfg.enabled && cfg.level == EnforcementLevel::ADVISORY) {
             cfg.level = EnforcementLevel::SOFT;
         }
     };
+
+    // F3 (29982dc6): no_secrets and no_pii always minimum SOFT regardless of
+    // mode. This used to compare the raw enum (`level < SOFT`), whose
+    // declaration order is NONE, HARD, APPROVAL_REQUIRED, SOFT, ADVISORY,
+    // DETECT -- so it LOWERED hard and approval_required to soft and never
+    // raised advisory, the opposite of its comment, since the day it was
+    // written. Observed: "no_pii": "hard" ran as soft (PII passed with
+    // --governance-override, exit 0), and an advisory no_pii only warned.
+    elevate(rules.code_quality.no_secrets, "no_secrets");
+    elevate(rules.code_quality.no_pii, "no_pii");
+    // checkSecrets() reads the flat no_secrets copy; carry the raised level
+    // there (see reconcileCodeQualityMirrors()).
+    reconcileCodeQualityMirrors(rules);
 
     elevate(rules.code_quality.no_oversimplification, "no_oversimplification");
     elevate(rules.code_quality.no_incomplete_logic, "no_incomplete_logic");
@@ -3991,24 +4070,6 @@ static const char* ratchetLevelStr(EnforcementLevel level) {
         case EnforcementLevel::APPROVAL_REQUIRED: return "approval_required";
         case EnforcementLevel::HARD:              return "hard";
         default:                                  return "none";
-    }
-}
-
-// Helper: convert EnforcementLevel to int for comparison (higher = stricter).
-// DETECT and APPROVAL_REQUIRED were added after the ratchet was written
-// (4afa345a, 8ef3cbfc) and fell to the default 0 -- BELOW advisory -- so a
-// reload from detect or approval_required down to advisory read as a
-// tightening and was accepted. DETECT blocks (catchably), so it sits above
-// ADVISORY; APPROVAL_REQUIRED blocks unless a signed approval exists, stricter
-// than SOFT's command-line override and weaker than HARD.
-static int levelToInt(EnforcementLevel level) {
-    switch (level) {
-        case EnforcementLevel::ADVISORY:          return 1;
-        case EnforcementLevel::DETECT:            return 2;
-        case EnforcementLevel::SOFT:              return 3;
-        case EnforcementLevel::APPROVAL_REQUIRED: return 4;
-        case EnforcementLevel::HARD:              return 5;
-        default:                                  return 0;  // NONE: unset
     }
 }
 
@@ -4635,6 +4696,10 @@ static bool checkRatchetViolation(
     // Code quality enforcement levels
     chkLevel(old_r.code_quality.no_secrets.level, new_r.code_quality.no_secrets.level, "code_quality.no_secrets.level");
     chkLevel(old_r.code_quality.no_placeholders.level, new_r.code_quality.no_placeholders.level, "code_quality.no_placeholders.level");
+    // no_pii and no_hardcoded_results were never compared: a reload could turn
+    // PII scanning off, or drop it to advisory, with no violation.
+    chkLevel(old_r.code_quality.no_pii.level, new_r.code_quality.no_pii.level, "code_quality.no_pii.level");
+    chkLevel(old_r.code_quality.no_hardcoded_results.level, new_r.code_quality.no_hardcoded_results.level, "code_quality.no_hardcoded_results.level");
     chkLevel(old_r.code_quality.no_oversimplification.level, new_r.code_quality.no_oversimplification.level, "code_quality.no_oversimplification.level");
     chkLevel(old_r.code_quality.no_incomplete_logic.level, new_r.code_quality.no_incomplete_logic.level, "code_quality.no_incomplete_logic.level");
     chkLevel(old_r.code_quality.no_simulation_markers.level, new_r.code_quality.no_simulation_markers.level, "code_quality.no_simulation_markers.level");
@@ -4659,6 +4724,8 @@ static bool checkRatchetViolation(
     chkRestrict(old_r.restrictions.resource_abuse.enabled, new_r.restrictions.resource_abuse.enabled, "restrictions.resource_abuse.enabled");
     chkRestrict(old_r.code_quality.no_secrets.enabled, new_r.code_quality.no_secrets.enabled, "code_quality.no_secrets.enabled");
     chkRestrict(old_r.code_quality.no_placeholders.enabled, new_r.code_quality.no_placeholders.enabled, "code_quality.no_placeholders.enabled");
+    chkRestrict(old_r.code_quality.no_pii.enabled, new_r.code_quality.no_pii.enabled, "code_quality.no_pii.enabled");
+    chkRestrict(old_r.code_quality.no_hardcoded_results.enabled, new_r.code_quality.no_hardcoded_results.enabled, "code_quality.no_hardcoded_results.enabled");
     chkRestrict(old_r.code_quality.no_oversimplification.enabled, new_r.code_quality.no_oversimplification.enabled, "code_quality.no_oversimplification.enabled");
     chkRestrict(old_r.code_quality.no_incomplete_logic.enabled, new_r.code_quality.no_incomplete_logic.enabled, "code_quality.no_incomplete_logic.enabled");
     chkRestrict(old_r.code_quality.no_simulation_markers.enabled, new_r.code_quality.no_simulation_markers.enabled, "code_quality.no_simulation_markers.enabled");
@@ -6497,7 +6564,11 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
             base.polyglot.persistent_runtime.max_memory_per_session_mb;
 
     // The capability merges above write only the structured copy; the gates
-    // read the flat one. See reconcileCapabilityMirrors().
+    // read the flat one. See reconcileCapabilityMirrors(). (The code_quality
+    // merge leaves its copies disagreeing too -- it inherits the structured
+    // struct and only the flat enabled flag -- but nothing reads them before
+    // enforceMinimumLevels(), which every load path runs after the extends
+    // chain and which reconciles them; see reconcileCodeQualityMirrors().)
     reconcileCapabilityMirrors(child);
 }
 
