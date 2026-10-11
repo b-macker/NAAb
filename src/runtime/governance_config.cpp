@@ -3985,20 +3985,30 @@ static void enforceMinimumLevelsOnRules(GovernanceRules& rules) {
 // Helper: convert EnforcementLevel to string (local version to avoid private access)
 static const char* ratchetLevelStr(EnforcementLevel level) {
     switch (level) {
-        case EnforcementLevel::ADVISORY: return "advisory";
-        case EnforcementLevel::SOFT:     return "soft";
-        case EnforcementLevel::HARD:     return "hard";
-        default:                         return "unknown";
+        case EnforcementLevel::ADVISORY:          return "advisory";
+        case EnforcementLevel::DETECT:            return "detect";
+        case EnforcementLevel::SOFT:              return "soft";
+        case EnforcementLevel::APPROVAL_REQUIRED: return "approval_required";
+        case EnforcementLevel::HARD:              return "hard";
+        default:                                  return "none";
     }
 }
 
-// Helper: convert EnforcementLevel to int for comparison (higher = stricter)
+// Helper: convert EnforcementLevel to int for comparison (higher = stricter).
+// DETECT and APPROVAL_REQUIRED were added after the ratchet was written
+// (4afa345a, 8ef3cbfc) and fell to the default 0 -- BELOW advisory -- so a
+// reload from detect or approval_required down to advisory read as a
+// tightening and was accepted. DETECT blocks (catchably), so it sits above
+// ADVISORY; APPROVAL_REQUIRED blocks unless a signed approval exists, stricter
+// than SOFT's command-line override and weaker than HARD.
 static int levelToInt(EnforcementLevel level) {
     switch (level) {
-        case EnforcementLevel::ADVISORY: return 1;
-        case EnforcementLevel::SOFT:     return 2;
-        case EnforcementLevel::HARD:     return 3;
-        default:                         return 0;
+        case EnforcementLevel::ADVISORY:          return 1;
+        case EnforcementLevel::DETECT:            return 2;
+        case EnforcementLevel::SOFT:              return 3;
+        case EnforcementLevel::APPROVAL_REQUIRED: return 4;
+        case EnforcementLevel::HARD:              return 5;
+        default:                                  return 0;  // NONE: unset
     }
 }
 
@@ -4366,10 +4376,154 @@ static void checkCapabilityListRatchet(
         if (!oa) continue;
         ratchetPathLists(oa->allowed_paths, oa->blocked_paths, na.allowed_paths, na.blocked_paths,
                          PathPrecedence::DenyWins, resolve_path,
-                         "agent." + na.name + " paths", violations, notices);
+                         fmt::format("agent.{} paths", na.name), violations, notices);
         ratchetLanguageLists(oa->allowed_languages, oa->blocked_languages,
                              na.allowed_languages, na.blocked_languages,
-                             "agent." + na.name + " languages", violations, notices);
+                             fmt::format("agent.{} languages", na.name), violations, notices);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Detection lists in the reload ratchet: taint configuration, the PII
+// allowlist, and the import blocklists.
+//
+// Same gap as the capability lists above, one layer in: every list here is read
+// live by its check (checkTaintedSink / isTaintSource / isSanitizer, checkPii,
+// checkDebugArtifacts, checkHardcodedUrls / Ips, checkImports), and the ratchet
+// compared none of them -- for taint only `enabled` was ratcheted, so a signed
+// reload could drop a sink, add a sanitizer or lower taint_tracking.level from
+// hard to advisory. Each comparison follows its check's matcher:
+//   - taint sources / sinks / sanitizers match by PREFIX (also after a module
+//     dot), so an entry stays covered by any entry that is a prefix of it;
+//   - no_pii.allowlist_patterns exempts a finding CONTAINING an entry, so a new
+//     entry is harmless when an old entry is a substring of it;
+//   - import blocklists are regex fragments spliced into per-language patterns,
+//     compared entry by entry (sound -- any entry matching blocks -- and
+//     conservative).
+// Not here, because a reload cannot loosen what nothing consults (screened by
+// grep for every reader and every parse):
+//   - parsed, read by no check: code_quality.no_secrets.allowlist (observed:
+//     listing the exact secret still blocks), restrictions.dangerous_calls
+//     allowlist / blocklist_extra, the import `mode` / `allowed` keys;
+//   - read by a check, never parsed (loadSimpleCheck takes only level and
+//     patterns, so they are always empty): no_debug_artifacts.allowlist,
+//     no_hardcoded_urls.allowlist, no_hardcoded_ips.allowlist;
+//   - neither: shell_injection.allowlist, no_sql_injection.allowlist.
+// tests/governance_v4/ratchet_classification.txt records the parsed ones.
+// ----------------------------------------------------------------------------
+namespace {
+
+// Entries of `from` that no entry of `by` covers, under `covers(entry, by_entry)`.
+template <class Covers>
+std::string uncovered(const std::vector<std::string>& from,
+                      const std::vector<std::string>& by, Covers covers) {
+    std::string out;
+    for (const auto& e : from) {
+        bool c = false;
+        for (const auto& b : by) if (covers(e, b)) { c = true; break; }
+        if (c) continue;
+        if (!out.empty()) out += ", ";
+        out += "'" + e + "'";
+    }
+    return out;
+}
+
+bool prefixCovers(const std::string& e, const std::string& by) {
+    return e.size() >= by.size() && e.compare(0, by.size(), by) == 0;
+}
+bool substringCovers(const std::string& e, const std::string& by) {
+    return e.find(by) != std::string::npos;
+}
+bool exactCovers(const std::string& e, const std::string& by) { return e == by; }
+
+// A list whose REMOVED entries loosen (taint sources/sinks, blocklists).
+template <class Covers>
+void ratchetDenyList(const std::vector<std::string>& o, const std::vector<std::string>& n,
+                     Covers covers, const std::string& what, const char* effect,
+                     std::vector<std::string>& violations, std::vector<std::string>& notices) {
+    const std::string lost = uncovered(o, n, covers);
+    if (!lost.empty())
+        violations.push_back(fmt::format("{}: {} {} (loosened)", what, lost, effect));
+    const std::string gained = uncovered(n, o, covers);
+    if (!gained.empty())
+        notices.push_back(fmt::format("{}: {} added (tightened)", what, gained));
+}
+
+// A list whose ADDED entries loosen (sanitizers, allowlists).
+template <class Covers>
+void ratchetAllowList(const std::vector<std::string>& o, const std::vector<std::string>& n,
+                      Covers covers, const std::string& what,
+                      std::vector<std::string>& violations, std::vector<std::string>& notices) {
+    const std::string gained = uncovered(n, o, covers);
+    if (!gained.empty())
+        violations.push_back(fmt::format("{}: {} added (loosened)", what, gained));
+    const std::string lost = uncovered(o, n, covers);
+    if (!lost.empty())
+        notices.push_back(fmt::format("{}: {} removed (tightened)", what, lost));
+}
+
+}  // namespace
+
+static void checkDetectionListRatchet(
+    const GovernanceRules& old_r,
+    const GovernanceRules& new_r,
+    std::vector<std::string>& violations,
+    std::vector<std::string>& notices)
+{
+    // Taint lists are reported WITHOUT their key paths or entries. A rejected
+    // reload's message reaches stderr, which the program can read, and naming
+    // the sanitizer / source / sink lists is the hint the error-message leak
+    // suite exists to keep out of output (which functions sanitize, which
+    // sinks are watched). The operator wrote the config and can diff it.
+    const auto& ot = old_r.taint_tracking;
+    const auto& nt = new_r.taint_tracking;
+    auto taintChange = [&](const std::vector<std::string>& o, const std::vector<std::string>& n,
+                           bool removal_loosens, const char* list, const char* loosened) {
+        const std::string lost = uncovered(o, n, prefixCovers);
+        const std::string gained = uncovered(n, o, prefixCovers);
+        const std::string& loose = removal_loosens ? lost : gained;
+        const std::string& tight = removal_loosens ? gained : lost;
+        if (!loose.empty())
+            violations.push_back(fmt::format("taint tracking: {} {} (loosened)", list, loosened));
+        if (!tight.empty())
+            notices.push_back(fmt::format("taint tracking: {} changed (tightened)", list));
+    };
+    taintChange(ot.sources, nt.sources, true, "source list", "narrowed");
+    taintChange(ot.sinks, nt.sinks, true, "sink list", "narrowed");
+    taintChange(ot.sanitizers, nt.sanitizers, false, "sanitizer list", "widened");
+
+    const auto& oq = old_r.code_quality;
+    const auto& nq = new_r.code_quality;
+    ratchetAllowList(oq.no_pii.allowlist_patterns, nq.no_pii.allowlist_patterns, substringCovers,
+                     "code_quality.no_pii.allowlist_patterns", violations, notices);
+
+    // Import blocklists: restrictions.imports.blocked (per language, plus
+    // "any") and languages.per_language.<lang>.imports.blocked / banned_imports.
+    // A language missing on the new side has lost every entry.
+    static const std::vector<std::string> kNone;
+    auto langList = [](const auto& map, const std::string& lang) -> const std::vector<std::string>& {
+        auto it = map.find(lang);
+        return it == map.end() ? kNone : it->second;
+    };
+    for (const auto& [lang, list] : old_r.restrictions.imports.blocked)
+        ratchetDenyList(list, langList(new_r.restrictions.imports.blocked, lang), exactCovers,
+                        fmt::format("restrictions.imports.blocked.{}", lang), "no longer blocked",
+                        violations, notices);
+    for (const auto& [lang, list] : new_r.restrictions.imports.blocked)
+        if (!old_r.restrictions.imports.blocked.count(lang))
+            ratchetDenyList(kNone, list, exactCovers,
+                            fmt::format("restrictions.imports.blocked.{}", lang),
+                            "no longer blocked", violations, notices);
+    for (const auto& [lang, ol] : old_r.languages.per_language) {
+        auto it = new_r.languages.per_language.find(lang);
+        const auto& nb = it == new_r.languages.per_language.end() ? kNone : it->second.imports.blocked;
+        const auto& nbi = it == new_r.languages.per_language.end() ? kNone : it->second.banned_imports;
+        ratchetDenyList(ol.imports.blocked, nb, exactCovers,
+                        fmt::format("languages.per_language.{}.imports.blocked", lang), "no longer blocked",
+                        violations, notices);
+        ratchetDenyList(ol.banned_imports, nbi, exactCovers,
+                        fmt::format("languages.per_language.{}.banned_imports", lang), "no longer blocked",
+                        violations, notices);
     }
 }
 
@@ -4510,6 +4664,29 @@ static bool checkRatchetViolation(
     chkRestrict(old_r.code_quality.no_simulation_markers.enabled, new_r.code_quality.no_simulation_markers.enabled, "code_quality.no_simulation_markers.enabled");
     chkRestrict(old_r.taint_tracking.enabled, new_r.taint_tracking.enabled, "taint_tracking.enabled");
 
+    // --- D0. Governance mode (ENFORCE < AUDIT < OFF, lower = stricter) ---
+    // Never compared until the ratchet-coverage guard listed it: a signed
+    // reload from enforce to audit or off was accepted, and reloadIfChanged()
+    // then set active_ from the new mode -- observed, a blocked_read variable
+    // was read after the swap with exit 0. The extends merge has floored mode
+    // since f229dd9b; the reload path had no equivalent.
+    {
+        auto modeName = [](GovernanceMode m) {
+            switch (m) {
+                case GovernanceMode::ENFORCE: return "enforce";
+                case GovernanceMode::AUDIT:   return "audit";
+                default:                      return "off";
+            }
+        };
+        const int om = static_cast<int>(old_r.mode), nm = static_cast<int>(new_r.mode);
+        if (nm > om)
+            violations.push_back(fmt::format("governance mode: {} -> {} (loosened)",
+                modeName(old_r.mode), modeName(new_r.mode)));
+        else if (nm < om)
+            notices.push_back(fmt::format("governance mode: {} -> {} (tightened)",
+                modeName(old_r.mode), modeName(new_r.mode)));
+    }
+
     // --- D1. Capability lists and the switches beside them ---
     // env_vars.read / write are master switches (false = every variable
     // refused); https_only refuses plain-http requests and imports.
@@ -4517,6 +4694,21 @@ static bool checkRatchetViolation(
     chkCap(old_r.capabilities.env_vars.write, new_r.capabilities.env_vars.write, "capabilities.env_vars.write");
     chkRestrict(old_r.capabilities.network.https_only, new_r.capabilities.network.https_only, "capabilities.network.https_only");
     checkCapabilityListRatchet(old_r, new_r, resolve_path, violations, notices);
+    // Taint switches and levels beside the lists checkDetectionListRatchet()
+    // compares. lineage only adds origin detail to findings, but it is
+    // evidence, and disabling evidence mid-run is refused elsewhere too.
+    chkLevel(taintSinkLevel(old_r.taint_tracking.level), taintSinkLevel(new_r.taint_tracking.level),
+             "taint_tracking.level");
+    chkRestrict(old_r.taint_tracking.gate_cross_block, new_r.taint_tracking.gate_cross_block,
+                "taint_tracking.gate_cross_block");
+    chkLevel(old_r.taint_tracking.cross_block_level, new_r.taint_tracking.cross_block_level,
+             "taint_tracking.cross_block_level");
+    chkRestrict(old_r.taint_tracking.lineage, new_r.taint_tracking.lineage, "taint_tracking.lineage");
+    chkRestrict(old_r.restrictions.imports.enabled, new_r.restrictions.imports.enabled,
+                "restrictions.imports.enabled");
+    chkLevel(old_r.restrictions.imports.level, new_r.restrictions.imports.level,
+             "restrictions.imports.level");
+    checkDetectionListRatchet(old_r, new_r, violations, notices);
 
     // --- D2. capabilities.functions (F5) ---
     // Compares EFFECTIVE permissions per function, not raw entries, because
@@ -5338,8 +5530,15 @@ bool GovernanceEngine::reloadIfChanged() {
         // Signature verified — clear the failure tracker
         last_sig_fail_mtime_ = 0;
 
-        // Apply minimum enforcement levels to new rules
-        enforceMinimumLevelsOnRules(new_rules);
+        // Apply minimum enforcement levels to new rules -- the SAME function
+        // the load path calls (loadFromFile, applyEnvironment). This used to
+        // call enforceMinimumLevelsOnRules() alone, which skips the F3 rule
+        // that a signed config cannot run in AUDIT mode: a signed reload to
+        // `mode: audit` installed AUDIT, so a program that started under
+        // enforce (or under a signed audit config the load path had raised to
+        // enforce) dropped to audit on the next reload. Reloads are always
+        // signed by this point, so the override always applies.
+        enforceMinimumLevels(new_rules);
 
         // Re-apply governance self-protection to new rules (survives reload)
         addGovernanceProtectedPaths(new_rules);

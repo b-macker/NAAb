@@ -2454,6 +2454,15 @@ struct TaintTrackingConfig {
     EnforcementLevel cross_block_level = EnforcementLevel::SOFT;  // F14: enforcement level for cross-block
 };
 
+// taint_tracking.level as checkTaintedSink() enforces it: "soft", "advisory"
+// and "detect" by name, anything else HARD. Shared with the reload ratchet.
+inline EnforcementLevel taintSinkLevel(const std::string& level) {
+    if (level == "soft") return EnforcementLevel::SOFT;
+    if (level == "advisory") return EnforcementLevel::ADVISORY;
+    if (level == "detect") return EnforcementLevel::DETECT;
+    return EnforcementLevel::HARD;
+}
+
 // ============================================================================
 // Telemetry Output Config
 // ============================================================================
