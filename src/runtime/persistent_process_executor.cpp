@@ -86,8 +86,11 @@ bool PersistentProcessExecutor::start() {
     // happen at all, so a <<shell>> child saw HTTPS_PROXY with network off.
     const SubprocessContainment env_containment =
         SubprocessContainment::fromCurrentSandbox(command_);
-    const std::vector<std::string> env_strings = buildChildEnvironment(
-        currentEnvScrubPolicy(EnvScrubScope::Program), &env_containment);
+    const EnvScrubPolicy env_policy = currentEnvScrubPolicy(EnvScrubScope::Program);
+    const std::vector<std::string> env_strings = buildChildEnvironment(env_policy, &env_containment);
+    // Recorded from the same policy the environment was built from, so a
+    // reload landing between the two cannot make them disagree.
+    env_policy_key_ = childEnvPolicyKey(env_policy, &env_containment);
     std::vector<char*> envp;
     envp.reserve(env_strings.size() + 1);
     for (const auto& kv : env_strings) envp.push_back(const_cast<char*>(kv.c_str()));
@@ -305,6 +308,31 @@ interpreter::NaabVal PersistentProcessExecutor::executeWithReturn(
         timeout = sandbox->getConfig().max_cpu_seconds;
     }
     int timeout_ms = static_cast<int>(timeout) * 1000;
+
+    // This child's environment was fixed when it was started. Both engines
+    // call reloadIfChanged() before every polyglot block (f229dd9b: "so
+    // governance tightening takes effect mid-execution"), but a reload that
+    // changed the environment policy -- blocked_read, the subprocess scrub
+    // lists, network off (proxy stripping) -- never reached a child that was
+    // already running: a <<shell>> started before the reload still printed a
+    // variable every new child was denied. Restart it so this block runs under
+    // the current policy. That discards the state these executors exist to
+    // keep (c1d8208d), so it happens only when the policy really changed, and
+    // it is announced. An empty key (no engine bound to this thread) is never
+    // a reason to restart.
+    if (started_ && isAlive()) {
+        const SubprocessContainment now_containment =
+            SubprocessContainment::fromCurrentSandbox(command_);
+        const std::string now_key = childEnvPolicyKey(
+            currentEnvScrubPolicy(EnvScrubScope::Program), &now_containment);
+        if (!now_key.empty() && now_key != env_policy_key_) {
+            fmt::print(stderr,
+                       "[governance] Restarted the {} process: the environment policy changed "
+                       "during the run, so state kept from earlier {} blocks is gone\n",
+                       language_id_, language_id_);
+            restart();
+        }
+    }
 
     // Lazy start
     if (!started_) {

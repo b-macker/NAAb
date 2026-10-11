@@ -81,6 +81,9 @@ private:
     int stderr_pipe_fd_ = -1;  // Parent reads child's stderr (non-blocking)
     bool started_ = false;
     int execution_count_ = 0;  // For diagnostics
+    // childEnvPolicyKey() of the environment this child was started with
+    // (empty when no governance engine was bound to the starting thread).
+    std::string env_policy_key_;
 
     // Thread safety — one block at a time per process
     std::mutex process_mutex_;
