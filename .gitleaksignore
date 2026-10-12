@@ -353,3 +353,10 @@ f666e6e5778c4fe39dc659d9ee02644f884a49d9:docs/WEEK3_SUMMARY.md:private-key:467
 c5a6dff4c76084fb54408c86304ce4a776421515:tests/chapter verification/ch0_full_projects/GlobalTradeLogistics/main.naab:jwt-token:203
 c5a6dff4c76084fb54408c86304ce4a776421515:tests/chapter verification/ch0_full_projects/GlobalTradeLogistics/main.naab:jwt:203
 c5a6dff4c76084fb54408c86304ce4a776421515:tests/chapter verification/ch0_full_projects/IronDome/config/key.pem:private-key:1
+
+# --- MCP suite: AWS's documentation example key as a literal (PR #307, first commit) (3) ---
+# The test needs a secret-SHAPED value; the next commit assembles it at run time
+# so no literal remains at HEAD. These pin only the first commit's copies.
+69d0cd20e6a4f1e713c8a77e3ff4d1e4964ea572:tests/mcp/mcp_stdio_arms.py:aws-access-key:318
+69d0cd20e6a4f1e713c8a77e3ff4d1e4964ea572:tests/mcp/mcp_stdio_arms.py:aws-access-key:728
+69d0cd20e6a4f1e713c8a77e3ff4d1e4964ea572:tests/mcp/mcp_stdio_arms.py:aws-access-key:730
