@@ -28,7 +28,6 @@
 #include "naab/trust_store.h"
 #include "naab/json_depth.h"
 #include "naab/config.h"
-#include "naab/scoped_temp_dir.h"
 
 #include <nlohmann/json.hpp>
 #include <fmt/core.h>
@@ -54,6 +53,7 @@
 #include <vector>
 
 #ifndef _WIN32
+#  include "naab/scoped_temp_dir.h"   // POSIX: mkdtemp
 #  include <cerrno>
 #  include <csignal>
 #  include <fcntl.h>
