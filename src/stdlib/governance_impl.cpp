@@ -311,6 +311,50 @@ static NaabVal governanceParseFindings(std::vector<NaabVal>& args) {
 }
 
 // ============================================================================
+// governance.guidance(topic [, source [, max]]) — pull live guidance
+// ============================================================================
+//
+// docs/plan-live-guidance.md. Returns the project guidance entries for a topic:
+// "source#slug" or "#slug" selects a section by anchor, anything else by keyword
+// overlap. Empty when guidance is off. A script can hand this to an agent as a
+// registered tool, so the agent pulls guidance on demand through the same
+// governed channel (policy-gated read, secret/PII scan, telemetry).
+
+static NaabVal governanceGuidance(std::vector<NaabVal>& args) {
+    if (args.empty() || !args[0].isString()) {
+        throw std::runtime_error(
+            "Governance error: governance.guidance requires a topic string\n\n"
+            "  Expected: governance.guidance(topic [, source [, max_entries]])\n\n"
+            "  Help:\n"
+            "  - topic is keywords (\"retry backoff\") or a section anchor (\"playbook#stubs\")\n\n"
+            "  Example:\n"
+            "    x Wrong: governance.guidance()\n"
+            "    v Right: governance.guidance(\"handling flaky tests\")\n");
+    }
+    std::string source;
+    if (args.size() >= 2 && args[1].isString()) source = args[1].asString();
+    int max_entries = 3;
+    if (args.size() >= 3 && args[2].isInt()) max_entries = static_cast<int>(args[2].asInt());
+
+    std::vector<NaabVal> out;
+    auto* engine = GovernanceEngine::getCurrent();
+    if (!engine) return NaabVal::makeList(std::move(out));
+    for (const auto& d : engine->guidancePull(args[0].asString(), source, max_entries)) {
+        std::unordered_map<std::string, NaabVal> e;
+        e["source"] = NaabVal::makeString(d.source);
+        e["file"] = NaabVal::makeString(d.file);
+        e["section"] = NaabVal::makeString(d.section);
+        e["heading"] = NaabVal::makeString(d.heading);
+        e["text"] = NaabVal::makeString(d.text);
+        e["select"] = NaabVal::makeString(d.select);
+        e["score"] = NaabVal::makeDouble(d.score);
+        e["sha256"] = NaabVal::makeString(d.sha256);
+        out.push_back(NaabVal::makeDict(std::move(e)));
+    }
+    return NaabVal::makeList(std::move(out));
+}
+
+// ============================================================================
 // governance.health() — pulse verdict + liveness counters
 // ============================================================================
 
@@ -429,7 +473,8 @@ static NaabVal governanceCalibration(std::vector<NaabVal>& args) {
 bool GovernanceModule::hasFunction(const std::string& name) const {
     return name == "scorer" || name == "finding" || name == "evaluate" ||
            name == "findings" || name == "score" || name == "parse_findings" ||
-           name == "health" || name == "calibrate" || name == "calibration";
+           name == "health" || name == "calibrate" || name == "calibration" ||
+           name == "guidance";
 }
 
 NaabVal GovernanceModule::call(
@@ -444,12 +489,13 @@ NaabVal GovernanceModule::call(
     if (function_name == "health") return governanceHealth(args);
     if (function_name == "calibrate") return governanceCalibrate(args);
     if (function_name == "calibration") return governanceCalibration(args);
+    if (function_name == "guidance") return governanceGuidance(args);
 
     throw std::runtime_error(
         "Runtime error: governance module has no function '" + function_name + "'\n\n"
         "  Help:\n"
         "  - Available: scorer, finding, evaluate, findings, score, parse_findings, "
-        "health, calibrate, calibration\n");
+        "health, calibrate, calibration, guidance\n");
 }
 
 } // namespace stdlib

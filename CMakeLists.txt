@@ -400,7 +400,8 @@ add_library(naab_security
     src/runtime/governance_reports.cpp      # Governance reports (audit, hooks, plugins)
     src/runtime/telemetry_forwarder.cpp    # Telemetry webhook/SIEM forwarder
     src/runtime/project_context.cpp          # Project context awareness (LLM files, linters, manifests)
-    src/utils/safe_regex.cpp                 # Phase 1 Item 7: Regex timeout protection
+    src/runtime/governance_guidance.cpp      # Live guidance (docs/plan-live-guidance.md)
+    src/utils/safe_regex.cpp                # Phase 1 Item 7: Regex timeout protection
     src/runtime/tamper_evident_logger.cpp    # Phase 1 Item 8: Tamper-evident logging
     src/runtime/ffi_callback_validator.cpp   # Phase 1 Item 9: FFI callback safety
     src/runtime/ffi_async_callback.cpp       # Phase 1 Item 10: FFI async callback safety

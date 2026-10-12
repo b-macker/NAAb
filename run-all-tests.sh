@@ -2469,6 +2469,21 @@ else
     echo "  test_undetermined_gate.sh: not found, skipping"
 fi
 
+# Live guidance (docs/plan-live-guidance.md): delivery on each trigger and
+# channel, and the governance of the channel itself (policy-gated reads, no
+# program writes to a source, secrets withheld).
+GUIDANCE_SCRIPT="tests/governance_v4/test_guidance.sh"
+if [ -f "$GUIDANCE_SCRIPT" ]; then
+    if run_shell_test "$GUIDANCE_SCRIPT" 2>&1; then
+        echo "  test_guidance.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_guidance.sh")
+    fi
+else
+    echo "  test_guidance.sh: not found, skipping"
+fi
+
 # The BSD pre-execution path must leave evidence.
 BSDPRE_SCRIPT="tests/governance_v4/test_bsd_preexec_evidence.sh"
 if [ -f "$BSDPRE_SCRIPT" ]; then

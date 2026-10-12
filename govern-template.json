@@ -1742,6 +1742,27 @@
     "max_file_size_kb": 100
   },
 
+  "_comment_guidance": "Live guidance (docs/plan-live-guidance.md) -- operator-written project knowledge delivered at governance events. Sources are re-read when they change, so editing a source steers a running agent with no reload. Guidance is text with no authority: it grants nothing, and every gate still applies. Off by default.",
+  "guidance": {
+    "enabled": false,
+    "_comment_max_chars_per_turn": "Agent channel: characters of guidance prepended to one request (never stored in history).",
+    "max_chars_per_turn": 1500,
+    "_comment_max_chars_terminal": "Terminal channel: characters appended to one block message.",
+    "max_chars_terminal": 800,
+    "_comment_max_source_kb": "A source larger than this is read up to the cap, with a warning.",
+    "max_source_kb": 256,
+    "_comment_cooldown_turns": "The same section is not re-sent to one agent handle within this many turns.",
+    "cooldown_turns": 3,
+    "_comment_sources": "name -> { type, path }. type: file (a markdown document split into sections at its headings; a section is addressed by its heading slug, e.g. #stay-on-task). The path must be readable under the filesystem policy, and the governed program may not write it (no self-instruction loop). A <<sh>> block with shell enabled is outside path policy.",
+    "sources": {
+      "playbook": { "type": "file", "path": "docs/agent-playbook.md" }
+    },
+    "_comment_rules": "on: start | signal:<context_drift signal key, or *> | validation_failed | violation:<rule, trailing * = prefix>. from: \"source#slug\" (that section, subsections included) or \"source\" (the section whose own text -- up to its first subheading -- best overlaps the trigger's keywords). to: agent (start, signal, validation_failed) and/or terminal (violation). agents: limit to these agent names (empty = all). max_entries: sections per trigger (1-10).",
+    "rules": [
+      { "on": "signal:mandate_alignment", "from": "playbook#stay-on-task", "to": ["agent"], "agents": [], "max_entries": 1 }
+    ]
+  },
+
   "_comment_quality_gate": "Quality Gate — aggregate pass/fail for CI/CD pipelines. Exit code 2 on failure.",
   "quality_gate": {
     "enabled": false,

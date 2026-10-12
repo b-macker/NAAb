@@ -988,14 +988,10 @@ static const std::vector<std::pair<std::string, std::string>> DEFAULT_PII_PATTER
     {"\\b(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\b", "IP Address"},
 };
 
-std::string GovernanceEngine::checkPii(const std::string& code, int line) {
-    auto& cfg = rules().code_quality.no_pii;
-    if (!cfg.enabled) return "";
-    clearTrace();
-
-    // DEFAULT_PII_PATTERNS is constant — compile once (runs on every agent
-    // prompt/response/tool argument, so per-call compilation is hot).
-    static const std::vector<std::regex> compiled_pii_patterns = [] {
+// DEFAULT_PII_PATTERNS is constant — compile once (runs on every agent
+// prompt/response/tool argument, so per-call compilation is hot).
+static const std::vector<std::regex>& compiledPiiPatterns() {
+    static const std::vector<std::regex> compiled = [] {
         std::vector<std::regex> out;
         for (const auto& [pat, desc] : DEFAULT_PII_PATTERNS) {
             (void)desc;
@@ -1003,7 +999,15 @@ std::string GovernanceEngine::checkPii(const std::string& code, int line) {
         }
         return out;
     }();
+    return compiled;
+}
 
+// The first PII match checkPii() acts on: the enabled patterns, minus
+// all-same-digit "credit cards" and allowlisted text. One copy of the
+// decision, shared by checkPii() and the decide-only piiFinding().
+static bool firstPiiMatch(const NoPiiConfig& cfg, const std::string& code,
+                          std::string& desc_out, std::string& found_out) {
+    const auto& compiled_pii_patterns = compiledPiiPatterns();
     std::vector<size_t> pattern_indices;
     if (cfg.detect_ssn) pattern_indices.push_back(0);
     if (cfg.detect_credit_card) pattern_indices.push_back(1);
@@ -1040,19 +1044,9 @@ std::string GovernanceEngine::checkPii(const std::string& code, int line) {
                 }
                 if (allowed) continue;
 
-                std::string display = cfg.mask_in_errors
-                    ? (found.substr(0, 3) + std::string(found.size() - 3, '*'))
-                    : found;
-                addTrace(fmt::format("PII detected: {} at line {}", desc, line));
-                return enforce("code_quality.no_pii", cfg.level,
-                    formatError(cfg.level,
-                        fmt::format("PII detected: {} ({})", desc, display),
-                        line > 0 ? fmt::format("line {}", line) : "",
-                        "code_quality.no_pii",
-                        "Remove personally identifiable information from code.\n"
-                        "Use environment variables or config files instead.",
-                        "email = \"john.doe@company.com\"",
-                        "email = env.get(\"ADMIN_EMAIL\")"));
+                desc_out = desc;
+                found_out = found;
+                return true;
             }
         } catch (const std::regex_error& re) {
             fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
@@ -1062,6 +1056,39 @@ std::string GovernanceEngine::checkPii(const std::string& code, int line) {
                 "  This is a fail-safe: governance cannot verify safety under memory pressure.\n"
             );
         }
+    }
+    return false;
+}
+
+// Decide-only: the description of the first PII checkPii() would act on, or
+// "". Never enforces, records nothing (guidance text is withheld, not blocked).
+std::string GovernanceEngine::piiFinding(const std::string& text) const {
+    const auto& cfg = rules().code_quality.no_pii;
+    if (!cfg.enabled) return "";
+    std::string desc, found;
+    return firstPiiMatch(cfg, text, desc, found) ? desc : "";
+}
+
+std::string GovernanceEngine::checkPii(const std::string& code, int line) {
+    auto& cfg = rules().code_quality.no_pii;
+    if (!cfg.enabled) return "";
+    clearTrace();
+
+    std::string desc, found;
+    if (firstPiiMatch(cfg, code, desc, found)) {
+        std::string display = cfg.mask_in_errors
+            ? (found.substr(0, 3) + std::string(found.size() - 3, '*'))
+            : found;
+        addTrace(fmt::format("PII detected: {} at line {}", desc, line));
+        return enforce("code_quality.no_pii", cfg.level,
+            formatError(cfg.level,
+                fmt::format("PII detected: {} ({})", desc, display),
+                line > 0 ? fmt::format("line {}", line) : "",
+                "code_quality.no_pii",
+                "Remove personally identifiable information from code.\n"
+                "Use environment variables or config files instead.",
+                "email = \"john.doe@company.com\"",
+                "email = env.get(\"ADMIN_EMAIL\")"));
     }
     recordPass("code_quality.no_pii", cfg.level);
     return "";
@@ -6845,7 +6872,7 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "languages", "capabilities", "limits", "requirements",
         "restrictions", "code_quality", "custom_rules", "scopes",
         "output", "audit", "meta", "hooks", "polyglot", "polyglot_optimization",
-        "contracts", "baselines", "project_context", "scanner",
+        "contracts", "baselines", "project_context", "guidance", "scanner",
         "governance_plugins", "governance",
         "taint_tracking", "quality_gate", "governance_baseline",
         "environments", "runtime_versions", "agent_roles", "agents", "telemetry", "scoring",

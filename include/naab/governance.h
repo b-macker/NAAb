@@ -1191,6 +1191,59 @@ struct HooksConfig {
 };
 
 // ============================================================================
+// Section 12b: Guidance (live project knowledge delivered at governance events)
+// ============================================================================
+//
+// docs/plan-live-guidance.md. Operator-declared sources (slice 1: markdown
+// files) are re-read when they change and selected by what governance just
+// observed: an agent's first send, a drift signal that paid a penalty, a failed
+// validation, or a rule violation. Guidance is text with no authority -- it
+// grants nothing, so every key here is ratchet-neutral.
+
+struct GuidanceSourceConfig {
+    std::string name;
+    std::string type = "file";   // slice 1: "file" only
+    std::string path;            // project-relative, resolved like policy paths
+};
+
+struct GuidanceRuleConfig {
+    std::string on;              // as written: "start", "signal:<key>", ...
+    std::string kind;            // start | signal | validation_failed | violation
+    std::string arg;             // signal key / rule name; a trailing '*' is a prefix
+    std::vector<std::string> from;  // "source" or "source#section-slug"
+    bool to_agent = false;
+    bool to_terminal = false;
+    std::vector<std::string> agents;  // empty = every agent
+    // A "#slug" in `from` selects that section; a bare source name selects by
+    // keyword overlap with the trigger. No separate selector key.
+    int max_entries = 1;
+};
+
+struct GuidanceConfig {
+    bool enabled = false;
+    int max_chars_per_turn = 1500;   // agent channel, per request
+    int max_chars_terminal = 800;    // terminal channel, per block message
+    int max_source_kb = 256;         // per source file
+    int cooldown_turns = 3;          // same section not re-sent to a handle within N turns
+    std::vector<GuidanceSourceConfig> sources;
+    std::vector<GuidanceRuleConfig> rules;
+    std::string rationale;
+};
+
+// One piece of guidance selected for delivery.
+struct GuidanceDelivery {
+    std::string trigger;     // the rule's "on", e.g. "signal:mandate_alignment"
+    std::string source;      // source name
+    std::string file;        // the source path as written in govern.json
+    std::string section;     // heading slug
+    std::string heading;     // heading text
+    std::string text;        // section body as delivered (after truncation)
+    std::string select;      // "anchor" | "keywords"
+    double score = 0.0;      // keyword score (0 for anchors)
+    std::string sha256;      // of `text`
+};
+
+// ============================================================================
 // Section 12c: Approval Tokens (APPROVAL_REQUIRED tier)
 // ============================================================================
 
@@ -2740,6 +2793,7 @@ struct GovernanceRules {
     TemporalCouplingConfig temporal_coupling;
     BaselinesConfig baselines;
     ProjectContextConfig project_context;
+    GuidanceConfig guidance;
     ApprovalConfig approval;
     TrustPolicyConfig trust_policy;
     PrerequisitesConfig prerequisites;
@@ -3199,6 +3253,31 @@ public:
     // reload ratchet so both resolve entries identically.
     std::string resolvePolicyPath(const std::string& entry) const;
 
+    // --- Guidance (docs/plan-live-guidance.md, governance_guidance.cpp) ---
+    bool guidanceEnabled() const;
+    // Agent channel. A trigger observed for a handle (a paid drift signal, a
+    // failed validation) queues guidance for that handle's NEXT send; the text
+    // is resolved at delivery, so an edit in between is what arrives.
+    void guidanceOnAgentTrigger(int handle_id, const std::string& agent_name,
+                                const std::string& kind, const std::string& arg,
+                                const std::unordered_set<std::string>& keywords);
+    // What this send delivers: the queue plus `start` rules on turn 0, after
+    // the per-handle cooldown, the secret/PII scan and the per-turn budget.
+    // Emits GUIDANCE_DELIVERED / GUIDANCE_WITHHELD.
+    std::vector<GuidanceDelivery> guidanceForSend(int handle_id, const std::string& agent_name,
+        int turn, const std::unordered_set<std::string>& start_keywords);
+    // Pull channel (governance.guidance): entries for a topic, by anchor
+    // ("source#slug" / "#slug") or keyword overlap.
+    std::vector<GuidanceDelivery> guidancePull(const std::string& topic,
+        const std::string& source_filter, int max_entries);
+    // True when `canon_n` (canonical, '/' separators) is a declared guidance
+    // source -- the governed program may not write it (no self-instruction).
+    bool isGuidanceSourcePath(const std::string& canon_n) const;
+    // The agent-channel text for a set of deliveries ("" for none).
+    static std::string formatGuidance(const std::vector<GuidanceDelivery>& items);
+    // Opaque outside governance_guidance.cpp.
+    struct GuidanceState;
+
     // --- Telemetry ---
     void writeTelemetry() const;
     void writeAgentTelemetry(const std::string& event_type,
@@ -3274,6 +3353,11 @@ public:
     std::string checkDangerousCall(const std::string& language,
                                     const std::string& code, int line = 0);
     std::string checkSecrets(const std::string& code, int line = 0);
+    // Decide-only twins of checkSecrets()/checkPii(): the first finding's
+    // description, or "". Same switches and patterns; never enforce, never
+    // record -- for content that is WITHHELD rather than blocked (guidance).
+    std::string secretFinding(const std::string& text) const;
+    std::string piiFinding(const std::string& text) const;
     std::string checkPlaceholders(const std::string& code, int line = 0);
     std::string checkHardcodedResults(const std::string& code, int line = 0);
 
@@ -4143,6 +4227,24 @@ private:
     std::vector<std::string> pending_notices_;    // notices from last reload
     mutable std::mutex notices_mutex_;            // guards pending_notices_
     mutable std::mutex reload_mutex_;             // serializes reload attempts
+
+    // --- Guidance state (defined in governance_guidance.cpp) ---
+    // Document cache, per-handle queues and cooldowns. Created lazily under
+    // guidance_mutex_; shared_ptr so the type can stay incomplete here.
+    std::shared_ptr<GuidanceState> guidance_state_;
+    mutable std::mutex guidance_mutex_;
+    // Terminal channel: the guidance section appended to a block message in
+    // enforce(). Computed without telemetry (enforce()'s advisory branch holds
+    // results_mutex_ while it prints; this takes only guidance_mutex_), and
+    // logged by emitGuidanceTerminal() once the message is actually shown.
+    struct GuidanceTerminal {
+        std::string suffix;                       // "" when nothing applies
+        std::vector<GuidanceDelivery> delivered;
+        std::vector<std::vector<std::string>> withheld;  // {trigger, ref, reason}
+    };
+    GuidanceTerminal guidanceForTerminal(const std::string& rule_name,
+                                         const std::string& violation_message);
+    void emitGuidanceTerminal(const GuidanceTerminal& g);
 
     // --- Decision trace accumulator (storage is thread_local in .cpp) ---
     void addTrace(const std::string& step);

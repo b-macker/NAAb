@@ -2601,6 +2601,138 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         if (pc.contains("max_file_size_kb") && pc["max_file_size_kb"].is_number_integer()) rules_.project_context.max_file_size_kb = pc["max_file_size_kb"].get<int>();
     }
 
+    // Guidance (docs/plan-live-guidance.md). Live project knowledge delivered at
+    // governance events. Every malformed piece warns and is dropped rather than
+    // refused: guidance grants nothing, so a typo here must not stop a run --
+    // but it must not pass in silence either, or a rule that can never fire
+    // looks configured.
+    if (j.contains("guidance") && j["guidance"].is_object()) {
+        auto& gj = j["guidance"];
+        auto& gc = rules_.guidance;
+        rules_.explicitly_set.insert("guidance");
+        auto warnG = [](const std::string& msg) {
+            fprintf(stderr, "[governance] Warning: guidance: %s\n", msg.c_str());
+        };
+        if (gj.contains("enabled") && gj["enabled"].is_boolean()) gc.enabled = gj["enabled"].get<bool>();
+        auto readInt = [&](const char* key, int& target, int lo, int hi) {
+            if (gj.contains(key) && gj[key].is_number_integer()) {
+                target = std::max(lo, std::min(hi, gj[key].get<int>()));
+            }
+        };
+        readInt("max_chars_per_turn", gc.max_chars_per_turn, 0, 100000);
+        readInt("max_chars_terminal", gc.max_chars_terminal, 0, 100000);
+        readInt("max_source_kb", gc.max_source_kb, 1, 10240);
+        readInt("cooldown_turns", gc.cooldown_turns, 0, 100000);
+        parseRationale(gj, gc.rationale);
+
+        if (gj.contains("sources") && gj["sources"].is_object()) {
+            for (auto& [sname, sj] : gj["sources"].items()) {
+                if (!sj.is_object()) { warnG("source \"" + sname + "\" is not an object; ignored"); continue; }
+                GuidanceSourceConfig sc;
+                sc.name = sname;
+                if (sj.contains("type") && sj["type"].is_string()) sc.type = sj["type"].get<std::string>();
+                if (sj.contains("path") && sj["path"].is_string()) sc.path = sj["path"].get<std::string>();
+                if (sc.type != "file") {
+                    warnG("source \"" + sname + "\" has type \"" + sc.type +
+                          "\", which this build does not read (supported: file); ignored");
+                    continue;
+                }
+                if (sc.path.empty()) { warnG("source \"" + sname + "\" has no path; ignored"); continue; }
+                gc.sources.push_back(std::move(sc));
+            }
+        }
+
+        auto sourceDeclared = [&](const std::string& name) {
+            for (const auto& s : gc.sources) if (s.name == name) return true;
+            return false;
+        };
+
+        if (gj.contains("rules") && gj["rules"].is_array()) {
+            int idx = 0;
+            for (auto& rj : gj["rules"]) {
+                const std::string where = "rule " + std::to_string(idx++);
+                if (!rj.is_object()) { warnG(where + " is not an object; ignored"); continue; }
+                GuidanceRuleConfig rc;
+                if (rj.contains("on") && rj["on"].is_string()) rc.on = rj["on"].get<std::string>();
+                const std::string& on = rc.on;
+                if (on == "start" || on == "validation_failed") {
+                    rc.kind = on;
+                } else if (on.rfind("signal:", 0) == 0 && on.size() > 7) {
+                    rc.kind = "signal";
+                    rc.arg = on.substr(7);
+                } else if (on.rfind("violation:", 0) == 0 && on.size() > 10) {
+                    rc.kind = "violation";
+                    rc.arg = on.substr(10);
+                } else {
+                    warnG(where + " has trigger \"" + on + "\", which is not one of start, "
+                          "validation_failed, signal:<name>, violation:<rule>; ignored");
+                    continue;
+                }
+                if (rc.kind == "signal" && rc.arg != "*") {
+                    bool known = false;
+                    for (int si = 0; si < NUM_CDD_SIGNALS; si++)
+                        if (rc.arg == kCddSignalKeys[si]) { known = true; break; }
+                    if (!known) {
+                        // Same trap as context_drift_signals: telemetry labels
+                        // differ from config keys for S1-S7 and S19.
+                        std::string hint;
+                        for (int si = 0; si < NUM_CDD_SIGNALS; si++)
+                            if (rc.arg == ContextDriftAnalyzer::signalName(si))
+                                hint = std::string(" (the setting name is \"") + kCddSignalKeys[si] + "\")";
+                        warnG(where + " names unknown signal \"" + rc.arg + "\"" + hint +
+                              "; it can never fire, ignored");
+                        continue;
+                    }
+                }
+                auto readStrings = [](const nlohmann::json& v, std::vector<std::string>& out) {
+                    if (v.is_string()) out.push_back(v.get<std::string>());
+                    else if (v.is_array()) for (auto& e : v) if (e.is_string()) out.push_back(e.get<std::string>());
+                };
+                std::vector<std::string> to;
+                if (rj.contains("to")) readStrings(rj["to"], to);
+                for (const auto& t : to) {
+                    if (t == "agent") rc.to_agent = true;
+                    else if (t == "terminal") rc.to_terminal = true;
+                    else warnG(where + " has unknown channel \"" + t + "\" (channels: agent, terminal)");
+                }
+                if (rc.kind == "violation" && rc.to_agent) {
+                    warnG(where + ": a violation is delivered to the terminal only in this build; "
+                          "\"agent\" ignored for it");
+                    rc.to_agent = false;
+                }
+                if (rc.kind != "violation" && rc.to_terminal) {
+                    warnG(where + ": only violation triggers reach the terminal; \"terminal\" ignored for \"" + on + "\"");
+                    rc.to_terminal = false;
+                }
+                if (!rc.to_agent && !rc.to_terminal) {
+                    warnG(where + " (\"" + on + "\") delivers to no channel; ignored");
+                    continue;
+                }
+                std::vector<std::string> from;
+                if (rj.contains("from")) readStrings(rj["from"], from);
+                for (const auto& f : from) {
+                    const std::string src = f.substr(0, f.find('#'));
+                    if (!sourceDeclared(src)) {
+                        warnG(where + " reads from \"" + f + "\", but no source \"" + src + "\" is declared; dropped");
+                        continue;
+                    }
+                    rc.from.push_back(f);
+                }
+                if (rc.from.empty()) {
+                    warnG(where + " (\"" + on + "\") has no usable source; ignored");
+                    continue;
+                }
+                if (rj.contains("agents")) readStrings(rj["agents"], rc.agents);
+                if (rj.contains("max_entries") && rj["max_entries"].is_number_integer())
+                    rc.max_entries = std::max(1, std::min(10, rj["max_entries"].get<int>()));
+                gc.rules.push_back(std::move(rc));
+            }
+        }
+        if (gc.enabled && gc.rules.empty()) {
+            warnG("enabled, but no usable rule is configured; nothing will be delivered");
+        }
+    }
+
     // Contracts
     if (j.contains("contracts") && j["contracts"].is_object()) {
         auto& ct = j["contracts"];
@@ -6549,6 +6681,14 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
         child.hooks.pre_check = base.hooks.pre_check;
     if (child.hooks.post_check.command.empty() && !base.hooks.post_check.command.empty())
         child.hooks.post_check = base.hooks.post_check;
+
+    // --- Guidance --- a child that does not configure guidance inherits the
+    // parent's section whole. Source paths resolve against the CHILD's
+    // directory, like every relative policy entry.
+    if (!child.explicitly_set.count("guidance") && base.explicitly_set.count("guidance")) {
+        child.guidance = base.guidance;
+        child.explicitly_set.insert("guidance");
+    }
 
     // --- Languages ---
     if (parent_wins) {
