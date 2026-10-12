@@ -770,6 +770,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         if (api.contains("timeout") && api["timeout"].is_number_integer()) rules_.api.timeout = api["timeout"].get<int>();
         if (api.contains("rate_limit") && api["rate_limit"].is_number_integer()) rules_.api.rate_limit = api["rate_limit"].get<int>();
         if (api.contains("max_body") && api["max_body"].is_number_unsigned()) rules_.api.max_body = api["max_body"].get<size_t>();
+        if (api.contains("max_concurrent") && api["max_concurrent"].is_number_integer()) rules_.api.max_concurrent = std::max(0, api["max_concurrent"].get<int>());
         if (api.contains("tls_cert") && api["tls_cert"].is_string()) rules_.api.tls_cert_path = api["tls_cert"].get<std::string>();
         if (api.contains("tls_key") && api["tls_key"].is_string()) rules_.api.tls_key_path = api["tls_key"].get<std::string>();
         if (api.contains("keys") && api["keys"].is_array()) {
@@ -5842,6 +5843,38 @@ std::vector<std::string> GovernanceEngine::getAndClearNotices() {
 // Prevents LLM config manipulation by ensuring anti-evasion checks have
 // minimum enforcement levels. An LLM could write govern.json with all
 // checks set to "advisory" (warn-only) to bypass quality gates.
+// A lease (`naab-lang mcp`, docs/plan-mcp-service.md) narrows the capabilities
+// themselves, not only the function-capability intersection, because the
+// sandbox is synced from these fields: that is what reaches polyglot code,
+// which checkFunctionCapability() never sees. No SHELL_EXEC marks shell
+// disabled by policy (every separate-process language refused), no
+// NET_CONNECT removes network, no FS_WRITE makes the filesystem read-only.
+// Applied here because every load path and the reload path run this function
+// after parsing and merging, so a reload cannot drop the lease and the ratchet
+// compares two narrowed rule sets. Both mirror copies are written. Tightening
+// only: each line moves a value toward "denied" and never back.
+static void applyLeaseGrantToRules(GovernanceRules& r) {
+    if (!GovernanceEngine::leaseGrantActive()) return;
+    if (!GovernanceEngine::leaseGrants("SHELL_EXEC")) {
+        r.shell_allowed = false;
+        r.capabilities.shell.enabled = false;
+    }
+    if (!GovernanceEngine::leaseGrants("NET_CONNECT")) {
+        r.network_allowed = false;
+        r.capabilities.network.enabled = false;
+    }
+    const bool rd = GovernanceEngine::leaseGrants("FS_READ");
+    const bool wr = GovernanceEngine::leaseGrants("FS_WRITE");
+    auto narrow = [&](std::string& mode) {
+        if (!rd) mode = "none";
+        else if (!wr && mode == "write") mode = "read";
+    };
+    narrow(r.filesystem_mode);
+    narrow(r.capabilities.filesystem.mode);
+    if (!GovernanceEngine::leaseGrants("ENV_READ")) r.capabilities.env_vars.read = false;
+    if (!GovernanceEngine::leaseGrants("ENV_WRITE")) r.capabilities.env_vars.write = false;
+}
+
 void GovernanceEngine::enforceMinimumLevels(GovernanceRules& r) {
     // F3: Signed configs cannot use AUDIT mode — override to ENFORCE
     if (r.mode == GovernanceMode::AUDIT && !loaded_path_.empty()) {
@@ -5856,6 +5889,7 @@ void GovernanceEngine::enforceMinimumLevels(GovernanceRules& r) {
     }
 
     enforceMinimumLevelsOnRules(r);
+    applyLeaseGrantToRules(r);
 
     // Warn about contradictory config: code quality checks enabled but mode is audit/off
     if (r.mode != GovernanceMode::ENFORCE) {

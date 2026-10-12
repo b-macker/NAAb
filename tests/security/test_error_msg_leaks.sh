@@ -35,6 +35,7 @@ SECURITY_FILES=(
     "src/stdlib/process_impl.cpp"
     "src/vm/vm.cpp"
     "src/api/governance_c_api.cpp"
+    "src/api/mcp_server.cpp"
     "src/stdlib/agent_impl.cpp"
     "src/stdlib/codegen_impl.cpp"
     "src/interpreter/polyglot.cpp"

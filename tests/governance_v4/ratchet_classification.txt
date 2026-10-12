@@ -82,3 +82,6 @@ extends                                            startup -- resolved by loadFr
 sandbox_level                                      startup -- the sandbox level is applied in main.cpp at startup; the reload sync only removes capabilities and never changes the level (traced)
 governance.sandbox_level                           startup -- second spelling of sandbox_level; same startup-only application (traced)
 security.sandbox_level                             startup -- third spelling of sandbox_level; same startup-only application (traced)
+
+# --- naab-lang mcp (docs/plan-mcp-service.md) --------------------------------
+api.max_concurrent  neutral  -- traced: read only by the MCP server (mcp_server.cpp loadPolicy) to size its worker pool; no worker's engine consults it and it changes no check in either direction

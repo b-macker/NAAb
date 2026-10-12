@@ -2799,6 +2799,11 @@ struct GovernanceRules {
         int timeout = 10;
         int rate_limit = 0;                  // 0 = unlimited
         size_t max_body = 1048576;           // 1 MiB
+        // `naab-lang mcp`: worker processes running at once, across this
+        // server's callers. 0 = one per CPU core. Concurrency only: commits
+        // from one caller still run one at a time while sequence detection
+        // is on (docs/plan-mcp-service.md).
+        int max_concurrent = 0;
         std::string tls_cert_path;           // PEM cert for HTTPS
         std::string tls_key_path;            // PEM key for HTTPS
     };
@@ -3050,6 +3055,27 @@ public:
     // --- Thread-local accessor (for stdlib modules that need governance config) ---
     static GovernanceEngine* getCurrent();
     static void setCurrent(GovernanceEngine* engine);
+
+    // --- Worker plumbing for `naab-lang mcp` (docs/plan-mcp-service.md) ---
+    // Process-wide and set once by the CLI, before any config loads, from
+    // flags only the MCP server passes. Each can only tighten.
+    //
+    // Lease grant: the capability actions this process may use. Applied in
+    // enforceMinimumLevels() (every load and reload path), which narrows the
+    // shell/network/filesystem/env capabilities and so reaches the sandbox,
+    // and intersected in checkFunctionCapability() for every gate.
+    static void setLeaseGrant(const std::vector<std::string>& actions);
+    static bool leaseGrantActive();
+    static bool leaseGrants(const std::string& action);
+    // Event stream: every behavioural-sequence event this process records is
+    // written to `fd` as one JSON line, as it happens. -1 = off.
+    static void setEventStreamFd(int fd);
+    // Replay a caller's earlier events (one JSON line each: t, d, a, age_ms)
+    // into the sequence detector before the program runs. A match those
+    // historical events complete is NOT enforced: it was already charged in
+    // the call that produced it. Returns false when the file cannot be read;
+    // the caller must then refuse to run rather than run without history.
+    bool seedSequenceEvents(const std::string& path);
 
     // --- Loading ---
     bool loadFromFile(const std::string& path);
