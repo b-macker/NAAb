@@ -298,6 +298,40 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
         PyRun_SimpleString(scrub_code.str().c_str());
     }
 
+    // A32: the scrub pops the withheld values into `_naab_saved_env`, a dict in
+    // the SAME namespace the block body runs in, so a block could read the
+    // values back out of it under a lease with no capabilities at all. Hold the
+    // dict's only reference C-side and remove the name from the namespace while
+    // user code runs; reveal() puts it back just before the restore below
+    // (captureAndRestoreStdout reads it). The RAII destructor is the net for
+    // every other exit path: it releases the reference and re-inserts the name,
+    // so a missed path leaks neither memory nor the dict. It does not run the
+    // environ restore -- the error paths never did -- so behaviour on error is
+    // unchanged. gc.get_objects() can still reach the dict object; that deeper
+    // introspection route is noted in docs/open-investigations.md A32.
+    struct SavedEnvHider {
+        PyObject* globals = nullptr;
+        PyObject* ref = nullptr;
+        void hide(PyObject* g) {
+            globals = g;
+            PyObject* se = PyDict_GetItemString(g, "_naab_saved_env");  // borrowed
+            if (se) {
+                Py_INCREF(se);
+                ref = se;
+                PyDict_DelItemString(g, "_naab_saved_env");
+            }
+        }
+        void reveal() {
+            if (ref) {
+                PyDict_SetItemString(globals, "_naab_saved_env", ref);
+                Py_DECREF(ref);
+                ref = nullptr;
+            }
+        }
+        ~SavedEnvHider() { reveal(); }
+    } saved_env_hider;
+    if (env_scrub_applied) saved_env_hider.hide(globals);
+
     // OS-level containment: set RLIMIT_NPROC soft limit to 0 to prevent Python
     // from forking (subprocess.run, os.system, os.fork all fail with EAGAIN).
     // Only the soft limit is lowered — the hard limit is preserved so the RAII
@@ -366,9 +400,12 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
     }
 
     // Helper lambda: restore stdout and get captured output
-    auto captureAndRestoreStdout = [&globals, env_scrub_applied]() -> std::string {
+    auto captureAndRestoreStdout = [&globals, &saved_env_hider, env_scrub_applied]() -> std::string {
         // V-SC-006-ext: Restore scrubbed env vars
         if (env_scrub_applied) {
+            // A32: put _naab_saved_env back in the namespace so the restore
+            // below can read it; it was hidden from user code during execution.
+            saved_env_hider.reveal();
             PyRun_SimpleString(
                 "_naab_os = _naab_original_import('os') if '_naab_original_import' in dir() else __import__('os')\n"
                 "_naab_os.environ.update(_naab_saved_env)\n"

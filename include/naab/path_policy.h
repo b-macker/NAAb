@@ -8,6 +8,7 @@
 // Pure: no engine state. Entries are resolved by the caller's `resolve`
 // (relative entries are project-relative; see checkPathAccessImpl).
 
+#include <cctype>
 #include <cstddef>
 #include <functional>
 #include <string>
@@ -15,6 +16,40 @@
 
 namespace naab {
 namespace governance {
+
+// A32: does this resolved path name a process's own environment block?
+// /proc/<id>/environ (and the task-level /proc/<pid>/task/<tid>/environ) hands
+// a program the full environment as file bytes, past env_vars.blocked_read and
+// env_vars.read:false, which gate env.get() only. The filesystem gate consults
+// this so the stdlib readers and embedded Python's open() cannot use the file
+// as an env-read bypass when an env-read restriction is in force; subprocess
+// languages do not reach that gate (CONTRA-013). Pure string logic on a path
+// that uses forward slashes (checkPathAccessImpl normalises separators first).
+// Matched narrowly to the `environ` file under a /proc pid identity, so an
+// ordinary file named "environ" elsewhere is not caught.
+inline bool isProcessEnvironPath(const std::string& p) {
+    std::vector<std::string> comp;
+    std::string cur;
+    for (char c : p) {
+        if (c == '/') { if (!cur.empty()) comp.push_back(cur); cur.clear(); }
+        else cur.push_back(c);
+    }
+    if (!cur.empty()) comp.push_back(cur);
+    if (comp.size() < 3 || comp.back() != "environ") return false;
+    // The directory holding `environ` must be a pid identity: self,
+    // thread-self, or all-digits (a numeric pid or tid).
+    const std::string& parent = comp[comp.size() - 2];
+    bool parent_is_id = (parent == "self" || parent == "thread-self");
+    if (!parent_is_id) {
+        parent_is_id = !parent.empty();
+        for (char c : parent) if (!std::isdigit(static_cast<unsigned char>(c))) parent_is_id = false;
+    }
+    if (!parent_is_id) return false;
+    // ...and a "proc" component must appear earlier in the path, so a file at
+    // /data/1234/environ (digit parent, no proc) is not a false positive.
+    for (size_t i = 0; i + 1 < comp.size(); ++i) if (comp[i] == "proc") return true;
+    return false;
+}
 
 // ---------------------------------------------------------------------------
 // Path policy precedence, decided in one place.
