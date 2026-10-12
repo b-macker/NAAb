@@ -2478,6 +2478,37 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
     };
     const std::string canon_n = normSep(canon);
 
+    // A32: the process environment file (/proc/<id>/environ) is an env-read
+    // bypass. It hands a reader the whole environment block as file bytes, past
+    // env_vars.blocked_read / read:false, which gate env.get() only -- measured
+    // through file.read, io.read_file, env.load_dotenv and embedded Python's
+    // open(). Refuse it here, the one decision point the stdlib readers and the
+    // embedded-Python audit hook (pathPolicyDenial) both reach, whenever an
+    // env-read restriction is in force. Subprocess languages do not reach this
+    // gate (CONTRA-013) and stay the documented `elevated` limit. Scoped to a
+    // read of the environ file: it only ever turns PASS into BLOCK, and only
+    // when the operator has expressed an env-read restriction, so a project
+    // with no env policy is unaffected. Writes are not a disclosure, so the
+    // gate is read-only.
+    if (mode != "write" && naab::governance::isProcessEnvironPath(canon_n)) {
+        const auto& ev = rules().capabilities.env_vars;
+        const bool env_restricted =
+            !ev.read || !ev.blocked_read.empty() || !ev.allowed_read.empty();
+        if (env_restricted) {
+            return deny("capabilities.env_vars", EnforcementLevel::HARD,
+                formatError(EnforcementLevel::HARD,
+                    "Reading the process environment file is blocked by the env-var policy: " + filepath,
+                    currentFunction().empty() ? std::string()
+                                              : ("in function '" + currentFunction() + "'"),
+                    "capabilities.env_vars restricts environment reads",
+                    "This file exposes the whole environment, which the env-var policy withholds.\n"
+                    "Read the variables you need with env.get(), which the policy governs.",
+                    "file." + mode + "(\"" + filepath + "\", ...)",
+                    "env.get(\"MY_VAR\")"),
+                "process environment file blocked by env-var policy: " + filepath);
+        }
+    }
+
     // Policy entries are resolved by resolvePolicyPath(), which the reload
     // ratchet also uses.
     auto canonAndNorm = [this](const std::string& p) { return resolvePolicyPath(p); };

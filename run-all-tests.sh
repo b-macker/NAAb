@@ -3261,6 +3261,19 @@ else
     echo "  test_subprocess_env_scrub.sh: not found, skipping"
 fi
 
+SEC_ENV_FILE_BYPASS_SCRIPT="tests/security/test_env_file_bypass.sh"
+if [ -f "$SEC_ENV_FILE_BYPASS_SCRIPT" ]; then
+    if run_shell_test "$SEC_ENV_FILE_BYPASS_SCRIPT" 2>&1; then
+        echo "  test_env_file_bypass.sh: ALL PASSED"
+    else
+        echo "  test_env_file_bypass.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_env_file_bypass.sh")
+    fi
+else
+    echo "  test_env_file_bypass.sh: not found, skipping"
+fi
+
 SEC_ERROR_MSG_LEAKS_SCRIPT="tests/security/test_error_msg_leaks.sh"
 if [ -f "$SEC_ERROR_MSG_LEAKS_SCRIPT" ]; then
     if run_shell_test "$SEC_ERROR_MSG_LEAKS_SCRIPT" 2>&1; then

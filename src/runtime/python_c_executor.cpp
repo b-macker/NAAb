@@ -298,6 +298,47 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
         PyRun_SimpleString(scrub_code.str().c_str());
     }
 
+    // A32: the scrub pops the withheld values into `_naab_saved_env`, a dict in
+    // the SAME namespace the block body runs in, so a block could read the
+    // values back out of it under a lease with no capabilities at all. Hold the
+    // dict's only reference C-side and remove the name from the namespace while
+    // user code runs; reveal() puts it back before the GIL is released.
+    //
+    // reveal() calls the Python API, so it must run WITH the GIL held -- and
+    // every exit below releases the GIL explicitly (python_c_gil_release)
+    // before it returns or throws, so a destructor would run too late. reveal()
+    // is therefore called explicitly on every exit: captureAndRestoreStdout()
+    // (the success returns, before the environ restore reads the dict),
+    // restoreStdoutOnly() (every error throw) and the pyObjectToValue catch.
+    // The destructor deliberately does NOT touch Python: a path that missed
+    // reveal() leaks one reference rather than calling the API without the GIL
+    // (undefined behaviour, a crash on worker threads). Error paths re-insert
+    // the dict without restoring environ, exactly as they behaved before.
+    // gc.get_objects() can still reach the dict object; that deeper
+    // introspection route is noted in docs/open-investigations.md A32.
+    struct SavedEnvHider {
+        PyObject* globals = nullptr;
+        PyObject* ref = nullptr;
+        void hide(PyObject* g) {
+            globals = g;
+            PyObject* se = PyDict_GetItemString(g, "_naab_saved_env");  // borrowed
+            if (se) {
+                Py_INCREF(se);
+                ref = se;
+                PyDict_DelItemString(g, "_naab_saved_env");
+            }
+        }
+        // GIL must be held.
+        void reveal() {
+            if (ref) {
+                PyDict_SetItemString(globals, "_naab_saved_env", ref);
+                Py_DECREF(ref);
+                ref = nullptr;
+            }
+        }
+    } saved_env_hider;
+    if (env_scrub_applied) saved_env_hider.hide(globals);
+
     // OS-level containment: set RLIMIT_NPROC soft limit to 0 to prevent Python
     // from forking (subprocess.run, os.system, os.fork all fail with EAGAIN).
     // Only the soft limit is lowered — the hard limit is preserved so the RAII
@@ -366,9 +407,12 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
     }
 
     // Helper lambda: restore stdout and get captured output
-    auto captureAndRestoreStdout = [&globals, env_scrub_applied]() -> std::string {
+    auto captureAndRestoreStdout = [&globals, &saved_env_hider, env_scrub_applied]() -> std::string {
         // V-SC-006-ext: Restore scrubbed env vars
         if (env_scrub_applied) {
+            // A32: put _naab_saved_env back in the namespace so the restore
+            // below can read it; it was hidden from user code during execution.
+            saved_env_hider.reveal();
             PyRun_SimpleString(
                 "_naab_os = _naab_original_import('os') if '_naab_original_import' in dir() else __import__('os')\n"
                 "_naab_os.environ.update(_naab_saved_env)\n"
@@ -392,7 +436,10 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
     };
 
     // Helper lambda: restore stdout on error (no capture needed)
-    auto restoreStdoutOnly = []() {
+    auto restoreStdoutOnly = [&saved_env_hider]() {
+        // A32: every error throw calls this before releasing the GIL, so put
+        // the hidden save dict back here, while the GIL is still held.
+        saved_env_hider.reveal();
         PyRun_SimpleString(
             "import sys as _naab_sys\n"
             "if hasattr(_naab_sys, '_naab_old_stdout') and _naab_sys._naab_old_stdout is not None:\n"
@@ -652,6 +699,7 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
         value = pyObjectToValue(py_result);
     } catch (...) {
         Py_DECREF(py_result);
+        saved_env_hider.reveal();  // A32: GIL still held here
         python_c_gil_release(gil_handle);
         throw;
     }
