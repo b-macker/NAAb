@@ -2105,6 +2105,8 @@
     "timeout": 10,
     "rate_limit": 0,
     "max_body": 1048576,
+    "_comment_max_concurrent": "naab-lang mcp: worker processes running at once (0 = one per CPU core). Concurrency only -- commits from one caller still run one at a time, in arrival order, while behavioral_sequences is enabled, so a sequence split across concurrent calls is still seen.",
+    "max_concurrent": 0,
     "tls_cert": "",
     "tls_key": ""
   },

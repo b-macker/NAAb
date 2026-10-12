@@ -757,6 +757,7 @@ message(STATUS "  ✓ Standard library")
 # REST API (Phase 4.7)
 add_library(naab_rest_api
     src/api/rest_api.cpp
+    src/api/mcp_server.cpp
 )
 target_include_directories(naab_rest_api PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include

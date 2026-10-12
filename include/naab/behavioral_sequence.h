@@ -569,6 +569,13 @@ private:
 // The config loader warns with it, so a dead step is reported at load.
 std::string deadEnumStepSpelling(const std::string& matcher);
 
+// The step name an event type is written as in a pattern ("env.get",
+// "net_connect"), and the reverse. The MCP server's per-caller ledger carries
+// events between worker processes in this vocabulary, so the two must stay a
+// bijection: an event type the reverse cannot name is dropped from the ledger.
+std::string runtimeEventStepName(RuntimeEventType type);
+bool runtimeEventTypeFromStepName(const std::string& name, RuntimeEventType& out);
+
 // --- Context Drift Analyzer ---
 class ContextDriftAnalyzer {
 public:

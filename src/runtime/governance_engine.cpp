@@ -39,6 +39,8 @@
 #include <unordered_set>    // fingerprint snapshot
 #ifndef _WIN32
 #  include <sys/file.h>
+#  include <unistd.h>
+#  include <fcntl.h>
 #endif
 #include <sys/stat.h>
 #ifdef _WIN32
@@ -55,6 +57,14 @@ namespace governance {
 
     // Thread-local governance engine for stdlib module access
     static thread_local GovernanceEngine* t_current_engine = nullptr;
+
+    // `naab-lang mcp` worker plumbing (docs/plan-mcp-service.md). Written once
+    // by the CLI before any config loads, read afterwards; the atomics publish
+    // the writes to the threads that read them.
+    static std::atomic<bool> g_lease_active{false};
+    static std::vector<std::string> g_lease_grant;
+    static std::atomic<int> g_event_stream_fd{-1};
+    static std::mutex g_event_stream_mutex;
 
     // Thread-local decision trace — avoids data races from concurrent check threads
     static thread_local std::vector<std::string> t_current_decision_trace;
@@ -904,6 +914,13 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
     if (!govern_json_dir_.empty()) {
         addProtectedPath(govern_json_dir_ + "/govern.json");
         addProtectedPath(govern_json_dir_ + "/govern.json.sig");
+    }
+    // The key that signs execution attestations. An attestation is evidence
+    // only if the program it attests cannot read the key that signs it; until
+    // this, a program could file.read() it and forge any attestation. A
+    // relative path resolves against the project, as every policy path does.
+    if (!target_rules.audit.provenance.signing_key.empty()) {
+        addProtectedPath(resolvePolicyPath(target_rules.audit.provenance.signing_key));
     }
     // Block trust store directory
     // paths::home() resolves USERPROFILE on Windows, where HOME is normally
@@ -2139,6 +2156,22 @@ std::string GovernanceEngine::checkFunctionCapability(
     const std::string& required,
     const std::string& example_bad,
     const std::string& example_good) {
+
+    // A lease (`naab-lang mcp`) is one more set in the intersection, outermost
+    // of all and HARD: it narrows every frame and can never widen one. Checked
+    // before the empty-map return because a lease applies whether or not the
+    // project declares any function-scope capabilities.
+    if (!leaseGrants(required)) {
+        return enforce("api.lease", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Action not granted by this call's lease: " + required,
+                "",
+                "lease",
+                "This call runs under a lease that does not include " + required + ".\n"
+                "Request a lease that includes it, if the project policy allows it.",
+                example_bad,
+                example_good.empty() ? "Use only the actions the lease granted" : example_good));
+    }
 
     if (rules().capabilities.functions.empty()) return "";
     const auto& fns = rules().capabilities.functions;
@@ -7371,6 +7404,103 @@ void GovernanceEngine::printValidationReport() {
 // Behavioral Sequence Detection — emitEvent / checkBehavioralSequence / checkContextDrift
 // ============================================================================
 
+// --- `naab-lang mcp` worker plumbing ------------------------------------------
+
+void GovernanceEngine::setLeaseGrant(const std::vector<std::string>& actions) {
+    g_lease_grant = actions;
+    g_lease_active.store(true, std::memory_order_release);
+}
+
+bool GovernanceEngine::leaseGrantActive() {
+    return g_lease_active.load(std::memory_order_acquire);
+}
+
+bool GovernanceEngine::leaseGrants(const std::string& action) {
+    if (!leaseGrantActive()) return true;
+    return std::find(g_lease_grant.begin(), g_lease_grant.end(), action) != g_lease_grant.end();
+}
+
+void GovernanceEngine::setEventStreamFd(int fd) {
+    g_event_stream_fd.store(fd, std::memory_order_release);
+}
+
+// Write one recorded event to the MCP server's pipe. Called at the engine's two
+// recordEvent() sites -- emitEvent() and the step checkPreExecution() refuses,
+// which is recorded so the pattern resets and must reach the ledger too, or the
+// next worker would replay the pattern one step from completion. Written as the
+// event happens: a worker that is cancelled, times out or crashes loses nothing
+// it already recorded, and a program cannot take back what it wrote, as it
+// could truncate a file. A line is at most ~400 bytes, under PIPE_BUF, so
+// concurrent writers never interleave; the mutex orders them anyway. If the
+// server has gone the write fails (or SIGPIPE ends the worker): either way the
+// stream stops, which is right -- nothing is left to read it.
+static void streamSequenceEvent(const RuntimeEvent& ev) {
+#ifndef _WIN32
+    int fd = g_event_stream_fd.load(std::memory_order_acquire);
+    if (fd < 0) return;
+    nlohmann::json j;
+    j["t"] = runtimeEventStepName(ev.type);
+    j["d"] = ev.detail.size() > 256 ? ev.detail.substr(0, 256) : ev.detail;
+    if (!ev.agent_config.empty())
+        j["a"] = ev.agent_config.size() > 128 ? ev.agent_config.substr(0, 128) : ev.agent_config;
+    std::string line = j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n";
+    std::lock_guard<std::mutex> lk(g_event_stream_mutex);
+    const char* p = line.data();
+    size_t left = line.size();
+    while (left > 0) {
+        ssize_t n = ::write(fd, p, left);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            g_event_stream_fd.store(-1, std::memory_order_release);
+            return;
+        }
+        p += n;
+        left -= static_cast<size_t>(n);
+    }
+#else
+    (void)ev;
+#endif
+}
+
+bool GovernanceEngine::seedSequenceEvents(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in.is_open()) return false;
+    // Bounded like the ledger that wrote it: the server never sends more than
+    // the larger of window_size and the patterns' reach, and a hostile or
+    // corrupt file must not turn into unbounded work before the program runs.
+    constexpr size_t kMaxSeedEvents = 100000;
+    constexpr size_t kMaxLine = 4096;
+    const auto now = std::chrono::steady_clock::now();
+    std::string line;
+    size_t n = 0;
+    while (n < kMaxSeedEvents && std::getline(in, line)) {
+        if (line.empty() || line.size() > kMaxLine) continue;
+        nlohmann::json j;
+        try { j = nlohmann::json::parse(line); } catch (...) { continue; }
+        if (!j.is_object() || !j.contains("t") || !j["t"].is_string()) continue;
+        RuntimeEvent ev;
+        if (!runtimeEventTypeFromStepName(j["t"].get<std::string>(), ev.type)) continue;
+        if (j.contains("d") && j["d"].is_string()) ev.detail = j["d"].get<std::string>();
+        if (j.contains("a") && j["a"].is_string()) ev.agent_config = j["a"].get<std::string>();
+        // Turns are per agent handle and handles do not survive a process, so
+        // a replayed event carries turn 0 ("no turn"): only time decay applies.
+        // That keeps a pattern alive longer, never shorter.
+        ev.turn = 0;
+        long long age_ms = 0;
+        if (j.contains("age_ms") && j["age_ms"].is_number_integer())
+            age_ms = std::max<long long>(0, j["age_ms"].get<long long>());
+        auto since_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(
+            now.time_since_epoch()).count();
+        age_ms = std::min<long long>(age_ms, since_epoch > 1 ? since_epoch - 1 : 0);
+        ev.timestamp = now - std::chrono::milliseconds(age_ms);
+        // recordEvent() keeps a supplied timestamp, so decay sees the real age.
+        // Its match result is discarded: history, not a new action.
+        (void)sequence_detector_.recordEvent(ev);
+        ++n;
+    }
+    return true;
+}
+
 std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string& detail,
                                          const std::string& file, int line,
                                          const std::string& content_fingerprint,
@@ -7409,6 +7539,7 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
     ev.timestamp = std::chrono::steady_clock::now();
 
     auto match = sequence_detector_.recordEvent(ev);
+    streamSequenceEvent(ev);
     if (!match.pattern_name.empty()) {
         return checkBehavioralSequence(match);
     }
@@ -9043,6 +9174,7 @@ std::string GovernanceEngine::checkPreExecution(
     // recorded in the sequence log and subsequent normal calls aren't re-blocked
     // by the same partial sequence left stuck at its final step.
     sequence_detector_.recordEvent(ev);
+    streamSequenceEvent(ev);
 
     clearTrace();
     addTrace(fmt::format("BSD pre-check: '{}' would complete sequence '{}'",

@@ -73,6 +73,7 @@
 #include "naab/profiler.h"   // For VM profiler integration
 #include "naab/debugger.h"   // For VM debugger integration
 #include "naab/platform.h"
+#include "naab/mcp_server.h"   // `naab-lang mcp`
 #include <fmt/core.h>
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -81,8 +82,10 @@
 #include <vector>
 #include <cstdlib>
 #include <filesystem>
+#include <set>
 #ifndef _WIN32
 #  include <unistd.h>  // _exit()
+#  include <fcntl.h>   // --event-stream-fd (MCP worker)
 #else
 #  define WIN32_LEAN_AND_MEAN
 #  define NOMINMAX
@@ -393,6 +396,7 @@ void print_usage() {
     fmt::print("  naab-lang blocks info <block-id>    Show block details\n");
     fmt::print("  naab-lang blocks index [path]       Build search index\n");
     fmt::print("  naab-lang api [port]                Start REST API server\n");
+    fmt::print("  naab-lang mcp                       Serve governed execution over MCP (stdio)\n");
     fmt::print("  naab-lang init                      Create naab.toml manifest\n");
     fmt::print("  naab-lang init --package            Create package project structure\n");
     fmt::print("  naab-lang manifest check            Validate naab.toml\n");
@@ -590,6 +594,13 @@ int main(int argc, char** argv) {
     bool global_lock_check     = false;   // --lock-check: fail on runtime drift
     std::string global_lock_path;         // --lock-path: override lockfile location
     bool global_lint_only      = false;   // --lint-only: parse+governance, skip execution (V-LSP-005)
+    // `naab-lang mcp` worker plumbing (docs/plan-mcp-service.md). Passed only by
+    // the MCP server to the worker it spawns; each can only tighten, and
+    // govern.json stays the policy. Not user features.
+    bool global_lease_grant_set = false;  // --lease-grant A,B: capability actions this run may use
+    std::string global_lease_grant;
+    std::string global_event_seed;        // --event-seed FILE: replay a caller's earlier events
+    int global_event_stream_fd = -1;      // --event-stream-fd N: write recorded events to fd N
     unsigned int global_timeout = 0;       // --timeout: override default 30s (0 = use default)
 
     while (command_arg_index < argc) {
@@ -683,6 +694,17 @@ int main(int argc, char** argv) {
         } else if (arg == "--lint-only") {
             // V-LSP-005: parse + governance pre-flight without executing user code
             global_lint_only = true;
+            command_arg_index++;
+        } else if (arg == "--lease-grant" && command_arg_index + 1 < argc) {
+            global_lease_grant_set = true;
+            global_lease_grant = argv[++command_arg_index];
+            command_arg_index++;
+        } else if (arg == "--event-seed" && command_arg_index + 1 < argc) {
+            global_event_seed = argv[++command_arg_index];
+            command_arg_index++;
+        } else if (arg == "--event-stream-fd" && command_arg_index + 1 < argc) {
+            try { global_event_stream_fd = std::stoi(argv[++command_arg_index]); }
+            catch (...) { global_event_stream_fd = -2; }  // invalid: refused at use
             command_arg_index++;
         } else if (arg == "--signing-key" && command_arg_index + 1 < argc) {
             // V-SC-009: Override NAAB_SIGNING_KEY for this invocation
@@ -1205,6 +1227,10 @@ int main(int argc, char** argv) {
         bool lock_check     = global_lock_check;
         std::string lock_path = global_lock_path;
         bool lint_only      = global_lint_only;
+        bool lease_grant_set = global_lease_grant_set;
+        std::string lease_grant = global_lease_grant;
+        std::string event_seed = global_event_seed;
+        int event_stream_fd = global_event_stream_fd;
         std::string governance_report_json;
         std::string governance_report_sarif;
         std::string governance_report_junit;
@@ -1300,6 +1326,14 @@ int main(int argc, char** argv) {
             } else if (arg == "--lint-only") {
                 // V-LSP-005: parse + governance pre-flight without executing user code
                 lint_only = true;
+            } else if (arg == "--lease-grant" && i + 1 < argc) {
+                lease_grant_set = true;
+                lease_grant = argv[++i];
+            } else if (arg == "--event-seed" && i + 1 < argc) {
+                event_seed = argv[++i];
+            } else if (arg == "--event-stream-fd" && i + 1 < argc) {
+                try { event_stream_fd = std::stoi(argv[++i]); }
+                catch (...) { event_stream_fd = -2; }
             } else if (arg == "--") {
                 // V-LSP-004: end-of-flags — remaining args are positional
                 while (++i < argc) {
@@ -1469,10 +1503,59 @@ int main(int argc, char** argv) {
         // Load governance once — reused for both preflight and VM/tree-walker paths.
         // Loading once eliminates the TOCTOU window where govern.json could be swapped
         // between preflight validation and actual execution.
+        // `naab-lang mcp` worker plumbing (docs/plan-mcp-service.md). The lease
+        // is set BEFORE the config loads: enforceMinimumLevels() applies it on
+        // every load and reload path. A malformed value refuses the run (exit 4)
+        // rather than running with less narrowing than the server asked for.
+        if (lease_grant_set) {
+            static const std::set<std::string> kLeaseActions = {
+                "FS_READ", "FS_WRITE", "NET_CONNECT", "SHELL_EXEC",
+                "ENV_READ", "ENV_WRITE", "AGENT_SEND"};
+            std::vector<std::string> actions;
+            std::stringstream ss(lease_grant);
+            std::string a;
+            while (std::getline(ss, a, ',')) {
+                if (a.empty()) continue;
+                if (!kLeaseActions.count(a)) {
+                    fprintf(stderr, "Error: unknown lease action '%s'\n", a.c_str());
+                    fflush(nullptr);
+                    _exit(4);
+                }
+                actions.push_back(a);
+            }
+            naab::governance::GovernanceEngine::setLeaseGrant(actions);
+        }
+        if (event_stream_fd != -1) {
+#ifndef _WIN32
+            int fl = (event_stream_fd >= 0) ? fcntl(event_stream_fd, F_GETFD) : -1;
+            if (fl < 0) {
+                fprintf(stderr, "Error: event stream descriptor is not open\n");
+                fflush(nullptr);
+                _exit(4);
+            }
+            // Polyglot children must not inherit the stream.
+            fcntl(event_stream_fd, F_SETFD, fl | FD_CLOEXEC);
+            naab::governance::GovernanceEngine::setEventStreamFd(event_stream_fd);
+#else
+            fprintf(stderr, "Error: the event stream is not supported on this platform\n");
+            fflush(nullptr);
+            _exit(4);
+#endif
+        }
+
         naab::governance::GovernanceEngine shared_governance;
         auto gov_abs_file = std::filesystem::absolute(filename);
         auto gov_script_dir = gov_abs_file.parent_path();
         bool gov_loaded = shared_governance.discoverAndLoad(gov_script_dir.string());
+
+        // Replay the caller's earlier events before anything runs. Unreadable
+        // history refuses the run: running without it would under-detect.
+        if (!event_seed.empty() && gov_loaded &&
+            !shared_governance.seedSequenceEvents(event_seed)) {
+            fprintf(stderr, "Error: event history could not be read\n");
+            fflush(nullptr);
+            _exit(4);
+        }
 
         // Pre-flight authority — persists to VM-path check below
         bool _has_authority = false;
@@ -3857,6 +3940,47 @@ int main(int argc, char** argv) {
             fmt::print("           create, test, submit, update, backup, restore, report\n");
             return 1;
         }
+
+    } else if (command == "mcp") {
+        // Governed execution over MCP (stdio): docs/plan-mcp-service.md.
+        // Workers are this same binary, so the path must be this process's
+        // own executable, not whatever "naab-lang" resolves to on PATH.
+        std::string self;
+        {
+            std::error_code ec;
+#ifdef __linux__
+            self = std::filesystem::read_symlink("/proc/self/exe", ec).string();
+#endif
+            std::string a0 = argv[0];
+            if (self.empty() && a0.find('/') != std::string::npos) {
+                self = std::filesystem::absolute(a0, ec).string();
+            }
+            // Started by name: resolve it the way the shell did, through PATH.
+            // Resolving a bare name against the working directory would start
+            // whatever file of that name happens to sit there.
+#ifndef _WIN32
+            if (self.empty()) {
+                const char* path_env = std::getenv("PATH");
+                std::stringstream ps(path_env ? path_env : "");
+                std::string dir;
+                while (std::getline(ps, dir, ':')) {
+                    if (dir.empty()) continue;
+                    std::string cand = dir + "/" + a0;
+                    if (access(cand.c_str(), X_OK) == 0) { self = cand; break; }
+                }
+            }
+#else
+            if (self.empty()) self = a0;  // the server refuses to start on Windows anyway
+#endif
+            if (self.empty()) {
+                fprintf(stderr, "Error: naab-lang mcp could not locate its own executable\n");
+                fflush(nullptr);
+                _exit(1);
+            }
+        }
+        int rc = naab::api::runMcpServer(self);
+        fflush(nullptr);
+        _exit(rc);
 
     } else if (command == "api") {
         // Start REST API server (Phase 4.7)

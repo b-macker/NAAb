@@ -106,6 +106,7 @@
 "api\x1f""keys\x1f""[]\x1f""name",
 "api\x1f""keys\x1f""[]\x1f""scopes",
 "api\x1f""max_body",
+"api\x1f""max_concurrent",
 "api\x1f""rate_limit",
 "api\x1f""timeout",
 "api\x1f""tls_cert",

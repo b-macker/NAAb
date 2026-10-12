@@ -681,6 +681,20 @@ std::string BehavioralSequenceDetector::eventTypeToString(RuntimeEventType type)
     return stepNameFor(type);
 }
 
+std::string runtimeEventStepName(RuntimeEventType type) {
+    return stepNameFor(type);
+}
+
+bool runtimeEventTypeFromStepName(const std::string& name, RuntimeEventType& out) {
+    // Walk the enum through stepNameFor() so the reverse cannot drift from the
+    // forward table. REFUSAL_ATTESTATION is the last enumerator.
+    for (int i = 0; i <= static_cast<int>(RuntimeEventType::REFUSAL_ATTESTATION); ++i) {
+        auto t = static_cast<RuntimeEventType>(i);
+        if (stepNameFor(t) == name) { out = t; return true; }
+    }
+    return false;
+}
+
 std::string deadEnumStepSpelling(const std::string& matcher) {
     static const std::pair<const char*, RuntimeEventType> kEnumNames[] = {
         {"ENV_READ", RuntimeEventType::ENV_READ},
