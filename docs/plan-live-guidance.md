@@ -124,6 +124,17 @@ fixture (`tests/governance_v4/test_guidance.sh`).
    path policy (CONTRA-013). *Decided 2026-10-12: "if shell is on then the
    user/dev would have allowed full access just like they opened a terminal
    window."* Documented, not refused.
+   **Hardened after the alignment review (the write gate had to see the real
+   target).** `checkPathAccess` originally validated the literal argument, so
+   two routes replaced a source without presenting its name: `file.copy(src,
+   "docs")` landed at `docs/<source>` while the directory `"docs"` was
+   checked, and embedded Python's `os.rename`/`os.link`/`shutil.move`/`os.remove`
+   were never forwarded by the audit hook. Both now resolve to the real file
+   and go through the same policy — the general fix, since it also protects
+   govern.json, its `.sig` and `blocked_paths`, not only guidance sources. See
+   CLAUDE.md "The path check must see the file a write LANDS on" and
+   `tests/governance_v4/test_protected_write_routes.sh` (PW-05 is the guidance
+   arm). The CONTRA-013 subprocess boundary above is unchanged.
 3. **Secrets and PII.** Guidance text goes through the secret and PII patterns
    before any channel; a hit withholds that entry (`GUIDANCE_WITHHELD`), it does
    not block the run. Like the prompt scan, this is live only when
