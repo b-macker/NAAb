@@ -3376,6 +3376,9 @@ void GovernanceEngine::flushGroupedAdvisories() {
         advisory_count_ = 0;
         advisory_suppressed_ = 0;
     }
+    // Live guidance: what reached agents this run, at the end like an error
+    // message's help. Every exit path calls this function; prints once.
+    try { printGuidanceSummary(); } catch (...) {}
 }
 
 // ============================================================================

@@ -1202,8 +1202,14 @@ struct HooksConfig {
 
 struct GuidanceSourceConfig {
     std::string name;
-    std::string type = "file";   // slice 1: "file" only
+    std::string type = "file";   // "file" (markdown) | "sqlite"
     std::string path;            // project-relative, resolved like policy paths
+    // sqlite: one read-only SELECT. Column 1 = heading, column 2 = text.
+    // Trigger values are BOUND as parameters, never interpolated: :kind :arg
+    // :agent :topic :keywords :keywords_or (any subset may appear).
+    std::string query;
+    int max_rows = 50;           // rows read per query
+    int timeout_ms = 250;        // a query running longer is interrupted
 };
 
 struct GuidanceRuleConfig {
@@ -1217,6 +1223,10 @@ struct GuidanceRuleConfig {
     // A "#slug" in `from` selects that section; a bare source name selects by
     // keyword overlap with the trigger. No separate selector key.
     int max_entries = 1;
+    // Built by the loader when govern.json lists sources and no rules: match a
+    // section NAMED for the trigger first (the check, the signal, the agent),
+    // then a strong keyword match; weak overlap delivers nothing.
+    bool automatic = false;
 };
 
 struct GuidanceConfig {
@@ -1241,6 +1251,10 @@ struct GuidanceDelivery {
     std::string select;      // "anchor" | "keywords"
     double score = 0.0;      // keyword score (0 for anchors)
     std::string sha256;      // of `text`
+    std::string id;          // delivery id, joins GUIDANCE_DELIVERED to
+                             // GUIDANCE_RESPONSE / GUIDANCE_VALIDATION
+    int turn = -1;           // the request turn that carried it (agent channel)
+    double lookup_ms = 0.0;  // selection + scan time for the send it rode on
 };
 
 // ============================================================================
@@ -3270,6 +3284,19 @@ public:
     // ("source#slug" / "#slug") or keyword overlap.
     std::vector<GuidanceDelivery> guidancePull(const std::string& topic,
         const std::string& source_filter, int max_entries);
+    // Full chain (docs/plan-live-guidance.md, alignment review): the reply to
+    // a request that carried guidance. Emits GUIDANCE_RESPONSE per delivery --
+    // which guidance terms the reply used (keyword recall, the computation S13
+    // applies to instructions), and for a signal trigger whether that signal
+    // paid again on the reply's turn. An observation: nothing reads it to
+    // change behaviour.
+    void guidanceOnResponse(int handle_id, const std::string& agent_name,
+                            const std::vector<GuidanceDelivery>& delivered,
+                            const std::unordered_set<std::string>& response_keywords,
+                            bool response_ok, bool analyzed);
+    // The first agent.record_validation() after guidance reached a handle:
+    // GUIDANCE_VALIDATION with the delivery ids and the outcome.
+    void guidanceOnValidation(int handle_id, const std::string& agent_name, bool passed);
     // True when `canon_n` (canonical, '/' separators) is a declared guidance
     // source -- the governed program may not write it (no self-instruction).
     bool isGuidanceSourcePath(const std::string& canon_n) const;
@@ -4245,6 +4272,9 @@ private:
     GuidanceTerminal guidanceForTerminal(const std::string& rule_name,
                                          const std::string& violation_message);
     void emitGuidanceTerminal(const GuidanceTerminal& g);
+    // End-of-run block listing what reached agents (flushGroupedAdvisories,
+    // which every exit path calls). Prints once; nothing when nothing was sent.
+    void printGuidanceSummary();
 
     // --- Decision trace accumulator (storage is thread_local in .cpp) ---
     void addTrace(const std::string& step);

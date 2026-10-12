@@ -181,7 +181,7 @@ that withholds a random fraction of deliveries on live runs. Slice 2.
    write protection first -- it is not auto-protected today, traced in
    `addGovernanceProtectedPaths()`, and the hash chain is unkeyed, so it detects
    edits but not a correctly chained forged append).
-3. **Connectors**: read-only parameter-bound `sqlite`; a `command` adapter (hook
+3. **Connectors**: read-only parameter-bound `sqlite` (**built**, second PR); a `command` adapter (hook
    machinery plus stdout capture and containment); an `mcp` stdio client;
    `https`. External sources must pass `capabilities.network` (allowed/blocked
    hosts, https_only) -- *decided 2026-10-12* -- stricter than the telemetry
@@ -190,6 +190,163 @@ that withholds a random fraction of deliveries on live runs. Slice 2.
    first. Slow sources prefetch between turns with a hard deadline at send time;
    the terminal channel uses only cached content.
 4. **Outward**: a `naab_guidance` tool on `naab-lang mcp`.
+
+## Alignment review after slice 1 (2026-10-12, #309 merged as `76c9617e`)
+
+The owner's goals, collected from their own messages (not paraphrased from
+memory), checked against what #309 shipped. Tiers: **observed** (a test or run
+showed it), **traced** (read in the code), **unmeasured**.
+
+| # | goal (owner's words, condensed) | status after #309 | evidence |
+|---|---|---|---|
+| 1 | govern.json is king | met | sources and rules live only in govern.json (traced; G-17 load warnings observed) |
+| 2 | live sources: MCP, database, document, past context | **documents only** | slice 3 / slice 2 not built |
+| 3 | easy to connect a source | partial | one block in govern.json for a file; no other type |
+| 4 | dynamic, adaptable, organic | partial | live re-read observed (G-05); nothing adapts |
+| 5 | internal and external trusted sources | **internal files only** | external sources need the network gate (decided, not built) |
+| 6 | relevant, accurate, logical, **quick** | relevance observed (G-04, G-12a); verbatim text traced; **speed unmeasured** | no timing was ever taken |
+| 7 | fluid mid-run changes | met | G-05 observed |
+| 8 | no self-instruction loop | met inside path policy | G-09a-e observed; `<<sh>>` with shell on is the operator's grant |
+| 9 | telemetry shows what was given, the full chain, so we know if it was used | **not met** | `GUIDANCE_DELIVERED` carries metadata and a sha256, not the text (traced); nothing links a delivery to the reply that followed it (traced) |
+| 10 | agents can see the info | partial | the model sees it in its request (observed, G-02); the script's `guidance` field has no text (traced) |
+| 11 | no extra steps, fires at runtime like errors | met | triggers fire with no script code (observed G-02/G-03/G-04) |
+| 12 | complexity in the backend, automated | partial | selection and live reindex are automatic; no prefetch, cache or adaptation |
+| 13 | the terminal shows the info at the end, like an error message | **met for blocks only** | G-10/G-11 observed; a delivery to an agent prints nothing (traced) |
+| 14 | databases are the real enterprise test | **not started** | |
+| 15 | govern-template.json kept current | met for slice 1 | `test_template_coverage.sh` observed |
+
+What the review changes, in order (the next PR):
+
+1. **Full-chain telemetry (goal 9).** `GUIDANCE_DELIVERED` carries the delivered
+   text (already scanned), a `delivery_id`, and `lookup_ms` (so speed, goal 6,
+   becomes observed rather than claimed). A new `GUIDANCE_RESPONSE` links the
+   reply to the request that carried the guidance: which guidance terms the
+   reply used (the same keyword-recall computation S13 already applies to
+   user instructions, through the same extractor), the reply's content hash
+   (matching `AGENT_RESPONSE`), and for a signal trigger whether that signal
+   paid again on the reply's turn. `GUIDANCE_VALIDATION` records the first
+   validation after a delivery. These are observations, not decisions (the
+   owner's point that "did it work" cannot drive runtime stands): nothing
+   reads them to change behaviour. Term recall is lexical echo, not proof of
+   compliance -- the same caveat S13 carries.
+2. **Terminal at the end (goal 13).** When guidance reached an agent, an
+   end-of-run block lists each delivery: agent, turn, trigger, section, and
+   how much of it the reply used. Automatic, no flag. Blocks keep their inline
+   guidance.
+3. **The script sees the text (goal 10).** The response's `guidance` entries
+   carry `text` and `id`.
+4. **Databases (goals 2, 5, 14).** A read-only SQLite source with a
+   parameter-bound query is the first non-document source; it is in-process
+   and a dependency NAAb already has. Enterprise servers (Postgres, MySQL,
+   SQL Server) come through the command adapter and MCP client of slice 3,
+   which also need the network gate.
+5. **The test gaps listed after #309**: mid-run reload, `agent.batch`
+   concurrency, the commit path, the `agents` filter, `signal:*` and prefix
+   rules, PII withholding, and an agent arm on the tree-walker.
+
+## Built after the review (second PR)
+
+Items 1-5 of the review are built. Observed on this machine (local unoptimised
+build), never on a real model:
+
+- **Full chain.** `GUIDANCE_DELIVERED` now carries `text`, `delivery_id` and
+  `lookup_ms`; `GUIDANCE_RESPONSE` joins each delivery to the reply
+  (`turn_at_request`, `terms_used`/`recall`/`matched`, `trigger_recurred`),
+  through both the behavioural-sequence path and the path where it is off;
+  `GUIDANCE_VALIDATION` closes the chain at the next `record_validation`.
+  G-18/G-18b/G-20 pin it; G-18's control is a reply that ignored the guidance
+  reading `terms_used` 0.
+- **Terminal at the end.** `-- Guidance: N delivered to agents (lookup X ms avg)
+  --`, one line per delivery with the reply's uptake and the signal outcome,
+  printed from `flushGroupedAdvisories()` (every exit path), silent when
+  nothing was sent (G-19, control: guidance off).
+- **Script sees the text** (G-21).
+- **SQLite source** (`tests/governance_v4/test_guidance_sqlite.sh`, 16 arms).
+  Observed lookups: about 0.2-0.4 ms per send for a markdown source and about
+  0.9 ms for a sqlite query, including the secret/PII scan; a runaway query
+  is interrupted at its 50 ms deadline and the program finished in under
+  100 ms (two runs).
+- **Gap tests**: agents filter (G-22), `signal:*` (G-23) and a prefix rule
+  (G-10b), PII (G-24), a mid-run reload (G-25), two concurrent
+  `agent.batch` calls of six handles (G-26), the commit path (G-27), the
+  tree-walker (G-28).
+
+**Changed while building:**
+1. FTS5 failed every `MATCH` with "vtable constructor failed": its
+   constructor queries `PRAGMA data_version`, which the authorizer's blanket
+   PRAGMA refusal denied (reproduced with Python's sqlite3 and the same deny
+   list). Only that pragma, in its read form, is now allowed.
+2. Table-valued pragma functions (`pragma_table_info(...)`) reach the
+   authorizer as reads, not as `SQLITE_PRAGMA`, so "PRAGMA is refused" is true
+   of PRAGMA *statements* only. SQLite defines those functions only for
+   side-effect-free pragmas over the same database; noted in the code, not
+   designed around.
+3. A reload is applied at the next `agent.send()`. G-25's first draft recorded
+   a validation between the file change and that send, and the trigger was
+   judged under the OLD rules -- correct engine behaviour, wrong test.
+4. Under `signal:*` a delivery is attributed to the first paid signal queued
+   (observed `signal:circular_actions`), not necessarily the one a reader
+   expects.
+5. `"*"` and a trailing-`*` prefix are the same rule: removing the `"*"`
+   special case alone changed nothing, so the revert check removed both.
+
+Revert check (observed): reply linkage -> G-18/G-18b; response text -> G-21;
+agents filter -> G-22; end-of-run block -> G-19; validation linkage -> G-20;
+database sidecar protection -> S-04; database policy read -> S-06; PII scan ->
+G-24; ATTACH refusal -> S-05; query deadline -> S-07; wildcard and prefix
+matching -> G-10b, G-23.
+
+## Sources only (same PR, after the owner's review)
+
+The owner's requirement (2026-10-12): "Don't want the settings in govern.json to
+be too complicated or complex, should just be what source to add." The rules,
+anchors, queries and switches above are what an engine needs, not what an
+operator should have to write. The minimal configuration is now:
+
+```json
+"guidance": { "sources": ["docs/agent-playbook.md", "data/guidance.db"] }
+```
+
+- **Type from the extension**: `.db` `.sqlite` `.sqlite3` `.db3` are databases,
+  anything else a markdown document. A source may still be an object
+  (`path`, `name`, `type`, `query`, `max_rows`, `timeout_ms`), and the
+  name-keyed map #309 shipped is still read.
+- **Listing sources switches the feature on**; `"enabled": false` switches it
+  off with the sources still listed (the template ships that way).
+- **No `rules` key: the engine routes by itself.** Four automatic rules cover
+  every source: `start`, `signal:*` and `validation_failed` to the agent,
+  `violation:*` to the terminal. Each takes, per source, the first section or
+  row NAMED for the trigger -- a heading or `topic` value compared loosely
+  (case and `_ . - : /` ignored) with the full rule name or its last part, the
+  signal's config key, or the starting agent's name -- up to 3 entries.
+  Failing a name, only a strong keyword match is delivered (score 3 or more: a
+  heading term, or three text terms); an agent's `start` takes names only.
+- **Why names, not just keywords.** The keyword extractor drops words of three
+  characters or fewer, so `code_quality.no_pii` has no usable keyword at all;
+  only its name finds a section headed "No PII" (M-10). The threshold is a
+  design choice, not a measurement: one shared word is a weak reason to
+  interrupt a block or an agent, so the noise controls require that nothing be
+  delivered when nothing is named and nothing matches strongly.
+- **Explicit `rules` replace the automatic routes**, so the template documents
+  the rule shape in `_comment_rules` and shows no example entry: an example
+  rule there would have switched automatic routing off in every config copied
+  from it (caught while reviewing the template; the coverage baseline lists
+  the rule leaves under ENTRY SHAPE, beside plugin entries, for the same
+  reason).
+- **A database needs no SQL.** With no `query`, its `guidance` table is read
+  like a document: the name column is the first of `topic`/`heading`/`title`/
+  `name`, the text column the first of `body`/`text`/`content`/`guidance`; up
+  to 5000 rows, re-read when the database or its `-wal` changes. The same
+  read-only open, authorizer and deadline apply as for a query.
+
+Tests: `tests/governance_v4/test_guidance_minimal.sh` (11 arms, every config
+only a sources list). The controls are the point of the suite: with no section
+named for the event and no strong match, nothing is delivered (M-02, M-03c,
+M-04c, M-05c). Revert check (observed): with name matching removed, M-01, M-04
+and M-10 fail -- the first draft's M-01, M-03 and M-06 had passed through
+keyword overlap instead, which is why M-01 now asserts `"select":"name"` and
+M-10 was added; with the database change signature ignored, M-06 (a row added
+mid-run reaching the next request and not the one before) fails.
 
 ## Known limits, slice 1
 
