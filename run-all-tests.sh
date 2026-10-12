@@ -2484,6 +2484,19 @@ else
     echo "  test_guidance.sh: not found, skipping"
 fi
 
+# Live guidance from a database: bound parameters, read-only, deadline, live rows.
+GUIDANCE_SQLITE_SCRIPT="tests/governance_v4/test_guidance_sqlite.sh"
+if [ -f "$GUIDANCE_SQLITE_SCRIPT" ]; then
+    if run_shell_test "$GUIDANCE_SQLITE_SCRIPT" 2>&1; then
+        echo "  test_guidance_sqlite.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_guidance_sqlite.sh")
+    fi
+else
+    echo "  test_guidance_sqlite.sh: not found, skipping"
+fi
+
 # The BSD pre-execution path must leave evidence.
 BSDPRE_SCRIPT="tests/governance_v4/test_bsd_preexec_evidence.sh"
 if [ -f "$BSDPRE_SCRIPT" ]; then

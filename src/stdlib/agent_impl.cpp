@@ -4614,6 +4614,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 config_name, config->output_contract.format, contract_error));
     }
 
+    // Live guidance, full chain: the reply to a request that carried guidance
+    // is linked to it (GUIDANCE_RESPONSE). Logged inside the drift block when
+    // that runs (so the signal-recurrence field is fresh), else just after it.
+    bool guidance_reply_logged = false;
+
     // Behavioral sequence: emit agent.response event + context drift check
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().behavioral_sequences.enabled) {
@@ -4648,6 +4653,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         std::string drift_err = gov_engine->checkContextDrift(
             handle_id, event_turn, cdd_error);
         const bool cdd_analyzed = gov_engine->cddAnalysisSeq(handle_id) != cdd_seq_before;
+        if (!guidance_delivered.empty()) {
+            gov_engine->guidanceOnResponse(handle_id, config_name, guidance_delivered,
+                response_keywords, agent_resp.success && !agent_resp.content.empty(), cdd_analyzed);
+            guidance_reply_logged = true;
+        }
         queueSignalGuidance(gov_engine, handle_id, config_name, cdd_analyzed);
         // CDD_TURN: emit BEFORE potential throw so it's always in the audit trail
         {
@@ -5012,6 +5022,15 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // Behavioural sequences off: there is no drift analysis to read, but the
+    // reply is still linked to the guidance it answered.
+    if (!guidance_reply_logged && !guidance_delivered.empty() && gov_engine && gov_engine->isActive()) {
+        std::unordered_set<std::string> reply_kw;
+        if (!agent_resp.content.empty()) extractKeywords(agent_resp.content, reply_kw);
+        gov_engine->guidanceOnResponse(handle_id, config_name, guidance_delivered, reply_kw,
+                                       agent_resp.success && !agent_resp.content.empty(), false);
+    }
+
     // Output admissibility gate — post-CDD coherence boundary
     bool output_admissible = true;
     // Held because the engine had no basis to judge, not because the response
@@ -5307,7 +5326,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
     // Live guidance this send carried (docs/plan-live-guidance.md). Present only
     // when the feature is on, so the response of every other config is
-    // unchanged; the TEXT is in the transcript, not here.
+    // unchanged. Carries the text, so the script sees what the agent was told.
     if (gov_engine && gov_engine->guidanceEnabled()) {
         std::vector<NaabVal> gl;
         for (const auto& d : guidance_delivered) {
@@ -5318,6 +5337,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             gd["heading"] = NaabVal::makeString(d.heading);
             gd["chars"] = NaabVal::makeInt(static_cast<int64_t>(d.text.size()));
             gd["sha256"] = NaabVal::makeString(d.sha256);
+            gd["id"] = NaabVal::makeString(d.id);
+            gd["text"] = NaabVal::makeString(d.text);
             gl.push_back(NaabVal::makeDict(std::move(gd)));
         }
         result["guidance"] = NaabVal::makeList(std::move(gl));
@@ -7426,6 +7447,9 @@ static NaabVal agentRecordValidation(std::vector<NaabVal>& args) {
         // guidance for this handle's next send; the detail's keywords pick the
         // section when a rule selects by keyword. The detail can steer WHICH
         // operator-written section is chosen, never what it says.
+        // The first validation after guidance reached this handle closes that
+        // chain (GUIDANCE_VALIDATION) -- before a failure queues new guidance.
+        gov_engine->guidanceOnValidation(handle_id, config_name, passed);
         if (!passed) {
             gov_engine->guidanceOnAgentTrigger(handle_id, config_name, "validation_failed",
                                                "", detail_keywords);

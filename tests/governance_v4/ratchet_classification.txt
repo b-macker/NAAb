@@ -107,3 +107,6 @@ guidance.rules.[].from             neutral -- traced: which source/section is de
 guidance.rules.[].to               neutral -- traced: delivery channel (agent/terminal)
 guidance.rules.[].agents           neutral -- traced: which agents receive it
 guidance.rules.[].max_entries      neutral -- traced: sections per trigger
+guidance.sources.<sname>.query     neutral -- traced: which rows a sqlite source returns; read-only connection, refused writes/ATTACH/PRAGMA, path-gated read
+guidance.sources.<sname>.max_rows  neutral -- traced: rows read per query; no check reads it
+guidance.sources.<sname>.timeout_ms neutral -- traced: query deadline; an interrupted query delivers nothing

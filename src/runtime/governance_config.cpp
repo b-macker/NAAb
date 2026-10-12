@@ -2632,12 +2632,24 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 sc.name = sname;
                 if (sj.contains("type") && sj["type"].is_string()) sc.type = sj["type"].get<std::string>();
                 if (sj.contains("path") && sj["path"].is_string()) sc.path = sj["path"].get<std::string>();
-                if (sc.type != "file") {
+                if (sj.contains("query") && sj["query"].is_string()) sc.query = sj["query"].get<std::string>();
+                if (sj.contains("max_rows") && sj["max_rows"].is_number_integer())
+                    sc.max_rows = std::max(1, std::min(500, sj["max_rows"].get<int>()));
+                if (sj.contains("timeout_ms") && sj["timeout_ms"].is_number_integer())
+                    sc.timeout_ms = std::max(1, std::min(5000, sj["timeout_ms"].get<int>()));
+                if (sc.type != "file" && sc.type != "sqlite") {
                     warnG("source \"" + sname + "\" has type \"" + sc.type +
-                          "\", which this build does not read (supported: file); ignored");
+                          "\", which this build does not read (supported: file, sqlite); ignored");
                     continue;
                 }
                 if (sc.path.empty()) { warnG("source \"" + sname + "\" has no path; ignored"); continue; }
+                if (sc.type == "sqlite" && sc.query.empty()) {
+                    warnG("source \"" + sname + "\" is sqlite but has no query; ignored");
+                    continue;
+                }
+                if (sc.type == "file" && !sc.query.empty()) {
+                    warnG("source \"" + sname + "\": query is read only for sqlite sources; ignored for a file");
+                }
                 gc.sources.push_back(std::move(sc));
             }
         }

@@ -83,6 +83,9 @@ GUIDE_STUBS_q7: unfinished work goes in stubs/ with a ticket number.
 ## Secrets
 GUIDE_SECRET_q7: the staging key is $FAKE_KEY.
 
+## Contact
+GUIDE_PII_q7: escalate billing questions to the on-call, SSN 123-45-6789.
+
 ## Long
 GUIDE_LONG_q7: $(printf 'word%.0s ' $(seq 1 150))
 EOF
@@ -254,6 +257,16 @@ for eng in vm tw; do
     fi
 done
 
+# G-10b: a prefix rule (violation:code_quality.*) matches the check by prefix.
+d="$TEST_TMP/term_prefix"; mkdir -p "$d"
+term_cfg "$d" "violation:code_quality.*" hard
+r="$(run "$d" vm "$PLACEHOLDER_PROG")"
+if [[ "$r$(cat "$d/err.txt")" == *GUIDE_STUBS_q7* ]] && [[ "$r" == rc=3* ]]; then
+    pass "G-10b" "a prefix rule (violation:code_quality.*) attaches the section to code_quality.no_placeholders"
+else
+    fail "G-10b" "prefix rule did not match" "${r:0:200}"
+fi
+
 d="$TEST_TMP/term_adv"; mkdir -p "$d"
 term_cfg "$d" "violation:code_quality.no_placeholders" advisory
 r="$(run "$d" vm "$PLACEHOLDER_PROG")"
@@ -382,7 +395,7 @@ agent_run() {
  $(guidance_json "$rules" "$gextra"),
  "agents": {"worker": {"provider": "gemini", "model": "stub-model",
    "api_base": "http://127.0.0.1:$STUB_PORT", "api_key_env": "FAKE_KEY_GUIDE",
-   "max_tokens": 200, "max_turns": 40,
+   "max_tokens": 200, "max_turns": 40, ${AGENT_EXTRA:-}
    "system_prompt": "You maintain the billing service and answer questions about invoices."}}}
 EOF
     printf 'use agent\nuse array\nuse file\nuse time\nmain {\n    let h = agent.create("worker")\n%s\n    print("RUN_DONE")\n}\n' "$body" > "$d/p.naab"
@@ -573,6 +586,285 @@ if [[ "$out" == *RUN_DONE* ]] && has "$d" 1 "GUIDE_ONBOARD_q7"; then
     pass "G-16" "extends: the parent's guidance reaches a child that does not configure its own"
 else
     fail "G-16" "extends did not inherit guidance" "$out / $(tail -3 "$d/err.txt")"
+fi
+# ---------------------------------------------------------------------------
+# Full chain: what was sent, the reply it got, and what followed
+# ---------------------------------------------------------------------------
+# A reply that USES the guidance: the stub answers with the Onboarding words.
+UPTAKE_FX="$TEST_TMP/fixture_uptake.json"
+cat > "$UPTAKE_FX" <<'EOF2'
+{"responses": [{"content": "Following the README before answering: the total sums the invoice lines.", "input_tokens": 12, "output_tokens": 24}]}
+EOF2
+d="$TEST_TMP/a_uptake"
+FIXTURE_SAVE="$FIXTURE"; FIXTURE="$UPTAKE_FX"
+out="$(agent_run "$d" '[{"on": "start", "from": "playbook#onboarding", "to": ["agent"]}]' "" "" '
+    let r1 = agent.send(h, "How is the total computed?")
+    let g = r1.get("guidance")[0]
+    print("ID=" + g.get("id"))
+    print("TEXT=" + g.get("text"))' )"
+FIXTURE="$FIXTURE_SAVE"
+chain="$(python3 - "$d" "$G02_DIR" <<'PY'
+import json, sys
+def events(d, kind):
+    out = []
+    for l in open(d + "/tele.jsonl", encoding="utf-8", errors="replace"):
+        if '"%s"' % kind in l:
+            try: out.append(json.loads(l))
+            except Exception: pass
+    return out
+up, ctl = sys.argv[1], sys.argv[2]
+dl = events(up, "GUIDANCE_DELIVERED"); rs = events(up, "GUIDANCE_RESPONSE")
+src = open(up + "/docs/playbook.md", encoding="utf-8").read()
+sec = src.split("## Onboarding\n", 1)[1].split("\n## ", 1)[0].strip()
+ok_text = len(dl) == 1 and dl[0].get("text") == sec and dl[0].get("delivery_id", "").startswith("g") \
+          and float(dl[0].get("lookup_ms", "-1")) >= 0
+ok_join = len(rs) == 1 and rs[0].get("delivery_id") == dl[0].get("delivery_id") \
+          and rs[0].get("response") == "ok" and rs[0].get("turn_at_request") == "0"
+used = int(rs[0].get("terms_used", "0")) if rs else -1
+ok_used = used >= 2 and "readme" in rs[0].get("matched", "")
+crs = events(ctl, "GUIDANCE_RESPONSE")
+ok_ctl = len(crs) == 1 and crs[0].get("terms_used") == "0"
+print("text=%s join=%s used=%s(%d) control=%s" % (ok_text, ok_join, ok_used, used, ok_ctl))
+PY
+)"
+if [[ "$out" != *RUN_DONE* ]]; then
+    fail "G-18" "uptake run did not complete" "$out / $(tail -3 "$d/err.txt")"
+elif [[ "$chain" == "text=True join=True used=True"*"control=True" ]]; then
+    pass "G-18" "telemetry carries the delivered text and id; GUIDANCE_RESPONSE joins the reply, which used the guidance terms ($chain); a reply that ignored it reads 0 (control)"
+else
+    fail "G-18" "full-chain telemetry wrong" "$chain"
+fi
+if [[ "$out" == *"ID=g"* ]] && [[ "$out" == *"TEXT=GUIDE_ONBOARD_q7"* ]]; then
+    pass "G-21" "the script sees the delivered text and its id in the response"
+else
+    fail "G-21" "response guidance entry lacks text or id" "$out"
+fi
+
+# GUIDANCE_RESPONSE through both paths: behavioural sequences off (G-02 run)
+# and on, where it also records whether the triggering signal paid again (G-03).
+sig_rows="$(grep '"GUIDANCE_RESPONSE"' "$TEST_TMP/a_signal/tele.jsonl" 2>/dev/null | grep -c '"trigger_recurred":"true"')"
+off_rows="$(grep -c '"GUIDANCE_RESPONSE"' "$G02_DIR/tele.jsonl" 2>/dev/null)"
+if [ "${sig_rows:-0}" -eq 2 ] && [ "${off_rows:-0}" -eq 1 ]; then
+    pass "G-18b" "the reply is linked with behavioural sequences on (signal recurrence recorded: 2 of 2 replies repeated) and off"
+else
+    fail "G-18b" "reply linkage missing on one path" "with BSD: $sig_rows recurred rows; without: $off_rows rows"
+fi
+
+# Validation linkage: the first validation AFTER a delivery closes its chain;
+# one recorded before any delivery produces nothing (control).
+d="$TEST_TMP/a_valchain"
+out="$(agent_run "$d" '[{"on": "validation_failed", "from": "playbook#database-migrations", "to": ["agent"]}]' "" "" '
+    let r1 = agent.send(h, "Summarise the invoice flow.")
+    agent.record_validation(h, false, "migration failed")
+    let r2 = agent.send(h, "Try again.")
+    agent.record_validation(h, true)' )"
+vrows="$(grep '"GUIDANCE_VALIDATION"' "$d/tele.jsonl" 2>/dev/null)"
+nrows="$(printf '%s' "$vrows" | grep -c GUIDANCE_VALIDATION)"
+if [[ "$out" != *RUN_DONE* ]]; then
+    fail "G-20" "run did not complete" "$out"
+elif [ "$nrows" -eq 1 ] && [[ "$vrows" == *'"passed":"true"'* ]] && [[ "$vrows" == *'"delivery_ids":"g1"'* ]] \
+     && grep -q "next validation passed" "$d/err.txt"; then
+    pass "G-20" "the validation after the guidance is linked to it (passed, g1); the one before any guidance produced nothing"
+else
+    fail "G-20" "validation linkage wrong" "rows=$nrows $vrows"
+fi
+
+# Terminal at the end: the end-of-run block lists what reached the agent;
+# a run with guidance disabled prints none (G-01's run is the control).
+if grep -q -- "-- Guidance: 2 delivered to agents" "$TEST_TMP/a_signal/err.txt" \
+   && grep -q "Avoid repetition  (reply used 0/" "$TEST_TMP/a_signal/err.txt" \
+   && grep -q "signal paid again" "$TEST_TMP/a_signal/err.txt" \
+   && ! grep -q -- "-- Guidance:" "$TEST_TMP/a_disabled/err.txt"; then
+    pass "G-19" "the end of the run lists each delivery (agent, turn, trigger, section, reply uptake, signal recurrence); none when guidance is off"
+else
+    fail "G-19" "end-of-run guidance block wrong" "$(grep -A3 -- '-- Guidance:' "$TEST_TMP/a_signal/err.txt" | head -4)"
+fi
+# ---------------------------------------------------------------------------
+# Gap arms (the list after #309): agents filter, wildcard and prefix rules,
+# PII, a mid-run reload, batch concurrency, the commit path, the tree-walker
+# ---------------------------------------------------------------------------
+two_agent_cfg() {  # $1 dir, $2 rules JSON
+    cat > "$1/govern.json" <<EOF2
+{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"},
+ "telemetry": {"enabled": true, "output_file": "tele.jsonl"},
+ $(guidance_json "$2"),
+ "agents": {
+   "worker":   {"provider": "gemini", "model": "stub-model", "api_base": "http://127.0.0.1:$STUB_PORT",
+                "api_key_env": "FAKE_KEY_GUIDE", "max_tokens": 200, "max_turns": 40,
+                "system_prompt": "You maintain the billing service."},
+   "reviewer": {"provider": "gemini", "model": "stub-model", "api_base": "http://127.0.0.1:$STUB_PORT",
+                "api_key_env": "FAKE_KEY_GUIDE", "max_tokens": 200, "max_turns": 40,
+                "system_prompt": "You review billing changes."}}}
+EOF2
+}
+
+# G-22: a rule scoped to one agent reaches that agent only.
+d="$TEST_TMP/a_agents"; mkdir -p "$d"; write_playbook "$d"
+if start_stub "$FIXTURE" "$d" >/dev/null 2>&1; then
+    STUB_STARTED=1
+    two_agent_cfg "$d" '[{"on": "start", "from": "playbook#onboarding", "to": ["agent"], "agents": ["reviewer"]}]'
+    printf 'use agent\nmain {\n    let w = agent.create("worker")\n    let a = agent.send(w, "Hello worker")\n    let r = agent.create("reviewer")\n    let b = agent.send(r, "Hello reviewer")\n    print("RUN_DONE")\n}\n' > "$d/p.naab"
+    out="$( (cd "$d" && timeout 120s "$NAAB" p.naab 2>"$d/err.txt") )"
+    stop_stub; STUB_STARTED=0
+    if [[ "$out" == *RUN_DONE* ]] && ! has "$d" 1 GUIDE_ONBOARD_q7 && has "$d" 2 GUIDE_ONBOARD_q7; then
+        pass "G-22" "a rule with agents:[reviewer] reaches the reviewer's request and not the worker's"
+    else
+        fail "G-22" "agents filter wrong" "$out; worker=$(has "$d" 1 GUIDE_ONBOARD_q7 && echo y || echo n) reviewer=$(has "$d" 2 GUIDE_ONBOARD_q7 && echo y || echo n)"
+    fi
+else
+    fail "G-22" "stub failed to start"
+fi
+
+# G-23: signal:* matches any paid signal (same run shape as G-03).
+d="$TEST_TMP/a_sigany"
+out="$(agent_run "$d" '[{"on": "signal:*", "from": "playbook#avoid-repetition", "to": ["agent"]}]' '"cooldown_turns": 3,' \
+  '"behavioral_sequences": {"enabled": true}, "advisory_escalation": {"enabled": false},
+   "context_drift": {"enabled": true, "level": "advisory", "check_interval_turns": 1, "reality_checkpoint": {"enabled": false}},' '
+    let i = 0
+    while i < 3 { i = i + 1; let r = agent.send(h, "Explain the invoice total.") }' )"
+# Several signals can pay on one turn; the delivery is attributed to the first
+# one queued (observed: signal:circular_actions), so any concrete signal: name
+# is correct here -- what must NOT appear is the literal "*".
+sig_trig="$(grep '"GUIDANCE_DELIVERED"' "$d/tele.jsonl" 2>/dev/null | grep -o '"trigger":"signal:[a-z_]*"' | head -1)"
+if [[ "$out" == *RUN_DONE* ]] && ! has "$d" 1 GUIDE_REPEAT_q7 && ! has "$d" 2 GUIDE_REPEAT_q7 && has "$d" 3 GUIDE_REPEAT_q7 \
+   && [ -n "$sig_trig" ]; then
+    pass "G-23" "signal:* fires on any paid signal and records which one ($sig_trig)"
+else
+    fail "G-23" "signal:* did not fire" "$out"
+fi
+
+# G-24: a section holding PII is withheld under no_pii; delivered without it.
+PII_RULE='[{"on": "start", "from": ["playbook#contact", "playbook#onboarding"], "to": ["agent"], "max_entries": 2}]'
+d="$TEST_TMP/a_pii"
+out="$(agent_run "$d" "$PII_RULE" "" '"code_quality": {"no_pii": {"enabled": true, "level": "hard"}},' '
+    let r = agent.send(h, "How is the total computed?")' )"
+d2="$TEST_TMP/a_pii_ctl"
+out2="$(agent_run "$d2" "$PII_RULE" "" "" '
+    let r = agent.send(h, "How is the total computed?")' )"
+if [[ "$out2" != *RUN_DONE* ]] || ! has "$d2" 1 GUIDE_PII_q7; then
+    fail "G-24b" "control: without no_pii the Contact section must be delivered" "$out2"
+else
+    pass "G-24b" "control: with no_pii off the Contact section is delivered"
+fi
+if [[ "$out" == *RUN_DONE* ]] && has "$d" 1 GUIDE_ONBOARD_q7 && ! has "$d" 1 GUIDE_PII_q7 \
+   && grep '"GUIDANCE_WITHHELD"' "$d/tele.jsonl" | grep -q '"pii"'; then
+    pass "G-24" "a section holding PII is withheld (reason pii); the clean section still arrives"
+else
+    fail "G-24" "PII section handling wrong" "$out"
+fi
+
+# G-25: a mid-run govern.json reload replaces the rules; the next send follows
+# the NEW rules (the first request is the control that the old ones applied).
+d="$TEST_TMP/a_reload"; mkdir -p "$d"; write_playbook "$d"
+if start_stub "$FIXTURE" "$d" >/dev/null 2>&1; then
+    STUB_STARTED=1
+    agent_block="\"agents\": {\"worker\": {\"provider\": \"gemini\", \"model\": \"stub-model\", \"api_base\": \"http://127.0.0.1:$STUB_PORT\", \"api_key_env\": \"FAKE_KEY_GUIDE\", \"max_tokens\": 200, \"max_turns\": 40, \"system_prompt\": \"You maintain the billing service.\"}}"
+    printf '{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"}, "telemetry": {"enabled": true, "output_file": "tele.jsonl"}, %s, %s}\n' \
+        "$(guidance_json '[{"on": "start", "from": "playbook#onboarding", "to": ["agent"]}]')" "$agent_block" > "$d/govern.json"
+    printf '{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"}, "telemetry": {"enabled": true, "output_file": "tele.jsonl"}, %s, %s}\n' \
+        "$(guidance_json '[{"on": "validation_failed", "from": "playbook#database-migrations", "to": ["agent"]}]')" "$agent_block" > "$TEST_TMP/reload_new.json"
+    touch -d '2 minutes ago' "$d/govern.json" 2>/dev/null || true
+    start_swap_operator "$d"
+    cat > "$d/p.naab" <<EOF2
+use agent
+use file
+use time
+main {
+    let h = agent.create("worker")
+    let a = agent.send(h, "Summarise the invoice flow.")
+    file.write(".swap_req", "$TEST_TMP/reload_new.json\t$d/govern.json\n")
+    file.write(".swap_req.ready", "")
+    let waited = 0
+    while !file.exists(".swap_done") && waited < 200 { time.sleep(0.05); waited = waited + 1 }
+    // A reload is applied at the next agent.send(): one send first, so the
+    // trigger below is judged under the NEW rules.
+    let b = agent.send(h, "Continue.")
+    agent.record_validation(h, false, "migration failed")
+    let c = agent.send(h, "Try again.")
+    print("RUN_DONE")
+}
+EOF2
+    out="$( (cd "$d" && timeout 120s "$NAAB" p.naab 2>"$d/err.txt") )"
+    stop_stub; STUB_STARTED=0
+    if [[ "$out" != *RUN_DONE* ]]; then
+        fail "G-25" "run did not complete" "$out / $(tail -3 "$d/err.txt")"
+    elif grep -q "Reload rejected" "$d/err.txt"; then
+        fail "G-25" "the reload was rejected" "$(grep 'Reload rejected' "$d/err.txt" | head -1)"
+    elif grep -q "Config reloaded mid-run" "$d/err.txt" && has "$d" 1 GUIDE_ONBOARD_q7 \
+         && ! has "$d" 2 GUIDE_ && has "$d" 3 GUIDE_DB_q7 && ! has "$d" 3 GUIDE_ONBOARD_q7; then
+        pass "G-25" "a mid-run reload replaced the rules: request 1 followed the old (start), request 3 the new (validation_failed)"
+    else
+        fail "G-25" "the reloaded rules were not followed" "req1 onboard=$(has "$d" 1 GUIDE_ONBOARD_q7 && echo y || echo n) req3 db=$(has "$d" 3 GUIDE_DB_q7 && echo y || echo n)"
+    fi
+else
+    fail "G-25" "stub failed to start"
+fi
+
+# G-26: agent.batch runs sends on pool threads; every handle gets its start
+# guidance exactly once and every delivery has a distinct id.
+d="$TEST_TMP/a_batch"
+out="$(agent_run "$d" '[{"on": "start", "from": "playbook#onboarding", "to": ["agent"]}]' "" "" '
+    let hs = [h, agent.create("worker"), agent.create("worker"), agent.create("worker"), agent.create("worker"), agent.create("worker")]
+    let rs = agent.batch(hs, ["a1", "b1", "c1", "d1", "e1", "f1"])
+    let rs2 = agent.batch(hs, ["a2", "b2", "c2", "d2", "e2", "f2"])' )"
+bat="$(python3 - "$d" <<'PY'
+import glob, json, os, sys
+d = sys.argv[1]
+reqs = [open(p, encoding="utf-8", errors="replace").read() for p in glob.glob(os.path.join(d, "req_*.json"))]
+with_g = sum(1 for r in reqs if "GUIDE_ONBOARD_q7" in r)
+ev = [json.loads(l) for l in open(os.path.join(d, "tele.jsonl"), encoding="utf-8", errors="replace") if '"GUIDANCE_DELIVERED"' in l]
+ids = [e.get("delivery_id") for e in ev]
+handles = sorted(set(e.get("handle_id") for e in ev))
+print("%d %d %d %d %d" % (len(reqs), with_g, len(ids), len(set(ids)), len(handles)))
+PY
+)"
+if [[ "$out" == *RUN_DONE* ]] && [ "$bat" = "12 6 6 6 6" ]; then
+    pass "G-26" "two concurrent batches of 6: each handle's first request carried the guidance once (6 of 12), 6 distinct delivery ids"
+else
+    fail "G-26" "batch delivery wrong (requests, with guidance, events, distinct ids, handles)" "$bat / $out"
+fi
+
+# G-27: a committed proposal is a turn: its paid signal queues guidance for the
+# next send. propose itself carries none (the documented slice-1 limit).
+d="$TEST_TMP/a_commit"
+AGENT_EXTRA='"propose_candidates_max": 1,'
+out="$(agent_run "$d" '[{"on": "signal:response_repetition", "from": "playbook#avoid-repetition", "to": ["agent"]}]' "" \
+  '"behavioral_sequences": {"enabled": true}, "advisory_escalation": {"enabled": false},
+   "context_drift": {"enabled": true, "level": "advisory", "check_interval_turns": 1, "reality_checkpoint": {"enabled": false}},' '
+    let a = agent.send(h, "Explain the invoice total.")
+    let p = agent.propose(h, "Explain the invoice total.", 1)
+    let c = agent.commit(h, p.get("candidates")[0])
+    let b = agent.send(h, "And again?")' )"
+AGENT_EXTRA=""
+if [[ "$out" != *RUN_DONE* ]]; then
+    fail "G-27" "propose/commit run did not complete" "$out / $(tail -4 "$d/err.txt")"
+elif ! has "$d" 2 GUIDE_REPEAT_q7 && has "$d" 3 GUIDE_REPEAT_q7; then
+    pass "G-27" "the commit's repeated reply paid the signal; the next send carried the guidance (propose's request carried none)"
+else
+    fail "G-27" "commit path did not queue guidance" "propose req2=$(has "$d" 2 GUIDE_REPEAT_q7 && echo y || echo n) send req3=$(has "$d" 3 GUIDE_REPEAT_q7 && echo y || echo n)"
+fi
+
+# G-28: the agent channel on the tree-walker (the agent module is shared, but
+# that was an assumption until run).
+d="$TEST_TMP/a_tw"; mkdir -p "$d"; write_playbook "$d"
+if start_stub "$FIXTURE" "$d" >/dev/null 2>&1; then
+    STUB_STARTED=1
+    cat > "$d/govern.json" <<EOF2
+{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"},
+ $(guidance_json '[{"on": "start", "from": "playbook#onboarding", "to": ["agent"]}]'),
+ "agents": {"worker": {"provider": "gemini", "model": "stub-model", "api_base": "http://127.0.0.1:$STUB_PORT",
+   "api_key_env": "FAKE_KEY_GUIDE", "max_tokens": 200, "max_turns": 40, "system_prompt": "You maintain the billing service."}}}
+EOF2
+    printf 'use agent\nmain {\n    let h = agent.create("worker")\n    let r = agent.send(h, "Hello")\n    print("RUN_DONE")\n}\n' > "$d/p.naab"
+    out="$( (cd "$d" && timeout 120s "$NAAB" --tree-walk p.naab 2>"$d/err.txt") )"
+    stop_stub; STUB_STARTED=0
+    if [[ "$out" == *RUN_DONE* ]] && has "$d" 1 GUIDE_ONBOARD_q7; then
+        pass "G-28" "the tree-walker delivers the same start guidance"
+    else
+        fail "G-28" "tree-walker agent channel wrong" "$out / $(tail -3 "$d/err.txt")"
+    fi
+else
+    fail "G-28" "stub failed to start"
 fi
 fi  # not Windows
 

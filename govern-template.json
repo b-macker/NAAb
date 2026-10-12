@@ -1753,9 +1753,19 @@
     "max_source_kb": 256,
     "_comment_cooldown_turns": "The same section is not re-sent to one agent handle within this many turns.",
     "cooldown_turns": 3,
-    "_comment_sources": "name -> { type, path }. type: file (a markdown document split into sections at its headings; a section is addressed by its heading slug, e.g. #stay-on-task). The path must be readable under the filesystem policy, and the governed program may not write it (no self-instruction loop). A <<sh>> block with shell enabled is outside path policy.",
+    "_comment_sources": "name -> { type, path, ... }. type file: a markdown document split into sections at its headings; a section is addressed by its heading slug (#stay-on-task). type sqlite: a database opened READ-ONLY and asked one SELECT per trigger -- column 1 is the heading, column 2 the text, rows in the query's own order (WHERE, joins and FTS5 MATCH ... ORDER BY rank decide relevance). The trigger is BOUND as parameters, never spliced into the SQL: :kind :arg :agent :topic :keywords :keywords_or. ATTACH, PRAGMA and writes are refused; a second statement is refused. Every source must be readable under the filesystem policy, and the governed program may not write it or a database's -wal/-shm/-journal (no self-instruction loop). A <<sh>> block with shell enabled is outside path policy.",
     "sources": {
-      "playbook": { "type": "file", "path": "docs/agent-playbook.md" }
+      "playbook": { "type": "file", "path": "docs/agent-playbook.md" },
+      "knowledge": {
+        "type": "sqlite",
+        "path": "data/guidance.db",
+        "_comment_query": "One read-only SELECT; heading column, text column.",
+        "query": "SELECT heading, body FROM guidance WHERE topic = :arg ORDER BY priority DESC",
+        "_comment_max_rows": "Rows read per query (1-500).",
+        "max_rows": 50,
+        "_comment_timeout_ms": "A query running longer is interrupted and delivers nothing (1-5000).",
+        "timeout_ms": 250
+      }
     },
     "_comment_rules": "on: start | signal:<context_drift signal key, or *> | validation_failed | violation:<rule, trailing * = prefix>. from: \"source#slug\" (that section, subsections included) or \"source\" (the section whose own text -- up to its first subheading -- best overlaps the trigger's keywords). to: agent (start, signal, validation_failed) and/or terminal (violation). agents: limit to these agent names (empty = all). max_entries: sections per trigger (1-10).",
     "rules": [

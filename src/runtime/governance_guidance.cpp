@@ -24,6 +24,8 @@
 #include "naab/bounded_read.h"
 #include "naab/crypto_utils.h"
 
+#include <sqlite3.h>
+
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
@@ -175,7 +177,26 @@ struct GovernanceEngine::GuidanceState {
     std::map<int, std::vector<Pending>> pending;              // by handle
     std::map<int, std::map<std::string, int>> last_sent;      // handle -> "src#slug" -> turn
     std::set<std::string> warned;                             // one-time warnings
+
+    // Full chain: every delivery gets an id; the run log feeds the end-of-run
+    // terminal block and is updated as the reply and validation arrive.
+    unsigned long long next_id = 1;
+    struct RunEntry {
+        std::string id, agent, trigger, file, heading;
+        int turn = -1;
+        bool has_reply = false;
+        int terms = 0, used = 0;
+        std::string recurred;      // "true" | "false" | "not_analyzed" | ""
+        std::string validation;    // "passed" | "failed" | ""
+        double lookup_ms = 0.0;
+    };
+    std::vector<RunEntry> run_log;                            // capped
+    std::vector<std::pair<std::string, std::string>> withheld_log;  // (ref, reason), capped
+    std::map<int, std::vector<std::string>> awaiting_validation;    // handle -> delivery ids
+    bool summary_printed = false;
 };
+
+static constexpr size_t kRunLogCap = 500;
 
 // --- helpers that need the engine (file-local, take the state by reference) --
 
@@ -218,6 +239,9 @@ bool GovernanceEngine::isGuidanceSourcePath(const std::string& canon_n) const {
     for (const auto& s : gc.sources) {
         const std::string sp = resolvePolicyPath(s.path);
         if (sp == canon_n) return true;
+        // A database is also its sidecars: a crafted -wal is read as rows.
+        if (s.type == "sqlite" &&
+            (canon_n == sp + "-wal" || canon_n == sp + "-shm" || canon_n == sp + "-journal")) return true;
         // A second name for the same file (a hard link) is the same source.
         if (target_exists) {
             std::error_code ec2;
@@ -299,13 +323,74 @@ static const GuidanceDoc* guidanceLoadDoc(GovernanceEngine& eng,
 // Candidates for one rule, best first: anchors in the order listed, then
 // keyword matches by score (heading overlap weighs 3, body overlap 1; ties go to
 // document order). At most rule.max_entries.
+// What a source may be asked about: the trigger, bound into a sqlite query as
+// PARAMETERS (never spliced into the SQL text).
+struct TriggerCtx {
+    std::string kind;    // start | signal | validation_failed | violation | pull
+    std::string arg;     // signal key / rule name / "" 
+    std::string agent;   // agent name, "" when none
+    std::string topic;   // pull topic; else arg (or kind)
+};
+
+namespace {
+
+// Refuses what reaches outside the one read-only database: ATTACH/DETACH (a
+// query could otherwise open any file the path policy forbids) and PRAGMA
+// statements (except the read-only data_version FTS5 needs), plus every
+// write. Table-valued pragma FUNCTIONS (pragma_table_info(...)) reach the
+// authorizer as reads, not as SQLITE_PRAGMA: SQLite defines them only for
+// pragmas that return results and have no side effects, and they read this
+// same database (observed while testing S-05, not designed around). The connection is already read-only; this is the second
+// wall and the one that stops ATTACH.
+int guidanceAuthorizer(void*, int action, const char* a1, const char* a2, const char*, const char*) {
+    // One pragma is read-only and needed: FTS5's constructor queries
+    // `PRAGMA data_version` (no argument), and denying it fails every MATCH
+    // with "vtable constructor failed" (observed). Only that name, only in its
+    // read form; every other pragma stays refused.
+    if (action == SQLITE_PRAGMA)
+        return (a1 && std::string(a1) == "data_version" && a2 == nullptr) ? SQLITE_OK : SQLITE_DENY;
+    switch (action) {
+        case SQLITE_ATTACH: case SQLITE_DETACH:
+        case SQLITE_INSERT: case SQLITE_UPDATE: case SQLITE_DELETE:
+        case SQLITE_CREATE_INDEX: case SQLITE_CREATE_TABLE: case SQLITE_CREATE_TEMP_INDEX:
+        case SQLITE_CREATE_TEMP_TABLE: case SQLITE_CREATE_TEMP_TRIGGER: case SQLITE_CREATE_TEMP_VIEW:
+        case SQLITE_CREATE_TRIGGER: case SQLITE_CREATE_VIEW: case SQLITE_CREATE_VTABLE:
+        case SQLITE_DROP_INDEX: case SQLITE_DROP_TABLE: case SQLITE_DROP_TEMP_INDEX:
+        case SQLITE_DROP_TEMP_TABLE: case SQLITE_DROP_TEMP_TRIGGER: case SQLITE_DROP_TEMP_VIEW:
+        case SQLITE_DROP_TRIGGER: case SQLITE_DROP_VIEW: case SQLITE_DROP_VTABLE:
+        case SQLITE_ALTER_TABLE: case SQLITE_REINDEX: case SQLITE_ANALYZE:
+        case SQLITE_TRANSACTION: case SQLITE_SAVEPOINT:
+            return SQLITE_DENY;
+        default:
+            return SQLITE_OK;
+    }
+}
+
+// A query that runs past its deadline is interrupted: guidance must be quick.
+int guidanceProgress(void* p) {
+    auto* deadline = static_cast<std::chrono::steady_clock::time_point*>(p);
+    return std::chrono::steady_clock::now() > *deadline ? 1 : 0;
+}
+
+}  // namespace
+
+// Rows (heading, text) for a sqlite source, in the query's own order -- the
+// SQL decides relevance (WHERE topic = :arg, joins, FTS5 MATCH ... ORDER BY
+// rank). false + why on refusal or error; every refusal warns once.
+static bool guidanceQuery(GovernanceEngine& eng, GovernanceEngine::GuidanceState& st,
+                          const GuidanceSourceConfig& src, const TriggerCtx& ctx,
+                          const std::unordered_set<std::string>& kw,
+                          std::vector<std::pair<std::string, std::string>>& rows,
+                          std::string& why);
+
 static std::vector<Candidate> guidanceSelect(GovernanceEngine& eng,
                                              GovernanceEngine::GuidanceState& st,
                                              const GuidanceConfig& gc,
                                              const GuidanceRuleConfig& rule,
                                              const std::unordered_set<std::string>& kw,
+                                             const TriggerCtx& ctx,
                                              std::vector<std::pair<std::string, std::string>>& misses) {
-    std::vector<Candidate> anchors, scored;
+    std::vector<Candidate> anchors, queried, scored;
     for (const auto& f : rule.from) {
         const size_t hash = f.find('#');
         const std::string sname = f.substr(0, hash);
@@ -313,6 +398,25 @@ static std::vector<Candidate> guidanceSelect(GovernanceEngine& eng,
         const GuidanceSourceConfig* src = nullptr;
         for (const auto& s : gc.sources) if (s.name == sname) { src = &s; break; }
         if (!src) { misses.push_back({f, "undeclared"}); continue; }
+        if (src->type == "sqlite") {
+            std::vector<std::pair<std::string, std::string>> rows;
+            std::string why;
+            if (!guidanceQuery(eng, st, *src, ctx, kw, rows, why)) { misses.push_back({f, why}); continue; }
+            std::map<std::string, int> seen_slug;
+            bool found = false;
+            for (const auto& [heading, text] : rows) {
+                std::string rs = slugify(heading);
+                int n = seen_slug[rs]++;
+                if (n) rs += "-" + std::to_string(n);
+                if (!slug.empty()) {
+                    if (rs == slug) { anchors.push_back({sname, src->path, rs, heading, text, "anchor", 0.0}); found = true; break; }
+                    continue;
+                }
+                queried.push_back({sname, src->path, rs, heading, text, "query", 0.0});
+            }
+            if (!slug.empty() && !found) misses.push_back({f, "section_not_found"});
+            continue;
+        }
         std::string why;
         const GuidanceDoc* doc = guidanceLoadDoc(eng, st, gc, *src, why);
         if (!doc) { misses.push_back({f, why}); continue; }
@@ -348,9 +452,129 @@ static std::vector<Candidate> guidanceSelect(GovernanceEngine& eng,
     std::stable_sort(scored.begin(), scored.end(),
                      [](const Candidate& a, const Candidate& b) { return a.score > b.score; });
     std::vector<Candidate> out = std::move(anchors);
+    for (auto& c : queried) out.push_back(std::move(c));
     for (auto& c : scored) out.push_back(std::move(c));
     if (out.size() > static_cast<size_t>(rule.max_entries)) out.resize(rule.max_entries);
     return out;
+}
+
+static bool guidanceQuery(GovernanceEngine& eng, GovernanceEngine::GuidanceState& st,
+                          const GuidanceSourceConfig& src, const TriggerCtx& ctx,
+                          const std::unordered_set<std::string>& kw,
+                          std::vector<std::pair<std::string, std::string>>& rows,
+                          std::string& why) {
+    auto warnOnce = [&](const std::string& key, const std::string& msg) {
+        if (st.warned.insert(key).second)
+            fprintf(stderr, "[governance] Warning: guidance source \"%s\" %s\n",
+                    src.name.c_str(), msg.c_str());
+    };
+    const std::string abs = eng.resolvePolicyPath(src.path);
+    if (!eng.pathPolicyDenial(abs, /*write=*/false).empty()) {
+        why = "policy";
+        warnOnce("policy:" + abs, "is not read: the filesystem policy does not let this project read " + src.path);
+        return false;
+    }
+    std::error_code ec;
+    if (std::filesystem::is_symlink(abs, ec) || !std::filesystem::is_regular_file(abs, ec)) {
+        why = "unreadable";
+        warnOnce("open:" + abs, "(" + src.path + ") cannot be opened (missing, or a symbolic link)");
+        return false;
+    }
+    sqlite3* db = nullptr;
+    if (sqlite3_open_v2(abs.c_str(), &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nullptr) != SQLITE_OK) {
+        why = "unreadable";
+        warnOnce("open:" + abs, "(" + src.path + ") cannot be opened as a database");
+        if (db) sqlite3_close(db);
+        return false;
+    }
+    sqlite3_db_config(db, SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION, 0, nullptr);
+    sqlite3_db_config(db, SQLITE_DBCONFIG_DEFENSIVE, 1, nullptr);
+    sqlite3_limit(db, SQLITE_LIMIT_ATTACHED, 0);
+    sqlite3_limit(db, SQLITE_LIMIT_LENGTH, 1024 * 1024);
+    sqlite3_set_authorizer(db, guidanceAuthorizer, nullptr);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(src.timeout_ms);
+    sqlite3_progress_handler(db, 1000, guidanceProgress, &deadline);
+
+    struct Closer { sqlite3* d; sqlite3_stmt* s = nullptr; ~Closer() { if (s) sqlite3_finalize(s); sqlite3_close(d); } } closer{db};
+    const char* tail = nullptr;
+    if (sqlite3_prepare_v2(db, src.query.c_str(), static_cast<int>(src.query.size()), &closer.s, &tail) != SQLITE_OK
+        || !closer.s) {
+        why = "query_refused";
+        warnOnce("prep:" + src.name, std::string("query refused: ") + sqlite3_errmsg(db));
+        return false;
+    }
+    // ONE statement, and a read-only one: a second statement after ';' would
+    // otherwise never be checked, and stmt_readonly is the engine's own verdict.
+    for (const char* t = tail; t && *t; ++t) {
+        if (*t != ';' && !std::isspace(static_cast<unsigned char>(*t))) {
+            why = "query_refused";
+            warnOnce("multi:" + src.name, "query refused: only one statement is allowed");
+            return false;
+        }
+    }
+    if (!sqlite3_stmt_readonly(closer.s)) {
+        why = "query_refused";
+        warnOnce("ro:" + src.name, "query refused: it is not a read-only statement");
+        return false;
+    }
+
+    std::vector<std::string> words(kw.begin(), kw.end());
+    std::sort(words.begin(), words.end());
+    std::string kw_space, kw_or;
+    for (size_t i = 0; i < words.size(); ++i) {
+        if (i) { kw_space += " "; kw_or += " OR "; }
+        kw_space += words[i];
+        kw_or += words[i];
+    }
+    const int nparams = sqlite3_bind_parameter_count(closer.s);
+    for (int i = 1; i <= nparams; ++i) {
+        const char* raw = sqlite3_bind_parameter_name(closer.s, i);
+        std::string name = raw ? std::string(raw + 1) : std::string();
+        const std::string* val = nullptr;
+        if (name == "kind") val = &ctx.kind;
+        else if (name == "arg") val = &ctx.arg;
+        else if (name == "agent") val = &ctx.agent;
+        else if (name == "topic") val = &ctx.topic;
+        else if (name == "keywords") val = &kw_space;
+        else if (name == "keywords_or") val = &kw_or;
+        if (val) {
+            sqlite3_bind_text(closer.s, i, val->c_str(), static_cast<int>(val->size()), SQLITE_TRANSIENT);
+        } else {
+            sqlite3_bind_null(closer.s, i);
+            warnOnce("param:" + src.name + ":" + name,
+                     "query parameter \"" + std::string(raw ? raw : "?") + "\" is not one of :kind :arg :agent "
+                     ":topic :keywords :keywords_or; it is bound to NULL");
+        }
+    }
+    int rc;
+    int n = 0;
+    while ((rc = sqlite3_step(closer.s)) == SQLITE_ROW && n < src.max_rows) {
+        const int cols = sqlite3_column_count(closer.s);
+        auto colText = [&](int c) -> std::string {
+            const unsigned char* t = sqlite3_column_text(closer.s, c);
+            return t ? std::string(reinterpret_cast<const char*>(t)) : std::string();
+        };
+        std::string heading = cols >= 2 ? colText(0) : "row " + std::to_string(n + 1);
+        std::string text = cols >= 2 ? colText(1) : colText(0);
+        if (heading.empty()) heading = "row " + std::to_string(n + 1);
+        text = trimBlankLines(text);
+        if (!text.empty()) rows.emplace_back(std::move(heading), std::move(text));
+        ++n;
+    }
+    if (rc == SQLITE_INTERRUPT) {
+        why = "timeout";
+        warnOnce("timeout:" + src.name, "query ran past " + std::to_string(src.timeout_ms) +
+                 " ms and was interrupted; nothing from it is delivered");
+        rows.clear();
+        return false;
+    }
+    if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+        why = "query_error";
+        warnOnce("step:" + src.name, std::string("query failed: ") + sqlite3_errmsg(db));
+        rows.clear();
+        return false;
+    }
+    return true;
 }
 
 // "" when the text may be delivered; otherwise the withheld reason.
@@ -393,6 +617,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
     const std::unordered_set<std::string>& start_keywords) {
     std::vector<GuidanceDelivery> delivered;
     if (!guidanceEnabled()) return delivered;
+    const auto t0 = std::chrono::steady_clock::now();
     // Hold the rules for the whole call: a mid-run reload swaps rules_ptr_
     // and could free the object a bare rules() reference points into.
     const auto rules_hold = rulesPtr();
@@ -424,7 +649,12 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
         const size_t budget = static_cast<size_t>(std::max(0, gc.max_chars_per_turn));
         for (const auto& req : requests) {
             std::vector<std::pair<std::string, std::string>> misses;
-            auto cands = guidanceSelect(*this, st, gc, req.rule, req.keywords, misses);
+            TriggerCtx ctx;
+            ctx.kind = req.rule.kind;
+            ctx.arg = req.rule.kind == "signal" && req.rule.on.size() > 7 ? req.rule.on.substr(7) : req.rule.arg;
+            ctx.agent = agent_name;
+            ctx.topic = ctx.arg.empty() ? ctx.kind : ctx.arg;
+            auto cands = guidanceSelect(*this, st, gc, req.rule, req.keywords, ctx, misses);
             for (const auto& m : misses)
                 withheld_detail.emplace_back(req.rule.on, m.first, m.second);
             for (auto& c : cands) {
@@ -469,22 +699,51 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
                 delivered.push_back(std::move(d));
             }
         }
+
+        // Ids, timing and the run log (end-of-run block, reply linkage).
+        const double lookup_ms = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - t0).count();
+        for (auto& d : delivered) {
+            d.id = "g" + std::to_string(st.next_id++);
+            d.turn = turn;
+            d.lookup_ms = lookup_ms;
+            if (st.run_log.size() < kRunLogCap) {
+                GuidanceState::RunEntry e;
+                e.id = d.id; e.agent = agent_name; e.trigger = d.trigger;
+                e.file = d.file; e.heading = d.heading; e.turn = turn;
+                e.lookup_ms = lookup_ms;
+                st.run_log.push_back(std::move(e));
+            }
+            auto& waiting = st.awaiting_validation[handle_id];
+            if (waiting.size() < 64) waiting.push_back(d.id);
+        }
+        for (const auto& [trig, ref, reason] : withheld_detail) {
+            (void)trig;
+            if (st.withheld_log.size() < kRunLogCap) st.withheld_log.emplace_back(ref, reason);
+        }
     }
 
     for (const auto& d : delivered) {
-        char sc[32];
+        char sc[32], lm[32];
         snprintf(sc, sizeof(sc), "%.1f", d.score);
+        snprintf(lm, sizeof(lm), "%.3f", d.lookup_ms);
+        // The delivered TEXT is part of the event: without it the chain cannot
+        // show what the model was told. It has passed the secret/PII scan and
+        // is bounded by max_chars_per_turn.
         writeAgentTelemetry("GUIDANCE_DELIVERED", {
+            {"delivery_id", d.id},
             {"handle_id", std::to_string(handle_id)},
             {"agent", agent_name}, {"config_name", agent_name},
             {"turn", std::to_string(turn)},
             {"channel", "agent"},
             {"trigger", d.trigger},
             {"source", d.source}, {"file", d.file},
-            {"section", d.section},
+            {"section", d.section}, {"heading", d.heading},
             {"select", d.select}, {"score", sc},
             {"chars", std::to_string(d.text.size())},
             {"sha256", d.sha256},
+            {"lookup_ms", lm},
+            {"text", d.text},
         });
     }
     for (const auto& [trig, ref, reason] : withheld_detail) {
@@ -536,7 +795,8 @@ GovernanceEngine::GuidanceTerminal GovernanceEngine::guidanceForTerminal(
             if (rc.kind != "violation" || !rc.to_terminal || !triggerArgMatches(rc.arg, rule_name)) continue;
             if (!rc.agents.empty() && (agent_ctx.empty() || !agentMatches(rc, agent_ctx))) continue;
             std::vector<std::pair<std::string, std::string>> misses;
-            auto cands = guidanceSelect(*this, st, gc, rc, kw, misses);
+            TriggerCtx ctx{"violation", rule_name, agent_ctx, rule_name};
+            auto cands = guidanceSelect(*this, st, gc, rc, kw, ctx, misses);
             for (const auto& m : misses) g.withheld.push_back({rc.on, m.first, m.second});
             for (auto& c : cands) {
                 const std::string key = c.source + "#" + c.slug;
@@ -552,6 +812,7 @@ GovernanceEngine::GuidanceTerminal GovernanceEngine::guidanceForTerminal(
                 d.source = c.source; d.file = c.file; d.section = c.slug; d.heading = c.heading;
                 d.text = std::move(text); d.select = c.select; d.score = c.score;
                 d.sha256 = security::CryptoUtils::sha256(d.text);
+                d.id = "g" + std::to_string(st.next_id++);
                 used += d.text.size();
                 g.delivered.push_back(std::move(d));
             }
@@ -576,12 +837,14 @@ GovernanceEngine::GuidanceTerminal GovernanceEngine::guidanceForTerminal(
 void GovernanceEngine::emitGuidanceTerminal(const GuidanceTerminal& g) {
     for (const auto& d : g.delivered) {
         writeAgentTelemetry("GUIDANCE_DELIVERED", {
+            {"delivery_id", d.id},
             {"channel", "terminal"},
             {"trigger", d.trigger},
             {"source", d.source}, {"file", d.file},
-            {"section", d.section}, {"select", d.select},
+            {"section", d.section}, {"heading", d.heading}, {"select", d.select},
             {"chars", std::to_string(d.text.size())},
             {"sha256", d.sha256},
+            {"text", d.text},
         });
     }
     for (const auto& w : g.withheld) {
@@ -629,7 +892,8 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidancePull(const std::string& 
         std::lock_guard<std::mutex> lock(guidance_mutex_);
         if (!guidance_state_) guidance_state_ = std::make_shared<GuidanceState>();
         std::vector<std::pair<std::string, std::string>> misses;
-        auto cands = guidanceSelect(*this, *guidance_state_, gc, rc, kw, misses);
+        TriggerCtx ctx{"pull", "", "", topic};
+        auto cands = guidanceSelect(*this, *guidance_state_, gc, rc, kw, ctx, misses);
         const size_t cap = static_cast<size_t>(std::max(0, gc.max_chars_per_turn));
         for (auto& c : cands) {
             const std::string reason = guidanceScan(*this, c.body);
@@ -640,15 +904,19 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidancePull(const std::string& 
             d.text = c.body.size() > cap ? truncateUtf8(c.body, cap) + kTruncMark : c.body;
             d.select = c.select; d.score = c.score;
             d.sha256 = security::CryptoUtils::sha256(d.text);
+            d.id = "g" + std::to_string(guidance_state_->next_id++);
             out.push_back(std::move(d));
         }
     }
     for (const auto& d : out) {
         writeAgentTelemetry("GUIDANCE_DELIVERED", {
+            {"delivery_id", d.id},
             {"channel", "script"}, {"trigger", "pull"},
             {"source", d.source}, {"file", d.file}, {"section", d.section},
+            {"heading", d.heading},
             {"select", d.select}, {"chars", std::to_string(d.text.size())},
             {"sha256", d.sha256},
+            {"text", d.text},
         });
     }
     for (const auto& [ref, reason] : withheld) {
@@ -657,6 +925,141 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidancePull(const std::string& 
         });
     }
     return out;
+}
+
+void GovernanceEngine::guidanceOnResponse(int handle_id, const std::string& agent_name,
+                                          const std::vector<GuidanceDelivery>& delivered,
+                                          const std::unordered_set<std::string>& response_keywords,
+                                          bool response_ok, bool analyzed) {
+    if (delivered.empty() || !guidanceEnabled()) return;
+    // Which signals paid on the reply's turn (only meaningful when CDD
+    // analysed it; an interval-skipped turn re-shows stale state).
+    std::set<std::string> paid;
+    if (analyzed) {
+        if (auto ds = getDriftState(handle_id)) {
+            for (int i = 0; i < NUM_CDD_SIGNALS; i++)
+                if (ds->last_turn_penalties[i] > 0.0) paid.insert(kCddSignalKeys[i]);
+        }
+    }
+    struct Row { std::string id, trigger, matched, recurred; int terms, used, turn; };
+    std::vector<Row> rows;
+    for (const auto& d : delivered) {
+        std::unordered_set<std::string> gkw;
+        naab::keywords::extractKeywords(d.text, gkw);
+        std::vector<std::string> hit;
+        for (const auto& k : gkw) if (response_keywords.count(k)) hit.push_back(k);
+        std::sort(hit.begin(), hit.end());
+        std::string matched;
+        for (size_t i = 0; i < hit.size() && i < 12; ++i) { if (i) matched += ","; matched += hit[i]; }
+        std::string recurred;
+        if (d.trigger.rfind("signal:", 0) == 0) {
+            recurred = !analyzed ? "not_analyzed"
+                     : (paid.count(d.trigger.substr(7)) ? "true" : "false");
+        }
+        rows.push_back({d.id, d.trigger, matched, recurred,
+                        static_cast<int>(gkw.size()), static_cast<int>(hit.size()), d.turn});
+    }
+    {
+        std::lock_guard<std::mutex> lock(guidance_mutex_);
+        if (guidance_state_) {
+            for (const auto& r : rows) {
+                for (auto& e : guidance_state_->run_log) {
+                    if (e.id != r.id) continue;
+                    e.has_reply = response_ok;
+                    e.terms = r.terms;
+                    e.used = r.used;
+                    e.recurred = r.recurred;
+                }
+            }
+        }
+    }
+    for (const auto& r : rows) {
+        char rc[32];
+        snprintf(rc, sizeof(rc), "%.2f", r.terms > 0 ? static_cast<double>(r.used) / r.terms : 0.0);
+        std::unordered_map<std::string, std::string> f = {
+            {"delivery_id", r.id},
+            {"handle_id", std::to_string(handle_id)},
+            {"agent", agent_name}, {"config_name", agent_name},
+            {"turn_at_request", std::to_string(r.turn)},
+            {"trigger", r.trigger},
+            {"response", response_ok ? "ok" : "failed"},
+            {"guidance_terms", std::to_string(r.terms)},
+            {"terms_used", std::to_string(r.used)},
+            {"recall", rc},
+            {"matched", r.matched},
+        };
+        if (!r.recurred.empty()) f["trigger_recurred"] = r.recurred;
+        writeAgentTelemetry("GUIDANCE_RESPONSE", f);
+    }
+}
+
+void GovernanceEngine::guidanceOnValidation(int handle_id, const std::string& agent_name,
+                                            bool passed) {
+    if (!guidanceEnabled()) return;
+    std::vector<std::string> ids;
+    {
+        std::lock_guard<std::mutex> lock(guidance_mutex_);
+        if (!guidance_state_) return;
+        auto it = guidance_state_->awaiting_validation.find(handle_id);
+        if (it == guidance_state_->awaiting_validation.end() || it->second.empty()) return;
+        ids = std::move(it->second);
+        guidance_state_->awaiting_validation.erase(it);
+        for (auto& e : guidance_state_->run_log)
+            if (std::find(ids.begin(), ids.end(), e.id) != ids.end() && e.validation.empty())
+                e.validation = passed ? "passed" : "failed";
+    }
+    std::string joined;
+    for (size_t i = 0; i < ids.size(); ++i) { if (i) joined += ","; joined += ids[i]; }
+    writeAgentTelemetry("GUIDANCE_VALIDATION", {
+        {"handle_id", std::to_string(handle_id)},
+        {"agent", agent_name}, {"config_name", agent_name},
+        {"delivery_ids", joined},
+        {"passed", passed ? "true" : "false"},
+    });
+}
+
+// The end-of-run block: what reached agents this run, as plainly as an error
+// message ends with its help. Automatic -- no flag -- and silent when nothing
+// was delivered or withheld, so every run without guidance is unchanged.
+void GovernanceEngine::printGuidanceSummary() {
+    std::vector<GuidanceState::RunEntry> log;
+    std::vector<std::pair<std::string, std::string>> withheld;
+    {
+        std::lock_guard<std::mutex> lock(guidance_mutex_);
+        if (!guidance_state_ || guidance_state_->summary_printed) return;
+        if (guidance_state_->run_log.empty() && guidance_state_->withheld_log.empty()) return;
+        guidance_state_->summary_printed = true;
+        log = guidance_state_->run_log;
+        withheld = guidance_state_->withheld_log;
+    }
+    double lookup_total = 0.0;
+    for (const auto& e : log) lookup_total += e.lookup_ms;
+    std::string out = "-- Guidance: " + std::to_string(log.size()) + " delivered to agents";
+    if (!withheld.empty()) out += ", " + std::to_string(withheld.size()) + " withheld";
+    if (!log.empty()) {
+        char avg[48];
+        snprintf(avg, sizeof(avg), " (lookup %.2f ms avg)", lookup_total / static_cast<double>(log.size()));
+        out += avg;
+    }
+    out += " --\n";
+    const size_t kShow = 12;
+    for (size_t i = 0; i < log.size() && i < kShow; ++i) {
+        const auto& e = log[i];
+        out += "  " + e.agent + " turn " + std::to_string(e.turn) + "  " + e.trigger +
+               " -> " + e.file + " > " + e.heading;
+        std::string tail;
+        if (e.has_reply) tail = "reply used " + std::to_string(e.used) + "/" + std::to_string(e.terms) + " terms";
+        else tail = "no reply recorded";
+        if (e.recurred == "true") tail += "; signal paid again";
+        else if (e.recurred == "false") tail += "; signal quiet";
+        if (!e.validation.empty()) tail += "; next validation " + e.validation;
+        out += "  (" + tail + ")\n";
+    }
+    if (log.size() > kShow)
+        out += "  ... and " + std::to_string(log.size() - kShow) + " more (every delivery is in telemetry)\n";
+    for (size_t i = 0; i < withheld.size() && i < kShow; ++i)
+        out += "  withheld: " + withheld[i].first + " (" + withheld[i].second + ")\n";
+    fprintf(stderr, "%s", out.c_str());
 }
 
 }  // namespace governance

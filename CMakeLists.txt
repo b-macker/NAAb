@@ -420,6 +420,7 @@ target_link_libraries(naab_security
                    # Without this edge, targets that don't happen to list a
                    # workable order explicitly (naab-repl*) fail to link.
     fmt::fmt
+    SQLite3::SQLite3   # governance_guidance.cpp: read-only sqlite guidance sources
 )
 # Link OpenSSL if available
 if(OPENSSL_FOUND)
