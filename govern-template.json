@@ -167,7 +167,7 @@
       "blocked_read": ["AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN"],
       "allowed_write": [],
       "blocked_write": ["PATH", "HOME", "LD_PRELOAD"],
-      "_comment_subprocess_scrub": "Subprocess environment scrubbing (V-SC-006-ext) for polyglot child processes. All four keys empty (the default) = only NAAb's own secrets (NAAB_GOVERN_KEY, NAAB_LOCK_KEY, NAAB_SIGNING_KEY) and, in enforce mode, blocked_read are removed. Setting any of them activates a policy. Read ONLY here, under capabilities.env_vars: the same keys at the top level of govern.json are ignored, with no warning.",
+      "_comment_subprocess_scrub": "Subprocess environment scrubbing (V-SC-006-ext) for polyglot child processes. All four keys empty (the default) = only NAAb's own secrets (NAAB_GOVERN_KEY, NAAB_LOCK_KEY, NAAB_SIGNING_KEY) and, in enforce mode, blocked_read are removed. Setting any of them activates a policy. A mid-run reload that changes this policy or blocked_read restarts a running <<shell>>, node or ruby child before its next block, so state kept from earlier blocks of that language is lost (one stderr notice). Read ONLY here, under capabilities.env_vars: the same keys at the top level of govern.json are ignored, with no warning.",
       "_comment_subprocess_scrub_mode": "\"allowlist\" = pass only allowed_subprocess_vars plus essentials (PATH, HOME, LANG, TERM, TMPDIR, USER, SHELL, ...); any other value = blocklist using blocked_subprocess_vars and blocked_subprocess_prefixes.",
       "subprocess_scrub_mode": "",
       "_comment_allowed_subprocess_vars": "allowlist mode only: exact variable names passed through to the child.",
