@@ -17,7 +17,12 @@
 set -u
 NAAB="${NAAB:-$(cd "$(dirname "$0")/../.." && pwd)/build/naab-lang}"
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# Every fixture here is an UNSIGNED govern.json, which is an INTEGRITY BLOCK
+# whenever the ambient trust store holds a key -- isolate it so the result
+# does not depend on what else has run (open-investigations D8; CV-02).
+source "$(dirname "$0")/../helpers/trust_setup.sh"
+setup_isolated_trust
+trap 'teardown_isolated_trust; rm -rf "$WORK"' EXIT
 MARK="A32MARKER_7q3z"
 export NAAB_A32_MARK="$MARK"
 
