@@ -2153,6 +2153,28 @@ std::string GovernanceEngine::filesystemAccessMode(const std::string& module,
     return "";
 }
 
+std::string GovernanceEngine::copyMoveDestination(const std::string& src,
+                                                  const std::string& dst) {
+    // fs::copy(file, existing_dir) copies INTO the directory, landing at
+    // dir/basename(src). The copy/move destination check used to validate the
+    // literal argument, so file.copy("evil.md", "docs") was checked against
+    // "docs" (a permitted directory) and passed while the write landed on
+    // docs/<protected file>. Resolve to the file the OS will actually touch so
+    // the path policy (blocked_paths, the auto-protected govern.json/.sig and
+    // trusted keys, guidance sources) sees it. A non-directory destination --
+    // a new file, or an overwrite named in full -- is returned unchanged and
+    // keeps matching exactly as before. TOCTOU between this stat and the stdlib
+    // call is the same window the whole check-before-execute model already has.
+    std::error_code ec;
+    if (std::filesystem::is_directory(dst, ec) && !ec) {
+        std::error_code ec2;
+        std::filesystem::path p =
+            std::filesystem::path(dst) / std::filesystem::path(src).filename();
+        return p.string();
+    }
+    return dst;
+}
+
 // ---------------------------------------------------------------------------
 // Function-scope capabilities, composed — ONE implementation, every gate.
 // ---------------------------------------------------------------------------

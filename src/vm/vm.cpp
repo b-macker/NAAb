@@ -1833,13 +1833,21 @@ interpreter::NaabVal VM::run() {
                                         if (!perr.empty()) runtimeError("%s", perr.c_str());
                                     }
                                 }
-                                // copy/move: also check destination path (second arg)
+                                // copy/move: also check destination path (second arg).
+                                // A directory destination is resolved to the file
+                                // the OS will land on (dir/basename(src)), or a
+                                // copy INTO a protected path is validated against
+                                // the directory name and passes.
                                 if ((method == "copy" || method == "move") && argc > 1) {
                                     interpreter::NaabVal dest_arg = stack_top_[-argc + 1];
+                                    interpreter::NaabVal src_arg = stack_top_[-argc];
                                     if (dest_arg.isString()) {
+                                        std::string eff = governance::GovernanceEngine::copyMoveDestination(
+                                            src_arg.isString() ? src_arg.asString() : std::string(),
+                                            dest_arg.asString());
                                         // Gates: the same path policy, on a copy/move DESTINATION.
                                         std::string perr = governance_->isActive()
-                                            ? governance_->checkPathAccess(dest_arg.asString(), "write")
+                                            ? governance_->checkPathAccess(eff, "write")
                                             : std::string();
                                         if (!perr.empty()) runtimeError("%s", perr.c_str());
                                     }

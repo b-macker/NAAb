@@ -1435,9 +1435,16 @@ void Interpreter::visit(ast::CallExpr& node) {
                                 std::string perr = governance_->checkPathAccess(args[0].asString(), fs_mode);
                                 if (!perr.empty()) throw std::runtime_error(perr);
                             }
-                            // copy/move: also check destination path (second arg)
+                            // copy/move: also check destination path (second arg).
+                            // A directory destination is resolved to the file the
+                            // OS will land on (dir/basename(src)), or a copy INTO a
+                            // protected path is validated against the directory
+                            // name and passes.
                             if ((func_name == "copy" || func_name == "move") && args.size() > 1 && args[1].isString()) {
-                                std::string perr = governance_->checkPathAccess(args[1].asString(), "write");
+                                std::string eff = governance::GovernanceEngine::copyMoveDestination(
+                                    args[0].isString() ? args[0].asString() : std::string(),
+                                    args[1].asString());
+                                std::string perr = governance_->checkPathAccess(eff, "write");
                                 if (!perr.empty()) throw std::runtime_error(perr);
                             }
 

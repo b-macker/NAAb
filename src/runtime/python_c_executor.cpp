@@ -75,6 +75,29 @@ extern "C" int naabPythonAuditPolicy(const char* event, const char* target, int 
         return 1;
     }
 
+    // The filesystem-mutation family that does not go through open(): rename
+    // (os.replace and same-filesystem shutil.move audit here too), link,
+    // symlink -- which create or overwrite a destination -- and remove
+    // (os.unlink audits here), rmdir, truncate -- which destroy or empty an
+    // existing path. The open branch above never saw any of them, so a
+    // <<python>> block could replace a blocked file with os.rename / os.link /
+    // shutil.move, or DELETE govern.json / a guidance source with os.remove,
+    // under Governance: PASS -- while NAAb's own file.delete is path-checked.
+    // The wrapper forwards each write-intent path here one at a time; judge it
+    // exactly as a write open: the sandbox allowlist, then the project path
+    // policy (blocked_paths, the auto-protected govern.json/.sig and trusted
+    // keys, guidance sources, via pathPolicyDenial). os.mkdir is deliberately
+    // NOT forwarded: it fires on makedirs(exist_ok) and __pycache__ creation,
+    // and path creation is already covered by rename/link/open.
+    if (ev == "os.rename" || ev == "os.link" || ev == "os.symlink" ||
+        ev == "os.remove" || ev == "os.rmdir" || ev == "os.truncate") {
+        if (tgt.empty()) return 1;            // no path to adjudicate
+        if (sandbox && !sandbox->canWrite(tgt)) return 0;
+        auto* gov = governance::GovernanceEngine::getCurrent();
+        if (gov && gov->isActive() && !gov->pathPolicyDenial(tgt, /*write=*/true).empty()) return 0;
+        return 1;
+    }
+
     if (!sandbox) return 1;   // no policy active -- same as every other call site
 
     if (ev == "os.system" || ev == "subprocess.Popen" ||

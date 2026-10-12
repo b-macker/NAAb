@@ -313,6 +313,48 @@ static int naab_audit_hook(const char* event, PyObject* args, void* userData) {
         relevant = 1;
     } else if (strcmp(event, "socket.connect") == 0) {
         relevant = 1;   // address is a tuple; policy decides on capability
+    } else if (strcmp(event, "os.rename") == 0) {
+        // (src, dst, ...): os.rename and os.replace both audit here, and
+        // same-filesystem shutil.move routes through os.rename too. The
+        // destination is overwritten and the source is removed, so BOTH paths
+        // are write-intent -- deny on the first the policy refuses. Checked
+        // here rather than at the single-call path below because the event
+        // carries two paths, neither reachable through open().
+        const char* s = audit_str(args, 0);
+        const char* d = audit_str(args, 1);
+        if (s && !audit_policy(event, s, 1)) {
+            PyErr_Format(PyExc_PermissionError,
+                         "Governance: %s denied by sandbox policy: %s", event, s);
+            return -1;
+        }
+        if (d && !audit_policy(event, d, 1)) {
+            PyErr_Format(PyExc_PermissionError,
+                         "Governance: %s denied by sandbox policy: %s", event, d);
+            return -1;
+        }
+        return 0;
+    } else if (strcmp(event, "os.link") == 0 || strcmp(event, "os.symlink") == 0) {
+        // (src, dst, ...): a new name (dst) is created; src is not modified,
+        // so only the destination is write-intent.
+        const char* d = audit_str(args, 1);
+        if (d && !audit_policy(event, d, 1)) {
+            PyErr_Format(PyExc_PermissionError,
+                         "Governance: %s denied by sandbox policy: %s", event, d);
+            return -1;
+        }
+        return 0;
+    } else if (strcmp(event, "os.remove") == 0 || strcmp(event, "os.rmdir") == 0 ||
+               strcmp(event, "os.truncate") == 0) {
+        // (path, ...): destructive to an existing path -- the target is arg 0.
+        // os.unlink audits as os.remove. A bare fd (truncate on a descriptor)
+        // returns NULL and carries no path to adjudicate.
+        const char* p = audit_str(args, 0);
+        if (p && !audit_policy(event, p, 1)) {
+            PyErr_Format(PyExc_PermissionError,
+                         "Governance: %s denied by sandbox policy: %s", event, p);
+            return -1;
+        }
+        return 0;
     }
 
     if (!relevant) return 0;

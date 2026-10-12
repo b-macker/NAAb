@@ -3367,6 +3367,12 @@ public:
     std::string checkEnvDumpAllowed();
     static std::string filesystemAccessMode(const std::string& module,
                                             const std::string& method);
+    // The file a copy/move will actually land on. fs::copy(file, existing_dir)
+    // places the file at dir/basename(src), so a governance check against the
+    // literal destination argument validates the DIRECTORY and misses a copy
+    // INTO a protected path. Resolve to the real target before the check.
+    static std::string copyMoveDestination(const std::string& src,
+                                           const std::string& dst);
     std::string checkShellAllowed();
     std::string checkEnvVarRead(const std::string& var_name);
     std::string checkEnvVarWrite(const std::string& var_name);
