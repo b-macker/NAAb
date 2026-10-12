@@ -16,7 +16,11 @@
 #      ruby) never stripped proxies at all.
 #   W  the scrub policy was thread_local and set only on the thread that loaded
 #      the config, so a VM async fn's children got no scrubbing.
-#   L  for the same reason a mid-run reload never reached the policy.
+#   L  for the same reason a mid-run reload never reached the policy. And even
+#      with the policy read live (#302), L-02: a <<shell>> child already
+#      running when a reload landed kept the environment it was forked with
+#      (measured on df67b90a). K is L-02's control: a child is NOT restarted
+#      while its policy holds, so its state survives between blocks.
 #
 # Every arm reads three variables, each holding a fresh random token:
 #   A  NAAB_ES_BR  listed in blocked_read             (the subject of R)
@@ -422,6 +426,43 @@ for route in async_run async_shell; do
 done
 
 # ---------------------------------------------------------------------------
+# Group K: a persistent child keeps its state while the policy is unchanged
+# ---------------------------------------------------------------------------
+# <<shell>>, node and ruby run in one long-lived child per program, which keeps
+# state between blocks (c1d8208d). L-02 below has that child restarted when a
+# reload changes its environment policy; this is the control that it is NOT
+# restarted otherwise -- a policy is set (so the comparison is live) and does
+# not change, and a variable set by the first block must reach the second.
+echo ""
+echo "--- K: a persistent child keeps its state while the policy is unchanged ---"
+for engine in vm tw; do
+    id="K-01/$engine"
+    if ! viable shell "$engine"; then unviable "$id" shell; continue; fi
+    D="$(newdir)"; mkcfg "$D" enforce true both
+    cat > "$D/k.naab" <<'EOF'
+use env
+main {
+    let a = <<shell
+NAAB_KEEP=kept
+echo "first"
+>>
+    let h = env.get("HOME")
+    let b = <<shell
+echo "KEEP=$NAAB_KEEP"
+>>
+    print("K " + string(b))
+}
+EOF
+    flags=(); [ "$engine" = tw ] && flags=(--tree-walk)
+    OUT="$(cd "$D" && timeout 120 "$NAAB" "${flags[@]}" k.naab --timeout 90 2>&1)"; RC=$?
+    case "$OUT" in
+        *"Restarted the"*) fail "$id" "the child was restarted although the policy did not change"; show ;;
+        *"KEEP=kept"*) pass "$id" "state set by one <<shell>> block reaches the next; no restart" ;;
+        *) fail "$id" "the second block did not see the first block's variable (rc=$RC)"; show ;;
+    esac
+done
+
+# ---------------------------------------------------------------------------
 # Group L: a mid-run reload reaches the next child
 # ---------------------------------------------------------------------------
 # The program starts under a config with no env policy, an EXTERNAL operator
@@ -456,12 +497,29 @@ else
     if [ ! -f "$LD/govern.json.sig" ] || [ ! -f "$LN/govern.json.sig" ]; then
         skip L-01 "could not sign the reload fixtures -- cannot measure"
     else
+        # L-02: a <<shell>> child started BEFORE the reload. Only where the
+        # shell route runs at all, since an unusable block aborts the program
+        # and would take L-00/L-01 down with it.
+        SHELL_BEFORE_BLOCK=""; SHELL_AFTER_BLOCK=""; L_SHELL=0
+        if viable shell vm; then
+            L_SHELL=1
+            SHELL_BEFORE_BLOCK='    let sb = <<shell
+NAAB_KEEP=kept
+echo "A=$NAAB_ES_BR B=$NAAB_ES_BS"
+>>
+    print("SHELL_BEFORE " + string(sb) + "\nSHELL_BEFORE_END")'
+            SHELL_AFTER_BLOCK='    let sa = <<shell
+echo "A=$NAAB_ES_BR B=$NAAB_ES_BS KEEP=$NAAB_KEEP"
+>>
+    print("SHELL_AFTER " + string(sa) + "\nSHELL_AFTER_END")'
+        fi
         cat > "$LD/p.naab" <<EOF
 use env
 use process
 main {
     let r1 = process.run("$PRINTENV_N", [])
-    print("BEFORE_RELOAD " + r1["stdout"])
+    print("BEFORE_RELOAD " + r1["stdout"] + "\nBEFORE_RELOAD_END")
+$SHELL_BEFORE_BLOCK
     let s = <<python
 import os, time
 def _swap(src, dst):
@@ -482,7 +540,8 @@ print("SWAPPED_OK")
 >>
     let h = env.get("HOME")
     let r2 = process.run("$PRINTENV_N", [])
-    print("AFTER_RELOAD " + r2["stdout"])
+    print("AFTER_RELOAD " + r2["stdout"] + "\nAFTER_RELOAD_END")
+$SHELL_AFTER_BLOCK
 }
 EOF
         start_swap_operator "$LD"
@@ -490,8 +549,12 @@ EOF
         OUT="$(cd "$LD" && NAAB_ES_BR="$TA" NAAB_ES_BS="$TB" NAAB_ES_NO="$TC" \
                timeout 120 "$NAAB" p.naab --timeout 90 2>&1)"
         stop_swap_operators
-        BEFORE="${OUT%%AFTER_RELOAD*}"
-        case "$OUT" in *AFTER_RELOAD*) AFTER="${OUT#*AFTER_RELOAD}" ;; *) AFTER="" ;; esac
+        # between TEXT START END: what follows START, up to END ("" without START).
+        between() { local t="${1#*"$2"}"; [ "$t" = "$1" ] && return 0; printf '%s' "${t%%"$3"*}"; }
+        BEFORE="$(between "$OUT" "BEFORE_RELOAD " "BEFORE_RELOAD_END")"
+        AFTER="$(between "$OUT" "AFTER_RELOAD " "AFTER_RELOAD_END")"
+        SB="$(between "$OUT" "SHELL_BEFORE " "SHELL_BEFORE_END")"
+        SA="$(between "$OUT" "SHELL_AFTER " "SHELL_AFTER_END")"
         has() { case "$1" in *"$2"*) echo 1;; *) echo 0;; esac; }
         if [ "$(has "$BEFORE" "$TC")" != 1 ]; then
             fail L-01 "the first spawn did not run, though the route is viable"; show
@@ -513,6 +576,23 @@ EOF
                     pass L-01 "after the reload the next child is scrubbed of both (subprocess list and blocked_read)"
                 else
                     fail L-01 "after the reload: blocked_subprocess_vars seen=$(has "$AFTER" "$TB"), blocked_read seen=$(has "$AFTER" "$TA")"
+                fi
+                # L-02: the shell child was already running when the reload landed.
+                if [ "$L_SHELL" != 1 ]; then
+                    unviable L-02 shell
+                elif [ "$(has "$SB" "$TA")" != 1 ] || [ "$(has "$SB" "$TB")" != 1 ]; then
+                    fail L-02 "control: before the reload the <<shell>> child should see both variables (A=$(has "$SB" "$TA") B=$(has "$SB" "$TB"))"; show
+                elif [ -z "$SA" ]; then
+                    fail L-02 "the program never reached the <<shell>> block after the reload"; show
+                else
+                    nrestart="$(grep -c 'Restarted the shell process' <<<"$OUT" || true)"
+                    if [ "$(has "$SA" "$TA")" = 1 ] || [ "$(has "$SA" "$TB")" = 1 ]; then
+                        fail L-02 "the <<shell>> child started before the reload still sees the variables (blocked_read=$(has "$SA" "$TA"), subprocess list=$(has "$SA" "$TB"))"
+                    elif [ "$(has "$SA" "KEEP=kept")" = 1 ] || [ "$nrestart" != 1 ]; then
+                        fail L-02 "variables withheld, but not by the announced restart (state kept=$(has "$SA" "KEEP=kept"), notices=$nrestart)"
+                    else
+                        pass L-02 "the <<shell>> child running before the reload is restarted under the new policy, once, with a notice"
+                    fi
                 fi ;;
             esac
         fi

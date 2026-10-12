@@ -34,10 +34,16 @@ struct EnvScrubPolicy {
     bool active = false;  // false = the subprocess lists above are not in use
     // capabilities.env_vars.blocked_read, in enforce mode only. Withheld from
     // every child the PROGRAM starts, whatever `mode` says and even when
-    // `active` is false: a variable env.get() may not read must not be
-    // readable through `<<shell>>` or process.run("printenv") instead.
+    // `active` is false: a variable blocked_read names, which env.get() may
+    // not read, must not be readable through `<<shell>>` or
+    // process.run("printenv") instead. Only blocked_read is carried here:
+    // allowed_read and `read: false` also refuse env.get(), but a child still
+    // receives the variables they cover unless the subprocess lists scrub them.
     // Matched case-insensitively, as checkEnvVarRead() matches it.
     std::vector<std::string> read_blocked_vars;
+    // True when this policy was read from a governance engine bound to the
+    // thread; false for the engine-less default (NAAb secrets only).
+    bool from_engine = false;
 };
 
 // Who the child is started for. A HOOK is a command the operator configured
@@ -159,6 +165,20 @@ std::vector<std::string> buildChildEnvironment(
     const EnvScrubPolicy& policy,
     const SubprocessContainment* containment,
     const std::map<std::string, std::string>* overrides = nullptr);
+
+// A fingerprint of what the PARENT decides about a child's environment: the
+// scrub policy and the containment layers that edit the environment (L1 PATH,
+// L5 proxies; L6 follows L1). It covers the decisions, not the inherited
+// environment itself, so the program's own env.set() calls do not change it.
+// A long-lived child (the persistent shell/node/ruby executors) compares the
+// key it was started with against the current one before each block and is
+// restarted when they differ: its environment was fixed at fork(), so a
+// tightening mid-run reload never reached it. Empty when `policy` did not come
+// from a governance engine: there is no policy to compare then, and reading
+// "no engine on this thread" as a change would restart a scrubbed child into
+// an unscrubbed one.
+std::string childEnvPolicyKey(const EnvScrubPolicy& policy,
+                              const SubprocessContainment* containment);
 
 // Where execvp() would look for `command` given the child's environment `env`:
 // `command` itself when it contains a '/', else each PATH entry joined with it

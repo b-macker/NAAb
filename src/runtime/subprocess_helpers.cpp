@@ -87,7 +87,38 @@ EnvScrubPolicy currentEnvScrubPolicy(EnvScrubScope scope) {
     if (scope == EnvScrubScope::Program && rules->mode == governance::GovernanceMode::ENFORCE) {
         policy.read_blocked_vars = ev.blocked_read;
     }
+    policy.from_engine = true;
     return policy;
+}
+
+std::string childEnvPolicyKey(const EnvScrubPolicy& policy,
+                              const SubprocessContainment* containment) {
+    if (!policy.from_engine) return "";
+    // Length-prefixed fields, so no list entry can be confused with a
+    // separator or with the next field.
+    std::string key;
+    auto put = [&key](const std::string& s) {
+        key += std::to_string(s.size());
+        key += ':';
+        key += s;
+    };
+    auto putList = [&](const char* tag, const std::vector<std::string>& v) {
+        put(tag);
+        put(std::to_string(v.size()));
+        for (const auto& s : v) put(s);
+    };
+    put(policy.active ? "active" : "inactive");
+    put(policy.mode == EnvScrubMode::ALLOWLIST ? "allowlist" : "blocklist");
+    putList("blocked_vars", policy.blocked_vars);
+    putList("blocked_prefixes", policy.blocked_prefixes);
+    putList("allowed_vars", policy.allowed_vars);
+    putList("read_blocked", policy.read_blocked_vars);
+    if (containment) {
+        put(containment->restrict_path ? "restrict_path" : "-");
+        put(containment->restrict_path ? containment->interpreter_dir : "");
+        put(containment->strip_network_env ? "strip_network" : "-");
+    }
+    return key;
 }
 
 bool isReadBlockedEnvVar(const EnvScrubPolicy& policy, const std::string& key) {
