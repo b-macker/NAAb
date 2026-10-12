@@ -281,10 +281,13 @@ out="$(agent_run "$d" '["data/guidance.db"]' "$CDD" "$SENDS3
     file.write(\".swap_req.ready\", \"\")
     let waited = 0
     while !file.exists(\".swap_done\") && waited < 200 { time.sleep(0.05); waited = waited + 1 }
+    if file.exists(\".swap_done\") { print(\"SWAPPED\") }
     agent.record_validation(h, false, \"it did not work\")
     let r5 = agent.send(h, \"Try again.\")")"
 if [[ "$out" != *RUN_DONE* ]]; then
     fail "M-06" "run did not complete" "$out / $(tail -3 "$d/err.txt")"
+elif [[ "$out" != *SWAPPED* ]] || ! cmp -s "$TEST_TMP/m06_new/data/guidance.db" "$d/data/guidance.db"; then
+    skip "M-06" "the external swap did not land before the last request, so a stale read cannot be told from no swap"
 elif has "$d" 3 MIN_DBREPEAT_m2 && ! has "$d" 4 MIN_DBVALID_m2 && has "$d" 5 MIN_DBVALID_m2; then
     pass "M-06" "a plain guidance(topic, body) table routes by topic with no query; a row added mid-run reaches the next request (not before it existed)"
 else

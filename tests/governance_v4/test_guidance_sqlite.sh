@@ -307,13 +307,21 @@ main {
     file.write(\".swap_req.ready\", \"\")
     let waited = 0
     while !file.exists(\".swap_done\") && waited < 200 { time.sleep(0.05); waited = waited + 1 }
+    if file.exists(\".swap_done\") { print(\"SWAPPED\") }
     let b = governance.guidance(\"migration\", \"kb\")
     print(\"B=\" + b[0].get(\"text\"))
 }")"
-if [[ "$r" == *"A=DB_MIGRATION_k4: roll back"* ]] && [[ "$r" == *"B=DB_MIGRATION_k4_EDITED"* ]]; then
+# The arm measures the engine only if the operator's copy landed BEFORE the
+# second lookup: the program saw the done marker, and the database on disk is
+# the replacement. A swap that did not happen (the operator does not run on
+# Windows -- test_capability_list_ratchet.sh R-00 records the same) is
+# UNMEASURABLE, not a stale read.
+if [[ "$r" != *"B="* ]]; then
+    skip "S-09" "the program did not reach the second lookup: ${r:0:200}"
+elif [[ "$r" != *SWAPPED* ]] || ! cmp -s "$TEST_TMP/s09_new/data/kb.db" "$d/data/kb.db"; then
+    skip "S-09" "the external swap did not land before the second lookup, so a stale read cannot be told from no swap"
+elif [[ "$r" == *"A=DB_MIGRATION_k4: roll back"* ]] && [[ "$r" == *"B=DB_MIGRATION_k4_EDITED"* ]]; then
     pass "S-09" "the database changed mid-run; the next lookup returned the new row with no reload"
-elif [[ "$r" != *"B="* ]]; then
-    skip "S-09" "the external swap did not happen: ${r:0:200}"
 else
     fail "S-09" "the live change was not read" "${r:0:300}"
 fi
