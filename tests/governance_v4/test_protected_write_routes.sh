@@ -79,7 +79,17 @@ pass() { PASS_COUNT=$((PASS_COUNT + 1)); echo "  PASS [$1] $2"; }
 fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && echo "       -> $3"; }
 skip() { SKIP_COUNT=$((SKIP_COUNT + 1)); echo "  SKIP [$1] UNMEASURABLE: $2"; }
 
-cleanup() { [ -n "${KEEP_TMP:-}" ] || rm -rf "$TEST_TMP"; }
+# Every config here is an UNSIGNED govern.json. With any key in the ambient
+# trust store an unsigned config is an INTEGRITY BLOCK (exit 3) -- which the
+# blocked-write arms would read as the gate firing. Isolate the store so exit 3
+# can only mean the path policy refused the write (CV-02 in
+# test_coverage_visibility.sh enforces this for every new suite).
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
+cleanup() {
+    teardown_isolated_trust
+    [ -n "${KEEP_TMP:-}" ] || rm -rf "$TEST_TMP"
+}
 trap cleanup EXIT
 [ -x "$NAAB" ] || { echo "naab-lang not built"; exit 1; }
 
@@ -112,7 +122,7 @@ run "$PYPROBE" vm 'main { let x = <<python
 >>
   print(x) }'
 EMBEDDED_PY=0
-[ "$RC" = 0 ] && printf '%s' "$OUT" | grep -q '^2$' && EMBEDDED_PY=1
+[ "$RC" = 0 ] && grep -q '^2$' <<<"$OUT" && EMBEDDED_PY=1
 
 echo "== calibration"
 d="$TEST_TMP/cal"; mk "$d"
