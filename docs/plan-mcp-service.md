@@ -170,10 +170,17 @@ top-level code resolves through the `default` entry ("top level resolves via
 default", traced). A grant becomes one more set in that intersection, at HARD,
 so it narrows every frame and can never widen one. The same grant also strips
 the worker's sandbox, the way `syncGovernanceToSandbox` already does for
-`capabilities.*`. That covers polyglot code, which the helper does not see:
-no `SHELL_EXEC` marks shell disabled by policy (every separate-process language
-refused), no `NET_CONNECT` removes network, no `FS_WRITE` makes the filesystem
-read-only. Tightening only.
+`capabilities.*`. That reaches code the helper does not see, but not all of
+it: no `SHELL_EXEC` marks shell disabled by policy, which refuses every
+separate-process language; no `NET_CONNECT` removes network and no `FS_*`
+narrows the filesystem for the stdlib and embedded Python. Neither of those
+two reaches a subprocess language (CONTRA-013): with `SHELL_EXEC` granted, a
+`<<sh>>` child read a file under a lease without `FS_READ` (observed, one
+run), and the protection map measures go, shell and ruby connecting under
+`network.enabled: false` with shell enabled -- the switch a missing
+`NET_CONNECT` sets (traced). So `FS_*` and `NET_CONNECT` bind against
+polyglot code only in a lease that also withholds `SHELL_EXEC`. Tightening
+only.
 
 ### The per-caller ledger: replay, then stream
 
