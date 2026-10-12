@@ -302,12 +302,19 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
     // the SAME namespace the block body runs in, so a block could read the
     // values back out of it under a lease with no capabilities at all. Hold the
     // dict's only reference C-side and remove the name from the namespace while
-    // user code runs; reveal() puts it back just before the restore below
-    // (captureAndRestoreStdout reads it). The RAII destructor is the net for
-    // every other exit path: it releases the reference and re-inserts the name,
-    // so a missed path leaks neither memory nor the dict. It does not run the
-    // environ restore -- the error paths never did -- so behaviour on error is
-    // unchanged. gc.get_objects() can still reach the dict object; that deeper
+    // user code runs; reveal() puts it back before the GIL is released.
+    //
+    // reveal() calls the Python API, so it must run WITH the GIL held -- and
+    // every exit below releases the GIL explicitly (python_c_gil_release)
+    // before it returns or throws, so a destructor would run too late. reveal()
+    // is therefore called explicitly on every exit: captureAndRestoreStdout()
+    // (the success returns, before the environ restore reads the dict),
+    // restoreStdoutOnly() (every error throw) and the pyObjectToValue catch.
+    // The destructor deliberately does NOT touch Python: a path that missed
+    // reveal() leaks one reference rather than calling the API without the GIL
+    // (undefined behaviour, a crash on worker threads). Error paths re-insert
+    // the dict without restoring environ, exactly as they behaved before.
+    // gc.get_objects() can still reach the dict object; that deeper
     // introspection route is noted in docs/open-investigations.md A32.
     struct SavedEnvHider {
         PyObject* globals = nullptr;
@@ -321,6 +328,7 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
                 PyDict_DelItemString(g, "_naab_saved_env");
             }
         }
+        // GIL must be held.
         void reveal() {
             if (ref) {
                 PyDict_SetItemString(globals, "_naab_saved_env", ref);
@@ -328,7 +336,6 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
                 ref = nullptr;
             }
         }
-        ~SavedEnvHider() { reveal(); }
     } saved_env_hider;
     if (env_scrub_applied) saved_env_hider.hide(globals);
 
@@ -429,7 +436,10 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
     };
 
     // Helper lambda: restore stdout on error (no capture needed)
-    auto restoreStdoutOnly = []() {
+    auto restoreStdoutOnly = [&saved_env_hider]() {
+        // A32: every error throw calls this before releasing the GIL, so put
+        // the hidden save dict back here, while the GIL is still held.
+        saved_env_hider.reveal();
         PyRun_SimpleString(
             "import sys as _naab_sys\n"
             "if hasattr(_naab_sys, '_naab_old_stdout') and _naab_sys._naab_old_stdout is not None:\n"
@@ -689,6 +699,7 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
         value = pyObjectToValue(py_result);
     } catch (...) {
         Py_DECREF(py_result);
+        saved_env_hider.reveal();  // A32: GIL still held here
         python_c_gil_release(gil_handle);
         throw;
     }

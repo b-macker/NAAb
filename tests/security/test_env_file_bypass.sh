@@ -156,6 +156,42 @@ str(globals().get("_naab_saved_env", "NO_NAME"))
   else ok "saved/$eng" "scrub active and _naab_saved_env withholds the value"; fi
 done
 
+# NON-REGRESSION arm for the save dict's ERROR path -- not a revert-check arm.
+# A block that raises leaves through the executor's error exits, which release
+# the GIL before returning; the hidden dict must be put back there while the GIL
+# is still held. An earlier draft did it in a destructor, after the release, and
+# a worker thread segfaulted under Python 3.12. That crash is NOT reproducible
+# here: it needs Python >= 3.12 on a worker thread, and it is covered by the
+# unit test PolyglotAsyncTest.PythonException, which CI builds against 3.12.
+# What this arm checks, on both engines: the raising block still returns control
+# to the program, and no later block reads the value back. It passes on a
+# pre-fix build too -- there, the error path never restores the environment, so
+# a later block has nothing to scrub -- so it guards the new code's error path,
+# not the fix itself.
+echo "== embedded Python: a raising block, then the save dict is still not readable"
+for eng in vm tw; do
+  d="$WORK/saved_err_$eng"; cfg "$d" blocked
+  r="$(run "$eng" "$d" 'use string
+main {
+    try {
+        let x = <<python
+raise ValueError("a32 error path")
+>>
+    } catch (e) {
+        print("CAUGHT")
+    }
+    let sv = <<python
+str(globals().get("_naab_saved_env", "NO_NAME"))
+>>
+    if string.contains(sv, "A32MARKER_7q3z") { print("V=SEEN") } else { print("V=HIDDEN") }
+}')"
+  body="${r#*|}"
+  if ! case "$body" in *CAUGHT*) true;; *) false;; esac; then
+    bad "saved_err/$eng" "the raising block did not return control to the program: ${r%%|*} $body"
+  elif seen "$r"; then bad "saved_err/$eng" "_naab_saved_env handed the value back after an error path: $body"
+  else ok "saved_err/$eng" "raising block caught; a later block still cannot read the save dict"; fi
+done
+
 # Documented CONTRA-013 limit: a <<sh>> child reads its parent's environ file;
 # path policy does not reach a separate process. This arm asserts the route is
 # STILL open so it flips (and forces an A32 update) if someone closes it. The
