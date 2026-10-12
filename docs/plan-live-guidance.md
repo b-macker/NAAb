@@ -296,6 +296,58 @@ database sidecar protection -> S-04; database policy read -> S-06; PII scan ->
 G-24; ATTACH refusal -> S-05; query deadline -> S-07; wildcard and prefix
 matching -> G-10b, G-23.
 
+## Sources only (same PR, after the owner's review)
+
+The owner's requirement (2026-10-12): "Don't want the settings in govern.json to
+be too complicated or complex, should just be what source to add." The rules,
+anchors, queries and switches above are what an engine needs, not what an
+operator should have to write. The minimal configuration is now:
+
+```json
+"guidance": { "sources": ["docs/agent-playbook.md", "data/guidance.db"] }
+```
+
+- **Type from the extension**: `.db` `.sqlite` `.sqlite3` `.db3` are databases,
+  anything else a markdown document. A source may still be an object
+  (`path`, `name`, `type`, `query`, `max_rows`, `timeout_ms`), and the
+  name-keyed map #309 shipped is still read.
+- **Listing sources switches the feature on**; `"enabled": false` switches it
+  off with the sources still listed (the template ships that way).
+- **No `rules` key: the engine routes by itself.** Four automatic rules cover
+  every source: `start`, `signal:*` and `validation_failed` to the agent,
+  `violation:*` to the terminal. Each takes, per source, the first section or
+  row NAMED for the trigger -- a heading or `topic` value compared loosely
+  (case and `_ . - : /` ignored) with the full rule name or its last part, the
+  signal's config key, or the starting agent's name -- up to 3 entries.
+  Failing a name, only a strong keyword match is delivered (score 3 or more: a
+  heading term, or three text terms); an agent's `start` takes names only.
+- **Why names, not just keywords.** The keyword extractor drops words of three
+  characters or fewer, so `code_quality.no_pii` has no usable keyword at all;
+  only its name finds a section headed "No PII" (M-10). The threshold is a
+  design choice, not a measurement: one shared word is a weak reason to
+  interrupt a block or an agent, so the noise controls require that nothing be
+  delivered when nothing is named and nothing matches strongly.
+- **Explicit `rules` replace the automatic routes**, so the template documents
+  the rule shape in `_comment_rules` and shows no example entry: an example
+  rule there would have switched automatic routing off in every config copied
+  from it (caught while reviewing the template; the coverage baseline lists
+  the rule leaves under ENTRY SHAPE, beside plugin entries, for the same
+  reason).
+- **A database needs no SQL.** With no `query`, its `guidance` table is read
+  like a document: the name column is the first of `topic`/`heading`/`title`/
+  `name`, the text column the first of `body`/`text`/`content`/`guidance`; up
+  to 5000 rows, re-read when the database or its `-wal` changes. The same
+  read-only open, authorizer and deadline apply as for a query.
+
+Tests: `tests/governance_v4/test_guidance_minimal.sh` (11 arms, every config
+only a sources list). The controls are the point of the suite: with no section
+named for the event and no strong match, nothing is delivered (M-02, M-03c,
+M-04c, M-05c). Revert check (observed): with name matching removed, M-01, M-04
+and M-10 fail -- the first draft's M-01, M-03 and M-06 had passed through
+keyword overlap instead, which is why M-01 now asserts `"select":"name"` and
+M-10 was added; with the database change signature ignored, M-06 (a row added
+mid-run reaching the next request and not the one before) fails.
+
 ## Known limits, slice 1
 
 - `agent.propose()` builds its own request and has no injection site (traced:

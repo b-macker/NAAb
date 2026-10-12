@@ -2497,6 +2497,20 @@ else
     echo "  test_guidance_sqlite.sh: not found, skipping"
 fi
 
+# Live guidance configured by listing sources only: automatic name-matched
+# routing, with noise controls (nothing named, nothing sent).
+GUIDANCE_MIN_SCRIPT="tests/governance_v4/test_guidance_minimal.sh"
+if [ -f "$GUIDANCE_MIN_SCRIPT" ]; then
+    if run_shell_test "$GUIDANCE_MIN_SCRIPT" 2>&1; then
+        echo "  test_guidance_minimal.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_guidance_minimal.sh")
+    fi
+else
+    echo "  test_guidance_minimal.sh: not found, skipping"
+fi
+
 # The BSD pre-execution path must leave evidence.
 BSDPRE_SCRIPT="tests/governance_v4/test_bsd_preexec_evidence.sh"
 if [ -f "$BSDPRE_SCRIPT" ]; then

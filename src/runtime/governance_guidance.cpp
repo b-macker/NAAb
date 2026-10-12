@@ -48,6 +48,7 @@ struct GuidanceSection {
                         // selection scores and delivers
     std::unordered_set<std::string> head_kw;
     std::unordered_set<std::string> own_kw;
+    std::string topic;  // database rows: the topic column, matched by name
 };
 
 struct GuidanceDoc {
@@ -55,9 +56,24 @@ struct GuidanceDoc {
     std::string error;                 // why it could not be read
     long long mtime_ns = -1;
     std::uintmax_t size = 0;
+    std::string sig;                   // database: db + -wal change signature
     bool truncated = false;
     std::vector<GuidanceSection> sections;
 };
+
+// A name as written in a heading or a topic column, compared loosely:
+// lowercase, and '_' '.' '-' ':' '/' are spaces. "Mandate alignment",
+// "mandate_alignment" and "MANDATE-ALIGNMENT" are the same name.
+std::string normName(const std::string& s) {
+    std::string out;
+    bool space = true;
+    for (unsigned char c : s) {
+        if (std::isalnum(c)) { out += static_cast<char>(std::tolower(c)); space = false; }
+        else if (!space) { out += ' '; space = true; }
+    }
+    while (!out.empty() && out.back() == ' ') out.pop_back();
+    return out;
+}
 
 // GitHub-style heading slug: lowercase ASCII letters and digits, spaces to '-',
 // '-' and '_' kept, other ASCII punctuation dropped, non-ASCII bytes kept.
@@ -383,6 +399,36 @@ static bool guidanceQuery(GovernanceEngine& eng, GovernanceEngine::GuidanceState
                           std::vector<std::pair<std::string, std::string>>& rows,
                           std::string& why);
 
+// A database source with no query is read like a document: the rows of its
+// `guidance` table are its sections (topic / heading / title / name for the
+// name, body / text / content / guidance for the text), re-read when the
+// database or its -wal changes.
+static const GuidanceDoc* guidanceLoadSqliteDoc(GovernanceEngine& eng,
+                                                GovernanceEngine::GuidanceState& st,
+                                                const GuidanceSourceConfig& src,
+                                                std::string& why);
+
+// The names a section must carry to be the one FOR this trigger (automatic
+// routing): the check that blocked (full rule name or its last part), the
+// signal that paid, the agent that is starting.
+static std::vector<std::string> triggerNames(const TriggerCtx& ctx) {
+    std::vector<std::string> keys;
+    auto add = [&](const std::string& n) { std::string k = normName(n); if (!k.empty()) keys.push_back(k); };
+    if (ctx.kind == "start") {
+        add(ctx.agent);
+        add("start"); add("all agents"); add("every agent");
+    } else if (ctx.kind == "signal") {
+        add(ctx.arg); add("signal " + ctx.arg);
+    } else if (ctx.kind == "violation") {
+        add(ctx.arg);
+        const size_t dot = ctx.arg.rfind('.');
+        if (dot != std::string::npos) add(ctx.arg.substr(dot + 1));
+    } else if (ctx.kind == "validation_failed") {
+        add("validation failed"); add("validation");
+    }
+    return keys;
+}
+
 static std::vector<Candidate> guidanceSelect(GovernanceEngine& eng,
                                              GovernanceEngine::GuidanceState& st,
                                              const GuidanceConfig& gc,
@@ -390,7 +436,8 @@ static std::vector<Candidate> guidanceSelect(GovernanceEngine& eng,
                                              const std::unordered_set<std::string>& kw,
                                              const TriggerCtx& ctx,
                                              std::vector<std::pair<std::string, std::string>>& misses) {
-    std::vector<Candidate> anchors, queried, scored;
+    std::vector<Candidate> named, anchors, queried, scored;
+    const std::vector<std::string> names = rule.automatic ? triggerNames(ctx) : std::vector<std::string>{};
     for (const auto& f : rule.from) {
         const size_t hash = f.find('#');
         const std::string sname = f.substr(0, hash);
@@ -398,7 +445,10 @@ static std::vector<Candidate> guidanceSelect(GovernanceEngine& eng,
         const GuidanceSourceConfig* src = nullptr;
         for (const auto& s : gc.sources) if (s.name == sname) { src = &s; break; }
         if (!src) { misses.push_back({f, "undeclared"}); continue; }
-        if (src->type == "sqlite") {
+
+        // A database with an operator query: the SQL decides relevance, so
+        // its rows are taken in its own order.
+        if (src->type == "sqlite" && !src->query.empty()) {
             std::vector<std::pair<std::string, std::string>> rows;
             std::string why;
             if (!guidanceQuery(eng, st, *src, ctx, kw, rows, why)) { misses.push_back({f, why}); continue; }
@@ -417,8 +467,12 @@ static std::vector<Candidate> guidanceSelect(GovernanceEngine& eng,
             if (!slug.empty() && !found) misses.push_back({f, "section_not_found"});
             continue;
         }
+
+        // A document, or a database read as one (its `guidance` table).
         std::string why;
-        const GuidanceDoc* doc = guidanceLoadDoc(eng, st, gc, *src, why);
+        const GuidanceDoc* doc = src->type == "sqlite"
+            ? guidanceLoadSqliteDoc(eng, st, *src, why)
+            : guidanceLoadDoc(eng, st, gc, *src, why);
         if (!doc) { misses.push_back({f, why}); continue; }
         if (!slug.empty()) {
             bool found = false;
@@ -431,6 +485,24 @@ static std::vector<Candidate> guidanceSelect(GovernanceEngine& eng,
             }
             if (!found) misses.push_back({f, "section_not_found"});
             continue;
+        }
+        // Automatic routing: a section NAMED for the trigger wins outright --
+        // the first one in each source, so a playbook and a database that
+        // both carry guidance for the same check both contribute.
+        if (!names.empty()) {
+            bool got = false;
+            for (const auto& s : doc->sections) {
+                if (got) break;
+                const std::string hn = normName(s.heading), tn = normName(s.topic);
+                for (const auto& k : names) {
+                    if (k == hn || (!tn.empty() && k == tn)) {
+                        named.push_back({sname, src->path, s.slug, s.heading,
+                                         s.own.empty() ? s.body : s.own, "name", 0.0});
+                        got = true;
+                        break;
+                    }
+                }
+            }
         }
         // Keyword selection scores and delivers a section's OWN text (up to
         // its first subheading). Scoring the full body let a container -- a
@@ -451,6 +523,18 @@ static std::vector<Candidate> guidanceSelect(GovernanceEngine& eng,
     }
     std::stable_sort(scored.begin(), scored.end(),
                      [](const Candidate& a, const Candidate& b) { return a.score > b.score; });
+    if (rule.automatic) {
+        // Named sections first. Otherwise only a STRONG keyword match: a
+        // heading term (3) or three text terms -- weak overlap is noise, and
+        // an agent's start takes named sections only.
+        std::vector<Candidate> out = std::move(named);
+        for (auto& c : queried) out.push_back(std::move(c));
+        if (out.empty() && ctx.kind != "start") {
+            for (auto& c : scored) if (c.score >= 3.0) out.push_back(std::move(c));
+        }
+        if (out.size() > static_cast<size_t>(rule.max_entries)) out.resize(rule.max_entries);
+        return out;
+    }
     std::vector<Candidate> out = std::move(anchors);
     for (auto& c : queried) out.push_back(std::move(c));
     for (auto& c : scored) out.push_back(std::move(c));
@@ -575,6 +659,126 @@ static bool guidanceQuery(GovernanceEngine& eng, GovernanceEngine::GuidanceState
         return false;
     }
     return true;
+}
+
+static const GuidanceDoc* guidanceLoadSqliteDoc(GovernanceEngine& eng,
+                                                GovernanceEngine::GuidanceState& st,
+                                                const GuidanceSourceConfig& src,
+                                                std::string& why) {
+    auto warnOnce = [&](const std::string& key, const std::string& msg) {
+        if (st.warned.insert(key).second)
+            fprintf(stderr, "[governance] Warning: guidance source \"%s\" %s\n",
+                    src.name.c_str(), msg.c_str());
+    };
+    const std::string abs = eng.resolvePolicyPath(src.path);
+    if (!eng.pathPolicyDenial(abs, /*write=*/false).empty()) {
+        why = "policy";
+        warnOnce("policy:" + abs, "is not read: the filesystem policy does not let this project read " + src.path);
+        return nullptr;
+    }
+    std::error_code ec;
+    if (std::filesystem::is_symlink(abs, ec) || !std::filesystem::is_regular_file(abs, ec)) {
+        why = "unreadable";
+        warnOnce("open:" + abs, "(" + src.path + ") cannot be opened (missing, or a symbolic link)");
+        st.docs.erase(abs);
+        return nullptr;
+    }
+    // Change signature: the database and its -wal (a WAL commit changes the
+    // -wal, not the main file).
+    auto stamp = [&](const std::string& p) -> std::string {
+        std::error_code e2;
+        auto t = std::filesystem::last_write_time(p, e2);
+        if (e2) return "-";
+        auto sz = std::filesystem::file_size(p, e2);
+        return std::to_string(static_cast<long long>(
+                   std::chrono::duration_cast<std::chrono::nanoseconds>(t.time_since_epoch()).count())) +
+               ":" + std::to_string(e2 ? 0 : sz);
+    };
+    const std::string sig = stamp(abs) + "|" + stamp(abs + "-wal");
+    auto& doc = st.docs[abs];
+    if (doc.loaded && doc.sig == sig) return &doc;
+
+    sqlite3* db = nullptr;
+    if (sqlite3_open_v2(abs.c_str(), &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nullptr) != SQLITE_OK) {
+        why = "unreadable";
+        warnOnce("open:" + abs, "(" + src.path + ") cannot be opened as a database");
+        if (db) sqlite3_close(db);
+        st.docs.erase(abs);
+        return nullptr;
+    }
+    sqlite3_db_config(db, SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION, 0, nullptr);
+    sqlite3_db_config(db, SQLITE_DBCONFIG_DEFENSIVE, 1, nullptr);
+    sqlite3_limit(db, SQLITE_LIMIT_ATTACHED, 0);
+    sqlite3_set_authorizer(db, guidanceAuthorizer, nullptr);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(src.timeout_ms * 4);
+    sqlite3_progress_handler(db, 1000, guidanceProgress, &deadline);
+    struct Closer { sqlite3* d; sqlite3_stmt* s = nullptr; ~Closer() { if (s) sqlite3_finalize(s); sqlite3_close(d); } } closer{db};
+    if (sqlite3_prepare_v2(db, "SELECT * FROM guidance", -1, &closer.s, nullptr) != SQLITE_OK || !closer.s) {
+        why = "no_table";
+        warnOnce("table:" + abs, "(" + src.path + ") has no table named guidance -- create "
+                 "guidance(topic, body), or give the source a query");
+        st.docs.erase(abs);
+        return nullptr;
+    }
+    const int cols = sqlite3_column_count(closer.s);
+    auto colIndex = [&](std::initializer_list<const char*> wanted, int except) {
+        for (const char* w : wanted)
+            for (int c = 0; c < cols; ++c) {
+                if (c == except) continue;
+                std::string n = sqlite3_column_name(closer.s, c) ? sqlite3_column_name(closer.s, c) : "";
+                for (auto& ch : n) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+                if (n == w) return c;
+            }
+        return -1;
+    };
+    const int key_col = colIndex({"topic", "heading", "title", "name"}, -1);
+    const int text_col = colIndex({"body", "text", "content", "guidance"}, key_col);
+    const int head_col = colIndex({"heading", "title"}, -1);
+    if (key_col < 0 || text_col < 0) {
+        why = "no_table";
+        warnOnce("cols:" + abs, "(" + src.path + "): the guidance table needs a name column (topic, heading, "
+                 "title or name) and a text column (body, text, content or guidance)");
+        st.docs.erase(abs);
+        return nullptr;
+    }
+    auto colText = [&](int c) -> std::string {
+        if (c < 0) return std::string();
+        const unsigned char* t = sqlite3_column_text(closer.s, c);
+        return t ? std::string(reinterpret_cast<const char*>(t)) : std::string();
+    };
+    GuidanceDoc fresh;
+    fresh.loaded = true;
+    fresh.sig = sig;
+    std::map<std::string, int> seen;
+    int rc, n = 0;
+    const int kMaxRows = 5000;
+    while ((rc = sqlite3_step(closer.s)) == SQLITE_ROW && n < kMaxRows) {
+        ++n;
+        GuidanceSection sec;
+        sec.topic = colText(key_col);
+        sec.heading = head_col >= 0 && head_col != key_col ? colText(head_col) : sec.topic;
+        if (sec.heading.empty()) sec.heading = sec.topic;
+        sec.own = sec.body = trimBlankLines(colText(text_col));
+        if (sec.body.empty() || sec.heading.empty()) continue;
+        std::string slug = slugify(sec.topic.empty() ? sec.heading : sec.topic);
+        int k = seen[slug]++;
+        sec.slug = k == 0 ? slug : slug + "-" + std::to_string(k);
+        naab::keywords::extractKeywords(sec.heading + " " + sec.topic, sec.head_kw);
+        naab::keywords::extractKeywords(sec.own, sec.own_kw);
+        fresh.sections.push_back(std::move(sec));
+    }
+    if (rc == SQLITE_INTERRUPT || (rc != SQLITE_ROW && rc != SQLITE_DONE)) {
+        why = rc == SQLITE_INTERRUPT ? "timeout" : "query_error";
+        warnOnce("rows:" + abs, std::string("(") + src.path + ") could not be read: " + sqlite3_errmsg(db));
+        st.docs.erase(abs);
+        return nullptr;
+    }
+    if (n >= kMaxRows && rc == SQLITE_ROW) {
+        fresh.truncated = true;
+        warnOnce("cap:" + abs, "(" + src.path + ") has more than 5000 rows; the first 5000 are used");
+    }
+    doc = std::move(fresh);
+    return &doc;
 }
 
 // "" when the text may be delivered; otherwise the withheld reason.

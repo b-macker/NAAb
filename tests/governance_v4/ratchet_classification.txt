@@ -110,3 +110,10 @@ guidance.rules.[].max_entries      neutral -- traced: sections per trigger
 guidance.sources.<sname>.query     neutral -- traced: which rows a sqlite source returns; read-only connection, refused writes/ATTACH/PRAGMA, path-gated read
 guidance.sources.<sname>.max_rows  neutral -- traced: rows read per query; no check reads it
 guidance.sources.<sname>.timeout_ms neutral -- traced: query deadline; an interrupted query delivers nothing
+guidance.sources.<sname>.name      neutral -- traced: a source's display/reference name
+guidance.sources.[].path           neutral -- traced: list form of guidance.sources.<sname>.path (same field)
+guidance.sources.[].name           neutral -- traced: list form of the source name
+guidance.sources.[].type           neutral -- traced: list form; inferred from the extension when absent
+guidance.sources.[].query          neutral -- traced: list form of guidance.sources.<sname>.query
+guidance.sources.[].max_rows       neutral -- traced: list form of guidance.sources.<sname>.max_rows
+guidance.sources.[].timeout_ms     neutral -- traced: list form of guidance.sources.<sname>.timeout_ms

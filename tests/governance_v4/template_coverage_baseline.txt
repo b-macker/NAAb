@@ -28,6 +28,15 @@ limits.array_size
 limits.call_depth
 limits.execution.timeout_seconds
 output.no_color
+# guidance.sources as a name-keyed map is the form #309 shipped; the template
+# shows the list form (a path per entry, or an object for the extras), which
+# writes the same fields. Documented in the template's _comment_sources.
+guidance.sources.<sname>.max_rows
+guidance.sources.<sname>.name
+guidance.sources.<sname>.path
+guidance.sources.<sname>.query
+guidance.sources.<sname>.timeout_ms
+guidance.sources.<sname>.type
 output.quiet
 restrictions.no_hardcoded_results.enabled
 restrictions.no_hardcoded_results.level
@@ -72,7 +81,8 @@ code_quality.semantic_checks.enabled
 
 # --- ENTRY SHAPE documented in a _comment: any example entry would switch the
 # feature on (a function entry activates function-scope capabilities; a plugin
-# entry makes the loader load its file).
+# entry makes the loader load its file) -- or, for guidance rules, switch the
+# automatic routes OFF (listing any rule replaces them).
 capabilities.functions.<fn_name>.allowed_actions
 governance_plugins.[].file
 governance_plugins.[].rules.[].bad_example
@@ -85,6 +95,11 @@ governance_plugins.[].rules.[].id
 governance_plugins.[].rules.[].languages
 governance_plugins.[].rules.[].message
 governance_plugins.[].rules.[].trigger
+guidance.rules.[].agents
+guidance.rules.[].from
+guidance.rules.[].max_entries
+guidance.rules.[].on
+guidance.rules.[].to
 
 # --- READ BUT INERT: parsed into the rules struct and consulted by nothing that
 # decides anything. Kept out of the template because a reference that lists a

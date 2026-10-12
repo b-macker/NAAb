@@ -1742,35 +1742,23 @@
     "max_file_size_kb": 100
   },
 
-  "_comment_guidance": "Live guidance (docs/plan-live-guidance.md) -- operator-written project knowledge delivered at governance events. Sources are re-read when they change, so editing a source steers a running agent with no reload. Guidance is text with no authority: it grants nothing, and every gate still applies. Off by default.",
+  "_comment_guidance": "Live guidance (docs/plan-live-guidance.md). List the sources -- that is the whole setup. The engine matches a section or row NAMED for what happened (the check that blocked, e.g. a heading 'No placeholders'; the drift signal that fired, e.g. 'Mandate alignment'; the agent starting, e.g. 'developer'), or a failed validation's keywords, and delivers it to the agent's next request or under the block message in the terminal. Edits to a source take effect mid-run. Guidance is text with no authority: it grants nothing, and every gate still applies. Off by default; listing sources turns it on.",
   "guidance": {
     "enabled": false,
-    "_comment_max_chars_per_turn": "Agent channel: characters of guidance prepended to one request (never stored in history).",
+    "_comment_sources": "A path is all a source needs; the type comes from the extension (.db .sqlite .sqlite3 .db3 = database, anything else a markdown document). A document is split into sections at its headings. A database needs a table named guidance with a name column (topic, heading, title or name) and a text column (body, text, content or guidance). An object entry is only for the optional extras: name, type, and for a database a custom read-only SELECT (column 1 heading, column 2 text; the trigger is BOUND as :kind :arg :agent :topic :keywords :keywords_or, never spliced into SQL), max_rows and timeout_ms. A source must be readable under the filesystem policy; the governed program may not write it (nor a database's -wal/-shm/-journal). The name-keyed map form from earlier configs is still read.",
+    "sources": [
+      "docs/agent-playbook.md",
+      "data/guidance.db",
+      { "path": "data/knowledge.db", "name": "knowledge", "type": "sqlite",
+        "query": "SELECT heading, body FROM docs_fts WHERE docs_fts MATCH :keywords_or ORDER BY rank LIMIT 3",
+        "max_rows": 50, "timeout_ms": 250 }
+    ],
+    "_comment_optional": "Everything below is optional, shown at its default. Without rules the engine routes by itself (above); rules pin a section to a trigger instead.",
     "max_chars_per_turn": 1500,
-    "_comment_max_chars_terminal": "Terminal channel: characters appended to one block message.",
     "max_chars_terminal": 800,
-    "_comment_max_source_kb": "A source larger than this is read up to the cap, with a warning.",
     "max_source_kb": 256,
-    "_comment_cooldown_turns": "The same section is not re-sent to one agent handle within this many turns.",
     "cooldown_turns": 3,
-    "_comment_sources": "name -> { type, path, ... }. type file: a markdown document split into sections at its headings; a section is addressed by its heading slug (#stay-on-task). type sqlite: a database opened READ-ONLY and asked one SELECT per trigger -- column 1 is the heading, column 2 the text, rows in the query's own order (WHERE, joins and FTS5 MATCH ... ORDER BY rank decide relevance). The trigger is BOUND as parameters, never spliced into the SQL: :kind :arg :agent :topic :keywords :keywords_or. ATTACH, PRAGMA and writes are refused; a second statement is refused. Every source must be readable under the filesystem policy, and the governed program may not write it or a database's -wal/-shm/-journal (no self-instruction loop). A <<sh>> block with shell enabled is outside path policy.",
-    "sources": {
-      "playbook": { "type": "file", "path": "docs/agent-playbook.md" },
-      "knowledge": {
-        "type": "sqlite",
-        "path": "data/guidance.db",
-        "_comment_query": "One read-only SELECT; heading column, text column.",
-        "query": "SELECT heading, body FROM guidance WHERE topic = :arg ORDER BY priority DESC",
-        "_comment_max_rows": "Rows read per query (1-500).",
-        "max_rows": 50,
-        "_comment_timeout_ms": "A query running longer is interrupted and delivers nothing (1-5000).",
-        "timeout_ms": 250
-      }
-    },
-    "_comment_rules": "on: start | signal:<context_drift signal key, or *> | validation_failed | violation:<rule, trailing * = prefix>. from: \"source#slug\" (that section, subsections included) or \"source\" (the section whose own text -- up to its first subheading -- best overlaps the trigger's keywords). to: agent (start, signal, validation_failed) and/or terminal (violation). agents: limit to these agent names (empty = all). max_entries: sections per trigger (1-10).",
-    "rules": [
-      { "on": "signal:mandate_alignment", "from": "playbook#stay-on-task", "to": ["agent"], "agents": [], "max_entries": 1 }
-    ]
+    "_comment_rules": "Optional, and not shown as a key on purpose: listing ANY rule replaces the automatic routes, so an example entry here would switch them off in every config copied from this file. A rule pins a section to a trigger: \"rules\": [{\"on\": \"signal:mandate_alignment\", \"from\": \"agent-playbook#stay-on-task\", \"to\": [\"agent\"], \"agents\": [], \"max_entries\": 1}]. on: start | signal:<context_drift signal key, or *> | validation_failed | violation:<rule, trailing * = prefix>. from: \"source#slug\" (that section, subsections included) or \"source\" (the section whose own text best overlaps the trigger's keywords); a source's name is its file name without the extension unless the entry gives one. to: agent (start, signal, validation_failed) and/or terminal (violation). agents: limit to these agent names (empty = all). max_entries: sections per trigger (1-10)."
   },
 
   "_comment_quality_gate": "Quality Gate — aggregate pass/fail for CI/CD pipelines. Exit code 2 on failure.",

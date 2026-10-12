@@ -2625,34 +2625,62 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         readInt("cooldown_turns", gc.cooldown_turns, 0, 100000);
         parseRationale(gj, gc.rationale);
 
-        if (gj.contains("sources") && gj["sources"].is_object()) {
-            for (auto& [sname, sj] : gj["sources"].items()) {
-                if (!sj.is_object()) { warnG("source \"" + sname + "\" is not an object; ignored"); continue; }
-                GuidanceSourceConfig sc;
-                sc.name = sname;
-                if (sj.contains("type") && sj["type"].is_string()) sc.type = sj["type"].get<std::string>();
+        // The whole configuration can be the sources list (owner, 2026-10-12:
+        // "should just be what source to add"):
+        //     "guidance": { "sources": ["docs/agent-playbook.md", "data/guidance.db"] }
+        // An entry is a path, or an object for the optional extras. The type
+        // comes from the extension (.db .sqlite .sqlite3 .db3 = sqlite, anything
+        // else a document). The name-keyed map #309 shipped is still read.
+        auto addSource = [&](std::string sname, const nlohmann::json& sj) {
+            GuidanceSourceConfig sc;
+            if (sj.is_string()) {
+                sc.path = sj.get<std::string>();
+            } else if (sj.is_object()) {
                 if (sj.contains("path") && sj["path"].is_string()) sc.path = sj["path"].get<std::string>();
+                if (sj.contains("name") && sj["name"].is_string()) sname = sj["name"].get<std::string>();
+                if (sj.contains("type") && sj["type"].is_string()) sc.type = sj["type"].get<std::string>();
                 if (sj.contains("query") && sj["query"].is_string()) sc.query = sj["query"].get<std::string>();
                 if (sj.contains("max_rows") && sj["max_rows"].is_number_integer())
                     sc.max_rows = std::max(1, std::min(500, sj["max_rows"].get<int>()));
                 if (sj.contains("timeout_ms") && sj["timeout_ms"].is_number_integer())
                     sc.timeout_ms = std::max(1, std::min(5000, sj["timeout_ms"].get<int>()));
-                if (sc.type != "file" && sc.type != "sqlite") {
-                    warnG("source \"" + sname + "\" has type \"" + sc.type +
-                          "\", which this build does not read (supported: file, sqlite); ignored");
-                    continue;
-                }
-                if (sc.path.empty()) { warnG("source \"" + sname + "\" has no path; ignored"); continue; }
-                if (sc.type == "sqlite" && sc.query.empty()) {
-                    warnG("source \"" + sname + "\" is sqlite but has no query; ignored");
-                    continue;
-                }
-                if (sc.type == "file" && !sc.query.empty()) {
-                    warnG("source \"" + sname + "\": query is read only for sqlite sources; ignored for a file");
-                }
-                gc.sources.push_back(std::move(sc));
+            } else {
+                warnG("a source is neither a path nor an object; ignored");
+                return;
             }
+            if (sc.path.empty()) { warnG("source \"" + sname + "\" has no path; ignored"); return; }
+            if (!(sj.is_object() && sj.contains("type"))) {
+                std::string ext = std::filesystem::path(sc.path).extension().string();
+                for (auto& ch : ext) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+                sc.type = (ext == ".db" || ext == ".sqlite" || ext == ".sqlite3" || ext == ".db3") ? "sqlite" : "file";
+            }
+            if (sname.empty()) sname = std::filesystem::path(sc.path).stem().string();
+            if (sname.empty()) sname = "source";
+            // Names must be unique: a second "guidance" becomes "guidance-2".
+            std::string base = sname; int n = 2;
+            auto taken = [&](const std::string& nm) {
+                for (const auto& x : gc.sources) if (x.name == nm) return true;
+                return false;
+            };
+            while (taken(sname)) sname = base + "-" + std::to_string(n++);
+            sc.name = sname;
+            if (sc.type != "file" && sc.type != "sqlite") {
+                warnG("source \"" + sname + "\" has type \"" + sc.type +
+                      "\", which this build does not read (supported: file, sqlite); ignored");
+                return;
+            }
+            if (sc.type == "file" && !sc.query.empty()) {
+                warnG("source \"" + sname + "\": query is read only for a database; ignored for a document");
+            }
+            gc.sources.push_back(std::move(sc));
+        };
+        if (gj.contains("sources") && gj["sources"].is_array()) {
+            for (auto& sj : gj["sources"]) addSource("", sj);
+        } else if (gj.contains("sources") && gj["sources"].is_object()) {
+            for (auto& [sname, sj] : gj["sources"].items()) addSource(sname, sj);
         }
+        // Listing sources switches guidance on; "enabled": false switches it off.
+        if (!gj.contains("enabled")) gc.enabled = !gc.sources.empty();
 
         auto sourceDeclared = [&](const std::string& name) {
             for (const auto& s : gc.sources) if (s.name == name) return true;
@@ -2739,6 +2767,26 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     rc.max_entries = std::max(1, std::min(10, rj["max_entries"].get<int>()));
                 gc.rules.push_back(std::move(rc));
             }
+        }
+        // No rules: the engine routes by itself, over every source. A section
+        // or row NAMED for the trigger is found first -- the check that
+        // blocked, the drift signal that paid, the agent starting -- then a
+        // strong keyword match; weak overlap delivers nothing.
+        if (!gj.contains("rules") && !gc.sources.empty()) {
+            std::vector<std::string> all;
+            for (const auto& src : gc.sources) all.push_back(src.name);
+            auto make = [&](const std::string& on, const std::string& kind, const std::string& arg,
+                            bool agent, bool terminal) {
+                GuidanceRuleConfig rc;
+                rc.on = on; rc.kind = kind; rc.arg = arg; rc.from = all;
+                rc.to_agent = agent; rc.to_terminal = terminal;
+                rc.max_entries = 3; rc.automatic = true;   // one named match per source, at most 3
+                gc.rules.push_back(std::move(rc));
+            };
+            make("start", "start", "", true, false);
+            make("signal:*", "signal", "*", true, false);
+            make("validation_failed", "validation_failed", "", true, false);
+            make("violation:*", "violation", "*", false, true);
         }
         if (gc.enabled && gc.rules.empty()) {
             warnG("enabled, but no usable rule is configured; nothing will be delivered");

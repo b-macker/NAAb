@@ -1223,6 +1223,10 @@ struct GuidanceRuleConfig {
     // A "#slug" in `from` selects that section; a bare source name selects by
     // keyword overlap with the trigger. No separate selector key.
     int max_entries = 1;
+    // Built by the loader when govern.json lists sources and no rules: match a
+    // section NAMED for the trigger first (the check, the signal, the agent),
+    // then a strong keyword match; weak overlap delivers nothing.
+    bool automatic = false;
 };
 
 struct GuidanceConfig {
