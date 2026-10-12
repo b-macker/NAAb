@@ -1007,6 +1007,26 @@ json Server::execute(const std::string& tool, const std::string& program, const 
         output.clear();
         findings.push_back("output withheld: " + why);
     }
+    // stderr is an egress too. `findings` carries the worker's stderr back to
+    // the caller (an AI agent whose context reaches a model provider), and the
+    // scan above only covered stdout -- so a secret written to stderr
+    // (io.write_error, a polyglot exception) reached the caller verbatim while
+    // the same value on stdout was withheld. Scan the joined findings under the
+    // same keys; on a hit, withhold them and block, as stdout does. Governance
+    // "why blocked" lines already mask secrets (`<redacted>`), so a normal
+    // block keeps its findings; only genuine secret/PII text trips this.
+    if (!findings.empty()) {
+        std::string joined;
+        for (const auto& f : findings) {
+            if (f.is_string()) { joined += f.get<std::string>(); joined += "\n"; }
+        }
+        std::string why_err;
+        if (!joined.empty() && scanOutput(policy, joined, why_err)) {
+            verdict = "blocked";
+            findings = json::array();
+            findings.push_back("diagnostics withheld: " + why_err + " (in stderr)");
+        }
+    }
     const std::string finished = isoUtc(std::chrono::system_clock::now());
     json att = makeAttestation(tool, program_sha, policy, lease, verdict, w.exit_code,
                                output, w.events, started, finished);

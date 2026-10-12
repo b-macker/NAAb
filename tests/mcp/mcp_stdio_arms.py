@@ -458,6 +458,26 @@ def main():
     else:
         bad("MC-06a", "a lease without AGENT_SEND let a model call through", brief(rwo))
 
+    # ---- MC-06e: a lease without ENV_READ withholds env from polyglot too ---
+    # `env_vars.read = false` only gates env.get(); the lease must also withhold
+    # the environment from embedded Python and children. The server is started
+    # with MCP_TEST_SECRET set, and the probe reads it via os.environ in a
+    # <<python>> block (no env.get, so only the sandbox/scrub can stop it).
+    pyenv = prog('    let r = <<python\nimport os\nos.environ.get("MCP_TEST_SECRET", "NONE")\n>>\n'
+                 '    print("PY=" + r)')
+    se = Server(p_main, secret_env); se.init2025()
+    l_noenv = sc(se.call("naab_lease", {"capabilities": ["FS_READ"]})).get("lease_id")
+    l_env = sc(se.call("naab_lease", {"capabilities": ["FS_READ", "ENV_READ"]})).get("lease_id")
+    r_env = run(se, pyenv, lease=l_env)
+    r_noenv = run(se, pyenv, lease=l_noenv)
+    se.close()
+    if "PY=not-a-real-secret" not in sc(r_env).get("output", ""):
+        unmeasurable("MC-06e", "control: embedded python did not read the env var even with ENV_READ: " + brief(r_env))
+    elif sc(r_noenv).get("verdict") == "pass" and "PY=NONE" in sc(r_noenv).get("output", ""):
+        ok("MC-06e", "embedded python's os.environ is empty of the secret without ENV_READ (present with it: control)")
+    else:
+        bad("MC-06e", "a lease without ENV_READ left the environment readable from embedded python", brief(r_noenv))
+
     # ---- MC-07: a lease cannot widen ---------------------------------------
     sn = Server(p_noshell)
     sn.init2025()
@@ -734,6 +754,27 @@ def main():
         ok("MC-18", "a secret-shaped value built at runtime is withheld under no_secrets and returned without it")
     else:
         bad("MC-18", "output reached the caller unscanned", brief(r18))
+
+    # ---- MC-18e: stderr is an egress too, carried in `findings` --------------
+    # The value is read from the environment (no secret literal in the source),
+    # so the static source scan passes and the program runs; it writes the value
+    # to stderr. Under no_secrets the diagnostics must be withheld; without the
+    # scan (control) the value reaches `findings` verbatim.
+    shaped_env = {"MCP_SHAPED": AWS_EXAMPLE}
+    estderr = prog('    let k = env.get("MCP_SHAPED") ?? "x"\n'
+                   '    io.write_error(k + "\\n")\n    print("done")', uses=("env", "io"))
+    sec = Server(p_noscan, shaped_env); sec.init2025()
+    r18ec = run(sec, estderr)
+    sec.close()
+    see = Server(p_main, shaped_env); see.init2025()
+    r18e = run(see, estderr)
+    see.close()
+    if AWS_EXAMPLE not in json.dumps(sc(r18ec)):
+        unmeasurable("MC-18e", "control: the value did not reach findings without the scan: " + brief(r18ec))
+    elif sc(r18e).get("verdict") == "blocked" and AWS_EXAMPLE not in json.dumps(r18e):
+        ok("MC-18e", "a secret written to stderr is withheld from findings under no_secrets (returned without the scan: control)")
+    else:
+        bad("MC-18e", "stderr reached the caller unscanned via findings", brief(r18e))
 
     # ---- MC-19: events streamed before a crash survive it --------------------
     if python_ok and send_works:

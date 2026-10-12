@@ -5871,7 +5871,21 @@ static void applyLeaseGrantToRules(GovernanceRules& r) {
     };
     narrow(r.filesystem_mode);
     narrow(r.capabilities.filesystem.mode);
-    if (!GovernanceEngine::leaseGrants("ENV_READ")) r.capabilities.env_vars.read = false;
+    if (!GovernanceEngine::leaseGrants("ENV_READ")) {
+        r.capabilities.env_vars.read = false;
+        // `read = false` only gates env.get(). A denied ENV_READ must withhold
+        // the environment everywhere the program can reach it -- embedded
+        // Python's os.environ and child processes -- or the lease narrows
+        // env.get() while `<<python>> os.environ[...]` and `<<sh>> $VAR` still
+        // read the caller's secrets. Reuse the allowlist scrub: the essential
+        // system vars (PATH, HOME, TMPDIR, ...) still pass so the worker runs,
+        // and everything else is scrubbed from children and from os.environ.
+        // Clearing allowed_subprocess_vars means a project list cannot re-admit
+        // a variable the lease denied; forcing allowlist mode over any
+        // blocklist is strictly a tightening.
+        r.capabilities.env_vars.subprocess_scrub_mode = "allowlist";
+        r.capabilities.env_vars.allowed_subprocess_vars.clear();
+    }
     if (!GovernanceEngine::leaseGrants("ENV_WRITE")) r.capabilities.env_vars.write = false;
 }
 

@@ -352,6 +352,8 @@ names what it fails on when its mechanism is removed.
 | MC-15 | malformed JSON -32700, unknown method -32601, unknown tool -32602; the server keeps serving | parse errors kill the server |
 | MC-17 | concurrent split: A reads the secret and waits; B (waits, then encodes) and C (writes the outbox) are issued while A runs → C is blocked; with BSD disabled a fast call overtakes a slow one (control: calls really overlap) | commits not serialised per caller |
 | MC-18 | with `no_secrets` on, a secret-shaped value built at runtime is withheld and the call `blocked`; with it off the same output is returned (control) | output not scanned |
+| MC-06e | lease without `ENV_READ`: embedded Python's `os.environ` reads no secret; with it, it reads the value (control) | the lease gates only `env.get()`, not polyglot env |
+| MC-18e | with `no_secrets` on, a secret written to stderr is withheld from `findings`; with it off the value reaches `findings` (control) | stderr (the `findings` channel) not scanned |
 | MC-19 | events streamed before a crash survive it: a read followed by a crash, then encode, then the write → the write is blocked | events kept only when the worker exits cleanly |
 
 The sequence's last step writes a local "outbox" file rather than calling
@@ -479,6 +481,18 @@ bounded, because `std::getline` held a line of any size before the size check
 ran. Each pass has changed something, so the stopping rule is not met; the
 mutation run below is the check that the arms detect what they claim to.
 
+A fifth pass came from outside: an independent read-only session re-audited the
+built PR and found three gaps this document's own adversarial pass had missed or
+scoped too confidently — stderr was an unscanned egress (the scan covered stdout
+only); a lease without `ENV_READ` gated `env.get()` but not embedded Python's
+`os.environ` or children; and the attestation signing key, though a protected
+path, is still readable by a `<<sh>>` block because path policy does not reach
+subprocess languages. All three were reproduced here with controls. The first
+two were fixed (arms MC-18e, MC-06e); the third is a CONTRA-013 limitation that
+needs OS sandboxing, now scoped honestly in "What this does not do" rather than
+marked closed. That an external pass found three real gaps is the evidence that
+the internal stopping rule was not yet met — the rule itself predicts this.
+
 **Adversarial pass.** Each claim judged most likely to be wrong, what would
 show it wrong, and whether it was checked:
 
@@ -486,10 +500,11 @@ show it wrong, and whether it was checked:
 |---|---|---|
 | replaying events with their ages reproduces the detector's state | `recordEvent()` overwriting a supplied timestamp, or decay reading the wall clock | yes: traced, it keeps a supplied timestamp; turn decay does not replay (recorded above) |
 | `propose` executes none of the caller's code | anything between parse and the lint exit that runs code | yes: the library-block import loop looked like such a path, but it is unreachable on the VM (compile rejects the syntax) and runs after lint on the tree-walker; measured both |
-| an attestation is evidence | the attested program reading the signing key | yes: the key was not a protected path; added, arm MC-14k |
+| an attestation is evidence | the attested program reading the signing key | partly: the key is a protected path (arm MC-14k), but path policy does not reach subprocess languages, so in a shell-enabled project a `<<sh>>` block reads the key (CONTRA-013). Scoped, not closed — see "What this does not do" |
 | the per-caller ledger closes cross-call sequences | concurrent commits seeded before each other's events | yes: found; commits serialised, arm MC-17 |
 | the stream cannot be used to hide history | a program rewriting the stream | yes: a file could be truncated; changed to a pipe, arm MC-19 |
-| no new egress | output reaching a model provider with no scan | yes: found; output scan, arm MC-18 |
+| no new egress | output reaching a model provider with no scan | yes, both channels: stdout (arm MC-18) and the stderr carried back in `findings` (arm MC-18e). The first build scanned stdout only — an independent review found the stderr gap and it was reproduced and fixed |
+| a lease narrows env everywhere, not only env.get() | embedded Python's os.environ or a child still seeing the vars | the first build gated only env.get(); the same review found embedded Python still read the environment. Fixed: a denied ENV_READ now forces the allowlist env scrub (arm MC-06e) |
 | propose stays under 60 ms | compile time, or `agent_review`, dominating | measured: p50 34-35 ms, p90 53-56 ms over 15 serial proposes of a trivial program (observed, two runs, this container, Release, no `agent_review`); a large program or a configured `agent_review` is not measured |
 | the arms detect what they claim | an arm that stays green with its mechanism removed | mutation run: each mechanism removed in turn, results below |
 | a send to a loopback stub observes exfiltration | the http module refusing loopback | yes, and it does refuse (SSRF, unconditional); the arms use a local write instead |
@@ -528,7 +543,21 @@ success through the same fixture.
 ## What this does not do
 
 - It does not make subprocess languages obey `blocked_paths`; that is phase 3
-  (nsjail) or `capabilities.shell.enabled: false`.
+  (nsjail) or `capabilities.shell.enabled: false`. One consequence worth naming:
+  in a project that both signs attestations and leaves shell enabled, a
+  `<<sh>>` block (or any subprocess language) can read the attestation signing
+  key off disk, because the protected-path rule reaches NAAb's stdlib and
+  embedded Python but not subprocess languages (CONTRA-013). A lease without
+  `SHELL_EXEC` closes it; so does `capabilities.shell.enabled: false`; the
+  general fix is phase-3 OS sandboxing. An attestation therefore proves what
+  ran, not that the key was unreadable in a shell-enabled project.
+- It does not make a lease refusal and a program failure distinguishable by
+  verdict. A lease denying `env.get()` surfaces as a sandbox violation
+  (`verdict: error`, exit 1); one denying `file.write()` surfaces as a
+  governance block (`verdict: blocked`, exit 3). Both are the engine's own
+  exit codes for those two denials, and the server reports them faithfully
+  rather than guessing a caller's intent; a caller distinguishes them by the
+  `findings` text, not the verdict.
 - It does not put any NAAb program in the server's own process. No user code
   ever runs there.
 - It does not replace the in-process C API: embedders that call governance
