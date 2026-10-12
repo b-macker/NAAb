@@ -85,3 +85,25 @@ security.sandbox_level                             startup -- third spelling of 
 
 # --- naab-lang mcp (docs/plan-mcp-service.md) --------------------------------
 api.max_concurrent  neutral  -- traced: read only by the MCP server (mcp_server.cpp loadPolicy) to size its worker pool; no worker's engine consults it and it changes no check in either direction
+
+# --- Live guidance (docs/plan-live-guidance.md) ------------------------------
+# Guidance is text delivered to agents and appended to block messages; it
+# grants no capability and moves no level, threshold or gate (traced: its only
+# readers are governance_guidance.cpp, the agentSend injection site, enforce()'s
+# message suffix and the write refusal below). The one refusal it adds -- the
+# governed program may not WRITE a declared source -- exists only while the file
+# is a source: a reload that drops the source (or disables guidance) drops the
+# reason too, because the file no longer reaches any agent. So no direction of
+# change loosens a property the ratchet protects.
+guidance.enabled                   neutral -- traced: switches delivery and the source write refusal together; see the block comment
+guidance.max_chars_per_turn        neutral -- traced: a delivery budget (agent channel); no check reads it
+guidance.max_chars_terminal        neutral -- traced: a delivery budget (terminal channel); no check reads it
+guidance.max_source_kb             neutral -- traced: caps how much of a source is read; no check reads it
+guidance.cooldown_turns            neutral -- traced: delivery frequency only
+guidance.sources.<sname>.path      neutral -- traced: which file is delivered; its read is gated by the filesystem policy at every load, and its write refusal follows the source (block comment)
+guidance.sources.<sname>.type      neutral -- traced: slice 1 reads "file" only; other types are dropped with a warning
+guidance.rules.[].on               neutral -- traced: which event selects guidance; no enforcement reads it
+guidance.rules.[].from             neutral -- traced: which source/section is delivered
+guidance.rules.[].to               neutral -- traced: delivery channel (agent/terminal)
+guidance.rules.[].agents           neutral -- traced: which agents receive it
+guidance.rules.[].max_entries      neutral -- traced: sections per trigger

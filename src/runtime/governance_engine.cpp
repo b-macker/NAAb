@@ -980,6 +980,7 @@ std::string GovernanceEngine::lookupRationale(const std::string& rule_name) cons
     if (rule_name == "capabilities.shell") return rules().capabilities.shell.rationale;
     if (rule_name == "capabilities.env_vars") return rules().capabilities.env_vars.rationale;
     if (rule_name == "capabilities.process") return rules().capabilities.process.rationale;
+    if (rule_name == "guidance.sources") return rules().guidance.rationale;
     // Requirements
     if (rule_name.rfind("requirements.", 0) == 0) {
         if (rule_name.find("main_block") != std::string::npos) return rules().requirements.main_block.rationale;
@@ -1303,6 +1304,24 @@ std::string GovernanceEngine::enforce(
         // Fall through to normal enforcement for secrets/PII
     }
 
+    // Live guidance (docs/plan-live-guidance.md): appended to the message a
+    // person or agent actually reads, never to what the refusal attestation
+    // signs or the hook receives -- those keep the governance decision only.
+    //
+    // Guidance must never change a governance OUTCOME: this runs on the HARD
+    // throw paths, and an exception escaping it (the PII matcher rethrows
+    // bad_alloc as runtime_error) would replace a GovernanceHardError with a
+    // catchable type. Any failure here drops the guidance, never the block.
+    auto shownWithGuidance = [&](const std::string& shown) -> std::string {
+        try {
+            GuidanceTerminal g = guidanceForTerminal(rule_name, violation_message);
+            emitGuidanceTerminal(g);
+            return shown + g.suffix;
+        } catch (...) {
+            return shown;
+        }
+    };
+
     switch (level) {
         case EnforcementLevel::NONE:
             return "";  // Not enforced
@@ -1316,7 +1335,7 @@ std::string GovernanceEngine::enforce(
                 {"line", std::to_string(checkLine())},
                 {"category", cat}
             });
-            throw GovernanceHardError(violation_message);
+            throw GovernanceHardError(shownWithGuidance(violation_message));
 
         case EnforcementLevel::DETECT:
             // Same detection as HARD, but throws catchable std::runtime_error.
@@ -1329,7 +1348,7 @@ std::string GovernanceEngine::enforce(
                 {"line", std::to_string(checkLine())},
                 {"category", cat}
             });
-            throw std::runtime_error(violation_message);
+            throw std::runtime_error(shownWithGuidance(violation_message));
 
         case EnforcementLevel::APPROVAL_REQUIRED: {
             std::string approver_id;
@@ -1347,9 +1366,9 @@ std::string GovernanceEngine::enforce(
                 {"line", std::to_string(checkLine())},
                 {"category", cat}
             });
-            throw GovernanceHardError(violation_message +
+            throw GovernanceHardError(shownWithGuidance(violation_message +
                 "\n\n  This rule requires explicit approval.\n"
-                "  The project owner can provide a signed token.\n");
+                "  The project owner can provide a signed token.\n"));
         }
 
         case EnforcementLevel::SOFT:
@@ -1358,7 +1377,7 @@ std::string GovernanceEngine::enforce(
                 if (rules().require_override_reason && override_reason_.empty()) {
                     g_governance_hard_block = true;
                     emitRefusalAttestation(rule_name, level, "soft_missing_reason", violation_message);
-                    throw GovernanceHardError(violation_message);
+                    throw GovernanceHardError(shownWithGuidance(violation_message));
                 }
                 // Log override with provenance
                 if (!override_reason_.empty()) {
@@ -1403,10 +1422,11 @@ std::string GovernanceEngine::enforce(
                     {"line", std::to_string(checkLine())},
                     {"category", cat}
                 });
-                throw GovernanceHardError(soft_msg);
+                throw GovernanceHardError(shownWithGuidance(soft_msg));
             }
 
         case EnforcementLevel::ADVISORY: {
+            GuidanceTerminal advisory_guidance;
             // V-CONC-F7: mutex-guard emitted_advisories_ and score_yellow_warned_
             std::unique_lock<std::mutex> adv_lock(results_mutex_);
             int& occurrence = emitted_advisories_[rule_name];
@@ -1473,7 +1493,7 @@ std::string GovernanceEngine::enforce(
                     {"counted_sites", counted},
                     {"category", cat}
                 });
-                throw GovernanceHardError(escalation_msg);
+                throw GovernanceHardError(shownWithGuidance(escalation_msg));
             }
 
             if (occurrence == 1) {
@@ -1494,7 +1514,15 @@ std::string GovernanceEngine::enforce(
                     // fall to the occurrence-count branch below, which keeps a
                     // noisy advisory from burying the rest of the output.
                     if (!violation_message.empty()) {
-                        fprintf(stderr, "%s\n", violation_message.c_str());
+                        // Guidance is computed under results_mutex_ (it takes
+                        // only guidance_mutex_) and logged after the unlock.
+                        try {
+                            advisory_guidance = guidanceForTerminal(rule_name, violation_message);
+                        } catch (...) {
+                            advisory_guidance = GuidanceTerminal{};  // never alter the outcome
+                        }
+                        fprintf(stderr, "%s%s\n", violation_message.c_str(),
+                                advisory_guidance.suffix.c_str());
                     }
                 }
             } else if (esc.enabled) {
@@ -1521,6 +1549,8 @@ std::string GovernanceEngine::enforce(
                         top->first.c_str(), top->second);
                 }
             }
+            adv_lock.unlock();
+            try { emitGuidanceTerminal(advisory_guidance); } catch (...) {}
             return "";  // Don't block
         }
     }
@@ -2509,6 +2539,27 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
         }
     }
 
+    // Guidance sources (docs/plan-live-guidance.md) are text the engine hands
+    // to agents. If the governed program could write one, an agent's output
+    // could become its own future instructions -- a self-instruction loop the
+    // project owner ruled out. Refuse every program write to a declared
+    // source, at this one decision point, so file/io and embedded Python's
+    // open() are covered on both engines. Subprocess languages do not reach
+    // this gate (CONTRA-013); with shell enabled that is the operator's grant.
+    if (mode == "write" && isGuidanceSourcePath(canon_n)) {
+        return deny("guidance.sources", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Writing a project guidance file is blocked: " + filepath,
+                currentFunction().empty() ? std::string()
+                                          : ("in function '" + currentFunction() + "'"),
+                "the project's governance delivers this file to agents as guidance",
+                "A governed program cannot change the guidance its agents receive.\n"
+                "The operator edits this file outside the program; write your output to another file.",
+                "file.write(\"" + filepath + "\", text)",
+                "file.write(\"output/notes.md\", text)"),
+            "guidance source is not writable by the program: " + filepath);
+    }
+
     // Policy entries are resolved by resolvePolicyPath(), which the reload
     // ratchet also uses.
     auto canonAndNorm = [this](const std::string& p) { return resolvePolicyPath(p); };
@@ -2957,16 +3008,12 @@ std::string GovernanceEngine::checkDangerousCall(
     return "";
 }
 
-std::string GovernanceEngine::checkSecrets(
-    const std::string& code, int line) {
-    clearTrace();
-
-    if (!rules().no_secrets) return "";
-
-    // SECRET_PATTERNS is constant — compile once. This runs on every agent
-    // prompt, response, and tool argument, so per-call compilation is the
-    // hottest regex cost on the agent path.
-    static const std::vector<std::pair<size_t, std::regex>> compiled_secret_patterns = [] {
+// SECRET_PATTERNS is constant — compile once. This runs on every agent
+// prompt, response, and tool argument, so per-call compilation is the
+// hottest regex cost on the agent path. Shared by checkSecrets() and the
+// decide-only secretFinding(), so both make the same decision.
+static const std::vector<std::pair<size_t, std::regex>>& compiledSecretPatterns() {
+    static const std::vector<std::pair<size_t, std::regex>> compiled = [] {
         std::vector<std::pair<size_t, std::regex>> out;
         for (size_t i = 0; i < SECRET_PATTERNS.size(); ++i) {
             try {
@@ -2978,6 +3025,30 @@ std::string GovernanceEngine::checkSecrets(
         }
         return out;
     }();
+    return compiled;
+}
+
+// The description of the first secret checkSecrets() would act on, or "".
+// Never enforces and records nothing: for callers that WITHHOLD content rather
+// than block the run (guidance text). Same switch as checkSecrets().
+std::string GovernanceEngine::secretFinding(const std::string& text) const {
+    if (!rules().no_secrets) return "";
+    for (const auto& [pat_idx, compiled_re] : compiledSecretPatterns()) {
+        try {
+            if (std::regex_search(text, compiled_re)) return SECRET_PATTERNS[pat_idx].description;
+        } catch (const std::regex_error&) {
+        }
+    }
+    return "";
+}
+
+std::string GovernanceEngine::checkSecrets(
+    const std::string& code, int line) {
+    clearTrace();
+
+    if (!rules().no_secrets) return "";
+
+    const auto& compiled_secret_patterns = compiledSecretPatterns();
 
     for (const auto& [pat_idx, compiled_re] : compiled_secret_patterns) {
         const auto& pattern = SECRET_PATTERNS[pat_idx];

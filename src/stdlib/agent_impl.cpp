@@ -1549,6 +1549,24 @@ static NaabVal agentExtractCode(std::vector<NaabVal>& args) {
 // agent.send(handle, message) → response dict
 // ============================================================================
 
+// Live guidance: a drift signal that PAID a penalty on a turn CDD actually
+// analysed queues `signal:<key>` guidance for the handle's next send. Gated on
+// `analyzed` because an interval-skipped turn re-shows the previous turn's
+// stale per-signal state (CDD_TURN analyzed:false). Keys are the govern.json
+// config names (kCddSignalKeys), which differ from telemetry labels for S1-S7.
+static void queueSignalGuidance(governance::GovernanceEngine* gov_engine, int handle_id,
+                                const std::string& config_name, bool analyzed) {
+    if (!analyzed || !gov_engine || !gov_engine->guidanceEnabled()) return;
+    auto ds = gov_engine->getDriftState(handle_id);
+    if (!ds) return;
+    for (int i = 0; i < governance::NUM_CDD_SIGNALS; i++) {
+        if (ds->last_turn_penalties[i] > 0.0) {
+            gov_engine->guidanceOnAgentTrigger(handle_id, config_name, "signal",
+                                               governance::kCddSignalKeys[i], {});
+        }
+    }
+}
+
 static NaabVal agentSend(std::vector<NaabVal>& args) {
     if (args.size() < 2) {
         throw std::runtime_error(
@@ -1614,6 +1632,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // this is assigned at the single point where the response arrives and read
     // unchanged by both emitters.
     int turn_at_request = -1;
+
+    // Live guidance delivered with THIS send (docs/plan-live-guidance.md):
+    // filled at the injection site, reported in the response dict.
+    std::vector<governance::GuidanceDelivery> guidance_delivered;
 
     // Transcript: accumulate per-turn data, write once at end
     auto* gov_for_transcript = governance::GovernanceEngine::getCurrent();
@@ -2723,6 +2745,48 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         extractKeywords(message, prompt_kw);
         if (!prompt_kw.empty()) {
             gov_engine->setTurnPromptKeywords(handle_id, prompt_kw);
+        }
+    }
+
+    // ── Live guidance (docs/plan-live-guidance.md) ──
+    // Queued by triggers observed since this handle's last send (a paid drift
+    // signal, a failed validation) plus `start` rules on turn 0. Same ephemeral
+    // pattern as the injection below: prepended to the request's last user
+    // message, never stored in history, and placed AFTER the prompt scan and
+    // the S13/S20 keyword extraction above, so guidance is never scored as the
+    // user's instruction. Prepended BEFORE the mandate block runs, so a task
+    // reminder (when one fires) still leads the message.
+    if (gov_engine && gov_engine->guidanceEnabled() && !messages_json.empty() &&
+        messages_json.back().contains("content") && messages_json.back()["content"].is_string()) {
+        std::unordered_set<std::string> start_kw;
+        if (current_turn == 0 && config && !config->system_prompt.empty()) {
+            extractKeywords(config->system_prompt, start_kw);
+        }
+        // A guidance failure must not fail the send: drop the guidance only.
+        // GovernanceHardError is rethrown by convention, though guidance never
+        // enforces.
+        try {
+            guidance_delivered = gov_engine->guidanceForSend(handle_id, config_name, current_turn, start_kw);
+        } catch (const governance::GovernanceHardError&) {
+            throw;
+        } catch (const std::exception& e) {
+            guidance_delivered.clear();
+            fprintf(stderr, "[governance] Warning: guidance skipped for this send: %s\n", e.what());
+        }
+        if (!guidance_delivered.empty()) {
+            std::string original = messages_json.back()["content"].get<std::string>();
+            messages_json.back()["content"] =
+                governance::GovernanceEngine::formatGuidance(guidance_delivered) + "\n\n" + original;
+            if (transcript_active) {
+                nlohmann::json gl = nlohmann::json::array();
+                for (const auto& d : guidance_delivered) {
+                    gl.push_back({{"trigger", d.trigger}, {"source", d.source}, {"file", d.file},
+                                  {"section", d.section}, {"heading", d.heading},
+                                  {"select", d.select}, {"score", d.score},
+                                  {"sha256", d.sha256}, {"text", d.text}});
+                }
+                transcript_entry["guidance"] = gl;
+            }
         }
     }
 
@@ -4584,6 +4648,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         std::string drift_err = gov_engine->checkContextDrift(
             handle_id, event_turn, cdd_error);
         const bool cdd_analyzed = gov_engine->cddAnalysisSeq(handle_id) != cdd_seq_before;
+        queueSignalGuidance(gov_engine, handle_id, config_name, cdd_analyzed);
         // CDD_TURN: emit BEFORE potential throw so it's always in the audit trail
         {
             auto drift_state = gov_engine->getDriftState(handle_id);
@@ -5238,6 +5303,24 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             std::max(0, config->max_tool_calls_per_turn - tool_calls_this_send));
         result["tool_loop_exit_reason"] = NaabVal::makeString(tool_loop_exit_reason);
         result["tool_loop_final_turn"] = NaabVal::makeString(tool_loop_final_turn);
+    }
+
+    // Live guidance this send carried (docs/plan-live-guidance.md). Present only
+    // when the feature is on, so the response of every other config is
+    // unchanged; the TEXT is in the transcript, not here.
+    if (gov_engine && gov_engine->guidanceEnabled()) {
+        std::vector<NaabVal> gl;
+        for (const auto& d : guidance_delivered) {
+            std::unordered_map<std::string, NaabVal> gd;
+            gd["trigger"] = NaabVal::makeString(d.trigger);
+            gd["source"] = NaabVal::makeString(d.source);
+            gd["section"] = NaabVal::makeString(d.section);
+            gd["heading"] = NaabVal::makeString(d.heading);
+            gd["chars"] = NaabVal::makeInt(static_cast<int64_t>(d.text.size()));
+            gd["sha256"] = NaabVal::makeString(d.sha256);
+            gl.push_back(NaabVal::makeDict(std::move(gd)));
+        }
+        result["guidance"] = NaabVal::makeList(std::move(gl));
     }
 
     // Reality checkpoint: add pressure data if checkpoint fired at ADVISORY
@@ -6101,6 +6184,9 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
         const unsigned long long cdd_seq_before = gov_engine->cddAnalysisSeq(handle_id);
         std::string drift_err = gov_engine->checkContextDrift(handle_id, event_turn, "");
         const bool cdd_analyzed = gov_engine->cddAnalysisSeq(handle_id) != cdd_seq_before;
+        // A committed proposal is a turn like a send: its paid signals queue
+        // guidance for the handle's next send.
+        queueSignalGuidance(gov_engine, handle_id, config_name, cdd_analyzed);
         {
             auto drift_state = gov_engine->getDriftState(handle_id);
             if (drift_state) {
@@ -7336,6 +7422,14 @@ static NaabVal agentRecordValidation(std::vector<NaabVal>& args) {
         // looking like a recorded pass that CDD then ignored.
         applied = gov_engine->recordValidationOutcome(handle_id, passed, detail_keywords,
                                                       evidence_count);
+        // Live guidance: a failed validation queues `validation_failed`
+        // guidance for this handle's next send; the detail's keywords pick the
+        // section when a rule selects by keyword. The detail can steer WHICH
+        // operator-written section is chosen, never what it says.
+        if (!passed) {
+            gov_engine->guidanceOnAgentTrigger(handle_id, config_name, "validation_failed",
+                                               "", detail_keywords);
+        }
         if (gov_engine->getRules().telemetry_output.enabled) {
             gov_engine->writeAgentTelemetry("VALIDATION_RECORDED", {
                 {"handle_id",       std::to_string(handle_id)},
