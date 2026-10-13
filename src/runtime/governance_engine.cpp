@@ -7,6 +7,7 @@
 //   ADVISORY  - Warn only. Execution continues.
 
 #include "naab/governance.h"
+#include "naab/host_match.h"
 #include "naab/language_descriptors.h"
 #include "naab/path_policy.h"
 #include "naab/env_policy.h"
@@ -879,6 +880,10 @@ bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
                 }
             }
 
+            // Guidance connectors: the first fetch of every https/command
+            // source, before the program runs (a no-op outside `naab-lang run`).
+            startGuidanceSources(/*initial_load=*/true);
+
             return true;
         }
 
@@ -929,6 +934,27 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
     {
         const std::string home = naab::paths::home();
         addProtectedPath(home + "/.naab/trusted-keys");
+    }
+    // The credential an https guidance source sends (its auth_env variable) is
+    // withheld from the program like a blocked_read entry -- from env.get, the
+    // listing calls, child processes and embedded Python's os.environ, the
+    // places blocked_read already reaches -- so the program cannot use the
+    // operator's credential to write the guidance it is fed. Grow-only for the
+    // run: a reload that drops the source keeps the name withheld, so it never
+    // reads as a ratchet loosening of blocked_read. Limits: audit mode does not
+    // enforce blocked_read, and a <<sh>> block under elevated with shell on can
+    // read the process environment file (A32, CONTRA-013).
+    for (const auto& s : target_rules.guidance.sources) {
+        if (s.type == "https" && !s.auth_env.empty() &&
+            std::find(protected_env_names_.begin(), protected_env_names_.end(), s.auth_env) ==
+                protected_env_names_.end()) {
+            protected_env_names_.push_back(s.auth_env);
+        }
+    }
+    auto& blocked_read = target_rules.capabilities.env_vars.blocked_read;
+    for (const auto& name : protected_env_names_) {
+        if (std::find(blocked_read.begin(), blocked_read.end(), name) == blocked_read.end())
+            blocked_read.push_back(name);
     }
 }
 
@@ -1894,6 +1920,30 @@ std::string GovernanceEngine::checkNetworkAllowed() {
         if (!ferr.empty()) return ferr;
     }
     recordPass("capabilities.network", EnforcementLevel::HARD);
+    return "";
+}
+
+// Decide-only network policy for a connection the ENGINE makes on the
+// operator's behalf (a guidance connector fetch). The same rules a program's
+// connection meets -- enabled, https_only, blocked/allowed hosts through the
+// sandbox's own matcher (naab/host_match.h), allowed ports -- read from the
+// LIVE rules, so a reload that tightens the policy stops the next fetch. Never
+// enforces, records nothing, never throws: a guidance source the policy
+// forbids is not fetched, it does not block the run. The per-agent and
+// function-scope tiers do not apply -- no agent role or program function is on
+// the stack of a background fetch.
+std::string GovernanceEngine::networkPolicyDenial(const std::string& host, int port, bool https) const {
+    const auto rules_hold = rulesPtr();
+    const auto& r = *rules_hold;
+    const auto& n = r.capabilities.network;
+    if (!r.network_allowed || !n.enabled) return "the project's network policy disables network access";
+    if (n.https_only && !https) return "the project's network policy requires https";
+    if (naab::net::hostMatchesAny(host, n.blocked_hosts)) return "the project's network policy blocks this host";
+    if (!n.allowed_hosts.empty() && !naab::net::hostMatchesAny(host, n.allowed_hosts))
+        return "this host is not among the hosts the project's network policy allows";
+    if (!n.allowed_ports.empty() &&
+        std::find(n.allowed_ports.begin(), n.allowed_ports.end(), port) == n.allowed_ports.end())
+        return "this port is not among the ports the project's network policy allows";
     return "";
 }
 

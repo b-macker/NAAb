@@ -2,6 +2,7 @@
 // Capability-based access control and resource isolation
 
 #include "naab/sandbox.h"
+#include "naab/host_match.h"
 #include "naab/paths.h"
 #include "naab/platform.h"
 #include "naab/audit_logger.h"
@@ -258,20 +259,10 @@ bool Sandbox::canConnect(const std::string& host, int port) const {
     // to know which list a name is on to predict how it is matched.
     // Case-insensitive per RFC 1035, with subdomain matching on a dot boundary
     // so "example.com" covers "api.example.com" but never "notexample.com".
-    auto host_eq = [](const std::string& a, const std::string& b) -> bool {
-        if (a.size() != b.size()) return false;
-        for (size_t i = 0; i < a.size(); i++) {
-            if (std::tolower(static_cast<unsigned char>(a[i])) !=
-                std::tolower(static_cast<unsigned char>(b[i]))) return false;
-        }
-        return true;
-    };
-    auto host_matches = [&host_eq](const std::string& h, const std::string& pattern) {
-        if (pattern.empty()) return false;   // an empty entry matches nothing
-        return host_eq(h, pattern) ||
-               (h.size() > pattern.size() &&
-                h[h.size() - pattern.size() - 1] == '.' &&
-                host_eq(h.substr(h.size() - pattern.size()), pattern));
+    // The matcher itself lives in naab/host_match.h so the guidance connectors
+    // (GovernanceEngine::networkPolicyDenial) use the same rule, not a copy.
+    auto host_matches = [](const std::string& h, const std::string& pattern) {
+        return naab::net::hostMatchesPattern(h, pattern);
     };
 
     // Blocked first, and it WINS over the allowlist. Same asymmetry the path

@@ -192,14 +192,14 @@ that withholds a random fraction of deliveries on live runs. Slice 2.
    write protection first -- it is not auto-protected today, traced in
    `addGovernanceProtectedPaths()`, and the hash chain is unkeyed, so it detects
    edits but not a correctly chained forged append).
-3. **Connectors**: read-only parameter-bound `sqlite` (**built**, second PR); a `command` adapter (hook
-   machinery plus stdout capture and containment); an `mcp` stdio client;
-   `https`. External sources must pass `capabilities.network` (allowed/blocked
-   hosts, https_only) -- *decided 2026-10-12* -- stricter than the telemetry
-   webhook, which does not consult it (screened: `telemetry_forwarder.cpp` has
-   no host-policy reference). Only declared fields leave the machine, scanned
-   first. Slow sources prefetch between turns with a hard deadline at send time;
-   the terminal channel uses only cached content.
+3. **Connectors**: read-only parameter-bound `sqlite` (**built**, second PR);
+   `https` and a `command` adapter (**built**, third PR -- see "Connectors,
+   slice 3a" below, which also records where the built design departs from
+   this line); an `mcp` stdio client (next). External https sources must pass
+   `capabilities.network` (allowed/blocked hosts, https_only) -- *decided
+   2026-10-12* -- stricter than the telemetry webhook, which does not consult
+   it (screened: `telemetry_forwarder.cpp` has no host-policy reference). A
+   command source does NOT -- *decided 2026-10-13*, below.
 4. **Outward**: a `naab_guidance` tool on `naab-lang mcp`.
 
 ## Alignment review after slice 1 (2026-10-12, #309 merged as `76c9617e`)
@@ -358,6 +358,133 @@ and M-10 fail -- the first draft's M-01, M-03 and M-06 had passed through
 keyword overlap instead, which is why M-01 now asserts `"select":"name"` and
 M-10 was added; with the database change signature ignored, M-06 (a row added
 mid-run reaching the next request and not the one before) fails.
+
+## Connectors, slice 3a (third PR): `https` and `command`
+
+**What a config says.** An https URL is a plain string in `sources`
+(`"https://kb.example.com/guidance.json"`); an object adds `auth_env`,
+`refresh_seconds`, `timeout_ms`, `name`. A command source is an object whose
+`command` is the program and its arguments (`{"command": ["scripts/export.sh"]}`;
+a bare name is looked up on PATH, a relative path is project-relative).
+`guidance.initial_fetch_ms` (default 1500) bounds the first fetch at load. The
+document either returns is JSON rows in the database shape (`[{"topic", "body"}]`
+or `{"guidance": [...]}`, the same column names a `.db` source reads -- one
+helper, `appendRowSection()`, serves both) or, failing that, markdown split at
+its headings. Routing, budgets and channels are exactly those of a file source.
+
+**Where the built design departs from the slice-3 line above, and why.** The
+line said "only declared fields leave the machine" and "slow sources prefetch
+between turns with a hard deadline at send time". Tracing the first design
+against the code found two holes in that shape: `governance.guidance(topic)`
+passes the program's string straight through (traced), so any per-query field
+sent to a source is program input crossing to an operator process or a remote
+host; and `env.set` changes the real process environment (traced), so a fetch
+reading proxy, CA or credential variables at fetch time can be steered by the
+program. The built design closes both by construction rather than by scanning:
+a connector source is fetched **whole**, in the background, into a cache, and
+selected locally exactly as a file is -- **nothing from the run is sent to
+it** -- and every variable a fetch or command uses comes from a snapshot of the
+environment taken once, before the program runs. A first fetch happens at load
+(bounded by `initial_fetch_ms`) so a violation found by the static checks
+already has its guidance; after that the refresh is a background thread, so no
+send and no `enforce()` ever waits on the network. Fetching runs only in
+`naab-lang run` (never `naab-gov`, `--lint-only`, or the in-process REST/REPL
+paths, which warn once that the source is fetched only when a program runs).
+
+**Decision A (owner-approved design review, 2026-10-13) -- a command source runs like a hook.** "Treat
+a command source like a hook. It runs with operator authority, receives nothing
+from the run, and is NOT gated on capabilities.network.enabled." So it runs
+with the shell and network disabled for the program (C-11), gets empty stdin and
+the load-time environment (C-12), cannot see NAAb's own signing/lock keys,
+has every inherited descriptor from 3 to 4095 closed, runs in its own process
+group killed whole at `timeout_ms` (C-13), and on Linux dies with NAAb
+(`PR_SET_PDEATHSIG`).
+Because host lists cannot bind a separate process, a note is printed when a
+command source sits beside `allowed_hosts`/`blocked_hosts` (C-17).
+
+**Decision B (same review) -- intranet addresses.** An https source is held to
+the live network policy on every fetch (`networkPolicyDenial()`, decide-only,
+the same host matcher the sandbox uses -- `naab/host_match.h`, extracted so the
+two cannot drift), plain http only to loopback, redirects never followed (C-07,
+the #229 F43 lesson). Private (RFC 1918) addresses are ALLOWED -- an intranet
+knowledge base is the main enterprise case -- while link-local and the cloud
+metadata endpoints 169.254.169.254, 100.100.100.200, 168.63.129.16 and
+fd00:ec2::254 are refused on the address the socket actually opens (libcurl's
+open-socket callback, so DNS cannot change between a check and the connect).
+**Through a proxy** that socket is the proxy's, so the check would see the
+proxy and never the source: the source's address is checked first by a probe
+that resolves the name with libcurl and refuses every candidate at the socket
+(nothing but a DNS query leaves the machine). Found because this container
+routes https through a proxy -- C-08 failed with "Failure when receiving data
+from the peer" before the probe existed; C-08x pins it with a recording proxy
+whose log must show the private-address control and none of the metadata
+addresses. Proxy and CA bundle are set explicitly from the snapshot, so the
+program's `env.set("HTTPS_PROXY", ...)` cannot route a fetch, credential
+included (C-10). `auth_env` is sent as a bearer token and its name is added to
+`env_vars.blocked_read` for the rest of the run, grow-only (C-09).
+
+**One fetcher per process.** A run can hold several engines that loaded the
+same govern.json: under `--tree-walk` the CLI's engine (preflight, intent,
+agent review) and the interpreter's own, plus one per tree-walker async
+interpreter. The first build gave each its own fetcher, so a command source
+ran once per engine -- observed in the self-review pass after the suite was
+green: twice per `--tree-walk` run, once on the VM. Every such engine now
+attaches to one fetcher per config file (a process registry), and a fetch is
+refused when ANY attached engine's live policy refuses it. "The first engine
+owns it" would have been a loosening: under `--tree-walk` the first engine is
+the CLI's, which never reloads, so a tightening reload on the engine running
+the program would have gone unheeded (revert-checked: judging by the first
+engine alone, C-24 fails on the tree-walker with the copy still delivered).
+Engine pointers are dereferenced only under a short lock that detach also
+takes. Stress smoke (one sample per engine, not a proof of race-freedom): 96
+async interpreters attaching and detaching across two refreshes, exit 0, the
+command run once per load or refresh.
+
+**Evidence.** `tests/governance_v4/test_guidance_connectors.sh`, 25 arms, every
+one paired with a success or a control. Revert check (observed, three batches,
+each mechanism removed and the suite re-run): proxy probe -> C-08x; redirects
+followed -> C-07; credential not withheld -> C-09; size cap -> C-19; the
+`naab-gov` guard -> C-18; open-socket address check -> C-08; network policy ->
+C-04/C-05/C-06; live-environment proxy -> C-10; live-environment command ->
+C-12; single-pid kill -> C-13; failed refresh drops the copy -> C-15; initial
+fetch -> C-03; query string in telemetry -> C-21; exit status ignored -> C-14;
+policy judged by the first attached engine only -> C-24 (tree-walker). C-23
+(one run per process) was red on the build before the registry, tree-walker
+2 runs against the VM's 1.
+The revert check found two arms that could not fail and they were rebuilt
+before anything shipped: C-18 called `naab-gov check p.naab`, a usage error
+that exited before loading any config (it now runs `naab-gov lint` on a
+program the config blocks, so exit 3 proves the config was loaded); C-03 used
+an instant loopback source, which the background thread fetched before the
+static checks ran even with the load-time fetch removed (it now answers after
+400 ms). Dead interpreter: 0 of 25 pass.
+
+**MCP, measured** (configured: loopback sources, this container's unoptimised
+build, `naab_run` through `naab-lang mcp`, n=7 per row): no source 34-54 ms;
+a fast https source 34 ms, delivered 7/7; a command source 39 ms, 7/7; a source
+that answers after 3 s 1540 ms, **delivered 0/7**. Every MCP call is a fresh
+worker, so nothing is cached across calls: the per-call cost is the fetch time,
+bounded by `initial_fetch_ms`, and a source slower than that budget costs every
+call the full budget and never delivers (the worker does warn: "was not
+fetched: it took longer than 1500 ms"). An MCP-server-held cache is the
+follow-up if that matters in practice.
+
+**Known limits** (each is the operator's grant or an existing documented
+boundary, not new reach for the program):
+- A command source can read files the program wrote: it runs with the
+  operator's authority, like a hook, and path policy does not reach a separate
+  process. It receives nothing from the run directly.
+- `auth_env` is withheld from `env.get()` and from child processes the program
+  starts only where `blocked_read` is enforced: audit mode leaves it, and with
+  shell enabled a `<<sh>>` block can read the process environment file (A32,
+  CONTRA-013).
+- Through a proxy, a name the proxy resolves differently from this machine is
+  outside what the engine can see; literal addresses are exact. Name-to-metadata
+  resolution is not separately measured (the arms use literal addresses).
+- Windows: command sources are refused at load; the https path compiles there
+  but the suite is UNMEASURABLE on that runner (no loopback server).
+- A refused fetch (policy) drops the cached copy; a failed or timed-out one keeps
+  the last good copy and says so (C-15).
 
 ## Known limits, slice 1
 
