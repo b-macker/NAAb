@@ -1672,6 +1672,7 @@ if(HAVE_GOOGLETEST)
         tests/unit/ffi_async_callback_test.cpp  # Phase 1 Item 10 Day 4: FFI async callback safety tests
         tests/unit/polyglot_async_test.cpp  # Phase 1 Item 10 Day 5: Polyglot async integration tests
         tests/unit/inline_code_cache_test.cpp  # cache files are installed atomically (fork + reader)
+        tests/unit/net_proxy_snapshot_test.cpp  # agent/telemetry proxy+CA fixed at load, not live env
     )
 
     # Link GoogleTest and NAAb libraries

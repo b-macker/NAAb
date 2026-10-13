@@ -2,6 +2,7 @@
 // Extracted from governance.cpp lines 1-1727
 
 #include "naab/loopback_url.h"
+#include "naab/net_proxy_snapshot.h"
 #include "naab/language_descriptors.h"
 #include "naab/env_policy.h"
 #include "naab/path_policy.h"
@@ -690,6 +691,11 @@ static void reconcileCodeQualityMirrors(GovernanceRules& r) {
 }
 
 static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
+    // Fix the outbound-TLS environment (proxy, CA bundle) the agent and
+    // telemetry curl sites use, before any program statement can env.set it.
+    // call_once: the first (startup) load captures; a later reload is a no-op,
+    // which is correct -- a reload runs after user code. See net_proxy_snapshot.h.
+    naab::net::captureProxyCaSnapshotOnce();
 #ifdef NAAB_CONFIG_MUTATION
     loadFromJsonImpl(applySettingDrop(j), rules_);
 #else
