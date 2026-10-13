@@ -1527,14 +1527,16 @@ int gfProbeXfer(void* ud, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
     return (c->stopping && c->stopping->load()) ? 1 : 0;
 }
 
-bool guidanceSourceAddressForbidden(const std::string& url, bool https, int timeout_ms,
+bool guidanceSourceAddressForbidden(const std::string& url, int timeout_ms,
                                     const std::atomic<bool>& stopping) {
     CURL* c = curl_easy_init();
     if (!c) return false;
     GProbeCtx ctx;
     ctx.stopping = &stopping;
     curl_easy_setopt(c, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(c, CURLOPT_PROTOCOLS_STR, https ? "https" : "http");
+    // Same form as agent_provider.cpp: plain http only for a loopback URL.
+    curl_easy_setopt(c, CURLOPT_PROTOCOLS_STR,
+                     naab::net::isLoopbackHttpUrl(url) ? "http,https" : "https");
     curl_easy_setopt(c, CURLOPT_PROXY, "");          // resolve the SOURCE, not the proxy
     curl_easy_setopt(c, CURLOPT_CONNECT_ONLY, 1L);
     curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);
@@ -1600,7 +1602,10 @@ FetchResult fetchHttps(const GuidanceDenialFn& policyDenial, const GuidanceSourc
     ctx.cap = cap;
     ctx.stopping = &stopping;
     curl_easy_setopt(c, CURLOPT_URL, src.url.c_str());
-    curl_easy_setopt(c, CURLOPT_PROTOCOLS_STR, https ? "https" : "http");
+    // Plain http reaches here only for a loopback URL (refused above
+    // otherwise); the same form agent_provider.cpp uses.
+    curl_easy_setopt(c, CURLOPT_PROTOCOLS_STR,
+                     naab::net::isLoopbackHttpUrl(src.url) ? "http,https" : "https");
     curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 0L);   // #229 F43: a redirect skips the host checks
     curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(c, CURLOPT_TIMEOUT_MS, static_cast<long>(timeout_ms));
@@ -1622,7 +1627,7 @@ FetchResult fetchHttps(const GuidanceDenialFn& policyDenial, const GuidanceSourc
     // With a proxy (even one NO_PROXY may bypass for this host -- checking
     // twice costs one DNS query), the source's address is checked before any
     // request; see guidanceSourceAddressForbidden().
-    if (!proxy.empty() && guidanceSourceAddressForbidden(src.url, https, timeout_ms, stopping)) {
+    if (!proxy.empty() && guidanceSourceAddressForbidden(src.url, timeout_ms, stopping)) {
         curl_easy_cleanup(c);
         return {"refused", "its address is a cloud metadata or link-local address", ""};
     }
