@@ -37,6 +37,10 @@ guidance.sources.<sname>.path
 guidance.sources.<sname>.query
 guidance.sources.<sname>.timeout_ms
 guidance.sources.<sname>.type
+guidance.sources.<sname>.url
+guidance.sources.<sname>.command
+guidance.sources.<sname>.auth_env
+guidance.sources.<sname>.refresh_seconds
 output.quiet
 restrictions.no_hardcoded_results.enabled
 restrictions.no_hardcoded_results.level

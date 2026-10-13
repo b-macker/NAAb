@@ -1751,9 +1751,13 @@
       "data/guidance.db",
       { "path": "data/knowledge.db", "name": "knowledge", "type": "sqlite",
         "query": "SELECT heading, body FROM docs_fts WHERE docs_fts MATCH :keywords_or ORDER BY rank LIMIT 3",
-        "max_rows": 50, "timeout_ms": 250 }
+        "max_rows": 50, "timeout_ms": 250 },
+      { "url": "https://kb.example.internal/guidance.json", "auth_env": "KB_TOKEN", "refresh_seconds": 60, "timeout_ms": 2000 },
+      { "command": ["scripts/export-guidance.sh"], "name": "exported", "refresh_seconds": 60, "timeout_ms": 2000 }
     ],
+    "_comment_connectors": "An https:// URL (a plain string is enough) or a command is fetched WHOLE in the background and cached; sections are selected locally and nothing from the run is sent to it. The document is JSON rows in the database shape ([{\"topic\": ..., \"body\": ...}] or {\"guidance\": [...]}) or, failing that, markdown split at its headings. Fetched only by naab-lang run (never by naab-gov or --lint-only); the first fetch waits up to initial_fetch_ms at load, then refresh_seconds (minimum 5) re-fetches it, and a failed refresh keeps the last good copy. HTTPS: held to capabilities.network on every fetch (enabled, host lists, https_only); plain http only to a loopback host; redirects are not followed; link-local addresses and the cloud metadata endpoints 169.254.169.254, 100.100.100.200, 168.63.129.16 and fd00:ec2::254 are refused (through a proxy, as this machine resolves the name); private addresses are allowed. Proxy and CA bundle come from the environment at load, so the program cannot redirect a fetch. auth_env names a variable sent as a bearer token and is added to env_vars.blocked_read, so the program cannot env.get it -- audit mode does not enforce blocked_read, and with shell enabled a <<sh>> block can read the process environment file. COMMAND (an object; command is the program and its arguments -- a bare name is looked up on PATH, a relative path is project-relative): runs like a hook with the operator's authority -- empty stdin, the environment from load time, killed together with what it started at timeout_ms -- and is NOT bound by the project's network or host lists, and can read files the program wrote. Not supported on Windows in this build.",
     "_comment_optional": "Everything below is optional, shown at its default. Without rules the engine routes by itself (above); rules pin a section to a trigger instead.",
+    "initial_fetch_ms": 1500,
     "max_chars_per_turn": 1500,
     "max_chars_terminal": 800,
     "max_source_kb": 256,

@@ -2511,6 +2511,21 @@ else
     echo "  test_guidance_minimal.sh: not found, skipping"
 fi
 
+# Live guidance from an https URL or an operator command: fetched whole in the
+# background, held to capabilities.network (metadata/link-local refused, no
+# redirects, load-time proxy), credential withheld, command run like a hook.
+GUIDANCE_CONN_SCRIPT="tests/governance_v4/test_guidance_connectors.sh"
+if [ -f "$GUIDANCE_CONN_SCRIPT" ]; then
+    if run_shell_test "$GUIDANCE_CONN_SCRIPT" 2>&1; then
+        echo "  test_guidance_connectors.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_guidance_connectors.sh")
+    fi
+else
+    echo "  test_guidance_connectors.sh: not found, skipping"
+fi
+
 # The file-protection gate must see the file a write actually lands on:
 # file.copy into a directory, and the embedded-Python rename/link/remove family.
 PWROUTES_SCRIPT="tests/governance_v4/test_protected_write_routes.sh"

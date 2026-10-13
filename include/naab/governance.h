@@ -1202,14 +1202,23 @@ struct HooksConfig {
 
 struct GuidanceSourceConfig {
     std::string name;
-    std::string type = "file";   // "file" (markdown) | "sqlite"
+    std::string type = "file";   // "file" (markdown) | "sqlite" | "https" | "command"
     std::string path;            // project-relative, resolved like policy paths
     // sqlite: one read-only SELECT. Column 1 = heading, column 2 = text.
     // Trigger values are BOUND as parameters, never interpolated: :kind :arg
     // :agent :topic :keywords :keywords_or (any subset may appear).
     std::string query;
     int max_rows = 50;           // rows read per query
-    int timeout_ms = 250;        // a query running longer is interrupted
+    int timeout_ms = 250;        // sqlite: query deadline; https/command: fetch deadline
+                                 // (the loader defaults it to 2000 for those)
+    // Connectors (docs/plan-live-guidance.md, "Connectors, slice 3a"). An
+    // external source is fetched WHOLE in the background into a cache and
+    // selected locally: nothing from the run is ever sent to it.
+    std::string url;                    // https: the document's URL
+    std::vector<std::string> command;   // command: argv, run with the operator's authority
+    std::string auth_env;               // https: env var holding a bearer token; the
+                                        // program may not read it (added to blocked_read)
+    int refresh_seconds = 60;           // https/command: background refresh interval
 };
 
 struct GuidanceRuleConfig {
@@ -1235,6 +1244,11 @@ struct GuidanceConfig {
     int max_chars_terminal = 800;    // terminal channel, per block message
     int max_source_kb = 256;         // per source file
     int cooldown_turns = 3;          // same section not re-sent to a handle within N turns
+    // Connectors: the first fetch of every https/command source happens before
+    // the program runs, so a violation found at load already has its guidance.
+    // This bounds that wait for all of them together (ms); refreshes after it
+    // run in the background and never delay the program.
+    int initial_fetch_ms = 1500;
     std::vector<GuidanceSourceConfig> sources;
     std::vector<GuidanceRuleConfig> rules;
     std::string rationale;
@@ -3304,6 +3318,28 @@ public:
     static std::string formatGuidance(const std::vector<GuidanceDelivery>& items);
     // Opaque outside governance_guidance.cpp.
     struct GuidanceState;
+    struct GuidanceFetcher;
+
+    // --- Guidance connectors (https / command sources) ---
+    // Only a process that RUNS programs fetches external sources: `naab-lang
+    // run` turns this on before it loads governance (and takes the load-time
+    // environment snapshot the fetches use, so the program's env.set cannot
+    // steer them). naab-gov, the C API, the MCP server process and REST never
+    // fetch -- a static checker or a binding must not run operator commands.
+    static void allowExternalGuidance(bool on);
+    // Start, or reconfigure after an accepted reload, the background fetch of
+    // this config's https/command sources. With initial_load (discoverAndLoad)
+    // the first fetch happens before returning, bounded by
+    // guidance.initial_fetch_ms; after a reload it happens in the background.
+    // No-op unless allowExternalGuidance(true).
+    void startGuidanceSources(bool initial_load);
+    void stopGuidanceSources();
+    // Decide-only network policy for a connection the ENGINE makes on the
+    // operator's behalf (a guidance fetch): "" when allowed, else a reason.
+    // Same rules as the program's connections -- network.enabled, https_only,
+    // blocked_hosts/allowed_hosts (naab/host_match.h), allowed_ports -- but it
+    // never enforces, records nothing and never throws.
+    std::string networkPolicyDenial(const std::string& host, int port, bool https) const;
 
     // --- Telemetry ---
     void writeTelemetry() const;
@@ -4266,6 +4302,16 @@ private:
     // guidance_mutex_; shared_ptr so the type can stay incomplete here.
     std::shared_ptr<GuidanceState> guidance_state_;
     mutable std::mutex guidance_mutex_;
+    // Connector cache + background refresh thread. Lock order: guidance_mutex_
+    // may take the fetcher's own lock (to read the cache); the fetcher thread
+    // never takes guidance_mutex_ or results_mutex_, and does no I/O while
+    // holding its lock.
+    std::shared_ptr<GuidanceFetcher> guidance_fetcher_;
+    // Credential variables of https guidance sources seen this run. Grow-only:
+    // addGovernanceProtectedPaths() adds each to env_vars.blocked_read at load
+    // and every reload, so removing a source mid-run neither un-hides its
+    // credential nor reads as a ratchet loosening.
+    std::vector<std::string> protected_env_names_;
     // Terminal channel: the guidance section appended to a block message in
     // enforce(). Computed without telemetry (enforce()'s advisory branch holds
     // results_mutex_ while it prints; this takes only guidance_mutex_), and

@@ -1543,6 +1543,13 @@ int main(int argc, char** argv) {
 #endif
         }
 
+        // Guidance connectors (https / command sources) are fetched only by a
+        // process that runs a program: this is that process, and this is
+        // before any program code -- so the environment snapshot taken here is
+        // the operator's, not one the program's env.set changed. A lint-only
+        // run executes nothing and fetches nothing.
+        if (!lint_only) naab::governance::GovernanceEngine::allowExternalGuidance(true);
+
         naab::governance::GovernanceEngine shared_governance;
         auto gov_abs_file = std::filesystem::absolute(filename);
         auto gov_script_dir = gov_abs_file.parent_path();

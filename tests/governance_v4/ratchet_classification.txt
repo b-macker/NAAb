@@ -101,7 +101,7 @@ guidance.max_chars_terminal        neutral -- traced: a delivery budget (termina
 guidance.max_source_kb             neutral -- traced: caps how much of a source is read; no check reads it
 guidance.cooldown_turns            neutral -- traced: delivery frequency only
 guidance.sources.<sname>.path      neutral -- traced: which file is delivered; its read is gated by the filesystem policy at every load, and its write refusal follows the source (block comment)
-guidance.sources.<sname>.type      neutral -- traced: slice 1 reads "file" only; other types are dropped with a warning
+guidance.sources.<sname>.type      neutral -- traced: file | sqlite | https | command (inferred when absent); an unknown type is dropped with a warning
 guidance.rules.[].on               neutral -- traced: which event selects guidance; no enforcement reads it
 guidance.rules.[].from             neutral -- traced: which source/section is delivered
 guidance.rules.[].to               neutral -- traced: delivery channel (agent/terminal)
@@ -117,3 +117,19 @@ guidance.sources.[].type           neutral -- traced: list form; inferred from t
 guidance.sources.[].query          neutral -- traced: list form of guidance.sources.<sname>.query
 guidance.sources.[].max_rows       neutral -- traced: list form of guidance.sources.<sname>.max_rows
 guidance.sources.[].timeout_ms     neutral -- traced: list form of guidance.sources.<sname>.timeout_ms
+# Connectors (slice 3a). An https source is held to the LIVE capabilities.network
+# on every fetch (governance_guidance.cpp fetchHttps -> networkPolicyDenial), so
+# a reload that tightens the network policy stops the next refresh, and one that
+# changes the URL changes only which document is fetched under the same policy.
+# A command source is an operator program run like a hook: given nothing from
+# the run (empty stdin, the load-time environment), it hands the program only
+# text, so declaring one grants the program nothing; reloads are signed.
+guidance.sources.<sname>.url             neutral -- traced: which document is fetched; every fetch is judged against the live network policy
+guidance.sources.<sname>.command         neutral -- traced: an operator program run with operator authority, given nothing from the run; the program receives only its text
+guidance.sources.<sname>.auth_env        neutral -- traced: names a credential sent to the source; the name is ADDED to env_vars.blocked_read for the rest of the run (grow-only), never removed
+guidance.sources.<sname>.refresh_seconds neutral -- traced: how often the cached copy is refreshed (minimum 5 s); no check reads it
+guidance.sources.[].url                  neutral -- traced: list form of guidance.sources.<sname>.url
+guidance.sources.[].command              neutral -- traced: list form of guidance.sources.<sname>.command
+guidance.sources.[].auth_env             neutral -- traced: list form of guidance.sources.<sname>.auth_env
+guidance.sources.[].refresh_seconds      neutral -- traced: list form of guidance.sources.<sname>.refresh_seconds
+guidance.initial_fetch_ms                neutral -- traced: how long a run waits at load for its first fetch; what it does not cover is fetched in the background

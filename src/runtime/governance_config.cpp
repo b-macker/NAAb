@@ -125,6 +125,9 @@ GovernanceEngine::GovernanceEngine()
     : rules_ptr_(std::make_shared<GovernanceRules>()) {}
 
 GovernanceEngine::~GovernanceEngine() {
+    // Guidance connectors: stop and join the background fetcher first -- its
+    // thread reports through this engine's telemetry.
+    try { stopGuidanceSources(); } catch (...) {}
     // Flush telemetry forwarder before anything else
     if (telemetry_forwarder_) {
         telemetry_forwarder_->shutdown();
@@ -2623,38 +2626,90 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         readInt("max_chars_terminal", gc.max_chars_terminal, 0, 100000);
         readInt("max_source_kb", gc.max_source_kb, 1, 10240);
         readInt("cooldown_turns", gc.cooldown_turns, 0, 100000);
+        readInt("initial_fetch_ms", gc.initial_fetch_ms, 0, 30000);
         parseRationale(gj, gc.rationale);
 
         // The whole configuration can be the sources list (owner, 2026-10-12:
         // "should just be what source to add"):
-        //     "guidance": { "sources": ["docs/agent-playbook.md", "data/guidance.db"] }
-        // An entry is a path, or an object for the optional extras. The type
-        // comes from the extension (.db .sqlite .sqlite3 .db3 = sqlite, anything
-        // else a document). The name-keyed map #309 shipped is still read.
+        //     "guidance": { "sources": ["docs/agent-playbook.md", "data/guidance.db",
+        //                               "https://kb.example.com/guidance.json"] }
+        // An entry is a path or an https URL, or an object for the optional
+        // extras (a command source is always an object: it needs an argv). The
+        // type comes from the form: "https://" is an https source, an object
+        // with "command" a command source, otherwise the extension (.db .sqlite
+        // .sqlite3 .db3 = sqlite, anything else a document). The name-keyed map
+        // #309 shipped is still read.
+        auto isUrl = [](const std::string& v) {
+            return v.rfind("https://", 0) == 0 || v.rfind("http://", 0) == 0;
+        };
         auto addSource = [&](std::string sname, const nlohmann::json& sj) {
             GuidanceSourceConfig sc;
+            bool explicit_type = false, explicit_timeout = false;
             if (sj.is_string()) {
-                sc.path = sj.get<std::string>();
+                const std::string v = sj.get<std::string>();
+                if (isUrl(v)) sc.url = v; else sc.path = v;
             } else if (sj.is_object()) {
                 if (sj.contains("path") && sj["path"].is_string()) sc.path = sj["path"].get<std::string>();
+                if (sj.contains("url") && sj["url"].is_string()) sc.url = sj["url"].get<std::string>();
                 if (sj.contains("name") && sj["name"].is_string()) sname = sj["name"].get<std::string>();
-                if (sj.contains("type") && sj["type"].is_string()) sc.type = sj["type"].get<std::string>();
+                if (sj.contains("type") && sj["type"].is_string()) { sc.type = sj["type"].get<std::string>(); explicit_type = true; }
                 if (sj.contains("query") && sj["query"].is_string()) sc.query = sj["query"].get<std::string>();
                 if (sj.contains("max_rows") && sj["max_rows"].is_number_integer())
                     sc.max_rows = std::max(1, std::min(500, sj["max_rows"].get<int>()));
-                if (sj.contains("timeout_ms") && sj["timeout_ms"].is_number_integer())
+                if (sj.contains("timeout_ms") && sj["timeout_ms"].is_number_integer()) {
                     sc.timeout_ms = std::max(1, std::min(5000, sj["timeout_ms"].get<int>()));
+                    explicit_timeout = true;
+                }
+                if (sj.contains("command")) {
+                    if (sj["command"].is_array()) {
+                        for (const auto& a : sj["command"]) {
+                            if (!a.is_string()) { sc.command.clear(); break; }
+                            sc.command.push_back(a.get<std::string>());
+                        }
+                    }
+                    if (sc.command.empty() || sc.command[0].empty()) {
+                        warnG("a command source needs \"command\" as an array of strings "
+                              "(program first); ignored");
+                        return;
+                    }
+                }
+                if (sj.contains("auth_env") && sj["auth_env"].is_string()) sc.auth_env = sj["auth_env"].get<std::string>();
+                if (sj.contains("refresh_seconds") && sj["refresh_seconds"].is_number_integer())
+                    sc.refresh_seconds = std::max(5, std::min(86400, sj["refresh_seconds"].get<int>()));
             } else {
                 warnG("a source is neither a path nor an object; ignored");
                 return;
             }
-            if (sc.path.empty()) { warnG("source \"" + sname + "\" has no path; ignored"); return; }
-            if (!(sj.is_object() && sj.contains("type"))) {
-                std::string ext = std::filesystem::path(sc.path).extension().string();
-                for (auto& ch : ext) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-                sc.type = (ext == ".db" || ext == ".sqlite" || ext == ".sqlite3" || ext == ".db3") ? "sqlite" : "file";
+            if (!explicit_type) {
+                if (!sc.command.empty()) sc.type = "command";
+                else if (!sc.url.empty()) sc.type = "https";
+                else {
+                    std::string ext = std::filesystem::path(sc.path).extension().string();
+                    for (auto& ch : ext) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+                    sc.type = (ext == ".db" || ext == ".sqlite" || ext == ".sqlite3" || ext == ".db3") ? "sqlite" : "file";
+                }
             }
-            if (sname.empty()) sname = std::filesystem::path(sc.path).stem().string();
+            if (sname.empty()) {
+                if (sc.type == "https") {
+                    // The document's file name ("guidance" for .../guidance.json),
+                    // else the host.
+                    // Bounds-safe on any string: the URL is validated below.
+                    std::string rest = sc.url;
+                    const size_t colon = rest.find(':');
+                    if (colon != std::string::npos) rest.erase(0, colon + 1);
+                    while (!rest.empty() && rest.front() == '/') rest.erase(0, 1);
+                    const std::string host = rest.substr(0, rest.find_first_of("/?#"));
+                    const size_t slash = rest.find('/');
+                    std::string tail = slash == std::string::npos ? std::string() : rest.substr(slash + 1);
+                    tail = tail.substr(0, tail.find_first_of("?#"));
+                    sname = std::filesystem::path(tail).stem().string();
+                    if (sname.empty()) sname = host;
+                } else if (sc.type == "command") {
+                    sname = std::filesystem::path(sc.command[0]).stem().string();
+                } else {
+                    sname = std::filesystem::path(sc.path).stem().string();
+                }
+            }
             if (sname.empty()) sname = "source";
             // Names must be unique: a second "guidance" becomes "guidance-2".
             std::string base = sname; int n = 2;
@@ -2664,13 +2719,44 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             };
             while (taken(sname)) sname = base + "-" + std::to_string(n++);
             sc.name = sname;
-            if (sc.type != "file" && sc.type != "sqlite") {
+            if (sc.type != "file" && sc.type != "sqlite" && sc.type != "https" && sc.type != "command") {
                 warnG("source \"" + sname + "\" has type \"" + sc.type +
-                      "\", which this build does not read (supported: file, sqlite); ignored");
+                      "\", which this build does not read (supported: file, sqlite, https, command); ignored");
                 return;
+            }
+            if ((sc.type == "file" || sc.type == "sqlite") && sc.path.empty()) {
+                warnG("source \"" + sname + "\" has no path; ignored");
+                return;
+            }
+            if (sc.type == "https") {
+                // https only. Plain http only to a loopback host -- local test
+                // servers, the same exception agent api_base makes.
+                if (sc.url.rfind("https://", 0) != 0 && !naab::net::isLoopbackHttpUrl(sc.url)) {
+                    warnG("source \"" + sname + "\": a URL must be https:// (plain http is allowed "
+                          "only to a loopback host); ignored");
+                    return;
+                }
+                if (!explicit_timeout) sc.timeout_ms = 2000;
+            }
+            if (sc.type == "command") {
+#ifdef _WIN32
+                warnG("source \"" + sname + "\": command sources are not supported on Windows "
+                      "in this build; ignored");
+                return;
+#endif
+                if (!explicit_timeout) sc.timeout_ms = 2000;
+            }
+            if (sc.type != "https" && !sc.auth_env.empty()) {
+                warnG("source \"" + sname + "\": auth_env is read only for an https source; ignored");
+                sc.auth_env.clear();
             }
             if (sc.type == "file" && !sc.query.empty()) {
                 warnG("source \"" + sname + "\": query is read only for a database; ignored for a document");
+            }
+            if ((sc.type == "https" || sc.type == "command") && !sc.query.empty()) {
+                warnG("source \"" + sname + "\": query is read only for a database; an https or "
+                      "command source is fetched whole and selected locally");
+                sc.query.clear();
             }
             gc.sources.push_back(std::move(sc));
         };
@@ -5889,6 +5975,12 @@ bool GovernanceEngine::reloadIfChanged() {
                 sb->removeCapability(security::Capability::FS_WRITE);
             }
         }
+
+        // Guidance connectors: a source added, removed or changed by this
+        // reload is fetched or dropped in the background, and every remaining
+        // one is re-checked against the new network policy at once -- a
+        // tightened policy clears what it no longer allows.
+        try { startGuidanceSources(/*initial_load=*/false); } catch (...) {}
 
         // Re-configure BSD/CDD detectors with new rules
         // Use updateConfig() when already enabled (preserve behavioral evidence)
