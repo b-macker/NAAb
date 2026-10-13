@@ -2,6 +2,7 @@
 // Extracted from stdlib/agent_impl.cpp for reuse by governance engine
 
 #include "naab/loopback_url.h"
+#include "naab/net_proxy_snapshot.h"
 #include "naab/agent_provider.h"
 #include "naab/paths.h"
 #include <curl/curl.h>
@@ -109,6 +110,17 @@ static HttpResult httpPostRaw(
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
 
+    // Proxy and CA are fixed at engine load, not read live, so a NAAb program's
+    // env.set cannot repoint this key-bearing TLS session (see
+    // net_proxy_snapshot.h). Setting CURLOPT_PROXY explicitly -- even to "" --
+    // also stops libcurl reading the live *_proxy env.
+    const naab::net::ProxyCaSnapshot& px = naab::net::proxyCaSnapshot();
+    std::string proxy = naab::net::proxyForUrl(px, url);
+    curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());   // "" = direct
+    if (!px.no_proxy.empty()) {
+        curl_easy_setopt(curl, CURLOPT_NOPROXY, px.no_proxy.c_str());
+    }
+
     // On Termux (Android) the system curl CA bundle is not at the standard path.
     //
     // F32: the else-branch used to pin CAINFO to the Termux path UNCONDITIONALLY
@@ -121,10 +133,9 @@ static HttpResult httpPostRaw(
     // reads as a misconfigured machine rather than a compiled-in assumption.
     // Guarded on existence so the fallback still helps on Termux and is silently
     // skipped everywhere else, leaving libcurl its own default.
-    const char* ca_env = std::getenv("SSL_CERT_FILE");
-    if (!ca_env) ca_env = std::getenv("CURL_CA_BUNDLE");
-    if (ca_env && ca_env[0]) {
-        curl_easy_setopt(curl, CURLOPT_CAINFO, ca_env);
+    std::string ca = naab::net::caInfoFromSnapshot(px);
+    if (!ca.empty()) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, ca.c_str());
     } else {
         std::error_code ec;
         const char* termux_ca = "/data/data/com.termux/files/usr/etc/tls/cert.pem";
