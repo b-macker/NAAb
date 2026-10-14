@@ -5,6 +5,7 @@
 #include "naab/governance.h"
 #include "naab/interpreter.h"
 #include "naab/sandbox.h"
+#include "naab/curl_egress.h"
 #include "naab/resource_limits.h"
 #include "naab/utils/string_utils.h"
 #include <curl/curl.h>
@@ -39,39 +40,14 @@ namespace stdlib {
 // Filtering Location headers would close F43 and leave F47 open; re-checking
 // the hostname closes neither. The only place both are visible is the point
 // where an address is actually known, so the real gate is
-// naabCurlOpenSocketCallback() at the bottom of this block, wired to
-// CURLOPT_OPENSOCKETFUNCTION. It fires per socket, on every hop.
+// naab::net::refusePrivateOpenSocket() (curl_egress.h, shared with URL module
+// imports), wired to CURLOPT_OPENSOCKETFUNCTION. It fires per socket, on every
+// hop.
 //
 // isPrivateHost() is kept as a cheap first-pass rejection: it runs before any
 // DNS or connection and produces a far better error message than a refused
 // socket can.
-static bool isPrivateIPv4(uint32_t ip) {
-    if ((ip >> 24) == 127) return true;                 // 127.0.0.0/8 loopback
-    if ((ip >> 24) == 10) return true;                  // 10.0.0.0/8 RFC1918
-    if ((ip >> 20) == (172 << 4 | 1)) return true;      // 172.16.0.0/12 RFC1918
-    if ((ip >> 16) == (192 << 8 | 168)) return true;    // 192.168.0.0/16 RFC1918
-    if ((ip >> 16) == (169 << 8 | 254)) return true;    // 169.254.0.0/16 link-local
-    if ((ip >> 24) == 0) return true;                   // 0.0.0.0/8 "this" network
-    return false;
-}
-
-static bool isPrivateIPv6(const struct in6_addr& a) {
-    static const uint8_t loopback[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
-    if (std::memcmp(&a, loopback, 16) == 0) return true;
-    static const uint8_t unspec[16] = {0};
-    if (std::memcmp(&a, unspec, 16) == 0) return true;
-    if (a.s6_addr[0] == 0xfe && (a.s6_addr[1] & 0xc0) == 0x80) return true;  // fe80::/10
-    if ((a.s6_addr[0] & 0xfe) == 0xfc) return true;                          // fc00::/7
-    static const uint8_t v4mapped_prefix[12] = {0,0,0,0,0,0,0,0,0,0,0xff,0xff};
-    if (std::memcmp(&a, v4mapped_prefix, 12) == 0) {
-        uint32_t ip = (static_cast<uint32_t>(a.s6_addr[12]) << 24) |
-                      (static_cast<uint32_t>(a.s6_addr[13]) << 16) |
-                      (static_cast<uint32_t>(a.s6_addr[14]) << 8) |
-                       static_cast<uint32_t>(a.s6_addr[15]);
-        return isPrivateIPv4(ip);
-    }
-    return false;
-}
+using naab::net::isPrivateIPv4;
 
 // M-13: SSRF protection — block requests to private/reserved IP ranges
 static bool isPrivateHost(const std::string& host) {
@@ -87,34 +63,10 @@ static bool isPrivateHost(const std::string& host) {
     // Try parsing as IPv6
     struct in6_addr addr6;
     if (inet_pton(AF_INET6, host.c_str(), &addr6) == 1) {
-        return isPrivateIPv6(addr6);
+        return naab::net::isPrivateIPv6(reinterpret_cast<const unsigned char*>(&addr6));
     }
 
     return false;
-}
-
-// F43/F47: the authoritative gate. libcurl calls this once per socket with the
-// RESOLVED address, for the initial request AND for every redirect hop, before
-// the socket exists. Returning CURL_SOCKET_BAD refuses the connection.
-//
-// This is what makes the check unbypassable by spelling: the caller controls
-// the URL string, but not what it resolves to, and not where a server redirects
-// them. Both were live bypasses to a loopback endpoint the URL-level filter
-// blocks by IP literal.
-static curl_socket_t naabCurlOpenSocketCallback(void* /*clientp*/,
-                                                curlsocktype purpose,
-                                                struct curl_sockaddr* address) {
-    if (purpose == CURLSOCKTYPE_IPCXN && address) {
-        if (address->family == AF_INET) {
-            const auto* sin = reinterpret_cast<const struct sockaddr_in*>(&address->addr);
-            if (isPrivateIPv4(ntohl(sin->sin_addr.s_addr))) return CURL_SOCKET_BAD;
-        } else if (address->family == AF_INET6) {
-            const auto* sin6 = reinterpret_cast<const struct sockaddr_in6*>(&address->addr);
-            if (isPrivateIPv6(sin6->sin6_addr)) return CURL_SOCKET_BAD;
-        }
-    }
-    curl_socket_t sock = ::socket(address->family, address->socktype, address->protocol);
-    return sock < 0 ? CURL_SOCKET_BAD : sock;
 }
 
 // V-DOS-010: Maximum HTTP response size (25 MB)
@@ -348,7 +300,7 @@ interpreter::NaabVal performRequest(
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, TimeoutProgressCallback);
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
 
-    // Follow redirects. Safe only because naabCurlOpenSocketCallback below
+    // Follow redirects. Safe only because refusePrivateOpenSocket below
     // re-adjudicates every hop -- the URL-level isPrivateHost() check never
     // sees a redirect destination (F43).
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
@@ -357,12 +309,21 @@ interpreter::NaabVal performRequest(
     // F43/F47: adjudicate the RESOLVED address of every connection, including
     // each redirect hop. Do not remove this in favour of a URL or Location
     // string check -- neither can see what a name resolves to.
-    curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, naabCurlOpenSocketCallback);
+    curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, naab::net::refusePrivateOpenSocket);
 
     // V-SSRF-001: Restrict protocols to http/https only — prevents redirect-based
     // SSRF to file://, gopher://, dict://, etc.
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
     curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
+
+    // The proxy is the one the process started with (load-time snapshot), set
+    // explicitly so libcurl does not read the live environment. The host lists
+    // judge the URL's host; a proxy the PROGRAM chose with env.set would carry
+    // the connection to a host the policy never lists. Measured before this
+    // line: http.get to a listed host after env.set("http_proxy", ...) failed
+    // with "Couldn't resolve proxy name" -- curl had gone to the program's
+    // proxy. (test_operator_egress_env.sh EO-05.)
+    naab::net::applySnapshotProxy(curl, url);
 
     // SSL/TLS settings
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);

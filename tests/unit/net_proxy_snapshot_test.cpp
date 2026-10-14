@@ -76,3 +76,24 @@ TEST(NetProxySnapshot, SnapshotIsImmuneToLaterEnvChange) {
     EXPECT_EQ(caInfoFromSnapshot(naab::net::proxyCaSnapshot()), ca_at_load);
     EXPECT_NE(caInfoFromSnapshot(naab::net::proxyCaSnapshot()), "/attacker/ca.pem");
 }
+
+// The one load-time environment snapshot (env_snapshot.h) every outbound
+// connection and guidance command reads: once taken, a later setenv -- what
+// a program's env.set does -- neither adds, changes nor removes anything in
+// it. Independent of WHEN this process first captured it.
+TEST(EnvSnapshot, NeverChangesAfterCapture) {
+    naab::captureEnvironmentSnapshotOnce();
+    const size_t n = naab::environmentSnapshot().size();
+    const std::string path_at_capture = naab::snapshotEnv("PATH");
+    const std::string probe_at_capture = naab::snapshotEnv("NAAB_ENV_SNAPSHOT_PROBE");
+
+    setenv("NAAB_ENV_SNAPSHOT_PROBE", "set-after-capture", 1);
+    setenv("PATH", "/changed-after-capture", 1);
+
+    EXPECT_EQ(naab::environmentSnapshot().size(), n);
+    EXPECT_EQ(naab::snapshotEnv("PATH"), path_at_capture);
+    EXPECT_NE(naab::snapshotEnv("PATH"), "/changed-after-capture");
+    EXPECT_EQ(naab::snapshotEnv("NAAB_ENV_SNAPSHOT_PROBE"), probe_at_capture);
+    EXPECT_NE(naab::snapshotEnv("NAAB_ENV_SNAPSHOT_PROBE"), "set-after-capture");
+    setenv("PATH", path_at_capture.c_str(), 1);
+}

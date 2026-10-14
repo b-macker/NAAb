@@ -59,6 +59,27 @@
 #          sees the spelling at all. Pinned here so a future refactor cannot
 #          reintroduce the notation bypass silently -- it was fixed
 #          incidentally, and incidental fixes rot.
+#
+# URL MODULE IMPORTS (SI-*) -- the second copy
+#
+# `import "http://host/mod.naab"` downloads code with its own curl call
+# (module_resolver.cpp). #213 gave it a URL-STRING check; #229's socket gate
+# reached http.get only. Measured on 526044de under an enforce config with the
+# network enabled: an import from 127.0.0.1 was refused while the SAME module
+# imported and ran from 127.1, 2130706433 and 0x7f000001. Both paths now share
+# one gate (naab::net::refusePrivateOpenSocket, curl_egress.h).
+#
+#   SI-01  CONTROL: the dotted-quad loopback import is refused (string check)
+#   SI-02  a hostname resolving to loopback is refused
+#   SI-03  a redirect from a NON-private host to loopback is refused at the hop
+#   SI-04  CONTROL: an import from a non-private address still works -- also
+#          proves SI-03's first hop is permitted, so its refusal is the hop's
+#   SI-05  alternate IP notations for loopback are refused
+#
+# A refused import prints only "Failed to download", which a dead server also
+# prints. So "refused" here means: no module text, AND the target server's
+# request log has no entry for that arm, AND the target answered curl after
+# the attempt. Anything else is UNMEASURED, reported as a failure.
 # ============================================================
 set -uo pipefail
 
@@ -77,7 +98,8 @@ skip() { SKIP_COUNT=$((SKIP_COUNT+1)); echo -e "  ${YELLOW}SKIP${NC} [$1] $2"; }
 
 TEST_TMP="${TMPDIR:-/tmp}/naab-ssrf-$$"
 SRV_PID=""
-cleanup() { [ -n "$SRV_PID" ] && kill "$SRV_PID" 2>/dev/null; teardown_isolated_trust; rm -rf "$TEST_TMP"; }
+PUB_PID=""
+cleanup() { [ -n "$SRV_PID" ] && kill "$SRV_PID" 2>/dev/null; [ -n "$PUB_PID" ] && kill "$PUB_PID" 2>/dev/null; teardown_isolated_trust; rm -rf "$TEST_TMP"; }
 trap cleanup EXIT
 mkdir -p "$TEST_TMP"
 
@@ -107,6 +129,10 @@ cat > "$TEST_TMP/srv.py" <<'PY_EOF'
 import sys, threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 RPORT = int(sys.argv[1]); TPORT = int(sys.argv[2])
+LOG = sys.argv[3] if len(sys.argv) > 3 else None
+def log_path(p):
+    if LOG:
+        with open(LOG, "a") as f: f.write(p + "\n")
 class Redirector(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(302)
@@ -115,7 +141,11 @@ class Redirector(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 class Target(BaseHTTPRequestHandler):
     def do_GET(self):
-        body = b"LOOPBACK_SECRET_REACHED"
+        log_path(self.path)
+        if self.path.split("?")[0].endswith(".naab"):
+            body = b'export let s = "LOOPBACK_MODULE_REACHED"\n'
+        else:
+            body = b"LOOPBACK_SECRET_REACHED"
         self.send_response(200)
         self.send_header("Content-Type", "text/plain")
         self.send_header("Content-Length", str(len(body)))
@@ -124,7 +154,8 @@ class Target(BaseHTTPRequestHandler):
 threading.Thread(target=lambda: HTTPServer(("127.0.0.1", TPORT), Target).serve_forever(), daemon=True).start()
 HTTPServer(("127.0.0.1", RPORT), Redirector).serve_forever()
 PY_EOF
-python3 "$TEST_TMP/srv.py" "$RPORT" "$TPORT" >/dev/null 2>&1 &
+TLOG="$TEST_TMP/target.log"; : > "$TLOG"
+python3 "$TEST_TMP/srv.py" "$RPORT" "$TPORT" "$TLOG" >/dev/null 2>&1 &
 SRV_PID=$!
 for _ in $(seq 1 30); do
     if curl -s -o /dev/null "http://127.0.0.1:$TPORT/secret" 2>/dev/null; then break; fi
@@ -199,12 +230,21 @@ done
 if [ -z "$NONPRIV" ]; then
     skip "SS-04" "no non-private local address available — over-block control UNMEASURABLE"
 else
-    python3 - "$NONPRIV" "$((TPORT+1))" >/dev/null 2>&1 <<'PY2_EOF' &
+    python3 - "$NONPRIV" "$((TPORT+1))" "$TPORT" >/dev/null 2>&1 <<'PY2_EOF' &
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 class H(BaseHTTPRequestHandler):
     def do_GET(self):
-        b = b"LOOPBACK_SECRET_REACHED"
+        path = self.path.split("?")[0]
+        if path == "/gomod":
+            # SI-03: a non-private first hop that redirects to loopback.
+            self.send_response(302)
+            self.send_header("Location", "http://127.0.0.1:%s/mod.naab?arm=SI-03" % sys.argv[3])
+            self.end_headers(); return
+        if path.endswith(".naab"):
+            b = b'export let s = "PUBLIC_MODULE_REACHED"\n'
+        else:
+            b = b"LOOPBACK_SECRET_REACHED"
         self.send_response(200); self.send_header("Content-Length", str(len(b)))
         self.end_headers(); self.wfile.write(b)
     def log_message(self, *a): pass
@@ -213,7 +253,6 @@ PY2_EOF
     PUB_PID=$!
     sleep 1
     D=$(fetch "http://$NONPRIV:$((TPORT+1))/secret")
-    kill "$PUB_PID" 2>/dev/null
     if [ "$D" = "reached" ]; then
         pass "SS-04" "NEGATIVE CONTROL: a non-private address is still reachable"
     elif [ "$D" = "UNMEASURED" ]; then
@@ -243,6 +282,60 @@ for form in "127.1" "2130706433" "0177.0.0.1"; do
         fail "SS-05/${form}" "alternate notation for loopback is blocked" \
              "reached 127.0.0.1 spelled '${form}' — the dotted-quad form of the same address is blocked"
     fi
+done
+
+echo ""
+echo "SI: URL module imports -- the same gate on the import path"
+# $1=arm id  $2=url -> "reached" | "blocked" | "UNMEASURED"
+import_try() {
+    local arm="$1" url="$2" out home="$TEST_TMP/home-$1"
+    rm -rf "$home"; mkdir -p "$home"   # the module cache lives under HOME
+    printf 'import "%s" as r\nmain { print("GOT=" + string(r.s)) }\n' "$url" > "$W/imp.naab"
+    out=$(cd "$W" && HOME="$home" timeout 30s "$NAAB" imp.naab 2>&1)
+    case "$out" in
+        *GOT=LOOPBACK_MODULE_REACHED*|*GOT=PUBLIC_MODULE_REACHED*) echo "reached"; return ;;
+    esac
+    # Refused only if the target never saw this arm and is still answering.
+    if grep -q "arm=$arm" "$TLOG" 2>/dev/null; then echo "reached"; return; fi
+    if ! curl -s -m 5 -o /dev/null "http://127.0.0.1:$TPORT/alive" 2>/dev/null; then echo "UNMEASURED"; return; fi
+    case "$out" in
+        *"private network denied"*|*"Failed to download"*) echo "blocked" ;;
+        *) echo "UNMEASURED" ;;
+    esac
+}
+si_check() {  # $1=arm $2=result $3=description
+    case "$2" in
+        blocked) pass "$1" "$3" ;;
+        UNMEASURED) fail "$1" "$3" "UNMEASURED -- broken probe, not a pass" ;;
+        *) fail "$1" "$3" "the module was downloaded from loopback and ran" ;;
+    esac
+}
+si_check "SI-01" "$(import_try SI-01 "http://127.0.0.1:$TPORT/mod.naab?arm=SI-01")" \
+    "CONTROL: a dotted-quad loopback import is refused"
+si_check "SI-02" "$(import_try SI-02 "http://$ALIAS:$TPORT/mod.naab?arm=SI-02")" \
+    "an import from a hostname resolving to loopback is refused"
+if [ -z "$NONPRIV" ]; then
+    skip "SI-03" "no non-private local address -- redirect arm UNMEASURABLE"
+    skip "SI-04" "no non-private local address -- over-block control UNMEASURABLE"
+else
+    si_check "SI-03" "$(import_try SI-03 "http://$NONPRIV:$((TPORT+1))/gomod")" \
+        "an import redirected from a non-private host to loopback is refused at the hop"
+    r4=$(import_try SI-04 "http://$NONPRIV:$((TPORT+1))/mod.naab?arm=SI-04")
+    if [ "$r4" = "reached" ]; then
+        pass "SI-04" "CONTROL: an import from a non-private address still works"
+    else
+        fail "SI-04" "CONTROL: an import from a non-private address still works" \
+             "got '$r4' -- the gate refuses non-private addresses, or the import path is broken; SI-03 proves nothing"
+    fi
+    kill "$PUB_PID" 2>/dev/null
+fi
+for form in "127.1" "2130706433" "0177.0.0.1"; do
+    if ! curl -s -m 5 -o /dev/null "http://${form}:${TPORT}/secret" 2>/dev/null; then
+        skip "SI-05/${form}" "resolver does not accept this form here -- UNMEASURABLE"
+        continue
+    fi
+    si_check "SI-05/${form}" "$(import_try "SI-05-$form" "http://${form}:${TPORT}/mod.naab?arm=SI-05-$form")" \
+        "an import from loopback spelled '${form}' is refused"
 done
 
 echo ""

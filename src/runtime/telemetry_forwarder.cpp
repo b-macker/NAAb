@@ -1,5 +1,5 @@
 #include <naab/telemetry_forwarder.h>
-#include <naab/net_proxy_snapshot.h>
+#include <naab/curl_egress.h>
 #include <filesystem>
 #include <curl/curl.h>
 #include <cstdio>
@@ -149,32 +149,13 @@ bool TelemetryForwarder::postBatch(const std::string& payload) {
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
 
-    // Proxy and CA are fixed at engine load, not read live (net_proxy_snapshot.h):
-    // the webhook stream leaves the machine, so a program's env.set must not be
-    // able to repoint its proxy or trust store. Explicit CURLOPT_PROXY (even "")
-    // also stops libcurl reading the live *_proxy env.
-    const naab::net::ProxyCaSnapshot& px = naab::net::proxyCaSnapshot();
-    std::string proxy = naab::net::proxyForUrl(px, config_.webhook_url);
-    curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());   // "" = direct
-    if (!px.no_proxy.empty()) {
-        curl_easy_setopt(curl, CURLOPT_NOPROXY, px.no_proxy.c_str());
-    }
-
-    // CA bundle. F32, and this copy had drifted from agent_provider in two ways
-    // beyond the shared Termux defect: it read only CURL_CA_BUNDLE (missing
-    // SSL_CERT_FILE, which the other site honours) and tested `if (ca_env)`
-    // without ca_env[0], so an empty env var set CAINFO to "". Both now take the
-    // load-time snapshot, through the same helper.
-    std::string ca = naab::net::caInfoFromSnapshot(px);
-    if (!ca.empty()) {
-        curl_easy_setopt(curl, CURLOPT_CAINFO, ca.c_str());
-    } else {
-        std::error_code ec;
-        const char* termux_ca = "/data/data/com.termux/files/usr/etc/tls/cert.pem";
-        if (std::filesystem::exists(termux_ca, ec) && !ec) {
-            curl_easy_setopt(curl, CURLOPT_CAINFO, termux_ca);
-        }
-    }
+    // Proxy and CA come from the load-time snapshot, never the live
+    // environment: the webhook stream leaves the machine, so a program's env.set
+    // must not move its proxy or trust store (curl_egress.h). This copy once
+    // drifted from agent_provider's (it read only CURL_CA_BUNDLE, and an empty
+    // variable set CAINFO to ""); both now call the same helper.
+    naab::net::applySnapshotProxy(curl, config_.webhook_url);
+    naab::net::applySnapshotCa(curl);
 
     // Headers
     struct curl_slist* headers = nullptr;
