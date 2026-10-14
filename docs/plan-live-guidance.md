@@ -202,7 +202,8 @@ that withholds a random fraction of deliveries on live runs. Slice 2.
 3. **Connectors**: read-only parameter-bound `sqlite` (**built**, second PR);
    `https` and a `command` adapter (**built**, third PR -- see "Connectors,
    slice 3a" below, which also records where the built design departs from
-   this line); an `mcp` stdio client (next). External https sources must pass
+   this line); an `mcp` stdio client (**built**, fourth PR -- see "MCP
+   source" below). External https sources must pass
    `capabilities.network` (allowed/blocked hosts, https_only) -- *decided
    2026-10-12* -- stricter than the telemetry webhook, which does not consult
    it (screened: `telemetry_forwarder.cpp` has no host-policy reference). A
@@ -497,6 +498,95 @@ boundary, not new reach for the program):
   but the suite is UNMEASURABLE on that runner (no loopback server).
 - A refused fetch (policy) drops the cached copy; a failed or timed-out one keeps
   the last good copy and says so (C-15).
+
+## MCP source (fourth PR): an MCP server over stdio
+
+The owner's order (2026-10-14): "the MCP guidance source, held to the same
+rules as #312 (fetched whole, nothing from the run sent, load-time environment
+snapshot, governed like the other sources)". Configured as
+`{"mcp": ["npx", "-y", "@acme/kb"]}`, optionally with `"resources": [uris]`.
+
+**Shape.** An MCP source is a command source that speaks JSON-RPC on its
+stdin/stdout. It is started by the same function (`startSourceProcess()`, now
+shared, so the hook-style hardening of Decision A cannot drift between the two):
+operator authority, the load-time environment minus NAAb's own keys, its own
+process group killed whole at `timeout_ms`, no inherited descriptor past 2,
+dies with NAAb on Linux, not bound by host lists (the C-17 note covers it). Each
+fetch runs one session -- `initialize`, `notifications/initialized`,
+`resources/list` (cursor followed; at most 20 pages and 200 resources) or the
+URIs `resources` names, `resources/read` for each -- then the server is
+stopped. Each resource with text becomes one JSON row `{topic: title, body:
+text}`, handed to the same parser, cache, registry, refresh thread, selection
+and delivery as every connector. A blob is skipped (guidance is text), and so is
+a resource the server refuses to read; a source with no text resource delivers
+nothing and says why.
+
+**Decisions taken here (defaults, open to the owner):**
+- **Stdio only.** The slice line named a stdio client. A remote MCP server
+  (Streamable HTTP) would have to pass everything an https source passes --
+  `capabilities.network`, the address checks, the proxy probe -- and is left
+  for a later slice.
+- **Resources only.** Fetched whole means reading documents. A tool call can
+  act on the world and takes arguments; a prompt takes arguments. Neither is a
+  read, and arguments are where run data would cross.
+- **What the client sends.** Four methods, with constants, the server's own URIs
+  and cursors, or govern.json's URIs -- nothing from the run (M-02, observed
+  from the server side). It declares no client capabilities, and answers a
+  request the server sends anyway with "method not found" (`ping` with `{}`):
+  a `sampling/createMessage` would ask NAAb's model to answer the server, a
+  `roots/list` would describe the project (M-04 measures the ping and the
+  sampling request; `roots/list` takes the same branch -- traced, not run).
+- **Protocol versions.** 2025-11-25, 2025-06-18, 2025-03-26 and 2024-11-05 are
+  spoken (the four whose resource methods are what this reads); a server
+  answering with anything else is refused before anything is listed (M-06).
+- **Time.** `timeout_ms` covers the whole session -- start, initialize, list,
+  every read -- default 5000, at most 30000 (a server started through `npx` can
+  take seconds). The load-time wait is still `initial_fetch_ms`.
+- **Name.** The server, not its launcher: `["npx", "-y", "@acme/kb"]` is `kb`,
+  `["python3", "kb_server.py", "cfg.json"]` is `kb_server`; `name` overrides.
+
+**One thing a pipe adds.** Writing to a server that has exited raises SIGPIPE,
+which would end NAAb (nothing in a `run` process ignores it). The write blocks
+SIGPIPE on its own thread and takes the signal it raised before unblocking, so
+neither the fetch thread nor the main thread (the load-time fetch) is changed.
+
+**Evidence.** `tests/governance_v4/test_guidance_mcp.sh`, 22 arms against
+`tests/helpers/mcp_guidance_stub.py`, which logs every message it receives and
+its own environment. Revert check (observed, three batches chosen so no two
+mutations share an arm, each re-run): live environment instead of the snapshot
+-> M-03; sampling answered with a result -> M-04; cursor not followed -> M-08;
+no text cap -> M-11; the server's pid killed instead of its group -> M-05; no
+version check -> M-06; one unreadable resource fails the source -> M-10; an
+extra method sent -> M-02; no resources-capability check -> M-07; `resources`
+ignored -> M-09. The first batch also failed M-02 because that arm read the
+environment lines of the log; it now reads only what the client sent, and
+the batch re-run failed exactly M-03/04/08/11. Dead interpreter: 0 of 17 arms
+that run pass. The command source's suite (25 arms) passes unchanged on the
+shared start-up function (27 arms with C-25/C-25c).
+
+**Found in the adversarial pass, and fixed here for both connector kinds.**
+#312 skipped command sources in the write protection ("not a file the program
+could write" -- but the command's program is one). Measured with shell
+disabled: the program rewrote a command source's script and the next refresh
+ran it, as the operator, outside the sandbox. The program a command or MCP
+source runs, and every argument naming an existing file, are now sources the
+program may not write (C-25, M-17, each with a control that a file beside it
+stays writable; revert-checked). **Still open (A36, verified):** a NEW file
+beside the script -- a `json.py` an interpreter imports from the script's
+directory -- runs the same way. Closing it is an owner decision between
+locking the script's directory, refusing at load a source that lives where the
+program may write, or a warning.
+
+**Known limits** (as for a command source, plus):
+- A server can read files the program wrote: operator authority, like a hook,
+  and path policy does not reach a separate process. It can also import a file
+  the program wrote beside its script (A36, above).
+- The server is started on every refresh (default every 60 s): fetched whole
+  means no long-lived session holding state between fetches.
+- Windows: refused at load.
+- Each `naab-lang mcp` call is a fresh worker (measured for the other
+  connectors in "Connectors, slice 3a"): an MCP source there starts its server
+  once per call, bounded by `initial_fetch_ms`.
 
 ## Known limits, slice 1
 

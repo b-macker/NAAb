@@ -2686,15 +2686,18 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
     // could become its own future instructions -- a self-instruction loop the
     // project owner ruled out. Refuse every program write to a declared
     // source, at this one decision point, so file/io and embedded Python's
-    // open() are covered on both engines. Subprocess languages do not reach
-    // this gate (CONTRA-013); with shell enabled that is the operator's grant.
+    // open() are covered on both engines. A command or MCP source's program
+    // and the files its arguments name count: they run with the operator's
+    // authority, so rewriting one would run program-written code outside the
+    // sandbox. Subprocess languages do not reach this gate (CONTRA-013); with
+    // shell enabled that is the operator's grant.
     if (mode == "write" && isGuidanceSourcePath(canon_n)) {
         return deny("guidance.sources", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 "Writing a project guidance file is blocked: " + filepath,
                 currentFunction().empty() ? std::string()
                                           : ("in function '" + currentFunction() + "'"),
-                "the project's governance delivers this file to agents as guidance",
+                "the project's governance reads or runs this file to give its agents guidance",
                 "A governed program cannot change the guidance its agents receive.\n"
                 "The operator edits this file outside the program; write your output to another file.",
                 "file.write(\"" + filepath + "\", text)",

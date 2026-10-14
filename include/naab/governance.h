@@ -1202,7 +1202,7 @@ struct HooksConfig {
 
 struct GuidanceSourceConfig {
     std::string name;
-    std::string type = "file";   // "file" (markdown) | "sqlite" | "https" | "command"
+    std::string type = "file";   // "file" (markdown) | "sqlite" | "https" | "command" | "mcp"
     std::string path;            // project-relative, resolved like policy paths
     // sqlite: one read-only SELECT. Column 1 = heading, column 2 = text.
     // Trigger values are BOUND as parameters, never interpolated: :kind :arg
@@ -1215,10 +1215,11 @@ struct GuidanceSourceConfig {
     // external source is fetched WHOLE in the background into a cache and
     // selected locally: nothing from the run is ever sent to it.
     std::string url;                    // https: the document's URL
-    std::vector<std::string> command;   // command: argv, run with the operator's authority
+    std::vector<std::string> command;   // command / mcp: argv, run with the operator's authority
+    std::vector<std::string> resources; // mcp: resource URIs to read (empty = every one it lists)
     std::string auth_env;               // https: env var holding a bearer token; the
                                         // program may not read it (added to blocked_read)
-    int refresh_seconds = 60;           // https/command: background refresh interval
+    int refresh_seconds = 60;           // https/command/mcp: background refresh interval
 };
 
 struct GuidanceRuleConfig {
@@ -3314,6 +3315,8 @@ public:
     // True when `canon_n` (canonical, '/' separators) is a declared guidance
     // source -- the governed program may not write it (no self-instruction).
     bool isGuidanceSourcePath(const std::string& canon_n) const;
+    // The program a command/MCP source runs and the files its arguments name.
+    std::vector<std::string> guidanceSourceProgramFiles(const GuidanceSourceConfig& s) const;
     // True when `canon_n` (canonical, '/' separators) is a file the ENGINE
     // writes as governance evidence this run -- the telemetry output, the agent
     // transcript or the audit trail. The governed program may read it but not

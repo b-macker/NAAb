@@ -41,6 +41,8 @@ guidance.sources.<sname>.url
 guidance.sources.<sname>.command
 guidance.sources.<sname>.auth_env
 guidance.sources.<sname>.refresh_seconds
+guidance.sources.<sname>.mcp
+guidance.sources.<sname>.resources
 output.quiet
 restrictions.no_hardcoded_results.enabled
 restrictions.no_hardcoded_results.level

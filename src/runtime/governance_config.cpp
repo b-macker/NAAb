@@ -2641,17 +2641,19 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         //     "guidance": { "sources": ["docs/agent-playbook.md", "data/guidance.db",
         //                               "https://kb.example.com/guidance.json"] }
         // An entry is a path or an https URL, or an object for the optional
-        // extras (a command source is always an object: it needs an argv). The
-        // type comes from the form: "https://" is an https source, an object
-        // with "command" a command source, otherwise the extension (.db .sqlite
-        // .sqlite3 .db3 = sqlite, anything else a document). The name-keyed map
-        // #309 shipped is still read.
+        // extras (a command or MCP source is always an object: it needs an
+        // argv). The type comes from the form: "https://" is an https source, an
+        // object with "command" a command source, one with "mcp" an MCP server
+        // over stdio, otherwise the extension (.db .sqlite .sqlite3 .db3 =
+        // sqlite, anything else a document). The name-keyed map #309 shipped is
+        // still read.
         auto isUrl = [](const std::string& v) {
             return v.rfind("https://", 0) == 0 || v.rfind("http://", 0) == 0;
         };
         auto addSource = [&](std::string sname, const nlohmann::json& sj) {
             GuidanceSourceConfig sc;
-            bool explicit_type = false, explicit_timeout = false;
+            bool explicit_type = false, explicit_timeout = false, is_mcp = false;
+            int raw_timeout = 0;
             if (sj.is_string()) {
                 const std::string v = sj.get<std::string>();
                 if (isUrl(v)) sc.url = v; else sc.path = v;
@@ -2664,20 +2666,44 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (sj.contains("max_rows") && sj["max_rows"].is_number_integer())
                     sc.max_rows = std::max(1, std::min(500, sj["max_rows"].get<int>()));
                 if (sj.contains("timeout_ms") && sj["timeout_ms"].is_number_integer()) {
-                    sc.timeout_ms = std::max(1, std::min(5000, sj["timeout_ms"].get<int>()));
+                    raw_timeout = sj["timeout_ms"].get<int>();
+                    sc.timeout_ms = std::max(1, std::min(5000, raw_timeout));
                     explicit_timeout = true;
                 }
-                if (sj.contains("command")) {
-                    if (sj["command"].is_array()) {
-                        for (const auto& a : sj["command"]) {
+                // An MCP server is started like a command source -- an argv run
+                // with the operator's authority -- and then spoken to over its
+                // stdin/stdout: {"mcp": ["python3", "kb_server.py"]}.
+                auto readArgv = [&](const nlohmann::json& av, const char* what) -> bool {
+                    if (av.is_array()) {
+                        for (const auto& a : av) {
                             if (!a.is_string()) { sc.command.clear(); break; }
                             sc.command.push_back(a.get<std::string>());
                         }
                     }
                     if (sc.command.empty() || sc.command[0].empty()) {
-                        warnG("a command source needs \"command\" as an array of strings "
-                              "(program first); ignored");
-                        return;
+                        warnG(std::string("a ") + what + " source needs \"" + (is_mcp ? "mcp" : "command") +
+                              "\" as an array of strings (program first); ignored");
+                        return false;
+                    }
+                    return true;
+                };
+                if (sj.contains("mcp")) {
+                    is_mcp = true;
+                    if (!readArgv(sj["mcp"], "MCP")) return;
+                } else if (sj.contains("command")) {
+                    if (!readArgv(sj["command"], "command")) return;
+                }
+                if (sj.contains("resources")) {
+                    bool ok = sj["resources"].is_array();
+                    if (ok) {
+                        for (const auto& u : sj["resources"]) {
+                            if (!u.is_string() || u.get<std::string>().empty()) { ok = false; break; }
+                            sc.resources.push_back(u.get<std::string>());
+                        }
+                    }
+                    if (!ok) {
+                        warnG("\"resources\" must be an array of resource URIs; ignored");
+                        sc.resources.clear();
                     }
                 }
                 if (sj.contains("auth_env") && sj["auth_env"].is_string()) sc.auth_env = sj["auth_env"].get<std::string>();
@@ -2688,7 +2714,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 return;
             }
             if (!explicit_type) {
-                if (!sc.command.empty()) sc.type = "command";
+                if (!sc.command.empty()) sc.type = is_mcp ? "mcp" : "command";
                 else if (!sc.url.empty()) sc.type = "https";
                 else {
                     std::string ext = std::filesystem::path(sc.path).extension().string();
@@ -2713,6 +2739,22 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     if (sname.empty()) sname = host;
                 } else if (sc.type == "command") {
                     sname = std::filesystem::path(sc.command[0]).stem().string();
+                } else if (sc.type == "mcp" && !sc.command.empty()) {
+                    // The server, not its launcher: ["npx", "-y", "@acme/kb"] is
+                    // "kb", ["python3", "kb_server.py", "cfg.json"] is
+                    // "kb_server", ["kb-server"] is "kb-server". Anything else
+                    // can say "name".
+                    static const std::set<std::string> kLaunchers = {
+                        "npx", "uvx", "uv", "pipx", "bunx", "bun", "deno", "node", "python", "python3"};
+                    sname = std::filesystem::path(sc.command[0]).stem().string();
+                    if (kLaunchers.count(sname)) {
+                        for (size_t k = 1; k < sc.command.size(); ++k) {
+                            const std::string& a = sc.command[k];
+                            if (a.empty() || a[0] == '-' || a == "run") continue;
+                            sname = std::filesystem::path(a).stem().string();
+                            break;
+                        }
+                    }
                 } else {
                     sname = std::filesystem::path(sc.path).stem().string();
                 }
@@ -2726,9 +2768,14 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             };
             while (taken(sname)) sname = base + "-" + std::to_string(n++);
             sc.name = sname;
-            if (sc.type != "file" && sc.type != "sqlite" && sc.type != "https" && sc.type != "command") {
+            if (sc.type != "file" && sc.type != "sqlite" && sc.type != "https" && sc.type != "command" &&
+                sc.type != "mcp") {
                 warnG("source \"" + sname + "\" has type \"" + sc.type +
-                      "\", which this build does not read (supported: file, sqlite, https, command); ignored");
+                      "\", which this build does not read (supported: file, sqlite, https, command, mcp); ignored");
+                return;
+            }
+            if ((sc.type == "command" || sc.type == "mcp") && sc.command.empty()) {
+                warnG("source \"" + sname + "\" has no program to run; ignored");
                 return;
             }
             if ((sc.type == "file" || sc.type == "sqlite") && sc.path.empty()) {
@@ -2753,6 +2800,20 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
 #endif
                 if (!explicit_timeout) sc.timeout_ms = 2000;
             }
+            if (sc.type == "mcp") {
+#ifdef _WIN32
+                warnG("source \"" + sname + "\": MCP sources are not supported on Windows "
+                      "in this build; ignored");
+                return;
+#endif
+                // A server is started, initialized, listed and read on every
+                // fetch: more time than one command. Bounded at 30 s.
+                sc.timeout_ms = explicit_timeout ? std::max(1, std::min(30000, raw_timeout)) : 5000;
+            }
+            if (sc.type != "mcp" && !sc.resources.empty()) {
+                warnG("source \"" + sname + "\": resources is read only for an MCP source; ignored");
+                sc.resources.clear();
+            }
             if (sc.type != "https" && !sc.auth_env.empty()) {
                 warnG("source \"" + sname + "\": auth_env is read only for an https source; ignored");
                 sc.auth_env.clear();
@@ -2760,9 +2821,9 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sc.type == "file" && !sc.query.empty()) {
                 warnG("source \"" + sname + "\": query is read only for a database; ignored for a document");
             }
-            if ((sc.type == "https" || sc.type == "command") && !sc.query.empty()) {
-                warnG("source \"" + sname + "\": query is read only for a database; an https or "
-                      "command source is fetched whole and selected locally");
+            if ((sc.type == "https" || sc.type == "command" || sc.type == "mcp") && !sc.query.empty()) {
+                warnG("source \"" + sname + "\": query is read only for a database; an https, "
+                      "command or MCP source is fetched whole and selected locally");
                 sc.query.clear();
             }
             gc.sources.push_back(std::move(sc));

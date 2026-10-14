@@ -47,6 +47,10 @@
 #               C-24 a mid-run reload that disables the network stops the next
 #                    refresh and drops the copy, on both engines; C-24c control:
 #                    a reload that changes nothing the policy reads keeps it
+#   self      C-25 the program cannot rewrite a command source's script -- it
+#                    runs with the operator's authority, so a rewrite would be
+#                    program code run outside the sandbox (measured before the
+#                    fix); C-25c a file beside it stays writable
 #
 # Windows: command sources are not supported in this build, and the loopback
 # test server is not started there -- every arm is UNMEASURABLE.
@@ -478,6 +482,33 @@ if [ -x "$NAAB_GOV" ]; then
         pass "C-18" "naab-gov lint (config loaded: exit 3) never runs a command source; naab-lang run does (control)"
     else fail "C-18" "command source ran in the wrong process, or naab-gov never loaded the config" "gov rc=$gov_rc ran=$gov_ran, run ran=$run_ran | ${gov_out:0:200}"; fi
 else skip "C-18" "naab-gov not built"; fi
+
+# A command runs with the OPERATOR's authority, outside the sandbox. Measured
+# before the fix, with shell disabled: file.write over this script succeeded
+# and the next refresh ran the program's code. The script is now a source the
+# program may not write; a file beside it stays writable (C-25c), so the
+# refusal is per file, not a directory lock.
+d="$TEST_TMP/c25"; mkdir -p "$d"
+printf '#!/bin/sh\nprintf %s\n' "'[{\"topic\": \"deployment\", \"body\": \"CONN_SELF_m25\"}]'" > "$d/gen.sh"; chmod +x "$d/gen.sh"
+cfg "$d" '[{"command": ["./gen.sh"]}]' '"capabilities": {"shell": {"enabled": false}, "filesystem": {"mode": "write"}},'
+before="$(cat "$d/gen.sh")"
+run "$d" vm 'use file
+main {
+    file.write("gen.sh", "#!/bin/sh\ntouch WRITTEN_BY_PROGRAM\n")
+    print("WROTE")
+}'
+if [ "$RC" = 3 ] && [[ "$OUT" == *"Writing a project guidance file is blocked: gen.sh"* ]] &&
+   [[ "$OUT" != *"WROTE"* ]] && [ "$(cat "$d/gen.sh")" = "$before" ]; then
+    pass "C-25" "the program cannot rewrite a command source's script (it would run as the operator)"
+else fail "C-25" "command source script writable by the program" "rc=$RC ${OUT:0:300}"; fi
+run "$d" vm 'use file
+main {
+    file.write("notes.txt", "beside the script")
+    print("WROTE")
+}'
+if [ "$RC" = 0 ] && [[ "$OUT" == *"WROTE"* ]] && [ -f "$d/notes.txt" ]; then
+    pass "C-25c" "control: a file beside the script is still writable (per file, not a directory lock)"
+else fail "C-25c" "the refusal is wider than the script" "rc=$RC ${OUT:0:300}"; fi
 
 printf '#!/bin/sh\nhead -c 300000 /dev/zero | tr "\\\\0" a\n' > "$TEST_TMP/bin/big.sh"; chmod +x "$TEST_TMP/bin/big.sh"
 d="$TEST_TMP/c19"; cfg "$d" "[{\"command\": [\"$TEST_TMP/bin/big.sh\"]}]" "" ', "max_source_kb": 64'
