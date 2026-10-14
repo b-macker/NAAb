@@ -47,6 +47,14 @@
 #               C-24 a mid-run reload that disables the network stops the next
 #                    refresh and drops the copy, on both engines; C-24c control:
 #                    a reload that changes nothing the policy reads keeps it
+#   self      C-25 the program cannot rewrite a command source's script -- it
+#                    runs with the operator's authority, so a rewrite would be
+#                    program code run outside the sandbox (measured before the
+#                    fix); C-25c a file beside it stays writable
+#             C-26 a command source in a directory the program may write is
+#                    refused (A36, decision (b)): the json.py the program writes
+#                    beside it never runs; C-26c the same script in a blocked
+#                    directory is fetched; C-26b a read-only mode protects it
 #
 # Windows: command sources are not supported in this build, and the loopback
 # test server is not started there -- every arm is UNMEASURABLE.
@@ -176,10 +184,17 @@ rows() {  # $1 file, $2 marker -> a guidance document as JSON rows
     printf '[{"topic": "deployment", "body": "%s: roll back with the rollback script before retrying."},\n {"topic": "No placeholders", "body": "%s_PH: unfinished work goes in stubs/ with a ticket."}]\n' "$2" "$2" > "$1"
 }
 # cfg DIR SOURCES_JSON [EXTRA_TOP] [EXTRA_GUIDANCE]
+# A command source may not live where the program can write (A36, decision
+# (b)): every config lists the scripts' directory in blocked_paths, unless the
+# arm sets its own filesystem policy (C-25, C-26).
 cfg() {
     mkdir -p "$1"
+    local top="${3:-}" prot="\"filesystem\": {\"blocked_paths\": [\"$TEST_TMP/bin\"]}"
+    if [[ "$top" == *'"filesystem"'* ]]; then :
+    elif [[ "$top" == *'"capabilities": {'* ]]; then top="${top/'"capabilities": {'/'"capabilities": {'"$prot, "}"
+    else top="\"capabilities\": {$prot}, $top"; fi
     printf '{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"},\n "telemetry": {"enabled": true, "output_file": "tele.jsonl"},\n %s\n "guidance": {"sources": %s %s}}\n' \
-        "${3:-}" "$2" "${4:-}" > "$1/govern.json"
+        "$top" "$2" "${4:-}" > "$1/govern.json"
 }
 run() {  # $1 dir, $2 engine, $3 program -> sets OUT, RC
     printf '%s\n' "$3" > "$1/p.naab"
@@ -228,8 +243,10 @@ QC='"code_quality": {"no_placeholders": {"enabled": true, "level": "hard"}},'
 # it wins it, and the arm passed with the initial fetch removed.
 d="$TEST_TMP/c03"; cfg "$d" "[\"$BASE/slow/g.json\"]" "$QC" ', "initial_fetch_ms": 5000'
 run "$d" vm "$PLACEHOLDER"
-if [ "$RC" = 3 ] && [[ "$OUT" == *"Project guidance ("* ]] && [[ "$OUT" == *"CONN_HTTPS_m1_PH"* ]]; then
-    pass "C-03" "a violation found at load shows the fetched row named for its check (first fetch precedes static checks)"
+# The label is asserted whole: "Project guidance (" alone passed while an
+# https source printed an empty name -- "( > ...)".
+if [ "$RC" = 3 ] && [[ "$OUT" == *"Project guidance (g > "* ]] && [[ "$OUT" == *"CONN_HTTPS_m1_PH"* ]]; then
+    pass "C-03" "a violation found at load shows the fetched row named for its check, under the source's name (first fetch precedes static checks)"
 else fail "C-03" "no fetched guidance on the load-time block" "rc=$RC $OUT"; fi
 
 # ---------------------------------------------------------------------------
@@ -478,6 +495,72 @@ if [ -x "$NAAB_GOV" ]; then
         pass "C-18" "naab-gov lint (config loaded: exit 3) never runs a command source; naab-lang run does (control)"
     else fail "C-18" "command source ran in the wrong process, or naab-gov never loaded the config" "gov rc=$gov_rc ran=$gov_ran, run ran=$run_ran | ${gov_out:0:200}"; fi
 else skip "C-18" "naab-gov not built"; fi
+
+# A command runs with the OPERATOR's authority, outside the sandbox. Measured
+# before the fix, with shell disabled: file.write over this script succeeded
+# and the next refresh ran the program's code. The script is now a source the
+# program may not write; a file beside it stays writable (C-25c), so the
+# refusal is per file, not a directory lock.
+d="$TEST_TMP/c25"; mkdir -p "$d"
+printf '#!/bin/sh\nprintf %s\n' "'[{\"topic\": \"deployment\", \"body\": \"CONN_SELF_m25\"}]'" > "$d/gen.sh"; chmod +x "$d/gen.sh"
+cfg "$d" '[{"command": ["./gen.sh"]}]' '"capabilities": {"shell": {"enabled": false}, "filesystem": {"mode": "write"}},'
+before="$(cat "$d/gen.sh")"
+run "$d" vm 'use file
+main {
+    file.write("gen.sh", "#!/bin/sh\ntouch WRITTEN_BY_PROGRAM\n")
+    print("WROTE")
+}'
+if [ "$RC" = 3 ] && [[ "$OUT" == *"Writing a project guidance file is blocked: gen.sh"* ]] &&
+   [[ "$OUT" != *"WROTE"* ]] && [ "$(cat "$d/gen.sh")" = "$before" ]; then
+    pass "C-25" "the program cannot rewrite a command source's script (it would run as the operator)"
+else fail "C-25" "command source script writable by the program" "rc=$RC ${OUT:0:300}"; fi
+run "$d" vm 'use file
+main {
+    file.write("notes.txt", "beside the script")
+    print("WROTE")
+}'
+if [ "$RC" = 0 ] && [[ "$OUT" == *"WROTE"* ]] && [ -f "$d/notes.txt" ]; then
+    pass "C-25c" "control: a file beside the script is still writable (per file, not a directory lock)"
+else fail "C-25c" "the refusal is wider than the script" "rc=$RC ${OUT:0:300}"; fi
+
+# Decision (b), A36: a command source may not LIVE where the program can write.
+# Measured before it, with shell disabled: a json.py the program wrote beside
+# gen.py was imported by the next refresh and ran as the operator. C-26 is
+# that route end to end: the source is refused, so the program's file never
+# runs. C-26c: the same script in a directory the policy blocks is fetched;
+# C-26b: a read-only filesystem mode protects it too (the other branch).
+c26_src() {  # $1 dir
+    mkdir -p "$1/tools"
+    printf 'import json\nprint(json.dumps([{"topic": "deployment", "body": "CONN_DIR_m26 roll back first"}]))\n' > "$1/tools/gen.py"
+}
+d="$TEST_TMP/c26"; c26_src "$d"
+cfg "$d" '[{"command": ["python3", "tools/gen.py"], "refresh_seconds": 5}]' '"capabilities": {"shell": {"enabled": false}, "filesystem": {"mode": "write"}},'
+run "$d" vm 'use file
+use time
+use governance
+use array
+main {
+    file.write("tools/json.py", "open(\"SIBLING_RAN\", \"w\").write(\"x\")\ndef dumps(o):\n    return \"[]\"\n")
+    time.sleep(7)
+    let g = governance.guidance("deployment rollback")
+    print("N=" + string(array.length(g)))
+}'
+if [[ "$OUT" == *"N=0"* ]] && [[ "$OUT" == *"the program may write in $d/tools"* ]] && [ ! -e "$d/SIBLING_RAN" ] &&
+   [ -f "$d/tools/json.py" ]; then
+    pass "C-26" "a command source in a directory the program may write is refused: the file the program put beside it never runs"
+else fail "C-26" "a source where the program can write was run" "rc=$RC sibling_ran=$([ -e "$d/SIBLING_RAN" ] && echo yes || echo no) ${OUT:0:300}"; fi
+d="$TEST_TMP/c26c"; c26_src "$d"
+cfg "$d" '[{"command": ["python3", "tools/gen.py"]}]' "\"capabilities\": {\"filesystem\": {\"mode\": \"write\", \"blocked_paths\": [\"$d/tools\"]}},"
+run "$d" vm "$PULL"
+if [[ "$OUT" == *"CONN_DIR_m26"* ]] && [[ "$OUT" != *"the program may write in"* ]]; then
+    pass "C-26c" "control: the same script in a directory the policy blocks is fetched"
+else fail "C-26c" "a protected source was refused" "rc=$RC ${OUT:0:300}"; fi
+d="$TEST_TMP/c26b"; c26_src "$d"
+cfg "$d" '[{"command": ["python3", "tools/gen.py"]}]' '"capabilities": {"filesystem": {"mode": "read"}},'
+run "$d" vm "$PULL"
+if [[ "$OUT" == *"CONN_DIR_m26"* ]] && [[ "$OUT" != *"the program may write in"* ]]; then
+    pass "C-26b" "a read-only filesystem mode protects the source's directory too"
+else fail "C-26b" "read-only mode not treated as protected" "rc=$RC ${OUT:0:300}"; fi
 
 printf '#!/bin/sh\nhead -c 300000 /dev/zero | tr "\\\\0" a\n' > "$TEST_TMP/bin/big.sh"; chmod +x "$TEST_TMP/bin/big.sh"
 d="$TEST_TMP/c19"; cfg "$d" "[{\"command\": [\"$TEST_TMP/bin/big.sh\"]}]" "" ', "max_source_kb": 64'

@@ -132,4 +132,8 @@ guidance.sources.[].url                  neutral -- traced: list form of guidanc
 guidance.sources.[].command              neutral -- traced: list form of guidance.sources.<sname>.command
 guidance.sources.[].auth_env             neutral -- traced: list form of guidance.sources.<sname>.auth_env
 guidance.sources.[].refresh_seconds      neutral -- traced: list form of guidance.sources.<sname>.refresh_seconds
+guidance.sources.<sname>.mcp             neutral -- traced: an operator MCP server started with operator authority like a command source; the client sends it only initialize/list/read, never anything from the run
+guidance.sources.<sname>.resources       neutral -- traced: which of the MCP server's resources are read; only their text is delivered, through the same scans as any source
+guidance.sources.[].mcp                  neutral -- traced: list form of guidance.sources.<sname>.mcp
+guidance.sources.[].resources            neutral -- traced: list form of guidance.sources.<sname>.resources
 guidance.initial_fetch_ms                neutral -- traced: how long a run waits at load for its first fetch; what it does not cover is fetched in the background

@@ -2526,6 +2526,20 @@ else
     echo "  test_guidance_connectors.sh: not found, skipping"
 fi
 
+# Live guidance from an MCP server over stdio: resources read whole, nothing
+# from the run sent, the load-time environment, run like a hook.
+GUIDANCE_MCP_SCRIPT="tests/governance_v4/test_guidance_mcp.sh"
+if [ -f "$GUIDANCE_MCP_SCRIPT" ]; then
+    if run_shell_test "$GUIDANCE_MCP_SCRIPT" 2>&1; then
+        echo "  test_guidance_mcp.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_guidance_mcp.sh")
+    fi
+else
+    echo "  test_guidance_mcp.sh: not found, skipping"
+fi
+
 # The file-protection gate must see the file a write actually lands on:
 # file.copy into a directory, and the embedded-Python rename/link/remove family.
 PWROUTES_SCRIPT="tests/governance_v4/test_protected_write_routes.sh"

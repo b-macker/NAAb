@@ -259,7 +259,7 @@ struct GovernanceEngine::GuidanceState {
     // terminal block and is updated as the reply and validation arrive.
     unsigned long long next_id = 1;
     struct RunEntry {
-        std::string id, agent, trigger, file, heading;
+        std::string id, agent, trigger, label, heading;   // label: guidanceLabel()
         int turn = -1;
         bool has_reply = false;
         int terms = 0, used = 0;
@@ -292,6 +292,24 @@ struct Candidate {
 
 }  // namespace
 
+// What a person reads as a section's source, in every display (the agent's
+// header, the terminal, the end-of-run block): the path as written in
+// govern.json for a document or database, else the source's name. An https,
+// command or MCP source has no path, and every display printed its empty path
+// -- "( > No placeholders)" -- until this; its URL or argv is not shown instead,
+// because those can carry operator detail. Telemetry's "file" stays the path.
+static std::string guidanceLabel(const std::string& file, const std::string& source) {
+    return file.empty() ? source : file;
+}
+
+// The line that opens a section in the agent's request. One copy: selection
+// sizes a section against the budget with the same header formatGuidance()
+// sends, so the two cannot disagree on its length.
+static std::string guidanceHeader(const std::string& file, const std::string& source,
+                                  const std::string& heading) {
+    return "[Project guidance: " + guidanceLabel(file, source) + " > " + heading + "]\n";
+}
+
 static const GuidanceDoc* guidanceLoadDoc(GovernanceEngine& eng,
                                           GovernanceEngine::GuidanceState& st,
                                           const GuidanceConfig& gc,
@@ -306,7 +324,7 @@ std::string GovernanceEngine::formatGuidance(const std::vector<GuidanceDelivery>
     std::string out;
     for (const auto& d : items) {
         if (!out.empty()) out += "\n\n";
-        out += "[Project guidance: " + d.file + " > " + d.heading + "]\n" + d.text;
+        out += guidanceHeader(d.file, d.source, d.heading) + d.text;
     }
     return out;
 }
@@ -319,22 +337,106 @@ bool GovernanceEngine::isGuidanceSourcePath(const std::string& canon_n) const {
     if (!gc.enabled || gc.sources.empty()) return false;
     std::error_code ec;
     const bool target_exists = std::filesystem::exists(canon_n, ec);
+    auto sameFile = [&](const std::string& sp) {
+        if (sp == canon_n) return true;
+        // A second name for the same file (a hard link) is the same file.
+        if (!target_exists) return false;
+        std::error_code ec2;
+        return std::filesystem::exists(sp, ec2) && std::filesystem::equivalent(sp, canon_n, ec2) && !ec2;
+    };
     for (const auto& s : gc.sources) {
-        // A URL or a command is not a file the program could write.
-        if (s.type == "https" || s.type == "command") continue;
+        // A URL is not a file the program could write.
+        if (s.type == "https") continue;
+        if (s.type == "command" || s.type == "mcp") {
+            // A command or MCP server runs with the OPERATOR's authority, outside
+            // the program's sandbox. If the program could rewrite its script,
+            // the next refresh would run program-written code as the operator --
+            // measured: with shell disabled, file.write over a command source's
+            // script and the refresh executed it. So the program it runs and
+            // every argument naming an existing file are sources too.
+            for (const auto& f : guidanceSourceProgramFiles(s))
+                if (sameFile(f)) return true;
+            continue;
+        }
         const std::string sp = resolvePolicyPath(s.path);
         if (sp == canon_n) return true;
         // A database is also its sidecars: a crafted -wal is read as rows.
         if (s.type == "sqlite" &&
             (canon_n == sp + "-wal" || canon_n == sp + "-shm" || canon_n == sp + "-journal")) return true;
-        // A second name for the same file (a hard link) is the same source.
-        if (target_exists) {
-            std::error_code ec2;
-            if (std::filesystem::exists(sp, ec2) &&
-                std::filesystem::equivalent(sp, canon_n, ec2) && !ec2) return true;
-        }
+        if (sameFile(sp)) return true;
     }
     return false;
+}
+
+// A36, owner's decision (b) (2026-10-14): a command or MCP source runs with the
+// OPERATOR's authority, outside the sandbox, so it may not live where the
+// program can write. Protecting its files one by one (above) cannot see a NEW
+// file -- measured: with shell disabled, a json.py the program wrote beside a
+// command source's gen.py was imported by the next refresh and ran as the
+// operator. So the directory of the program (when given as a path) and of every
+// argument naming a file must be one the program may not write into: the
+// filesystem mode forbids writes, or the path policy refuses a new file there.
+// The sandbox is not consulted, which can only refuse more. A program given as
+// a bare name (python3, npx) is looked up on PATH and is not judged here; what
+// it loads from its own install or package cache is outside this check (A36).
+std::string GovernanceEngine::guidanceSourceExposure(const GuidanceSourceConfig& s) {
+    if (s.type != "command" && s.type != "mcp") return "";
+    const auto rules_hold = rulesPtr();
+    if (rules_hold->filesystem_mode == "none" || rules_hold->filesystem_mode == "read") return "";
+    std::vector<std::string> files;
+    if (!s.command.empty() && s.command[0].find('/') != std::string::npos)
+        files.push_back(resolvePolicyPath(s.command[0]));
+    std::error_code ec;
+    for (size_t i = 1; i < s.command.size(); ++i) {
+        const std::string& a = s.command[i];
+        if (a.empty() || a[0] == '-') continue;
+        const std::string ap = resolvePolicyPath(a);
+        if (std::filesystem::is_regular_file(ap, ec)) files.push_back(ap);
+    }
+    for (const auto& f : files) {
+        const std::string dir = std::filesystem::path(f).parent_path().generic_string();
+        if (pathPolicyDenial(dir + "/.naab-guidance-probe", /*write=*/true).empty()) {
+            return "the program may write in " + dir + ", where this source's code lives -- "
+                   "move it where the program cannot write, or list that directory in "
+                   "capabilities.filesystem.blocked_paths";
+        }
+    }
+    return "";
+}
+
+// The files a command or MCP source executes or reads as its configuration:
+// the program (a bare name looked up on the LOAD-TIME PATH, as the fetch does;
+// a relative path project-relative) and every later argument that names an
+// existing file. What this cannot see -- a module the program imports from
+// beside its script, a package cache -- is recorded in open-investigations A36.
+std::vector<std::string> GovernanceEngine::guidanceSourceProgramFiles(const GuidanceSourceConfig& s) const {
+    std::vector<std::string> out;
+    if (s.command.empty()) return out;
+    const std::string& prog = s.command[0];
+    std::error_code ec;
+    if (prog.find('/') == std::string::npos) {
+#ifndef _WIN32
+        std::istringstream ps(naab::snapshotEnv("PATH"));
+        std::string dir;
+        while (std::getline(ps, dir, ':')) {
+            if (dir.empty()) continue;
+            const std::string cand = dir + "/" + prog;
+            if (::access(cand.c_str(), X_OK) == 0) {
+                out.push_back(std::filesystem::weakly_canonical(cand, ec).string());
+                break;
+            }
+        }
+#endif
+    } else {
+        out.push_back(resolvePolicyPath(prog));
+    }
+    for (size_t i = 1; i < s.command.size(); ++i) {
+        const std::string& a = s.command[i];
+        if (a.empty() || a[0] == '-') continue;
+        const std::string ap = resolvePolicyPath(a);
+        if (std::filesystem::is_regular_file(ap, ec)) out.push_back(ap);
+    }
+    return out;
 }
 
 // The document for a source, re-read when its size or mtime moved. Returns
@@ -551,7 +653,7 @@ static std::vector<Candidate> guidanceSelect(GovernanceEngine& eng,
         // never waits on a network or a process.
         std::string why;
         const GuidanceDoc* doc = nullptr;
-        if (src->type == "https" || src->type == "command") {
+        if (src->type == "https" || src->type == "command" || src->type == "mcp") {
             auto held = guidanceFetchedDoc(st, *src, why);
             if (held) { doc = held.get(); hold.push_back(std::move(held)); }
         } else if (src->type == "sqlite") {
@@ -949,7 +1051,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
                     withheld_detail.emplace_back(req.rule.on, key, reason);
                     continue;
                 }
-                const std::string header = "[Project guidance: " + c.file + " > " + c.heading + "]\n";
+                const std::string header = guidanceHeader(c.file, c.source, c.heading);
                 const size_t sep = delivered.empty() ? 0 : 2;
                 if (used + sep + header.size() >= budget) {
                     withheld_detail.emplace_back(req.rule.on, key, "budget");
@@ -992,7 +1094,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
             if (st.run_log.size() < kRunLogCap) {
                 GuidanceState::RunEntry e;
                 e.id = d.id; e.agent = agent_name; e.trigger = d.trigger;
-                e.file = d.file; e.heading = d.heading; e.turn = turn;
+                e.label = guidanceLabel(d.file, d.source); e.heading = d.heading; e.turn = turn;
                 e.lookup_ms = lookup_ms;
                 st.run_log.push_back(std::move(e));
             }
@@ -1103,7 +1205,7 @@ GovernanceEngine::GuidanceTerminal GovernanceEngine::guidanceForTerminal(
     }
 
     for (const auto& d : g.delivered) {
-        g.suffix += "\n\n  Project guidance (" + d.file + " > " + d.heading + "):\n";
+        g.suffix += "\n\n  Project guidance (" + guidanceLabel(d.file, d.source) + " > " + d.heading + "):\n";
         std::istringstream in(d.text);
         std::string line;
         bool first = true;
@@ -1330,7 +1432,7 @@ void GovernanceEngine::printGuidanceSummary() {
     for (size_t i = 0; i < log.size() && i < kShow; ++i) {
         const auto& e = log[i];
         out += "  " + e.agent + " turn " + std::to_string(e.turn) + "  " + e.trigger +
-               " -> " + e.file + " > " + e.heading;
+               " -> " + e.label + " > " + e.heading;
         std::string tail;
         if (e.has_reply) tail = "reply used " + std::to_string(e.used) + "/" + std::to_string(e.terms) + " terms";
         else tail = "no reply recorded";
@@ -1620,26 +1722,44 @@ FetchResult fetchHttps(const GuidanceDenialFn& policyDenial, const GuidanceSourc
     return {"ok", "", std::move(ctx.body)};
 }
 
-FetchResult fetchCommand(const GuidancePathFn& resolvePath, const std::string& cwd,
-                         const GuidanceSourceConfig& src, int timeout_ms,
-                         size_t cap, const std::atomic<bool>& stopping) {
-#ifdef _WIN32
-    (void)resolvePath; (void)cwd; (void)src; (void)timeout_ms; (void)cap; (void)stopping;
-    return {"failed", "command sources are not supported on Windows in this build", ""};
+#ifndef _WIN32
+// An operator-authority source process -- a command source, or an MCP server --
+// started exactly like a hook: its own process group (a timeout kills
+// everything it started), the LOAD-TIME environment minus NAAb's own keys,
+// stderr and (for a command) stdin on /dev/null, no inherited descriptor past
+// 2, dies with NAAb on Linux. One helper for both, so the two cannot drift.
+struct SourceProcess {
+    pid_t pid = -1;
+    int out = -1;   // its stdout, ours to read (non-blocking)
+    int in = -1;    // its stdin, ours to write (non-blocking); -1 for a command
+};
+
+bool cloexecPipe(int fds[2]) {
+#ifdef __linux__
+    return ::pipe2(fds, O_CLOEXEC) == 0;
 #else
-    if (src.command.empty()) return {"failed", "it has no program", ""};
+    if (::pipe(fds) != 0) return false;
+    ::fcntl(fds[0], F_SETFD, FD_CLOEXEC);
+    ::fcntl(fds[1], F_SETFD, FD_CLOEXEC);
+    return true;
+#endif
+}
+
+// "" on success, else why it did not start.
+std::string startSourceProcess(const GuidancePathFn& resolvePath, const std::string& cwd,
+                               const std::vector<std::string>& command, int timeout_ms,
+                               bool with_stdin, SourceProcess& sp) {
+    if (command.empty()) return "it has no program";
     // Everything the child needs is built BEFORE fork(): allocation is not
     // async-signal-safe, and another thread may hold the allocator's lock.
     std::vector<std::string> env_strings;
-    {
-        for (const auto& kv : naab::environmentSnapshot()) {
-            // NAAb's own secrets reach no operator process either (as hooks, V-SC-006).
-            if (kv.rfind("NAAB_GOVERN_KEY=", 0) == 0 || kv.rfind("NAAB_LOCK_KEY=", 0) == 0 ||
-                kv.rfind("NAAB_SIGNING_KEY=", 0) == 0) continue;
-            env_strings.push_back(kv);
-        }
+    for (const auto& kv : naab::environmentSnapshot()) {
+        // NAAb's own secrets reach no operator process either (as hooks, V-SC-006).
+        if (kv.rfind("NAAB_GOVERN_KEY=", 0) == 0 || kv.rfind("NAAB_LOCK_KEY=", 0) == 0 ||
+            kv.rfind("NAAB_SIGNING_KEY=", 0) == 0) continue;
+        env_strings.push_back(kv);
     }
-    std::string prog = src.command[0];
+    std::string prog = command[0];
     if (prog.find('/') == std::string::npos) {
         // A bare name is looked up on the SNAPSHOT's PATH, not the live one.
         std::istringstream ps(naab::snapshotEnv("PATH"));
@@ -1649,12 +1769,12 @@ FetchResult fetchCommand(const GuidancePathFn& resolvePath, const std::string& c
             const std::string cand = dir + "/" + prog;
             if (::access(cand.c_str(), X_OK) == 0) { found = cand; break; }
         }
-        if (found.empty()) return {"failed", "its program was not found on PATH", ""};
+        if (found.empty()) return "its program was not found on PATH";
         prog = found;
     } else if (prog[0] != '/') {
         prog = resolvePath(prog);   // project-relative, like every policy path
     }
-    std::vector<std::string> args = src.command;
+    std::vector<std::string> args = command;
     std::vector<char*> argv;
     for (auto& a : args) argv.push_back(const_cast<char*>(a.c_str()));
     argv.push_back(nullptr);
@@ -1663,13 +1783,18 @@ FetchResult fetchCommand(const GuidancePathFn& resolvePath, const std::string& c
     envp.push_back(nullptr);
     const unsigned alarm_s = static_cast<unsigned>(timeout_ms / 1000) + 2;   // child-side backstop
 
-    int out[2];
-    if (::pipe(out) != 0) return {"failed", "a pipe could not be created", ""};
+    int out[2] = {-1, -1}, in[2] = {-1, -1};
+    if (!cloexecPipe(out)) return "a pipe could not be created";
+    if (with_stdin && !cloexecPipe(in)) {
+        ::close(out[0]); ::close(out[1]);
+        return "a pipe could not be created";
+    }
     const pid_t parent = ::getpid();
     const pid_t pid = ::fork();
     if (pid < 0) {
         ::close(out[0]); ::close(out[1]);
-        return {"failed", "its process could not be started", ""};
+        if (with_stdin) { ::close(in[0]); ::close(in[1]); }
+        return "its process could not be started";
     }
     if (pid == 0) {
         // === CHILD: async-signal-safe calls only ===
@@ -1681,7 +1806,9 @@ FetchResult fetchCommand(const GuidancePathFn& resolvePath, const std::string& c
         (void)parent;
 #endif
         const int devnull = ::open("/dev/null", O_RDWR);
-        if (devnull >= 0) { ::dup2(devnull, STDIN_FILENO); ::dup2(devnull, STDERR_FILENO); }
+        if (devnull >= 0) ::dup2(devnull, STDERR_FILENO);
+        if (with_stdin) ::dup2(in[0], STDIN_FILENO);       // the MCP channel, nothing else
+        else if (devnull >= 0) ::dup2(devnull, STDIN_FILENO);
         ::dup2(out[1], STDOUT_FILENO);
         // Only stdin/stdout/stderr cross: no inherited descriptor (the MCP
         // event stream, a database, a socket) reaches the operator's program.
@@ -1694,6 +1821,41 @@ FetchResult fetchCommand(const GuidancePathFn& resolvePath, const std::string& c
     ::setpgid(pid, pid);   // also from the parent: whichever runs first wins the race
     ::close(out[1]);
     ::fcntl(out[0], F_SETFL, ::fcntl(out[0], F_GETFL) | O_NONBLOCK);
+    sp.pid = pid;
+    sp.out = out[0];
+    if (with_stdin) {
+        ::close(in[0]);
+        ::fcntl(in[1], F_SETFL, ::fcntl(in[1], F_GETFL) | O_NONBLOCK);
+        sp.in = in[1];
+    }
+    return "";
+}
+
+// The whole group, before reaping (the pid cannot be reused yet).
+void killSourceProcess(SourceProcess& sp) {
+    if (sp.in >= 0) { ::close(sp.in); sp.in = -1; }
+    if (sp.out >= 0) { ::close(sp.out); sp.out = -1; }
+    if (sp.pid > 0) {
+        int status = 0;
+        ::kill(-sp.pid, SIGKILL);
+        ::waitpid(sp.pid, &status, 0);
+        sp.pid = -1;
+    }
+}
+#endif
+
+FetchResult fetchCommand(const GuidancePathFn& resolvePath, const std::string& cwd,
+                         const GuidanceSourceConfig& src, int timeout_ms,
+                         size_t cap, const std::atomic<bool>& stopping) {
+#ifdef _WIN32
+    (void)resolvePath; (void)cwd; (void)src; (void)timeout_ms; (void)cap; (void)stopping;
+    return {"failed", "command sources are not supported on Windows in this build", ""};
+#else
+    SourceProcess sp;
+    const std::string start_err = startSourceProcess(resolvePath, cwd, src.command, timeout_ms,
+                                                     /*with_stdin=*/false, sp);
+    if (!start_err.empty()) return {"failed", start_err, ""};
+    const pid_t pid = sp.pid;
 
     std::string bytes;
     bool over = false, timed_out = false, stopped = false;
@@ -1701,12 +1863,12 @@ FetchResult fetchCommand(const GuidancePathFn& resolvePath, const std::string& c
     for (;;) {
         if (stopping.load()) { stopped = true; break; }
         if (std::chrono::steady_clock::now() > deadline) { timed_out = true; break; }
-        struct pollfd pfd{out[0], POLLIN, 0};
+        struct pollfd pfd{sp.out, POLLIN, 0};
         const int pr = ::poll(&pfd, 1, 50);
         if (pr < 0) { if (errno == EINTR) continue; break; }
         if (pr == 0) continue;
         char buf[8192];
-        const ssize_t n = ::read(out[0], buf, sizeof(buf));
+        const ssize_t n = ::read(sp.out, buf, sizeof(buf));
         if (n > 0) {
             if (bytes.size() + static_cast<size_t>(n) > cap) { over = true; break; }
             bytes.append(buf, static_cast<size_t>(n));
@@ -1716,11 +1878,11 @@ FetchResult fetchCommand(const GuidancePathFn& resolvePath, const std::string& c
         if (errno == EAGAIN || errno == EINTR) continue;
         break;
     }
-    ::close(out[0]);
+    ::close(sp.out);
+    sp.out = -1;
     int status = 0;
     if (over || timed_out || stopped) {
-        ::kill(-pid, SIGKILL);   // the whole group, before reaping (the pid cannot be reused yet)
-        ::waitpid(pid, &status, 0);
+        killSourceProcess(sp);
     } else {
         for (;;) {   // output closed: wait for it, still bounded
             const pid_t w = ::waitpid(pid, &status, WNOHANG);
@@ -1743,6 +1905,274 @@ FetchResult fetchCommand(const GuidancePathFn& resolvePath, const std::string& c
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
         return {"failed", "it exited " + std::to_string(WIFEXITED(status) ? WEXITSTATUS(status) : -1), ""};
     return {"ok", "", std::move(bytes)};
+#endif
+}
+
+#ifndef _WIN32
+// One MCP session over a server's stdin/stdout (the stdio transport: one
+// JSON-RPC message per line). The client sends only constants, the resource
+// URIs the server itself listed or the operator wrote in govern.json, and the
+// ids and cursors the server handed back -- NOTHING from the run, because a
+// pull topic, a violation message or a validation detail crossing to an
+// operator process is exactly what "fetched whole" exists to prevent. It
+// declares no client capabilities (no roots, sampling or elicitation), and
+// answers any request the server sends anyway with "method not found" (a
+// ping with an empty result): a sampling request would ask NAAb's model to
+// answer the server.
+class McpStdioSession {
+public:
+    McpStdioSession(SourceProcess& sp, std::chrono::steady_clock::time_point deadline,
+                    const std::atomic<bool>& stopping, size_t max_in)
+        : sp_(sp), deadline_(deadline), stopping_(stopping), max_in_(max_in) {}
+
+    // "ok" | "error" (the server answered with a JSON-RPC error) | "timeout" |
+    // "stopped" | "failed" (the transport broke); `why` says what happened.
+    std::string call(const std::string& method, const nlohmann::json& params,
+                     nlohmann::json& result, std::string& why) {
+        const long long id = next_id_++;
+        nlohmann::json req = {{"jsonrpc", "2.0"}, {"id", id}, {"method", method}, {"params", params}};
+        std::string st = send(req, why);
+        if (st != "ok") return st;
+        for (;;) {
+            nlohmann::json msg;
+            st = receive(msg, why);
+            if (st != "ok") {
+                if (st == "failed" && why.empty()) why = "it closed its output before answering " + method;
+                return st;
+            }
+            if (msg.contains("method") && msg.contains("id")) {   // a request from the server
+                nlohmann::json reply = {{"jsonrpc", "2.0"}, {"id", msg["id"]}};
+                if (msg["method"] == "ping") reply["result"] = nlohmann::json::object();
+                else reply["error"] = {{"code", -32601}, {"message", "Method not found"}};
+                st = send(reply, why);
+                if (st != "ok") return st;
+                continue;
+            }
+            if (msg.contains("method")) continue;                  // a notification
+            if (!msg.contains("id") || !(msg["id"] == id)) continue;  // not this call's answer
+            if (msg.contains("error")) {
+                const auto& e = msg["error"];
+                why = method + " was refused";
+                if (e.is_object() && e.contains("message") && e["message"].is_string())
+                    why += ": " + e["message"].get<std::string>().substr(0, 200);
+                return "error";
+            }
+            if (!msg.contains("result")) { why = "it answered " + method + " with neither a result nor an error"; return "failed"; }
+            result = msg["result"];
+            return "ok";
+        }
+    }
+
+    std::string notify(const std::string& method, std::string& why) {
+        return send({{"jsonrpc", "2.0"}, {"method", method}}, why);
+    }
+
+private:
+    std::string timeLeft(std::string& why) {
+        if (stopping_.load()) return "stopped";
+        if (std::chrono::steady_clock::now() > deadline_) { why = ""; return "timeout"; }
+        return "ok";
+    }
+
+    // A write to a server that has exited raises SIGPIPE, which would end
+    // NAAb: block it on this thread for the write and take the one that write
+    // raised before unblocking.
+    static ssize_t writeNoSigpipe(int fd, const char* p, size_t n) {
+        sigset_t set, old;
+        sigemptyset(&set);
+        sigaddset(&set, SIGPIPE);
+        pthread_sigmask(SIG_BLOCK, &set, &old);
+        const ssize_t w = ::write(fd, p, n);
+        const int saved = errno;
+        if (w < 0 && saved == EPIPE) {
+#ifdef __linux__
+            struct timespec zero{0, 0};
+            while (sigtimedwait(&set, nullptr, &zero) > 0) {}
+#else
+            sigset_t pend;
+            sigemptyset(&pend);
+            if (sigpending(&pend) == 0 && sigismember(&pend, SIGPIPE)) { int sig = 0; sigwait(&set, &sig); }
+#endif
+        }
+        pthread_sigmask(SIG_SETMASK, &old, nullptr);
+        errno = saved;
+        return w;
+    }
+
+    std::string send(const nlohmann::json& msg, std::string& why) {
+        const std::string line = msg.dump() + "\n";
+        size_t off = 0;
+        while (off < line.size()) {
+            std::string st = timeLeft(why);
+            if (st != "ok") return st;
+            struct pollfd pfd{sp_.in, POLLOUT, 0};
+            const int pr = ::poll(&pfd, 1, 50);
+            if (pr < 0) { if (errno == EINTR) continue; why = "its input could not be written"; return "failed"; }
+            if (pr == 0) continue;
+            const ssize_t w = writeNoSigpipe(sp_.in, line.data() + off, line.size() - off);
+            if (w > 0) { off += static_cast<size_t>(w); continue; }
+            if (w < 0 && (errno == EAGAIN || errno == EINTR)) continue;
+            why = "it stopped reading its input";
+            return "failed";
+        }
+        return "ok";
+    }
+
+    std::string receive(nlohmann::json& msg, std::string& why) {
+        for (;;) {
+            const size_t nl = buf_.find('\n');
+            if (nl != std::string::npos) {
+                std::string line = buf_.substr(0, nl);
+                buf_.erase(0, nl + 1);
+                if (!line.empty() && line.back() == '\r') line.pop_back();
+                if (line.find_first_not_of(" \t") == std::string::npos) continue;
+                auto j = nlohmann::json::parse(line, nullptr, /*allow_exceptions=*/false);
+                if (j.is_discarded() || !j.is_object()) continue;   // not a JSON-RPC message
+                msg = std::move(j);
+                return "ok";
+            }
+            if (closed_) { why = ""; return "failed"; }
+            std::string st = timeLeft(why);
+            if (st != "ok") return st;
+            struct pollfd pfd{sp_.out, POLLIN, 0};
+            const int pr = ::poll(&pfd, 1, 50);
+            if (pr < 0) { if (errno == EINTR) continue; why = "its output could not be read"; return "failed"; }
+            if (pr == 0) continue;
+            char tmp[8192];
+            const ssize_t n = ::read(sp_.out, tmp, sizeof(tmp));
+            if (n > 0) {
+                received_ += static_cast<size_t>(n);
+                if (received_ > max_in_) {
+                    why = "it sent more than " + std::to_string(max_in_ / 1024) + " KB";
+                    return "failed";
+                }
+                buf_.append(tmp, static_cast<size_t>(n));
+                continue;
+            }
+            if (n == 0) { closed_ = true; continue; }
+            if (errno == EAGAIN || errno == EINTR) continue;
+            why = "its output could not be read";
+            return "failed";
+        }
+    }
+
+    SourceProcess& sp_;
+    std::chrono::steady_clock::time_point deadline_;
+    const std::atomic<bool>& stopping_;
+    size_t max_in_;
+    size_t received_ = 0;
+    std::string buf_;
+    bool closed_ = false;
+    long long next_id_ = 1;
+};
+#endif
+
+// An MCP server over stdio, fetched WHOLE: initialize, list its resources (or
+// take the URIs govern.json names), read each, keep the text, stop the
+// server. The result is the same JSON rows a command source may print -- one
+// {topic, body} per resource -- so it is parsed, cached, selected and
+// delivered exactly like every other connector. Resources only: a tool call
+// can act, and a prompt takes arguments; neither is a read of a document.
+FetchResult fetchMcp(const GuidancePathFn& resolvePath, const std::string& cwd,
+                     const GuidanceSourceConfig& src, int timeout_ms,
+                     size_t cap, const std::atomic<bool>& stopping) {
+#ifdef _WIN32
+    (void)resolvePath; (void)cwd; (void)src; (void)timeout_ms; (void)cap; (void)stopping;
+    return {"failed", "MCP sources are not supported on Windows in this build", ""};
+#else
+    SourceProcess sp;
+    const std::string start_err = startSourceProcess(resolvePath, cwd, src.command, timeout_ms,
+                                                     /*with_stdin=*/true, sp);
+    if (!start_err.empty()) return {"failed", start_err, ""};
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+    // Protocol overhead (JSON escaping, listings) on top of the text cap.
+    McpStdioSession s(sp, deadline, stopping, cap * 2 + 256 * 1024);
+    static const size_t kMaxResources = 200, kMaxPages = 20;
+
+    auto finish = [&](const std::string& st, const std::string& why, const std::string& what) -> FetchResult {
+        killSourceProcess(sp);
+        if (st == "stopped") return {"stopped", "", ""};
+        if (st == "timeout") return {"timeout", "it took longer than " + std::to_string(timeout_ms) + " ms" +
+                                                (what.empty() ? "" : " (" + what + ")"), ""};
+        return {"failed", why.empty() ? what : why, ""};
+    };
+
+    std::string why;
+    nlohmann::json res;
+    const nlohmann::json init = {
+        {"protocolVersion", "2025-11-25"},
+        {"capabilities", nlohmann::json::object()},
+        {"clientInfo", {{"name", "naab-guidance"}, {"version", "1"}}},
+    };
+    std::string st = s.call("initialize", init, res, why);
+    if (st != "ok") return finish(st, why, "initialize");
+    static const std::set<std::string> kVersions = {"2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"};
+    const std::string ver = res.is_object() && res.contains("protocolVersion") && res["protocolVersion"].is_string()
+                                ? res["protocolVersion"].get<std::string>() : std::string();
+    if (!kVersions.count(ver))
+        return finish("failed", "it answered with protocol version \"" + ver.substr(0, 40) +
+                                "\", which this client does not speak", "");
+    if (!res.contains("capabilities") || !res["capabilities"].is_object() ||
+        !res["capabilities"].contains("resources"))
+        return finish("failed", "it offers no resources", "");
+    st = s.notify("notifications/initialized", why);
+    if (st != "ok") return finish(st, why, "initialize");
+
+    // What to read: the URIs govern.json names, else every resource it lists.
+    std::vector<std::pair<std::string, std::string>> wanted;   // uri, title
+    if (!src.resources.empty()) {
+        for (const auto& u : src.resources) wanted.emplace_back(u, u);
+    } else {
+        std::string cursor;
+        for (size_t page = 0; page < kMaxPages && wanted.size() < kMaxResources; ++page) {
+            nlohmann::json params = nlohmann::json::object();
+            if (!cursor.empty()) params["cursor"] = cursor;
+            st = s.call("resources/list", params, res, why);
+            if (st != "ok") return finish(st, why, "resources/list");
+            if (res.contains("resources") && res["resources"].is_array()) {
+                for (const auto& r : res["resources"]) {
+                    if (!r.is_object() || !r.contains("uri") || !r["uri"].is_string()) continue;
+                    std::string title;
+                    for (const char* k : {"title", "name"})
+                        if (title.empty() && r.contains(k) && r[k].is_string()) title = r[k].get<std::string>();
+                    const std::string uri = r["uri"].get<std::string>();
+                    wanted.emplace_back(uri, title.empty() ? uri : title);
+                    if (wanted.size() >= kMaxResources) break;
+                }
+            }
+            cursor = res.contains("nextCursor") && res["nextCursor"].is_string()
+                         ? res["nextCursor"].get<std::string>() : std::string();
+            if (cursor.empty()) break;
+        }
+    }
+    if (wanted.empty()) return finish("failed", "it lists no resources", "");
+
+    nlohmann::json rows = nlohmann::json::array();
+    size_t text_bytes = 0, unread = 0;
+    for (const auto& [uri, title] : wanted) {
+        st = s.call("resources/read", {{"uri", uri}}, res, why);
+        if (st == "error") { ++unread; continue; }   // one unreadable resource is not the source
+        if (st != "ok") return finish(st, why, "resources/read");
+        std::string text;
+        if (res.contains("contents") && res["contents"].is_array()) {
+            for (const auto& c : res["contents"]) {
+                // Text only: a blob is binary, and guidance is text.
+                if (!c.is_object() || !c.contains("text") || !c["text"].is_string()) continue;
+                if (!text.empty()) text += "\n\n";
+                text += c["text"].get<std::string>();
+            }
+        }
+        if (text.empty()) { ++unread; continue; }
+        text_bytes += text.size();
+        if (text_bytes > cap)
+            return finish("failed", "its resources are larger than " + std::to_string(cap / 1024) + " KB", "");
+        rows.push_back({{"topic", title}, {"body", std::move(text)}});
+    }
+    killSourceProcess(sp);
+    if (rows.empty())
+        return {"failed", unread ? "none of its " + std::to_string(unread) + " resources could be read as text"
+                                 : "it has no text resources", ""};
+    return {"ok", "", rows.dump()};
 #endif
 }
 
@@ -1796,7 +2226,8 @@ bool parseFetched(const std::string& bytes, GuidanceDoc& out, std::string& why) 
 }
 
 bool sameSource(const GuidanceSourceConfig& a, const GuidanceSourceConfig& b) {
-    return a.type == b.type && a.url == b.url && a.command == b.command && a.auth_env == b.auth_env;
+    return a.type == b.type && a.url == b.url && a.command == b.command && a.auth_env == b.auth_env &&
+           a.resources == b.resources;
 }
 
 }  // namespace
@@ -1881,8 +2312,20 @@ void GovernanceEngine::GuidanceFetcher::refresh(const std::string& name, int bud
         std::lock_guard<std::mutex> ek(engines_mu);
         return engines.empty() ? p : engines.front()->resolvePolicyPath(p);
     };
+    // A command or MCP source must not live where the program can write (A36),
+    // judged on every fetch from the live rules of every attached engine.
+    std::string exposure;
+    if (src.type == "command" || src.type == "mcp") {
+        std::lock_guard<std::mutex> ek(engines_mu);
+        for (auto* e : engines) {
+            exposure = e->guidanceSourceExposure(src);
+            if (!exposure.empty()) break;
+        }
+    }
     const auto t0 = std::chrono::steady_clock::now();
-    FetchResult r = src.type == "https" ? fetchHttps(denial, src, timeout, cap, stopping)
+    FetchResult r = !exposure.empty()   ? FetchResult{"refused", exposure, ""}
+                  : src.type == "https" ? fetchHttps(denial, src, timeout, cap, stopping)
+                  : src.type == "mcp"   ? fetchMcp(resolve, cwd, src, timeout, cap, stopping)
                                         : fetchCommand(resolve, cwd, src, timeout, cap, stopping);
     const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     if (r.outcome == "stopped") return;   // shutting down: nothing to report
@@ -1994,7 +2437,7 @@ void GovernanceEngine::startGuidanceSources(bool initial_load) {
     std::vector<GuidanceSourceConfig> ext;
     if (isActive() && rules_hold->guidance.enabled) {
         for (const auto& s : rules_hold->guidance.sources)
-            if (s.type == "https" || s.type == "command") ext.push_back(s);
+            if (s.type == "https" || s.type == "command" || s.type == "mcp") ext.push_back(s);
     }
     std::shared_ptr<GuidanceFetcher> f;
     bool created = false;
@@ -2053,10 +2496,10 @@ void GovernanceEngine::startGuidanceSources(bool initial_load) {
     }
     if (created) {
         bool has_command = false;
-        for (const auto& s : ext) if (s.type == "command") has_command = true;
+        for (const auto& s : ext) if (s.type == "command" || s.type == "mcp") has_command = true;
         const auto& net = rules_hold->capabilities.network;
         if (has_command && (!net.allowed_hosts.empty() || !net.blocked_hosts.empty())) {
-            fprintf(stderr, "[governance] Note: a guidance command source runs with the operator's "
+            fprintf(stderr, "[governance] Note: a guidance command or MCP source runs with the operator's "
                             "authority; the project's allowed and blocked host lists cannot bind the "
                             "connections it makes\n");
         }
