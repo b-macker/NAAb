@@ -46,8 +46,11 @@
 #          checks that would catch it first are switched off in this arm only)
 #   AH-15  code_quality.intent_validation: a declared intent the code does not
 #          carry out is refused
-#   AH-16  capabilities.filesystem.blocked_paths: the harness may not write
-#          its own telemetry file
+#   AH-16  the harness may not write its own telemetry file. The config also
+#          lists it in capabilities.filesystem.blocked_paths (belt and braces),
+#          but the engine now auto-protects every ENABLED evidence file
+#          (telemetry/transcript/audit) regardless, so the write is refused by
+#          the dedicated governance.evidence_files gate, which fires first.
 #   AH-17  capabilities.network: http.* is a HARD block even for a function
 #          granted NET_CONNECT
 #   AH-18  prerequisites: a required environment variable that is missing
@@ -335,7 +338,7 @@ run_variant ah15 'G["code_quality"]["intent_validation"]["function_intents"]["lo
 expect_block "AH-15" "a declared intent the code does not carry out is refused" "Intent mismatch on 'load_json'"
 
 run_variant ah16 'H = H.replace("    file.write(\"out/report.json\", text)\n", "    file.write(\"out/report.json\", text)\n    file.write(\"out/telemetry.jsonl\", \"\")\n")'
-expect_block "AH-16" "the harness may not write its own telemetry file" "File path blocked by governance: out/telemetry.jsonl"
+expect_block "AH-16" "the harness may not write its own telemetry file (auto-protected evidence file)" "Writing a governance evidence file is blocked: out/telemetry.jsonl"
 
 run_variant ah17 'H = H.replace("use array\n", "use array\nuse http\n").replace("fn load_json(path) {\n", "fn load_json(path) {\n    let ping = http.get(\"http://127.0.0.1:9/\")\n")
 G["capabilities"]["functions"]["load_json"]["allowed_actions"].append("NET_CONNECT")'

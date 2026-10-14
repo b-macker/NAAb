@@ -3314,6 +3314,11 @@ public:
     // True when `canon_n` (canonical, '/' separators) is a declared guidance
     // source -- the governed program may not write it (no self-instruction).
     bool isGuidanceSourcePath(const std::string& canon_n) const;
+    // True when `canon_n` (canonical, '/' separators) is a file the ENGINE
+    // writes as governance evidence this run -- the telemetry output, the agent
+    // transcript or the audit trail. The governed program may read it but not
+    // write it (checkPathAccessImpl).
+    bool isEvidenceLogPath(const std::string& canon_n) const;
     // The agent-channel text for a set of deliveries ("" for none).
     static std::string formatGuidance(const std::vector<GuidanceDelivery>& items);
     // Opaque outside governance_guidance.cpp.
@@ -4312,6 +4317,17 @@ private:
     // and every reload, so removing a source mid-run neither un-hides its
     // credential nor reads as a ratchet loosening.
     std::vector<std::string> protected_env_names_;
+    // Evidence logs the engine writes this run (telemetry output, transcript,
+    // audit trail), each recorded twice: as configured -- relative to the
+    // process cwd, which is what the engine's fopen() resolves it against at
+    // every write -- and as the absolute path at the time it was recorded, so
+    // a later change of working directory cannot move the protection off the
+    // evidence already written. Grow-only like protected_env_names_: a reload
+    // that moves an output file keeps the old one protected. Guarded by
+    // evidence_paths_mutex_ because checkPathAccess runs on async and agent
+    // worker threads while a reload appends on the main thread.
+    std::vector<std::string> evidence_log_paths_;
+    mutable std::mutex evidence_paths_mutex_;
     // Terminal channel: the guidance section appended to a block message in
     // enforce(). Computed without telemetry (enforce()'s advisory branch holds
     // results_mutex_ while it prints; this takes only guidance_mutex_), and

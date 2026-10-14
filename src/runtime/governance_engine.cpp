@@ -956,6 +956,76 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
         if (std::find(blocked_read.begin(), blocked_read.end(), name) == blocked_read.end())
             blocked_read.push_back(name);
     }
+
+    // The governance evidence the engine writes this run: the telemetry
+    // output, the agent transcript and the audit trail. A program that can
+    // write these can erase or rewrite the record of its own run -- measured
+    // before this: file.write/append, io.write_file, file.copy, log.set_output,
+    // file.delete/move (unrestricted) and embedded Python replaced, truncated,
+    // appended to and deleted all three on both engines, while govern.json was
+    // refused on the same routes. Recorded under the same conditions the
+    // engine's own writers test, so a file the engine does not write is not
+    // protected. Not added to blocked_paths: that would also refuse READS, and
+    // programs read their own telemetry mid-run (living-script, the gorilla
+    // suites); isEvidenceLogPath() refuses writes only. Recorded on the rules a
+    // reload proposes even if the ratchet then rejects them -- an extra file
+    // refused, never one released.
+    {
+        std::vector<std::string> now;
+        const auto& tel = target_rules.telemetry_output;
+        if (tel.enabled && !tel.output_file.empty()) now.push_back(tel.output_file);
+        const auto& tr = target_rules.transcript;
+        if (tr.enabled && !tr.output_file.empty()) now.push_back(tr.output_file);
+        if (target_rules.audit.level != "none")
+            now.push_back(target_rules.audit.output_file.empty()
+                              ? std::string(".governance-audit.jsonl")
+                              : target_rules.audit.output_file);
+        std::lock_guard<std::mutex> lk(evidence_paths_mutex_);
+        auto remember = [&](const std::string& p) {
+            if (std::find(evidence_log_paths_.begin(), evidence_log_paths_.end(), p) ==
+                evidence_log_paths_.end())
+                evidence_log_paths_.push_back(p);
+        };
+        for (const auto& p : now) {
+            remember(p);
+            std::error_code ec;
+            const auto abs = std::filesystem::absolute(p, ec);
+            if (!ec) remember(abs.lexically_normal().string());
+        }
+    }
+}
+
+bool GovernanceEngine::isEvidenceLogPath(const std::string& canon_n) const {
+    std::vector<std::string> paths;
+    {
+        std::lock_guard<std::mutex> lk(evidence_paths_mutex_);
+        if (evidence_log_paths_.empty()) return false;
+        paths = evidence_log_paths_;
+    }
+    std::error_code ec;
+    const bool target_exists = std::filesystem::exists(canon_n, ec);
+    for (const auto& p : paths) {
+        // Resolve exactly as checkPathAccessImpl resolves the target: a
+        // relative entry against the CURRENT cwd, which is also where the
+        // engine's next fopen() of it lands.
+        std::string ep;
+        try {
+            std::filesystem::path t(p);
+            if (t.is_relative()) t = std::filesystem::absolute(t);
+            ep = std::filesystem::weakly_canonical(t).string();
+        } catch (...) {
+            continue;
+        }
+        std::replace(ep.begin(), ep.end(), '\\', '/');
+        if (ep == canon_n) return true;
+        // A second name for the same file (a hard link) is the same log.
+        if (target_exists) {
+            std::error_code ec2;
+            if (std::filesystem::exists(ep, ec2) &&
+                std::filesystem::equivalent(ep, canon_n, ec2) && !ec2) return true;
+        }
+    }
+    return false;
 }
 
 // ============================================================================
@@ -2630,6 +2700,26 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
                 "file.write(\"" + filepath + "\", text)",
                 "file.write(\"output/notes.md\", text)"),
             "guidance source is not writable by the program: " + filepath);
+    }
+
+    // Governance evidence -- the telemetry output, the agent transcript, the
+    // audit trail -- is written by the engine. A program that could write it
+    // could erase or rewrite the record of its own run, so every program write
+    // is refused here, the decision point file/io/log and embedded Python's
+    // audit hook all reach on both engines. Reads stay allowed. Subprocess
+    // languages do not reach this gate (CONTRA-013).
+    if (mode == "write" && isEvidenceLogPath(canon_n)) {
+        return deny("governance.evidence_files", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Writing a governance evidence file is blocked: " + filepath,
+                currentFunction().empty() ? std::string()
+                                          : ("in function '" + currentFunction() + "'"),
+                "the engine records this run's governance evidence in this file",
+                "A governed program can read its telemetry, transcript and audit trail,\n"
+                "but cannot change them. Write your own output to another file.",
+                "file.append(\"" + filepath + "\", line)",
+                "file.append(\"output/my-log.jsonl\", line)"),
+            "governance evidence file is not writable by the program: " + filepath);
     }
 
     // Policy entries are resolved by resolvePolicyPath(), which the reload
