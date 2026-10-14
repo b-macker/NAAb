@@ -46,6 +46,9 @@
 #             M-18       the program cannot rewrite a file the server's
 #                        arguments name (defence in depth); M-18c a file
 #                        beside it stays writable
+#   label     M-19       a violation's terminal guidance names the source
+#             M-20       so do the agent's request and the end-of-run block
+#                        (a pathless source used to print an empty name)
 #
 # Windows: MCP sources are refused at load in this build -- every arm is
 # UNMEASURABLE there.
@@ -381,5 +384,43 @@ main {
 if [ "$RC" = 0 ] && [[ "$OUT" == *"WROTE"* ]] && [ -f "$d/other.json" ]; then
     pass "M-18c" "control: another file in the same directory is still writable"
 else fail "M-18c" "the refusal is wider than the source's files" "rc=$RC ${OUT:0:300}"; fi
+
+# ---------------------------------------------------------------------------
+echo ""
+echo "== what a person reads: the source is named in every display"
+# A source with no path (https, command, MCP) used to print its empty path:
+# "Project guidance ( > No placeholders)". The marker text is the control that
+# the section was delivered at all; the label is the subject.
+d="$TEST_TMP/m19"; behaviour "$d" "MCP_M19"; cfg "$d" "[$(src "$d")]" "$QC"
+run "$d" vm "$PLACEHOLDER"
+if [ "$RC" = 3 ] && [[ "$OUT" == *"MCP_M19_PH: unfinished work"* ]] &&
+   [[ "$OUT" == *"Project guidance (mcp_guidance_stub > No placeholders):"* ]]; then
+    pass "M-19" "terminal: a violation's guidance names the MCP source (mcp_guidance_stub > No placeholders)"
+else fail "M-19" "terminal guidance label wrong" "rc=$RC $(grep -A1 'Project guidance' <<<"$OUT" | head -2)"; fi
+
+# M-20: the agent's request and the end-of-run block. A resource named for the
+# agent is delivered by the automatic start rule with its first request.
+source "$SCRIPT_DIR/../helpers/stub_launch.sh"
+export FAKE_KEY_MCP="fake-key-mcp"
+d="$TEST_TMP/m20"; mkdir -p "$d/agent"
+behaviour "$d" "MCP_M20" ', "pages": [[{"uri": "kb://worker", "name": "worker"}]], "texts": {"kb://worker": "MCP_M20: answer from the invoice lines, never from memory."}'
+printf '{"responses": [{"content": "The total is the sum of the invoice lines.", "input_tokens": 12, "output_tokens": 24}]}\n' > "$d/agent/fx.json"
+if start_stub "$d/agent/fx.json" "$d/agent" >/dev/null 2>&1; then
+    cfg "$d" "[$(src "$d")]" "\"agents\": {\"worker\": {\"provider\": \"gemini\", \"model\": \"stub-model\", \"api_base\": \"http://127.0.0.1:$STUB_PORT\", \"api_key_env\": \"FAKE_KEY_MCP\", \"max_tokens\": 200, \"max_turns\": 10, \"system_prompt\": \"You answer questions about invoices.\"}},"
+    run "$d" vm 'use agent
+main {
+    let h = agent.create("worker")
+    let r = agent.send(h, "How is the total computed?")
+    print("SENT")
+}'
+    stop_stub
+    req1="$(cat "$d/agent/req_1.json" 2>/dev/null)"
+    if [[ "$OUT" != *SENT* ]] || [[ "$req1" != *"MCP_M20: answer from the invoice lines"* ]]; then
+        fail "M-20" "harness: the start section was not delivered -- the label is unreadable" "rc=$RC ${OUT:0:300}"
+    elif [[ "$req1" == *"[Project guidance: mcp_guidance_stub > worker]"* ]] &&
+         grep -q -- "-> mcp_guidance_stub > worker" <<<"$OUT"; then
+        pass "M-20" "the agent's request and the end-of-run block name the MCP source"
+    else fail "M-20" "agent or end-of-run label wrong" "req: $(grep -o 'Project guidance:[^]]*]' <<<"$req1" | head -1) | $(grep -A1 -- '-- Guidance' <<<"$OUT" | head -2)"; fi
+else skip "M-20" "the agent stub did not start"; fi
 
 summary

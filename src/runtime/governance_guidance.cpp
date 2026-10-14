@@ -259,7 +259,7 @@ struct GovernanceEngine::GuidanceState {
     // terminal block and is updated as the reply and validation arrive.
     unsigned long long next_id = 1;
     struct RunEntry {
-        std::string id, agent, trigger, file, heading;
+        std::string id, agent, trigger, label, heading;   // label: guidanceLabel()
         int turn = -1;
         bool has_reply = false;
         int terms = 0, used = 0;
@@ -292,6 +292,24 @@ struct Candidate {
 
 }  // namespace
 
+// What a person reads as a section's source, in every display (the agent's
+// header, the terminal, the end-of-run block): the path as written in
+// govern.json for a document or database, else the source's name. An https,
+// command or MCP source has no path, and every display printed its empty path
+// -- "( > No placeholders)" -- until this; its URL or argv is not shown instead,
+// because those can carry operator detail. Telemetry's "file" stays the path.
+static std::string guidanceLabel(const std::string& file, const std::string& source) {
+    return file.empty() ? source : file;
+}
+
+// The line that opens a section in the agent's request. One copy: selection
+// sizes a section against the budget with the same header formatGuidance()
+// sends, so the two cannot disagree on its length.
+static std::string guidanceHeader(const std::string& file, const std::string& source,
+                                  const std::string& heading) {
+    return "[Project guidance: " + guidanceLabel(file, source) + " > " + heading + "]\n";
+}
+
 static const GuidanceDoc* guidanceLoadDoc(GovernanceEngine& eng,
                                           GovernanceEngine::GuidanceState& st,
                                           const GuidanceConfig& gc,
@@ -306,7 +324,7 @@ std::string GovernanceEngine::formatGuidance(const std::vector<GuidanceDelivery>
     std::string out;
     for (const auto& d : items) {
         if (!out.empty()) out += "\n\n";
-        out += "[Project guidance: " + d.file + " > " + d.heading + "]\n" + d.text;
+        out += guidanceHeader(d.file, d.source, d.heading) + d.text;
     }
     return out;
 }
@@ -1033,7 +1051,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
                     withheld_detail.emplace_back(req.rule.on, key, reason);
                     continue;
                 }
-                const std::string header = "[Project guidance: " + c.file + " > " + c.heading + "]\n";
+                const std::string header = guidanceHeader(c.file, c.source, c.heading);
                 const size_t sep = delivered.empty() ? 0 : 2;
                 if (used + sep + header.size() >= budget) {
                     withheld_detail.emplace_back(req.rule.on, key, "budget");
@@ -1076,7 +1094,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
             if (st.run_log.size() < kRunLogCap) {
                 GuidanceState::RunEntry e;
                 e.id = d.id; e.agent = agent_name; e.trigger = d.trigger;
-                e.file = d.file; e.heading = d.heading; e.turn = turn;
+                e.label = guidanceLabel(d.file, d.source); e.heading = d.heading; e.turn = turn;
                 e.lookup_ms = lookup_ms;
                 st.run_log.push_back(std::move(e));
             }
@@ -1187,7 +1205,7 @@ GovernanceEngine::GuidanceTerminal GovernanceEngine::guidanceForTerminal(
     }
 
     for (const auto& d : g.delivered) {
-        g.suffix += "\n\n  Project guidance (" + d.file + " > " + d.heading + "):\n";
+        g.suffix += "\n\n  Project guidance (" + guidanceLabel(d.file, d.source) + " > " + d.heading + "):\n";
         std::istringstream in(d.text);
         std::string line;
         bool first = true;
@@ -1414,7 +1432,7 @@ void GovernanceEngine::printGuidanceSummary() {
     for (size_t i = 0; i < log.size() && i < kShow; ++i) {
         const auto& e = log[i];
         out += "  " + e.agent + " turn " + std::to_string(e.turn) + "  " + e.trigger +
-               " -> " + e.file + " > " + e.heading;
+               " -> " + e.label + " > " + e.heading;
         std::string tail;
         if (e.has_reply) tail = "reply used " + std::to_string(e.used) + "/" + std::to_string(e.terms) + " terms";
         else tail = "no reply recorded";

@@ -94,9 +94,11 @@ same governed channel, and record exactly what was delivered.
     cannot be scored as the user's instruction). A trigger observed after reply N
     is delivered with request N+1; the text is resolved at delivery, so an edit
     between the two is what arrives.
-  - `terminal` -- a `Project guidance (<file> > <heading>):` section appended to
-    the block message in `enforce()`, after the refusal attestation and the hook
-    have used the original text.
+  - `terminal` -- a `Project guidance (<source> > <heading>):` section appended
+    to the block message in `enforce()`, after the refusal attestation and the
+    hook have used the original text. `<source>` is the path for a document or
+    database and the source's name for https, command and MCP (until #316 those
+    three printed an empty path in every display).
   - script -- `agent.send()`'s response carries `guidance` (what this send
     delivered: trigger, source, section, chars, sha256) when the feature is on,
     and `governance.guidance(topic)` lets a script pull entries (and wrap them as

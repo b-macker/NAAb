@@ -243,8 +243,10 @@ QC='"code_quality": {"no_placeholders": {"enabled": true, "level": "hard"}},'
 # it wins it, and the arm passed with the initial fetch removed.
 d="$TEST_TMP/c03"; cfg "$d" "[\"$BASE/slow/g.json\"]" "$QC" ', "initial_fetch_ms": 5000'
 run "$d" vm "$PLACEHOLDER"
-if [ "$RC" = 3 ] && [[ "$OUT" == *"Project guidance ("* ]] && [[ "$OUT" == *"CONN_HTTPS_m1_PH"* ]]; then
-    pass "C-03" "a violation found at load shows the fetched row named for its check (first fetch precedes static checks)"
+# The label is asserted whole: "Project guidance (" alone passed while an
+# https source printed an empty name -- "( > ...)".
+if [ "$RC" = 3 ] && [[ "$OUT" == *"Project guidance (g > "* ]] && [[ "$OUT" == *"CONN_HTTPS_m1_PH"* ]]; then
+    pass "C-03" "a violation found at load shows the fetched row named for its check, under the source's name (first fetch precedes static checks)"
 else fail "C-03" "no fetched guidance on the load-time block" "rc=$RC $OUT"; fi
 
 # ---------------------------------------------------------------------------
