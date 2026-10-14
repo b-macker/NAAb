@@ -2540,6 +2540,20 @@ else
     echo "  test_protected_write_routes.sh: not found, skipping"
 fi
 
+# The governance evidence files (telemetry, transcript, audit) the engine
+# writes for a run must not be writable by the program it governs.
+EVFILE_SCRIPT="tests/governance_v4/test_evidence_file_protection.sh"
+if [ -f "$EVFILE_SCRIPT" ]; then
+    if run_shell_test "$EVFILE_SCRIPT" 2>&1; then
+        echo "  test_evidence_file_protection.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_evidence_file_protection.sh")
+    fi
+else
+    echo "  test_evidence_file_protection.sh: not found, skipping"
+fi
+
 # The BSD pre-execution path must leave evidence.
 BSDPRE_SCRIPT="tests/governance_v4/test_bsd_preexec_evidence.sh"
 if [ -f "$BSDPRE_SCRIPT" ]; then

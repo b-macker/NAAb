@@ -188,10 +188,17 @@ that withholds a random fraction of deliveries on live runs. Slice 2.
    G-10/G-11, cooldown -> G-03 `nnYYYYY`, live re-read -> G-05, signal queue ->
    G-03).
 2. **Measured**: the after-run efficacy report; a `history` source of facts from
-   previous runs' telemetry (engine-written fields only; the telemetry file needs
-   write protection first -- it is not auto-protected today, traced in
-   `addGovernanceProtectedPaths()`, and the hash chain is unkeyed, so it detects
-   edits but not a correctly chained forged append).
+   previous runs' telemetry (engine-written fields only). Prerequisite partly
+   met: the telemetry/transcript/audit files are now write-protected from the
+   governed program (`addGovernanceProtectedPaths()` + `isEvidenceLogPath()`,
+   evidence-files entry in CLAUDE.md, `test_evidence_file_protection.sh`), so a
+   run can no longer rewrite the evidence a later report or `history` source
+   reads. Two residual gaps on those files remain for before/with slice 2
+   (`docs/open-investigations.md` A33): the reload ratchet does not yet cover
+   the evidence output paths or `audit.level`, and the chain's `hmac_key_env`
+   is still readable by the program, so the unkeyed-by-default chain detects
+   edits but not a correctly chained forged append -- a keyed, program-unreadable
+   chain is what makes a `history` source trustworthy end to end.
 3. **Connectors**: read-only parameter-bound `sqlite` (**built**, second PR);
    `https` and a `command` adapter (**built**, third PR -- see "Connectors,
    slice 3a" below, which also records where the built design departs from
