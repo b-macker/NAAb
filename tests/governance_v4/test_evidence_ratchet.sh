@@ -208,7 +208,10 @@ NOP='"limits": { "timeout": { "global": 600 } }'
 # ---- R-00 -------------------------------------------------------------------
 reload_run R00 "$TEL, $AUD, $REP" "$TEL, $AUD, $REP, $NOP" --tree-walk
 if [ "$OUT" = "__NOSIGN__" ]; then skip "R-00" "signing unavailable -- UNMEASURABLE"
-elif ! swapped; then bad "R-00" "harness: the config swap did not happen" "$OUT"
+# A mid-run swap cannot be staged on Windows (0304af3a; test_capability_list_ratchet.sh
+# R-00 reports the same): every reload arm below is then UNMEASURABLE, not
+# failed, and the OV-04/OV-05 arms, which need no reload, still run.
+elif ! swapped; then skip "R-00" "config swap did not happen -- every reload arm is UNMEASURABLE"
 elif [[ "$OUT" == *"Reload rejected"* ]]; then bad "R-00" "harness: an unrelated reload was refused" "$OUT"
 elif runend "$(D R00)/tele.jsonl" && [ "$(pg_count "$(D R00)/audit.jsonl")" -ge 3 ] && [ -s "$(D R00)/rep.json" ]; then
     ok "R-00" "control: an unrelated reload is accepted; telemetry sealed, $(pg_count "$(D R00)/audit.jsonl") audit polyglot entries, report written"
