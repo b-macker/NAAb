@@ -350,6 +350,42 @@ bool GovernanceEngine::isGuidanceSourcePath(const std::string& canon_n) const {
     return false;
 }
 
+// A36, owner's decision (b) (2026-10-14): a command or MCP source runs with the
+// OPERATOR's authority, outside the sandbox, so it may not live where the
+// program can write. Protecting its files one by one (above) cannot see a NEW
+// file -- measured: with shell disabled, a json.py the program wrote beside a
+// command source's gen.py was imported by the next refresh and ran as the
+// operator. So the directory of the program (when given as a path) and of every
+// argument naming a file must be one the program may not write into: the
+// filesystem mode forbids writes, or the path policy refuses a new file there.
+// The sandbox is not consulted, which can only refuse more. A program given as
+// a bare name (python3, npx) is looked up on PATH and is not judged here; what
+// it loads from its own install or package cache is outside this check (A36).
+std::string GovernanceEngine::guidanceSourceExposure(const GuidanceSourceConfig& s) {
+    if (s.type != "command" && s.type != "mcp") return "";
+    const auto rules_hold = rulesPtr();
+    if (rules_hold->filesystem_mode == "none" || rules_hold->filesystem_mode == "read") return "";
+    std::vector<std::string> files;
+    if (!s.command.empty() && s.command[0].find('/') != std::string::npos)
+        files.push_back(resolvePolicyPath(s.command[0]));
+    std::error_code ec;
+    for (size_t i = 1; i < s.command.size(); ++i) {
+        const std::string& a = s.command[i];
+        if (a.empty() || a[0] == '-') continue;
+        const std::string ap = resolvePolicyPath(a);
+        if (std::filesystem::is_regular_file(ap, ec)) files.push_back(ap);
+    }
+    for (const auto& f : files) {
+        const std::string dir = std::filesystem::path(f).parent_path().generic_string();
+        if (pathPolicyDenial(dir + "/.naab-guidance-probe", /*write=*/true).empty()) {
+            return "the program may write in " + dir + ", where this source's code lives -- "
+                   "move it where the program cannot write, or list that directory in "
+                   "capabilities.filesystem.blocked_paths";
+        }
+    }
+    return "";
+}
+
 // The files a command or MCP source executes or reads as its configuration:
 // the program (a bare name looked up on the LOAD-TIME PATH, as the fetch does;
 // a relative path project-relative) and every later argument that names an
@@ -2258,8 +2294,19 @@ void GovernanceEngine::GuidanceFetcher::refresh(const std::string& name, int bud
         std::lock_guard<std::mutex> ek(engines_mu);
         return engines.empty() ? p : engines.front()->resolvePolicyPath(p);
     };
+    // A command or MCP source must not live where the program can write (A36),
+    // judged on every fetch from the live rules of every attached engine.
+    std::string exposure;
+    if (src.type == "command" || src.type == "mcp") {
+        std::lock_guard<std::mutex> ek(engines_mu);
+        for (auto* e : engines) {
+            exposure = e->guidanceSourceExposure(src);
+            if (!exposure.empty()) break;
+        }
+    }
     const auto t0 = std::chrono::steady_clock::now();
-    FetchResult r = src.type == "https" ? fetchHttps(denial, src, timeout, cap, stopping)
+    FetchResult r = !exposure.empty()   ? FetchResult{"refused", exposure, ""}
+                  : src.type == "https" ? fetchHttps(denial, src, timeout, cap, stopping)
                   : src.type == "mcp"   ? fetchMcp(resolve, cwd, src, timeout, cap, stopping)
                                         : fetchCommand(resolve, cwd, src, timeout, cap, stopping);
     const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();

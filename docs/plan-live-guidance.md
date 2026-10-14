@@ -550,7 +550,7 @@ which would end NAAb (nothing in a `run` process ignores it). The write blocks
 SIGPIPE on its own thread and takes the signal it raised before unblocking, so
 neither the fetch thread nor the main thread (the load-time fetch) is changed.
 
-**Evidence.** `tests/governance_v4/test_guidance_mcp.sh`, 22 arms against
+**Evidence.** `tests/governance_v4/test_guidance_mcp.sh`, 24 arms against
 `tests/helpers/mcp_guidance_stub.py`, which logs every message it receives and
 its own environment. Revert check (observed, three batches chosen so no two
 mutations share an arm, each re-run): live environment instead of the snapshot
@@ -562,7 +562,7 @@ ignored -> M-09. The first batch also failed M-02 because that arm read the
 environment lines of the log; it now reads only what the client sent, and
 the batch re-run failed exactly M-03/04/08/11. Dead interpreter: 0 of 17 arms
 that run pass. The command source's suite (25 arms) passes unchanged on the
-shared start-up function (27 arms with C-25/C-25c).
+shared start-up function (30 arms with C-25/C-26).
 
 **Found in the adversarial pass, and fixed here for both connector kinds.**
 #312 skipped command sources in the write protection ("not a file the program
@@ -571,16 +571,27 @@ disabled: the program rewrote a command source's script and the next refresh
 ran it, as the operator, outside the sandbox. The program a command or MCP
 source runs, and every argument naming an existing file, are now sources the
 program may not write (C-25, M-17, each with a control that a file beside it
-stays writable; revert-checked). **Still open (A36, verified):** a NEW file
-beside the script -- a `json.py` an interpreter imports from the script's
-directory -- runs the same way. Closing it is an owner decision between
-locking the script's directory, refusing at load a source that lives where the
-program may write, or a warning.
+stays writable; revert-checked). A NEW file beside the script -- a `json.py`
+an interpreter imports from the script's directory -- ran the same way
+(measured). **Owner's decision (b), 2026-10-14:** a command or MCP source must
+live where the program cannot write. On every fetch, from the live rules of
+every attached engine, the source is refused when the filesystem mode allows
+writes and the path policy would let the program create a file in the
+directory of its program (when given as a path) or of any argument naming a
+file; the warning names the directory and the remedy (`blocked_paths`, outside
+`allowed_paths`, or a read-only mode). The sandbox is not consulted, which can
+only refuse more. A bare-name program (`python3`, `npx`) is looked up on PATH
+and not judged: its own install and package cache are outside this. Tests:
+C-26 (the measured route end to end -- refused, the program's `json.py` never
+runs), C-26c and C-26b (a blocked directory, a read-only mode), M-17/M-17c;
+revert-checked (the check failing open -> C-26 and M-17; the read-only branch
+removed -> C-26b).
 
 **Known limits** (as for a command source, plus):
 - A server can read files the program wrote: operator authority, like a hook,
-  and path policy does not reach a separate process. It can also import a file
-  the program wrote beside its script (A36, above).
+  and path policy does not reach a separate process.
+- A bare-name program's own install and package cache (`npx`, `uvx`) are not
+  judged by the directory check (A36, above).
 - The server is started on every refresh (default every 60 s): fetched whole
   means no long-lived session holding state between fetches.
 - Windows: refused at load.

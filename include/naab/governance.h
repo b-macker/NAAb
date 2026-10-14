@@ -3317,6 +3317,11 @@ public:
     bool isGuidanceSourcePath(const std::string& canon_n) const;
     // The program a command/MCP source runs and the files its arguments name.
     std::vector<std::string> guidanceSourceProgramFiles(const GuidanceSourceConfig& s) const;
+    // "" when the program cannot write where a command/MCP source's code lives
+    // (the directory of its program, when given as a path, and of every
+    // argument naming a file); otherwise why the source is refused. Judged on
+    // every fetch from the LIVE rules (A36, owner's decision (b) 2026-10-14).
+    std::string guidanceSourceExposure(const GuidanceSourceConfig& s);
     // True when `canon_n` (canonical, '/' separators) is a file the ENGINE
     // writes as governance evidence this run -- the telemetry output, the agent
     // transcript or the audit trail. The governed program may read it but not

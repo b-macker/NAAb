@@ -39,9 +39,13 @@
 #             M-14       naab-gov lint never starts it (exit 3 proves the
 #                        config was loaded); naab-lang run does (control)
 #             M-15       a refresh that fails keeps the last good copy
-#   self      M-17       the program cannot rewrite a file the server's
-#                        arguments name (it runs as the operator); M-17c a
-#                        file beside it stays writable
+#   self      M-17       a source whose file sits where the program may write
+#                        is refused, its server never started (A36, decision
+#                        (b)); M-17c the same file in a blocked directory is
+#                        fetched
+#             M-18       the program cannot rewrite a file the server's
+#                        arguments name (defence in depth); M-18c a file
+#                        beside it stays writable
 #
 # Windows: MCP sources are refused at load in this build -- every arm is
 # UNMEASURABLE there.
@@ -84,20 +88,32 @@ if [ "$WINDOWS" = 1 ]; then
 fi
 command -v python3 >/dev/null 2>&1 || { skip "M-ALL" "python3 unavailable for the stub server"; summary; exit $?; }
 
-# behaviour DIR MARKER [EXTRA_JSON_FIELDS] -> DIR/beh.json, and the default
-# two resources: "deployment" and "No placeholders".
+# An MCP source may not live where the program can write (A36, decision (b)):
+# each arm's behaviour file is kept in SRV, and every config lists SRV and the
+# stub's own directory in blocked_paths -- unless the arm sets its own
+# filesystem policy (M-17). BEH_AT overrides where the behaviour file goes.
+SRV="$TEST_TMP/srv"; mkdir -p "$SRV"
+HELPERS="$(dirname "$STUB")"
+beh_path() { echo "${BEH_AT:-$SRV/$(basename "$1").json}"; }
+# behaviour DIR MARKER [EXTRA_JSON_FIELDS] -> the behaviour file, and the
+# default two resources: "deployment" and "No placeholders". The stub's log
+# and session counter go in DIR (the stub writes them, not the program).
 behaviour() {
     mkdir -p "$1"
     printf '{"log": "%s/stub.log", "counter": "%s/sessions",\n "pages": [[{"uri": "kb://deploy", "name": "deployment"}, {"uri": "kb://ph", "name": "No placeholders"}]],\n "texts": {"kb://deploy": "%s: roll back with the rollback script before retrying.", "kb://ph": "%s_PH: unfinished work goes in stubs/ with a ticket."}%s}\n' \
-        "$1" "$1" "$2" "$2" "${3:-}" > "$1/beh.json"
+        "$1" "$1" "$2" "$2" "${3:-}" > "$(beh_path "$1")"
 }
 # src DIR [EXTRA_SOURCE_FIELDS] -> the source object
-src() { printf '{"mcp": ["python3", "%s", "%s/beh.json"]%s}' "$STUB" "$1" "${2:-}"; }
+src() { printf '{"mcp": ["python3", "%s", "%s"]%s}' "$STUB" "$(beh_path "$1")" "${2:-}"; }
 # cfg DIR SOURCES_JSON [EXTRA_TOP] [EXTRA_GUIDANCE]
 cfg() {
     mkdir -p "$1"
+    local top="${3:-}" prot="\"filesystem\": {\"blocked_paths\": [\"$SRV\", \"$HELPERS\"]}"
+    if [[ "$top" == *'"filesystem"'* ]]; then :
+    elif [[ "$top" == *'"capabilities": {'* ]]; then top="${top/'"capabilities": {'/'"capabilities": {'"$prot, "}"
+    else top="\"capabilities\": {$prot}, $top"; fi
     printf '{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"},\n "telemetry": {"enabled": true, "output_file": "tele.jsonl"},\n %s\n "guidance": {"sources": %s %s}}\n' \
-        "${3:-}" "$2" "${4:-}" > "$1/govern.json"
+        "$top" "$2" "${4:-}" > "$1/govern.json"
 }
 run() {  # $1 dir, $2 engine, $3 program -> sets OUT, RC
     printf '%s\n' "$3" > "$1/p.naab"
@@ -325,26 +341,45 @@ else fail "M-15" "last good copy not kept" "rc=$RC ${OUT:0:400}"; fi
 
 # ---------------------------------------------------------------------------
 echo ""
-echo "== the program cannot rewrite what the server runs or reads"
-d="$TEST_TMP/m17"; behaviour "$d" "MCP_M17"
-cfg "$d" "[$(src "$d")]" '"capabilities": {"shell": {"enabled": false}, "filesystem": {"mode": "write"}},'
-before="$(cat "$d/beh.json")"
+echo "== the server may not live where the program can write (A36, decision (b))"
+# M-17: the behaviour file in the project directory, which the program may
+# write -- the source is refused and its server never starts. M-17c: the same
+# file in a directory the policy blocks is fetched.
+d="$TEST_TMP/m17"; BEH_AT="$d/beh.json" behaviour "$d" "MCP_M17"
+cfg "$d" "[$(BEH_AT="$d/beh.json" src "$d")]" "\"capabilities\": {\"filesystem\": {\"mode\": \"write\", \"blocked_paths\": [\"$HELPERS\"]}},"
+run "$d" vm "$PULL"
+if [[ "$OUT" == *"N=0"* ]] && [[ "$OUT" == *"the program may write in $d"* ]] && [ "$(sessions "$d")" = 0 ]; then
+    pass "M-17" "an MCP source whose file sits where the program may write is refused; its server never starts"
+else fail "M-17" "MCP source in a program-writable directory was run" "sessions=$(sessions "$d") rc=$RC ${OUT:0:300}"; fi
+d="$TEST_TMP/m17c"; BEH_AT="$d/beh.json" behaviour "$d" "MCP_M17C"
+cfg "$d" "[$(BEH_AT="$d/beh.json" src "$d")]" "\"capabilities\": {\"filesystem\": {\"mode\": \"write\", \"blocked_paths\": [\"$HELPERS\", \"$d/beh.json\", \"$d/\"]}},"
+run "$d" vm "$PULL"
+if [[ "$OUT" == *"MCP_M17C: roll back"* ]] && [[ "$OUT" != *"the program may write in"* ]]; then
+    pass "M-17c" "control: the same file in a directory the policy blocks is fetched"
+else fail "M-17c" "a protected MCP source was refused" "rc=$RC ${OUT:0:300}"; fi
+
+# M-18: the files a source names are refused to the program one by one too --
+# defence in depth beside (b): here the extra argument sits in the project
+# directory, so the source is refused AND the program still cannot write it.
+d="$TEST_TMP/m18"; behaviour "$d" "MCP_M18"; printf '{}\n' > "$d/notes.json"
+cfg "$d" "[{\"mcp\": [\"python3\", \"$STUB\", \"$(beh_path "$d")\", \"$d/notes.json\"]}]" \
+    "\"capabilities\": {\"shell\": {\"enabled\": false}, \"filesystem\": {\"mode\": \"write\", \"blocked_paths\": [\"$SRV\", \"$HELPERS\"]}},"
 run "$d" vm 'use file
 main {
-    file.write("beh.json", "{}")
+    file.write("notes.json", "{\"x\": 1}")
     print("WROTE")
 }'
-if [ "$RC" = 3 ] && [[ "$OUT" == *"Writing a project guidance file is blocked: beh.json"* ]] &&
-   [[ "$OUT" != *"WROTE"* ]] && [ "$(cat "$d/beh.json")" = "$before" ]; then
-    pass "M-17" "the program cannot rewrite a file the server's arguments name"
-else fail "M-17" "MCP server file writable by the program" "rc=$RC ${OUT:0:300}"; fi
+if [ "$RC" = 3 ] && [[ "$OUT" == *"Writing a project guidance file is blocked: notes.json"* ]] &&
+   [[ "$OUT" != *"WROTE"* ]] && [ "$(cat "$d/notes.json")" = "{}" ]; then
+    pass "M-18" "the program cannot rewrite a file an MCP source's arguments name"
+else fail "M-18" "MCP source file writable by the program" "rc=$RC ${OUT:0:300}"; fi
 run "$d" vm 'use file
 main {
     file.write("other.json", "{}")
     print("WROTE")
 }'
 if [ "$RC" = 0 ] && [[ "$OUT" == *"WROTE"* ]] && [ -f "$d/other.json" ]; then
-    pass "M-17c" "control: another file in the same directory is still writable"
-else fail "M-17c" "the refusal is wider than the server's files" "rc=$RC ${OUT:0:300}"; fi
+    pass "M-18c" "control: another file in the same directory is still writable"
+else fail "M-18c" "the refusal is wider than the source's files" "rc=$RC ${OUT:0:300}"; fi
 
 summary
