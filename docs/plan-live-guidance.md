@@ -195,10 +195,10 @@ that withholds a random fraction of deliveries on live runs. Slice 2.
    governed program (`addGovernanceProtectedPaths()` + `isEvidenceLogPath()`,
    evidence-files entry in CLAUDE.md, `test_evidence_file_protection.sh`), so a
    run can no longer rewrite the evidence a later report or `history` source
-   reads. Two residual gaps on those files remain for before/with slice 2
-   (`docs/open-investigations.md` A33): the reload ratchet does not yet cover
-   the evidence output paths or `audit.level`, and the chain's `hmac_key_env`
-   is still readable by the program, so the unkeyed-by-default chain detects
+   reads. Of the two residual gaps on those files (`docs/open-investigations.md`
+   A33), the reload ratchet now covers the evidence destinations, filters and
+   keys (A33(a), fixed); one remains for before/with slice 2: the chain's
+   `hmac_key_env` is still readable by the program, so the unkeyed-by-default chain detects
    edits but not a correctly chained forged append -- a keyed, program-unreadable
    chain is what makes a `history` source trustworthy end to end.
 3. **Connectors**: read-only parameter-bound `sqlite` (**built**, second PR);

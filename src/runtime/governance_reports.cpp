@@ -1860,13 +1860,17 @@ void GovernanceEngine::writeAgentTranscript(const std::string& json_line) {
     }
 }
 
-bool GovernanceEngine::isTranscriptAgent(const std::string& agent_name) const {
-    if (!rules().transcript.enabled || rules().transcript.output_file.empty()) return false;
-    if (rules().transcript.agents.empty()) return true;  // empty = all agents
-    for (const auto& a : rules().transcript.agents) {
+bool transcriptRecordsAgent(const TranscriptConfig& t, const std::string& agent_name) {
+    if (!t.enabled || t.output_file.empty()) return false;
+    if (t.agents.empty()) return true;  // empty = all agents
+    for (const auto& a : t.agents) {
         if (a == agent_name) return true;
     }
     return false;
+}
+
+bool GovernanceEngine::isTranscriptAgent(const std::string& agent_name) const {
+    return transcriptRecordsAgent(rules().transcript, agent_name);
 }
 
 // --- Agent Role Application ---

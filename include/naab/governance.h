@@ -2580,6 +2580,29 @@ struct TranscriptConfig {
     std::vector<std::string> agents;     // empty = all agents, ["name"] = filter
 };
 
+// Whether this transcript configuration records the named agent. The one
+// decision both the writer (isTranscriptAgent) and the reload ratchet ask, so
+// the ratchet judges a change by what is recorded, not by the list's entries.
+bool transcriptRecordsAgent(const TranscriptConfig& t, const std::string& agent_name);
+
+// Output destinations the CLI lays over govern.json at startup: the
+// --governance-* report and telemetry flags, and govern.json's own
+// governance.report_* / governance.telemetry_path, which only the CLI reads.
+// A reload builds its rules from govern.json alone, so these are recorded and
+// laid over every reloaded rule set too -- before this, any accepted reload
+// (even one re-installing the same file) dropped them, and the run's report
+// and telemetry silently stopped.
+struct StartupOutputs {
+    std::string telemetry_path;   // enables telemetry (with tamper evidence) to this file
+    std::string report_json;
+    std::string report_sarif;
+    std::string report_junit;
+    bool empty() const {
+        return telemetry_path.empty() && report_json.empty() && report_sarif.empty() &&
+               report_junit.empty();
+    }
+};
+
 // ============================================================================
 // Agent Config (was AgentRoleConfig — now includes LLM config)
 // ============================================================================
@@ -3186,6 +3209,10 @@ public:
     std::shared_ptr<const GovernanceRules> getRulesPtr() const;
     GovernanceRules& getMutableRules();  // init-only — UB if called during concurrent execution
     void addGovernanceProtectedPaths(GovernanceRules& target_rules);
+    // Records the CLI's output overlay and applies it to the live rules.
+    // Init-only, like getMutableRules(); reloadIfChanged() re-applies it.
+    void setStartupOutputs(const StartupOutputs& outputs);
+    static void applyStartupOutputs(GovernanceRules& target_rules, const StartupOutputs& outputs);
 
     // --- Legacy Getters (backward compatible) ---
     int getTimeoutSeconds() const;
@@ -4309,6 +4336,7 @@ private:
     std::vector<std::string> pending_notices_;    // notices from last reload
     mutable std::mutex notices_mutex_;            // guards pending_notices_
     mutable std::mutex reload_mutex_;             // serializes reload attempts
+    StartupOutputs startup_outputs_;              // set at init (setStartupOutputs), read by reloads
 
     // --- Guidance state (defined in governance_guidance.cpp) ---
     // Document cache, per-handle queues and cooldowns. Created lazily under

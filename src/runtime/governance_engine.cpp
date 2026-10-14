@@ -6618,6 +6618,26 @@ void GovernanceEngine::saveDriftBaseline(
 // Feature 5: Environment Selector
 // ============================================================================
 
+void GovernanceEngine::applyStartupOutputs(GovernanceRules& r, const StartupOutputs& o) {
+    if (!o.telemetry_path.empty()) {
+        r.telemetry_output.enabled = true;
+        r.telemetry_output.output_file = o.telemetry_path;
+        r.telemetry_output.tamper_evidence.enabled = true;
+    }
+    if (!o.report_json.empty()) r.output.file_output.report_json = o.report_json;
+    if (!o.report_sarif.empty()) r.output.file_output.report_sarif = o.report_sarif;
+    if (!o.report_junit.empty()) r.output.file_output.report_junit = o.report_junit;
+}
+
+void GovernanceEngine::setStartupOutputs(const StartupOutputs& o) {
+    startup_outputs_ = o;
+    auto& mr = getMutableRules();  // init-only, like applyEnvironment
+    applyStartupOutputs(mr, o);
+    // A telemetry path set here is evidence the engine now writes: protect it
+    // from the program like one govern.json names (isEvidenceLogPath).
+    addGovernanceProtectedPaths(mr);
+}
+
 void GovernanceEngine::applyEnvironment(const std::string& env_name) {
     auto it = rules().environments.find(env_name);
     if (it == rules().environments.end()) {
