@@ -8,6 +8,7 @@
 #include "naab/bounded_read.h"
 #include "naab/governance.h"   // A23/A25: gate module network + filesystem reads
 #include "naab/sandbox.h"
+#include "naab/curl_egress.h"
 #include <fmt/core.h>
 #include <mutex>
 #include <shared_mutex>
@@ -183,7 +184,9 @@ static size_t writeFileCallback(void* contents, size_t size, size_t nmemb, void*
     return writable;
 }
 
-static bool downloadUrl(const std::string& url, const fs::path& dest) {
+// `governed`: the address gate applies exactly where checkUrlModuleGovernance()
+// does -- an active governance engine. An ungoverned run imports as before.
+static bool downloadUrl(const std::string& url, const fs::path& dest, bool governed) {
     // Create cache directory
     fs::create_directories(dest.parent_path());
 
@@ -200,6 +203,20 @@ static bool downloadUrl(const std::string& url, const fs::path& dest) {
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &sink);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
+    // A module is code: only http(s), on the first request and on every hop.
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
+    // The proxy the process started with, never the live environment.
+    naab::net::applySnapshotProxy(curl, url);
+    // isPrivateOrLoopbackHost() below reads the URL STRING; libcurl connects to
+    // what the name RESOLVES to and follows redirects itself. Measured before
+    // this gate, under an enforce config with network enabled: an import from
+    // 127.0.0.1 was refused while the same module imported and ran from 127.1,
+    // 2130706433 and 0x7f000001. #229 closed this for http.get with a
+    // per-socket check and the import path kept its string check (A11, A23);
+    // both now use the one gate (curl_egress.h), which sees only the resolved
+    // address, on every hop.
+    if (governed) curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, naab::net::refusePrivateOpenSocket);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "NAAb/1.0");
@@ -227,9 +244,9 @@ static bool downloadUrl(const std::string& url, const fs::path& dest) {
 // sandbox network posture http.get uses, BEFORE any download or cache hit.
 static bool isPrivateOrLoopbackHost(const std::string& host) {
     if (host == "localhost" || host == "localhost.localdomain") return true;
-    // NOTE: numeric-form SSRF completeness (127.1, octal, 32-bit int) is the
-    // shared isPrivateHost limitation tracked as A11 — centralising that check
-    // fixes both http.get and this path.
+    // A first-pass check on the URL string, for a clear message. It does not
+    // see 127.1, octal or 32-bit forms, a name that resolves to a private
+    // address, or a redirect; the per-socket gate in downloadUrl() does.
     unsigned a=0,b=0,c=0,d=0;
     if (sscanf(host.c_str(), "%u.%u.%u.%u", &a,&b,&c,&d) == 4) {
         if (a==127 || a==10 || a==0) return true;
@@ -286,7 +303,8 @@ std::optional<fs::path> ModuleResolver::resolve(
         if (fs::exists(cached)) {
             return cached;  // Already cached
         }
-        if (downloadUrl(module_spec, cached)) {
+        auto* gov = governance::GovernanceEngine::getCurrent();
+        if (downloadUrl(module_spec, cached, gov && gov->isActive())) {
             return cached;
         }
         throw std::runtime_error(

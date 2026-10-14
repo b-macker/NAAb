@@ -399,6 +399,8 @@ add_library(naab_security
     src/runtime/agent_review.cpp           # Agent review engine (detection → validation → scoring)
     src/runtime/governance_reports.cpp      # Governance reports (audit, hooks, plugins)
     src/runtime/telemetry_forwarder.cpp    # Telemetry webhook/SIEM forwarder
+    src/runtime/env_snapshot.cpp           # The one load-time environment snapshot (env_snapshot.h)
+    src/runtime/curl_egress.cpp            # Shared curl proxy/CA/SSRF settings for every outbound connection
     src/runtime/project_context.cpp          # Project context awareness (LLM files, linters, manifests)
     src/runtime/governance_guidance.cpp      # Live guidance (docs/plan-live-guidance.md)
     src/utils/safe_regex.cpp                # Phase 1 Item 7: Regex timeout protection

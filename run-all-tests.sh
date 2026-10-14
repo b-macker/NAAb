@@ -2671,6 +2671,20 @@ else
     echo "  test_api_base_loopback.sh: not found, skipping"
 fi
 
+# Operator connections (agent calls, telemetry webhook) and the program's own
+# http requests keep the proxy and CA bundle the process started with.
+OPERATOR_EGRESS_SCRIPT="tests/security/test_operator_egress_env.sh"
+if [ -f "$OPERATOR_EGRESS_SCRIPT" ]; then
+    if run_shell_test "$OPERATOR_EGRESS_SCRIPT" 2>&1; then
+        echo "  test_operator_egress_env.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_operator_egress_env.sh")
+    fi
+else
+    echo "  test_operator_egress_env.sh: not found, skipping"
+fi
+
 # A long line in a polyglot block cannot crash the analyzers.
 ANALYZER_LONG_LINE_SCRIPT="tests/security/test_analyzer_long_line.sh"
 if [ -f "$ANALYZER_LONG_LINE_SCRIPT" ]; then

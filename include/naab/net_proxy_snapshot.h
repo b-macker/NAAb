@@ -1,24 +1,31 @@
-// NAAb proxy / CA snapshot -- the outbound-TLS settings an agent call and the
-// telemetry webhook use are fixed WHEN THE ENGINE LOADS, not read live.
+// NAAb proxy / CA snapshot -- the outbound-TLS settings an agent call, the
+// telemetry webhook, a guidance source and the program's own http requests use
+// are fixed WHEN THE ENGINE LOADS, not read live.
 //
 // agent_provider.cpp and telemetry_forwarder.cpp build https requests that
 // carry the operator's API key and data off the machine. libcurl, left to
 // itself, reads the proxy from the live environment (http_proxy / https_proxy /
-// all_proxy), and both call sites read the CA bundle (SSL_CERT_FILE /
-// CURL_CA_BUNDLE) with std::getenv at call time. A NAAb program's
-// env.set writes the REAL process environment (env writes default-allowed), so
-// a program could repoint the agent's proxy to one it controls, or point the
-// agent's trust store at a CA it controls -- in either case the key-bearing
-// TLS session is the program's to intercept. Traced in the code and confirmed
-// in-process: env.set changes what std::getenv returns in the same process.
+// all_proxy), and both call sites used to read the CA bundle (SSL_CERT_FILE /
+// CURL_CA_BUNDLE) with std::getenv at call time. A NAAb program's env.set
+// writes the REAL process environment, so a program could choose the proxy and
+// the trust store of the operator's connections. Measured end to end before
+// #313's fix (tests/security/test_operator_egress_env.sh, with the pre-#313
+// call sites): a program that set *_proxy to a closed port broke the agent
+// call and the webhook; one that pointed SSL_CERT_FILE at a missing file broke
+// the https agent call. The same mechanism let a program route its OWN http
+// requests through a proxy host the network policy never lists (the host
+// lists check the URL's host, the socket goes to the proxy).
 //
-// This captures those values ONCE, at engine load, before any program
-// statement runs (std::call_once, invoked from loadFromJson -- the one path
-// every load and the reload pass through; the first, startup, call wins and a
-// later reload is a no-op, which is correct because a reload happens after
-// user code). Both call sites then set CURLOPT_PROXY / CURLOPT_NOPROXY /
-// CURLOPT_CAINFO explicitly from the snapshot, which also stops libcurl reading
-// the live proxy env. A program's later env.set cannot move either.
+// The values come from the one load-time environment snapshot
+// (env_snapshot.h), captured before any program statement runs. Every curl
+// site sets CURLOPT_PROXY / CURLOPT_NOPROXY explicitly from it -- even to ""
+// (direct), which also stops libcurl reading the live proxy environment -- and
+// the operator-owned sites set CURLOPT_CAINFO from it too.
+//
+// The rules follow libcurl's own: an http URL uses lower-case http_proxy only
+// (libcurl ignores HTTP_PROXY because a CGI host sets it from a request
+// header), https_proxy / all_proxy / no_proxy in either case with lower case
+// preferred, an empty value counts as unset.
 //
 // This does NOT gate agent calls on capabilities.network.enabled (owner's
 // decision 2026-10-13): that switch governs what the PROGRAM does; agent
@@ -27,7 +34,8 @@
 
 #pragma once
 
-#include <cstdlib>
+#include "naab/env_snapshot.h"
+
 #include <mutex>
 #include <string>
 
@@ -52,28 +60,27 @@ inline ProxyCaSnapshot& proxyCaSnapshotMutable() {
     return snap;
 }
 
-// Read one env var, preferring the lowercase spelling, then uppercase.
-inline std::string readEnvPreferLower(const char* lower, const char* upper) {
-    const char* v = std::getenv(lower);
-    if (!v || !v[0]) v = std::getenv(upper);
-    return (v && v[0]) ? std::string(v) : std::string();
+// One variable from the load-time snapshot, lower-case spelling first.
+inline std::string snapshotEnvPreferLower(const char* lower, const char* upper) {
+    std::string v = naab::snapshotEnv(lower);
+    if (v.empty()) v = naab::snapshotEnv(upper);
+    return v;
 }
 
-// Capture the proxy/CA environment exactly once. Call from the config load
-// path so the values predate any env.set a program could run.
+// Derive the proxy/CA settings from the load-time environment snapshot,
+// exactly once. Called from the config load path, so the snapshot predates
+// any env.set a program could run.
 inline void captureProxyCaSnapshotOnce() {
     static std::once_flag once;
     std::call_once(once, [] {
+        naab::captureEnvironmentSnapshotOnce();
         ProxyCaSnapshot& s = proxyCaSnapshotMutable();
-        const char* hp = std::getenv("http_proxy");   // lowercase-only by convention
-        s.http_proxy_lc   = (hp && hp[0]) ? std::string(hp) : std::string();
-        s.https_proxy     = readEnvPreferLower("https_proxy", "HTTPS_PROXY");
-        s.all_proxy       = readEnvPreferLower("all_proxy", "ALL_PROXY");
-        s.no_proxy        = readEnvPreferLower("no_proxy", "NO_PROXY");
-        const char* ca = std::getenv("SSL_CERT_FILE");
-        s.ssl_cert_file   = (ca && ca[0]) ? std::string(ca) : std::string();
-        const char* cb = std::getenv("CURL_CA_BUNDLE");
-        s.curl_ca_bundle  = (cb && cb[0]) ? std::string(cb) : std::string();
+        s.http_proxy_lc   = naab::snapshotEnv("http_proxy");   // lower case only, as libcurl
+        s.https_proxy     = snapshotEnvPreferLower("https_proxy", "HTTPS_PROXY");
+        s.all_proxy       = snapshotEnvPreferLower("all_proxy", "ALL_PROXY");
+        s.no_proxy        = snapshotEnvPreferLower("no_proxy", "NO_PROXY");
+        s.ssl_cert_file   = naab::snapshotEnv("SSL_CERT_FILE");
+        s.curl_ca_bundle  = naab::snapshotEnv("CURL_CA_BUNDLE");
         s.captured = true;
     });
 }

@@ -427,7 +427,12 @@ from the peer" before the probe existed; C-08x pins it with a recording proxy
 whose log must show the private-address control and none of the metadata
 addresses. Proxy and CA bundle are set explicitly from the snapshot, so the
 program's `env.set("HTTPS_PROXY", ...)` cannot route a fetch, credential
-included (C-10). `auth_env` is sent as a bearer token and its name is added to
+included (C-10). (Since A34 the snapshot is the engine's one copy,
+`env_snapshot.h`, shared with agent calls, the webhook and the `http` module,
+and the proxy/CA rules are one helper, `curl_egress.h`. Two behaviours
+changed with it: an http source no longer takes upper-case `HTTP_PROXY`, as
+libcurl does not, and an operator `SSL_CERT_FILE` naming a missing file now
+fails the fetch instead of falling back to the system trust store.) `auth_env` is sent as a bearer token and its name is added to
 `env_vars.blocked_read` for the rest of the run, grow-only (C-09).
 
 **One fetcher per process.** A run can hold several engines that loaded the

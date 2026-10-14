@@ -25,6 +25,9 @@
 #include "naab/crypto_utils.h"
 #include "naab/host_match.h"
 #include "naab/loopback_url.h"
+#include "naab/curl_egress.h"
+#include "naab/env_snapshot.h"
+#include "naab/net_proxy_snapshot.h"
 
 #include <sqlite3.h>
 #include <curl/curl.h>
@@ -57,13 +60,6 @@
 #  include <unistd.h>
 #  ifdef __linux__
 #    include <sys/prctl.h>
-#  endif
-#  ifdef __APPLE__
-#    include <crt_externs.h>
-#    define NAAB_GUIDANCE_ENVIRON (*_NSGetEnviron())
-#  else
-     extern char** environ;
-#    define NAAB_GUIDANCE_ENVIRON environ
 #  endif
 #else
 #  include <winsock2.h>
@@ -1367,27 +1363,7 @@ void GovernanceEngine::printGuidanceSummary() {
 namespace {
 
 std::atomic<bool> g_external_guidance{false};
-std::mutex g_env_mu;
-std::vector<std::string> g_env_snapshot;   // "KEY=value", taken once per process
 std::once_flag g_curl_once;
-
-std::vector<std::string> currentEnvironment() {
-    std::vector<std::string> out;
-#ifndef _WIN32
-    for (char** e = NAAB_GUIDANCE_ENVIRON; e && *e; ++e) out.emplace_back(*e);
-#else
-    LPCH block = ::GetEnvironmentStringsA();
-    if (block) {
-        for (LPCH p = block; *p;) {
-            std::string entry(p);
-            p += entry.size() + 1;
-            if (!entry.empty() && entry[0] != '=') out.push_back(std::move(entry));
-        }
-        ::FreeEnvironmentStringsA(block);
-    }
-#endif
-    return out;
-}
 
 bool asciiEqualsIgnoreCase(const std::string& a, const std::string& b) {
     if (a.size() != b.size()) return false;
@@ -1395,21 +1371,6 @@ bool asciiEqualsIgnoreCase(const std::string& a, const std::string& b) {
         if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i])))
             return false;
     return true;
-}
-
-// A variable from the load-time snapshot ("" when absent). Exact name first;
-// Windows names are case-insensitive, so fall back to that there.
-std::string snapEnv(const std::string& key) {
-    std::lock_guard<std::mutex> lk(g_env_mu);
-    for (const auto& kv : g_env_snapshot)
-        if (kv.size() > key.size() && kv[key.size()] == '=' && kv.compare(0, key.size(), key) == 0)
-            return kv.substr(key.size() + 1);
-#ifdef _WIN32
-    for (const auto& kv : g_env_snapshot)
-        if (kv.size() > key.size() && kv[key.size()] == '=' && asciiEqualsIgnoreCase(kv.substr(0, key.size()), key))
-            return kv.substr(key.size() + 1);
-#endif
-    return "";
 }
 
 // scheme://host[:port]/path -- no userinfo, query or fragment, which is where a
@@ -1592,7 +1553,7 @@ FetchResult fetchHttps(const GuidanceDenialFn& policyDenial, const GuidanceSourc
 
     std::string token;
     if (!src.auth_env.empty()) {
-        token = snapEnv(src.auth_env);
+        token = naab::snapshotEnv(src.auth_env);
         if (token.empty()) return {"failed", "its credential variable is not set", ""};
     }
 
@@ -1615,15 +1576,9 @@ FetchResult fetchHttps(const GuidanceDenialFn& policyDenial, const GuidanceSourc
     // Proxy and CA bundle from the LOAD-TIME snapshot, set explicitly: left to
     // itself libcurl reads them from the live environment, which the program's
     // env.set can change -- routing the fetch, credential included, through a
-    // proxy or a CA the program chose. An empty CURLOPT_PROXY means no proxy.
-    std::string proxy = https ? snapEnv("https_proxy") : snapEnv("http_proxy");
-    if (proxy.empty()) proxy = https ? snapEnv("HTTPS_PROXY") : snapEnv("HTTP_PROXY");
-    if (proxy.empty()) proxy = snapEnv("all_proxy");
-    if (proxy.empty()) proxy = snapEnv("ALL_PROXY");
-    curl_easy_setopt(c, CURLOPT_PROXY, proxy.c_str());
-    std::string noproxy = snapEnv("no_proxy");
-    if (noproxy.empty()) noproxy = snapEnv("NO_PROXY");
-    if (!noproxy.empty()) curl_easy_setopt(c, CURLOPT_NOPROXY, noproxy.c_str());
+    // proxy or a CA the program chose. One helper for every operator
+    // connection (curl_egress.h), so the rules cannot drift between copies.
+    const std::string proxy = naab::net::applySnapshotProxy(c, src.url);
     // With a proxy (even one NO_PROXY may bypass for this host -- checking
     // twice costs one DNS query), the source's address is checked before any
     // request; see guidanceSourceAddressForbidden().
@@ -1631,17 +1586,7 @@ FetchResult fetchHttps(const GuidanceDenialFn& policyDenial, const GuidanceSourc
         curl_easy_cleanup(c);
         return {"refused", "its address is a cloud metadata or link-local address", ""};
     }
-    std::string ca = snapEnv("SSL_CERT_FILE");
-    if (ca.empty()) ca = snapEnv("CURL_CA_BUNDLE");
-    std::error_code ec;
-    if (!ca.empty() && std::filesystem::exists(ca, ec)) {
-        curl_easy_setopt(c, CURLOPT_CAINFO, ca.c_str());
-    } else {
-        // Termux keeps its bundle off the standard path; used only where it
-        // exists (the F32 lesson: never pin a path from one machine).
-        static const char* kTermuxCa = "/data/data/com.termux/files/usr/etc/tls/cert.pem";
-        if (std::filesystem::exists(kTermuxCa, ec)) curl_easy_setopt(c, CURLOPT_CAINFO, kTermuxCa);
-    }
+    naab::net::applySnapshotCa(c);
     curl_easy_setopt(c, CURLOPT_OPENSOCKETFUNCTION, gfOpenSocket);
     curl_easy_setopt(c, CURLOPT_OPENSOCKETDATA, &ctx);
     curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, gfWrite);
@@ -1687,8 +1632,7 @@ FetchResult fetchCommand(const GuidancePathFn& resolvePath, const std::string& c
     // async-signal-safe, and another thread may hold the allocator's lock.
     std::vector<std::string> env_strings;
     {
-        std::lock_guard<std::mutex> lk(g_env_mu);
-        for (const auto& kv : g_env_snapshot) {
+        for (const auto& kv : naab::environmentSnapshot()) {
             // NAAb's own secrets reach no operator process either (as hooks, V-SC-006).
             if (kv.rfind("NAAB_GOVERN_KEY=", 0) == 0 || kv.rfind("NAAB_LOCK_KEY=", 0) == 0 ||
                 kv.rfind("NAAB_SIGNING_KEY=", 0) == 0) continue;
@@ -1698,7 +1642,7 @@ FetchResult fetchCommand(const GuidancePathFn& resolvePath, const std::string& c
     std::string prog = src.command[0];
     if (prog.find('/') == std::string::npos) {
         // A bare name is looked up on the SNAPSHOT's PATH, not the live one.
-        std::istringstream ps(snapEnv("PATH"));
+        std::istringstream ps(naab::snapshotEnv("PATH"));
         std::string dir, found;
         while (std::getline(ps, dir, ':')) {
             if (dir.empty()) continue;
@@ -2035,8 +1979,11 @@ void GovernanceEngine::GuidanceFetcher::loop() {
 void GovernanceEngine::allowExternalGuidance(bool on) {
     if (on) {
         std::call_once(g_curl_once, [] { curl_global_init(CURL_GLOBAL_DEFAULT); });
-        std::lock_guard<std::mutex> lk(g_env_mu);
-        if (g_env_snapshot.empty()) g_env_snapshot = currentEnvironment();
+        // The one load-time snapshot (env_snapshot.h); this runs before the
+        // program starts, so whichever of this and the config load is first,
+        // both see the environment the process started with.
+        naab::captureEnvironmentSnapshotOnce();
+        naab::net::captureProxyCaSnapshotOnce();
     }
     g_external_guidance.store(on);
 }
