@@ -8,17 +8,20 @@ toward what `govern.json` asks for, where those messages converge, and where
 they are damaged, lost or unfiltered, BEFORE anything new (live guidance from
 databases, MCP or HTTP sources) is added to them.
 
-**Status (2026-10-15): two passes, third pending.** Pass 1 traced backward from
-the sinks and probed the key paths. Pass 2 was independent of it: three
-enumerations of the code made without sight of pass 1's map, diffed against it,
-every difference that mattered verified by a probe on both engines. Pass 2
-changed five pass-1 claims and added about a dozen items, so by the stopping
-rule (`docs/investigation-method.md`) the map is not finished. Tiers on every
+**Status (2026-10-15): three passes.** Pass 1 traced backward from the sinks
+and probed the key paths. Pass 2 was independent of it: three enumerations of
+the code made without sight of pass 1's map, diffed against it, every
+difference that mattered verified by a probe on both engines; it changed five
+pass-1 claims. Pass 3 ran every channel the first two had only traced (REST,
+the REPL, `naab-gov`, the LSP, the report files, the package manager) with one
+probe program, and found two defects in the loosening direction plus a prior
+record pass 1 and 2 missed. Each pass changed something, so by the stopping
+rule (`docs/investigation-method.md`) the map is still not finished. Tiers on every
 claim: **verified** (a probe on the current build, both engines unless said),
 **traced** (followed through the source), **screened** (grep or count only).
 Probe configs and stub fixtures were authored for these passes (configured
 runs); no number here comes from a live provider. Defects found are rows A38 to
-A44 in `docs/open-investigations.md`.
+A46 in `docs/open-investigations.md`.
 
 ## 1. Who reads
 
@@ -29,7 +32,10 @@ A44 in `docs/open-investigations.md`.
 | C. The governed script | the `agent.*` response dicts, `governance.*` functions, catchable errors |
 | D. Operator after the run | reports, telemetry, transcript, the opt-in dashboard |
 | E. MCP caller (`naab-lang mcp`) | `output` (worker stdout) and `findings` (worker stderr) |
-| F. Editor via the LSP (`tools/naab-lsp`) | diagnostics parsed from `naab-lang --lint-only` output |
+| F. Editor via the LSP (`tools/naab-lsp`) | diagnostics parsed from `naab-lang --lint-only` output: code `governance`, line 0, first line only (A43) |
+| G. REST client (`naab-lang api`) | `output` (the io capture stream) and `error` (sanitized exception text); governance stderr stays on the server; per-function checks never run (A45) |
+| H. `naab-gov lint` / `check` | lint: everything on stderr, unsanitized, guidance appended; check: JSON with `hard_block` (with guidance) and `violations[].message` (without) |
+| I. REPL (`naab-lang` with no arguments) | no governance, by decision (`docs/GOVERNANCE-LIMITS.md` §5.2); errors as `Error:` on stderr |
 
 ## 2. Where it converges
 
@@ -111,6 +117,8 @@ sample).
 | MCP `output` and `findings` | secret/PII scan, withheld on a hit; `findings` keeps 60 lines from the TOP | End-of-run groups print last, so they are cut first (traced) |
 | Governance voice, agent review | none either way; "do not include bypass instructions" is a prompt line | A40 |
 | Compiled-in strings | `tests/security/test_error_msg_leaks.sh` | Covers text in the binary, not text from sources or models |
+| Report files (SARIF, JSON, JUnit) | none | Keep EVERY occurrence (the only channel naming the second TODO site); SARIF holds the first line, JSON the help; no guidance; the VM writes none for a compile-time block (A43(e)) |
+| Package manager | none | One-line `Error:` on stderr, no help |
 
 ## 6. Model calls the engine makes on its own
 
@@ -135,14 +143,17 @@ re-checked key by key).
 
 ## 8. Blind spots, re-tracings, direction of error
 
-**Blind spots (not measured in either pass):** the REPL, the REST server,
-`naab-gov lint`/`check` output, the LSP end to end, scanner SARIF, the package
-manager, and every live provider (all agent probes used the loopback stub, which
-does not validate request shape). Unmeasured is not absent: these channels are
-traced or not covered, and pass 3 runs them.
+**Blind spots (not measured in any pass):** every live provider (all agent
+probes used the loopback stub, which does not validate request shape -- A44(b)
+rests on that), Windows (the CRLF and encoding shapes CLAUDE.md records apply
+to every channel here), and `--explain`/debugger output. Each channel in
+section 1 was run at least once by pass 3 with the same probe program; a
+channel run once with one program is measured for that program only.
 
-**Re-tracings:** two independent passes; the second changed five claims and
-added items, so the stopping rule is not met.
+**Re-tracings:** three passes. Pass 2 was independent of pass 1 (blind
+enumerations); pass 3 used a different instrument again (running each channel
+instead of reading it). Each changed something -- pass 3 found A45 and A46 and
+the prior sanitizer record behind A39(a) -- so the stopping rule is not met.
 
 **Adversarial pass:** the claims most likely to be wrong were the two that rest
 on "this can never happen" -- that `enforce()` never returns its message (A44)
@@ -155,8 +166,9 @@ checked against the program's own calls (it named `register_tool`, `create`,
 `send` in order before `get`).
 
 **Direction of error:** most findings are help that is lost, wrong or
-misleading -- fail-unhelpful. None verified so far loosens governance; A44 is
-stricter than documented. The unfiltered model-facing channels (voice, agent
+misleading -- fail-unhelpful. Two verified in pass 3 loosen governance: REST
+skips every per-function check (A45), and the run token cap misses tool-loop
+calls (A46). A44 is stricter than documented. The unfiltered model-facing channels (voice, agent
 review, guidance) are where a loosening could enter, so they were checked
 hardest; A41's full reach (whether a misrouted dispatch could reach a governed
 call) is undetermined -- tracing the exception path out of
