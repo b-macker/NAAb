@@ -4935,6 +4935,209 @@ static void checkDetectionListRatchet(
     }
 }
 
+// The evidence the engine records about the run: where it goes, what is
+// recorded, what is filtered out, and the key that seals it. A signed reload
+// could move or switch off any of it (A33(a), measured before this: telemetry
+// disabled, its output file moved, audit.level set to "none" and a log_events
+// flag cleared were all accepted, and the evidence after the reload went
+// missing or to another file). The evidence switches 356f34c9 ratchets
+// (tamper_evidence, decision_snapshots, transcript.enabled) are compared in
+// checkRatchetViolation(); this covers the rest.
+//
+// Judged by what is RECORDED, through the writers' own predicates, not by
+// entries: "tele.jsonl" -> "./tele.jsonl" is the same file, audit "basic" ->
+// "full" logs the same events (only "none" is read, governance_reports.cpp),
+// and clearing log_events.polyglot_executed while polyglot_timing stays on
+// still logs every polyglot run. Messages name the key and the direction only:
+// a rejected reload is printed where the program can read it, and a path, URL
+// or credential variable name is not the program's business.
+static void checkEvidenceRatchet(
+    const GovernanceRules& old_r,
+    const GovernanceRules& new_r,
+    std::vector<std::string>& violations,
+    std::vector<std::string>& notices)
+{
+    // The file a writer opens: relative to the process directory, as fopen
+    // resolves it.
+    auto fileKey = [](const std::string& p) {
+        std::error_code ec;
+        auto abs = std::filesystem::absolute(p, ec);
+        return ec ? p : abs.lexically_normal().string();
+    };
+    // A destination that stays on but points at another file: the run's
+    // record would be split, or sent where nobody collects it.
+    auto moved = [&](const std::string& old_path, const std::string& new_path, const char* key) {
+        if (fileKey(old_path) != fileKey(new_path))
+            violations.push_back(fmt::format(
+                "{}: evidence moved to another file mid-run (loosened -- the run's record would be split)", key));
+    };
+    auto flag = [&](bool old_on, bool new_on, const char* key) {
+        if (old_on && !new_on)
+            violations.push_back(fmt::format("{}: true -> false (loosened)", key));
+        else if (!old_on && new_on)
+            notices.push_back(fmt::format("{}: false -> true (tightened)", key));
+    };
+
+    // --- Telemetry (writeTelemetry / writeAgentTelemetry gate on both) ---
+    const auto& ot = old_r.telemetry_output;
+    const auto& nt = new_r.telemetry_output;
+    const bool ot_on = ot.enabled && !ot.output_file.empty();
+    const bool nt_on = nt.enabled && !nt.output_file.empty();
+    if (ot_on && !nt.enabled)
+        violations.push_back("telemetry.enabled: true -> false (loosened)");
+    else if (ot_on && !nt_on)
+        violations.push_back("telemetry.output_file: removed (loosened -- telemetry no longer recorded)");
+    else if (ot_on && nt_on)
+        moved(ot.output_file, nt.output_file, "telemetry.output_file");
+    else if (!ot_on && nt_on)
+        notices.push_back("telemetry: now recorded (tightened)");
+    // deduplicate_checks collapses repeated check rows: turning it on records less.
+    if (!ot.deduplicate_checks && nt.deduplicate_checks)
+        violations.push_back("telemetry.deduplicate_checks: false -> true (loosened -- fewer rows recorded)");
+    else if (ot.deduplicate_checks && !nt.deduplicate_checks)
+        notices.push_back("telemetry.deduplicate_checks: true -> false (tightened)");
+    // The chain's key: a different key mid-run leaves one file under two keys.
+    // Compared as configured (the variable's name, or the literal key when no
+    // variable is named); a change of the variable's VALUE is A33(b).
+    auto keyRef = [](const std::string& env_name, const std::string& literal) {
+        return env_name.empty() ? "literal:" + literal : "env:" + env_name;
+    };
+    if (ot.tamper_evidence.enabled && nt.tamper_evidence.enabled &&
+        keyRef(ot.tamper_evidence.hmac_key_env, ot.tamper_evidence.hmac_key) !=
+            keyRef(nt.tamper_evidence.hmac_key_env, nt.tamper_evidence.hmac_key))
+        violations.push_back("telemetry.tamper_evidence.hmac_key: the chain's key changed mid-run (loosened)");
+
+    // --- Off-site forwarding (the reload restarts or stops the forwarder) ---
+    const bool of_on = !ot.webhook_url.empty();
+    const bool nf_on = !nt.webhook_url.empty();
+    if (of_on && !nf_on)
+        violations.push_back("telemetry.webhook_url: forwarding stopped mid-run (loosened)");
+    else if (of_on && nf_on && ot.webhook_url != nt.webhook_url)
+        violations.push_back("telemetry.webhook_url: forwarding redirected mid-run (loosened)");
+    else if (!of_on && nf_on)
+        notices.push_back("telemetry.webhook_url: forwarding started (tightened)");
+    if (of_on && nf_on) {
+        if (keyRef(ot.webhook_auth_env, ot.webhook_auth_header) !=
+            keyRef(nt.webhook_auth_env, nt.webhook_auth_header))
+            violations.push_back("telemetry.webhook_auth_header: the forwarder's credential changed mid-run "
+                                 "(loosened -- events the collector rejects are dropped)");
+        // Each of these, lowered, drops more events (telemetry_forwarder.cpp):
+        // fewer retries, a shorter request timeout, a shorter final drain. A
+        // buffer_max of 0 is unbounded.
+        auto lowered = [&](int o, int n, const char* key) {
+            if (n < o)
+                violations.push_back(fmt::format("{}: {} -> {} (loosened -- more events dropped)", key, o, n));
+            else if (n > o)
+                notices.push_back(fmt::format("{}: {} -> {} (tightened)", key, o, n));
+        };
+        lowered(ot.forward_retry_count, nt.forward_retry_count, "telemetry.forward_retry_count");
+        lowered(ot.forward_timeout_ms, nt.forward_timeout_ms, "telemetry.forward_timeout_ms");
+        lowered(ot.forward_shutdown_drain_ms, nt.forward_shutdown_drain_ms, "telemetry.forward_shutdown_drain_ms");
+        const long ob = ot.forward_buffer_max <= 0 ? -1 : ot.forward_buffer_max;  // -1 = unbounded
+        const long nb = nt.forward_buffer_max <= 0 ? -1 : nt.forward_buffer_max;
+        if (ob != nb && (ob == -1 || (nb != -1 && nb < ob)))
+            violations.push_back("telemetry.forward_buffer_max: lowered (loosened -- more events dropped)");
+        else if (ob != nb)
+            notices.push_back("telemetry.forward_buffer_max: raised (tightened)");
+    }
+
+    // --- Agent transcript ---
+    const auto& otr = old_r.transcript;
+    const auto& ntr = new_r.transcript;
+    // transcript.enabled is compared in checkRatchetViolation(); here, an
+    // enabled transcript losing or moving its file.
+    if (otr.enabled && ntr.enabled && !otr.output_file.empty()) {
+        if (ntr.output_file.empty())
+            violations.push_back("telemetry.transcript.output_file: removed (loosened -- transcript no longer recorded)");
+        else
+            moved(otr.output_file, ntr.output_file, "telemetry.transcript.output_file");
+    }
+    // The agents filter, by who is recorded: every name either list or either
+    // agents block mentions, plus one neither does (what an empty list
+    // records). Complete: the predicate depends only on membership.
+    if (otr.enabled && !otr.output_file.empty() && ntr.enabled && !ntr.output_file.empty()) {
+        std::set<std::string> probe = {std::string("\x01" "unlisted")};
+        for (const auto& a : otr.agents) probe.insert(a);
+        for (const auto& a : ntr.agents) probe.insert(a);
+        for (const auto& a : old_r.agents) probe.insert(a.name);
+        for (const auto& a : new_r.agents) probe.insert(a.name);
+        bool narrowed = false, widened = false;
+        for (const auto& name : probe) {
+            const bool was = transcriptRecordsAgent(otr, name), is = transcriptRecordsAgent(ntr, name);
+            if (was && !is) narrowed = true;
+            if (!was && is) widened = true;
+        }
+        if (narrowed)
+            violations.push_back("telemetry.transcript.agents: fewer agents recorded (loosened)");
+        else if (widened)
+            notices.push_back("telemetry.transcript.agents: more agents recorded (tightened)");
+    }
+
+    // --- Audit trail (logAuditEvent returns early only on "none") ---
+    const auto& oa = old_r.audit;
+    const auto& na = new_r.audit;
+    const bool oa_on = oa.level != "none";
+    const bool na_on = na.level != "none";
+    auto auditFile = [](const std::string& p) { return p.empty() ? std::string(".governance-audit.jsonl") : p; };
+    if (oa_on && !na_on)
+        violations.push_back("audit.level: -> none (loosened -- the audit trail stops)");
+    else if (!oa_on && na_on)
+        notices.push_back("audit.level: none -> recording (tightened)");
+    if (oa_on && na_on) {
+        moved(auditFile(oa.output_file), auditFile(na.output_file), "audit.output_file");
+        const auto& ol = oa.log_events;
+        const auto& nl = na.log_events;
+        // logPolyglotExecution: logged when either flag is on; timing when
+        // polyglot_timing is.
+        flag(ol.polyglot_executed || ol.polyglot_timing, nl.polyglot_executed || nl.polyglot_timing,
+             "audit.log_events.polyglot_executed");
+        flag(ol.polyglot_timing, nl.polyglot_timing, "audit.log_events.polyglot_timing");
+        flag(ol.taint_decisions, nl.taint_decisions, "audit.log_events.taint_decisions");
+        flag(ol.contract_checks, nl.contract_checks, "audit.log_events.contract_checks");
+        if (oa.tamper_evidence.enabled && na.tamper_evidence.enabled &&
+            keyRef(oa.tamper_evidence.hmac_key_env, oa.tamper_evidence.hmac_key) !=
+                keyRef(na.tamper_evidence.hmac_key_env, na.tamper_evidence.hmac_key))
+            violations.push_back("audit.tamper_evidence.hmac_key: the chain's key changed mid-run (loosened)");
+    }
+
+    // --- Attestations (emitAttestation / the refusal attestation) ---
+    const auto& op = oa.provenance;
+    const auto& np = na.provenance;
+    const bool op_rec = op.enabled && op.record_attestations;
+    const bool np_rec = np.enabled && np.record_attestations;
+    if (op_rec && !np_rec)
+        violations.push_back("audit.provenance.record_attestations: attestations no longer recorded (loosened)");
+    else if (!op_rec && np_rec)
+        notices.push_back("audit.provenance.record_attestations: attestations now recorded (tightened)");
+    if (op_rec && np_rec) {
+        const bool op_sign = op.sign_records && !op.signing_key.empty();
+        const bool np_sign = np.sign_records && !np.signing_key.empty();
+        if (op_sign && !np_sign)
+            violations.push_back("audit.provenance.sign_records: attestations no longer signed (loosened)");
+        else if (!op_sign && np_sign)
+            notices.push_back("audit.provenance.sign_records: attestations now signed (tightened)");
+        else if (op_sign && np_sign &&
+                 keyRef(op.signing_key_env, op.signing_key) != keyRef(np.signing_key_env, np.signing_key))
+            violations.push_back("audit.provenance.signing_key: the signing key changed mid-run (loosened)");
+    }
+
+    // --- End-of-run reports (writeReports reads these live) ---
+    auto report = [&](const std::string& o, const std::string& n, const char* key) {
+        if (!o.empty() && n.empty())
+            violations.push_back(fmt::format("{}: removed (loosened -- the report is no longer written)", key));
+        else if (!o.empty())
+            moved(o, n, key);
+        else if (!n.empty())
+            notices.push_back(fmt::format("{}: added (tightened)", key));
+    };
+    report(old_r.output.file_output.report_json, new_r.output.file_output.report_json,
+           "output.file_output.report_json");
+    report(old_r.output.file_output.report_sarif, new_r.output.file_output.report_sarif,
+           "output.file_output.report_sarif");
+    report(old_r.output.file_output.report_junit, new_r.output.file_output.report_junit,
+           "output.file_output.report_junit");
+}
+
 // Check that new_r is at least as strict as old_r. Returns true if ratchet OK.
 // Populates violations (loosening attempts) and notices (tightening changes).
 // `resolve_path` resolves a filesystem policy entry the way the gate does
@@ -5695,6 +5898,8 @@ static bool checkRatchetViolation(
         violations.push_back("telemetry.transcript.enabled: true -> false (loosened)");
     else if (!old_r.transcript.enabled && new_r.transcript.enabled)
         notices.push_back("telemetry.transcript.enabled: false -> true (tightened)");
+    // Destinations, filters, forwarding and keys (A33(a)).
+    checkEvidenceRatchet(old_r, new_r, violations, notices);
 
     // --- Context Drift ratchet ---
     // rate_normalized: disabling mid-run restores flat per-event penalties
@@ -5900,6 +6105,10 @@ bool GovernanceEngine::reloadIfChanged() {
         // Parse into temporary rules
         GovernanceRules new_rules;
         loadFromJson(j, new_rules);
+        // The CLI's output overlay (report and telemetry destinations) is not
+        // in govern.json; lay it over the new rules as the startup path did,
+        // or every accepted reload -- even of the same file -- drops it.
+        applyStartupOutputs(new_rules, startup_outputs_);
 
         // Verify signature — reject unsigned changes
         // Quiet variant: verification's own diagnostics are worded for startup,

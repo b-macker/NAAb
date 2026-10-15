@@ -2568,6 +2568,20 @@ else
     echo "  test_evidence_file_protection.sh: not found, skipping"
 fi
 
+# A signed mid-run reload cannot move or switch off that evidence, and keeps
+# the CLI's report and telemetry destinations (A33(a)).
+EVRATCHET_SCRIPT="tests/governance_v4/test_evidence_ratchet.sh"
+if [ -f "$EVRATCHET_SCRIPT" ]; then
+    if run_shell_test "$EVRATCHET_SCRIPT" 2>&1; then
+        echo "  test_evidence_ratchet.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_evidence_ratchet.sh")
+    fi
+else
+    echo "  test_evidence_ratchet.sh: not found, skipping"
+fi
+
 # The BSD pre-execution path must leave evidence.
 BSDPRE_SCRIPT="tests/governance_v4/test_bsd_preexec_evidence.sh"
 if [ -f "$BSDPRE_SCRIPT" ]; then

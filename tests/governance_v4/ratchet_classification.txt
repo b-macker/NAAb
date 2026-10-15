@@ -137,3 +137,26 @@ guidance.sources.<sname>.resources       neutral -- traced: which of the MCP ser
 guidance.sources.[].mcp                  neutral -- traced: list form of guidance.sources.<sname>.mcp
 guidance.sources.[].resources            neutral -- traced: list form of guidance.sources.<sname>.resources
 guidance.initial_fetch_ms                neutral -- traced: how long a run waits at load for its first fetch; what it does not cover is fetched in the background
+
+# --- Evidence (A33(a), checkEvidenceRatchet) ---------------------------------
+# Keys the evidence ratchet compares under another key's message, and the
+# evidence keys nothing compares because nothing (or only startup) reads them.
+audit.provenance.enabled                 ratchet "audit.provenance.record_attestations"
+audit.provenance.signing_key_env         ratchet "audit.provenance.signing_key"
+audit.tamper_evidence.hmac_key_env       ratchet "audit.tamper_evidence.hmac_key"
+telemetry.tamper_evidence.hmac_key_env   ratchet "telemetry.tamper_evidence.hmac_key"
+telemetry.webhook_auth_env               ratchet "telemetry.webhook_auth_header"
+audit.log_events.checks_passed           inert -- traced: no reader outside the loader and naab-lang init's generator
+audit.log_events.checks_failed           inert -- traced: no reader outside the loader and naab-lang init's generator
+audit.log_events.overrides               inert -- traced: no reader; override events are logged unconditionally (governance_engine.cpp, logAuditEvent "override")
+audit.provenance.record_decisions        inert -- traced: no reader outside the loader and naab-lang init's generator
+audit.provenance.record_proof_objects    inert -- traced: no reader outside the loader and naab-lang init's generator
+audit.tamper_evidence.algorithm          inert -- traced: computeHash() uses HMAC-SHA256 with a key, else SHA-256, and never reads it
+telemetry.tamper_evidence.algorithm      inert -- traced: computeHash() uses HMAC-SHA256 with a key, else SHA-256, and never reads it
+audit.tamper_evidence.chain_genesis      neutral -- traced: only the first entry's prev_hash while the chain is empty; the verifier reads prev_hash from the file, never this key
+telemetry.tamper_evidence.chain_genesis  neutral -- traced: only the first event's prev_hash while the chain is empty; the verifier reads prev_hash from the file, never this key
+telemetry.forward_batch_size             neutral -- traced: events per POST; a failed batch is dropped whatever its size, so it changes grouping, not what is delivered
+governance.report_json                   startup -- traced: read once by the CLI (main.cpp) and laid over every reloaded rule set (setStartupOutputs); nothing reads the reloaded value
+governance.report_sarif                  startup -- traced: read once by the CLI (main.cpp) and laid over every reloaded rule set (setStartupOutputs); nothing reads the reloaded value
+governance.report_junit                  startup -- traced: read once by the CLI (main.cpp) and laid over every reloaded rule set (setStartupOutputs); nothing reads the reloaded value
+governance.telemetry                     startup -- traced: read once by the CLI (main.cpp) and laid over every reloaded rule set (setStartupOutputs); nothing reads the reloaded value

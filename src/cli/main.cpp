@@ -1936,19 +1936,26 @@ int main(int argc, char** argv) {
             if (!use_vm) {
                 auto* gov = interpreter.getGovernance();
                 if (gov) {
-                    // Agent identity and telemetry
+                    // Agent identity
                     gov->setAgentId(agent_id);
-                    if (!governance_telemetry_path.empty()) {
-                        auto& r = gov->getMutableRules();
-                        r.telemetry_output.enabled = true;
-                        r.telemetry_output.output_file = governance_telemetry_path;
-                        r.telemetry_output.tamper_evidence.enabled = true;
-                    }
                     gov->applyAgentRole();
                     // Feature 5: Apply environment overrides
                     if (!governance_env.empty()) {
                         gov->applyEnvironment(governance_env);
                     }
+                    // Output destinations: a CLI flag first, else govern.json's
+                    // governance.telemetry / governance.report_* (only the CLI
+                    // reads those; this branch used to skip them, so they did
+                    // nothing under --tree-walk). After the environment
+                    // overlay, which may set report paths, so these win as
+                    // before. Recorded, so a reload keeps them.
+                    const auto& gr = gov->getRules();
+                    naab::governance::StartupOutputs outs;
+                    outs.telemetry_path = !governance_telemetry_path.empty() ? governance_telemetry_path : gr.telemetry_path;
+                    outs.report_json = !governance_report_json.empty() ? governance_report_json : gr.report_json;
+                    outs.report_sarif = !governance_report_sarif.empty() ? governance_report_sarif : gr.report_sarif;
+                    outs.report_junit = !governance_report_junit.empty() ? governance_report_junit : gr.report_junit;
+                    if (!outs.empty()) gov->setStartupOutputs(outs);
                 }
             }
             if (!use_vm && (!governance_report_json.empty() || !governance_report_sarif.empty() ||
@@ -1956,12 +1963,6 @@ int main(int argc, char** argv) {
                 auto* gov = interpreter.getGovernance();
                 if (gov) {
                     auto& rules = gov->getMutableRules();
-                    if (!governance_report_json.empty())
-                        rules.output.file_output.report_json = governance_report_json;
-                    if (!governance_report_sarif.empty())
-                        rules.output.file_output.report_sarif = governance_report_sarif;
-                    if (!governance_report_junit.empty())
-                        rules.output.file_output.report_junit = governance_report_junit;
                     if (governance_record_baselines) {
                         rules.baselines.enabled = true;
                         rules.baselines.auto_record = true;
@@ -2211,27 +2212,21 @@ int main(int argc, char** argv) {
                     if (!rules.agent_id_config.empty() && agent_id == "anonymous") agent_id = rules.agent_id_config;
                     vm_governance.setAgentId(agent_id);
                     if (!rules.telemetry_path.empty() && governance_telemetry_path.empty()) governance_telemetry_path = rules.telemetry_path;
-                    if (!governance_telemetry_path.empty()) {
-                        auto& rules = vm_governance.getMutableRules();
-                        rules.telemetry_output.enabled = true;
-                        rules.telemetry_output.output_file = governance_telemetry_path;
-                        rules.telemetry_output.tamper_evidence.enabled = true;
-                    }
                     vm_governance.applyAgentRole();
                     // Feature 5: Apply environment overrides
                     if (!governance_env.empty()) {
                         vm_governance.applyEnvironment(governance_env);
                     }
-                    // Apply CLI report path overrides
-                    if (!governance_report_json.empty() || !governance_report_sarif.empty() ||
-                        !governance_report_junit.empty()) {
-                        auto& rules = vm_governance.getMutableRules();
-                        if (!governance_report_json.empty())
-                            rules.output.file_output.report_json = governance_report_json;
-                        if (!governance_report_sarif.empty())
-                            rules.output.file_output.report_sarif = governance_report_sarif;
-                        if (!governance_report_junit.empty())
-                            rules.output.file_output.report_junit = governance_report_junit;
+                    // Output destinations (CLI flag, else governance.telemetry /
+                    // governance.report_*, copied above), after the environment
+                    // overlay as before. Recorded, so a reload keeps them.
+                    {
+                        naab::governance::StartupOutputs outs;
+                        outs.telemetry_path = governance_telemetry_path;
+                        outs.report_json = governance_report_json;
+                        outs.report_sarif = governance_report_sarif;
+                        outs.report_junit = governance_report_junit;
+                        if (!outs.empty()) vm_governance.setStartupOutputs(outs);
                     }
                 }
 
