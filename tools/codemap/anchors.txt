@@ -1,0 +1,52 @@
+# codemap bookmarks: NAME <TAB> TARGET <TAB> NOTE
+#
+#   python3 tools/codemap/codemap.py anchors           # every bookmark -> file:line
+#   python3 tools/codemap/codemap.py jump enforce      # one bookmark, with its note
+#   python3 tools/codemap/codemap.py anchors --check   # exit 1 if any bookmark no longer resolves
+#
+# TARGET is either
+#   symbol:NAME            resolved through the index (a qualified name or a `::` suffix)
+#   grep:FILE:REGEX        resolved by reading FILE now (no index needed); every match is listed
+# A bookmark names a place a reviewer keeps coming back to. Put the reason in the
+# NOTE: a bookmark that says only where is a search result, not a bookmark.
+# Converging points come from docs/message-map.md section 2; gates from CLAUDE.md.
+
+# --- where messages converge (docs/message-map.md) ---
+formatError	symbol:GovernanceEngine::formatError	one shape for every governance message: Governance error|warning, At, Rule, Help, Example
+enforce	symbol:GovernanceEngine::enforce	the verdict router: returns "" or throws; ADVISORY prints itself, once per rule name
+fatal-catch	grep:src/cli/main.cpp:catch \(const naab::governance::GovernanceHardError& e\) \{$	uncaught errors print to STDOUT after ErrorSanitizer; each flushes advisories first (VM only, A43)
+sanitize	symbol:ErrorSanitizer::sanitize	redacts fatal messages; over-redacts `name = "value"` help examples (A39)
+flush	symbol:GovernanceEngine::flushGroupedAdvisories	end-of-run grouped advisories, guidance block, S22 at-exit scoring; every exit path should reach it
+agent-send	symbol:agentSend	agent.send(): admission, step-up, request assembly, CDD, output admissibility, split commit
+agent-request	grep:src/stdlib/agent_impl.cpp:Task Reminder	ephemeral prefixes on the last user message: reminder/correction, then project guidance, then the script's text
+
+# --- gates (every one has a sibling that once skipped it) ---
+path-gate	symbol:GovernanceEngine::checkPathAccessImpl	the one decision point file/io/log and embedded Python reach; decide_only for the audit hook
+path-precedence	symbol:decidePathAccess	longest prefix wins, ties deny; DenyWins for the agent overlay
+fs-allowlist	symbol:GovernanceEngine::filesystemAccessMode	hand-written module allowlist: a stdlib module missing here is ungoverned
+executor-gate	symbol:LanguageRegistry::getExecutor	polyglot gate, ONCE: capability check and the shell-off gate for separate-process languages
+function-cap	symbol:GovernanceEngine::checkFunctionCapability	function-scope capabilities: intersection down the call stack, one helper for every gate
+secrets	symbol:GovernanceEngine::checkSecrets	ENFORCES on a hit (no_secrets is HARD); use secretFinding() to withhold instead
+admission	symbol:GovernanceEngine::checkAdmission	pre-send gate; CRITICAL suspension lives in checkCriticalSuspension()
+output-admissibility	symbol:GovernanceEngine::checkOutputAdmissibility	post-CDD gate on response coherence; undetermined while calibrating
+python-audit	symbol:naabPythonAuditPolicy	embedded Python audit hook -> path/network policy; must never throw across CPython frames
+child-env	symbol:buildChildEnvironment	the one builder of a child's environment (scrub, PATH, proxies), built before fork
+egress-proxy	symbol:applySnapshotProxy	every outbound curl site takes its proxy from the load-time snapshot
+ssrf-socket	symbol:refusePrivateOpenSocket	resolved-address SSRF gate shared by the http module and URL imports
+
+# --- config, reload, ratchet ---
+load	symbol:loadFromJson	every config load passes through here (NAAB_DROP_SETTING hooks in only in a mutation build)
+mirrors	symbol:reconcileCapabilityMirrors	shell/network/filesystem are stored twice; both copies end at the stricter value
+reload	symbol:GovernanceEngine::reloadIfChanged	mid-run reload: signature, ratchet, scoped CDD reset; called before agent sends and polyglot blocks
+ratchet	symbol:checkRatchetViolation	tightening-only reload; a new key needs a line here or in ratchet_classification.txt
+ratchet-lists	symbol:checkCapabilityListRatchet	capability lists judged through the gate's own decision function, not an entry diff
+ratchet-evidence	symbol:checkEvidenceRatchet	A33(a): a reload cannot move or switch off the evidence
+protected-paths	symbol:GovernanceEngine::addGovernanceProtectedPaths	govern.json, .sig, trusted keys and the evidence files, re-applied on reload
+
+# --- evidence ---
+telemetry-chain	symbol:GovernanceEngine::chainPrevLocked	every prev_hash/hash writer seeds here under telemetry_hash_mutex_
+evidence-files	symbol:GovernanceEngine::isEvidenceLogPath	the program may read its telemetry, transcript and audit trail, never write them
+
+# --- language ---
+interpolation	symbol:splitInterpolation	the ONE ${...} splitter; evaluator and both taint scanners must agree
+cdd-record	symbol:ContextDriftAnalyzer::recordTurn	the 23 CDD signals are scored here, one turn at a time

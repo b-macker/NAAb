@@ -93,6 +93,28 @@ PYTHONPATH=tools python3 -m naabfuzz minimize --naab build/naab-lang --seed N
   the literal `-2147483648` lexes as a float) are locked in by
   `python3 -m naabfuzz selftest` and `tools/naabfuzz/vectors.py`.
 
+## Code map (`tools/codemap`)
+
+A queryable index of the C++ source, so the sweeps the investigation method asks for (who calls this, backward from a sink, where threads start, which classes override what) are one command instead of a grep campaign. Indexing needs the libclang Python bindings (`apt-get install python3-clang`, or `pip install libclang`) and `build/compile_commands.json` (CMake writes it); queries need only python3. The index lives in `.cache/codemap/` (git-ignored, ~270 MB).
+
+```bash
+python3 tools/codemap/codemap.py index                 # ~2 min cold, seconds after an edit
+python3 tools/codemap/codemap.py explain checkPathAccessImpl   # one card: callers, callees, overrides, tags, bookmarks
+python3 tools/codemap/codemap.py callers GovernanceEngine::enforce --depth 2
+python3 tools/codemap/codemap.py reach getenv --gate GovernanceEngine::checkEnvVarRead   # backward from a sink
+python3 tools/codemap/codemap.py paths src/cli/main.cpp:main GovernanceEngine::enforce
+python3 tools/codemap/codemap.py types Executor        # threads | tags --kind ref:A45 | includes F --by
+python3 tools/codemap/codemap.py jump path-gate        # bookmarks: tools/codemap/anchors.txt
+python3 tools/codemap/codemap.py uml Executor          # PlantUML text; dot SYMBOL for Graphviz
+```
+
+- **Every edge carries its tier**: `[ast]` a direct call; `[value]` the function is passed as a value (callback, `std::function`), so it may be called from somewhere no syntax tree shows; `[lambda]` a lambda the function defines; `[virtual]` a call through a base method that may land in this override; `[dispatch]` a NAAb name (`naab:io.read_file`, `lang:python`) mapped to C++ by recognising the stdlib `call()` branch and `registerExecutor` shapes (screened); `[thread]` a `std::thread`/`std::async`/pool start (screened); `[member]` the virtual methods of a registered executor class. `--json` on every query for jq; output is ASCII.
+- **What it cannot see, printed with every answer**: code the preprocessor removes for this build (`#ifdef _WIN32` on Linux); calls through a function pointer except where the function is taken as a value; calls on dependent names inside templates; files the build does not compile (`stats` lists them -- 18 tracked C/C++ files on `92d3f249`, `src/analyzer/performance_optimizer.cpp` among them). And one that misleads in the alarming direction: the VM and tree-walker gate a NAAb stdlib call BEFORE dispatching it (`filesystemAccessMode()` -> `checkPathAccess()`, function capabilities), outside the stdlib function, so no chain that starts at a NAAb name shows them. A NAAb name reported as an ungated entry point is a lead, not a finding -- and many such chains are the engine's own writes: `reach fopen --gate GovernanceEngine::checkPathAccess` lists `agent.send()` through the telemetry writer (observed, `92d3f249`).
+- **`reach` is screened, in the reassuring direction too**: a function counts as gated when it calls a gate, or a **gate wrapper** (a function that calls the gate directly; `--gate-hops`), and the search stops there -- order and conditions are not checked, so a gated function can still reach the sink by another branch (the same query stops at `VM::execute`, which calls the gate somewhere in its body). It lists every gated function so each can be verified, prints the sink's direct call-site count as a control (an answer of 0 is printed as such, not as silence), and refuses a `--gate` that names no symbol. `FILE:NAME` picks one of several same-named symbols (`main`).
+- **Measured against the grep sweeps it replaces** (observed, this container, `92d3f249`): `enforce` 186 callers, `ErrorSanitizer::sanitize` 15 (10 inside REST route lambdas), 16 `Executor` subclasses, `checkStringLength` 0 callers -- all equal to the prior counts. clangd 18 was tried first and rejected: its call hierarchy dropped call sites inside lambdas (4 of the 15 `sanitize` sites at the time) and has no outgoing calls. Thread starts: 19 found. A grep sweep of `src/` and `include/` found two real starts the map lacks, and both are blind spots it names: the Windows-only timer in `resource_limits.cpp` (preprocessor) and a `std::async` in `performance_optimizer.cpp` (not compiled by this build). A third, a `std::thread` built from template-dependent arguments in `safe_regex.cpp`, was missed until the extractor learned that shape.
+- Shards are re-parsed when a file they read, their compile command, or `extract.py` changes. **Bookmarks** (`anchors.txt`) name a place AND why a reviewer returns to it; `anchors --check` exits 1 when one stops resolving and works without an index (grep, screened). `uml --render` runs only a PlantUML jar whose sha256 is pinned in `tools/codemap/plantuml.sha256`, which is deliberately empty (the release's sha1 and Maven Central's disagreed and were not reconciled).
+- Test: `tests/self-audit/test_codemap.sh` -- a fixture (`tests/self-audit/codemap_fixture/`) with one instance of every edge kind, each arm beside a control; revert-checked (17 mutants, each turning its arm red; run by hand, not in CI). Index arms are UNMEASURABLE without libclang; CI's Ubuntu jobs install `python3-clang`.
+
 ## Source Layout
 
 ```

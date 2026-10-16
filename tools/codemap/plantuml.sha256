@@ -1,0 +1,12 @@
+# sha256 of PlantUML jars `codemap uml --render` may run, one per line:
+#   <sha256>  <file name>  <where it was verified against>
+#
+# Deliberately empty. `codemap uml` always writes the .puml TEXT, which any
+# PlantUML viewer renders; --render runs `java -jar` on a downloaded jar, so it
+# runs only a jar whose digest someone has checked against the publisher and
+# pinned here.
+#
+# Not pinned yet, and why: on 2026-10-16 the plantuml-mit 1.2026.8 jar from the
+# GitHub release had sha1 ef49f4f3..., while the sha1 Maven Central publishes for
+# the same version is d1953557.... The two were not reconciled (Maven Central
+# answered with rate limits), so neither digest is pinned here.

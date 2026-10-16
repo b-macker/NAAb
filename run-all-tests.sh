@@ -3980,6 +3980,23 @@ else
     echo "  test_skip_tally.sh: not found, skipping"
 fi
 
+CODEMAP_SCRIPT="tests/self-audit/test_codemap.sh"
+if [ -f "$CODEMAP_SCRIPT" ]; then
+    # tools/codemap answers callers/callees/reach queries from a libclang
+    # index. Every edge kind is planted in a fixture and asserted beside a
+    # control, so an index that silently drops one cannot read as "nothing
+    # calls this". Never runs naab-lang; the index arms are UNMEASURABLE
+    # without the libclang Python bindings (python3-clang).
+    if run_shell_test "$CODEMAP_SCRIPT" 2>&1; then
+        echo "  test_codemap.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_codemap.sh")
+    fi
+else
+    echo "  test_codemap.sh: not found, skipping"
+fi
+
 NAABAPOS_SCRIPT="tests/governance_v4/test_naab_comment_apostrophe.sh"
 if [ -f "$NAABAPOS_SCRIPT" ]; then
     # An apostrophe in a NAAb # comment must not open a "string" that hides
