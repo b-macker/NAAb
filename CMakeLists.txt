@@ -69,6 +69,25 @@ if(ENABLE_TSAN)
     message(STATUS "🔍 ThreadSanitizer enabled")
 endif()
 
+# MEASUREMENT BUILD ONLY: gcov instrumentation for `codemap coverage` (which
+# test executes which function). Build it in its own directory, never in build/:
+#   cmake -S . -B build-cov -DNAAB_COVERAGE=ON && make -C build-cov naab-lang naab-gov -j4
+# Placed before every target: add_*_options reach only targets defined after
+# them. _exit/_Exit are wrapped so the counters are written before a HARD block's
+# _exit(3) -- see src/testing/coverage_exit.c. GCC only (libgcov's __gcov_dump).
+option(NAAB_COVERAGE "Measurement-only: gcov instrumentation for codemap coverage" OFF)
+if(NAAB_COVERAGE)
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        message(FATAL_ERROR "NAAB_COVERAGE needs GCC (gcov, __gcov_dump); this compiler is ${CMAKE_CXX_COMPILER_ID}")
+    endif()
+    message(WARNING "NAAB_COVERAGE is ON: an instrumented, slower build for codemap coverage only")
+    add_compile_options(--coverage -O0 -g)
+    add_link_options(--coverage)
+    # the _exit wrap is linked into naab-lang and naab-gov only (after their
+    # definitions, below): a shared library linked with --wrap would need
+    # __wrap__exit from whatever process loads it (the Python binding's does not)
+endif()
+
 # ============================================================================
 # Advanced Security Options (Phase 1: Path to 97%)
 # ============================================================================
@@ -1706,6 +1725,15 @@ endif()
 # Fuzzing Infrastructure (libFuzzer + ASAN + UBSAN)
 # ============================================================================
 option(ENABLE_FUZZING "Enable libFuzzer fuzz targets (requires Clang)" OFF)
+
+# NAAB_COVERAGE (declared at the top): the two CLIs the suite runs get the
+# _exit/_Exit wrap that writes gcov's counters first (src/testing/coverage_exit.c).
+if(NAAB_COVERAGE)
+    foreach(naab_cov_target naab-lang naab-gov)
+        target_sources(${naab_cov_target} PRIVATE src/testing/coverage_exit.c)
+        target_link_options(${naab_cov_target} PRIVATE -Wl,--wrap=_exit -Wl,--wrap=_Exit)
+    endforeach()
+endif()
 
 # TEST BUILD ONLY: lets NAAB_DROP_SETTING remove one governance setting from
 # every loaded config (tools/testrunner/setting_drop.py). Never enable it in a

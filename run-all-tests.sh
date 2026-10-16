@@ -4032,6 +4032,25 @@ else
     echo "  test_codemap_history.sh: not found, skipping"
 fi
 
+CODEMAP_COVERAGE_SCRIPT="tests/self-audit/test_codemap_coverage.sh"
+if [ -f "$CODEMAP_COVERAGE_SCRIPT" ]; then
+    # `codemap coverage` maps gcov's per-function counts onto the index by file
+    # and line, one GCOV_PREFIX tree per test unit; tested/untested/impact read
+    # it. Checked on the fixture compiled with --coverage: counters must survive
+    # _exit(3) (the NAAB_COVERAGE wrap, with a control build that loses them),
+    # code in no binary reads NOT IN THE BUILD, and positions matching no single
+    # definition read UNMEASURED, never untested. UNMEASURABLE without a C++
+    # compiler, gcov or libclang.
+    if run_shell_test "$CODEMAP_COVERAGE_SCRIPT" 2>&1; then
+        echo "  test_codemap_coverage.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_codemap_coverage.sh")
+    fi
+else
+    echo "  test_codemap_coverage.sh: not found, skipping"
+fi
+
 NAABAPOS_SCRIPT="tests/governance_v4/test_naab_comment_apostrophe.sh"
 if [ -f "$NAABAPOS_SCRIPT" ]; then
     # An apostrophe in a NAAb # comment must not open a "string" that hides

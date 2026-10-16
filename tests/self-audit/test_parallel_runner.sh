@@ -31,6 +31,10 @@
 #   PR-09  a process a unit leaves running is reported and stopped
 #   PR-09c CONTROL: the same leftover process is really alive while the unit
 #          runs, so PR-09's "stopped" is the runner's doing
+#   PR-10  --unit-env NAME=VALUE gives every unit its own value ({unit} = the
+#          unit's index and key), so no two units share one -- codemap coverage
+#          gives each unit its own GCOV_PREFIX this way
+#   PR-10c CONTROL: without --unit-env the variable is not set at all
 #   PR-07  the real run-all-tests.sh list mode refuses any phase but shell, and
 #          lists the units this suite is registered among (itself included)
 # ============================================================
@@ -47,13 +51,13 @@ skip() { SKIP=$((SKIP+1)); echo "  SKIP [$1] $2"; }
 echo "=== The parallel runner reports what ran, faithfully ==="
 
 if ! command -v python3 >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1; then
-    for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08 PR-09 PR-09c; do
+    for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08 PR-09 PR-09c PR-10 PR-10c; do
         skip "$id" "python3 or timeout unavailable (UNMEASURABLE)"; done
     echo ""; echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"; exit 0
 fi
 case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*)
-        for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08 PR-09 PR-09c; do
+        for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08 PR-09 PR-09c PR-10 PR-10c; do
             skip "$id" "the runner is POSIX-only (UNMEASURABLE here)"; done
         echo ""; echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"; exit 0 ;;
 esac
@@ -121,6 +125,24 @@ got=$(jq_py "print([r['verdict'] for r in d['results'] if r['key']=='u/reader.sh
 if [ "$got" = "FAIL" ]; then ok "PR-03c" "CONTROL: with a shared HOME the same pair DOES leak, so PR-03 can fail"
 else bad "PR-03c" "control saw no leak -- the probe cannot detect one" "reader: $got"; fi
 rm -f "$HOME/marker"
+
+# --- PR-10 / PR-10c -----------------------------------------------------------------
+mkdir -p "$W/seen"
+mk u/env_a.sh 'printf "%s" "${PER_UNIT-unset}" > "'"$W"'/seen/a"'
+mk u/env_b.sh 'printf "%s" "${PER_UNIT-unset}" > "'"$W"'/seen/b"'
+write_plan "shell${T}60s${T}u/env_a.sh" "shell${T}60s${T}u/env_b.sh"
+runp --jobs 2 --unit-env 'PER_UNIT=/gcda/{unit}'
+a=$(cat "$W/seen/a" 2>/dev/null); b=$(cat "$W/seen/b" 2>/dev/null)
+if [[ "$a" == /gcda/*env_a.sh && "$b" == /gcda/*env_b.sh && "$a" != "$b" ]]; then
+    ok "PR-10" "each unit gets its own value: $a, $b"
+else
+    bad "PR-10" "--unit-env did not give each unit its own value" "a='$a' b='$b'"
+fi
+rm -f "$W/seen/a" "$W/seen/b"
+runp --jobs 2
+a=$(cat "$W/seen/a" 2>/dev/null); b=$(cat "$W/seen/b" 2>/dev/null)
+if [ "$a" = "unset" ] && [ "$b" = "unset" ]; then ok "PR-10c" "CONTROL: without --unit-env the variable is not set"
+else bad "PR-10c" "the variable leaked in without --unit-env (or the probe never ran)" "a='$a' b='$b'"; fi
 
 # --- PR-04 --------------------------------------------------------------------------
 mk u/litter.sh 'echo x > "$HOME/junk.txt"; mkdir -p "$HOME/.naab/cache"; echo m > "$HOME/.naab/cache/metadata.txt"'
