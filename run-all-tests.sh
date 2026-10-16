@@ -4016,6 +4016,22 @@ else
     echo "  test_codemap_profile.sh: not found, skipping"
 fi
 
+CODEMAP_HISTORY_SCRIPT="tests/self-audit/test_codemap_history.sh"
+if [ -f "$CODEMAP_HISTORY_SCRIPT" ]; then
+    # `codemap history` gathers the history pass for one function (git log -L
+    # over its lines, git log -S on its name, blame, PRs, records). Checked on a
+    # git repository the suite builds, so every expected commit is known; a
+    # shallow clone must read UNMEASURABLE, never as where the lines began.
+    if run_shell_test "$CODEMAP_HISTORY_SCRIPT" 2>&1; then
+        echo "  test_codemap_history.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_codemap_history.sh")
+    fi
+else
+    echo "  test_codemap_history.sh: not found, skipping"
+fi
+
 NAABAPOS_SCRIPT="tests/governance_v4/test_naab_comment_apostrophe.sh"
 if [ -f "$NAABAPOS_SCRIPT" ]; then
     # An apostrophe in a NAAb # comment must not open a "string" that hides

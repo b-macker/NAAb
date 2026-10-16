@@ -19,6 +19,8 @@
     python3 tools/codemap/codemap.py ran hello --fn checkPathAccess   # what that run actually called
     python3 tools/codemap/codemap.py callers sink --run hello  # static callers, marked ran / not run
     python3 tools/codemap/codemap.py dot agentSend             # Graphviz call graph text
+    python3 tools/codemap/codemap.py history checkPathAccessImpl   # the history pass: -L, -S, blame, PRs, records
+    python3 tools/codemap/codemap.py history --name removedHelper  # where a name came and went
 
 Every answer says how far to trust it:
   [ast]       a direct call, read from the compiler's syntax tree
@@ -1125,6 +1127,167 @@ def cmd_ran(a, st):
                 out("     %-64s %dx%s" % (c["name"], c["calls"], "  via library frames" if c["via_library"] else ""))
 
 
+def cmd_history(a, st):
+    """The evidence for the history pass on one function: who changed its lines, where
+    its name came and went, which PRs, which records cite it (githist.py)."""
+    import githist
+    if a.name and not a.range and not a.symbol:
+        # a name with no line range: where it came and went (a removed function has no range)
+        targets = [{"name": a.name, "kind": "name", "file": None, "line": 0, "end_line": 0}]
+    elif a.range:
+        m = re.match(r"^(.+):(\d+)-(\d+)$", a.range)
+        if not m:
+            raise SystemExit("codemap history: --range takes FILE:START-END")
+        targets = [{"name": m.group(0), "kind": "range", "file": m.group(1),
+                    "line": int(m.group(2)), "end_line": int(m.group(3))}]
+    else:
+        if not a.symbol:
+            raise SystemExit("codemap history: give a function, --range FILE:START-END or --name NAME")
+        if st is None:
+            raise SystemExit("codemap: no index (run `codemap index`), or use --range FILE:START-END")
+        targets = [s for s in pick(st, a.symbol) if s["file"] and not s["file"].startswith("/")]
+        if not targets:
+            raise SystemExit("codemap history: %r is not defined in this repository" % a.symbol)
+    try:
+        state = githist.repo_state(a.repo)
+    except githist.HistoryError as e:
+        raise SystemExit("codemap history: UNMEASURABLE -- %s" % e)
+    results = []
+    for t in targets:
+        res = {"function": t["name"], "file": t["file"], "lines": [t["line"], t["end_line"]],
+               "shallow": state["shallow"]}
+        hs = he = None
+        unc = 0
+        if t["file"] is None:
+            res["line_history_error"] = "no line range (--name): name history and records only"
+        else:
+            try:
+                hs, he, unc = githist.map_range(a.repo, t["file"], t["line"], t["end_line"])
+            except githist.HistoryError as e:
+                res["line_history_error"] = str(e)
+        res["head_lines"] = [hs, he]
+        res["uncommitted_lines"] = unc
+        # never capped: the MOVED check below compares it with blame, and a capped
+        # list would report every commit past the cap as lost to a move (0.16 s for
+        # agentSend's 97 commits, so there is no cost to save)
+        res["line_history"] = githist.line_history(a.repo, t["file"], hs, he) if hs else []
+        res["blame"] = githist.blame_summary(a.repo, t["file"], hs, he) if hs else []
+        if a.name:
+            names = [a.name]
+        elif t.get("kind") == "range":
+            names = []
+        elif t.get("kind") == "lambda" and "<lambda@" in t["name"]:
+            names = []                    # an unnamed lambda has no name to search
+        else:
+            names = githist.search_names(t["name"])
+        if names:
+            whole, partial, paths = githist.name_history(a.repo, names[0],
+                                                         () if a.all_paths else githist.DEFAULT_PATHS,
+                                                         a.limit)
+            res["name"] = names[0]
+            res["name_history"], res["name_partial"], res["name_paths"] = whole, partial, paths or ["(all)"]
+            res["name_at_head"] = githist.files_at_head(a.repo, names[0], paths)
+            # Three outcomes, never two: an empty pickaxe on a truncated history, or
+            # on a name HEAD still holds, is the instrument failing, not a finding.
+            if not whole and not partial and (state["shallow"] or res["name_at_head"]):
+                res["name_unmeasurable"] = (
+                    "history is truncated (shallow clone); the name's origin may lie past the cut"
+                    if state["shallow"] else
+                    "present at HEAD in %d file(s) but no commit changed its count -- the probe is broken"
+                    % res["name_at_head"])
+            res["records"], res["records_dropped"] = githist.records(a.repo, names)
+        else:
+            res["name"], res["name_history"], res["name_partial"], res["name_paths"] = None, [], 0, []
+            res["name_at_head"] = 0
+            res["records"], res["records_dropped"] = [], []
+        # -L follows a line range through edits, not through a block MOVE: it stops at
+        # the move commit, which then looks like the origin. Blame (-M -C) looks past
+        # it, so a commit blame names that -L never listed is history -L lost.
+        seen = {c["sha"] for c in res["line_history"]}
+        res["lost_by_line_history"] = [b for b in res["blame"] if b["sha"] not in seen]
+        res["prs"] = githist.pr_numbers(res["line_history"] + res["lost_by_line_history"] + res["name_history"])
+        for lst in (res["line_history"], res["name_history"], res["blame"]):
+            for c in lst:
+                # only the clone's own shallow list: blame also says "boundary" for
+                # the repository's root commit, which is a real origin
+                c["shallow_boundary"] = c["sha"] in state["boundary"]
+        results.append(res)
+    if a.json:
+        return emit_json(results)
+    for res in results:
+        print_history(res, a)
+
+
+def print_history(res, a):
+    mark = lambda c: "  (SHALLOW CUT: not where these lines began)" if c.get("shallow_boundary") else ""  # noqa: E731
+    where = "%s:%d-%d" % (res["file"], res["lines"][0], res["lines"][1]) if res["file"] else ""
+    out("history of %s%s" % (res["function"], "" if not where or where == res["function"] else "  (%s)" % where))
+    if res["shallow"]:
+        out("  UNMEASURABLE in part: this is a shallow clone, so history stops at its oldest commit and"
+            " that commit looks like the origin of everything; deepen with `git fetch --depth=1000 origin"
+            " BRANCH` (or --unshallow) and rerun")
+    hs, he = res["head_lines"]
+    if res["file"] is None:
+        out("  lines: none given (--name only)")
+    elif res.get("line_history_error"):
+        out("  lines: UNMEASURABLE -- %s" % res["line_history_error"])
+    elif hs is None:
+        out("  lines: all %d lines are uncommitted; no history yet" % res["uncommitted_lines"])
+    else:
+        moved = "" if [hs, he] == res["lines"] else " (lines %d-%d at HEAD)" % (hs, he)
+        unc = "; %d uncommitted lines left out" % res["uncommitted_lines"] if res["uncommitted_lines"] else ""
+        out("  lines: %d commits changed these lines%s%s -- git log -L, newest first, followed within"
+            " this file only" % (len(res["line_history"]), moved, unc))
+        for c in res["line_history"][: a.max]:
+            out("     %s %s %s%s" % (c["short"], c["date"], c["subject"][:90], mark(c)))
+        if len(res["line_history"]) > a.max:
+            out("     ... +%d more (--max)" % (len(res["line_history"]) - a.max))
+        if res["lost_by_line_history"]:
+            moved = sum(b["lines"] for b in res["lost_by_line_history"])
+            total = sum(b["lines"] for b in res["blame"]) or 1
+            out("  MOVED IN: %d of %d lines came from elsewhere -- move-aware blame credits them to %d"
+                " commits -L does not follow (it tracks this file only)%s:"
+                % (moved, total, len(res["lost_by_line_history"]),
+                   "; most of the function did, so the oldest commit above is where it arrived, not where"
+                   " it began" if 2 * moved > total else ""))
+            for b in res["lost_by_line_history"][: a.max]:
+                files = [f for f in b.get("files", []) if f != res["file"]]
+                out("     %4d lines  %s %s %s%s%s" % (b["lines"], b["short"], b["date"], b["subject"][:70],
+                                                   "  from " + ", ".join(files) if files else "", mark(b)))
+    if res["name"] and res.get("name_unmeasurable"):
+        out("  name: UNMEASURABLE -- '%s': %s" % (res["name"], res["name_unmeasurable"]))
+    elif res["name"] and not res["name_history"] and not res["name_partial"]:
+        out("  name: NONE -- no commit in %s changed how often '%s' occurs, and HEAD has it in none of"
+            " them (a scoped NONE covers only these paths; --all-paths for the rest)"
+            % (" ".join(res["name_paths"]), res["name"]))
+    elif res["name"]:
+        out("  name: %d commits changed how often '%s' occurs in %s -- git log -S, screened (text:"
+            " another function of this name counts too)%s; at HEAD in %d file(s)"
+            % (len(res["name_history"]), res["name"], " ".join(res["name_paths"]),
+               "; %d more changed it only inside longer names" % res["name_partial"] if res["name_partial"] else "",
+               res["name_at_head"]))
+        for c in res["name_history"][: a.max]:
+            gone = "  REMOVED here" if c["removed"] and not c["added"] else ""
+            out("     %s %s +%-3d -%-3d %s%s%s" % (c["short"], c["date"], c["added"], c["removed"],
+                                                  c["subject"][:80], gone, mark(c)))
+        if len(res["name_history"]) > a.max:
+            out("     ... +%d more (--max)" % (len(res["name_history"]) - a.max))
+    if res["blame"]:
+        total = sum(b["lines"] for b in res["blame"])
+        out("  blame: the %d lines at HEAD were written by %d commits" % (total, len(res["blame"])))
+        for b in res["blame"][: a.max]:
+            out("     %4d lines  %s %s %s%s" % (b["lines"], b["short"], b["date"], b["subject"][:80], mark(b)))
+    out("  PRs: %s" % (" ".join("#%d" % n for n in res["prs"]) or "none referenced in these commits"))
+    if res["name"]:
+        out("  records: %d mentions in tracked .md files%s" % (
+            len(res["records"]), "".join("; '%s' dropped as too common (%d mentions)" % d
+                                         for d in res["records_dropped"])))
+        for r in res["records"][: a.max]:
+            out("     %s:%d %s %s" % (r["file"], r["line"], r["where"], r["text"][:100]))
+    out("  left to do by hand: read the full messages (git show SHA) and PR threads, then classify:"
+        " never built / working / regressed / removed on purpose / lost / decided")
+
+
 def cmd_flame(a):
     """Re-render a run's flame/icicle graphs, optionally focused on one function:
     only stacks through it, re-rooted there, so a small subsystem is not drawn
@@ -1280,6 +1443,15 @@ def main(argv=None):
     s = sub.add_parser("ran"); s.add_argument("name"); s.add_argument("--fn"); s.add_argument("--top", type=int, default=20)
     s = sub.add_parser("dot"); s.add_argument("symbol"); s.add_argument("--depth", type=int, default=1)
     s.add_argument("--max", type=int, default=15); s.add_argument("--all", action="store_true")
+    s = sub.add_parser("history", help="the history pass for one function: line history, name, blame, PRs, records")
+    s.add_argument("symbol", nargs="?")
+    s.add_argument("--range", help="FILE:START-END instead of an indexed function")
+    s.add_argument("--name", help="the identifier to search with git log -S and in the records "
+                                  "(alone: for a function that no longer exists)")
+    s.add_argument("--all-paths", action="store_true", help="search the name in every path (slow)")
+    s.add_argument("--limit", type=int, default=40, help="commits the name search reads (0 = all); "
+                                                          "the line history is never capped")
+    s.add_argument("--max", type=int, default=15, help="rows printed per section")
     a = p.parse_args(argv)
     a.repo = os.path.abspath(a.repo)
     a.cache = os.path.abspath(a.cache or os.path.join(a.repo, ".cache", "codemap"))
@@ -1295,6 +1467,8 @@ def main(argv=None):
         return cmd_runs(a, None) or 0
     if a.cmd == "flame":
         return cmd_flame(a) or 0
+    if a.cmd == "history":
+        return cmd_history(a, storemod.Store(db) if os.path.exists(db) else None) or 0
     st = storemod.Store(db)
     return globals()["cmd_" + a.cmd](a, st) or 0
 
