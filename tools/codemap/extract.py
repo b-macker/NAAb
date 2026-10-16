@@ -14,6 +14,17 @@ libclang and records what a reviewer otherwise finds by grep sweeps:
   dispatch  NAAb name -> C++ code: a stdlib `module.fn` branch inside a
             module's call(), and `registerExecutor("lang", make_unique<X>)`
   include   file -> file it includes (repo files only)
+  write     function -> a field or non-local variable it assigns (=, op=,
+            ++/--, including overloaded operators on std::atomic/std::string)
+  mutate    function -> a field it changes through a mutating method
+            (store, fetch_add, push_back, insert, erase, clear, ...)
+  predispatch  NAAb name -> the gates the VM and tree-walker run BEFORE
+            dispatching it, read from GovernanceEngine::filesystemAccessMode
+            (applied at merge only if every caller of that allowlist calls the
+            gates; see store.py)
+
+A lambda stored in a variable (`auto callToolLoopTurn = [&](...) {...}`) is
+named after the variable, so it can be found by that name.
 
 Calls inside lambdas are kept and attributed to the lambda, which hangs off the
 function that defines it. clangd 18's call hierarchy dropped such sites (4 of
@@ -61,6 +72,60 @@ def _setup_overridden():
     lib.clang_disposeOverriddenCursors.argtypes = [ctypes.POINTER(ci.Cursor)]
     lib.clang_disposeOverriddenCursors.restype = None
     _overridden_ready = True
+
+
+_opkinds_ready = False
+
+
+def _setup_opkinds():
+    global _opkinds_ready
+    lib = ci.conf.lib
+    lib.clang_getCursorBinaryOperatorKind.argtypes = [ci.Cursor]
+    lib.clang_getCursorBinaryOperatorKind.restype = ctypes.c_int
+    lib.clang_getCursorUnaryOperatorKind.argtypes = [ci.Cursor]
+    lib.clang_getCursorUnaryOperatorKind.restype = ctypes.c_int
+    for fn in ("clang_getBinaryOperatorKindSpelling", "clang_getUnaryOperatorKindSpelling"):
+        getattr(lib, fn).argtypes = [ctypes.c_int]
+        getattr(lib, fn).restype = ci._CXString
+        getattr(lib, fn).errcheck = ci._CXString.from_result
+    _opkinds_ready = True
+
+
+_op_cache = {}
+
+
+def operator_spelling(c):
+    """'=', '+=', '++', ... for a BINARY/COMPOUND_ASSIGNMENT/UNARY_OPERATOR cursor."""
+    if not _opkinds_ready:
+        _setup_opkinds()
+    lib = ci.conf.lib
+    if c.kind == K.UNARY_OPERATOR:
+        kind = lib.clang_getCursorUnaryOperatorKind(c)
+        key = ("u", kind)
+        if key not in _op_cache:
+            _op_cache[key] = lib.clang_getUnaryOperatorKindSpelling(kind)
+    else:
+        kind = lib.clang_getCursorBinaryOperatorKind(c)
+        key = ("b", kind)
+        if key not in _op_cache:
+            _op_cache[key] = lib.clang_getBinaryOperatorKindSpelling(kind)
+    return _op_cache[key]
+
+
+ASSIGN_OPS = {"=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="}
+INCDEC_OPS = {"++", "--"}
+ASSIGN_OPERATOR_FNS = {"operator" + o for o in ASSIGN_OPS | INCDEC_OPS}
+# Methods that change the object they are called on. Screened: a name list,
+# so a mutator not named here is a blind spot (stated in BLIND_SPOTS).
+MUTATING_METHODS = {"store", "fetch_add", "fetch_sub", "fetch_and", "fetch_or", "fetch_xor", "exchange",
+                    "compare_exchange_weak", "compare_exchange_strong", "push_back", "emplace_back",
+                    "push_front", "emplace_front", "pop_back", "pop_front", "insert", "emplace",
+                    "insert_or_assign", "try_emplace", "erase", "clear", "reset", "swap", "assign",
+                    "append", "resize", "push", "pop", "merge", "extract"}
+# The pre-dispatch allowlist: a function `(module, method) -> mode` the VM and
+# tree-walker consult before dispatching a NAAb stdlib call.
+PREDISPATCH_ALLOWLIST = "filesystemAccessMode"
+VAR_KEEP = {K.UNEXPOSED_EXPR, K.PAREN_EXPR, K.TYPE_REF, K.NAMESPACE_REF, K.TEMPLATE_REF}
 
 
 def _overridden(c):
@@ -117,6 +182,7 @@ class Extractor:
         self.dispatch_ranges = {}
         self.modules = {}       # class usr -> module name from getName()
         self.lambdas = {}       # (file, line, col) of a lambda -> its pseudo-symbol
+        self.predispatch = None  # the parsed pre-dispatch allowlist, if this TU defines it
         self._in_repo = {}
 
     # -- helpers ---------------------------------------------------------
@@ -179,7 +245,7 @@ class Extractor:
     # -- walk --------------------------------------------------------------
     def run(self):
         root_ctx = {"fn": None, "callee": None, "thread": None, "dispatch": None,
-                    "in_call_method": None}
+                    "in_call_method": None, "var": None}
         # Explicit stack: deep expression trees exceed Python's recursion limit.
         # Each entry is a node still to be visited; visit() returns its children.
         stack = [(ch, root_ctx) for ch in reversed(list(self.tu.cursor.get_children()))]
@@ -225,6 +291,9 @@ class Extractor:
                 lit = self.first_string(ch)
                 if lit is not None and parent is not None:
                     self.modules[parent.get_usr()] = lit
+            if ch.spelling == PREDISPATCH_ALLOWLIST:
+                self.predispatch = self.read_allowlist(ch, usr)
+            new["var"] = None
             return [(x, new) for x in ch.get_children()]
 
         if k in FUNC_KINDS:
@@ -264,14 +333,23 @@ class Extractor:
             file, line = self.site(ch)
             usr = "%s@lambda:%s:%d:%d" % (owner, file, line, ch.location.column)
             owner_name = self.symbols.get(owner, {}).get("name", owner)
-            self.add_symbol(usr, "%s::<lambda@%s:%d>" % (owner_name, file, line), "lambda", ch)
+            var = ctx["var"]
+            # Named only when the variable HOLDS the lambda: its type is the
+            # closure (`auto f = [..]`) or a std::function. `std::thread t([..])`
+            # passes the lambda to a constructor; t is a thread, not the lambda.
+            if var and (var[1] == (ch.type.spelling or "") or "function<" in var[1]):
+                # `auto callToolLoopTurn = [&](...) {...}`: findable by the variable's name
+                self.add_symbol(usr, "%s::%s" % (owner_name, var[0]), "lambda", ch,
+                                {"sig": "<lambda@%s:%d>" % (file, line)})
+            else:
+                self.add_symbol(usr, "%s::<lambda@%s:%d>" % (owner_name, file, line), "lambda", ch)
             self.lambdas[(file, line, ch.location.column)] = usr
             self.edge("defines", owner, usr, ch)
             if ctx["thread"]:
                 self.edges.add(("thread", owner, usr) + ctx["thread"])
             if ctx["dispatch"]:
                 self.edge("dispatch", ctx["dispatch"], usr, ch)
-            new.update(fn=usr, callee=None, thread=None)
+            new.update(fn=usr, callee=None, thread=None, var=None)
             return [(x, new) for x in ch.get_children()]
 
         if k == K.CALL_EXPR:
@@ -300,8 +378,20 @@ class Extractor:
                         new["thread"] = (file, line, name)
                 if name.endswith("::registerExecutor") or name == "registerExecutor":
                     self.register_executor(ch)
+                if tgt.spelling in ASSIGN_OPERATOR_FNS:
+                    # overloaded assignment on a class type: atomic += n, string = s
+                    target = next((a for a in ch.get_children() if not self.refers_to(a, tgt)), None)
+                    self.record_write("write", src, target, ch, tgt.spelling[len("operator"):])
+                elif tgt.kind == K.CXX_METHOD and tgt.spelling in MUTATING_METHODS:
+                    callee = next(iter(ch.get_children()), None)
+                    if callee is not None and callee.kind == K.MEMBER_REF_EXPR:
+                        obj = next(iter(callee.get_children()), None)
+                        self.record_write("mutate", src, obj, ch, tgt.spelling)
+                if tgt.kind != K.CONSTRUCTOR:
+                    new["var"] = None
             else:
                 new["callee"] = None
+                new["var"] = None
             return [(x, new) for x in ch.get_children()]
 
         if k in (K.DECL_REF_EXPR, K.MEMBER_REF_EXPR):
@@ -314,6 +404,7 @@ class Extractor:
                     if ctx["thread"]:
                         self.edges.add(("thread", src, dst) + ctx["thread"])
             new["callee"] = None
+            new["var"] = None
             return [(x, new) for x in ch.get_children()]
 
         if k == K.IF_STMT and ctx["in_call_method"]:
@@ -332,9 +423,112 @@ class Extractor:
                 return out
             return [(x, new) for x in kids]
 
+        if k in (K.VAR_DECL, K.FIELD_DECL):
+            new["var"] = (ch.spelling, ch.type.get_canonical().spelling or "")
+        elif k not in VAR_KEEP:
+            new["var"] = None
+        if k in (K.BINARY_OPERATOR, K.COMPOUND_ASSIGNMENT_OPERATOR, K.UNARY_OPERATOR) and ctx["fn"] is not None:
+            op = operator_spelling(ch)
+            if op in ASSIGN_OPS or op in INCDEC_OPS:
+                self.record_write("write", ctx["fn"], next(iter(ch.get_children()), None), ch, op)
         if k not in WRAPPERS:
             new["callee"] = None
         return [(x, new) for x in ch.get_children()]
+
+    # -- writes ----------------------------------------------------------------
+    @staticmethod
+    def refers_to(node, fn):
+        """True when `node` is (a wrapper around) a reference to the function fn itself."""
+        d = node
+        while d is not None and d.kind in WRAPPERS:
+            d = next(iter(d.get_children()), None)
+        return d is not None and d.kind in (K.DECL_REF_EXPR, K.MEMBER_REF_EXPR) and d.referenced is not None \
+            and d.referenced.get_usr() == fn.get_usr()
+
+    def written_decl(self, expr):
+        """The field or non-local variable an lvalue expression names: a.b.c -> c,
+        arr[i] -> arr, map[k] -> map, (*p).x -> x. None for locals and temporaries."""
+        d, hops = expr, 0
+        while d is not None and hops < 12:
+            hops += 1
+            if d.kind in (K.MEMBER_REF_EXPR, K.DECL_REF_EXPR):
+                ref = d.referenced
+                if ref is None:
+                    return None
+                if ref.kind == K.FIELD_DECL:
+                    return ref
+                if ref.kind == K.VAR_DECL:
+                    parent = ref.semantic_parent
+                    local = parent is not None and (parent.kind in FUNC_KINDS or parent.kind == K.LAMBDA_EXPR)
+                    if local and ref.storage_class != ci.StorageClass.STATIC:
+                        return None
+                    return ref
+                return None
+            if d.kind == K.CALL_EXPR and d.spelling in ("operator[]", "operator*", "operator->"):
+                op_fn = d.referenced
+                d = next((a for a in d.get_children() if op_fn is None or not self.refers_to(a, op_fn)), None)
+                continue
+            d = next(iter(d.get_children()), None)
+        return None
+
+    def record_write(self, kind, src, lhs, site, op):
+        if src is None or lhs is None:
+            return
+        ref = self.written_decl(lhs)
+        if ref is None or ref.location.file is None:
+            return
+        usr = ref.get_usr()
+        if usr not in self.symbols:
+            file = self.rel(ref.location.file.name) if self.in_repo(ref) else ref.location.file.name
+            self.symbols[usr] = {"usr": usr, "name": qname(ref), "kind": ref.kind.name.lower(), "file": file,
+                                 "line": ref.location.line, "end_line": ref.location.line, "is_def": 1,
+                                 "sig": ref.type.spelling}
+        self.edge(kind, src, usr, site, op)
+
+    # -- the pre-dispatch allowlist ------------------------------------------------
+    def read_allowlist(self, fn, usr):
+        """Read `if (module == "m") { if (method == "a" || ...) return "read"; ... return "write"; }`.
+        Returns {"usr", "file", "line", "modules": {m: {"methods": {a: mode}, "default": mode}}},
+        with "modules" empty when the shape is not recognised (reported, never guessed)."""
+        params = [c.spelling for c in fn.get_children() if c.kind == K.PARM_DECL]
+        file, line = self.site(fn)
+        out = {"usr": usr, "file": file, "line": line, "modules": {}}
+        if len(params) < 2:
+            return out
+        body = next((c for c in fn.get_children() if c.kind == K.COMPOUND_STMT), None)
+        if body is None:
+            return out
+        for stmt in body.get_children():
+            if stmt.kind != K.IF_STMT:
+                continue
+            kids = list(stmt.get_children())
+            mod = self.compared_literals(kids[0], params[0]) if kids else []
+            if len(mod) != 1 or len(kids) < 2:
+                continue
+            entry = {"methods": {}, "default": ""}
+            for inner in kids[1].get_children():
+                if inner.kind == K.IF_STMT:
+                    ik = list(inner.get_children())
+                    names = self.compared_literals(ik[0], params[1]) if ik else []
+                    mode = self.first_string(ik[1]) if len(ik) > 1 else None
+                    for n in names:
+                        if mode is not None:
+                            entry["methods"][n] = mode
+                elif inner.kind == K.RETURN_STMT:
+                    entry["default"] = self.first_string(inner) or ""
+            out["modules"][mod[0]] = entry
+        return out
+
+    @staticmethod
+    def compared_literals(cond, param):
+        """String literals compared with `param` by operator== in a condition."""
+        names, uses_param = [], False
+        for d in cond.walk_preorder():
+            if d.kind == K.DECL_REF_EXPR and d.spelling == param:
+                uses_param = True
+            elif d.kind == K.STRING_LITERAL:
+                names.append(d.spelling[1:-1] if d.spelling.startswith('"') else d.spelling)
+        return names if uses_param else []
 
     # -- small pattern readers -----------------------------------------------
     @staticmethod
@@ -395,7 +589,8 @@ class Extractor:
                 includes.add((self.rel(s), self.rel(d)))
         return {"symbols": list(self.symbols.values()), "classes": list(self.classes.values()),
                 "edges": [list(e) for e in sorted(self.edges)], "includes": sorted(list(p) for p in includes),
-                "modules": self.modules, "dispatch_ranges": self.dispatch_ranges}
+                "modules": self.modules, "dispatch_ranges": self.dispatch_ranges,
+                "predispatch": self.predispatch}
 
 
 def extract_tu(repo, cdb_dir, source):

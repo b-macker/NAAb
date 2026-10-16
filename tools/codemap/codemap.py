@@ -9,6 +9,8 @@
     python3 tools/codemap/codemap.py reach fopen --gate GovernanceEngine::checkPathAccess
     python3 tools/codemap/codemap.py types Executor            # class tree, both directions
     python3 tools/codemap/codemap.py threads                   # where threads start, what they run
+    python3 tools/codemap/codemap.py writers DispatchState::total_tokens   # who assigns this field
+    python3 tools/codemap/codemap.py writes agentPropose      # which fields a function assigns
     python3 tools/codemap/codemap.py tags --kind ref:A45       # task tags and record references
     python3 tools/codemap/codemap.py jump enforce              # named bookmark -> file:line
     python3 tools/codemap/codemap.py uml Executor              # PlantUML class diagram text
@@ -24,6 +26,11 @@ Every answer says how far to trust it:
               by recognising the dispatch pattern -- screened, not compiled
   [thread]    started on another thread (std::thread/async, a pool's enqueue) -- screened
   [member]    a virtual method the registered class defines (after a [dispatch] to a class)
+  [predispatch] a gate the VM and tree-walker run BEFORE dispatching this NAAb name, read
+              from the filesystemAccessMode allowlist and applied only when every caller
+              of the allowlist calls the gate (`stats` says whether it was applied)
+  writes:     [write] =, op=, ++/-- (built-in or overloaded) on a field or non-local
+              variable; [mutate] a mutating method on it (store, push_back, erase, ...)
 
 It does not replace running the code: whether a check FIRES on a path needs a
 probe. It replaces the sweep that finds the path. Output is ASCII only (Windows
@@ -50,14 +57,16 @@ DEFAULT_REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 # checkPathAccess(), checkFunctionCapability()), keyed on runtime strings. Those
 # gates are not inside the stdlib function, so no chain from a NAAb name shows
 # them: an "ungated" NAAb entry point is a lead to check, not a finding.
-PREDISPATCH = ("gates the VM and tree-walker apply before dispatching a NAAb stdlib call (filesystemAccessMode "
-               "-> checkPathAccess, function capabilities) are not on chains that start at a NAAb name")
+PREDISPATCH = ("the VM's pre-dispatch FILESYSTEM gate is modelled ([predispatch]) only when stats says "
+               "'applied'; other checks made before dispatch are not on chains that start at a NAAb name")
 BLIND_SPOTS = [
     "calls through std::function or function pointers appear only where the function is taken as a value [value]",
     "code the preprocessor removes for this build (e.g. #ifdef _WIN32 on Linux) is not indexed",
     "calls inside templates on dependent names are not resolved",
     "NAAb-name dispatch and thread starts are recognised by pattern, so a new dispatch shape is invisible",
-    "what actually runs for a given program needs a run (profiling is a later slice)",
+    "what actually runs for a given program needs a run (codemap profile)",
+    "writes through a pointer or reference handed to another function, or by a mutating method "
+    "not in the list, are not seen; writes to locals are not recorded",
     PREDISPATCH,
 ]
 # Library calls a reader rarely wants in a callee list: constructors, member
@@ -67,7 +76,8 @@ LIB_NOISE_KINDS = {"constructor", "destructor", "conversion_function", "cxx_meth
 LIB_NOISE_NAMES = {"std::move", "std::forward", "std::make_shared", "std::make_unique", "std::get",
                    "std::swap", "std::addressof", "std::declval"}
 TIER = {"call": "ast", "ref": "value", "defines": "lambda", "dispatch": "dispatch", "thread": "thread",
-        "virtual": "virtual"}
+        "virtual": "virtual", "predispatch": "predispatch", "write": "write", "mutate": "mutate"}
+CONTROL_KINDS = ["call", "ref", "defines", "dispatch", "thread", "predispatch"]
 
 
 # --- output -----------------------------------------------------------------
@@ -308,7 +318,7 @@ def overriders(st, usr):
 def incoming(st, usr):
     """(caller_usr, tier, site_file, site_line) for everything that reaches usr."""
     rows = []
-    for kind, src, _, f, l, note in st.edges_to(usr, ["call", "ref", "defines", "dispatch", "thread"]):
+    for kind, src, _, f, l, note in st.edges_to(usr, CONTROL_KINDS):
         rows.append((src, TIER[kind], f, l))
     for base in ancestors_overridden(st, usr):
         for kind, src, _, f, l, note in st.edges_to(base, ["call"]):
@@ -323,7 +333,7 @@ def outgoing(st, usr):
         return [(m["usr"], "member", m["file"], m["line"]) for m in st.methods_of(usr)
                 if m and m["virtual"] and m["is_def"]]
     rows = []
-    for kind, _, dst, f, l, note in st.edges_from(usr, ["call", "ref", "defines", "dispatch", "thread"]):
+    for kind, _, dst, f, l, note in st.edges_from(usr, CONTROL_KINDS):
         rows.append((dst, TIER[kind], f, l))
         if kind == "call" and note == "virtual":
             for sub in overriders(st, dst):
@@ -476,7 +486,7 @@ def gate_wrappers(st, gates, hops):
     for n in range(1, hops):
         nxt = []
         for u in frontier:
-            for kind, src, _, _, _, _ in st.edges_to(u, ["call", "dispatch"]):
+            for kind, src, _, _, _, _ in st.edges_to(u, ["call", "dispatch", "predispatch"]):
                 if src not in found:
                     found[src] = (n, found[u][1])
                     nxt.append(src)
@@ -527,7 +537,8 @@ def cmd_reach(a, st):
         for src, tier, f, l in dedupe(incoming(st, u)):
             if src in toward or src in gated:
                 continue
-            via = [dst for dst, t, _, _ in outgoing(st, src) if t in ("ast", "dispatch") and dst in wrappers]
+            via = [dst for dst, t, _, _ in outgoing(st, src)
+                   if t in ("ast", "dispatch", "predispatch") and dst in wrappers]
             if via:
                 gated[src] = (loc(f, l), via[0])
                 continue
@@ -553,7 +564,7 @@ def cmd_reach(a, st):
            "entry_points": {g: [{"entry": name_of(st, u), "chain": chain(u)} for u in groups[g]]
                             for g, _ in ENTRY_GROUPS},
            "stopped_at_depth": len(cut),
-           "tier": "call graph, backward [ast/value/lambda/virtual/dispatch/thread]; 'gated' means the "
+           "tier": "call graph, backward [ast/value/lambda/virtual/dispatch/thread/predispatch]; 'gated' means the "
                    "function calls a gate or a gate wrapper -- screened: order and conditions are not "
                    "checked, so a 'gated' function may still reach the sink another way"}
     if a.json:
@@ -590,6 +601,51 @@ def cmd_reach(a, st):
             out("     ... +%d more (raise --max, or --json)" % (len(rows) - a.max))
     if cut:
         out("%d functions were at the depth limit and not searched further (raise --depth)" % len(cut))
+
+
+def cmd_writers(a, st):
+    """Who assigns a field or non-local variable."""
+    out_rows = []
+    for s in pick(st, a.symbol):
+        rows = st.edges_to(s["usr"], ["write", "mutate"])
+        res = [{"function": name_of(st, src), "tier": TIER[kind], "op": note, "site": loc(f, l)}
+               for kind, src, _, f, l, note in rows]
+        if a.json:
+            out_rows.append({"field": s["name"], "at": loc(s["file"], s["line"]), "type": s["sig"],
+                             "writers": res})
+            continue
+        funcs = sorted({r["function"] for r in res})
+        out("writers of %s  (%s%s)  %d sites in %d functions"
+            % (s["name"], loc(s["file"], s["line"]), ", " + s["sig"] if s["sig"] else "", len(res), len(funcs)))
+        for r in res[:a.max]:
+            out("   %-62s [%s %s] %s" % (r["function"], r["tier"], r["op"], r["site"]))
+        if len(res) > a.max:
+            out("   ... +%d more (raise --max)" % (len(res) - a.max))
+        if not res:
+            out("   none recorded (blind spots: writes through a pointer/reference passed elsewhere, "
+                "mutating methods not in the list)")
+    if a.json:
+        emit_json(out_rows)
+
+
+def cmd_writes(a, st):
+    """Which fields and non-local variables a function assigns."""
+    out_rows = []
+    for s in pick(st, a.symbol):
+        rows = st.edges_from(s["usr"], ["write", "mutate"])
+        res = [{"field": name_of(st, dst), "tier": TIER[kind], "op": note, "site": loc(f, l)}
+               for kind, _, dst, f, l, note in rows]
+        if a.json:
+            out_rows.append({"function": s["name"], "writes": res})
+            continue
+        out("%s writes %d sites (%d distinct fields/variables)"
+            % (s["name"], len(res), len({r["field"] for r in res})))
+        for r in res[:a.max]:
+            out("   %-62s [%s %s] %s" % (r["field"], r["tier"], r["op"], r["site"]))
+        if len(res) > a.max:
+            out("   ... +%d more (raise --max)" % (len(res) - a.max))
+    if a.json:
+        emit_json(out_rows)
 
 
 def class_tree(st, usr, direction, depth, indent=1, path=None):
@@ -749,6 +805,8 @@ def cmd_explain(a, st):
         usr = s["usr"]
         callers = dedupe(incoming(st, usr))
         callees, hidden = filter_noise(st, dedupe(outgoing(st, usr)), a.all)
+        writes = [(name_of(st, d), TIER[k], n, loc(f, l)) for k, _, d, f, l, n in st.edges_from(usr, ["write", "mutate"])]
+        writers = [(name_of(st, x), TIER[k], n, loc(f, l)) for k, x, _, f, l, n in st.edges_to(usr, ["write", "mutate"])]
         over = ancestors_overridden(st, usr)
         subs = overriders(st, usr)
         tags = st.tags_in(s["file"], s["line"], s["end_line"]) if s["file"] and not s["file"].startswith("/") else []
@@ -761,7 +819,10 @@ def cmd_explain(a, st):
                 "callers": [{"name": name_of(st, u), "tier": t, "site": loc(f, l)} for u, t, f, l in callers],
                 "callees": [{"name": name_of(st, u), "tier": t, "site": loc(f, l)} for u, t, f, l in callees],
                 "tags": [{"at": loc(f, l), "tag": t, "text": x} for f, l, t, x in tags],
-                "library_calls_hidden": hidden, "anchors": anchors, "blind_spots": BLIND_SPOTS}
+                "library_calls_hidden": hidden, "anchors": anchors,
+                "writes": [{"field": w[0], "tier": w[1], "op": w[2], "site": w[3]} for w in writes],
+                "writers": [{"function": w[0], "tier": w[1], "op": w[2], "site": w[3]} for w in writers],
+                "blind_spots": BLIND_SPOTS}
         if a.json:
             emit_json(card)
             continue
@@ -789,6 +850,14 @@ def cmd_explain(a, st):
             out("     -> %-60s [%s] %s" % (c["name"], c["tier"], c["site"]))
         if len(card["callees"]) > a.max:
             out("     ... +%d more (codemap callees)" % (len(card["callees"]) - a.max))
+        if writes:
+            out("  writes    %d sites" % len(writes))
+            for w in writes[:a.max]:
+                out("     => %-60s [%s %s] %s" % w)
+        if writers:
+            out("  written by %d sites" % len(writers))
+            for w in writers[:a.max]:
+                out("     <= %-60s [%s %s] %s" % w)
         for t in card["tags"]:
             out("  tag       %s %s %s" % (t["at"], t["tag"], t["text"]))
         out("  not seen: " + "; ".join(BLIND_SPOTS[:3]))
@@ -902,13 +971,17 @@ def cmd_stats(a, st):
     res = {"built_at": m.get("built_at"), "git_head": m.get("git_head"), "sources": m.get("sources"),
            "failed": m.get("failed"), "parse_errors": len(m.get("parse_errors") or []),
            "symbols": st.count("symbols"), "classes": st.count("classes"), "edges": kinds,
-           "tags": st.count("tags"), "unindexed": m.get("unindexed") or [], "blind_spots": BLIND_SPOTS}
+           "tags": st.count("tags"), "unindexed": m.get("unindexed") or [],
+           "predispatch": m.get("predispatch") or {"status": "absent"}, "blind_spots": BLIND_SPOTS}
     if a.json:
         return emit_json(res)
     out("index built %s at %s from %s sources (%s failed, %s with parse errors)"
         % (res["built_at"], res["git_head"], res["sources"], len(res["failed"] or []), res["parse_errors"]))
     out("symbols %d, classes %d, tags %d" % (res["symbols"], res["classes"], res["tags"]))
     out("edges: " + ", ".join("%s %d" % kv for kv in sorted(kinds.items())))
+    pd = res["predispatch"]
+    out("pre-dispatch gates: %s%s" % (pd.get("status"), "" if pd.get("status") != "applied" else
+        " -- %d NAAb names gated; callers checked: %s" % (pd["names_gated"], ", ".join(pd["callers_checked"]))))
     if res["unindexed"]:
         out("not in the build, so not indexed (%d tracked C/C++ files): %s%s"
             % (len(res["unindexed"]), ", ".join(res["unindexed"][:8]),
@@ -943,6 +1016,8 @@ def main(argv=None):
     s.add_argument("--gate-hops", type=int, default=2,
                    help="a function this many calls from a gate counts as the gate (1 = the gate only)")
     s.add_argument("--tests", action="store_true", help="list entry points in test code too")
+    for name in ("writers", "writes"):
+        s = sub.add_parser(name); s.add_argument("symbol"); s.add_argument("--max", type=int, default=40)
     s = sub.add_parser("types"); s.add_argument("cls"); s.add_argument("--depth", type=int, default=6)
     s = sub.add_parser("includes"); s.add_argument("file"); s.add_argument("--by", action="store_true")
     s = sub.add_parser("threads")

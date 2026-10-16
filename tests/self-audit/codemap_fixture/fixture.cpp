@@ -65,3 +65,46 @@ void windows_only() { sink("w"); }
 
 // A4: a test-arm label, not a citation -- the tag scanner must not report it
 // (the citation two blocks up must be reported).
+
+// --- a lambda stored in a named variable is findable by that name
+void via_named_lambda() {
+    auto named_cb = [](const std::string& s) { sink(s); };
+    named_cb("n");
+}
+
+// --- writes
+static Budget g_budget;
+void charge() {
+    g_budget.calls++;
+    g_budget.tokens += 5;
+    g_budget.log.push_back(1);
+}
+void reset_budget() { g_budget.calls = 0; }
+int peek_budget() { return g_budget.calls; }
+void local_only() {
+    int local = 0;
+    local = 3;
+    (void)local;
+}
+
+// --- the pre-dispatch allowlist: fixfile.read is gated before dispatch,
+// fixfile.write is not
+std::string GovernanceEngine::filesystemAccessMode(const std::string& module,
+                                                   const std::string& method) {
+    if (module == "fixfile") {
+        if (method == "read") return "read";
+        return "";
+    }
+    return "";
+}
+bool GovernanceEngine::checkFilesystemAllowed(const std::string& mode) { return !mode.empty(); }
+bool GovernanceEngine::checkPathAccess(const std::string& path) { return !path.empty(); }
+int vm_dispatch(GovernanceEngine& g, Module& m, const std::string& module,
+                const std::string& method, int x) {
+    std::string mode = g.filesystemAccessMode(module, method);
+    if (!mode.empty()) {
+        g.checkFilesystemAllowed(mode);
+        g.checkPathAccess(method);
+    }
+    return m.call(method, x);
+}

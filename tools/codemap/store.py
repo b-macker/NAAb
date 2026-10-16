@@ -26,6 +26,64 @@ CREATE INDEX symbols_name ON symbols(name);
 """
 
 
+# The gates the VM and the tree-walker run before dispatching a NAAb stdlib
+# call that the allowlist classifies (vm.cpp OP_CALL_METHOD, call_dispatch.cpp).
+PREDISPATCH_GATES = ("checkFilesystemAllowed", "checkPathAccess")
+
+
+def apply_predispatch(db, pd):
+    """Add [predispatch] edges NAAb name -> gate for every stdlib name the
+    allowlist classifies -- but only after checking, from the call graph, that
+    every non-test caller of the allowlist also calls each gate. A gate edge is
+    the REASSURING direction (it makes reach stop), so an unverified one is
+    worse than none: on any doubt nothing is added and the reason is recorded."""
+    if not pd:
+        return {"status": "absent: no definition of the allowlist was indexed"}
+    if not pd.get("modules"):
+        return {"status": "unrecognised: the allowlist's if/return shape was not read", "at": "%s:%s"
+                % (pd.get("file"), pd.get("line"))}
+    allow = pd["usr"]
+    row = db.execute("SELECT class_usr FROM symbols WHERE usr=?", (allow,)).fetchone()
+    cls = row[0] if row else ""
+    gates = {}
+    for g in PREDISPATCH_GATES:
+        hit = db.execute("SELECT usr FROM symbols WHERE class_usr=? AND name LIKE ?", (cls, "%::" + g)).fetchall()
+        if len(hit) != 1:
+            return {"status": "unverified: gate %s resolves to %d symbols" % (g, len(hit))}
+        gates[g] = hit[0][0]
+    callers = [r[0] for r in db.execute(
+        "SELECT DISTINCT e.src FROM edges e JOIN symbols s ON s.usr=e.src "
+        "WHERE e.kind='call' AND e.dst=? AND s.file NOT LIKE 'tests/%'", (allow,)).fetchall()]
+    if not callers:
+        return {"status": "unverified: nothing outside tests/ calls the allowlist"}
+    missing = []
+    for c in callers:
+        called = {r[0] for r in db.execute("SELECT dst FROM edges WHERE kind='call' AND src=?", (c,))}
+        for g, gu in gates.items():
+            if gu not in called:
+                missing.append("%s does not call %s" % (c, g))
+    if missing:
+        return {"status": "unverified: " + "; ".join(missing)}
+    gated = 0
+    for (usr,) in db.execute("SELECT usr FROM symbols WHERE usr LIKE 'naab:%'").fetchall():
+        mod, _, fn = usr[5:].partition(".")
+        entry = pd["modules"].get(mod)
+        if not entry:
+            continue
+        mode = entry["methods"].get(fn, entry.get("default", ""))
+        if not mode:
+            continue
+        gated += 1
+        for gu in gates.values():
+            db.execute("INSERT OR IGNORE INTO edges VALUES(?,?,?,?,?,?)",
+                       ("predispatch", usr, gu, pd["file"], pd["line"], mode))
+    names = {r[0]: r[1] for r in db.execute("SELECT usr, name FROM symbols WHERE usr IN (%s)"
+                                               % ",".join("?" * len(callers)), callers)}
+    return {"status": "applied", "allowlist_at": "%s:%s" % (pd["file"], pd["line"]),
+            "modules": sorted(pd["modules"]), "names_gated": gated,
+            "callers_checked": sorted(names.get(c, c) for c in callers), "gates": list(PREDISPATCH_GATES)}
+
+
 def build(db_path, shards, tags, meta):
     if os.path.exists(db_path):
         os.remove(db_path)
@@ -34,7 +92,11 @@ def build(db_path, shards, tags, meta):
     modules = {}
     dispatch_ranges = {}
     symbols = {}
+    predispatch = None
     for sh in shards:
+        pd = sh.get("predispatch")
+        if pd and (predispatch is None or (pd.get("modules") and not predispatch.get("modules"))):
+            predispatch = pd
         modules.update(sh.get("modules", {}))
         dispatch_ranges.update(sh.get("dispatch_ranges", {}))
         for s in sh["symbols"]:
@@ -77,6 +139,7 @@ def build(db_path, shards, tags, meta):
                or db.execute("SELECT usr FROM classes WHERE name LIKE ?", ("%::" + name,)).fetchone())
         if hit:
             db.execute("UPDATE OR IGNORE edges SET dst=? WHERE dst=?", (hit[0], dst))
+    meta["predispatch"] = apply_predispatch(db, predispatch)
     db.executemany("INSERT INTO tags VALUES(?,?,?,?)", tags)
     db.executemany("INSERT OR REPLACE INTO meta VALUES(?,?)", [(k, json.dumps(v)) for k, v in meta.items()])
     db.commit()

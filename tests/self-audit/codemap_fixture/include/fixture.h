@@ -47,3 +47,26 @@ int unknown_impl(int x);
 
 // The executor registration shape: a language name mapped to a class.
 void registerExecutor(const std::string& language, std::unique_ptr<Base> executor);
+
+// --- writes: fields assigned, mutated, and only read --------------------------
+#include <atomic>
+#include <vector>
+struct Budget {
+    int calls = 0;
+    std::atomic<int> tokens{0};
+    std::vector<int> log;
+};
+void charge();
+void reset_budget();
+int peek_budget();
+void local_only();
+
+// --- the pre-dispatch shape: an allowlist consulted, then the gates, then dispatch
+class GovernanceEngine {
+public:
+    std::string filesystemAccessMode(const std::string& module, const std::string& method);
+    bool checkFilesystemAllowed(const std::string& mode);
+    bool checkPathAccess(const std::string& path);
+};
+int vm_dispatch(GovernanceEngine& g, Module& m, const std::string& module,
+                const std::string& method, int x);
