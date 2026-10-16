@@ -3997,6 +3997,25 @@ else
     echo "  test_codemap.sh: not found, skipping"
 fi
 
+CODEMAP_PROFILE_SCRIPT="tests/self-audit/test_codemap_profile.sh"
+if [ -f "$CODEMAP_PROFILE_SCRIPT" ]; then
+    # `codemap profile` runs a command under callgrind and maps every frame
+    # onto the index. A wrong mapping says code ran that did not (or did not
+    # run that did), so each rule -- overloads by parameter types, abi tags,
+    # lambdas by signature and owner, compiler-generated frames, the
+    # system-library filter, "unmeasured" for frames that match nothing, a
+    # build without -g -- is checked on the compiled fixture with a control.
+    # UNMEASURABLE without valgrind, a C++ compiler or libclang.
+    if run_shell_test "$CODEMAP_PROFILE_SCRIPT" 2>&1; then
+        echo "  test_codemap_profile.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_codemap_profile.sh")
+    fi
+else
+    echo "  test_codemap_profile.sh: not found, skipping"
+fi
+
 NAABAPOS_SCRIPT="tests/governance_v4/test_naab_comment_apostrophe.sh"
 if [ -f "$NAABAPOS_SCRIPT" ]; then
     # An apostrophe in a NAAb # comment must not open a "string" that hides

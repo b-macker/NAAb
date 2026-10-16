@@ -44,6 +44,16 @@
 #   CM-17  paths: main reaches sink; the reverse direction finds nothing
 #   CM-18  every bookmark in tools/codemap/anchors.txt still resolves in this
 #          tree (no index: screened by grep), and --check fails on a broken one
+#   CM-19  a lambda stored in a named variable is found by that name (control:
+#          an unnamed lambda keeps its location name)
+#   CM-20  writers: ++ and = on a field, += through an overloaded operator on
+#          std::atomic, push_back as a mutation; a function that only READS the
+#          field is not a writer, and a local variable is not recorded (control:
+#          the same query returns three sites for the function that does write)
+#   CM-21  [predispatch]: the allowlist read from the fixture's
+#          filesystemAccessMode gates fixfile.read before dispatch and not
+#          fixfile.write, which it maps to ""; CM-21b: with the dispatcher no
+#          longer calling the gate, the edges are withheld and stats says why
 # ============================================================
 set -uo pipefail
 
@@ -167,14 +177,14 @@ fi
 
 # ---------------------------------------------------------------- CM-02
 OUT="$(cm callers sink --depth 2)"
-if grep -q "<- via_lambda::<lambda@fixture.cpp:18> .*\[ast\] fixture.cpp:18" <<<"$OUT" \
+if grep -q "<- via_lambda::f .*\[ast\] fixture.cpp:18" <<<"$OUT" \
    && grep -q "<- via_lambda .*\[lambda\] fixture.cpp:18" <<<"$OUT"; then
     ok CM-02 "a call inside a lambda belongs to the lambda; the lambda hangs off its function"
 else
     bad CM-02 "lambda attribution missing" "$OUT"
 fi
 OUT="$(cm callees via_lambda --depth 1)"
-if grep -q "via_lambda::<lambda@fixture.cpp:18> .*\[ast\] fixture.cpp:19" <<<"$OUT" && ! grep -q "lambda at" <<<"$OUT"; then
+if grep -q "via_lambda::f .*\[ast\] fixture.cpp:19" <<<"$OUT" && ! grep -q "lambda at" <<<"$OUT"; then
     ok CM-02b "calling the lambda lands on the lambda, not on an operator() named by its path"
 else
     bad CM-02b "the call to the lambda was not attributed to it" "$OUT"
@@ -371,6 +381,82 @@ if [ "$rc" -eq 0 ] && grep -q "^path 1" <<<"$OUT" && [ "$rrc" -ne 0 ] && grep -q
 else
     bad CM-17 "paths wrong (rc=$rc, reverse rc=$rrc)" "$OUT
 $REV"
+fi
+
+# ---------------------------------------------------------------- CM-19
+OUT="$(cm find named_cb)"
+CTRL="$(cm callers sink --depth 1)"
+THR="$(cm callers worker --depth 1)"
+if grep -q "^lambda  *via_named_lambda::named_cb .*fixture.cpp:71" <<<"$OUT" \
+   && grep -q "<- via_named_lambda::named_cb .*\[ast\]" <<<"$CTRL" \
+   && grep -q "<- start_thread::<lambda@fixture.cpp:36>" <<<"$THR"; then
+    ok CM-19 "a lambda in a named variable is found by the name; one passed to std::thread's constructor is not named after the thread"
+else
+    bad CM-19 "named lambda not findable, or a constructor argument took the variable's name" "$OUT
+$CTRL
+$THR"
+fi
+
+# ---------------------------------------------------------------- CM-20
+CALLS="$(cm writers Budget::calls)"
+TOKS="$(cm writers Budget::tokens)"
+LOGW="$(cm writers Budget::log)"
+if grep -q "charge .*\[write ++\] fixture.cpp:78" <<<"$CALLS" && grep -q "reset_budget .*\[write =\] fixture.cpp:82" <<<"$CALLS" \
+   && ! grep -q "peek_budget" <<<"$CALLS"; then
+    ok CM-20a "++ and = on a field are writes; a function that only reads it is not a writer"
+else
+    bad CM-20a "built-in writes wrong" "$CALLS"
+fi
+if grep -q "charge .*\[write +=\] fixture.cpp:79" <<<"$TOKS" && grep -q "charge .*\[mutate push_back\] fixture.cpp:80" <<<"$LOGW"; then
+    ok CM-20b "+= through std::atomic's operator and push_back are recorded"
+else
+    bad CM-20b "overloaded/mutating writes missing" "$TOKS
+$LOGW"
+fi
+LOC="$(cm writes local_only)"
+CHG="$(cm writes charge)"
+if grep -q "local_only writes 0 sites" <<<"$LOC" && grep -q "charge writes 3 sites" <<<"$CHG"; then
+    ok CM-20c "a local variable is not recorded (the same query finds 3 writes in charge)"
+else
+    bad CM-20c "local filtering or write count wrong" "$LOC
+$CHG"
+fi
+
+# ---------------------------------------------------------------- CM-21
+STATS="$(cm stats)"
+RD="$(cm reach read_impl --gate GovernanceEngine::checkPathAccess)"
+WR="$(cm reach write_impl --gate GovernanceEngine::checkPathAccess)"
+if grep -q "pre-dispatch gates: applied -- 1 NAAb names gated; callers checked: vm_dispatch" <<<"$STATS" \
+   && grep -q "naab fixfile.read()  fixture.cpp:46  via GovernanceEngine::checkPathAccess" <<<"$RD" \
+   && ! grep -q "^     naab fixfile.read()" <<<"$RD"; then
+    ok CM-21 "the allowlist gates fixfile.read before dispatch; reach stops there"
+else
+    bad CM-21 "pre-dispatch gate not applied to fixfile.read" "$STATS
+$RD"
+fi
+if grep -q "^     naab fixfile.write()" <<<"$WR"; then
+    ok CM-21c "fixfile.write, which the allowlist maps to \"\", stays an ungated entry point"
+else
+    bad CM-21c "fixfile.write wrongly gated" "$WR"
+fi
+# The verification is what makes a gate edge trustworthy: take the gate call out
+# of the only caller of the allowlist and the edges must be withheld.
+python3 - <<'EOF'
+p = "fixture.cpp"
+s = open(p).read()
+old = "        g.checkPathAccess(method);\n"
+assert s.count(old) == 1
+open(p, "w").write(s.replace(old, ""))
+EOF
+cm index >/dev/null
+STATS="$(cm stats)"
+RD="$(cm reach read_impl --gate GovernanceEngine::checkPathAccess)"
+if grep -q "pre-dispatch gates: unverified: .*does not call checkPathAccess" <<<"$STATS" \
+   && grep -q "^     naab fixfile.read()" <<<"$RD"; then
+    ok CM-21b "with the gate call removed from the dispatcher, no gate edge is added and stats says why"
+else
+    bad CM-21b "an unverified pre-dispatch gate was still applied" "$STATS
+$RD"
 fi
 
 echo "Result: $PASS passed, $FAIL failed, $SKIP skipped"
