@@ -14,6 +14,10 @@
     python3 tools/codemap/codemap.py tags --kind ref:A45       # task tags and record references
     python3 tools/codemap/codemap.py jump enforce              # named bookmark -> file:line
     python3 tools/codemap/codemap.py uml Executor              # PlantUML class diagram text
+    python3 tools/codemap/codemap.py profile --name hello -- build/naab-lang hello.naab
+                                                               # callgrind run -> flame/icicle SVG + summary
+    python3 tools/codemap/codemap.py ran hello --fn checkPathAccess   # what that run actually called
+    python3 tools/codemap/codemap.py callers sink --run hello  # static callers, marked ran / not run
     python3 tools/codemap/codemap.py dot agentSend             # Graphviz call graph text
 
 Every answer says how far to trust it:
@@ -29,6 +33,12 @@ Every answer says how far to trust it:
   [predispatch] a gate the VM and tree-walker run BEFORE dispatching this NAAb name, read
               from the filesystemAccessMode allowlist and applied only when every caller
               of the allowlist calls the gate (`stats` says whether it was applied)
+  with --run NAME (after `codemap profile`): each edge is marked "ran Nx", "not on this
+              edge" (the function ran, never through this call), "not run", or
+              "unmeasured" (a frame the profile could not match to one definition could
+              be this function -- never reported as not run); a count is that edge's
+              total over the whole run. Calls only the run saw -- through std::function,
+              a pointer, a thread trampoline -- are added as [observed Nx]
   writes:     [write] =, op=, ++/-- (built-in or overloaded) on a field or non-local
               variable; [mutate] a mutating method on it (store, push_back, erase, ...)
 
@@ -380,20 +390,99 @@ def cmd_find(a, st):
         out("... %d more (raise --max)" % (len(syms) - a.max))
 
 
-def tree(st, usr, direction, depth, max_children, show_all=False, path=None, lines=None, indent=0):
+def load_run(a, name):
+    """A profile's observed edges, indexed both ways, plus the functions it executed."""
+    path = os.path.join(a.cache, "profiles", name, "run.json")
+    try:
+        with open(path) as fh:
+            run = json.load(fh)
+    except (OSError, ValueError):
+        raise SystemExit("codemap: no profile %r (run `codemap profile --name %s -- CMD` first; "
+                         "`codemap runs` lists them)" % (name, name))
+    run["in"], run["out"], run["ran"] = {}, {}, {}
+    for e in run["edges"]:
+        run["in"].setdefault(e["dst"], {})[e["src"]] = e
+        run["out"].setdefault(e["src"], {})[e["dst"]] = e
+    for f in run["functions"]:
+        if f["usr"]:
+            r = run["ran"].setdefault(f["usr"], {"calls": 0, "self": 0, "inclusive": 0})
+            for k in ("calls", "self", "inclusive"):
+                r[k] += f[k]
+    # Repo frames the profile could not match to one function: a function they
+    # could be is UNMEASURED in this run, not "not run".
+    run["um_name"], run["um_lambda"] = {}, {}
+    for u in run.get("unmatched", []):
+        if u["lambda"]:
+            run["um_lambda"][u["name"]] = run["um_lambda"].get(u["name"], 0) + u["frames"]
+        else:
+            run["um_name"].setdefault(u["name"], []).append(u["arity"])
+    return run
+
+
+def unmeasured(st, usr, run):
+    """Could an unmatched frame of this run be this function? (lambda: any unmatched
+    lambda frame under the same top-level function; otherwise the same name with the
+    same parameter count, or a frame that showed none)."""
+    if not run.get("um_name") and not run.get("um_lambda"):
+        return False
+    s = st.symbol(usr)
+    if s is None:
+        return False
+    if s["kind"] == "lambda":
+        top = st.symbol(usr.partition("@lambda:")[0])
+        return top is not None and top["name"] in run["um_lambda"]
+    arities = run["um_name"].get(s["name"])
+    if not arities:
+        return False
+    import cgprofile
+    args = cgprofile.frame_args(s.get("psig") or "")[0]
+    n = None if args is None else len(cgprofile.param_key(args))
+    return None in arities or n is None or n in arities
+
+
+def annotate(st, rows, usr, direction, run):
+    """Mark each static row in this profile: "ran Nx" (this call was observed),
+    "unmeasured" (a frame the profile could not match could be either end),
+    "not on this edge" (the function ran, never through this call) or "not run".
+    Then add calls only the run saw."""
+    if run is None:
+        return rows
+    dyn = (run["in"] if direction == "up" else run["out"]).get(usr, {})
+    seen, out_rows = set(), []
+    for other, tier, f, l in rows:
+        e = dyn.get(other)
+        seen.add(other)
+        if e:
+            state = "ran %dx" % e["calls"]
+        elif unmeasured(st, other, run) or unmeasured(st, usr, run):
+            state = "unmeasured"
+        elif other in run["ran"]:
+            state = "not on this edge"
+        else:
+            state = "not run"
+        out_rows.append((other, "%s, %s" % (tier, state), f, l))
+    for other, e in sorted(dyn.items(), key=lambda kv: -kv[1]["calls"]):
+        if other not in seen:
+            out_rows.append((other, "observed %dx%s" % (e["calls"], " via library frames" if e["via_library"] else ""),
+                             "(run)", ""))
+    return out_rows
+
+
+def tree(st, usr, direction, depth, max_children, show_all=False, path=None, lines=None, indent=0, run=None):
     path = (path or []) + [usr]
     lines = [] if lines is None else lines
     rows = dedupe(incoming(st, usr) if direction == "up" else outgoing(st, usr))
     rows, hidden = filter_noise(st, rows, show_all)
+    rows = annotate(st, rows, usr, direction, run)
     if hidden:
         lines.append({"depth": indent + 1, "hidden": hidden})
     shown = rows[:max_children]
     for other, tier, f, l in shown:
         cyc = other in path
         lines.append({"depth": indent + 1, "symbol": other, "name": name_of(st, other), "tier": tier,
-                      "site": loc(f, l), "cycle": cyc})
+                      "site": f if l == "" else loc(f, l), "cycle": cyc})
         if not cyc and indent + 1 < depth:
-            tree(st, other, direction, depth, max_children, show_all, path, lines, indent + 1)
+            tree(st, other, direction, depth, max_children, show_all, path, lines, indent + 1, run)
     if len(rows) > max_children:
         lines.append({"depth": indent + 1, "more": len(rows) - max_children})
     return lines
@@ -415,24 +504,28 @@ def print_tree(title, lines, direction):
                                       "  (cycle)" if ln["cycle"] else ""))
 
 
+RUN_NOTE = ("  run %s: a count is that call's total over the whole run, not the calls made along this"
+            " path; 'unmeasured' = a frame the profile could not match could be this one")
+
+
 def cmd_callers(a, st):
     for s in pick(st, a.symbol):
-        lines = tree(st, s["usr"], "up", a.depth, a.max, True)
+        lines = tree(st, s["usr"], "up", a.depth, a.max, True, run=load_run(a, a.run) if a.run else None)
         if a.json:
             emit_json({"symbol": s["name"], "callers": lines})
         else:
-            print_tree("callers of %s  (%s)  depth %d" % (s["name"], loc(s["file"], s["line"]), a.depth),
-                       lines, "up")
+            print_tree("callers of %s  (%s)  depth %d" % (s["name"], loc(s["file"], s["line"]), a.depth)
+                       + ("\n" + RUN_NOTE % a.run if a.run else ""), lines, "up")
 
 
 def cmd_callees(a, st):
     for s in pick(st, a.symbol):
-        lines = tree(st, s["usr"], "down", a.depth, a.max, a.all)
+        lines = tree(st, s["usr"], "down", a.depth, a.max, a.all, run=load_run(a, a.run) if a.run else None)
         if a.json:
             emit_json({"symbol": s["name"], "callees": lines})
         else:
-            print_tree("callees of %s  (%s)  depth %d" % (s["name"], loc(s["file"], s["line"]), a.depth),
-                       lines, "down")
+            print_tree("callees of %s  (%s)  depth %d" % (s["name"], loc(s["file"], s["line"]), a.depth)
+                       + ("\n" + RUN_NOTE % a.run if a.run else ""), lines, "down")
 
 
 def cmd_paths(a, st):
@@ -937,6 +1030,154 @@ def render_plantuml(a, text):
     return 0 if os.path.exists(svg) else 3
 
 
+def cmd_profile(a):
+    import cgprofile
+    if not a.cmd_args:
+        raise SystemExit("codemap profile: give the command after --, e.g. "
+                         "codemap profile --name hello -- build/naab-lang hello.naab")
+    cmd = a.cmd_args[1:] if a.cmd_args[0] == "--" else a.cmd_args
+    db_path = os.path.join(a.cache, "codemap.db")
+    st = storemod.Store(db_path) if os.path.exists(db_path) else None
+    if st is None:
+        sys.stderr.write("codemap profile: no index -- frames will not be matched to symbols "
+                         "(run `codemap index` for ran/--run)\n")
+    names = {}
+    if st is not None:
+        names = {u: loc(f, l) for u, f, l in st.db.execute("SELECT usr, file, line FROM symbols")}
+    label = a.name or time.strftime("run-%Y%m%d-%H%M%S")
+    outdir = os.path.join(a.cache, "profiles", label)
+    lines, meta = cgprofile.run_profile(cmd, outdir, a.depth, label, st.db if st else None, names,
+                                        keep_raw=a.keep_raw, repo=a.repo)
+    for ln in lines[:12]:
+        out(ln)
+    out("  ...")
+    out("wrote %s/{summary.txt,flame.svg,icicle.svg,folded.txt,run.json}" % outdir)
+    return 0
+
+
+def cmd_runs(a, st):
+    base = os.path.join(a.cache, "profiles")
+    rows = []
+    for name in sorted(os.listdir(base)) if os.path.isdir(base) else []:
+        try:
+            with open(os.path.join(base, name, "run.json")) as fh:
+                run = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        rows.append({"name": name, "at": run["meta"]["at"], "cmd": " ".join(run["meta"]["cmd"]),
+                     "total_ir": run["total_ir"], "exit_status": run["meta"]["exit_status"]})
+    if a.json:
+        return emit_json(rows)
+    if not rows:
+        out("no profiles yet (codemap profile --name NAME -- CMD)")
+    for r in rows:
+        out("%-24s %s  exit %s  %s Ir  %s" % (r["name"], r["at"], r["exit_status"], "{:,}".format(r["total_ir"]),
+                                             r["cmd"]))
+
+
+def cmd_ran(a, st):
+    run = load_run(a, a.name)
+    total = run["total_ir"] or 1
+    if not a.fn:
+        indexed = st.db.execute("SELECT COUNT(*) FROM symbols WHERE is_def=1 AND file NOT LIKE '/%' "
+                                "AND kind IN ('function_decl','cxx_method','constructor','destructor',"
+                                "'function_template','lambda')").fetchone()[0]
+        res = {"run": a.name, "executed_indexed": len(run["ran"]), "indexed_functions": indexed,
+               "summary": os.path.join(a.cache, "profiles", a.name, "summary.txt")}
+        if a.json:
+            return emit_json(res)
+        out("run %s executed %d of %d indexed functions (%.1f%%)"
+            % (a.name, res["executed_indexed"], indexed, 100.0 * res["executed_indexed"] / max(indexed, 1)))
+        with open(res["summary"], encoding="ascii", errors="replace") as fh:
+            for ln in fh.read().splitlines()[: a.top + 8]:
+                out(ln)
+        return
+    for s in pick(st, a.fn):
+        r = run["ran"].get(s["usr"])
+        callers = run["in"].get(s["usr"], {})
+        callees = run["out"].get(s["usr"], {})
+        um = not r and unmeasured(st, s["usr"], run)
+        res = {"function": s["name"], "at": loc(s["file"], s["line"]), "ran": bool(r),
+               "state": "ran" if r else "unmeasured" if um else "not run",
+               "calls": r["calls"] if r else 0, "self_pct": 100.0 * r["self"] / total if r else 0,
+               "inclusive_pct": 100.0 * r["inclusive"] / total if r else 0,
+               "callers": [{"name": name_of(st, u), "calls": e["calls"], "via_library": e["via_library"]}
+                           for u, e in sorted(callers.items(), key=lambda kv: -kv[1]["calls"])],
+               "callees": [{"name": name_of(st, u), "calls": e["calls"], "via_library": e["via_library"]}
+                           for u, e in sorted(callees.items(), key=lambda kv: -kv[1]["calls"])]}
+        if a.json:
+            emit_json(res)
+            continue
+        if um:
+            out("%s  (%s): UNMEASURED in run %s -- a frame from the repo with this name could not be"
+                " matched to one definition (see the run's summary.txt), so it may have run"
+                % (s["name"], res["at"], a.name))
+            continue
+        if not r:
+            out("%s  (%s): NOT executed in run %s" % (s["name"], res["at"], a.name))
+            continue
+        out("%s  (%s): called %d times in run %s; self %.2f%%, inclusive %.2f%% of %s Ir"
+            % (s["name"], res["at"], res["calls"], a.name, res["self_pct"], res["inclusive_pct"],
+               "{:,}".format(run["total_ir"])))
+        for title, rows in (("called by", res["callers"]), ("calls", res["callees"])):
+            out("  %s (%d):" % (title, len(rows)))
+            for c in rows[: a.top]:
+                out("     %-64s %dx%s" % (c["name"], c["calls"], "  via library frames" if c["via_library"] else ""))
+
+
+def cmd_flame(a):
+    """Re-render a run's flame/icicle graphs, optionally focused on one function:
+    only stacks through it, re-rooted there, so a small subsystem is not drawn
+    narrower than a pixel beside the program's start-up cost."""
+    from flame import render
+    pdir = os.path.join(a.cache, "profiles", a.name)
+    folded = {}
+    try:
+        with open(os.path.join(pdir, "folded.txt"), encoding="ascii", errors="replace") as fh:
+            for line in fh:
+                stack, _, cost = line.rstrip("\n").rpartition(" ")
+                if stack and cost.isdigit():
+                    folded[tuple(stack.split(";"))] = int(cost)
+    except OSError:
+        raise SystemExit("codemap: no profile %r (codemap runs)" % a.name)
+    total = sum(folded.values())
+    label = "all"
+    if a.focus:
+        def hit(fr):
+            return fr == a.focus or fr.endswith("::" + a.focus)
+        focused = {}
+        for stack, cost in folded.items():
+            idx = next((i for i, fr in enumerate(stack) if hit(fr)), None)
+            if idx is not None:
+                key = stack[idx:]
+                focused[key] = focused.get(key, 0) + cost
+        if not focused:
+            raise SystemExit("codemap: no stack in run %r passes through %r" % (a.name, a.focus))
+        folded = focused
+        label = re.sub(r"[^A-Za-z0-9_.-]", "_", a.focus)
+    known = set()
+    try:
+        with open(os.path.join(pdir, "run.json")) as fh:
+            known = {f["name"] for f in json.load(fh)["functions"] if f["usr"]}
+    except (OSError, ValueError):
+        pass
+    sub = sum(folded.values())
+    paths = []
+    for kind in ("flame", "icicle"):
+        svg = render(folded, kind=kind, title="%s graph: %s%s" % (kind, a.name, " -- focus " + a.focus if a.focus else ""),
+                     subtitle="%s of %s Ir (%.1f%%) | instructions, not time"
+                              % ("{:,}".format(sub), "{:,}".format(total), 100.0 * sub / max(total, 1)),
+                     highlight=known)
+        path = os.path.join(pdir, "%s-%s.svg" % (kind, label))
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(svg)
+        paths.append(path)
+    out("%s: %.1f%% of the run's cost%s" % (a.name, 100.0 * sub / max(total, 1),
+                                          " passes through " + a.focus if a.focus else ""))
+    for pth in paths:
+        out("wrote " + pth)
+
+
 def cmd_dot(a, st):
     s = pick(st, a.symbol)[0]
     nodes, edges = {s["usr"]}, set()
@@ -1007,6 +1248,7 @@ def main(argv=None):
         s = sub.add_parser(name); s.add_argument("symbol")
         s.add_argument("--depth", type=int, default=2); s.add_argument("--max", type=int, default=25)
         s.add_argument("--all", action="store_true", help="include library constructors/operators/methods")
+        s.add_argument("--run", help="mark edges ran / not run in this profile (codemap runs)")
     s = sub.add_parser("explain"); s.add_argument("symbol"); s.add_argument("--max", type=int, default=15)
     s.add_argument("--all", action="store_true")
     s = sub.add_parser("paths"); s.add_argument("source"); s.add_argument("target")
@@ -1028,6 +1270,14 @@ def main(argv=None):
         s.add_argument("--verbose", action="store_true"); s.add_argument("--check", action="store_true")
     s = sub.add_parser("uml"); s.add_argument("cls"); s.add_argument("--depth", type=int, default=2)
     s.add_argument("--out"); s.add_argument("--render", action="store_true")
+    s = sub.add_parser("profile", help="run a command under callgrind: flame/icicle SVG, summary, run.json")
+    s.add_argument("--name"); s.add_argument("--depth", type=int, default=12,
+                                             help="callers kept per stack (callgrind --separate-callers)")
+    s.add_argument("--keep-raw", action="store_true"); s.add_argument("cmd_args", nargs=argparse.REMAINDER)
+    s = sub.add_parser("runs")
+    s = sub.add_parser("flame", help="re-render a run's flame/icicle SVG, optionally --focus FUNCTION")
+    s.add_argument("name"); s.add_argument("--focus")
+    s = sub.add_parser("ran"); s.add_argument("name"); s.add_argument("--fn"); s.add_argument("--top", type=int, default=20)
     s = sub.add_parser("dot"); s.add_argument("symbol"); s.add_argument("--depth", type=int, default=1)
     s.add_argument("--max", type=int, default=15); s.add_argument("--all", action="store_true")
     a = p.parse_args(argv)
@@ -1035,10 +1285,16 @@ def main(argv=None):
     a.cache = os.path.abspath(a.cache or os.path.join(a.repo, ".cache", "codemap"))
     if a.cmd == "index":
         return cmd_index(a)
+    if a.cmd == "profile":
+        return cmd_profile(a)
     db = os.path.join(a.cache, "codemap.db")
     if a.cmd in ("anchors", "jump"):
         st = storemod.Store(db) if os.path.exists(db) else None
         return cmd_anchors(a, st)
+    if a.cmd == "runs":
+        return cmd_runs(a, None) or 0
+    if a.cmd == "flame":
+        return cmd_flame(a) or 0
     st = storemod.Store(db)
     return globals()["cmd_" + a.cmd](a, st) or 0
 

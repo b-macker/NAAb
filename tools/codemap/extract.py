@@ -52,6 +52,25 @@ FUNC_KINDS = {K.FUNCTION_DECL, K.CXX_METHOD, K.CONSTRUCTOR, K.DESTRUCTOR,
               K.FUNCTION_TEMPLATE, K.CONVERSION_FUNCTION}
 CLASS_KINDS = {K.CLASS_DECL, K.STRUCT_DECL, K.CLASS_TEMPLATE,
                K.CLASS_TEMPLATE_PARTIAL_SPECIALIZATION}
+
+
+def canonical_params(ch):
+    """`(const std::basic_string<char> &, int) const`: the parameter types as the
+    compiler sees them (aliases resolved), so a profile frame -- which a demangler
+    prints canonically -- can be matched to ONE overload. displayname keeps the
+    types as written (`const std::string &`) and cannot be compared."""
+    try:
+        if ch.kind == K.FUNCTION_TEMPLATE:
+            # get_arguments() is empty for a template; its parameters are children
+            params = [c.type.get_canonical().spelling for c in ch.get_children() if c.kind == K.PARM_DECL]
+        else:
+            params = [a.type.get_canonical().spelling for a in ch.get_arguments()]
+        if ch.type.kind == ci.TypeKind.FUNCTIONPROTO and ch.type.is_function_variadic():
+            params.append("...")
+        const = ch.kind == K.CXX_METHOD and ch.is_const_method()
+    except Exception:   # a cursor the bindings cannot describe: no signature, never a guess
+        return ""
+    return "(%s)%s" % (", ".join(params), " const" if const else "")
 # Expressions a callee reference can sit inside without stopping being the
 # callee: `f(x)` is CALL_EXPR > UNEXPOSED_EXPR > DECL_REF_EXPR(f).
 WRAPPERS = {K.UNEXPOSED_EXPR, K.PAREN_EXPR}
@@ -275,7 +294,7 @@ class Extractor:
 
         if k in FUNC_KINDS and ch.is_definition():
             usr = ch.get_usr()
-            extra = {"sig": ch.displayname}
+            extra = {"sig": ch.displayname, "psig": canonical_params(ch)}
             parent = ch.semantic_parent
             if parent is not None and parent.kind in CLASS_KINDS:
                 extra["class_usr"] = parent.get_usr()
@@ -303,7 +322,7 @@ class Extractor:
             file, line = self.site(ch)
             if usr and file is not None and usr not in self.symbols:
                 rec = {"usr": usr, "name": qname(ch), "kind": k.name.lower(), "file": file, "line": line,
-                       "end_line": line, "is_def": 0, "sig": ch.displayname}
+                       "end_line": line, "is_def": 0, "sig": ch.displayname, "psig": canonical_params(ch)}
                 parent = ch.semantic_parent
                 if parent is not None and parent.kind in CLASS_KINDS:
                     rec["class_usr"] = parent.get_usr()
@@ -333,16 +352,19 @@ class Extractor:
             file, line = self.site(ch)
             usr = "%s@lambda:%s:%d:%d" % (owner, file, line, ch.location.column)
             owner_name = self.symbols.get(owner, {}).get("name", owner)
+            # The parameter types, so a profile can tell this lambda from its siblings:
+            # GCC numbers a function's lambdas #1, #2, ... PER SIGNATURE, not overall.
+            params = [c.type.get_canonical().spelling for c in ch.get_children() if c.kind == K.PARM_DECL]
+            lsig = "lambda(%s)" % ", ".join(params)
             var = ctx["var"]
             # Named only when the variable HOLDS the lambda: its type is the
             # closure (`auto f = [..]`) or a std::function. `std::thread t([..])`
             # passes the lambda to a constructor; t is a thread, not the lambda.
             if var and (var[1] == (ch.type.spelling or "") or "function<" in var[1]):
                 # `auto callToolLoopTurn = [&](...) {...}`: findable by the variable's name
-                self.add_symbol(usr, "%s::%s" % (owner_name, var[0]), "lambda", ch,
-                                {"sig": "<lambda@%s:%d>" % (file, line)})
+                self.add_symbol(usr, "%s::%s" % (owner_name, var[0]), "lambda", ch, {"sig": lsig})
             else:
-                self.add_symbol(usr, "%s::<lambda@%s:%d>" % (owner_name, file, line), "lambda", ch)
+                self.add_symbol(usr, "%s::<lambda@%s:%d>" % (owner_name, file, line), "lambda", ch, {"sig": lsig})
             self.lambdas[(file, line, ch.location.column)] = usr
             self.edge("defines", owner, usr, ch)
             if ctx["thread"]:

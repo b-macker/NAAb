@@ -44,4 +44,5 @@ tests/self-audit/test_coverage_visibility.sh	structural	every test directory and
 
 tests/self-audit/test_skip_tally.sh	tool	tests the skip-tally helper on planted suite output; never runs naab-lang
 tests/self-audit/test_codemap.sh	tool	tests tools/codemap (a libclang source index) on a C++ fixture; never runs naab-lang
+tests/self-audit/test_codemap_profile.sh	tool	tests codemap profile (callgrind) on the compiled C++ fixture; never runs naab-lang
 .claude/skills/investigation-gates/tests/selftest.sh	tool	self-test of the investigation-gates skill scripts (bash/Python, temp git repos); never runs naab-lang
