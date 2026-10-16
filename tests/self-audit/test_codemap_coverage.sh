@@ -218,7 +218,7 @@ if grep -q "touch 0 indexed functions" <<<"$NOCH" \
    && grep -qE "^ +sink +fixture.cpp:" <<<"$IMP" && grep -qE "^ +dead_function +fixture.cpp:" <<<"$IMP" \
    && grep -qE "^ +via_two_lambdas +fixture.cpp:" <<<"$IMP" \
    && grep -qE "^ +[0-9]+ fn .* 000_A$" <<<"$IMP" && grep -qE "^ +[0-9]+ fn .* 001_B$" <<<"$IMP" \
-   && grep -A3 "NO unit executes" <<<"$IMP" | grep -q "dead_function"; then
+   && grep -q "dead_function" <<<"$(grep -A3 "NO unit executes" <<<"$IMP")"; then
     ok C-07 "impact: sink and dead_function changed; sink's units listed; dead_function executed by no unit"
 else
     bad C-07 "impact wrong (or the unchanged-tree control touched something)" "$NOCH

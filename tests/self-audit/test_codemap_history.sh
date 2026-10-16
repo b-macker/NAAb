@@ -317,7 +317,7 @@ MS="$(ln_of '^int mover(')"
 MOV="$(cm history --range "src/a.cpp:$MS-$((MS + 4))")"
 if grep -q "move mover to the end (#20)" <<<"$MOV" \
    && grep -q "MOVED IN: 5 of 5 lines came from elsewhere.*the oldest commit above is where it arrived" <<<"$MOV" \
-   && grep -A3 "MOVED IN:" <<<"$MOV" | grep -q "edit mover (#19)" && grep -q "PRs: .*#19" <<<"$MOV" \
+   && grep -q "edit mover (#19)" <<<"$(grep -A3 "MOVED IN:" <<<"$MOV")" && grep -q "PRs: .*#19" <<<"$MOV" \
    && ! grep -q "MOVED" <<<"$GATE"; then
     ok H-14 "a block move stops -L; move-aware blame names the lost commits (#19) and the output says MOVED"
 else
@@ -327,7 +327,7 @@ fi
 BS="$(ln_of '^int blend(')"
 BL="$(cm history --range "src/a.cpp:$BS-$((BS + 5))")"
 if grep -q "MOVED IN: 1 of 6 lines came from elsewhere" <<<"$BL" && ! grep -q "where it arrived" <<<"$BL" \
-   && grep -A2 "MOVED IN:" <<<"$BL" | grep -q "donor computes a checksum (#22)"; then
+   && grep -q "donor computes a checksum (#22)" <<<"$(grep -A2 "MOVED IN:" <<<"$BL")"; then
     ok H-16 "one line moved in is reported as one line, not as the function arriving from elsewhere"
 else
     bad H-16 "a partial move was misreported" "$BL"
