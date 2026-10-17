@@ -60,6 +60,20 @@
 #          name in both files (file-qualified USRs) is not listed; CM-22c: the
 #          fixture, whose two files each have a static helper(int), reads
 #          "none"
+#   CM-23  `codemap status` -- the line the session-start hook prints -- tells
+#          the states apart, with libclang FORCED by stand-in modules so the
+#          arms do not depend on this machine: (a) libclang loads, a compile
+#          database, no index -> NO INDEX and how to build one; (b) no compile
+#          database -> configure first; (c) bindings absent -> UNAVAILABLE;
+#          (d) bindings import but the library does not load -> UNAVAILABLE
+#          too (importing is not loading); after the index is built: (e) index
+#          READY with nothing newer, then a source touched after the index ->
+#          "newer than it"; (f) READY but libclang missing -> cannot refresh.
+#          Every status line carries the authority sentence (the method decides)
+#   CM-24  .claude/hooks/session-start.sh, run as a local session runs it,
+#          prints exactly the status line and exits 0 (a); (c) with no
+#          codemap to ask it prints "status UNMEASURABLE" and still exits 0 --
+#          silence there would read as "nothing to report"
 # ============================================================
 set -uo pipefail
 
@@ -122,6 +136,50 @@ if grep -q "python3-clang" <<<"$NOCLANG" && grep -q "^EXIT 1" <<<"$NOCLANG" && [
     ok CM-16a "index without libclang names the package to install and builds nothing"
 else
     bad CM-16a "index without libclang did not explain itself and fail" "$NOCLANG"
+fi
+
+# ---------------------------------------------------------------- CM-23 (a-d)
+mkdir -p fake-missing/clang fake-broken/clang fake-ok/clang bare
+printf 'raise ImportError("hidden by test_codemap.sh")\n' > fake-missing/clang/__init__.py
+: > fake-broken/clang/__init__.py
+printf 'class Index:\n    @staticmethod\n    def create():\n        raise OSError("libclang.so: cannot open shared object file")\n' > fake-broken/clang/cindex.py
+: > fake-ok/clang/__init__.py
+printf 'class Index:\n    @staticmethod\n    def create():\n        return object()\n' > fake-ok/clang/cindex.py
+cmst() { PYTHONPATH="$1" python3 "$CM" --repo "$2" --cache "$3" status 2>&1; }
+AUTH="docs/investigation-method.md decides"
+S_OK="$(cmst fake-ok . .cache/none)"
+S_BARE="$(cmst fake-ok bare bare/.cache)"
+S_MISS="$(cmst fake-missing . .cache/none)"
+S_BROKE="$(cmst fake-broken . .cache/none)"
+if grep -q '^codemap: NO INDEX: `python3 tools/codemap/codemap.py index` builds one' <<<"$S_OK" \
+   && grep -q "coverage: none" <<<"$S_OK" && grep -q "$AUTH" <<<"$S_OK"; then
+    ok CM-23a "status: libclang loads, no index -> NO INDEX with the command that builds one"
+else
+    bad CM-23a "status did not report a missing index" "$S_OK"
+fi
+if grep -q "^codemap: NO INDEX: configure the build first" <<<"$S_BARE"; then
+    ok CM-23b "status: no compile database -> configure first"
+else
+    bad CM-23b "status did not report the missing compile database" "$S_BARE"
+fi
+if grep -q "^codemap: UNAVAILABLE: no index, and libclang missing" <<<"$S_MISS" && grep -q "$AUTH" <<<"$S_MISS"; then
+    ok CM-23c "status: bindings absent -> UNAVAILABLE, gates by hand"
+else
+    bad CM-23c "status did not report libclang absent" "$S_MISS"
+fi
+if grep -q "^codemap: UNAVAILABLE: no index, and libclang broken" <<<"$S_BROKE"; then
+    ok CM-23d "status: bindings import but the library does not load -> UNAVAILABLE (import is not load)"
+else
+    bad CM-23d "status took importable bindings for a working libclang" "$S_BROKE"
+fi
+
+# ---------------------------------------------------------------- CM-24c
+HOOK="$REPO/.claude/hooks/session-start.sh"
+HK="$(env -u CLAUDE_CODE_REMOTE CLAUDE_PROJECT_DIR="$(native_path "$W/bare")" bash "$HOOK" 2>&1)"; hrc=$?
+if [ "$hrc" -eq 0 ] && grep -q "^codemap: status UNMEASURABLE" <<<"$HK"; then
+    ok CM-24c "the hook with no codemap to ask says status UNMEASURABLE and exits 0"
+else
+    bad CM-24c "the hook's failed status query was silent or failed the hook (rc=$hrc)" "$HK"
 fi
 
 # ---------------------------------------------------------------- CM-18
@@ -488,6 +546,33 @@ if grep -q "defined in more than one file: none" <<<"$FIXSTATS"; then
     ok CM-22c "control: the fixture's same-named static helpers are not a collision"
 else
     bad CM-22c "the fixture reported a collision" "$(grep -A3 'defined in more' <<<"$FIXSTATS")"
+fi
+
+# ---------------------------------------------------------------- CM-23 (e, f) / CM-24a
+cm index >/dev/null
+S_READY="$(cm status)"
+mkdir -p tools && cp -R "$REPO/tools/codemap" tools/
+HK="$(env -u CLAUDE_CODE_REMOTE CLAUDE_PROJECT_DIR="$(native_path "$W")" bash "$HOOK" 2>&1)"; hrc=$?
+if [ "$hrc" -eq 0 ] && grep -q "^codemap: index READY" <<<"$HK" && [ "$HK" = "$S_READY" ]; then
+    ok CM-24a "the hook, run as a local session runs it, prints exactly the status line and exits 0"
+else
+    bad CM-24a "the hook did not print the status line (rc=$hrc)" "hook:   $HK
+status: $S_READY"
+fi
+S_FMISS="$(cmst fake-missing . .cache/codemap)"
+python3 -c "import os, time; t = time.time() + 3600; os.utime('fixture.cpp', (t, t))"
+S_NEWER="$(cm status)"
+if grep -q "^codemap: index READY" <<<"$S_READY" && ! grep -q "newer than it" <<<"$S_READY" \
+   && grep -q "^codemap: index READY (1 indexed file(s) newer than it, e.g. fixture.cpp" <<<"$S_NEWER"; then
+    ok CM-23e "status: a fresh index reads READY; a source touched after it is named as newer"
+else
+    bad CM-23e "status missed an index older than its sources (or flagged a fresh one)" "$S_READY
+$S_NEWER"
+fi
+if grep -q "^codemap: index READY (cannot be refreshed here: libclang missing)" <<<"$S_FMISS"; then
+    ok CM-23f "status: an existing index still answers without libclang, and says it cannot be refreshed"
+else
+    bad CM-23f "status misreported an index on a machine without libclang" "$S_FMISS"
 fi
 
 echo "Result: $PASS passed, $FAIL failed, $SKIP skipped"

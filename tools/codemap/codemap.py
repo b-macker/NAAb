@@ -21,6 +21,7 @@
     python3 tools/codemap/codemap.py dot agentSend             # Graphviz call graph text
     python3 tools/codemap/codemap.py history checkPathAccessImpl   # the history pass: -L, -S, blame, PRs, records
     python3 tools/codemap/codemap.py history --name removedHelper  # where a name came and went
+    python3 tools/codemap/codemap.py status                    # one line: is it usable here, and how fresh
 
 Every answer says how far to trust it:
   [ast]       a direct call, read from the compiler's syntax tree
@@ -1292,13 +1293,34 @@ def print_history(res, a):
 
 # --- coverage (coverage.py) ----------------------------------------------------------
 
+COMPLETENESS_RANK = {"complete": 0, "unknown": 1, "partial": 2}
+
+
 def latest_coverage(a):
+    """The run to read when --cov is not given: the newest COMPLETE run, else the newest
+    run whose completeness is unknown, else the newest partial one -- never a newer
+    partial run over a whole-suite one, which reads every function the subset did not
+    reach as "executed by NO unit". Returns (name, the newer runs passed over)."""
+    import gcovmap as covmod
     root = os.path.join(a.cache, "coverage")
     names = [d for d in os.listdir(root) if os.path.exists(os.path.join(root, d, "coverage.json"))] \
         if os.path.isdir(root) else []
     if not names:
         raise SystemExit("codemap: no coverage run yet (codemap coverage run --name NAME)")
-    return max(names, key=lambda d: os.path.getmtime(os.path.join(root, d, "coverage.json")))
+    runs = []
+    for d in names:
+        try:
+            state = covmod.run_completeness(covmod.load(a.cache, d))["state"]
+        except SystemExit:
+            continue
+        runs.append((COMPLETENESS_RANK.get(state, 1), -os.path.getmtime(os.path.join(root, d, "coverage.json")),
+                     d, state))
+    if not runs:
+        raise SystemExit("codemap: no readable coverage run (codemap coverage list)")
+    runs.sort()
+    best = runs[0]
+    newer = [(d, state) for _, age, d, state in runs[1:] if age < best[1]]
+    return best[2], newer
 
 
 def cmd_coverage(a, st):
@@ -1311,8 +1333,10 @@ def cmd_coverage(a, st):
             except SystemExit:
                 continue
             m = c.get("meta", {})
-            out("%-20s %s  %d units, %d functions executed of %d compiled  (%s)"
-                % (d, m.get("at", "?"), len(c["units"]), len(c["executed"]), len(c["compiled"]), m.get("source", "")))
+            state = covmod.run_completeness(c)["state"]
+            out("%-20s %s  %-8s %d units, %d functions executed of %d compiled  (%s)"
+                % (d, m.get("at", "?"), state.upper() if state == "partial" else state, len(c["units"]),
+                   len(c["executed"]), len(c["compiled"]), m.get("source", "")))
         return 0
     if st is None:
         raise SystemExit("codemap: no index (run `codemap index`): coverage is mapped onto it")
@@ -1325,16 +1349,20 @@ def cmd_coverage(a, st):
         if not a.units_dir:
             raise SystemExit("codemap coverage ingest: --units-dir DIR (one GCOV_PREFIX tree per unit)")
         units_dir, source = os.path.abspath(a.units_dir), "ingest " + a.units_dir
-        names = unit_names(os.path.join(os.path.dirname(units_dir.rstrip(os.sep)), "parallel"))
+        par_out = os.path.join(os.path.dirname(units_dir.rstrip(os.sep)), "parallel")
+        names = unit_names(par_out)
+        comp = covmod.completeness(os.path.join(par_out, "results.json"))
     else:
         units_dir, source, names = run_suite_for_coverage(a, build, outdir)
+        comp = covmod.completeness(os.path.join(outdir, "parallel", "results.json"), selection=a.only or None)
     prog = (lambda i, n, u: sys.stderr.write("codemap: gcov %d/%d %s\n" % (i, n, u))) if a.verbose else None
     res = covmod.ingest(units_dir, build, st.db, a.repo, progress=prog, jobs=a.jobs or os.cpu_count() or 1)
     if names:
         res["units"] = [names.get(u, u) for u in res["units"]]
         res["executed"] = {k: {names.get(u, u): n for u, n in v.items()} for k, v in res["executed"].items()}
     meta = {"name": a.name, "build_dir": build, "source": source,
-            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "head": git_head(a.repo)}
+            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "head": git_head(a.repo),
+            "completeness": comp}
     covmod.save(res, outdir, meta)
     if a.action == "run" and not a.keep_raw:
         import shutil
@@ -1354,6 +1382,14 @@ def cmd_coverage(a, st):
     if covmod.UNATTRIBUTED in res["units"]:
         out("  (unattributed): counters written with GCOV_PREFIX scrubbed from the environment --"
             " executed by SOME unit, which one is unknown")
+    if comp["state"] == "complete":
+        out("  complete: every unit the suite listed (%s) ran" % comp["units_listed"])
+    else:
+        out("  %s: %s -- every read of this run will say so"
+            % ("PARTIAL" if comp["state"] == "partial" else "completeness UNKNOWN", "; ".join(comp["why"])))
+    if comp["timed_out"]:
+        out("  %d unit(s) timed out (%s): processes killed by SIGKILL write no counters"
+            % (len(comp["timed_out"]), ", ".join(comp["timed_out"][:4])))
     out("wrote %s" % os.path.join(outdir, "coverage.json"))
     return 0
 
@@ -1431,13 +1467,41 @@ def coverage_of(a, note=True):
     when it was mapped -- for `ingest`, not necessarily when the counters were written), since
     functions added or moved since then are not in it (lambdas are keyed by position)."""
     import gcovmap as covmod
-    name = a.cov or latest_coverage(a)
+    name, newer = (a.cov, []) if a.cov else latest_coverage(a)
     cov = covmod.load(a.cache, name)
     head, now = cov.get("meta", {}).get("head", ""), git_head(a.repo)
     if note and head and now and head != now and not a.json:
         out("(coverage %s was recorded at %s; HEAD is %s -- functions added or moved since read as not"
             " in the build or UNMEASURED, and an executed function may have changed since)" % (name, head, now))
+    comp = covmod.run_completeness(cov)
+    if note and not a.json:
+        if newer:
+            out("(reading coverage %s, the newest %s run; newer: %s -- --cov NAME reads one)"
+                % (name, comp["state"], ", ".join("%s (%s)" % nd for nd in newer)))
+        if comp["state"] == "partial":
+            out("PARTIAL COVERAGE: run %s did not cover the whole suite -- %s. \"Executed by NO unit\" below"
+                " means no unit OF THIS RUN entered it; it is not evidence that nothing tests it."
+                % (name, "; ".join(comp["why"])))
+        elif comp["state"] == "unknown":
+            out("COVERAGE COMPLETENESS UNKNOWN: run %s -- %s. \"Executed by NO unit\" below covers only the"
+                " units this run holds." % (name, "; ".join(comp["why"])))
     return name, cov
+
+
+def timed_out_note(cov):
+    """For a "no unit" reading: units this run stopped at their timeout may have written
+    no counters (a process killed by SIGKILL writes nothing), the false-untested direction."""
+    import gcovmap as covmod
+    t = covmod.run_completeness(cov).get("timed_out") or []
+    if not t:
+        return ""
+    return (" %d unit(s) of this run timed out (%s%s) and may have written no counters."
+            % (len(t), ", ".join(t[:3]), " ..." if len(t) > 3 else ""))
+
+
+def run_state(cov):
+    import gcovmap
+    return gcovmap.run_completeness(cov)
 
 
 def covmod_status(cov, s):
@@ -1452,7 +1516,7 @@ def cmd_tested(a, st):
         hits = cov["executed"].get(s["usr"], {})
         res = {"function": s["name"], "at": loc(s["file"], s["line"]), "coverage": name,
                "compiled": s["usr"] in compiled, "units": dict(sorted(hits.items(), key=lambda kv: -kv[1])),
-               "status": covmod_status(cov, s)}
+               "status": covmod_status(cov, s), "coverage_completeness": run_state(cov)}
         if a.json:
             emit_json(res)
             continue
@@ -1470,7 +1534,7 @@ def cmd_tested(a, st):
         elif not hits:
             out("%s  (%s): executed by NO unit of coverage %s (only the instrumented binaries record:"
                 " a test that reaches it only through another binary -- libnaab, naab-lsp, a unit"
-                " test -- is not seen)" % (s["name"], res["at"], name))
+                " test -- is not seen)%s" % (s["name"], res["at"], name, timed_out_note(cov)))
         else:
             out("%s  (%s): executed by %d unit(s) of coverage %s (execution, not verification):"
                 % (s["name"], res["at"], len(hits), name))
@@ -1497,7 +1561,8 @@ def cmd_untested(a, st):
     absent = [r for r in rows if st_of[r[0]] == "not_in_build"]
     ran = len([r for r in rows if st_of[r[0]] == "executed"])
     if a.json:
-        return emit_json({"coverage": name, "under": under, "indexed": len(rows), "executed": ran,
+        return emit_json({"coverage": name, "coverage_completeness": run_state(cov),
+                          "under": under, "indexed": len(rows), "executed": ran,
                           "untested": [{"name": n, "at": loc(f, l)} for _, n, f, l in never],
                           "unmeasured": [{"name": n, "at": loc(f, l)} for _, n, f, l in unmeasured],
                           "not_in_build": len(absent)})
@@ -1508,7 +1573,7 @@ def cmd_untested(a, st):
         % (name, under, len(rows), ran, len(never), len(unmeasured), len(absent)))
     if never:
         out("  (executed by NO unit = no run of an instrumented binary entered it; a test reaching it only"
-            " through another binary -- libnaab, naab-lsp, a unit test -- is not seen)")
+            " through another binary -- libnaab, naab-lsp, a unit test -- is not seen)%s" % timed_out_note(cov))
     by_file = {}
     for usr, n, f, l in never:
         by_file.setdefault(f, []).append((l, n))
@@ -1575,6 +1640,7 @@ def cmd_impact(a, st):
                 rec["functions"] += 1
                 rec["count"] += n
         res["coverage"] = cname
+        res["coverage_completeness"] = run_state(cov)
         res["units"] = sorted(units.items(), key=lambda kv: (-kv[1]["functions"], -kv[1]["count"]))
         res["not_run"] = not_run
     if a.json:
@@ -1602,7 +1668,8 @@ def cmd_impact(a, st):
     if len(units) > a.max:
         out("     ... +%d more (--max)" % (len(units) - a.max))
     if not_run:
-        out("  changed functions NO unit executes (%d) -- untested by the suite as measured:" % len(not_run))
+        out("  changed functions NO unit executes (%d) -- untested by the suite as measured:%s"
+            % (len(not_run), timed_out_note(cov)))
         for c in not_run[: a.max]:
             out("     %-60s %s%s" % (c["name"][:60], loc(c["file"], c["line"]),
                                     {"not_in_build": "  (not in the instrumented build)",
@@ -1690,6 +1757,90 @@ def cmd_dot(a, st):
     out("\n".join(lines))
 
 
+AUTHORITY = ("Its answers are leads (tiered, blind spots printed), not verdicts:"
+             " docs/investigation-method.md decides, and the investigation-gates skill names"
+             " the query that fits each gate.")
+
+
+def libclang_state():
+    """ok / missing / broken -- importing the bindings is not enough: they import
+    without the shared library, and only creating an index loads it."""
+    try:
+        import clang.cindex as ci
+    except ImportError:
+        return "missing"
+    try:
+        ci.Index.create()
+    except Exception:  # LibclangError, OSError: the library did not load
+        return "broken"
+    return "ok"
+
+
+def cmd_status(a):
+    """Whether the code map can answer here, and how fresh its answers are. Never
+    builds anything -- the session-start hook prints this so a session knows, before
+    it relies on the tool, whether the tool is working."""
+    import shutil
+    db = os.path.join(a.cache, "codemap.db")
+    res = {"libclang": libclang_state(),
+           "compile_commands": os.path.exists(os.path.join(a.repo, "build", "compile_commands.json")),
+           "index": None, "coverage": None, "valgrind": bool(shutil.which("valgrind")),
+           "head": git_head(a.repo)}
+    if os.path.exists(db):
+        st = storemod.Store(db)
+        m = st.meta()
+        db_time = os.path.getmtime(db)
+        newer = []
+        for (f,) in st.db.execute("SELECT DISTINCT file FROM symbols"):
+            path = os.path.join(a.repo, f)
+            if f and not os.path.isabs(f) and os.path.isfile(path) and os.path.getmtime(path) > db_time:
+                newer.append(f)
+        res["index"] = {"built_at": m.get("built_at"), "git_head": m.get("git_head"),
+                        "files_newer": sorted(newer)}
+    try:
+        import gcovmap as covmod
+        name, _ = latest_coverage(a)
+        cov = covmod.load(a.cache, name)
+        res["coverage"] = {"name": name, "state": covmod.run_completeness(cov)["state"],
+                           "head": (cov.get("meta") or {}).get("head")}
+    except SystemExit:
+        pass
+    if a.json:
+        return emit_json(dict(res, authority=AUTHORITY))
+    parts = []
+    idx = res["index"]
+    if idx:
+        fresh = []
+        if idx["git_head"] and res["head"] and idx["git_head"] != res["head"]:
+            fresh.append("built at %s, HEAD %s" % (idx["git_head"], res["head"]))
+        if idx["files_newer"]:
+            fresh.append("%d indexed file(s) newer than it, e.g. %s" % (len(idx["files_newer"]), idx["files_newer"][0]))
+        if res["libclang"] != "ok":
+            fresh.append("cannot be refreshed here: libclang %s" % res["libclang"])
+        elif fresh:
+            fresh.append("`python3 tools/codemap/codemap.py index` refreshes it in seconds")
+        parts.append("index READY" + (" (%s)" % "; ".join(fresh) if fresh else ""))
+    elif res["libclang"] != "ok":
+        parts.append("UNAVAILABLE: no index, and libclang %s here, so none can be built (apt-get install"
+                     " python3-clang) -- do every gate by hand" % res["libclang"])
+    elif not res["compile_commands"]:
+        parts.append("NO INDEX: configure the build first (cmake writes build/compile_commands.json),"
+                     " then `python3 tools/codemap/codemap.py index` (about 2 min)")
+    else:
+        parts.append("NO INDEX: `python3 tools/codemap/codemap.py index` builds one (about 2 min)")
+    c = res["coverage"]
+    if c:
+        label = {"complete": "complete", "partial": "PARTIAL"}.get(c["state"], "completeness " + c["state"])
+        at = ", recorded at %s" % c["head"] if c["head"] and c["head"] != res["head"] else ""
+        parts.append("coverage: %s (%s%s)" % (c["name"], label, at))
+    else:
+        parts.append("coverage: none (`codemap coverage run`, about 45 min on a NAAB_COVERAGE build)")
+    if not res["valgrind"]:
+        parts.append("profiles: valgrind missing")
+    out("codemap: " + ". ".join(parts) + ". " + AUTHORITY)
+    return 0
+
+
 def cmd_stats(a, st):
     m = st.meta()
     kinds = dict(st.db.execute("SELECT kind, COUNT(*) FROM edges GROUP BY kind").fetchall())
@@ -1740,6 +1891,7 @@ def main(argv=None):
     s.add_argument("--cdb"); s.add_argument("--only", nargs="*"); s.add_argument("--exclude", nargs="*")
     s.add_argument("--rebuild", action="store_true")
     s = sub.add_parser("stats")
+    s = sub.add_parser("status", help="one line: whether the code map can answer here, and how fresh it is")
     s = sub.add_parser("find"); s.add_argument("pattern"); s.add_argument("--max", type=int, default=40)
     for name in ("callers", "callees"):
         s = sub.add_parser(name); s.add_argument("symbol")
@@ -1808,6 +1960,8 @@ def main(argv=None):
     a.cache = os.path.abspath(a.cache or os.path.join(a.repo, ".cache", "codemap"))
     if a.cmd == "index":
         return cmd_index(a)
+    if a.cmd == "status":
+        return cmd_status(a) or 0
     if a.cmd == "profile":
         return cmd_profile(a)
     db = os.path.join(a.cache, "codemap.db")

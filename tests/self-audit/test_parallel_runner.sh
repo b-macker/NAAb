@@ -35,6 +35,12 @@
 #          unit's index and key), so no two units share one -- codemap coverage
 #          gives each unit its own GCOV_PREFIX this way
 #   PR-10c CONTROL: without --unit-env the variable is not set at all
+#   PR-11  results.json records the run's SELECTION -- mode.only and
+#          mode.naab_phase -- because units_listed is counted after --only
+#          filters; codemap coverage reads them to tell a partial run from a
+#          whole-suite one
+#   PR-11c CONTROL: without --only or --no-naab-phase the same fields read
+#          only=None, naab_phase=True
 #   PR-07  the real run-all-tests.sh list mode refuses any phase but shell, and
 #          lists the units this suite is registered among (itself included)
 # ============================================================
@@ -51,13 +57,13 @@ skip() { SKIP=$((SKIP+1)); echo "  SKIP [$1] $2"; }
 echo "=== The parallel runner reports what ran, faithfully ==="
 
 if ! command -v python3 >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1; then
-    for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08 PR-09 PR-09c PR-10 PR-10c; do
+    for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08 PR-09 PR-09c PR-10 PR-10c PR-11 PR-11c; do
         skip "$id" "python3 or timeout unavailable (UNMEASURABLE)"; done
     echo ""; echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"; exit 0
 fi
 case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*)
-        for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08 PR-09 PR-09c PR-10 PR-10c; do
+        for id in PR-01 PR-02 PR-03 PR-03c PR-04 PR-05 PR-05c PR-06 PR-06c PR-07 PR-08 PR-09 PR-09c PR-10 PR-10c PR-11 PR-11c; do
             skip "$id" "the runner is POSIX-only (UNMEASURABLE here)"; done
         echo ""; echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"; exit 0 ;;
 esac
@@ -143,6 +149,16 @@ runp --jobs 2
 a=$(cat "$W/seen/a" 2>/dev/null); b=$(cat "$W/seen/b" 2>/dev/null)
 if [ "$a" = "unset" ] && [ "$b" = "unset" ]; then ok "PR-10c" "CONTROL: without --unit-env the variable is not set"
 else bad "PR-10c" "the variable leaked in without --unit-env (or the probe never ran)" "a='$a' b='$b'"; fi
+
+# --- PR-11 / PR-11c -----------------------------------------------------------------
+runp --jobs 1 --only env_a
+got=$(jq_py "m=d['mode']; print(m.get('only'), m.get('naab_phase'), d['units_listed'])" 2>/dev/null)
+if [ "$got" = "env_a False 1" ]; then ok "PR-11" "results.json records --only and the skipped .naab phase"
+else bad "PR-11" "the run's selection is not recorded" "got: '$got'"; fi
+python3 "$F/tools/testrunner/parallel.py" run --jobs 1 --out "$W/out" > "$W/run.out" 2>&1
+got=$(jq_py "m=d['mode']; print(m.get('only', 'absent'), m.get('naab_phase', 'absent'), d['units_listed'])" 2>/dev/null)
+if [ "$got" = "None True 3" ]; then ok "PR-11c" "CONTROL: a whole run records no selection and the .naab phase"
+else bad "PR-11c" "a whole run's selection fields are wrong" "got: '$got'"; fi
 
 # --- PR-04 --------------------------------------------------------------------------
 mk u/litter.sh 'echo x > "$HOME/junk.txt"; mkdir -p "$HOME/.naab/cache"; echo m > "$HOME/.naab/cache/metadata.txt"'

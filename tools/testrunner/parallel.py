@@ -506,8 +506,12 @@ def cmd_run(args):
     hb, ha = before["home"], after["home"]
     report = {
         "schema": 1,
+        # `only` and `naab_phase` say which units this run SELECTED, which
+        # units_listed (counted after the filter) cannot: codemap coverage reads
+        # them to tell a whole-suite run from a partial one.
         "mode": {"jobs": args.jobs, "order": args.order, "seed": args.seed,
-                 "isolated": not args.shared},
+                 "isolated": not args.shared, "only": args.only or None,
+                 "naab_phase": not args.no_naab_phase},
         "wall_seconds": round(wall, 3),
         "units_listed": len(units),
         "units_run": len(results),
