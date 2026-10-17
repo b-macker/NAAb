@@ -93,6 +93,47 @@ def run_gcov(pairs, gcov="gcov", batch=64):
     return docs
 
 
+_OPERATOR_ANGLES = re.compile(r"operator(?:<<=|>>=|<<|>>|<=|>=|->\*?|<|>)")
+_LAMBDA_CALL = re.compile(r"\}::(?:operator\(\)|_FUN)\(")
+
+
+def _strip_template_args(name):
+    """`f<a<b>, c>(x)` -> `f(x)`; operator<, operator<<, operator-> ... survive."""
+    name = _OPERATOR_ANGLES.sub("operator@", name)
+    out, depth = [], 0
+    for ch in name:
+        if ch == "<":
+            depth += 1
+        elif ch == ">" and depth:
+            depth -= 1
+        elif depth == 0:
+            out.append(ch)
+    return "".join(out)
+
+
+def is_lambda_name(name):
+    """Is this demangled name a lambda's own body (`...{lambda(int)#1}::operator()(int)`,
+    or its `_FUN` invoker)? Decided from the function's own name component, not by
+    `{lambda(` anywhere: a function template instantiated WITH a lambda type
+    (`submit<f()::{lambda()#1}>(...)`) carries one in its template and parameter
+    lists, and calling that a lambda left the template unmatched."""
+    s = _strip_template_args(name)
+    last = None
+    for last in _LAMBDA_CALL.finditer(s):
+        pass
+    if last is None:
+        return False
+    depth = 0
+    for i in range(last.start(), -1, -1):
+        if s[i] == "}":
+            depth += 1
+        elif s[i] == "{":
+            depth -= 1
+            if depth == 0:
+                return s.startswith("{lambda(", i)
+    return False
+
+
 def notes_map(pairs):
     """{normalised .gcda path: the build's .gcno} for functions_of's staleness test."""
     return {os.path.normpath(g): n for g, n in pairs}
@@ -132,7 +173,7 @@ def functions_of(docs, notes_of=None):
                 continue
             for fn in f.get("functions", []):
                 name = fn.get("demangled_name") or fn.get("name", "")
-                key = (path, fn["start_line"], "{lambda(" in name)
+                key = (path, fn["start_line"], is_lambda_name(name))
                 e = out.setdefault(key, {"count": 0, "end": fn.get("end_line", fn["start_line"]), "names": set()})
                 e["count"] += fn.get("execution_count", 0)
                 if len(e["names"]) < 3:
@@ -179,9 +220,23 @@ class LineMapper:
         return None, None
 
 
-def ingest(units_dir, build_dir, db, repo, gcov="gcov", progress=None):
+def _unit_functions(job):
+    """One unit's gcov run and parse, in a worker process: (unit, fns, stale) or
+    (unit, None, None) when the unit wrote no counters. Each unit has a tree of
+    its own, so workers share no file (run_gcov's .gcno links go inside it)."""
+    unit, path, build_dir, gcov, stray = job
+    pairs = stray if path is None else unit_gcda(path, build_dir)
+    if not pairs:
+        return unit, None, None
+    fns, stale = functions_of(run_gcov(pairs, gcov), notes_map(pairs))
+    return unit, fns, stale
+
+
+def ingest(units_dir, build_dir, db, repo, gcov="gcov", progress=None, jobs=1):
     """Every unit directory under units_dir (one GCOV_PREFIX tree each), plus counters
-    written into the build directory itself (UNATTRIBUTED). -> result dict."""
+    written into the build directory itself (UNATTRIBUTED). -> result dict. gcov and
+    its JSON run in `jobs` worker processes; results are merged in unit order, so the
+    result does not depend on jobs."""
     mapper = LineMapper(db, repo)
     units = sorted(d for d in os.listdir(units_dir) if os.path.isdir(os.path.join(units_dir, d))) \
         if os.path.isdir(units_dir) else []
@@ -190,11 +245,17 @@ def ingest(units_dir, build_dir, db, repo, gcov="gcov", progress=None):
     inside, stale_files = {}, set()
     sources = [(u, os.path.join(units_dir, u)) for u in units]
     stray = [(g, g[: -len(".gcda")] + ".gcno") for g in find_files(build_dir, ".gcda")]
-    for i, (unit, path) in enumerate(sources + ([(UNATTRIBUTED, None)] if stray else [])):
-        pairs = stray if path is None else unit_gcda(path, build_dir)
-        if not pairs:
+    todo = [(u, p, build_dir, gcov, stray if p is None else None)
+            for u, p in sources + ([(UNATTRIBUTED, None)] if stray else [])]
+    if jobs and jobs > 1 and len(todo) > 1:
+        from concurrent.futures import ProcessPoolExecutor
+        pool = ProcessPoolExecutor(max_workers=jobs)
+        results = pool.map(_unit_functions, todo)
+    else:
+        pool, results = None, map(_unit_functions, todo)
+    for i, (unit, fns, stale) in enumerate(results):
+        if fns is None:
             continue
-        fns, stale = functions_of(run_gcov(pairs, gcov), notes_map(pairs))
         stale_files |= {mapper.rel(p) for p in stale if mapper.rel(p) in mapper.by_file}
         for (src, start, lam), e in fns.items():
             usr, how = mapper.map(src, start, lam)
@@ -216,7 +277,9 @@ def ingest(units_dir, build_dir, db, repo, gcov="gcov", progress=None):
             if e["count"]:
                 executed[usr][unit] = executed[usr].get(unit, 0) + e["count"]
         if progress:
-            progress(i + 1, len(sources) + (1 if stray else 0), unit)
+            progress(i + 1, len(todo), unit)
+    if pool:
+        pool.shutdown()
     return {"units": units + ([UNATTRIBUTED] if stray else []),
             "compiled": sorted(compiled),
             "executed": {u: dict(v) for u, v in executed.items()},

@@ -10,6 +10,11 @@ import os
 import re
 import sqlite3
 
+# Kinds whose definitions can collide across files on one USR (lambdas cannot:
+# their USR carries file, line and column).
+DEFINITION_KINDS = ("constructor", "conversion_function", "cxx_method", "destructor", "function_decl",
+                    "function_template")
+
 SCHEMA = """
 CREATE TABLE symbols(usr TEXT PRIMARY KEY, name TEXT, kind TEXT, file TEXT, line INT,
                      end_line INT, is_def INT, sig TEXT, class_usr TEXT, virtual INT, psig TEXT);
@@ -92,6 +97,7 @@ def build(db_path, shards, tags, meta):
     modules = {}
     dispatch_ranges = {}
     symbols = {}
+    def_files = {}                     # usr -> files defining it (callables)
     predispatch = None
     for sh in shards:
         pd = sh.get("predispatch")
@@ -103,6 +109,10 @@ def build(db_path, shards, tags, meta):
             row = (s["usr"], s["name"], s["kind"], s["file"], s["line"], s.get("end_line", s["line"]),
                    s.get("is_def", 0), s.get("sig", ""), s.get("class_usr", ""), s.get("virtual", 0),
                    s.get("psig", ""))
+            if row[6] and row[2] in DEFINITION_KINDS:
+                def_files.setdefault(row[0], [])
+                if row[3] not in def_files[row[0]]:
+                    def_files[row[0]].append(row[3])
             cur = symbols.get(s["usr"])
             # A definition beats a declaration. The class and the virtual flag
             # (1 virtual, 2 pure) may be known only from the declaration.
@@ -141,6 +151,15 @@ def build(db_path, shards, tags, meta):
         if hit:
             db.execute("UPDATE OR IGNORE edges SET dst=? WHERE dst=?", (hit[0], dst))
     meta["predispatch"] = apply_predispatch(db, predispatch)
+    # A USR is the symbols key, so a function DEFINED in more than one file -- each
+    # binary's main(int, char**), one helper per tool -- is stored once: the first
+    # definition read is kept, the others are lost and their call edges merge into
+    # it. Which definition a caller means depends on the link, which the index does
+    # not know; recorded so `stats` names every such function instead of hiding it.
+    meta["definition_collisions"] = sorted(
+        ({"usr": u, "name": symbols[u][1], "kept": symbols[u][3], "files": sorted(fs)}
+         for u, fs in def_files.items() if len(fs) > 1 and u in symbols),
+        key=lambda c: (c["name"], c["usr"]))
     db.executemany("INSERT INTO tags VALUES(?,?,?,?)", tags)
     db.executemany("INSERT OR REPLACE INTO meta VALUES(?,?)", [(k, json.dumps(v)) for k, v in meta.items()])
     db.commit()

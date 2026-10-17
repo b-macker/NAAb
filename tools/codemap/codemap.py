@@ -79,6 +79,8 @@ BLIND_SPOTS = [
     "what actually runs for a given program needs a run (codemap profile)",
     "writes through a pointer or reference handed to another function, or by a mutating method "
     "not in the list, are not seen; writes to locals are not recorded",
+    "a function DEFINED in more than one file (each binary's main) is stored once -- the others' "
+    "definitions are not indexed and their calls merge into the one kept; `stats` lists every such function",
     PREDISPATCH,
 ]
 # Library calls a reader rarely wants in a callee list: constructors, member
@@ -1327,7 +1329,7 @@ def cmd_coverage(a, st):
     else:
         units_dir, source, names = run_suite_for_coverage(a, build, outdir)
     prog = (lambda i, n, u: sys.stderr.write("codemap: gcov %d/%d %s\n" % (i, n, u))) if a.verbose else None
-    res = covmod.ingest(units_dir, build, st.db, a.repo, progress=prog)
+    res = covmod.ingest(units_dir, build, st.db, a.repo, progress=prog, jobs=a.jobs or os.cpu_count() or 1)
     if names:
         res["units"] = [names.get(u, u) for u in res["units"]]
         res["executed"] = {k: {names.get(u, u): n for u, n in v.items()} for k, v in res["executed"].items()}
@@ -1692,7 +1694,8 @@ def cmd_stats(a, st):
            "failed": m.get("failed"), "parse_errors": len(m.get("parse_errors") or []),
            "symbols": st.count("symbols"), "classes": st.count("classes"), "edges": kinds,
            "tags": st.count("tags"), "unindexed": m.get("unindexed") or [],
-           "predispatch": m.get("predispatch") or {"status": "absent"}, "blind_spots": BLIND_SPOTS}
+           "predispatch": m.get("predispatch") or {"status": "absent"}, "blind_spots": BLIND_SPOTS,
+           "definition_collisions": m.get("definition_collisions")}
     if a.json:
         return emit_json(res)
     out("index built %s at %s from %s sources (%s failed, %s with parse errors)"
@@ -1706,6 +1709,18 @@ def cmd_stats(a, st):
         out("not in the build, so not indexed (%d tracked C/C++ files): %s%s"
             % (len(res["unindexed"]), ", ".join(res["unindexed"][:8]),
                " ..." if len(res["unindexed"]) > 8 else ""))
+    dc = res["definition_collisions"]
+    if dc is None:
+        out("defined in more than one file: UNMEASURABLE (index built before this was recorded; re-index)")
+    elif dc:
+        out("defined in more than one file, stored once (%d) -- the first is kept, the others' calls merge into it:"
+            % len(dc))
+        for c in dc[:12]:
+            out("  %s  kept %s; also %s" % (c["name"], c["kept"], ", ".join(f for f in c["files"] if f != c["kept"])))
+        if len(dc) > 12:
+            out("  ... +%d more (--json)" % (len(dc) - 12))
+    else:
+        out("defined in more than one file: none")
     out("not seen:")
     for b in BLIND_SPOTS:
         out("  - " + b)
@@ -1764,7 +1779,7 @@ def main(argv=None):
     s.add_argument("--name", default="suite")
     s.add_argument("--build-dir", help="the NAAB_COVERAGE build (default build-cov)")
     s.add_argument("--units-dir", help="ingest: a directory of GCOV_PREFIX trees, one per unit")
-    s.add_argument("--jobs", type=int)
+    s.add_argument("--jobs", type=int, help="units run at once (run) and gcov workers (both; default: CPU count)")
     s.add_argument("--only", help="run: a regex of units to run (partial coverage; never a verdict)")
     s.add_argument("--keep-raw", action="store_true", help="run: keep the per-unit .gcda trees")
     s.add_argument("--verbose", action="store_true")

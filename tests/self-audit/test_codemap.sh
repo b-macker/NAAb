@@ -54,6 +54,12 @@
 #          filesystemAccessMode gates fixfile.read before dispatch and not
 #          fixfile.write, which it maps to ""; CM-21b: with the dispatcher no
 #          longer calling the gate, the edges are withheld and stats says why
+#   CM-22  a function DEFINED in two files on one USR (main(int, char**) in a
+#          two-file repo, as naab-lang's and naab-gov's are) is stored once,
+#          and stats lists it with the copy kept; a static helper of the same
+#          name in both files (file-qualified USRs) is not listed; CM-22c: the
+#          fixture, whose two files each have a static helper(int), reads
+#          "none"
 # ============================================================
 set -uo pipefail
 
@@ -457,6 +463,31 @@ if grep -q "pre-dispatch gates: unverified: .*does not call checkPathAccess" <<<
 else
     bad CM-21b "an unverified pre-dispatch gate was still applied" "$STATS
 $RD"
+fi
+
+# ---------------------------------------------------------------- CM-22
+FIXSTATS="$(cm stats)"
+mkdir -p "$W/dup/build"
+printf 'static int helper() { return 1; }\nint main(int argc, char** argv) { (void)argv; return helper() + argc; }\n' > "$W/dup/a.cpp"
+printf 'static int helper() { return 2; }\nint main(int argc, char** argv) { (void)argv; return helper() - argc; }\n' > "$W/dup/b.cpp"
+( cd "$W/dup" && python3 -c "
+import json, os
+w = os.getcwd()
+json.dump([{'directory': os.path.join(w, 'build'), 'file': os.path.join(w, f),
+            'arguments': ['c++', '-std=c++17', '-c', os.path.join(w, f), '-o', f + '.o']} for f in ('a.cpp', 'b.cpp')],
+          open(os.path.join(w, 'build', 'compile_commands.json'), 'w'))" \
+  && python3 "$CM" --repo . --cache .cache/codemap index --jobs 2 >/dev/null 2>&1 )
+DUP="$( cd "$W/dup" && python3 "$CM" --repo . --cache .cache/codemap stats 2>&1 )"
+if grep -q "defined in more than one file, stored once (1)" <<<"$DUP" \
+   && grep -qE "^  main  kept (a|b)\.cpp; also (a|b)\.cpp$" <<<"$DUP" && ! grep -q "helper  kept" <<<"$DUP"; then
+    ok CM-22 "main defined in two files is listed as stored once; the static helpers are not"
+else
+    bad CM-22 "a definition collision was not reported (or a static was)" "$(grep -A3 'defined in more' <<<"$DUP")"
+fi
+if grep -q "defined in more than one file: none" <<<"$FIXSTATS"; then
+    ok CM-22c "control: the fixture's same-named static helpers are not a collision"
+else
+    bad CM-22c "the fixture reported a collision" "$(grep -A3 'defined in more' <<<"$FIXSTATS")"
 fi
 
 echo "Result: $PASS passed, $FAIL failed, $SKIP skipped"

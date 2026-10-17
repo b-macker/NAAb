@@ -40,6 +40,15 @@
 #         function in the edited file reads executed
 #   C-12  a coverage run measured at another commit says so on every read;
 #         control: before the commit nothing says so
+#   C-13  apply_fn, a function template instantiated WITH a lambda type
+#         (templ.cpp), maps to apply_fn and its lambda to the lambda: gcov's
+#         name for the instantiation carries `{lambda(` in its template and
+#         parameter lists, and taking that for a lambda left it unmatched (it
+#         read UNMEASURED on NAAb's ThreadPool::submit and SafeRegex::
+#         executeWithTimeout); C-10 is also red then, since its line joins
+#         the unmatched set
+#   C-14  the ingest's worker processes change nothing: --jobs 1 and --jobs 3
+#         over the same units give the same coverage.json (meta aside)
 #   C-10  positions matched to no single definition are enumerated EXACTLY:
 #         the one line holding twin_a and twin_b, nothing else -- so a new
 #         fixture shape that fails to map turns this red; both twins read
@@ -93,14 +102,14 @@ g add -A && g commit -q -m "fixture"
 # --- builds: with the wrap (as NAAB_COVERAGE links naab-lang) and without it -------
 build() {  # dir wrap(yes|no)
     mkdir -p "$1"
-    ( cd "$1" && for f in fixture other; do
+    ( cd "$1" && for f in fixture other templ; do
           "$CXX" -std=c++17 -O0 -g --coverage -I../include -c "../$f.cpp" -o "$f.cpp.o" || exit 1
       done
       if [ "$2" = yes ]; then
           "$CC" -c "$WRAP" -o coverage_exit.o || exit 1
-          "$CXX" --coverage -Wl,--wrap=_exit -Wl,--wrap=_Exit fixture.cpp.o other.cpp.o coverage_exit.o -o fixture -pthread
+          "$CXX" --coverage -Wl,--wrap=_exit -Wl,--wrap=_Exit fixture.cpp.o other.cpp.o templ.cpp.o coverage_exit.o -o fixture -pthread
       else
-          "$CXX" --coverage fixture.cpp.o other.cpp.o -o fixture -pthread
+          "$CXX" --coverage fixture.cpp.o other.cpp.o templ.cpp.o -o fixture -pthread
       fi ) > "$W/build-$2.log" 2>&1
 }
 if ! build build yes || ! build build-nowrap no; then
@@ -111,7 +120,7 @@ import json, os
 w = os.getcwd()
 json.dump([{"directory": os.path.join(w, "build"), "file": os.path.join(w, f),
             "arguments": ["c++", "-std=c++17", "-I" + os.path.join(w, "include"), "-c", os.path.join(w, f), "-o", f + ".o"]}
-           for f in ("fixture.cpp", "other.cpp", "extra.cpp")],
+           for f in ("fixture.cpp", "other.cpp", "extra.cpp", "templ.cpp")],
           open(os.path.join(w, "build", "compile_commands.json"), "w"))
 EOF
 IDX="$(cm index --jobs 2)"; irc=$?
@@ -229,6 +238,34 @@ if grep -q "STALE INDEX: fixture.cpp" <<<"$STALE" && ! grep -q "STALE INDEX" <<<
     ok C-08 "impact on an index older than the changed file says so; after re-indexing it does not"
 else
     bad C-08 "a stale index was not reported (or a fresh one was)" "$STALE"
+fi
+
+# ---------------------------------------------------------------- C-13
+AF="$(cm tested apply_fn --cov fx)"
+AFL="uses_apply::<lambda@templ.cpp:$(grep -n 'return apply_fn(\[\]' templ.cpp | cut -d: -f1)>"
+LAM2="$(cm tested "$AFL" --cov fx 2>&1)"
+if grep -qE "^ +1  000_A$" <<<"$AF" && grep -qE "^ +1  001_B$" <<<"$AF" && grep -qE "^ +1  000_A$" <<<"$LAM2"; then
+    ok C-13 "a template instantiated with a lambda type maps to the template; its lambda to the lambda"
+else
+    bad C-13 "the template (or its lambda) was not matched by position" "$AF
+lambda: $AFL
+$LAM2"
+fi
+
+# ---------------------------------------------------------------- C-14
+cm coverage ingest --name j1 --units-dir units --build-dir build --jobs 1 >/dev/null
+cm coverage ingest --name j3 --units-dir units --build-dir build --jobs 3 >/dev/null
+SAME="$(python3 -c "
+import json
+a, b = (json.load(open('.cache/codemap/coverage/%s/coverage.json' % n)) for n in ('j1', 'j3'))
+for d in (a, b):
+    d.pop('meta', None)
+print('SAME' if a == b and a['executed'] else 'DIFFER %s' % sorted(k for k in a if a.get(k) != b.get(k)))
+" 2>&1)"
+if [ "$SAME" = "SAME" ]; then
+    ok C-14 "the ingest gives the same result with 1 and with 3 worker processes"
+else
+    bad C-14 "the result depends on the number of ingest workers" "$SAME"
 fi
 
 # ---------------------------------------------------------------- C-10
