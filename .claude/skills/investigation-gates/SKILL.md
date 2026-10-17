@@ -50,6 +50,15 @@ S=.claude/skills/investigation-gates/scripts
 bash $S/history_pass.sh -f <file you will edit> -g <subject noun> <identifier>...
 ```
 
+- **For one function, `python3 tools/codemap/codemap.py history FN`** (or
+  `--range FILE:A-B`, or `--name NAME` for one that no longer exists) adds what
+  this script does not: `git log -L` over the function's own lines (mapped
+  through uncommitted edits onto HEAD), blame, the lines each commit added or
+  removed that name it (a removal reads REMOVED here), the PRs, and the
+  tracked `.md` records citing it with their record id or heading. It follows
+  the same two rules as this script -- a shallow clone is UNMEASURABLE, and an
+  empty pickaxe for a name HEAD still holds is a broken probe. Use this script
+  for nouns, regexes and whole files.
 - **Shallow clones lie.** Clones in remote containers are often shallow (the
   one this skill was built in was depth 1). There, `git log -S` attributes
   every string in the tree to the boundary commit -- measured on this repo at

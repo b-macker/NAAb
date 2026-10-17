@@ -134,6 +134,9 @@ int Pair::r() const { return 2; }
 extern thread_local std::string tl_name;            // defined in other.cpp
 static int helper(int x) { return x + 2; }          // other.cpp has a static helper(int) too
 void hold(std::shared_ptr<int> p) { (void)p; }
+void refuse(const std::string& why) { sink(why); }
+int one_liner() { return [](int v) { return v + 1; }(1); }
+int twin_a() { return 1; } int twin_b() { return 2; }
 void hold(std::shared_ptr<double> p) { (void)p; }
 void touch_tls() { tl_name = "tls"; }
 
@@ -188,4 +191,6 @@ void profile_shapes() {
     hold(std::make_shared<double>(2.0));
     (void)count_args("x");
     (void)count_args("y", 1, 2);
+    (void)one_liner();
+    (void)twin_a();
 }

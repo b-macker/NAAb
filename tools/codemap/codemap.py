@@ -19,6 +19,8 @@
     python3 tools/codemap/codemap.py ran hello --fn checkPathAccess   # what that run actually called
     python3 tools/codemap/codemap.py callers sink --run hello  # static callers, marked ran / not run
     python3 tools/codemap/codemap.py dot agentSend             # Graphviz call graph text
+    python3 tools/codemap/codemap.py history checkPathAccessImpl   # the history pass: -L, -S, blame, PRs, records
+    python3 tools/codemap/codemap.py history --name removedHelper  # where a name came and went
 
 Every answer says how far to trust it:
   [ast]       a direct call, read from the compiler's syntax tree
@@ -77,6 +79,8 @@ BLIND_SPOTS = [
     "what actually runs for a given program needs a run (codemap profile)",
     "writes through a pointer or reference handed to another function, or by a mutating method "
     "not in the list, are not seen; writes to locals are not recorded",
+    "a function DEFINED in more than one file (each binary's main) is stored once -- the others' "
+    "definitions are not indexed and their calls merge into the one kept; `stats` lists every such function",
     PREDISPATCH,
 ]
 # Library calls a reader rarely wants in a callee list: constructors, member
@@ -1125,6 +1129,486 @@ def cmd_ran(a, st):
                 out("     %-64s %dx%s" % (c["name"], c["calls"], "  via library frames" if c["via_library"] else ""))
 
 
+def cmd_history(a, st):
+    """The evidence for the history pass on one function: who changed its lines, where
+    its name came and went, which PRs, which records cite it (githist.py)."""
+    import githist
+    if a.name and not a.range and not a.symbol:
+        # a name with no line range: where it came and went (a removed function has no range)
+        targets = [{"name": a.name, "kind": "name", "file": None, "line": 0, "end_line": 0}]
+    elif a.range:
+        m = re.match(r"^(.+):(\d+)-(\d+)$", a.range)
+        if not m:
+            raise SystemExit("codemap history: --range takes FILE:START-END")
+        targets = [{"name": m.group(0), "kind": "range", "file": m.group(1),
+                    "line": int(m.group(2)), "end_line": int(m.group(3))}]
+    else:
+        if not a.symbol:
+            raise SystemExit("codemap history: give a function, --range FILE:START-END or --name NAME")
+        if st is None:
+            raise SystemExit("codemap: no index (run `codemap index`), or use --range FILE:START-END")
+        targets = [s for s in pick(st, a.symbol) if s["file"] and not s["file"].startswith("/")]
+        if not targets:
+            raise SystemExit("codemap history: %r is not defined in this repository" % a.symbol)
+    try:
+        state = githist.repo_state(a.repo)
+    except githist.HistoryError as e:
+        raise SystemExit("codemap history: UNMEASURABLE -- %s" % e)
+    results = []
+    for t in targets:
+        res = {"function": t["name"], "file": t["file"], "lines": [t["line"], t["end_line"]],
+               "shallow": state["shallow"]}
+        hs = he = None
+        unc = 0
+        if t["file"] is None:
+            res["line_history_error"] = "no line range (--name): name history and records only"
+        else:
+            try:
+                hs, he, unc = githist.map_range(a.repo, t["file"], t["line"], t["end_line"])
+            except githist.HistoryError as e:
+                res["line_history_error"] = str(e)
+        res["head_lines"] = [hs, he]
+        res["uncommitted_lines"] = unc
+        # never capped: the MOVED check below compares it with blame, and a capped
+        # list would report every commit past the cap as lost to a move (0.16 s for
+        # agentSend's 97 commits, so there is no cost to save)
+        res["line_history"] = githist.line_history(a.repo, t["file"], hs, he) if hs else []
+        res["blame"] = githist.blame_summary(a.repo, t["file"], hs, he) if hs else []
+        if a.name:
+            names = [a.name]
+        elif t.get("kind") == "range":
+            names = []
+        elif t.get("kind") == "lambda" and "<lambda@" in t["name"]:
+            names = []                    # an unnamed lambda has no name to search
+        else:
+            names = githist.search_names(t["name"])
+        if names:
+            whole, partial, paths = githist.name_history(a.repo, names[0],
+                                                         () if a.all_paths else githist.DEFAULT_PATHS,
+                                                         a.limit)
+            res["name"] = names[0]
+            res["name_history"], res["name_partial"], res["name_paths"] = whole, partial, paths or ["(all)"]
+            res["name_at_head"] = githist.files_at_head(a.repo, names[0], paths)
+            # Three outcomes, never two: an empty pickaxe on a truncated history, or
+            # on a name HEAD still holds, is the instrument failing, not a finding.
+            if not whole and not partial and (state["shallow"] or res["name_at_head"]):
+                res["name_unmeasurable"] = (
+                    "history is truncated (shallow clone); the name's origin may lie past the cut"
+                    if state["shallow"] else
+                    "present at HEAD in %d file(s) but no commit changed its count -- the probe is broken"
+                    % res["name_at_head"])
+            res["records"], res["records_dropped"] = githist.records(a.repo, names)
+        else:
+            res["name"], res["name_history"], res["name_partial"], res["name_paths"] = None, [], 0, []
+            res["name_at_head"] = 0
+            res["records"], res["records_dropped"] = [], []
+        # -L follows a line range through edits, not through a block MOVE: it stops at
+        # the move commit, which then looks like the origin. Blame (-M -C) looks past
+        # it, so a commit blame names that -L never listed is history -L lost.
+        seen = {c["sha"] for c in res["line_history"]}
+        res["lost_by_line_history"] = [b for b in res["blame"] if b["sha"] not in seen]
+        res["prs"] = githist.pr_numbers(res["line_history"] + res["lost_by_line_history"] + res["name_history"])
+        for lst in (res["line_history"], res["name_history"], res["blame"]):
+            for c in lst:
+                # only the clone's own shallow list: blame also says "boundary" for
+                # the repository's root commit, which is a real origin
+                c["shallow_boundary"] = c["sha"] in state["boundary"]
+        results.append(res)
+    if a.json:
+        return emit_json(results)
+    for res in results:
+        print_history(res, a)
+
+
+def print_history(res, a):
+    mark = lambda c: "  (SHALLOW CUT: not where these lines began)" if c.get("shallow_boundary") else ""  # noqa: E731
+    where = "%s:%d-%d" % (res["file"], res["lines"][0], res["lines"][1]) if res["file"] else ""
+    out("history of %s%s" % (res["function"], "" if not where or where == res["function"] else "  (%s)" % where))
+    if res["shallow"]:
+        out("  UNMEASURABLE in part: this is a shallow clone, so history stops at its oldest commit and"
+            " that commit looks like the origin of everything; deepen with `git fetch --depth=1000 origin"
+            " BRANCH` (or --unshallow) and rerun")
+    hs, he = res["head_lines"]
+    if res["file"] is None:
+        out("  lines: none given (--name only)")
+    elif res.get("line_history_error"):
+        out("  lines: UNMEASURABLE -- %s" % res["line_history_error"])
+    elif hs is None:
+        out("  lines: all %d lines are uncommitted; no history yet" % res["uncommitted_lines"])
+    else:
+        moved = "" if [hs, he] == res["lines"] else " (lines %d-%d at HEAD)" % (hs, he)
+        unc = "; %d uncommitted lines left out" % res["uncommitted_lines"] if res["uncommitted_lines"] else ""
+        out("  lines: %d commits changed these lines%s%s -- git log -L, newest first, followed within"
+            " this file only" % (len(res["line_history"]), moved, unc))
+        for c in res["line_history"][: a.max]:
+            out("     %s %s %s%s" % (c["short"], c["date"], c["subject"][:90], mark(c)))
+        if len(res["line_history"]) > a.max:
+            out("     ... +%d more (--max)" % (len(res["line_history"]) - a.max))
+        if res["lost_by_line_history"]:
+            moved = sum(b["lines"] for b in res["lost_by_line_history"])
+            total = sum(b["lines"] for b in res["blame"]) or 1
+            out("  MOVED IN: %d of %d lines came from elsewhere -- move-aware blame credits them to %d"
+                " commits -L does not follow (it tracks this file only)%s:"
+                % (moved, total, len(res["lost_by_line_history"]),
+                   "; most of the function did, so the oldest commit above is where it arrived, not where"
+                   " it began" if 2 * moved > total else ""))
+            for b in res["lost_by_line_history"][: a.max]:
+                files = [f for f in b.get("files", []) if f != res["file"]]
+                out("     %4d lines  %s %s %s%s%s" % (b["lines"], b["short"], b["date"], b["subject"][:70],
+                                                   "  from " + ", ".join(files) if files else "", mark(b)))
+    if res["name"] and res.get("name_unmeasurable"):
+        out("  name: UNMEASURABLE -- '%s': %s" % (res["name"], res["name_unmeasurable"]))
+    elif res["name"] and not res["name_history"] and not res["name_partial"]:
+        out("  name: NONE -- no commit in %s changed how often '%s' occurs, and HEAD has it in none of"
+            " them (a scoped NONE covers only these paths; --all-paths for the rest)"
+            % (" ".join(res["name_paths"]), res["name"]))
+    elif res["name"]:
+        out("  name: %d commits changed how often '%s' occurs in %s -- git log -S, screened (text:"
+            " another function of this name counts too)%s; at HEAD in %d file(s)"
+            % (len(res["name_history"]), res["name"], " ".join(res["name_paths"]),
+               "; %d more changed it only inside longer names" % res["name_partial"] if res["name_partial"] else "",
+               res["name_at_head"]))
+        for c in res["name_history"][: a.max]:
+            gone = "  REMOVED here" if c["removed"] and not c["added"] else ""
+            out("     %s %s +%-3d -%-3d %s%s%s" % (c["short"], c["date"], c["added"], c["removed"],
+                                                  c["subject"][:80], gone, mark(c)))
+        if len(res["name_history"]) > a.max:
+            out("     ... +%d more (--max)" % (len(res["name_history"]) - a.max))
+    if res["blame"]:
+        total = sum(b["lines"] for b in res["blame"])
+        out("  blame: the %d lines at HEAD were written by %d commits" % (total, len(res["blame"])))
+        for b in res["blame"][: a.max]:
+            out("     %4d lines  %s %s %s%s" % (b["lines"], b["short"], b["date"], b["subject"][:80], mark(b)))
+    out("  PRs: %s" % (" ".join("#%d" % n for n in res["prs"]) or "none referenced in these commits"))
+    if res["name"]:
+        out("  records: %d mentions in tracked .md files%s" % (
+            len(res["records"]), "".join("; '%s' dropped as too common (%d mentions)" % d
+                                         for d in res["records_dropped"])))
+        for r in res["records"][: a.max]:
+            out("     %s:%d %s %s" % (r["file"], r["line"], r["where"], r["text"][:100]))
+    out("  left to do by hand: read the full messages (git show SHA) and PR threads, then classify:"
+        " never built / working / regressed / removed on purpose / lost / decided")
+
+
+# --- coverage (coverage.py) ----------------------------------------------------------
+
+def latest_coverage(a):
+    root = os.path.join(a.cache, "coverage")
+    names = [d for d in os.listdir(root) if os.path.exists(os.path.join(root, d, "coverage.json"))] \
+        if os.path.isdir(root) else []
+    if not names:
+        raise SystemExit("codemap: no coverage run yet (codemap coverage run --name NAME)")
+    return max(names, key=lambda d: os.path.getmtime(os.path.join(root, d, "coverage.json")))
+
+
+def cmd_coverage(a, st):
+    import gcovmap as covmod
+    if a.action == "list":
+        root = os.path.join(a.cache, "coverage")
+        for d in sorted(os.listdir(root)) if os.path.isdir(root) else []:
+            try:
+                c = covmod.load(a.cache, d)
+            except SystemExit:
+                continue
+            m = c.get("meta", {})
+            out("%-20s %s  %d units, %d functions executed of %d compiled  (%s)"
+                % (d, m.get("at", "?"), len(c["units"]), len(c["executed"]), len(c["compiled"]), m.get("source", "")))
+        return 0
+    if st is None:
+        raise SystemExit("codemap: no index (run `codemap index`): coverage is mapped onto it")
+    build = os.path.abspath(a.build_dir or os.path.join(a.repo, "build-cov"))
+    if not covmod.find_files(build, ".gcno"):
+        raise SystemExit(covmod.install_hint(os.path.relpath(build, a.repo)))
+    outdir = os.path.join(a.cache, "coverage", a.name)
+    names = {}
+    if a.action == "ingest":
+        if not a.units_dir:
+            raise SystemExit("codemap coverage ingest: --units-dir DIR (one GCOV_PREFIX tree per unit)")
+        units_dir, source = os.path.abspath(a.units_dir), "ingest " + a.units_dir
+        names = unit_names(os.path.join(os.path.dirname(units_dir.rstrip(os.sep)), "parallel"))
+    else:
+        units_dir, source, names = run_suite_for_coverage(a, build, outdir)
+    prog = (lambda i, n, u: sys.stderr.write("codemap: gcov %d/%d %s\n" % (i, n, u))) if a.verbose else None
+    res = covmod.ingest(units_dir, build, st.db, a.repo, progress=prog, jobs=a.jobs or os.cpu_count() or 1)
+    if names:
+        res["units"] = [names.get(u, u) for u in res["units"]]
+        res["executed"] = {k: {names.get(u, u): n for u, n in v.items()} for k, v in res["executed"].items()}
+    meta = {"name": a.name, "build_dir": build, "source": source,
+            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "head": git_head(a.repo)}
+    covmod.save(res, outdir, meta)
+    if a.action == "run" and not a.keep_raw:
+        import shutil
+        shutil.rmtree(units_dir, ignore_errors=True)
+    out("coverage %s: %d units; %d indexed functions compiled into the instrumented build, %d executed by"
+        " at least one unit; %d positions in indexed files matched to no single definition (%d executed)"
+        " -- definitions there read UNMEASURED"
+        % (a.name, len(res["units"]), len(res["compiled"]), len(res["executed"]), len(res["unmatched"]),
+           sum(1 for u in res["unmatched"].values() if u["count"])))
+    if res["matched_inside"]:
+        out("  %d positions matched by enclosure (no definition starts on the line; credited to the innermost"
+            " one around it -- screened, listed in coverage.json matched_inside)" % len(res["matched_inside"]))
+    if res["stale_files"]:
+        out("  STALE BUILD: %d indexed files changed after the instrumented build compiled them (%s); their"
+            " functions read UNMEASURED -- rebuild %s and run again"
+            % (len(res["stale_files"]), ", ".join(res["stale_files"][:4]), os.path.relpath(build, a.repo)))
+    if covmod.UNATTRIBUTED in res["units"]:
+        out("  (unattributed): counters written with GCOV_PREFIX scrubbed from the environment --"
+            " executed by SOME unit, which one is unknown")
+    out("wrote %s" % os.path.join(outdir, "coverage.json"))
+    return 0
+
+
+def git_head(repo):
+    r = subprocess.run(["git", "-C", repo, "rev-parse", "--short", "HEAD"], stdout=subprocess.PIPE,
+                       stderr=subprocess.DEVNULL)
+    return r.stdout.decode().strip()
+
+
+def run_suite_for_coverage(a, build, outdir):
+    """Every run-all-tests.sh unit, against the instrumented binaries, in a worktree
+    copy (tools/testrunner/dead_gate.py's), each unit with its own GCOV_PREFIX."""
+    import shutil
+    import tempfile
+    sys.path.insert(0, os.path.join(a.repo, "tools", "testrunner"))
+    import dead_gate
+    import gcovmap as covmod
+    stray = covmod.find_files(build, ".gcda")
+    for f in stray:                  # the build dir must start clean: (unattributed) is THIS run's
+        os.remove(f)
+    work = tempfile.mkdtemp(prefix="naab-cov-")
+    copy = os.path.join(work, "repo")
+    gcda = os.path.join(outdir, "gcda")
+    shutil.rmtree(gcda, ignore_errors=True)
+    os.makedirs(gcda)
+    par_out = os.path.join(outdir, "parallel")
+    try:
+        subprocess.run(["git", "worktree", "add", "-q", "--detach", copy, "HEAD"], cwd=a.repo, check=True)
+        dead_gate.overlay_working_tree(copy)
+        b = os.path.join(copy, "build")
+        os.makedirs(b, exist_ok=True)
+        for name in dead_gate.KEEP_BINARIES:
+            src = os.path.join(a.repo, "build", name)
+            if os.path.isfile(src):
+                shutil.copy2(src, os.path.join(b, name))
+        for name in ("naab-lang", "naab-gov"):
+            src = os.path.join(build, name)
+            if not os.path.isfile(src):
+                raise SystemExit("codemap coverage: %s not built (make -C %s %s)" % (src, build, name))
+            shutil.copy2(src, os.path.join(b, name))
+        env = dict(os.environ, TMPDIR=work)
+        cmd = [sys.executable, os.path.join(copy, "tools", "testrunner", "parallel.py"), "run",
+               "--out", par_out, "--unit-env", "GCOV_PREFIX=%s/{unit}" % gcda]
+        if a.jobs:
+            cmd += ["--jobs", str(a.jobs)]
+        if a.only:
+            cmd += ["--only", a.only, "--no-naab-phase"]
+        out("codemap coverage: running the suite against %s (this takes a while)" % build)
+        subprocess.run(cmd, cwd=copy, env=env, stdin=subprocess.DEVNULL,
+                       stdout=None if a.verbose else subprocess.DEVNULL)
+    finally:
+        subprocess.run(["git", "worktree", "remove", "--force", copy], cwd=a.repo,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        shutil.rmtree(work, ignore_errors=True)
+    return gcda, "suite (parallel.py, %s)" % (a.only or "every unit"), unit_names(par_out)
+
+
+def unit_names(par_out):
+    """parallel.py names each unit's directory NNN_<key made path-safe>; its
+    results.json maps them back to the suite key."""
+    names = {}
+    try:
+        with open(os.path.join(par_out, "results.json")) as fh:
+            for r in json.load(fh)["results"]:
+                safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", r["key"])[:120]
+                names["%03d_%s" % (r["index"], safe)] = r["key"]
+    except (OSError, ValueError, KeyError):
+        pass
+    return names
+
+
+def coverage_of(a, note=True):
+    """The coverage run to read; says so when it was recorded at another commit (the HEAD
+    when it was mapped -- for `ingest`, not necessarily when the counters were written), since
+    functions added or moved since then are not in it (lambdas are keyed by position)."""
+    import gcovmap as covmod
+    name = a.cov or latest_coverage(a)
+    cov = covmod.load(a.cache, name)
+    head, now = cov.get("meta", {}).get("head", ""), git_head(a.repo)
+    if note and head and now and head != now and not a.json:
+        out("(coverage %s was recorded at %s; HEAD is %s -- functions added or moved since read as not"
+            " in the build or UNMEASURED, and an executed function may have changed since)" % (name, head, now))
+    return name, cov
+
+
+def covmod_status(cov, s):
+    import gcovmap
+    return gcovmap.status(cov, s)
+
+
+def cmd_tested(a, st):
+    name, cov = coverage_of(a)
+    compiled = set(cov["compiled"])
+    for s in pick(st, a.symbol):
+        hits = cov["executed"].get(s["usr"], {})
+        res = {"function": s["name"], "at": loc(s["file"], s["line"]), "coverage": name,
+               "compiled": s["usr"] in compiled, "units": dict(sorted(hits.items(), key=lambda kv: -kv[1])),
+               "status": covmod_status(cov, s)}
+        if a.json:
+            emit_json(res)
+            continue
+        if res["status"] == "unmeasured" and s["file"] in cov.get("stale_files", ()):
+            out("%s  (%s): UNMEASURED in coverage %s -- its file changed after the instrumented build"
+                " compiled it, so gcov's line numbers no longer name it" % (s["name"], res["at"], name))
+        elif res["status"] == "unmeasured":
+            out("%s  (%s): UNMEASURED in coverage %s -- gcov reported a function at this position that"
+                " could not be matched to one definition (two on one line), so it may have run"
+                % (s["name"], res["at"], name))
+        elif not res["compiled"]:
+            out("%s  (%s): NOT IN THE BUILD of coverage %s -- not compiled into what the suite runs"
+                " (another binary, or preprocessed out), so untested is not measured"
+                % (s["name"], res["at"], name))
+        elif not hits:
+            out("%s  (%s): executed by NO unit of coverage %s (only the instrumented binaries record:"
+                " a test that reaches it only through another binary -- libnaab, naab-lsp, a unit"
+                " test -- is not seen)" % (s["name"], res["at"], name))
+        else:
+            out("%s  (%s): executed by %d unit(s) of coverage %s (execution, not verification):"
+                % (s["name"], res["at"], len(hits), name))
+            for u, n in list(res["units"].items())[: a.max]:
+                out("     %8d  %s" % (n, u))
+            if len(hits) > a.max:
+                out("     ... +%d more (--max)" % (len(hits) - a.max))
+
+
+def cmd_untested(a, st):
+    name, cov = coverage_of(a)
+    compiled, executed = set(cov["compiled"]), cov["executed"]
+    under = (a.under or "src").rstrip("/")
+    # a file is matched exactly, a directory as a prefix
+    exact = os.path.isfile(os.path.join(a.repo, under))
+    under = under if exact else under + "/"
+    rows = st.db.execute("SELECT usr, name, file, line, end_line FROM symbols WHERE is_def=1 AND %s AND kind IN "
+                         "('function_decl','cxx_method','constructor','destructor','function_template',"
+                         "'conversion_function','lambda') ORDER BY file, line" % ("file = ?" if exact else "file LIKE ?"),
+                         (under if exact else under + "%",)).fetchall()
+    st_of = {r[0]: covmod_status(cov, {"usr": r[0], "file": r[2], "line": r[3], "end_line": r[4]}) for r in rows}
+    never = [r[:4] for r in rows if st_of[r[0]] == "not_executed"]
+    unmeasured = [r[:4] for r in rows if st_of[r[0]] == "unmeasured"]
+    absent = [r for r in rows if st_of[r[0]] == "not_in_build"]
+    ran = len([r for r in rows if st_of[r[0]] == "executed"])
+    if a.json:
+        return emit_json({"coverage": name, "under": under, "indexed": len(rows), "executed": ran,
+                          "untested": [{"name": n, "at": loc(f, l)} for _, n, f, l in never],
+                          "unmeasured": [{"name": n, "at": loc(f, l)} for _, n, f, l in unmeasured],
+                          "not_in_build": len(absent)})
+    out("coverage %s, %s: %d indexed functions; %d executed by some unit, %d compiled but executed by NO unit,"
+        " %d UNMEASURED (a function at their position could not be matched to one definition, or the file"
+        " changed after the build),"
+        " %d not in the instrumented build (not measured)"
+        % (name, under, len(rows), ran, len(never), len(unmeasured), len(absent)))
+    if never:
+        out("  (executed by NO unit = no run of an instrumented binary entered it; a test reaching it only"
+            " through another binary -- libnaab, naab-lsp, a unit test -- is not seen)")
+    by_file = {}
+    for usr, n, f, l in never:
+        by_file.setdefault(f, []).append((l, n))
+    for f, items in sorted(by_file.items(), key=lambda kv: -len(kv[1]))[: a.max]:
+        out("  %4d  %s" % (len(items), f))
+        for l, n in items[: a.per_file]:
+            out("          %-60s :%d" % (n[:60], l))
+        if len(items) > a.per_file:
+            out("          ... +%d more" % (len(items) - a.per_file))
+
+
+def cmd_impact(a, st):
+    """What a change reaches: the functions it edits, their callers up to entry points,
+    and -- from a coverage run -- the units that execute the edited functions."""
+    import gcovmap as covmod
+    ranges = covmod.changed_ranges(a.repo, a.rev)
+    db_time = os.path.getmtime(os.path.join(a.cache, "codemap.db"))
+    # only a file the index holds can move its line ranges (a changed doc cannot)
+    indexed = {f for f in ranges if st.db.execute("SELECT 1 FROM symbols WHERE file=? LIMIT 1", (f,)).fetchone()}
+    stale = [f for f in sorted(indexed) if os.path.exists(os.path.join(a.repo, f))
+             and os.path.getmtime(os.path.join(a.repo, f)) > db_time]
+    changed = []
+    for f, rs in sorted(ranges.items()):
+        for usr, n, l, e, kind in st.db.execute(
+                "SELECT usr, name, line, end_line, kind FROM symbols WHERE is_def=1 AND file=? AND kind IN "
+                "('function_decl','cxx_method','constructor','destructor','function_template',"
+                "'conversion_function','lambda')", (f,)).fetchall():
+            if any(not (hi < l or lo > (e or l)) for lo, hi in rs):
+                changed.append({"usr": usr, "name": n, "file": f, "line": l, "kind": kind})
+    # callers, breadth first, up to --depth
+    callers, entry, frontier, seen = {}, set(), [c["usr"] for c in changed], {c["usr"] for c in changed}
+    for d in range(1, a.depth + 1):
+        nxt = []
+        for u in frontier:
+            ups = [r for r in dedupe(incoming(st, u))]
+            if not ups:
+                entry.add(u)
+            for src, tier, f, l in ups:
+                if src in seen:
+                    continue
+                seen.add(src)
+                callers[src] = d
+                nxt.append(src)
+                if src.startswith("naab:") or name_of(st, src).endswith("main"):
+                    entry.add(src)
+        frontier = nxt
+    try:
+        cname, cov = coverage_of(a)
+    except SystemExit as e:
+        cname, cov = None, None
+        cov_err = str(e)
+    res = {"rev": a.rev, "changed": changed, "stale_index": stale,
+           "callers": len(callers), "entry_points": sorted(name_of(st, u) for u in entry)}
+    units, not_run = {}, []
+    if cov is not None:
+        compiled = set(cov["compiled"])
+        for c in changed:
+            hits = cov["executed"].get(c["usr"], {})
+            if not hits:
+                sym = st.symbol(c["usr"]) or {}
+                not_run.append(dict(c, status=covmod_status(cov, dict(c, end_line=sym.get("end_line")))))
+            for u, n in hits.items():
+                rec = units.setdefault(u, {"functions": 0, "count": 0})
+                rec["functions"] += 1
+                rec["count"] += n
+        res["coverage"] = cname
+        res["units"] = sorted(units.items(), key=lambda kv: (-kv[1]["functions"], -kv[1]["count"]))
+        res["not_run"] = not_run
+    if a.json:
+        return emit_json(res)
+    out("impact of the changes since %s: %d changed lines in %d files touch %d indexed functions"
+        % (a.rev, sum(hi - lo + 1 for rs in ranges.values() for lo, hi in rs), len(ranges), len(changed)))
+    if stale:
+        out("  STALE INDEX: %s changed after the index was built -- line ranges may be off;"
+            " run `codemap index` (seconds)" % ", ".join(stale[:5]))
+    for c in changed[: a.max]:
+        out("     %-60s %s" % (c["name"][:60], loc(c["file"], c["line"])))
+    if len(changed) > a.max:
+        out("     ... +%d more" % (len(changed) - a.max))
+    out("  callers within %d levels: %d; entry points reached (NAAb names, main, functions nothing calls): %d"
+        % (a.depth, len(callers), len(entry)))
+    for n in res["entry_points"][: a.max]:
+        out("     %s" % n)
+    if cov is None:
+        out("  units to run: UNMEASURABLE -- %s" % cov_err)
+        return 0
+    out("  units that execute a changed function (coverage %s; execution, not verification): %d"
+        % (cname, len(units)))
+    for u, r in res["units"][: a.max]:
+        out("     %3d fn  %8d calls  %s" % (r["functions"], r["count"], u))
+    if len(units) > a.max:
+        out("     ... +%d more (--max)" % (len(units) - a.max))
+    if not_run:
+        out("  changed functions NO unit executes (%d) -- untested by the suite as measured:" % len(not_run))
+        for c in not_run[: a.max]:
+            out("     %-60s %s%s" % (c["name"][:60], loc(c["file"], c["line"]),
+                                    {"not_in_build": "  (not in the instrumented build)",
+                                     "unmeasured": "  (UNMEASURED: may have run)"}.get(c["status"], "")))
+
+
 def cmd_flame(a):
     """Re-render a run's flame/icicle graphs, optionally focused on one function:
     only stacks through it, re-rooted there, so a small subsystem is not drawn
@@ -1213,7 +1697,8 @@ def cmd_stats(a, st):
            "failed": m.get("failed"), "parse_errors": len(m.get("parse_errors") or []),
            "symbols": st.count("symbols"), "classes": st.count("classes"), "edges": kinds,
            "tags": st.count("tags"), "unindexed": m.get("unindexed") or [],
-           "predispatch": m.get("predispatch") or {"status": "absent"}, "blind_spots": BLIND_SPOTS}
+           "predispatch": m.get("predispatch") or {"status": "absent"}, "blind_spots": BLIND_SPOTS,
+           "definition_collisions": m.get("definition_collisions")}
     if a.json:
         return emit_json(res)
     out("index built %s at %s from %s sources (%s failed, %s with parse errors)"
@@ -1227,6 +1712,18 @@ def cmd_stats(a, st):
         out("not in the build, so not indexed (%d tracked C/C++ files): %s%s"
             % (len(res["unindexed"]), ", ".join(res["unindexed"][:8]),
                " ..." if len(res["unindexed"]) > 8 else ""))
+    dc = res["definition_collisions"]
+    if dc is None:
+        out("defined in more than one file: UNMEASURABLE (index built before this was recorded; re-index)")
+    elif dc:
+        out("defined in more than one file, stored once (%d) -- the first is kept, the others' calls merge into it:"
+            % len(dc))
+        for c in dc[:12]:
+            out("  %s  kept %s; also %s" % (c["name"], c["kept"], ", ".join(f for f in c["files"] if f != c["kept"])))
+        if len(dc) > 12:
+            out("  ... +%d more (--json)" % (len(dc) - 12))
+    else:
+        out("defined in more than one file: none")
     out("not seen:")
     for b in BLIND_SPOTS:
         out("  - " + b)
@@ -1280,6 +1777,32 @@ def main(argv=None):
     s = sub.add_parser("ran"); s.add_argument("name"); s.add_argument("--fn"); s.add_argument("--top", type=int, default=20)
     s = sub.add_parser("dot"); s.add_argument("symbol"); s.add_argument("--depth", type=int, default=1)
     s.add_argument("--max", type=int, default=15); s.add_argument("--all", action="store_true")
+    s = sub.add_parser("coverage", help="which functions the test suite executes (gcov; NAAB_COVERAGE build)")
+    s.add_argument("action", choices=("run", "ingest", "list"))
+    s.add_argument("--name", default="suite")
+    s.add_argument("--build-dir", help="the NAAB_COVERAGE build (default build-cov)")
+    s.add_argument("--units-dir", help="ingest: a directory of GCOV_PREFIX trees, one per unit")
+    s.add_argument("--jobs", type=int, help="units run at once (run) and gcov workers (both; default: CPU count)")
+    s.add_argument("--only", help="run: a regex of units to run (partial coverage; never a verdict)")
+    s.add_argument("--keep-raw", action="store_true", help="run: keep the per-unit .gcda trees")
+    s.add_argument("--verbose", action="store_true")
+    s = sub.add_parser("tested", help="which units of a coverage run executed this function")
+    s.add_argument("symbol"); s.add_argument("--cov"); s.add_argument("--max", type=int, default=25)
+    s = sub.add_parser("untested", help="indexed functions compiled in but executed by no unit")
+    s.add_argument("--under", help="path prefix (default src)"); s.add_argument("--cov")
+    s.add_argument("--max", type=int, default=30, help="files listed"); s.add_argument("--per-file", type=int, default=5)
+    s = sub.add_parser("impact", help="a change's functions, their callers, and the units that execute them")
+    s.add_argument("rev", nargs="?", default="HEAD", help="compare the working tree with REV (default HEAD)")
+    s.add_argument("--cov"); s.add_argument("--depth", type=int, default=3); s.add_argument("--max", type=int, default=25)
+    s = sub.add_parser("history", help="the history pass for one function: line history, name, blame, PRs, records")
+    s.add_argument("symbol", nargs="?")
+    s.add_argument("--range", help="FILE:START-END instead of an indexed function")
+    s.add_argument("--name", help="the identifier to search with git log -S and in the records "
+                                  "(alone: for a function that no longer exists)")
+    s.add_argument("--all-paths", action="store_true", help="search the name in every path (slow)")
+    s.add_argument("--limit", type=int, default=40, help="commits the name search reads (0 = all); "
+                                                          "the line history is never capped")
+    s.add_argument("--max", type=int, default=15, help="rows printed per section")
     a = p.parse_args(argv)
     a.repo = os.path.abspath(a.repo)
     a.cache = os.path.abspath(a.cache or os.path.join(a.repo, ".cache", "codemap"))
@@ -1295,6 +1818,10 @@ def main(argv=None):
         return cmd_runs(a, None) or 0
     if a.cmd == "flame":
         return cmd_flame(a) or 0
+    if a.cmd == "history":
+        return cmd_history(a, storemod.Store(db) if os.path.exists(db) else None) or 0
+    if a.cmd == "coverage":
+        return cmd_coverage(a, storemod.Store(db) if os.path.exists(db) else None) or 0
     st = storemod.Store(db)
     return globals()["cmd_" + a.cmd](a, st) or 0
 

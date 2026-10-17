@@ -201,6 +201,23 @@ def unit_env(base_home, home, tmp):
     return env
 
 
+def parse_unit_env(items):
+    """--unit-env NAME=VALUE (repeatable) -> [(NAME, VALUE)]; {unit} in VALUE becomes
+    the unit's index and file-safe key (its log file's name), so each unit gets a
+    value of its own (codemap coverage gives every unit its own GCOV_PREFIX)."""
+    out = []
+    for it in items or ():
+        name, sep, value = it.partition("=")
+        if not sep or not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
+            raise SystemExit("--unit-env takes NAME=VALUE, got %r" % it)
+        out.append((name, value))
+    return out
+
+
+def unit_env_value(tmpl, safe_key):
+    return tmpl.replace("{unit}", safe_key)
+
+
 def tree(root):
     out = []
     for d, dirs, files in os.walk(root):
@@ -307,6 +324,10 @@ class Runner:
             os.makedirs(home)
             os.makedirs(tmp)
         env = unit_env(self.base_home, home, tmp)
+        for name, tmpl in getattr(self.args, "unit_env", None) or ():
+            # index + key, as the log file is named: unique even when two keys
+            # sanitise alike, so no two units ever share a value
+            env[name] = unit_env_value(tmpl, "%03d_%s" % (idx, safe))
         if u["kind"] == "naab-phase":
             env["NAAB_TEST_PHASE"] = "naab"
             cmd = ["bash", "run-all-tests.sh"]
@@ -629,10 +650,14 @@ def main(argv=None):
     r.add_argument("--out", help="output dir (default: test-parallel/)")
     r.add_argument("--no-naab-phase", action="store_true")
     r.add_argument("--only", help="regex: run only matching units (debugging; never a verdict)")
+    r.add_argument("--unit-env", action="append", metavar="NAME=VALUE",
+                   help="set NAME for every unit; {unit} in VALUE is the unit's index_key (its log name)")
     c = sub.add_parser("compare")
     c.add_argument("reference")
     c.add_argument("candidate")
     a = ap.parse_args(argv)
+    if a.cmd == "run":
+        a.unit_env = parse_unit_env(a.unit_env)
     return cmd_run(a) if a.cmd == "run" else cmd_compare(a)
 
 

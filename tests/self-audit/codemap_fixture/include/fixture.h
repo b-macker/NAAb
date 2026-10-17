@@ -109,5 +109,10 @@ template <class... A> int count_args(const char* f, A&&... a) {   // a parameter
     return static_cast<int>(sizeof...(a)) + (f ? 0 : 1);
 }
 void other_helpers();                    // other.cpp's own static helper(int)
+void refuse(const std::string& why);     // the path a HARD block takes before _exit(3)
+int one_liner();                         // a function and its lambda on ONE line
+int twin_a();                            // two definitions on one line: no position
+int twin_b();                            //   tells them apart
+int never_linked(int x);                 // defined in extra.cpp, which no binary links
 void touch_tls();
 void profile_shapes();

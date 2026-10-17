@@ -129,21 +129,25 @@ def report(r, allow, results):
 
 
 def overlay_working_tree(dst):
-    """Copy the working tree's modified and untracked files over a worktree of HEAD."""
-    ls = subprocess.run(["git", "ls-files", "-z", "-m", "-o", "--exclude-standard"], cwd=REPO,
-                        stdout=subprocess.PIPE, check=True).stdout.split(b"\0")
-    for rel in filter(None, (p.decode("utf-8", "surrogateescape") for p in ls)):
-        src = os.path.join(REPO, rel)
+    """Make a worktree of HEAD match the working tree: every path that differs from
+    HEAD, staged or not, and every untracked file. Compared with HEAD, not the index:
+    `git ls-files -m` compares with the INDEX, so a staged file -- a new one, or an
+    edit already `git add`ed -- was left at HEAD's version (a coverage run measured
+    without a staged new suite)."""
+    def paths(*args):
+        out = subprocess.run(["git"] + list(args), cwd=REPO, stdout=subprocess.PIPE, check=True).stdout
+        return [p.decode("utf-8", "surrogateescape") for p in out.split(b"\0") if p]
+    changed = paths("diff", "-z", "--name-only", "--no-renames", "HEAD")
+    for rel in changed + paths("ls-files", "-z", "-o", "--exclude-standard"):
+        src, out = os.path.join(REPO, rel), os.path.join(dst, rel)
         if os.path.isfile(src):
-            os.makedirs(os.path.dirname(os.path.join(dst, rel)) or dst, exist_ok=True)
-            shutil.copy2(src, os.path.join(dst, rel))
-    gone = subprocess.run(["git", "ls-files", "-z", "-d"], cwd=REPO,
-                          stdout=subprocess.PIPE, check=True).stdout.split(b"\0")
-    for rel in filter(None, (p.decode("utf-8", "surrogateescape") for p in gone)):
-        try:
-            os.remove(os.path.join(dst, rel))
-        except OSError:
-            pass
+            os.makedirs(os.path.dirname(out) or dst, exist_ok=True)
+            shutil.copy2(src, out)
+        elif not os.path.lexists(src):
+            try:
+                os.remove(out)                 # deleted since HEAD, staged or not
+            except OSError:
+                pass
 
 
 def cmd_run(args):

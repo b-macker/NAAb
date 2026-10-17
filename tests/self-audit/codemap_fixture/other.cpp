@@ -1,5 +1,6 @@
 // codemap fixture: a second translation unit, for includes and cross-file calls.
 #include "fixture.h"
+#include <unistd.h>
 
 void drive(Base& b);
 void via_lambda();
@@ -23,7 +24,11 @@ void registerExecutor(const std::string& language, std::unique_ptr<Base> executo
     executor->run();
 }
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc > 1 && std::string(argv[1]) == "refuse") {   // a HARD block: refuse, then _exit(3)
+        refuse("blocked");
+        _exit(3);
+    }
     Leaf l;
     drive(l);
     via_lambda();

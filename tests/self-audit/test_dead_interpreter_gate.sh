@@ -25,6 +25,14 @@
 #          it failed build-windows and would fail any developer with
 #          uncommitted src/ changes.
 #   DG-06c CONTROL: an entry naming a suite that does not exist IS reported
+#   DG-07  overlay_working_tree() (shared by this gate, setting_drop.py and
+#          codemap coverage) makes a worktree of HEAD match the working tree in
+#          every state a file can be in: edited, edited and STAGED, new and
+#          STAGED, untracked, deleted, deleted and staged. It compared with the
+#          index, so the two staged cases kept HEAD's version -- a coverage run
+#          measured without a staged new suite.
+#   DG-07c CONTROL: before the overlay the worktree differs from the working
+#          tree in every one of those paths, so DG-07 has something to fail on
 # ============================================================
 set -uo pipefail
 
@@ -141,6 +149,48 @@ print(" ".join(bad))' "$1" "$2" )
         *no/such_suite.sh*) ok "DG-06c" "CONTROL: an entry naming a non-existent suite is reported" ;;
         *) bad "DG-06c" "a non-existent suite passed the registration check -- DG-06 cannot fail" "got: '$ghost'" ;;
     esac
+fi
+
+# --- DG-07 / DG-07c --------------------------------------------------------------------
+if ! command -v git >/dev/null 2>&1; then
+    skip "DG-07" "git unavailable (UNMEASURABLE)"; skip "DG-07c" "git unavailable (UNMEASURABLE)"
+else
+    OV="$W/ov"; mkdir -p "$OV"
+    ( cd "$OV" && git init -q . && git config core.autocrlf false \
+      && for f in edited staged_edit deleted staged_delete keep; do echo "head $f" > "$f.txt"; done \
+      && git add -A && git -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q -m head \
+      && echo "work edited" > edited.txt \
+      && echo "work staged_edit" > staged_edit.txt && git add staged_edit.txt \
+      && echo "work staged_new" > staged_new.txt && git add staged_new.txt \
+      && echo "work untracked" > untracked.txt \
+      && rm deleted.txt && git rm -q staged_delete.txt \
+      && git worktree add -q --detach "$W/ovcopy" HEAD ) > "$W/ov.log" 2>&1
+    # differs <copy> -> the names whose content (or existence) differs from the working tree
+    differs() {
+        ( cd "$OV" && for f in edited staged_edit staged_new untracked deleted staged_delete keep; do
+              if [ -e "$f.txt" ] || [ -e "$1/$f.txt" ]; then
+                  cmp -s "$f.txt" "$1/$f.txt" 2>/dev/null || printf '%s ' "$f"
+              fi
+          done )
+    }
+    before="$(differs "$W/ovcopy")"
+    ( cd "$REPO/tools/testrunner" && python3 -c '
+import sys
+sys.path.insert(0, ".")
+import dead_gate
+dead_gate.REPO = sys.argv[1]
+dead_gate.overlay_working_tree(sys.argv[2])' "$OV" "$W/ovcopy" ) >> "$W/ov.log" 2>&1; orc=$?
+    after="$(differs "$W/ovcopy")"
+    if [ "$before" = "edited staged_edit staged_new untracked deleted staged_delete " ]; then
+        ok "DG-07c" "CONTROL: before the overlay all six changed paths differ from the working tree (keep does not)"
+    else
+        bad "DG-07c" "the fixture is not in the states DG-07 needs" "differs before: '$before'; $(tail -3 "$W/ov.log")"
+    fi
+    if [ "$orc" -eq 0 ] && [ -z "$after" ]; then
+        ok "DG-07" "after the overlay the worktree matches the working tree, staged files included"
+    else
+        bad "DG-07" "the overlay left paths at HEAD's state" "still differ: '$after' (rc=$orc)"
+    fi
 fi
 
 echo ""
