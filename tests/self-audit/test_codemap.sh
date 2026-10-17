@@ -69,7 +69,9 @@
 #          too (importing is not loading); after the index is built: (e) index
 #          READY with nothing newer, then a source touched after the index ->
 #          "newer than it"; (f) READY but libclang missing -> cannot refresh.
-#          Every status line carries the authority sentence (the method decides)
+#          Every status line carries the authority sentence (the method decides).
+#          (g) with no git on PATH (the Windows runner's case) status still
+#          answers instead of dying -- control: (a), the same query with git
 #   CM-24  .claude/hooks/session-start.sh, run as a local session runs it,
 #          prints exactly the status line and exits 0 (a); (c) with no
 #          codemap to ask it prints "status UNMEASURABLE" and still exits 0 --
@@ -171,6 +173,24 @@ if grep -q "^codemap: UNAVAILABLE: no index, and libclang broken" <<<"$S_BROKE";
     ok CM-23d "status: bindings import but the library does not load -> UNAVAILABLE (import is not load)"
 else
     bad CM-23d "status took importable bindings for a working libclang" "$S_BROKE"
+fi
+
+# git hidden from the PATH subprocess.run searches, inside the one python process,
+# so the arm needs no copy of the interpreter (portable to MSYS2).
+S_NOGIT="$(PYTHONPATH=fake-ok python3 -c "
+import os, runpy, sys
+os.environ['PATH'] = 'no-such-dir'
+sys.argv = ['codemap', '--repo', '.', '--cache', '.cache/none', 'status']
+try:
+    runpy.run_path(r'$CM', run_name='__main__')
+except SystemExit as e:
+    print('EXIT', e.code)
+" 2>&1)"
+if grep -q '^codemap: NO INDEX: `python3 tools/codemap/codemap.py index` builds one' <<<"$S_NOGIT" \
+   && ! grep -q "Traceback" <<<"$S_NOGIT"; then
+    ok CM-23g "status with no git on PATH still answers (the commit comparison is skipped, not fatal)"
+else
+    bad CM-23g "status died without git" "$S_NOGIT"
 fi
 
 # ---------------------------------------------------------------- CM-24c

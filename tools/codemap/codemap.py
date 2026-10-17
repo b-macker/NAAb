@@ -1395,8 +1395,13 @@ def cmd_coverage(a, st):
 
 
 def git_head(repo):
-    r = subprocess.run(["git", "-C", repo, "rev-parse", "--short", "HEAD"], stdout=subprocess.PIPE,
-                       stderr=subprocess.DEVNULL)
+    """HEAD's short SHA, or "" when it cannot be read -- no git on PATH (observed on the
+    Windows runner) or not a repository: callers then skip the commit comparison."""
+    try:
+        r = subprocess.run(["git", "-C", repo, "rev-parse", "--short", "HEAD"], stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL)
+    except OSError:
+        return ""
     return r.stdout.decode().strip()
 
 
@@ -1811,8 +1816,12 @@ def cmd_status(a):
     idx = res["index"]
     if idx:
         fresh = []
-        if idx["git_head"] and res["head"] and idx["git_head"] != res["head"]:
-            fresh.append("built at %s, HEAD %s" % (idx["git_head"], res["head"]))
+        # `index` writes "(not a git checkout)" when it had no commit: nothing to compare
+        built = idx["git_head"] if idx["git_head"] and not idx["git_head"].startswith("(") else ""
+        if built and res["head"] and built != res["head"]:
+            fresh.append("built at %s, HEAD %s" % (built, res["head"]))
+        elif built and not res["head"]:
+            fresh.append("built at %s; HEAD unreadable here (no git?), so the commit is not compared" % built)
         if idx["files_newer"]:
             fresh.append("%d indexed file(s) newer than it, e.g. %s" % (len(idx["files_newer"]), idx["files_newer"][0]))
         if res["libclang"] != "ok":
