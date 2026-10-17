@@ -1427,14 +1427,15 @@ def unit_names(par_out):
 
 
 def coverage_of(a, note=True):
-    """The coverage run to read; says so when it was measured at another commit, since
+    """The coverage run to read; says so when it was recorded at another commit (the HEAD
+    when it was mapped -- for `ingest`, not necessarily when the counters were written), since
     functions added or moved since then are not in it (lambdas are keyed by position)."""
     import gcovmap as covmod
     name = a.cov or latest_coverage(a)
     cov = covmod.load(a.cache, name)
     head, now = cov.get("meta", {}).get("head", ""), git_head(a.repo)
     if note and head and now and head != now and not a.json:
-        out("(coverage %s was measured at %s; HEAD is %s -- functions added or moved since read as not"
+        out("(coverage %s was recorded at %s; HEAD is %s -- functions added or moved since read as not"
             " in the build or UNMEASURED, and an executed function may have changed since)" % (name, head, now))
     return name, cov
 
@@ -1525,7 +1526,9 @@ def cmd_impact(a, st):
     import gcovmap as covmod
     ranges = covmod.changed_ranges(a.repo, a.rev)
     db_time = os.path.getmtime(os.path.join(a.cache, "codemap.db"))
-    stale = [f for f in ranges if os.path.exists(os.path.join(a.repo, f))
+    # only a file the index holds can move its line ranges (a changed doc cannot)
+    indexed = {f for f in ranges if st.db.execute("SELECT 1 FROM symbols WHERE file=? LIMIT 1", (f,)).fetchone()}
+    stale = [f for f in sorted(indexed) if os.path.exists(os.path.join(a.repo, f))
              and os.path.getmtime(os.path.join(a.repo, f)) > db_time]
     changed = []
     for f, rs in sorted(ranges.items()):

@@ -30,7 +30,8 @@
 #         via_two_lambdas' body -> all three changed, the units listed,
 #         dead_function under "NO unit executes"; control: impact of an
 #         unchanged tree touches nothing
-#   C-08  impact on a stale index says so (the file is newer than the index)
+#   C-08  impact on a stale index says so (the file is newer than the index);
+#         a changed file the index does not hold (.gitignore) is not "stale"
 #   C-09  ingest without a coverage build is refused with the build command
 #   C-11  a source file edited after the instrumented build compiled it: gcov's
 #         line numbers are the build's, so its functions read UNMEASURED and
@@ -44,11 +45,16 @@
 #         (templ.cpp), maps to apply_fn and its lambda to the lambda: gcov's
 #         name for the instantiation carries `{lambda(` in its template and
 #         parameter lists, and taking that for a lambda left it unmatched (it
-#         read UNMEASURED on NAAb's ThreadPool::submit and SafeRegex::
+#         read UNMEASURED on NAAb's ThreadPool::enqueue and SafeRegex::
 #         executeWithTimeout); C-10 is also red then, since its line joins
 #         the unmatched set
 #   C-14  the ingest's worker processes change nothing: --jobs 1 and --jobs 3
 #         over the same units give the same coverage.json (meta aside)
+#   C-15  a process stopped by SIGTERM (a server a test `kill`s, as
+#         test_rest_hard_block_survives.sh does `naab-lang api`) still writes
+#         its counters and still dies of SIGTERM (status 143); control (c):
+#         the build without coverage_exit.c, stopped the same way, writes
+#         none -- so C-15 is the handler's doing
 #   C-10  positions matched to no single definition are enumerated EXACTLY:
 #         the one line holding twin_a and twin_b, nothing else -- so a new
 #         fixture shape that fails to map turns this red; both twins read
@@ -222,6 +228,7 @@ sed -i.bak 's/^    (void)c("u");$/    (void)c("uu");/' fixture.cpp && rm -f fixt
 touch -d '-1 hour' .cache/codemap/codemap.db 2>/dev/null || touch -t 200001010000 .cache/codemap/codemap.db
 STALE="$(cm impact --cov fx)"
 cm index --jobs 2 >/dev/null
+printf 'units-extra/\n' >> .gitignore           # tracked, changed after the index, not indexed
 IMP="$(cm impact --cov fx)"
 if grep -q "touch 0 indexed functions" <<<"$NOCH" \
    && grep -qE "^ +sink +fixture.cpp:" <<<"$IMP" && grep -qE "^ +dead_function +fixture.cpp:" <<<"$IMP" \
@@ -313,12 +320,47 @@ fi
 CLEAN="$(cm tested other_helpers --cov fx)"
 g add -A && g commit -q -m "edit"
 MOVED="$(cm tested other_helpers --cov fx)"
-if ! grep -q "was measured at" <<<"$CLEAN" && grep -q "(coverage fx was measured at [0-9a-f]*; HEAD is [0-9a-f]*" <<<"$MOVED"; then
+if ! grep -q "was recorded at" <<<"$CLEAN" && grep -q "(coverage fx was recorded at [0-9a-f]*; HEAD is [0-9a-f]*" <<<"$MOVED"; then
     ok C-12 "a coverage run from another commit says so; at its own commit it does not"
 else
     bad C-12 "the commit a coverage run is about was not reported (or was, at its own commit)" "$CLEAN
 ---
 $MOVED"
+fi
+
+# ---------------------------------------------------------------- C-15 / C-15c
+stop_by_term() {  # binary units-dir -> exit status of the stopped process
+    rm -f "$W/ready"
+    GCOV_PREFIX="$2/000_D" FIXTURE_READY_FILE="$W/ready" "$1" >/dev/null 2>&1 &
+    local pid=$! i
+    for i in $(seq 1 100); do [ -f "$W/ready" ] && break; sleep 0.1; done
+    [ -f "$W/ready" ] || { kill -KILL "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; echo "never-ready"; return; }
+    kill -TERM "$pid"
+    for i in $(seq 1 100); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
+    if kill -0 "$pid" 2>/dev/null; then              # bounded: a swallowed SIGTERM must not hang the suite
+        kill -KILL "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; echo "survived-SIGTERM"; return
+    fi
+    wait "$pid"; echo "$?"
+}
+SRC1="$(stop_by_term ./build/fixture "$W/sig")"
+SRC0="$(stop_by_term ./build-nowrap/fixture "$W/signowrap")"
+NSIG="$(find "$W/sig" -name '*.gcda' 2>/dev/null | wc -l | tr -d ' ')"
+NNOW="$(find "$W/signowrap" -name '*.gcda' 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$SRC1" = "143" ] && [ "$NSIG" -gt 0 ]; then
+    cm coverage ingest --name sig --units-dir "$W/sig" --build-dir build >/dev/null
+    WS="$(cm tested uses_apply --cov sig)"
+    if grep -qE "^ +1  000_D$" <<<"$WS"; then
+        ok C-15 "a process stopped by SIGTERM wrote its counters ($NSIG files) and still died of SIGTERM (143)"
+    else
+        bad C-15 "the SIGTERM run's counters were written but not credited" "$WS"
+    fi
+else
+    bad C-15 "a process stopped by SIGTERM lost its counters or its signal status" "status=$SRC1 files=$NSIG"
+fi
+if [ "$SRC0" = "143" ] && [ "$NNOW" -eq 0 ]; then
+    ok C-15c "control: without coverage_exit.c the same SIGTERM stop writes nothing -- C-15 is the handler's doing"
+else
+    bad C-15c "control: the unwrapped build kept its counters, or was not stopped by SIGTERM" "status=$SRC0 files=$NNOW"
 fi
 
 # ---------------------------------------------------------------- C-09
