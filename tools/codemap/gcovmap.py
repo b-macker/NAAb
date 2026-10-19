@@ -306,6 +306,73 @@ def load(cache, name):
                          "`codemap coverage ingest`; `codemap coverage list` shows what exists)" % (name, name))
 
 
+_NOT_GIVEN = object()
+NAAB_PHASE_KEY = "NAAB_TEST_PHASE=naab run-all-tests.sh"
+
+
+def completeness(results_path, selection=_NOT_GIVEN):
+    """Which units a coverage run covered, from the parallel.py results.json its units
+    came from: complete (every unit the suite listed, all of them run), partial, or
+    unknown -- with the reasons. "Executed by NO unit" means no unit OF THIS RUN entered
+    the function, so on a partial run it is not evidence that nothing tests it.
+    `selection` is the --only regex when the caller knows it (codemap's own run);
+    otherwise it is read from the results, and a results.json written before
+    parallel.py recorded it leaves the selection unknown."""
+    res = {"state": "unknown", "why": [], "units_listed": None, "units_run": None,
+           "selection": None, "timed_out": []}
+    try:
+        with open(results_path) as fh:
+            rep = json.load(fh)
+    except (OSError, ValueError):
+        res["why"].append("no parallel.py results.json beside its units, so which units the suite"
+                          " has and which of them ran is not recorded")
+        return res
+    mode = rep.get("mode") or {}
+    keys = [r.get("key", "") for r in rep.get("results", [])]
+    res["units_listed"], res["units_run"] = rep.get("units_listed"), rep.get("units_run")
+    res["timed_out"] = [r.get("key", "") for r in rep.get("results", [])
+                        if r.get("verdict") in ("TIMEOUT", "SKIP-TIMEOUT")]
+    if selection is _NOT_GIVEN:
+        selection = mode.get("only", _NOT_GIVEN)
+    partial = []
+    if selection not in (None, _NOT_GIVEN):
+        res["selection"] = selection
+        partial.append("only the units matching --only %r ran" % selection)
+    naab_phase = mode.get("naab_phase", NAAB_PHASE_KEY in keys)
+    if not naab_phase:
+        partial.append("the .naab test phase did not run")
+    if res["units_listed"] is not None and res["units_run"] is not None \
+            and res["units_run"] < res["units_listed"]:
+        partial.append("%d of %d listed units never ran" % (res["units_listed"] - res["units_run"],
+                                                           res["units_listed"]))
+    if rep.get("interrupted"):
+        partial.append("the run was interrupted")
+    if partial:
+        res["state"], res["why"] = "partial", partial
+    elif selection is _NOT_GIVEN:
+        res["why"].append("which units were selected is not recorded (results.json from a"
+                          " parallel.py older than its `only` field)")
+    else:
+        res["state"] = "complete"
+    return res
+
+
+def run_completeness(cov):
+    """A coverage run's completeness; a run recorded before it was kept reads unknown."""
+    meta = cov.get("meta") or {}
+    if meta.get("completeness"):
+        return meta["completeness"]
+    res = {"state": "unknown", "why": ["recorded before codemap kept which units a run covered"
+                                       " (run or ingest it again)"],
+           "units_listed": None, "units_run": None, "selection": None, "timed_out": []}
+    # codemap's own `coverage run` has always named its --only regex in `source`
+    src = meta.get("source", "")
+    if src.startswith("suite (parallel.py, ") and src.endswith(")") and src != "suite (parallel.py, every unit)":
+        res["state"], res["selection"] = "partial", src[len("suite (parallel.py, "):-1]
+        res["why"] = ["only the units matching --only %r ran" % res["selection"]]
+    return res
+
+
 def status(cov, sym):
     """executed / unmeasured / not_executed / not_in_build for one indexed definition.
     UNMEASURED: gcov reported a function at a position inside this definition that

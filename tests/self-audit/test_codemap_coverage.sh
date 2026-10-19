@@ -55,6 +55,23 @@
 #         its counters and still dies of SIGTERM (status 143); control (c):
 #         the build without coverage_exit.c, stopped the same way, writes
 #         none -- so C-15 is the handler's doing
+#   C-16  a run records which units it covered, from the parallel.py
+#         results.json beside its units: "full" (no --only, the .naab phase
+#         ran, every listed unit ran) reads complete with no warning; "part"
+#         (--only, no .naab phase) prints PARTIAL COVERAGE on every read and
+#         in `coverage list`; a run with no results.json (fx) prints
+#         COVERAGE COMPLETENESS UNKNOWN -- the control that the warning is
+#         not printed on every read is "full"
+#   C-17  with no --cov, a read takes the newest COMPLETE run over a newer
+#         partial one and names the run it passed over; `status` names the
+#         same run (c). Before, the default was the newest run, and a
+#         one-suite --only run answered every later `untested`
+#   C-18  a "no unit" reading names the run's timed-out units (a SIGKILLed
+#         unit writes no counters); control: the run without timeouts names
+#         none
+#   C-19  a run recorded before completeness was kept: codemap's own `run`
+#         always named its --only regex in `source`, so it reads PARTIAL; an
+#         old ingest reads unknown
 #   C-10  positions matched to no single definition are enumerated EXACTLY:
 #         the one line holding twin_a and twin_b, nothing else -- so a new
 #         fixture shape that fails to map turns this red; both twins read
@@ -216,6 +233,88 @@ assert any('(unattributed)' in v for v in c['executed'].values())
     ok C-06 "a run that lost GCOV_PREFIX is collected as (unattributed)"
 else
     bad C-06 "the prefix-less run was dropped or credited to a unit" "$ING"
+fi
+
+# ---------------------------------------------------------------- C-16 .. C-19
+# Two runs over the same units, each with the parallel.py results.json a real
+# run leaves beside its units (paths relative to the fixture repo, see C-00).
+mkdir -p cfull/units cpart/units
+cp -R units/000_A units/001_B cfull/units/
+cp -R units/000_A cpart/units/
+python3 - <<'EOF'
+import json, os
+def results(path, only, naab_phase, rows):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    json.dump({"schema": 1, "mode": {"jobs": 1, "order": "plan", "seed": None, "isolated": True,
+                                     "only": only, "naab_phase": naab_phase},
+               "units_listed": len(rows), "units_run": len(rows), "interrupted": False,
+               "results": [{"index": i, "key": k, "verdict": v} for i, (k, v) in enumerate(rows)]},
+              open(path, "w"))
+results("cfull/parallel/results.json", None, True,
+        [("A", "PASS"), ("B", "PASS"), ("C", "TIMEOUT"), ("NAAB_TEST_PHASE=naab run-all-tests.sh", "PASS")])
+results("cpart/parallel/results.json", "A", False, [("A", "PASS")])
+EOF
+IFULL="$(cm coverage ingest --name full --units-dir cfull/units --build-dir build)"
+python3 -c "import os, time; t = time.time() - 60; os.utime('.cache/codemap/coverage/full/coverage.json', (t, t))"
+IPART="$(cm coverage ingest --name part --units-dir cpart/units --build-dir build)"
+LIST="$(cm coverage list)"
+RFULL="$(cm tested dead_function --cov full)"
+RPART="$(cm tested dead_function --cov part)"
+RUNK="$(cm tested dead_function --cov fx)"
+if grep -q "complete: every unit the suite listed (4) ran" <<<"$IFULL" \
+   && grep -q "PARTIAL: only the units matching --only 'A' ran; the .naab test phase did not run" <<<"$IPART" \
+   && grep -qE "^full +[^ ]+ +complete " <<<"$LIST" && grep -qE "^part +[^ ]+ +PARTIAL " <<<"$LIST" \
+   && grep -qE "^fx +[^ ]+ +unknown " <<<"$LIST" \
+   && grep -q "^PARTIAL COVERAGE: run part did not cover the whole suite" <<<"$RPART" \
+   && grep -q "^COVERAGE COMPLETENESS UNKNOWN: run fx -- no parallel.py results.json" <<<"$RUNK" \
+   && ! grep -qE "PARTIAL|UNKNOWN" <<<"$RFULL"; then
+    ok C-16 "complete / PARTIAL / unknown recorded from results.json; every partial or unknown read says so, a complete one does not"
+else
+    bad C-16 "a run's completeness was not recorded or not reported" "$IFULL
+$IPART
+$LIST
+--- full:
+$RFULL
+--- part:
+$RPART
+--- fx:
+$RUNK"
+fi
+RDEF="$(cm tested dead_function)"
+SDEF="$(cm status)"
+if grep -q "^(reading coverage full, the newest complete run; newer: .*part (partial)" <<<"$RDEF" \
+   && grep -q "executed by NO unit of coverage full" <<<"$RDEF" && ! grep -q "PARTIAL COVERAGE" <<<"$RDEF"; then
+    ok C-17 "with no --cov the complete run is read over a newer partial one, and the passed-over run is named"
+else
+    bad C-17 "the default read took a partial run (or hid the newer one)" "$RDEF"
+fi
+if grep -q "coverage: full (complete" <<<"$SDEF"; then
+    ok C-17c "status names the same run a read would use"
+else
+    bad C-17c "status names a different coverage run" "$SDEF"
+fi
+if grep -q "executed by NO unit of coverage full.* 1 unit(s) of this run timed out (C)" <<<"$RFULL" \
+   && ! grep -q "timed out" <<<"$RPART"; then
+    ok C-18 "a no-unit reading names the run's timed-out unit; control: a run without timeouts names none"
+else
+    bad C-18 "timed-out units were not named on a no-unit reading (or were invented)" "$RFULL
+---
+$RPART"
+fi
+python3 - <<'EOF'
+import json, os
+src = json.load(open(".cache/codemap/coverage/fx/coverage.json"))
+for name, source in (("legacyrun", "suite (parallel.py, test_rest_hard_block)"), ("legacyingest", "ingest units")):
+    d = ".cache/codemap/coverage/" + name
+    os.makedirs(d, exist_ok=True)
+    json.dump(dict(src, meta={"name": name, "source": source, "at": "2026-10-17T00:00:00Z", "head": ""}),
+              open(os.path.join(d, "coverage.json"), "w"))
+EOF
+LIST2="$(cm coverage list)"
+if grep -qE "^legacyrun +[^ ]+ +PARTIAL " <<<"$LIST2" && grep -qE "^legacyingest +[^ ]+ +unknown " <<<"$LIST2"; then
+    ok C-19 "an old codemap --only run reads PARTIAL from its recorded source; an old ingest reads unknown"
+else
+    bad C-19 "a run recorded before completeness was misread" "$LIST2"
 fi
 
 # ---------------------------------------------------------------- C-07 / C-08

@@ -1,6 +1,6 @@
 ---
 name: investigation-gates
-description: Run the gate checks from NAAb's docs/investigation-method.md at the moments its rules get broken. Use this whenever you are about to change engine, governance or test code (history pass first); claim a key, flag, signal, gate or feature is inert, live, governed, covered or fixed; call a flake or CI failure fixed; write or update a findings doc, PR body, or a reply reporting results; say "done" or "pushed"; or hand work to another agent or machine. Use it on routine-looking steps too, and even when nobody mentions investigation -- the method's record is that its rules break on exactly those steps, and in the campaigns behind it every correction was forced by someone asking.
+description: Run the gate checks from NAAb's docs/investigation-method.md at the moments its rules get broken. Use this whenever you are about to change engine, governance or test code (history pass first); claim a key, flag, signal, gate or feature is inert, live, governed, covered or fixed; call a flake or CI failure fixed; write or update a findings doc, PR body, or a reply reporting results; say "done" or "pushed"; hand work to another agent or machine; or rely on a code-map (tools/codemap) answer for any of these. Use it on routine-looking steps too, and even when nobody mentions investigation -- the method's record is that its rules break on exactly those steps, and in the campaigns behind it every correction was forced by someone asking.
 ---
 
 # Investigation gates
@@ -39,6 +39,25 @@ Scripts are in `.claude/skills/investigation-gates/scripts/`. Their own
 positive controls are `tests/selftest.sh` beside them; run it once in a new
 environment before trusting a script's silence there.
 
+### The code map informs; the method decides
+
+`tools/codemap` (CLAUDE.md, "Code map") answers several gate questions in one
+command instead of a grep campaign, and each gate below names the query that
+fits it. Its answers are LEADS, and say so: every call edge carries its tier
+(`[ast]` is a direct call; `[value]`, `[dispatch]`, `[thread]` and the rest are
+screened), every answer prints what the map cannot see, and coverage says
+"executed", never "verified". So a code-map answer can send you to a place but
+never closes a checklist item on its own: trace or run what it points at, and
+say in the report that the lead came from the map. A code-map count in a
+write-up is screened tier, with the commit it was measured at.
+
+The session-start hook prints `codemap status`: whether an index exists, how
+fresh it is, and which coverage run a read would use. When it says
+UNAVAILABLE, NO INDEX or UNMEASURABLE -- or the index is older than the code
+you are reading -- do the gate by hand. A gate is never skipped because the
+tool is down, and an absence the map reports ("0 callers", "executed by NO
+unit") is the map's absence until a probe confirms it.
+
 ## G1 -- history, before changing anything
 
 Method: "Code shows what happens now; history shows what was meant",
@@ -59,6 +78,18 @@ bash $S/history_pass.sh -f <file you will edit> -g <subject noun> <identifier>..
   the same two rules as this script -- a shallow clone is UNMEASURABLE, and an
   empty pickaxe for a name HEAD still holds is a broken probe. Use this script
   for nouns, regexes and whole files.
+- **Blast radius** ("Trace the regression surface before locking a plan"):
+  `codemap callers FN --depth 2` before the edit -- it follows calls made
+  inside lambdas, through callbacks and on other threads, each edge marked
+  with its tier -- and `codemap impact` after it: the functions the
+  uncommitted change touches, their callers up to the entry points, and the
+  units that EXECUTE them. Run those units first; they enter the code, which
+  is not the same as checking it.
+- **Every copy** ("A fix lands in one copy"): `codemap types BASE` lists every
+  subclass (every executor class) and `codemap explain FN` its overrides. A
+  copy of a BEHAVIOUR under another name -- the VM's and the tree-walker's
+  versions of one rule rarely share a name -- is not found by name, so grep
+  the behaviour as well.
 - **Shallow clones lie.** Clones in remote containers are often shallow (the
   one this skill was built in was depth 1). There, `git log -S` attributes
   every string in the tree to the boundary commit -- measured on this repo at
@@ -103,6 +134,23 @@ loads this, and is the instrument live? Then:
   registered, runs on the runner that matters, and does not pass by SKIP or
   against a dead interpreter (`tools/testrunner/dead_gate.py`).
 
+Code-map leads for this gate (each a starting point for the checks above):
+
+- Inert or unreachable: `codemap callers SYMBOL` and `codemap writers FIELD`
+  (who sets the state a key feeds). Zero static callers is screened: a NAAb
+  stdlib name, a callback or a function pointer can still reach it, and the
+  answer lists those blind spots -- read them before writing "unreachable".
+- Governed: `codemap reach SINK --gate GATE` walks backward from the sink to
+  the entry points that reach it without passing a gate, and lists the gated
+  functions where it stopped. Those are the reassuring answer: a function
+  counts as gated when it calls the gate ANYWHERE in its body, so each needs a
+  trace of the branch the input actually takes.
+- Covered: `codemap tested FN` lists the units that EXECUTE it -- read those
+  units' assertions, because entering a function is not checking it; `codemap
+  untested --under PATH` lists functions no unit enters. A PARTIAL or
+  completeness-UNKNOWN coverage run says so on every read, and "executed by
+  NO unit" from it is not evidence that nothing tests the function.
+
 ## G3 -- before calling a flake or CI failure fixed
 
 ```bash
@@ -122,6 +170,9 @@ Draft first, then:
 ```bash
 python3 $S/writeup_lint.py <draft.md>       # or: ... - < draft (stdin)
 ```
+
+A number from the code map (callers, units, untested counts) goes in with its
+tier (screened) and the commit it was measured at.
 
 The lint is screened tier: regexes that flag places to re-read (green suite
 used as argument, "pushed" without read-back, single-sample causes, absence
