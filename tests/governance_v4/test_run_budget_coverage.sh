@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ============================================================
 # test_run_budget_coverage.sh -- every provider call the agent module makes
-# must answer to the run budgets (agent_dispatch.hard_stop.max_calls_per_run
-# and max_tokens_per_run)   [A46]
+# must answer to the run budgets (agent_dispatch.hard_stop.max_calls_per_run,
+# max_tokens_per_run and max_agent_time_ms)   [A46]
 #
 # THE DEFECT
 #
@@ -22,10 +22,14 @@
 #   * propose: incremented total_calls by hand per candidate and never
 #     compared it with the cap (max_calls_per_run: 1 let one propose make 3
 #     calls), and added tokens without ever checking max_tokens_per_run.
+#   * max_agent_time_ms: the run time total moved only for the send's own call,
+#     so tool-loop turns, challenges and propose candidates spent time the cap
+#     never saw (three ~400 ms tool-loop calls charged as 402 ms, three propose
+#     candidates as 0).
 #
 # THE FIX
-#   chargeTokenBudget() sits beside chargeCallBudget(); every one of the four
-#   sites now charges each call through both. chargeCallBudget() also refuses
+#   chargeTokenBudget() and chargeTimeBudget() sit beside chargeCallBudget();
+#   every one of the four sites now charges each call through all three. chargeCallBudget() also refuses
 #   a call once the run is already hard-stopped (a token or time stop set by an
 #   earlier call), because the sites it guards do not all re-check the stop
 #   between calls (the challenge is followed by the send's own call).
@@ -50,6 +54,14 @@
 #          send's own call that follows it.
 #   RB-08  after a refusal, calls_made equals the requests the provider got
 #          (a refused call was counted: calls_made read one past reality).
+#   RB-09c CONTROL: a tool loop of replies held HOLD ms each runs all 3 calls
+#          under a generous max_agent_time_ms.
+#   RB-09b every tool-loop call's TIME reaches the run total (>= 3 x HOLD).
+#   RB-09  the held loop crossing max_agent_time_ms stops before its 3rd call.
+#   RB-10  propose crossing max_agent_time_ms keeps the 2 candidates it paid
+#          for and makes no 3rd call.
+#   RB-11  a challenge's time is charged: crossing the cap refuses the send's
+#          own call that follows it.
 #   RB-TW  RB-01 under --tree-walk (the budget code is in the shared agent
 #          module; this proves the arm reaches it from both engines).
 # ============================================================
@@ -265,6 +277,69 @@ elif [ "${CH_FIRES:-0}" != 1 ]; then
     skip "RB-08" "challenge not staged (see RB-06c)"
 else
     bad "RB-08" "calls_made counts refused calls" "propose calls/reqs=${R4:-?} challenge calls/reqs=${R6:-?} (want 1/1)"
+fi
+
+echo ""
+echo "== max_agent_time_ms (the third run budget; same four sites)"
+# Each reply is held HOLD ms by the stub. The cap sits between one hold and
+# two: overhead only ADDS time, so two calls are always past it (no flake in
+# that direction); the first call stays under it unless its overhead exceeds
+# CAP-HOLD ms.
+HOLD=600; TCAP=1000
+TLOOP_FX='{"responses":[
+ {"tool_calls":[{"name":"g","args":{"q":"1"}}],"input_tokens":1,"output_tokens":1,"hold_ms":'$HOLD'},
+ {"tool_calls":[{"name":"g","args":{"q":"2"}}],"input_tokens":1,"output_tokens":1,"hold_ms":'$HOLD'},
+ {"content":"invoices checked","input_tokens":1,"output_tokens":1,"hold_ms":'$HOLD'}]}'
+TDISPATCH='  let d = agent.dispatch_status()
+  print("CALLS=" + string(d.get("calls_made")) + " TIME=" + string(d.get("agent_time_ms")) + " STOPPED=" + string(d.get("hard_stopped")) + " WHY=" + string(d.get("stop_reason")))'
+TLOOP_PROG="${LOOP_PROG/"$DISPATCH"/"$TDISPATCH"}"
+arm rb09c "$TLOOP_FX" '{"max_agent_time_ms":100000}' "$TOOLS" "$NO_CB" "$TLOOP_PROG"
+T9C=0
+if [ "$CFG_OK" = 1 ] && [ "$REQS" = 3 ] && [ "$(val EXIT)" = text_response ] && [ "$(val STOPPED)" = false ]; then
+    T9C=1
+    ok "RB-09c" "CONTROL: under a generous time cap the held loop runs all 3 calls"
+else
+    bad "RB-09c" "a generous time cap refused tool-loop calls (or the hold fixture did not run)" "reqs=$REQS exit=$(val EXIT) stopped=$(val STOPPED) rc=$RC"
+fi
+if [ "$T9C" = 1 ] && [ "$(val TIME)" -ge $((3 * HOLD)) ] 2>/dev/null; then
+    ok "RB-09b" "every tool-loop call's time reaches the run total ($(val TIME) ms >= $((3 * HOLD)))"
+else
+    bad "RB-09b" "tool-loop time missing from the run total" "agent_time_ms=$(val TIME), expected >= $((3 * HOLD))"
+fi
+arm rb09 "$TLOOP_FX" "{\"max_agent_time_ms\":$TCAP}" "$TOOLS" "$NO_CB" "$TLOOP_PROG"
+if [ "$CFG_OK" = 1 ] && [ "$REQS" = 2 ] && [ "$(val EXIT)" = hard_stop ] && grep -q max_agent_time_ms <<<"$(val WHY)"; then
+    ok "RB-09" "the tool loop stops at max_agent_time_ms: 2 requests, exit hard_stop"
+elif [ "$REQS" = 1 ]; then
+    skip "RB-09" "the FIRST call alone exceeded ${TCAP} ms here (overhead > $((TCAP - HOLD)) ms); arm measures nothing"
+else
+    bad "RB-09" "the tool loop spent past max_agent_time_ms" "reqs=$REQS exit=$(val EXIT) time=$(val TIME) why=$(val WHY) rc=$RC"
+fi
+
+TPROP_FX='{"responses":[{"content":"Invoice totals reconciled for billing review.","input_tokens":1,"output_tokens":1,"hold_ms":'$HOLD'}]}'
+TPROP_PROG="${PROP_PROG/"$DISPATCH"/"$TDISPATCH"}"
+arm rb10 "$TPROP_FX" "{\"max_agent_time_ms\":$TCAP}" ',"propose_candidates_max":3' "$NO_CB" "$TPROP_PROG"
+if [ "$CFG_OK" = 1 ] && [ "$REQS" = 2 ] && [ "$(val SUCC)" = 2 ] && grep -q max_agent_time_ms <<<"$(val WHY)"; then
+    ok "RB-10" "propose stops generating once max_agent_time_ms is crossed (2 requests, 2 candidates kept)"
+elif [ "$REQS" = 1 ]; then
+    skip "RB-10" "the FIRST call alone exceeded ${TCAP} ms here; arm measures nothing"
+else
+    bad "RB-10" "propose spent past max_agent_time_ms" "reqs=$REQS succ=$(val SUCC) time=$(val TIME) why=$(val WHY) rc=$RC"
+fi
+
+if [ "$CH_FIRES" = 1 ]; then
+    TCH_FX="$(sed 's/"output_tokens":\([0-9]*\)}/"output_tokens":\1,"hold_ms":'$HOLD'}/g' <<<"$CH_FX")"
+    TCH_PROG="${CH_PROG/"$DISPATCH"/"$TDISPATCH"}"
+    # send 1 (~HOLD) + challenge (~HOLD) > TCAP: the send's own call must be refused
+    arm rb11 "$TCH_FX" "{\"max_agent_time_ms\":$TCAP}" ',"standing_lease_turns":1' "$STEPUP_CB" "$TCH_PROG"
+    if [ "$CFG_OK" = 1 ] && [ "$REQS" = 2 ] && [ "$(val SEND2)" = refused ] && grep -q max_agent_time_ms <<<"$(val WHY)"; then
+        ok "RB-11" "a challenge's time is charged; crossing the cap refuses the send that follows"
+    elif [ "$REQS" = 1 ]; then
+        skip "RB-11" "the FIRST call alone exceeded ${TCAP} ms here; arm measures nothing"
+    else
+        bad "RB-11" "challenge time not charged, or the send after the stop still ran" "reqs=$REQS send2=$(val SEND2) time=$(val TIME) why=$(val WHY) rc=$RC"
+    fi
+else
+    skip "RB-11" "challenge not staged (see RB-06c)"
 fi
 
 echo ""

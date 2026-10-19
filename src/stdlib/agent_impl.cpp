@@ -381,6 +381,33 @@ static void chargeTokenBudget(
     }
 }
 
+// Charge one provider call's wall-clock time to the run total, whether or not
+// the call succeeded (a failed call spent the time too); crossing
+// max_agent_time_ms sets the run-level stop. Returns true when the run total
+// is past the cap after this charge. Like the token budget, the call that
+// crossed it has already been made -- the NEXT call is refused by
+// chargeCallBudget(). The one place the run time total moves.
+//
+// A46: the total used to move only for the send's own call, so tool-loop
+// turns, step-up challenges and propose candidates spent time the cap never
+// saw (measured: three tool-loop calls of ~400 ms each charged as 402 ms, three
+// propose candidates as 0).
+static int64_t msSince(std::chrono::steady_clock::time_point start) {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - start).count();
+}
+static bool chargeTimeBudget(
+        const governance::GovernanceRules::AgentDispatchConfig::HardStopConfig& hs,
+        int64_t call_ms) {
+    const int64_t total = (s_dispatch.total_agent_time_ms += call_ms);
+    if (hs.max_agent_time_ms <= 0 || total <= hs.max_agent_time_ms) return false;
+    std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
+    s_dispatch.hard_stopped = true;
+    s_dispatch.stop_reason = "max_agent_time_ms (" +
+        std::to_string(hs.max_agent_time_ms) + ") exceeded";
+    return true;
+}
+
 // Keyword extraction shared with CDD (include/naab/keyword_extract.h) —
 // mandate/instruction/response keywords must come from the same tokenizer.
 using naab::keywords::extractKeywords;
@@ -2468,8 +2495,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                             "Agent error: Hard stop — " + stop_reason);
                                     }
                                 }
+                                const auto ch_start = std::chrono::steady_clock::now();
                                 challenge_result = runtime::callAgentWithStatus(
                                     challenge_config, challenge_key, challenge_msgs.dump());
+                                chargeTimeBudget(gov_engine->getRules().agent_dispatch.hard_stop,
+                                                 msSince(ch_start));
                                 if (challenge_result.response.success) {
                                     chargeTokenBudget(gov_engine->getRules().agent_dispatch.hard_stop,
                                                       challenge_result.response.input_tokens,
@@ -3012,13 +3042,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         int64_t attempt_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             attempt_end - attempt_start).count();
 
-        s_dispatch.total_agent_time_ms += attempt_ms;
-
-        // Time budget check
-        if (hs.max_agent_time_ms > 0 && s_dispatch.total_agent_time_ms.load() > hs.max_agent_time_ms) {
-            std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
-            s_dispatch.hard_stopped = true;
-            s_dispatch.stop_reason = "max_agent_time_ms (" + std::to_string(hs.max_agent_time_ms) + ") exceeded";
+        // Time budget: charged for every attempt, failed ones too. A failed
+        // call past the cap ends the send here; a successful one is answered
+        // and the NEXT call is refused (chargeCallBudget).
+        if (chargeTimeBudget(hs, attempt_ms)) {
             if (!result.response.success) {
                 if (gov_engine && gov_engine->isActive()) {
                     gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
@@ -3441,8 +3468,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     err.clear();
                     return false;
                 }
+                const auto call_start = std::chrono::steady_clock::now();
                 out = runtime::callAgentWithTools(loop_config, lapi_key, msgs,
                                                   tool_defs, forbid_tools);
+                // A46: time is charged for failed attempts too; a call past
+                // max_agent_time_ms makes the next attempt's chargeCallBudget
+                // refuse, which ends the loop as a hard stop.
+                chargeTimeBudget(hs_tool, msSince(call_start));
                 if (out.response.success) {
                     // A46: the loop's later calls and the final tool-less turn
                     // spend tokens too; the run total used to see the first only.
@@ -5936,7 +5968,9 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
         for (int attempt = 0; attempt < std::max(1, config->retry.max_attempts); attempt++) {
             budget_stop = chargeCallBudget(prop_hs, gov_engine, config_name);
             if (!budget_stop.empty()) break;
+            const auto call_start = std::chrono::steady_clock::now();
             auto result = runtime::callAgentWithStatus(call_config, api_key, messages_str);
+            chargeTimeBudget(prop_hs, msSince(call_start));
             if (result.response.success) {
                 resp = result.response;
                 got_response = true;
