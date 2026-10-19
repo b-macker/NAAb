@@ -65,6 +65,15 @@
 #     L-01c    CONTROL: with dedup off the rule gives the same two rows (four
 #              reads, two non-overlapping matches), so L-01's two is the rule
 #              firing twice and a collapse shows as one
+#   DS-W*  a refusal during VM compilation still writes the reports
+#     W-01     a TODO in a function body, refused while the VM compiles, leaves
+#              the --governance-sarif report written. The VM's write-reports-
+#              then-rethrow wrapped only execute(), so a block from the
+#              per-function checks (which run while compiling) wrote none --
+#              already true for function bodies; checking main{} made it the
+#              case for tests/cli/test_report_formats.sh's fixture
+#     W-01t    CONTROL: the tree-walker, which runs these checks while
+#              executing, writes it for the same file
 #
 # Against an interpreter that does nothing every refusal arm fails, and the
 # REST arms report UNMEASURABLE when the server cannot be started.
@@ -442,6 +451,22 @@ if [ "$n" = "2" ] && [ "$RC" -eq 0 ] && ran; then
 else
     fail L-01c "CONTROL: the rule does not fire as the fixture expects" "rows=$n exit=$RC"
 fi
+
+# ------------------------------------------------------------
+echo ""
+echo "--- DS-W: a refusal during VM compilation writes the reports ---"
+for e in vm tw; do
+    id="W-01"; [ "$e" = tw ] && id="W-01t"
+    newcase "$id" "$PH_CONFIG"
+    printf '%s\n' "$P_PLACEHOLDER" > "$W/$id/main.naab"
+    flagarg=""; [ "$e" = tw ] && flagarg="--tree-walk"
+    OUT="$(cd "$W/$id" && timeout 60 "$NAAB" run $flagarg main.naab --governance-sarif report.sarif 2>&1)"; RC=$?
+    if [ "$RC" -eq 3 ] && [ -s "$W/$id/report.sarif" ] && grep -q no_placeholders "$W/$id/report.sarif"; then
+        pass "$id" "$e: refused (exit 3) and the SARIF report names the rule"
+    else
+        fail "$id" "$e: no report after the refusal" "exit=$RC sarif=$([ -s "$W/$id/report.sarif" ] && echo present || echo missing)"
+    fi
+done
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $SKIP unmeasurable"

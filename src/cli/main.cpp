@@ -2448,7 +2448,21 @@ int main(int argc, char** argv) {
                 naab::vm::Compiler bc_compiler;
                 if (gov_loaded) bc_compiler.setGovernance(&vm_governance);
                 bc_compiler.setSourceText(source);  // the checks read what was parsed (A45)
-                auto* main_fn = bc_compiler.compile(*program, filename);
+                // The per-function checks run HERE, while compiling, and a
+                // block from one used to leave with no report written: the
+                // write-reports-then-rethrow below wraps only execute(), and
+                // the tree-walker's (which runs these checks while executing)
+                // covers them. Same shape. tests/cli/test_report_formats.sh
+                naab::vm::CompiledFunction* main_fn = nullptr;
+                try {
+                    main_fn = bc_compiler.compile(*program, filename);
+                } catch (...) {
+                    if (vm_governance.isActive()) {
+                        vm_governance.runGovernanceVoice();
+                        vm_governance.writeReports();
+                    }
+                    throw;
+                }
                 if (!main_fn) {
                     throw std::runtime_error("Compilation failed: " + bc_compiler.getLastError());
                 }
