@@ -134,18 +134,14 @@ public:
                     auto cwd = std::filesystem::current_path().string();
                     req_interpreter->setSourceCode(code, cwd + "/api-request.naab");
 
-                    // C1 fix: pre-execution governance scans on submitted code.
-                    // The interpreter loads governance from CWD via setSourceCode(),
-                    // but main.cpp also does source-level checks before execution.
-                    // Replicate those here for the REST path.
-                    auto* gov = req_interpreter->getGovernance();
-                    if (gov && gov->isActive()) {
-                        std::string gov_err = gov->checkSecrets(code, 0);
-                        if (gov_err.empty()) gov_err = gov->checkPii(code, 0);
-                        if (!gov_err.empty()) {
-                            throw std::runtime_error(gov_err);
-                        }
-                    }
+                    // The source checks run inside execute(), on `code`:
+                    // setSourceCode() records it as the text of that name, so
+                    // visit(Program) runs the whole-source checks (secrets, PII,
+                    // incomplete logic -- this handler used to call the first two
+                    // itself) and every function and main{} gets the per-function
+                    // checks. They used to re-read "api-request.naab" from disk,
+                    // which does not exist, so they never ran here and a file
+                    // planted under that name decided the verdict. A45
                     // V-API-004 (R24): bound execution to api_timeout_seconds
                     // so that an infinite-loop script can't permanently pin a
                     // cpp-httplib worker thread. ScopedTimeout installs a

@@ -365,6 +365,7 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
         auto prev_file = current_file_;
         current_env_ = module_env;
         current_file_ = dep_module->getFilePath();
+        rememberParsedSource(current_file_, dep_module->getSource());  // A45
 
         try {
             // Execute module statements
@@ -794,6 +795,7 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
 
     // Issue #3: Push file context for this module
     pushFileContext(module_path);
+    rememberParsedSource(current_file_, module->source);  // what the checks read (A45)
 
     // Create a new environment for the module
     auto module_env = std::make_shared<Environment>(global_env_);
@@ -898,6 +900,7 @@ void Interpreter::loadPluginFile(const std::string& path) {
 
     // Push file context
     pushFileContext(path);
+    rememberParsedSource(current_file_, module->source);  // what the checks read (A45)
 
     // Save current state
     auto saved_env = current_env_;

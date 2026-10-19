@@ -73,6 +73,16 @@ CompiledFunction* Compiler::endFunction() {
 // Compilation entry points
 // ============================================================================
 
+void Compiler::setSourceText(const std::string& text) {
+    parsed_source_ = text.empty() ? nullptr
+                                  : std::make_shared<const source::ParsedSource>(text);
+}
+
+std::shared_ptr<const source::ParsedSource> Compiler::sourceForChecks() const {
+    if (parsed_source_) return parsed_source_;
+    return source_file_.empty() ? nullptr : source::readSourceFile(source_file_);
+}
+
 CompiledFunction* Compiler::compile(ast::Program& program, const std::string& source_file) {
     source_file_ = source_file;
 
@@ -95,11 +105,8 @@ CompiledFunction* Compiler::compileModule(ast::Program& program, const std::stri
     // main.cpp. Its function bodies get checkNaabFunctionBody() in
     // imported_module mode below. Before, a module got neither (A31).
     if (governance_ && governance_->isActive() && !source_file.empty()) {
-        std::ifstream src(source_file);
-        if (src.is_open()) {
-            std::string text((std::istreambuf_iterator<char>(src)),
-                             std::istreambuf_iterator<char>());
-            std::string err = governance_->checkNaabSourceText(text, source_file);
+        if (auto src = sourceForChecks()) {
+            std::string err = governance_->checkNaabSourceText(src->text, source_file);
             if (!err.empty()) {
                 throw std::runtime_error(err);
             }
@@ -420,6 +427,25 @@ void Compiler::visit(ast::Program& node) {
 }
 
 void Compiler::visit(ast::MainBlock& node) {
+    // The main block's body gets the per-function checks, as on the
+    // tree-walker since 247e229d (EVA-8, "Add MainBlock scanning");
+    // d4f3fa89 brought the function-body checks to the VM and not this one,
+    // so a TODO in main{} ran on the default engine only. A45
+    int line = node.getLocation().line;
+    if (governance_ && governance_->isActive() && !skip_main_ && line > 0) {
+        auto src = sourceForChecks();
+        if (src && line <= static_cast<int>(src->lines.size())) {
+            // The check stamps its results with this location; scoped, so the
+            // runtime rows after it are not taken for located static ones
+            // and collapsed by deduplicate_checks (test_dedup_runtime.sh)
+            governance::ScopedCheckContext check_loc(source_file_, line);
+            std::string err = governance_->checkNaabFunctionBody(
+                "main", source::declarationText(src->lines, line, ""), line, source_file_);
+            if (!err.empty()) {
+                throw std::runtime_error(err);
+            }
+        }
+    }
     beginScope();
     node.getBody()->accept(*this);
     endScope();
@@ -1090,49 +1116,13 @@ void Compiler::visit(ast::FunctionDecl& node) {
     // Governance: function body quality checks (oversimplification, complexity floor, etc.)
     // During module loading the heuristic checks are skipped (expensive regex,
     // false violations); content checks and behavioral contracts run (A31).
-    if (governance_ && governance_->isActive() && line > 0 && !source_file_.empty()) {
-        std::ifstream src_file(source_file_);
-        if (src_file.is_open()) {
-            std::vector<std::string> src_lines;
-            std::string src_line;
-            while (std::getline(src_file, src_line)) {
-                src_lines.push_back(src_line);
-            }
-            src_file.close();
-            if (line <= static_cast<int>(src_lines.size())) {
-                // Search backward from AST line to find the actual fn declaration,
-                // which may be a few lines earlier (e.g., export fn on a prior line)
-                size_t start_idx = static_cast<size_t>(line - 1);
-                std::string fn_pat = "fn " + node.getName() + "(";
-                for (int back = 0; back < 5 && start_idx > 0; ++back) {
-                    if (src_lines[start_idx].find(fn_pat) != std::string::npos) break;
-                    --start_idx;
-                }
-                std::string body_text;
-                int brace_depth = 0;
-                bool found_start = false;
-                bool in_string = false;
-                char string_char = 0;
-                bool in_line_comment = false;
-                for (size_t i = start_idx; i < src_lines.size(); ++i) {
-                    body_text += src_lines[i] + "\n";
-                    in_line_comment = false;
-                    const std::string& ln = src_lines[i];
-                    for (size_t j = 0; j < ln.size(); ++j) {
-                        char c = ln[j];
-                        if (in_line_comment) break;
-                        if (in_string) {
-                            if (c == '\\' && j + 1 < ln.size()) { ++j; continue; }
-                            if (c == string_char) in_string = false;
-                            continue;
-                        }
-                        if (c == '"' || c == '\'') { in_string = true; string_char = c; continue; }
-                        if (c == '/' && j + 1 < ln.size() && ln[j + 1] == '/') { in_line_comment = true; break; }
-                        if (c == '{') { brace_depth++; found_start = true; }
-                        if (c == '}') brace_depth--;
-                    }
-                    if (found_start && brace_depth <= 0) break;
-                }
+    if (governance_ && governance_->isActive() && line > 0) {
+        auto src = sourceForChecks();
+        if (src) {
+            if (line <= static_cast<int>(src->lines.size())) {
+                std::string body_text =
+                    source::declarationText(src->lines, line, node.getName());
+                governance::ScopedCheckContext check_loc(source_file_, line);  // see visit(MainBlock)
                 if (!skip_main_) {
                     // Main file: full governance checks (includes behavioral contracts)
                     std::string err = governance_->checkNaabFunctionBody(
@@ -1231,48 +1221,13 @@ void Compiler::visit(ast::FunctionDeclStmt& node) {
     // Governance: function body quality checks (oversimplification, complexity floor, etc.)
     // During module loading the heuristic checks are skipped (expensive regex,
     // false violations); content checks and behavioral contracts run (A31).
-    if (governance_ && governance_->isActive() && line > 0 && !source_file_.empty()) {
-        std::ifstream src_file(source_file_);
-        if (src_file.is_open()) {
-            std::vector<std::string> lines;
-            std::string src_line;
-            while (std::getline(src_file, src_line)) {
-                lines.push_back(src_line);
-            }
-            src_file.close();
-            if (line <= static_cast<int>(lines.size())) {
-                // Search backward from AST line to find the actual fn declaration
-                size_t start_idx = static_cast<size_t>(line - 1);
-                std::string fn_pat = "fn " + decl->getName() + "(";
-                for (int back = 0; back < 5 && start_idx > 0; ++back) {
-                    if (lines[start_idx].find(fn_pat) != std::string::npos) break;
-                    --start_idx;
-                }
-                std::string body_text;
-                int brace_depth = 0;
-                bool found_start = false;
-                bool in_string2 = false;
-                char string_char2 = 0;
-                bool in_line_comment2 = false;
-                for (size_t i = start_idx; i < lines.size(); ++i) {
-                    body_text += lines[i] + "\n";
-                    in_line_comment2 = false;
-                    const std::string& ln = lines[i];
-                    for (size_t j = 0; j < ln.size(); ++j) {
-                        char c = ln[j];
-                        if (in_line_comment2) break;
-                        if (in_string2) {
-                            if (c == '\\' && j + 1 < ln.size()) { ++j; continue; }
-                            if (c == string_char2) in_string2 = false;
-                            continue;
-                        }
-                        if (c == '"' || c == '\'') { in_string2 = true; string_char2 = c; continue; }
-                        if (c == '/' && j + 1 < ln.size() && ln[j + 1] == '/') { in_line_comment2 = true; break; }
-                        if (c == '{') { brace_depth++; found_start = true; }
-                        if (c == '}') brace_depth--;
-                    }
-                    if (found_start && brace_depth <= 0) break;
-                }
+    if (governance_ && governance_->isActive() && line > 0) {
+        auto src = sourceForChecks();
+        if (src) {
+            if (line <= static_cast<int>(src->lines.size())) {
+                std::string body_text =
+                    source::declarationText(src->lines, line, decl->getName());
+                governance::ScopedCheckContext check_loc(source_file_, line);  // see visit(MainBlock)
                 if (!skip_main_) {
                     // Main file: full governance checks (includes behavioral contracts)
                     std::string err = governance_->checkNaabFunctionBody(

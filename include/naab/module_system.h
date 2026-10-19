@@ -39,6 +39,9 @@ public:
     }
     ast::Program* getAST() const { return ast_.get(); }
     bool isParsed() const { return is_parsed_; }
+    // The text the AST was parsed from, for the governance checks (A45)
+    void setSource(std::string source) { source_ = std::move(source); }
+    const std::string& getSource() const { return source_; }
 
     // Execution state
     void setEnvironment(std::shared_ptr<interpreter::Environment> env) {
@@ -75,6 +78,7 @@ private:
     std::string name_;                  // Module name (math_utils, data.processor)
     std::string file_path_;             // Absolute file path
     std::unique_ptr<ast::Program> ast_; // Parsed AST
+    std::string source_;                // The text ast_ was parsed from
     std::shared_ptr<interpreter::Environment> module_env_; // Module's environment
     bool is_parsed_;
     bool is_executed_;
@@ -148,7 +152,9 @@ private:
     std::string modulePathToFilePath(const std::string& module_path) const;
 
     // Helper: Parse a module file
-    std::unique_ptr<ast::Program> parseModuleFile(const std::string& file_path);
+    // `source_out`, when given, receives the text parsed (A45)
+    std::unique_ptr<ast::Program> parseModuleFile(const std::string& file_path,
+                                                  std::string* source_out = nullptr);
 
     // Helper: Extract dependencies from a parsed module
     std::vector<std::string> extractDependencies(const ast::Program* program) const;

@@ -719,6 +719,9 @@ void Interpreter::setSourceCode(const std::string& source, const std::string& fi
     source_code_ = source;
     // ISS-035 FIX: Convert to absolute path for proper module resolution
     current_file_ = std::filesystem::absolute(filename).string();
+    // The checks read THIS text, not the file of that name: REST and libnaab
+    // name a file that does not exist ("api-request.naab", "<embedded>"). A45
+    rememberParsedSource(current_file_, source);
     error_reporter_.setSource(source, filename);
 
     // Issue #3: Initialize file context stack with main script
@@ -918,6 +921,20 @@ void Interpreter::executeStmt(ast::Stmt& stmt) {
 // Visitor Implementations
 // ============================================================================
 
+void Interpreter::rememberParsedSource(const std::string& file, const std::string& text) {
+    // No text is no evidence: leave the file to the disk read rather than
+    // record an empty program in its place.
+    if (file.empty() || text.empty()) return;
+    parsed_sources_[file] = std::make_shared<const source::ParsedSource>(text);
+}
+
+std::shared_ptr<const source::ParsedSource>
+Interpreter::parsedSourceFor(const std::string& file) const {
+    auto it = parsed_sources_.find(file);
+    if (it != parsed_sources_.end()) return it->second;
+    return source::readSourceFile(file);  // never parsed here: the pre-A45 read
+}
+
 void Interpreter::visit(ast::Program& node) {
     // Whole-source checks (secrets, PII, incomplete logic) on every NAAb file
     // this engine runs: the entry file and each imported module. The VM runs
@@ -927,11 +944,8 @@ void Interpreter::visit(ast::Program& node) {
     // exempt, as their function bodies are. (A31)
     if (governance_ && governance_->isActive() && plugin_loading_depth_ == 0 &&
         !current_file_.empty()) {
-        std::ifstream src(current_file_);
-        if (src.is_open()) {
-            std::string text((std::istreambuf_iterator<char>(src)),
-                             std::istreambuf_iterator<char>());
-            std::string err = governance_->checkNaabSourceText(text, current_file_);
+        if (auto src = parsedSourceFor(current_file_)) {
+            std::string err = governance_->checkNaabSourceText(src->text, current_file_);
             if (!err.empty()) {
                 throw std::runtime_error(err);
             }
@@ -1156,27 +1170,17 @@ void Interpreter::visit(ast::FunctionDecl& node) {
     if (governance_) {
         auto loc = node.getLocation();
         if (loc.line > 0 && !current_file_.empty()) {
-            std::ifstream src_file(current_file_);
-            if (src_file.is_open()) {
-                std::vector<std::string> lines;
-                std::string line;
-                while (std::getline(src_file, line)) {
-                    lines.push_back(line);
-                }
-                src_file.close();
-
+            auto src = parsedSourceFor(current_file_);
+            if (src) {
+                const auto& lines = src->lines;
                 if (loc.line <= static_cast<int>(lines.size())) {
-                    std::string body_text;
-                    int brace_depth = 0;
-                    bool found_start = false;
-                    for (size_t i = static_cast<size_t>(loc.line - 1); i < lines.size(); ++i) {
-                        body_text += lines[i] + "\n";
-                        for (char c : lines[i]) {
-                            if (c == '{') { brace_depth++; found_start = true; }
-                            if (c == '}') brace_depth--;
-                        }
-                        if (found_start && brace_depth <= 0) break;
-                    }
+                    std::string body_text =
+                        source::declarationText(lines, loc.line, node.getName());
+                    // These checks stamp their results with this location; it
+                    // must not outlive them, or every runtime row after looks
+                    // like a located static one and deduplicate_checks
+                    // collapses it (test_dedup_runtime.sh, A48)
+                    governance::ScopedCheckContext check_loc(current_file_, loc.line);
                     if (module_loading_depth_ == 0) {
                         // Main file: full governance checks (includes behavioral contracts)
                         std::string err = governance_->checkNaabFunctionBody(
@@ -1480,27 +1484,12 @@ void Interpreter::visit(ast::MainBlock& node) {
     if (governance_) {
         auto loc = node.getLocation();
         if (loc.line > 0 && !current_file_.empty()) {
-            std::ifstream src_file(current_file_);
-            if (src_file.is_open()) {
-                std::vector<std::string> lines;
-                std::string line;
-                while (std::getline(src_file, line)) {
-                    lines.push_back(line);
-                }
-                src_file.close();
-
+            auto src = parsedSourceFor(current_file_);
+            if (src) {
+                const auto& lines = src->lines;
                 if (loc.line <= static_cast<int>(lines.size())) {
-                    std::string body_text;
-                    int brace_depth = 0;
-                    bool found_start = false;
-                    for (size_t i = static_cast<size_t>(loc.line - 1); i < lines.size(); ++i) {
-                        body_text += lines[i] + "\n";
-                        for (char c : lines[i]) {
-                            if (c == '{') { brace_depth++; found_start = true; }
-                            if (c == '}') brace_depth--;
-                        }
-                        if (found_start && brace_depth <= 0) break;
-                    }
+                    std::string body_text = source::declarationText(lines, loc.line, "");
+                    governance::ScopedCheckContext check_loc(current_file_, loc.line);  // as above
                     std::string err = governance_->checkNaabFunctionBody(
                         "main", body_text, loc.line, current_file_);
                     if (!err.empty()) {

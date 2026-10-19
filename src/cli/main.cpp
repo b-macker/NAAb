@@ -2447,6 +2447,7 @@ int main(int argc, char** argv) {
                 // Bytecode VM path — compiler gets governance for pre-flight taint analysis
                 naab::vm::Compiler bc_compiler;
                 if (gov_loaded) bc_compiler.setGovernance(&vm_governance);
+                bc_compiler.setSourceText(source);  // the checks read what was parsed (A45)
                 auto* main_fn = bc_compiler.compile(*program, filename);
                 if (!main_fn) {
                     throw std::runtime_error("Compilation failed: " + bc_compiler.getLastError());

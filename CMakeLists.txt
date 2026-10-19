@@ -1694,6 +1694,7 @@ if(HAVE_GOOGLETEST)
         tests/unit/polyglot_async_test.cpp  # Phase 1 Item 10 Day 5: Polyglot async integration tests
         tests/unit/inline_code_cache_test.cpp  # cache files are installed atomically (fork + reader)
         tests/unit/net_proxy_snapshot_test.cpp  # agent/telemetry proxy+CA fixed at load, not live env
+        tests/unit/declaration_source_test.cpp  # governance checks read the parsed text, both engines (A45)
     )
 
     # Link GoogleTest and NAAb libraries
@@ -1703,6 +1704,7 @@ if(HAVE_GOOGLETEST)
         naab_lexer
         naab_parser
         naab_interpreter
+        naab_vm        # Compiler: declaration_source_test
         naab_runtime
         naab_stdlib
         naab_semantic
