@@ -168,7 +168,7 @@ checked against the program's own calls (it named `register_tool`, `create`,
 **Direction of error:** most findings are help that is lost, wrong or
 misleading -- fail-unhelpful. Two verified in pass 3 loosen governance: REST
 skips every per-function check (A45), and the run token cap misses tool-loop
-calls (A46). A44 is stricter than documented. The unfiltered model-facing channels (voice, agent
+calls (A46; fixed 2026-10-19, with the challenge, propose and time-budget gaps found while fixing it). A44 is stricter than documented. The unfiltered model-facing channels (voice, agent
 review, guidance) are where a loosening could enter, so they were checked
 hardest; A41's full reach (whether a misrouted dispatch could reach a governed
 call) is undetermined -- tracing the exception path out of
