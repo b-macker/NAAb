@@ -4,6 +4,7 @@
 #include "naab/compiler.h"
 #include "naab/debugger.h"
 #include "naab/governance.h"
+#include "naab/bsd_stdlib_events.h"
 #include "naab/interpreter.h"
 #include "../interpreter/cycle_detector.h"  // V-RT-008: GC for VM
 #include "naab/profiler.h"
@@ -86,6 +87,50 @@ int Chunk::getLine(int offset) const {
     }
     return result;
 }
+
+// ============================================================================
+// Behavioural sequence detection for one stdlib call
+// ============================================================================
+//
+// Every VM route that calls a stdlib function -- OP_CALL_METHOD and the
+// zero-argument member route in OP_GET_MEMBER -- runs these two, so the
+// pre-execution check and the record after the call read ONE classification
+// (include/naab/bsd_stdlib_events.h). They were two hand-written name lists in
+// OP_CALL_METHOD that disagreed, and the member route had neither.
+
+namespace {
+
+bool bsdEnabled(governance::GovernanceEngine* gov) {
+    return gov && gov->isActive() && gov->getRules().behavioral_sequences.enabled;
+}
+
+// Refuses the call before it runs when it would complete a pattern: returns
+// the refusal message, empty when the call may run. The caller must end the
+// pre-execution scope once the call has returned or thrown.
+std::string bsdPreCheck(governance::GovernanceEngine* gov, const std::string& mod,
+                        const std::string& method, const std::string& first_arg,
+                        const std::string& file, int line) {
+    if (!bsdEnabled(gov)) return "";
+    const governance::StdlibEventClass* c = governance::stdlibEventClass(mod, method);
+    if (!c || c->source == governance::StdlibEventSource::None ||
+        !governance::preCheckedEventType(c->type)) return "";
+    return gov->checkPreExecution(c->type,
+        governance::stdlibEventDetail(*c, mod + "." + method, first_arg), file, line);
+}
+
+// Records the call once it has returned. Calls whose module records its own
+// event (agent.send) are left to the module.
+void bsdRecord(governance::GovernanceEngine* gov, const std::string& mod,
+               const std::string& method, const std::string& first_arg,
+               const std::string& file, int line) {
+    if (!bsdEnabled(gov)) return;
+    const governance::StdlibEventClass* c = governance::stdlibEventClass(mod, method);
+    if (!c || c->source != governance::StdlibEventSource::Vm) return;
+    gov->emitEvent(c->type,
+        governance::stdlibEventDetail(*c, mod + "." + method, first_arg), file, line);
+}
+
+}  // namespace
 
 // ============================================================================
 // VM
@@ -1907,46 +1952,17 @@ interpreter::NaabVal VM::run() {
                              governance_->getRules().behavioral_sequences.enabled)) {
                             first_arg_str = args_ptr[0].toString();
                         }
-                        // BSD pre-execution: block if this action would complete a dangerous sequence
-                        if (governance_ && governance_->isActive() &&
-                            governance_->getRules().behavioral_sequences.enabled) {
-                            governance::RuntimeEventType pre_type{};
-                            bool pre_check = false;
-                            if (full_method_name == "file.read" || full_method_name == "file.read_lines") {
-                                pre_type = governance::RuntimeEventType::FILE_READ; pre_check = true;
-                            } else if (full_method_name == "file.write" || full_method_name == "file.append") {
-                                pre_type = governance::RuntimeEventType::FILE_WRITE; pre_check = true;
-                            } else if (full_method_name.rfind("http.", 0) == 0) {
-                                pre_type = governance::RuntimeEventType::NET_CONNECT; pre_check = true;
-                            } else if (full_method_name.rfind("crypto.base64_encode", 0) == 0 ||
-                                       full_method_name.rfind("crypto.hex_encode", 0) == 0) {
-                                pre_type = governance::RuntimeEventType::ENCODE; pre_check = true;
-                            } else if (full_method_name.rfind("process.", 0) == 0) {
-                                pre_type = governance::RuntimeEventType::PROCESS_EXEC; pre_check = true;
-                            } else if (full_method_name == "env.get" || full_method_name == "env.list") {
-                                pre_type = governance::RuntimeEventType::ENV_READ; pre_check = true;
-                            } else if (full_method_name == "agent.send") {
-                                pre_type = governance::RuntimeEventType::AGENT_SEND; pre_check = true;
-                            }
-                            if (pre_check) {
-                                std::string pre_detail = full_method_name;
-                                // agent.send's first argument is the HANDLE DICT, which carries
-                                // __nonce -- the HMAC that ties the handle to server-side state.
-                                // Interpolating it put a nonce prefix into the block message, and
-                                // from there into stderr and RuleViolation details. It is also
-                                // useless as detail: a handle serialises to ids and a nonce, not
-                                // to anything a reader can act on. Every other pre-checked method
-                                // takes a path, URL or variable name as arg 0, which is exactly
-                                // what the detail wants.
-                                if (argc > 0 && !first_arg_str.empty() &&
-                                    full_method_name != "agent.send")
-                                    pre_detail += "('" + first_arg_str.substr(0, 64) + "')";
-                                int pre_line = CURRENT_CHUNK().getLine(
-                                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
-                                std::string block_msg = governance_->checkPreExecution(
-                                    pre_type, pre_detail, current_file_, pre_line);
-                                if (!block_msg.empty()) runtimeError("%s", block_msg.c_str());
-                            }
+                        // BSD pre-execution: block if this action would complete a dangerous
+                        // sequence. agent.send's first argument is the HANDLE DICT, which
+                        // carries __nonce, so its detail never includes it (the table's
+                        // arg_in_detail); every other pre-checked call takes a path, URL or
+                        // variable name as arg 0, which is what the detail wants.
+                        if (bsdEnabled(governance_)) {
+                            int pre_line = CURRENT_CHUNK().getLine(
+                                static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                            std::string block_msg = bsdPreCheck(governance_, mod, method,
+                                first_arg_str, current_file_, pre_line);
+                            if (!block_msg.empty()) runtimeError("%s", block_msg.c_str());
                         }
 
                         // Codegen taint plumbing: pass arg[1] taint state to codegen module
@@ -1955,7 +1971,15 @@ interpreter::NaabVal VM::run() {
                             stdlib::setCodegenArgTainted(taint_stack_[arg1_offset]);
                         }
 
-                        interpreter::NaabVal result = callStdlibMethod(mod, method, argc, args_ptr);
+                        // A pre-check that consumed this call's record ends with the call,
+                        // returned or thrown (GovernanceEngine::endPreExecutionScope).
+                        interpreter::NaabVal result;
+                        try {
+                            result = callStdlibMethod(mod, method, argc, args_ptr);
+                        } catch (...) {
+                            if (governance_) governance_->endPreExecutionScope();
+                            throw;
+                        }
                         // Clear stale slots before adjusting stack pointer
                         for (int si = 0; si < argc + 1; si++)
                             *(stack_top_ - 1 - si) = interpreter::NaabVal();
@@ -1988,37 +2012,13 @@ interpreter::NaabVal VM::run() {
                                     full_method_name + ":input_propagated");
                             }
                             // Behavioral sequence event emission
-                            if (governance_->getRules().behavioral_sequences.enabled) {
-                                governance::RuntimeEventType evt_type{};
-                                bool should_emit = false;
-                                if (full_method_name == "env.get" || full_method_name == "env.list") {
-                                    evt_type = governance::RuntimeEventType::ENV_READ; should_emit = true;
-                                } else if (full_method_name == "env.set_var") {
-                                    evt_type = governance::RuntimeEventType::ENV_WRITE; should_emit = true;
-                                } else if (full_method_name == "file.read") {
-                                    evt_type = governance::RuntimeEventType::FILE_READ; should_emit = true;
-                                } else if (full_method_name == "file.write" || full_method_name == "file.append") {
-                                    evt_type = governance::RuntimeEventType::FILE_WRITE; should_emit = true;
-                                } else if (full_method_name.rfind("http.", 0) == 0) {
-                                    evt_type = governance::RuntimeEventType::NET_CONNECT; should_emit = true;
-                                } else if (full_method_name.rfind("crypto.base64_encode", 0) == 0 ||
-                                           full_method_name.rfind("crypto.hex_encode", 0) == 0) {
-                                    evt_type = governance::RuntimeEventType::ENCODE; should_emit = true;
-                                } else if (full_method_name.rfind("crypto.base64_decode", 0) == 0 ||
-                                           full_method_name.rfind("crypto.hex_decode", 0) == 0) {
-                                    evt_type = governance::RuntimeEventType::DECODE; should_emit = true;
-                                } else if (full_method_name.rfind("process.", 0) == 0) {
-                                    evt_type = governance::RuntimeEventType::PROCESS_EXEC; should_emit = true;
-                                }
-                                if (should_emit) {
-                                    std::string detail = full_method_name;
-                                    if (argc > 0 && !first_arg_str.empty()) detail += "('" + first_arg_str.substr(0, 64) + "')";
-                                    int ev_line = CURRENT_CHUNK().getLine(
-                                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
-                                    governance_->emitEvent(evt_type, detail, current_file_, ev_line);
-                                }
+                            if (bsdEnabled(governance_)) {
+                                int ev_line = CURRENT_CHUNK().getLine(
+                                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                                bsdRecord(governance_, mod, method, first_arg_str, current_file_, ev_line);
                             }
                         }
+                        if (governance_) governance_->endPreExecutionScope();
                         goto done_call_method;
                     }
                     // Also handle __builtin__:X where X is a stdlib module name
@@ -2705,7 +2705,36 @@ interpreter::NaabVal VM::run() {
                     if (sv.size() >= 18 && sv.substr(0, 18) == "__stdlib_module__:") {
                         std::string mod = sv.substr(18);
                         interpreter::NaabVal* no_args = nullptr;
-                        push(callStdlibMethod(mod, name, 0, no_args));
+                        // This route CALLS the member with no arguments (`env.get_all`
+                        // without parentheses returns the environment), so it gets the
+                        // call-site governance a zero-argument call can reach: function
+                        // attribution, which the checks inside the call read (without
+                        // it, a function granted nothing read the whole environment),
+                        // and behavioural sequence detection.
+                        int member_line = 0;
+                        if (governance_) {
+                            if (governance_->functionAttributionEnabled()) {
+                                governance_->syncFunctionStack(
+                                    [this](size_t i) -> const std::string& {
+                                        return frames_[i].function->name;
+                                    }, frame_count_);
+                            }
+                            if (bsdEnabled(governance_)) {
+                                member_line = CURRENT_CHUNK().getLine(
+                                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                                std::string block_msg = bsdPreCheck(governance_, mod, name, "",
+                                    current_file_, member_line);
+                                if (!block_msg.empty()) runtimeError("%s", block_msg.c_str());
+                            }
+                        }
+                        interpreter::NaabVal member_result;
+                        try {
+                            member_result = callStdlibMethod(mod, name, 0, no_args);
+                        } catch (...) {
+                            if (governance_) governance_->endPreExecutionScope();
+                            throw;
+                        }
+                        push(std::move(member_result));
                         // Finding D fix: apply taint source/sanitizer for zero-arg member access
                         if (governance_ && governance_->isActive()) {
                             std::string full_name = mod + "." + name;
@@ -2715,6 +2744,10 @@ interpreter::NaabVal VM::run() {
                                 peekTaint(0) = false;
                                 sanitizer_applied = true;
                             }
+                        }
+                        if (governance_) {
+                            bsdRecord(governance_, mod, name, "", current_file_, member_line);
+                            governance_->endPreExecutionScope();
                         }
                     } else if (sv.size() >= 12 && sv.substr(0, 12) == "__builtin__:") {
                         std::string mod = sv.substr(12);

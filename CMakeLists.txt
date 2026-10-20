@@ -1695,6 +1695,7 @@ if(HAVE_GOOGLETEST)
         tests/unit/inline_code_cache_test.cpp  # cache files are installed atomically (fork + reader)
         tests/unit/net_proxy_snapshot_test.cpp  # agent/telemetry proxy+CA fixed at load, not live env
         tests/unit/declaration_source_test.cpp  # governance checks read the parsed text, both engines (A45)
+        tests/unit/bsd_stdlib_events_test.cpp  # the BSD stdlib event table vs the compiled modules (A22)
     )
 
     # Link GoogleTest and NAAb libraries

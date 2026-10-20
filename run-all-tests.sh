@@ -3935,6 +3935,20 @@ else
     echo "  test_pipefail_grep.sh: not found, skipping"
 fi
 
+BSD_COVERAGE_SCRIPT="tests/self-audit/test_bsd_event_coverage.sh"
+if [ -f "$BSD_COVERAGE_SCRIPT" ]; then
+    # Every function of every module the BSD stdlib event table covers is
+    # classified (include/naab/bsd_stdlib_events.h). Reads source; no build.
+    if run_shell_test "$BSD_COVERAGE_SCRIPT" 2>&1; then
+        echo "  test_bsd_event_coverage.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_bsd_event_coverage.sh")
+    fi
+else
+    echo "  test_bsd_event_coverage.sh: not found, skipping"
+fi
+
 TIMING_SCRIPT="tests/self-audit/test_test_timing.sh"
 if [ -f "$TIMING_SCRIPT" ]; then
     # tools/testtiming wraps this whole run in CI (report-only). This checks the

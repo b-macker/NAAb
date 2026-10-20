@@ -3899,6 +3899,11 @@ public:
                                    const std::string& detail,
                                    const std::string& file = "",
                                    int line = 0);
+    // Ends a checkPreExecution() consumption on this thread. The caller of a
+    // pre-checked action calls it once the action has returned or thrown: the
+    // action's own record (which the consumption suppresses) has happened by
+    // then or never will, and a mark left set swallows the next unrelated event.
+    void endPreExecutionScope();
     std::string checkContextDrift(int handle_id, int turn,
                                   const std::string& error = "");
 
