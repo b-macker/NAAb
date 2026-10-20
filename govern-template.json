@@ -246,6 +246,7 @@
       "string_length": 1000000,
       "nesting_depth": 20,
       "max_json_depth": 20,
+      "_comment_output_size": "Cap, in bytes, on what foreign code hands back to the program: an inline block's value, a persistent runtime's .exec(), a block-library call, codegen.run()'s output. A list or dict counts what it holds. HARD and uncatchable on both engines; 0 = no limit. languages.per_language.<lang>.max_output_size sets a per-language cap the same way.",
       "output_size": 1000000,
       "input_size": 1000000
     },

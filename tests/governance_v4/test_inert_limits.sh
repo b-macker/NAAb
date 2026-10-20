@@ -37,7 +37,7 @@
 #
 # Three sibling keys in the same block ARE enforced, by paths that have nothing
 # to do with the dead methods:
-#   output_size     polyglot.cpp:718 enforces it directly
+#   output_size     checkOutputSize() enforces it on both engines (A18)
 #   array_size      mirrored to rules_.max_array_size, which has live consumers
 #   max_json_depth  calls setMaxJsonDepth(), read by json_impl.cpp
 # A warning that fired on the whole block would satisfy LD-01..03 completely,
@@ -99,7 +99,7 @@ gate_init "inert-limits"
 gate_def LD-01 WARN    "string_length warns that nothing enforces it"
 gate_def LD-02 CONTROL "dict_size stays silent — wired by #160, both engines enforce it"
 gate_def LD-03 WARN    "nesting_depth warns, and names the spelling that works"
-gate_def LD-04 CONTROL "output_size stays silent — polyglot.cpp enforces it"
+gate_def LD-04 CONTROL "output_size stays silent — checkOutputSize() enforces it"
 gate_def LD-05 CONTROL "array_size stays silent — mirrored to a live field"
 gate_def LD-06 CONTROL "max_json_depth stays silent — json_impl.cpp enforces it"
 gate_def LD-07 CONTROL "no warning when limits.data is absent"
