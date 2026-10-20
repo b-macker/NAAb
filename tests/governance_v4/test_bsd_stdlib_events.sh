@@ -52,7 +52,12 @@ pass() { PASS_COUNT=$((PASS_COUNT+1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; }
 fail() { FAIL_COUNT=$((FAIL_COUNT+1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] && echo -e "       ${RED}-> $3${NC}"; FAILURES="${FAILURES}\n  [$1] $2"; }
 skip() { SKIP_COUNT=$((SKIP_COUNT+1)); echo -e "  ${YELLOW}SKIP${NC} [$1] $2 (UNMEASURABLE)"; }
 
-cleanup() { rm -rf "${TEST_TMP:?}"; }
+# Every config here is unsigned, and with any key in the trust store an
+# unsigned govern.json is an INTEGRITY BLOCK: measured, a store holding one key
+# turned this suite into 0 pass / 17 fail / 28 skip. Isolate it.
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
+cleanup() { teardown_isolated_trust; rm -rf "${TEST_TMP:?}"; }
 trap cleanup EXIT
 
 if [ ! -x "$NAAB" ]; then
