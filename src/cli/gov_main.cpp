@@ -255,6 +255,7 @@ static int cmdLint(const std::vector<std::string>& args) {
             runCheck(engine.preflightIntentCheck(*program, source));
             naab::vm::Compiler compiler;
             compiler.setGovernance(&engine);
+            compiler.setSourceText(source);
             compiler.compile(*program, source_path);
         }
     } catch (const naab::governance::GovernanceHardError& e) {

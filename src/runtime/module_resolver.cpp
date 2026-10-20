@@ -488,7 +488,8 @@ std::optional<fs::path> ModuleResolver::resolveFromSystem(const std::string& spe
     return std::nullopt;
 }
 
-std::unique_ptr<ast::Program> ModuleResolver::parseModuleFile(const fs::path& path) {
+std::unique_ptr<ast::Program> ModuleResolver::parseModuleFile(const fs::path& path,
+                                                              std::string* source_out) {
     // A25: a module read is a filesystem read and must obey the same governance
     // as file.read(). Gate at the one point every engine's import path reaches
     // to read bytes from disk, so `import "x.naab"` cannot bypass
@@ -515,7 +516,9 @@ std::unique_ptr<ast::Program> ModuleResolver::parseModuleFile(const fs::path& pa
     parser::Parser parser(tokens);
     parser.setSource(source, path.string());
 
-    return parser.parseProgram();
+    auto program = parser.parseProgram();
+    if (source_out) *source_out = std::move(source);
+    return program;
 }
 
 std::shared_ptr<Module> ModuleResolver::loadModule(const fs::path& module_path) {
@@ -539,7 +542,7 @@ std::shared_ptr<Module> ModuleResolver::loadModule(const fs::path& module_path) 
         auto module = std::make_shared<Module>(canonical);
 
         // Parse module
-        module->ast = parseModuleFile(module_path);
+        module->ast = parseModuleFile(module_path, &module->source);
         module->is_loaded = true;
 
         // Cache it

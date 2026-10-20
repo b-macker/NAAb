@@ -80,7 +80,8 @@ std::optional<std::string> ModuleRegistry::resolveModulePath(
 }
 
 // Parse a module file
-std::unique_ptr<ast::Program> ModuleRegistry::parseModuleFile(const std::string& file_path) {
+std::unique_ptr<ast::Program> ModuleRegistry::parseModuleFile(const std::string& file_path,
+                                                              std::string* source_out) {
     // F33: `use module` reads a file from disk and must obey the same filesystem
     // governance as file.read() / `import` (A25). ModuleResolver was gated in
     // #213 but this second module path (ModuleRegistry) was not, so `use secret`
@@ -117,6 +118,7 @@ std::unique_ptr<ast::Program> ModuleRegistry::parseModuleFile(const std::string&
         throw std::runtime_error("Failed to parse module: " + file_path);
     }
 
+    if (source_out) *source_out = std::move(source);
     return ast;
 }
 
@@ -196,11 +198,13 @@ NaabModule* ModuleRegistry::loadModule(
 
     // Parse module
     try {
-        auto ast = parseModuleFile(resolved_path);
+        std::string module_source;
+        auto ast = parseModuleFile(resolved_path, &module_source);
 
         // Create module
         auto module = std::make_unique<NaabModule>(module_path, resolved_path);
         module->setAST(std::move(ast));
+        module->setSource(std::move(module_source));
 
         // Extract dependencies
         auto dependencies = extractDependencies(module->getAST());

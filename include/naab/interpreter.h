@@ -19,6 +19,7 @@
 #include "naab/suggestion_system.h" // Phase 3.1: "Did you mean?" suggestions
 #include "naab/governance.h"        // Governance engine for govern.json enforcement
 #include "naab/scanner.h"           // Code quality scanner for govern.json scanner section
+#include "naab/declaration_source.h" // Parsed text the governance checks read (A45)
 #ifdef HAVE_PYBIND11
 #include <Python.h>
 #endif
@@ -678,6 +679,14 @@ private:
     // Phase 3.1: Enhanced error reporting
     error::ErrorReporter error_reporter_;
     std::string source_code_;  // Source code for error context
+
+    // The text each file was PARSED from, keyed as current_file_ names it, so
+    // the governance checks read the program that runs rather than whatever
+    // is on disk under that name (A45). Recorded by setSourceCode() and at
+    // every module load; a file with no entry is read from disk as before.
+    std::unordered_map<std::string, std::shared_ptr<const source::ParsedSource>> parsed_sources_;
+    void rememberParsedSource(const std::string& file, const std::string& text);
+    std::shared_ptr<const source::ParsedSource> parsedSourceFor(const std::string& file) const;
 
     // Command-line arguments (ISS-028)
     std::vector<std::string> script_args_;

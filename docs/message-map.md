@@ -33,7 +33,7 @@ A46 in `docs/open-investigations.md`.
 | D. Operator after the run | reports, telemetry, transcript, the opt-in dashboard |
 | E. MCP caller (`naab-lang mcp`) | `output` (worker stdout) and `findings` (worker stderr) |
 | F. Editor via the LSP (`tools/naab-lsp`) | diagnostics parsed from `naab-lang --lint-only` output: code `governance`, line 0, first line only (A43) |
-| G. REST client (`naab-lang api`) | `output` (the io capture stream) and `error` (sanitized exception text); governance stderr stays on the server; per-function checks never run (A45) |
+| G. REST client (`naab-lang api`) | `output` (the io capture stream) and `error` (sanitized exception text); governance stderr stays on the server; per-function checks never ran (A45, fixed 2026-10-19: they read the submitted text now) |
 | H. `naab-gov lint` / `check` | lint: everything on stderr, unsanitized, guidance appended; check: JSON with `hard_block` (with guidance) and `violations[].message` (without) |
 | I. REPL (`naab-lang` with no arguments) | no governance, by decision (`docs/GOVERNANCE-LIMITS.md` §5.2); errors as `Error:` on stderr |
 
@@ -167,7 +167,7 @@ checked against the program's own calls (it named `register_tool`, `create`,
 
 **Direction of error:** most findings are help that is lost, wrong or
 misleading -- fail-unhelpful. Two verified in pass 3 loosen governance: REST
-skips every per-function check (A45), and the run token cap misses tool-loop
+skips every per-function check (A45; fixed 2026-10-19, with three extraction defects found while fixing it, A47-A49), and the run token cap misses tool-loop
 calls (A46; fixed 2026-10-19, with the challenge, propose and time-budget gaps found while fixing it). A44 is stricter than documented. The unfiltered model-facing channels (voice, agent
 review, guidance) are where a loosening could enter, so they were checked
 hardest; A41's full reach (whether a misrouted dispatch could reach a governed

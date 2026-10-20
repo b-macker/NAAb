@@ -4,6 +4,7 @@
 
 #include "ast.h"
 #include "vm.h"
+#include "naab/declaration_source.h"
 
 #include <string>
 #include <vector>
@@ -28,6 +29,11 @@ public:
 
     // Governance-aware compilation
     void setGovernance(governance::GovernanceEngine* gov) { governance_ = gov; }
+
+    // The text the program was parsed from. The governance checks read it
+    // instead of re-reading source_file from disk (A45); without it they read
+    // the file, as they always did.
+    void setSourceText(const std::string& text);
 
     const std::string& getLastError() const { return last_error_; }
 
@@ -83,6 +89,8 @@ private:
     governance::GovernanceEngine* governance_ = nullptr;
     std::string last_error_;
     std::string source_file_;
+    std::shared_ptr<const source::ParsedSource> parsed_source_;  // setSourceText()
+    std::shared_ptr<const source::ParsedSource> sourceForChecks() const;
     bool skip_main_ = false;  // True when compiling a module (skip main blocks)
 
     // Owned compiled functions (for memory management)

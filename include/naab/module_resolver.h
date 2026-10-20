@@ -24,6 +24,7 @@ namespace modules {
 struct Module {
     std::string path;                           // Full path to module file
     std::unique_ptr<ast::Program> ast;          // Parsed AST
+    std::string source;                         // The text `ast` was parsed from (A45)
     std::unordered_map<std::string, void*> exports;  // Exported symbols
     bool is_loaded;                             // Loading complete?
 
@@ -131,7 +132,9 @@ private:
     std::optional<fs::path> resolveFromSystem(const std::string& spec);
 
     // Read and parse module file
-    std::unique_ptr<ast::Program> parseModuleFile(const fs::path& path);
+    // Read and parse module file; `source_out`, when given, receives the text parsed
+    std::unique_ptr<ast::Program> parseModuleFile(const fs::path& path,
+                                                  std::string* source_out = nullptr);
 
 public:
     // Canonicalize path for caching (public static)
