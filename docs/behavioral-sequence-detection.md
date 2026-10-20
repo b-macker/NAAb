@@ -60,7 +60,7 @@ Turn 13+: generates code that conflicts with established patterns
 | Source | File | Line | Events |
 |--------|------|------|--------|
 | enforce() | governance_engine.cpp | 503-615 | Every check pass/fail with CheckResult |
-| callStdlibMethod() | vm.cpp | ~1720 | env.get, file.read, http.post |
+| stdlib calls (`OP_CALL_METHOD`, zero-argument member access) | vm.cpp | `bsdPreCheck` / `bsdRecord` | per `include/naab/bsd_stdlib_events.h` (every function of env, file, io, csv, http, process, crypto, path, log, agent) |
 | Shell interpolation | vm.cpp | taint sink | shell_exec with bound vars |
 | agentSend() | agent_impl.cpp | ~282 | agent_turn, agent_response |
 | Sandbox interception | main.cpp | 122-149 | net_connect, fs_write |
@@ -170,7 +170,7 @@ Checks intent mismatches, evasion, cosmetic sanitizers, but only on **static cod
 
 | Location | Events | File:Line |
 |----------|--------|-----------|
-| callStdlibMethod() | env.get, file.read, http.post | vm.cpp:~1720 |
+| stdlib calls (`OP_CALL_METHOD`, zero-argument member access) | per `include/naab/bsd_stdlib_events.h` | vm.cpp `bsdPreCheck` / `bsdRecord` |
 | Shell interpolation check | shell_exec with vars | vm.cpp:taint sink |
 | agentSend() | agent_turn, agent_response | agent_impl.cpp:~282 |
 | enforce() | any check pass/fail | governance_engine.cpp:503 |

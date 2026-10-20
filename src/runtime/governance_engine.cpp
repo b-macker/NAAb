@@ -9531,5 +9531,18 @@ std::string GovernanceEngine::checkPreExecution(
     return block;
 }
 
+// The consumption above assumes the action's own record follows on this thread
+// before anything else is recorded. That fails when the action never records:
+// it threw (a file.read of a missing file, an agent.send refused before its
+// own emit), or nothing recorded it (file.read_lines was pre-checked and never
+// emitted). The mark then swallowed the NEXT event, whatever it was -- measured
+// with a hard pattern on decode -> file.write: the decode after a pre-checked
+// read that threw was dropped and the write ran (test_bsd_stdlib_events.sh
+// S-01..S-03). The VM ends the scope once the pre-checked call has returned or
+// thrown, so the mark can never outlive the call that set it.
+void GovernanceEngine::endPreExecutionScope() {
+    t_preexec_consumed = false;
+}
+
 } // namespace governance
 } // namespace naab
