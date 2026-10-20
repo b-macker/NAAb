@@ -205,12 +205,17 @@ execute() {
         curl -s -X POST "http://127.0.0.1:$PORT/api/v1/execute" \
             -H "Authorization: Bearer k-ds" -H "Content-Type: application/json" \
             --data-binary @- 2>&1)"
+    # Bytes, not print(): a native Windows python3 (MSYS2) writes print()'s
+    # newline as CRLF, and `read` keeps the CR on the last field -- every
+    # REST arm read "yes\r" there and failed (build-windows, 0b7bd6d5).
     read -r REXIT RRAN < <(python3 -c 'import json,sys
 try:
     d = json.loads(sys.stdin.read())
-    print(d.get("exit_code", "?"), "yes" if "RAN_" in (d.get("output") or "") else "no")
+    out = "%s %s\n" % (d.get("exit_code", "?"), "yes" if "RAN_" in (d.get("output") or "") else "no")
 except Exception:
-    print("? no")' <<<"$resp")
+    out = "? no\n"
+sys.stdout.buffer.write(out.encode())' <<<"$resp")
+    REXIT="${REXIT%$'\r'}"; RRAN="${RRAN%$'\r'}"
     RRESP="$resp"
 }
 
@@ -435,17 +440,17 @@ for line in sys.stdin:
     except Exception: continue
     d = e.get("fields", e)
     if d.get("event_type") in ("RuleViolation", "GovernanceCheck") and "repeat_read" in (d.get("rule_name") or ""): n += 1
-print(n)' < "$1"
+sys.stdout.buffer.write(b"%d\n" % n)' < "$1"
 }
 newcase L-01 "$(bsd_config true)"; cli L-01 "$P_READS" ""
-n="$( [ -f "$W/L-01/tele.jsonl" ] && rows "$W/L-01/tele.jsonl" || echo none)"
+n="$( [ -f "$W/L-01/tele.jsonl" ] && rows "$W/L-01/tele.jsonl" || echo none)"; n="${n%$'\r'}"
 if [ "$n" = "2" ] && [ "$RC" -eq 0 ] && ran; then
     pass L-01 "two runtime rows after the entry file's checks, under dedup"
 else
     fail L-01 "runtime rows after the entry file's checks were collapsed or lost" "rows=$n exit=$RC"
 fi
 newcase L-01c "$(bsd_config false)"; cli L-01c "$P_READS" ""
-n="$( [ -f "$W/L-01c/tele.jsonl" ] && rows "$W/L-01c/tele.jsonl" || echo none)"
+n="$( [ -f "$W/L-01c/tele.jsonl" ] && rows "$W/L-01c/tele.jsonl" || echo none)"; n="${n%$'\r'}"
 if [ "$n" = "2" ] && [ "$RC" -eq 0 ] && ran; then
     pass L-01c "CONTROL: without dedup the rule gives the same two rows"
 else
