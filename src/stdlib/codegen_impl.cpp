@@ -515,6 +515,13 @@ interpreter::NaabVal CodegenModule::call(
         if (duration_ms == 0) duration_ms = 1;
         t_codegen_total_duration_ms += duration_ms;
 
+        // limits.data.output_size / per-language max_output_size over the
+        // output the program receives, as for a static block (A18).
+        if (gov_engine && gov_engine->isActive()) {
+            std::string size_err = gov_engine->checkOutputSize(language, output.size());
+            if (!size_err.empty()) throw std::runtime_error(size_err);
+        }
+
         // Step 12: Stderr sanitization (Gap 9)
         if (codegen_cfg.sanitize_stderr && !stderr_output.empty()) {
             stderr_output = sanitizeStderr(stderr_output, codegen_cfg.max_stderr_chars);

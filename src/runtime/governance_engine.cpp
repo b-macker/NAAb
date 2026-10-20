@@ -225,6 +225,7 @@ static const std::unordered_map<std::string, std::pair<std::vector<std::string>,
     {"nesting_depth",           {{"CWE-1124"},{}}},
     {"string_length",           {{"CWE-400"}, {}}},
     {"output_size",             {{"CWE-400"}, {}}},
+    {"max_output_size",         {{"CWE-400"}, {}}},
     {"dict_size",               {{"CWE-400"}, {}}},
     {"polyglot_blocks",         {{"CWE-400"}, {}}},
     // --- Code Quality (LLM-specific) ---
