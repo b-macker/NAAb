@@ -3556,7 +3556,16 @@ public:
     std::string incrementAndCheckPolyglotBlockCount();
     std::string checkStringLength(size_t length);
     std::string checkNestingDepth(size_t depth);
-    std::string checkOutputSize(size_t size);
+    // limits.data.output_size and languages.per_language.<lang>.max_output_size:
+    // what foreign code hands back to the program -- an inline block's value, a
+    // persistent runtime's .exec(), a block-library call, codegen.run()'s
+    // output. HARD, like every limits.* check. Every route in both engines
+    // calls one of these two (A18): the cap used to live in the tree-walker's
+    // sequential path only, as a catchable throw.
+    std::string checkOutputSize(const std::string& language,
+                                const interpreter::NaabVal& result, int line = 0);
+    std::string checkOutputSize(const std::string& language, size_t bytes,
+                                int line = 0, bool exact = true);
     std::string checkDictSize(size_t size);
 
     // Rate limiting

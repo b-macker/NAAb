@@ -2048,6 +2048,9 @@ tracing each one rather than reporting the list:
   produces no governance finding, no telemetry and no report entry, and is
   **catchable** by NAAb `try/catch` unlike the HARD block it resembles.
   Enforcement without evidence — a different finding, filed as A3a.
+  *(2026-10-20, A18: the throw is gone; `checkOutputSize()` -- the method
+  this table lists as uncalled -- now enforces the cap through `enforce()` on
+  both engines and on every route a foreign result takes.)*
 - **`codegen.*` is fully enforced** in `codegen_impl.cpp` — `enabled`,
   `allowed_languages`, `blocked_languages` and `max_code_size_bytes` all have
   live checks. `checkCodegenAllowed` is a dead duplicate: a maintenance hazard

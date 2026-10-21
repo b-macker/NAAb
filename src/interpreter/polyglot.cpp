@@ -736,33 +736,16 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
         result_ = executor->executeWithReturn(final_code);
 
-        // Finding G fix: enforce polyglot output size limits from governance config.
-        // Check both the global data.output_size limit and the per-language max_output_size.
-        if (governance_ && governance_->isActive() && result_.isString()) {
-            int sz = static_cast<int>(result_.asString().size());
-
-            // Global data.output_size limit
-            int global_limit = governance_->getRules().limits.data.output_size;
-            if (global_limit > 0 && sz > global_limit) {
+        // Finding G: limits.data.output_size and the per-language
+        // max_output_size bound what the block hands back. One engine check
+        // (A18): this used to be the only copy, a catchable throw that saw a
+        // string result only.
+        if (governance_ && governance_->isActive()) {
+            std::string out_err = governance_->checkOutputSize(language, result_,
+                                                               node.getLocation().line);
+            if (!out_err.empty()) {
                 gc_suspended_ = false;
-                throw std::runtime_error(
-                    "Governance: polyglot output exceeds configured limit\n\n"
-                    "  Output size: " + std::to_string(sz) + " bytes\n"
-                    "  Language: " + language + "\n"
-                    "  Reduce the output size or restructure code to produce less output.\n"
-                );
-            }
-
-            // Per-language max_output_size limit
-            const auto* lang_cfg = governance_->getLanguageConfig(language);
-            if (lang_cfg && lang_cfg->max_output_size > 0 && sz > lang_cfg->max_output_size) {
-                gc_suspended_ = false;
-                throw std::runtime_error(
-                    "Governance: polyglot output exceeds per-language limit\n\n"
-                    "  Output size: " + std::to_string(sz) + " bytes\n"
-                    "  Language: " + language + "\n"
-                    "  Reduce the output or restructure code to produce less output.\n"
-                );
+                throw std::runtime_error(out_err);
             }
         }
 
@@ -1922,6 +1905,20 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
 
             // Governance: Validate polyglot output format if configured
             if (governance_ && governance_->isActive()) {
+                // The output cap, as the sequential path applies it. This
+                // path (javascript, off Windows) had none (A18).
+                std::string size_err;
+                try {
+                    size_err = governance_->checkOutputSize(lang_str, value,
+                        block.node ? block.node->getLocation().line : 0);
+                } catch (...) {
+                    gc_suspended_ = false;  // a HARD refusal throws from enforce()
+                    throw;
+                }
+                if (!size_err.empty()) {
+                    gc_suspended_ = false;
+                    throw std::runtime_error(size_err);
+                }
                 if (value.isString()) {
                     std::string output_err = governance_->checkPolyglotOutput(value.asString());
                     if (!output_err.empty()) {

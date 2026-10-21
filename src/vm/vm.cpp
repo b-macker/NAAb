@@ -130,6 +130,15 @@ void bsdRecord(governance::GovernanceEngine* gov, const std::string& mod,
         governance::stdlibEventDetail(*c, mod + "." + method, first_arg), file, line);
 }
 
+// limits.data.output_size / per-language max_output_size over a value foreign
+// code returned: "" or the refusal (a HARD one throws from enforce()). The cap
+// used to exist in the tree-walker only, so on the VM it did nothing (A18).
+std::string outputSizeError(governance::GovernanceEngine* gov, const std::string& language,
+                            const interpreter::NaabVal& result, int line = 0) {
+    if (!gov || !gov->isActive()) return "";
+    return gov->checkOutputSize(language, result, line);
+}
+
 }  // namespace
 
 // ============================================================================
@@ -2147,6 +2156,10 @@ interpreter::NaabVal VM::run() {
                             } else {
                                 result = rt.executor->executeWithReturn(code);
                             }
+                            {
+                                std::string size_err = outputSizeError(governance_, rt.language, result);
+                                if (!size_err.empty()) throw std::runtime_error(size_err);
+                            }
                             for (int si = 0; si < argc + 1; si++)
                                 *(stack_top_ - 1 - si) = interpreter::NaabVal();
                             stack_top_ -= (argc + 1);
@@ -2209,6 +2222,11 @@ interpreter::NaabVal VM::run() {
                             arg_vec.push_back(args_ptr[i]);
                         }
                         interpreter::NaabVal result = executor->callFunction(method, arg_vec);
+                        {
+                            std::string size_err = outputSizeError(governance_,
+                                block->metadata.language, result);
+                            if (!size_err.empty()) runtimeError("%s", size_err.c_str());
+                        }
                         for (int si = 0; si < argc + 1; si++)
                             *(stack_top_ - 1 - si) = interpreter::NaabVal();
                         stack_top_ -= (argc + 1);
@@ -3298,6 +3316,12 @@ interpreter::NaabVal VM::run() {
                         }
                     }
 
+                    {
+                        std::string size_err = outputSizeError(governance_, language, result,
+                                                               polyglot_gov_line);
+                        if (!size_err.empty()) runtimeError("%s", size_err.c_str());
+                    }
+
                     push(result);
                     // V-GOV-006: All polyglot block outputs are unconditionally tainted when
                     // governance is active. Foreign-language data is untrusted by definition —
@@ -4041,6 +4065,10 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                 args.push_back(args_start[i]);
             }
             interpreter::NaabVal result = executor->callFunction(block->member_path, args);
+            {
+                std::string size_err = outputSizeError(governance_, block->metadata.language, result);
+                if (!size_err.empty()) runtimeError("%s", size_err.c_str());
+            }
             for (int si = 0; si < argc + 1; si++)
                 *(stack_top_ - 1 - si) = interpreter::NaabVal();
             stack_top_ -= (argc + 1);
@@ -4793,7 +4821,10 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
         auto* executor = block->getExecutor();
         if (executor) {
             std::vector<interpreter::NaabVal> arg_vec(args, args + argc);
-            return executor->callFunction(method, arg_vec);
+            interpreter::NaabVal result = executor->callFunction(method, arg_vec);
+            std::string size_err = outputSizeError(governance_, block->metadata.language, result);
+            if (!size_err.empty()) runtimeError("%s", size_err.c_str());
+            return result;
         }
     }
 

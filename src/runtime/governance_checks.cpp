@@ -6494,15 +6494,87 @@ std::string GovernanceEngine::checkNestingDepth(size_t depth) {
     return "";
 }
 
-std::string GovernanceEngine::checkOutputSize(size_t size) {
+namespace {
+// The size of a foreign result as text, counted without building the text: a
+// string is its bytes; a list or dict is what it holds, plus two bytes for its
+// brackets and one per element (a dict key adds its bytes and three for its
+// quotes and colon); anything else is its printed form. The cap used to
+// measure a STRING result only, so the same bytes inside a list passed it.
+// Counting stops once past `stop`: the caller needs only to know the limit was
+// crossed, and the result big enough to cross it is the one not to copy. A
+// container that holds itself still ends, since each visit adds at least two.
+size_t foreignResultSize(const interpreter::NaabVal& root, size_t stop, bool& exact) {
+    size_t total = 0;
+    std::vector<const interpreter::NaabVal*> pending{&root};
+    while (!pending.empty()) {
+        if (total > stop) { exact = false; return total; }
+        const interpreter::NaabVal* v = pending.back();
+        pending.pop_back();
+        if (v->isString()) {
+            total += v->asString().size();
+        } else if (v->isList()) {
+            const auto& items = v->asListConst();
+            total += 2 + items.size();
+            if (total > stop) { exact = false; return total; }
+            for (const auto& e : items) pending.push_back(&e);
+        } else if (v->isDict()) {
+            const auto& entries = v->asDictConst();
+            total += 2 + entries.size();
+            for (const auto& [k, e] : entries) {
+                total += k.size() + 3;
+                if (total > stop) { exact = false; return total; }
+                pending.push_back(&e);
+            }
+        } else {
+            total += v->toString().size();
+        }
+    }
+    exact = true;
+    return total;
+}
+}  // namespace
+
+std::string GovernanceEngine::checkOutputSize(const std::string& language,
+                                              const interpreter::NaabVal& result, int line) {
+    if (!isActive()) return "";
+    const int global_max = rules().limits.data.output_size;
+    const auto* lc = getLanguageConfig(language);
+    const int lang_max = lc ? lc->max_output_size : 0;
+    if (global_max <= 0 && lang_max <= 0) return "";
+    // Counted up to the larger cap, so the comparison with either is exact.
+    bool exact = true;
+    size_t bytes = foreignResultSize(result,
+        static_cast<size_t>(std::max(global_max, lang_max)), exact);
+    return checkOutputSize(language, bytes, line, exact);
+}
+
+std::string GovernanceEngine::checkOutputSize(const std::string& language, size_t bytes,
+                                              int line, bool exact) {
+    if (!isActive()) return "";
     clearTrace();
-    int max = rules().limits.data.output_size;
-    if (max > 0 && static_cast<int>(size) > max) {
+    const std::string size_text = fmt::format("{}{} bytes", exact ? "" : "at least ", bytes);
+    const std::string where = line > 0 ? fmt::format("line {}: {} block", line, language)
+                                       : fmt::format("{} block", language);
+    const int global_max = rules().limits.data.output_size;
+    if (global_max > 0 && bytes > static_cast<size_t>(global_max)) {
+        addTrace(fmt::format("{} result of {} > limits.data.output_size {}", language, size_text, global_max));
         return enforce("limits.data.output_size", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
-                fmt::format("Output size {} exceeds limit of {}", size, max),
-                "", fmt::format("limits.data.output_size = {}", max),
+                fmt::format("{} output of {} exceeds limit of {} bytes", language, size_text, global_max),
+                where, fmt::format("limits.data.output_size = {}", global_max),
                 "Polyglot block output exceeds size limit — return less data.\n"
+                "Filter or summarize results instead of returning full datasets.", "", ""));
+    }
+    const auto* lc = getLanguageConfig(language);
+    if (lc && lc->max_output_size > 0 && bytes > static_cast<size_t>(lc->max_output_size)) {
+        addTrace(fmt::format("{} result of {} > per-language max_output_size {}", language, size_text, lc->max_output_size));
+        return enforce("languages.per_language.max_output_size", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                fmt::format("{} output of {} exceeds limit of {} bytes for {}",
+                    language, size_text, lc->max_output_size, language),
+                where, fmt::format("languages.per_language.{}.max_output_size = {}",
+                    normalizeLanguage(language), lc->max_output_size),
+                "Polyglot block output exceeds this language's size limit — return less data.\n"
                 "Filter or summarize results instead of returning full datasets.", "", ""));
     }
     return "";

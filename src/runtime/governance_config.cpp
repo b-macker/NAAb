@@ -1396,11 +1396,10 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             //                       here as well, and the warning outlived the
             //                       wiring -- printed immediately above the block
             //                       it said could not happen.
-            //   * output_size    -- read at polyglot.cpp:718, which enforces it
-            //                       directly (as a plain runtime_error rather than
-            //                       through enforce(), so it produces no finding or
-            //                       telemetry -- a separate gap, tracked in
-            //                       docs/open-investigations.md, not fixed here).
+            //   * output_size    -- enforced by checkOutputSize() on every route a
+            //                       foreign result takes, on both engines (A18).
+            //                       It used to be a plain throw in polyglot.cpp,
+            //                       on the tree-walker's sequential path only.
             //   * array_size     -- mirrored to rules_.max_array_size, which has
             //                       live consumers.
             //   * max_json_depth -- calls setMaxJsonDepth(), read by json_impl.cpp.

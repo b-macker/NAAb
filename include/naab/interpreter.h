@@ -520,6 +520,9 @@ public:
 
     // Phase 11.1: Flush captured output from polyglot executors
     void flushExecutorOutput(runtime::Executor* executor);
+    // limits.data.output_size / per-language max_output_size over result_, the
+    // value a block-library call just returned (A18). Throws on a refusal.
+    void checkForeignOutputSize(const std::string& language);
 
     // Phase 12: Polyglot header-aware injection
     std::string injectDeclarationsAfterHeaders(const std::string& declarations,
