@@ -55,7 +55,8 @@
 #   PC-01  on, no-op reload: still refused (before: ran, nothing refused)
 #   PC-02  the program rewrites CLAUDE.md before the reload: the ban still
 #          holds -- a reload replays what startup read, it does not re-read
-#   Baselines flags (tree-walker: the VM checks no output baselines):
+#   Baselines flags (tree-walker; test_foreign_result_checks.sh covers both
+#   engines since A56):
 #   BL-c   no flag: a changed output runs
 #   BL-c1  the flag, unchanged output: runs
 #   BL-c2  the flag WITH a report flag refuses a changed output (the planted
@@ -416,9 +417,9 @@ open("val.txt").read().strip()
     print("BL:" + b)'
 # One directory, one program: the baseline key is language:hash:line, so the
 # block must not move between runs. hash_keys false makes the key
-# "python::LINE", so the baseline can be planted: a CLI run never SAVES one
-# (saveBaselines() runs only in the engine's destructor, which _exit skips --
-# recorded in docs/open-investigations.md, not fixed here).
+# "python::LINE", so the baseline can be planted. Planting keeps these arms
+# about the flags alone; that a CLI run saves what it records is A56's
+# (test_foreign_result_checks.sh BL-01).
 BL_CFG='"mode": "enforce", "baselines": { "hash_keys": false }'
 setup bl "$BL_CFG" "" "$BL_TAIL"
 B="$W/bl"

@@ -737,12 +737,14 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         result_ = executor->executeWithReturn(final_code);
 
         // Finding G: limits.data.output_size and the per-language
-        // max_output_size bound what the block hands back. One engine check
-        // (A18): this used to be the only copy, a catchable throw that saw a
-        // string result only.
+        // max_output_size bound what the block hands back, and
+        // restrictions.polyglot_output judges its format. One engine check
+        // (A18, A52): the cap used to be a catchable throw here that saw a
+        // string result only, and the format was checked on the parallel path
+        // alone.
         if (governance_ && governance_->isActive()) {
-            std::string out_err = governance_->checkOutputSize(language, result_,
-                                                               node.getLocation().line);
+            std::string out_err = governance_->checkForeignResult(language, result_,
+                                                                  node.getLocation().line);
             if (!out_err.empty()) {
                 gc_suspended_ = false;
                 throw std::runtime_error(out_err);
@@ -766,19 +768,11 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             }
         }
 
-        // Output Baselines: check/record baseline for polyglot result
-        if (governance_ && governance_->isActive() && !result_.isNull() &&
-            governance_->getRules().baselines.enabled) {
-            std::string result_str_bl = result_.toString();
-            std::string result_type_bl = result_.getTypeName();
-            std::size_t code_hash = std::hash<std::string>{}(raw_code);
-            char hash_buf_bl[16];
-            snprintf(hash_buf_bl, sizeof(hash_buf_bl), "%06zx", code_hash & 0xFFFFFF);
-            std::string baseline_key = language + ":" +
-                (governance_->getRules().baselines.hash_keys ? std::string(hash_buf_bl) : "") +
-                ":" + std::to_string(node.getLocation().line);
-            std::string baseline_err = governance_->checkBaseline(
-                baseline_key, result_str_bl, result_type_bl, node.getLocation().line);
+        // Output Baselines: check/record baseline for polyglot result (the key
+        // is built in the engine, so both engines and both paths agree, A56)
+        if (governance_) {
+            std::string baseline_err = governance_->checkOutputBaseline(
+                language, raw_code, result_, node.getLocation().line);
             if (!baseline_err.empty()) {
                 gc_suspended_ = false;
                 throw std::runtime_error(baseline_err);
@@ -1905,12 +1899,17 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
 
             // Governance: Validate polyglot output format if configured
             if (governance_ && governance_->isActive()) {
-                // The output cap, as the sequential path applies it. This
-                // path (javascript, off Windows) had none (A18).
+                // The output cap and format, and the output baseline, as the
+                // sequential path applies them. This path (javascript, off
+                // Windows) had no cap (A18) and no baseline (A56).
                 std::string size_err;
                 try {
-                    size_err = governance_->checkOutputSize(lang_str, value,
-                        block.node ? block.node->getLocation().line : 0);
+                    const int bl_line = block.node ? block.node->getLocation().line : 0;
+                    size_err = governance_->checkForeignResult(lang_str, value, bl_line);
+                    if (size_err.empty() && block.node) {
+                        size_err = governance_->checkOutputBaseline(
+                            lang_str, block.node->getCode(), value, bl_line);
+                    }
                 } catch (...) {
                     gc_suspended_ = false;  // a HARD refusal throws from enforce()
                     throw;
@@ -1918,13 +1917,6 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                 if (!size_err.empty()) {
                     gc_suspended_ = false;
                     throw std::runtime_error(size_err);
-                }
-                if (value.isString()) {
-                    std::string output_err = governance_->checkPolyglotOutput(value.asString());
-                    if (!output_err.empty()) {
-                        gc_suspended_ = false;
-                        throw std::runtime_error(output_err);
-                    }
                 }
 
                 // BUG-P: Audit logging for parallel polyglot execution

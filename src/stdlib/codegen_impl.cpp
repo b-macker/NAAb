@@ -515,10 +515,11 @@ interpreter::NaabVal CodegenModule::call(
         if (duration_ms == 0) duration_ms = 1;
         t_codegen_total_duration_ms += duration_ms;
 
-        // limits.data.output_size / per-language max_output_size over the
-        // output the program receives, as for a static block (A18).
+        // limits.data.output_size / per-language max_output_size and
+        // restrictions.polyglot_output over the output the program receives,
+        // as for a static block (A18, A52).
         if (gov_engine && gov_engine->isActive()) {
-            std::string size_err = gov_engine->checkOutputSize(language, output.size());
+            std::string size_err = gov_engine->checkForeignResult(language, output);
             if (!size_err.empty()) throw std::runtime_error(size_err);
         }
 

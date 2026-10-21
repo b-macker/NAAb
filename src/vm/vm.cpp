@@ -130,13 +130,15 @@ void bsdRecord(governance::GovernanceEngine* gov, const std::string& mod,
         governance::stdlibEventDetail(*c, mod + "." + method, first_arg), file, line);
 }
 
-// limits.data.output_size / per-language max_output_size over a value foreign
-// code returned: "" or the refusal (a HARD one throws from enforce()). The cap
-// used to exist in the tree-walker only, so on the VM it did nothing (A18).
-std::string outputSizeError(governance::GovernanceEngine* gov, const std::string& language,
-                            const interpreter::NaabVal& result, int line = 0) {
+// A value foreign code returned, through checkForeignResult(): the output cap
+// (limits.data.output_size, per-language max_output_size) and the format
+// (restrictions.polyglot_output). "" or the refusal (a HARD one throws from
+// enforce()). Both used to exist in the tree-walker only, so on the VM they
+// did nothing (A18, A52).
+std::string foreignResultError(governance::GovernanceEngine* gov, const std::string& language,
+                               const interpreter::NaabVal& result, int line = 0) {
     if (!gov || !gov->isActive()) return "";
-    return gov->checkOutputSize(language, result, line);
+    return gov->checkForeignResult(language, result, line);
 }
 
 }  // namespace
@@ -2157,7 +2159,7 @@ interpreter::NaabVal VM::run() {
                                 result = rt.executor->executeWithReturn(code);
                             }
                             {
-                                std::string size_err = outputSizeError(governance_, rt.language, result);
+                                std::string size_err = foreignResultError(governance_, rt.language, result);
                                 if (!size_err.empty()) throw std::runtime_error(size_err);
                             }
                             for (int si = 0; si < argc + 1; si++)
@@ -2223,7 +2225,7 @@ interpreter::NaabVal VM::run() {
                         }
                         interpreter::NaabVal result = executor->callFunction(method, arg_vec);
                         {
-                            std::string size_err = outputSizeError(governance_,
+                            std::string size_err = foreignResultError(governance_,
                                 block->metadata.language, result);
                             if (!size_err.empty()) runtimeError("%s", size_err.c_str());
                         }
@@ -3317,9 +3319,16 @@ interpreter::NaabVal VM::run() {
                     }
 
                     {
-                        std::string size_err = outputSizeError(governance_, language, result,
+                        std::string size_err = foreignResultError(governance_, language, result,
                                                                polyglot_gov_line);
                         if (!size_err.empty()) runtimeError("%s", size_err.c_str());
+                    }
+                    // Output baselines: the tree-walker's check, which the VM
+                    // never ran (A56).
+                    if (governance_) {
+                        std::string bl_err = governance_->checkOutputBaseline(
+                            language, raw_code, result, polyglot_gov_line);
+                        if (!bl_err.empty()) runtimeError("%s", bl_err.c_str());
                     }
 
                     push(result);
@@ -4066,7 +4075,7 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             }
             interpreter::NaabVal result = executor->callFunction(block->member_path, args);
             {
-                std::string size_err = outputSizeError(governance_, block->metadata.language, result);
+                std::string size_err = foreignResultError(governance_, block->metadata.language, result);
                 if (!size_err.empty()) runtimeError("%s", size_err.c_str());
             }
             for (int si = 0; si < argc + 1; si++)
@@ -4822,7 +4831,7 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
         if (executor) {
             std::vector<interpreter::NaabVal> arg_vec(args, args + argc);
             interpreter::NaabVal result = executor->callFunction(method, arg_vec);
-            std::string size_err = outputSizeError(governance_, block->metadata.language, result);
+            std::string size_err = foreignResultError(governance_, block->metadata.language, result);
             if (!size_err.empty()) runtimeError("%s", size_err.c_str());
             return result;
         }
