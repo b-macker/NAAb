@@ -76,7 +76,8 @@ older than the code you are reading and cannot be refreshed here, do the gate
 by hand. A gate is never skipped because the tool is down, and an absence the
 map reports ("0 callers", "executed by NO unit") is the map's absence until a
 probe confirms it. Work already queued for the map is recorded in
-`docs/open-investigations.md`; search it for `codemap`.
+`docs/open-investigations.md` (search it for `codemap`), and the map's own
+roadmap is `docs/plan-codemap-roadmap.md`.
 
 ## G1 -- history, before changing anything
 
