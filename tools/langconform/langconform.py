@@ -337,6 +337,9 @@ def cmd_conform(a):
     3. A temporary-code marker inside each declared comment form -- on the
        opener's line and on an interior line of a block -- IS reported:
        comments are visible to the checks that read comments.
+    4. The keyword inside each declared string INTERPOLATION form is reported
+       (the language evaluates it), while the same keyword elsewhere in that
+       string is not; where backticks run a command, their content is code.
     Names probed: every registered name, plus every name in a governance-only
     entry (no executor, but naab-gov check and the C API accept it). Adding a
     language or a comment form to the table adds its probes here with no edit
@@ -381,6 +384,20 @@ def cmd_conform(a):
                 # The control for line_start_only: mid-line, it is NOT a comment.
                 probes.append((name, "mid-line %s" % b["open"],
                                "x = 1 %s FORBIDDEN_KEYWORD %s\n" % (b["open"], b["close"]), True))
+        # Interpolation: code the language EVALUATES inside a string literal
+        # must be visible to the code checks, while the rest of the same string
+        # stays a string (the control).
+        for it in d.get("interpolations", []):
+            q, pre, op, cl = it["quote"], it["prefix"], it["open"], it["close"]
+            form = "%s%s..%s..%s%s" % (pre, q, op, cl, q)
+            probes.append((name, "keyword inside interpolation %s" % form,
+                           "x = %s%sa %sFORBIDDEN_KEYWORD%s b%s\n" % (pre, q, op, cl, q), True))
+            probes.append((name, "keyword in the string around %s" % form,
+                           "x = %s%sFORBIDDEN_KEYWORD%s\n" % (pre, q, q), False))
+        if d.get("backtick_runs_command"):
+            # `...` runs a command here: its content is code, not a string.
+            probes.append((name, "keyword inside command backticks",
+                           "x = `FORBIDDEN_KEYWORD`\n", True))
     with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as ex:
         res = list(ex.map(lambda p: probe(a.gov, cfg, p[0], p[2]), probes))
     for p, (rules, err) in zip(probes, res):

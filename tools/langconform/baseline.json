@@ -265,12 +265,23 @@
    "code_quality.no_oversimplification",
    "code_quality.no_temporary_code"
   ],
-  "bash|string_back|eval": [],
-  "bash|string_back|import": [],
-  "bash|string_back|keyword": [],
+  "bash|string_back|eval": [
+   "restrictions.code_injection"
+  ],
+  "bash|string_back|import": [
+   "capabilities.shell.blocked_commands",
+   "code_quality.no_hallucinated_apis"
+  ],
+  "bash|string_back|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
   "bash|string_back|oversimplified": [],
-  "bash|string_back|placeholder": [],
-  "bash|string_back|system": [],
+  "bash|string_back|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "bash|string_back|system": [
+   "restrictions.code_injection"
+  ],
   "bash|string_back|temporary": [],
   "bash|string_double|eval": [],
   "bash|string_double|import": [],
@@ -5666,13 +5677,21 @@
    "code_quality.no_temporary_code"
   ],
   "php|string_back|eval": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "php|string_back|import": [],
-  "php|string_back|keyword": [],
+  "php|string_back|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
   "php|string_back|oversimplified": [],
-  "php|string_back|placeholder": [],
+  "php|string_back|placeholder": [
+   "code_quality.no_placeholders"
+  ],
   "php|string_back|system": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "php|string_back|temporary": [],
@@ -6814,21 +6833,27 @@
    "code_quality.no_temporary_code"
   ],
   "rb|string_back|eval": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "rb|string_back|import": [
    "restrictions.dangerous_calls"
   ],
   "rb|string_back|keyword": [
+   "code_quality.no_hallucinated_apis",
    "restrictions.dangerous_calls"
   ],
   "rb|string_back|oversimplified": [
    "restrictions.dangerous_calls"
   ],
   "rb|string_back|placeholder": [
+   "code_quality.no_placeholders",
    "restrictions.dangerous_calls"
   ],
   "rb|string_back|system": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "rb|string_back|temporary": [
@@ -7160,21 +7185,27 @@
    "code_quality.no_temporary_code"
   ],
   "ruby|string_back|eval": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "ruby|string_back|import": [
    "restrictions.dangerous_calls"
   ],
   "ruby|string_back|keyword": [
+   "code_quality.no_hallucinated_apis",
    "restrictions.dangerous_calls"
   ],
   "ruby|string_back|oversimplified": [
    "restrictions.dangerous_calls"
   ],
   "ruby|string_back|placeholder": [
+   "code_quality.no_placeholders",
    "restrictions.dangerous_calls"
   ],
   "ruby|string_back|system": [
+   "languages.per_language.banned_functions",
+   "restrictions.code_injection",
    "restrictions.dangerous_calls"
   ],
   "ruby|string_back|temporary": [
@@ -7930,12 +7961,23 @@
    "code_quality.no_oversimplification",
    "code_quality.no_temporary_code"
   ],
-  "shell|string_back|eval": [],
-  "shell|string_back|import": [],
-  "shell|string_back|keyword": [],
+  "shell|string_back|eval": [
+   "restrictions.code_injection"
+  ],
+  "shell|string_back|import": [
+   "capabilities.shell.blocked_commands",
+   "code_quality.no_hallucinated_apis"
+  ],
+  "shell|string_back|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
   "shell|string_back|oversimplified": [],
-  "shell|string_back|placeholder": [],
-  "shell|string_back|system": [],
+  "shell|string_back|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "shell|string_back|system": [
+   "restrictions.code_injection"
+  ],
   "shell|string_back|temporary": [],
   "shell|string_double|eval": [],
   "shell|string_double|import": [],
@@ -8223,12 +8265,23 @@
    "code_quality.no_oversimplification",
    "code_quality.no_temporary_code"
   ],
-  "sh|string_back|eval": [],
-  "sh|string_back|import": [],
-  "sh|string_back|keyword": [],
+  "sh|string_back|eval": [
+   "restrictions.code_injection"
+  ],
+  "sh|string_back|import": [
+   "capabilities.shell.blocked_commands",
+   "code_quality.no_hallucinated_apis"
+  ],
+  "sh|string_back|keyword": [
+   "code_quality.no_hallucinated_apis"
+  ],
   "sh|string_back|oversimplified": [],
-  "sh|string_back|placeholder": [],
-  "sh|string_back|system": [],
+  "sh|string_back|placeholder": [
+   "code_quality.no_placeholders"
+  ],
+  "sh|string_back|system": [
+   "restrictions.code_injection"
+  ],
   "sh|string_back|temporary": [],
   "sh|string_double|eval": [],
   "sh|string_double|import": [],
@@ -10632,10 +10685,25 @@
    "aliases": [
     "py"
    ],
+   "backtick_runs_command": false,
    "block_comments": [],
    "canonical": "python",
    "extension": ".py",
    "governance_only": false,
+   "interpolations": [
+    {
+     "close": "}",
+     "open": "{",
+     "prefix": "f",
+     "quote": "\""
+    },
+    {
+     "close": "}",
+     "open": "{",
+     "prefix": "f",
+     "quote": "'"
+    }
+   ],
    "line_comments": [
     "#"
    ],
@@ -10655,6 +10723,7 @@
     "js",
     "node"
    ],
+   "backtick_runs_command": false,
    "block_comments": [
     {
      "close": "*/",
@@ -10665,6 +10734,14 @@
    "canonical": "javascript",
    "extension": ".js",
    "governance_only": false,
+   "interpolations": [
+    {
+     "close": "}",
+     "open": "${",
+     "prefix": "",
+     "quote": "`"
+    }
+   ],
    "line_comments": [
     "//"
    ],
@@ -10684,6 +10761,7 @@
    "aliases": [
     "ts"
    ],
+   "backtick_runs_command": false,
    "block_comments": [
     {
      "close": "*/",
@@ -10694,6 +10772,14 @@
    "canonical": "typescript",
    "extension": ".ts",
    "governance_only": false,
+   "interpolations": [
+    {
+     "close": "}",
+     "open": "${",
+     "prefix": "",
+     "quote": "`"
+    }
+   ],
    "line_comments": [
     "//"
    ],
@@ -10713,10 +10799,31 @@
     "sh",
     "bash"
    ],
+   "backtick_runs_command": true,
    "block_comments": [],
    "canonical": "shell",
    "extension": ".sh",
    "governance_only": false,
+   "interpolations": [
+    {
+     "close": ")",
+     "open": "$(",
+     "prefix": "",
+     "quote": "\""
+    },
+    {
+     "close": "`",
+     "open": "`",
+     "prefix": "",
+     "quote": "\""
+    },
+    {
+     "close": "}",
+     "open": "${",
+     "prefix": "",
+     "quote": "\""
+    }
+   ],
    "line_comments": [
     "#"
    ],
@@ -10734,6 +10841,7 @@
    "aliases": [
     "rb"
    ],
+   "backtick_runs_command": true,
    "block_comments": [
     {
      "close": "=end",
@@ -10744,6 +10852,14 @@
    "canonical": "ruby",
    "extension": ".rb",
    "governance_only": false,
+   "interpolations": [
+    {
+     "close": "}",
+     "open": "#{",
+     "prefix": "",
+     "quote": "\""
+    }
+   ],
    "line_comments": [
     "#"
    ],
@@ -10761,6 +10877,7 @@
    "aliases": [
     "golang"
    ],
+   "backtick_runs_command": false,
    "block_comments": [
     {
      "close": "*/",
@@ -10771,6 +10888,7 @@
    "canonical": "go",
    "extension": ".go",
    "governance_only": false,
+   "interpolations": [],
    "line_comments": [
     "//"
    ],
@@ -10789,6 +10907,7 @@
     "c++",
     "cxx"
    ],
+   "backtick_runs_command": false,
    "block_comments": [
     {
      "close": "*/",
@@ -10799,6 +10918,7 @@
    "canonical": "cpp",
    "extension": ".cpp",
    "governance_only": false,
+   "interpolations": [],
    "line_comments": [
     "//"
    ],
@@ -10826,6 +10946,7 @@
     "cs",
     "c#"
    ],
+   "backtick_runs_command": false,
    "block_comments": [
     {
      "close": "*/",
@@ -10836,6 +10957,14 @@
    "canonical": "csharp",
    "extension": ".cs",
    "governance_only": false,
+   "interpolations": [
+    {
+     "close": "}",
+     "open": "{",
+     "prefix": "$",
+     "quote": "\""
+    }
+   ],
    "line_comments": [
     "//"
    ],
@@ -10845,6 +10974,7 @@
   },
   {
    "aliases": [],
+   "backtick_runs_command": false,
    "block_comments": [
     {
      "close": "*/",
@@ -10855,6 +10985,7 @@
    "canonical": "rust",
    "extension": ".rs",
    "governance_only": false,
+   "interpolations": [],
    "line_comments": [
     "//"
    ],
@@ -10873,6 +11004,7 @@
   },
   {
    "aliases": [],
+   "backtick_runs_command": false,
    "block_comments": [
     {
      "close": "]#",
@@ -10883,6 +11015,7 @@
    "canonical": "nim",
    "extension": ".nim",
    "governance_only": false,
+   "interpolations": [],
    "line_comments": [
     "#"
    ],
@@ -10899,6 +11032,7 @@
   },
   {
    "aliases": [],
+   "backtick_runs_command": true,
    "block_comments": [
     {
      "close": "*/",
@@ -10909,6 +11043,20 @@
    "canonical": "php",
    "extension": ".php",
    "governance_only": false,
+   "interpolations": [
+    {
+     "close": "}",
+     "open": "{$",
+     "prefix": "",
+     "quote": "\""
+    },
+    {
+     "close": "}",
+     "open": "${",
+     "prefix": "",
+     "quote": "\""
+    }
+   ],
    "line_comments": [
     "//",
     "#"
@@ -10925,6 +11073,7 @@
   },
   {
    "aliases": [],
+   "backtick_runs_command": false,
    "block_comments": [
     {
      "close": "=#",
@@ -10935,6 +11084,7 @@
    "canonical": "julia",
    "extension": ".jl",
    "governance_only": false,
+   "interpolations": [],
    "line_comments": [
     "#"
    ],
@@ -10950,10 +11100,12 @@
   },
   {
    "aliases": [],
+   "backtick_runs_command": false,
    "block_comments": [],
    "canonical": "zig",
    "extension": ".zig",
    "governance_only": false,
+   "interpolations": [],
    "line_comments": [
     "//"
    ],
@@ -10971,6 +11123,7 @@
    "aliases": [
     "sqlite"
    ],
+   "backtick_runs_command": false,
    "block_comments": [
     {
      "close": "*/",
@@ -10981,6 +11134,7 @@
    "canonical": "sql",
    "extension": ".sql",
    "governance_only": false,
+   "interpolations": [],
    "line_comments": [
     "--"
    ],
@@ -10997,6 +11151,7 @@
   },
   {
    "aliases": [],
+   "backtick_runs_command": false,
    "block_comments": [
     {
      "close": "*/",
@@ -11007,6 +11162,7 @@
    "canonical": "naab",
    "extension": ".naab",
    "governance_only": true,
+   "interpolations": [],
    "line_comments": [
     "#",
     "//"
@@ -11023,6 +11179,7 @@
   },
   {
    "aliases": [],
+   "backtick_runs_command": false,
    "block_comments": [
     {
      "close": "]]",
@@ -11033,6 +11190,7 @@
    "canonical": "lua",
    "extension": ".lua",
    "governance_only": true,
+   "interpolations": [],
    "line_comments": [
     "--"
    ],
@@ -11048,6 +11206,7 @@
   },
   {
    "aliases": [],
+   "backtick_runs_command": false,
    "block_comments": [
     {
      "close": "-}",
@@ -11058,6 +11217,7 @@
    "canonical": "haskell",
    "extension": ".hs",
    "governance_only": true,
+   "interpolations": [],
    "line_comments": [
     "--"
    ],
@@ -11073,10 +11233,12 @@
   },
   {
    "aliases": [],
+   "backtick_runs_command": false,
    "block_comments": [],
    "canonical": "ada",
    "extension": ".adb",
    "governance_only": true,
+   "interpolations": [],
    "line_comments": [
     "--"
    ],
