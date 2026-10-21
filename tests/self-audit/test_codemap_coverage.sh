@@ -72,6 +72,20 @@
 #   C-19  a run recorded before completeness was kept: codemap's own `run`
 #         always named its --only regex in `source`, so it reads PARTIAL; an
 #         old ingest reads unknown
+#   C-20  `status` -- the line the session-start hook prints -- gives the
+#         refresh commands whenever the run a read would use is not current,
+#         and names why: (a) recorded at another commit, (b) not complete,
+#         (d) files changed after its build, (e) no run at all; control (c):
+#         a complete run at HEAD with no stale file prints no refresh. Each
+#         reason is checked alone where the fixture allows (JSON
+#         refresh_reasons), so a mutant dropping one reason turns its arm red
+#   C-21  the recovery CLAUDE.md and the skill give for a run stopped after
+#         its test phase works on the layout `coverage run` leaves: counters
+#         in .cache/codemap/coverage/NAME/gcda and parallel.py's results in
+#         NAME/parallel, no coverage.json yet. `coverage ingest --name NAME
+#         --units-dir .cache/codemap/coverage/NAME/gcda` maps them in place,
+#         reads completeness and unit names from NAME/parallel, and keeps the
+#         counters; control: before it, the stopped run is not readable
 #   C-10  positions matched to no single definition are enumerated EXACTLY:
 #         the one line holding twin_a and twin_b, nothing else -- so a new
 #         fixture shape that fails to map turns this red; both twins read
@@ -117,6 +131,10 @@ cp -R "$FIXTURE/." "$R/"
 cd "$R" || exit 1
 CM="$(native_path "$REPO/tools/codemap/codemap.py")"
 cm() { python3 "$CM" --repo . --cache .cache/codemap "$@" 2>&1; }
+cmc() { local c="$1"; shift; python3 "$CM" --repo . --cache "$c" "$@" 2>&1; }   # another cache
+reasons() { python3 -c 'import json, sys; d = json.load(sys.stdin); c = d["coverage"] or {}
+print("%s|%s" % (",".join(c.get("refresh_reasons", [])), "refresh" if d["coverage_refresh"] else "none"))'; }
+REFRESH='refresh: `cmake -S . -B build-cov -DNAAB_COVERAGE=ON && make -C build-cov naab-lang naab-gov -j4`, then `python3 tools/codemap/codemap.py coverage run` in the background'
 g() { git -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "$@"; }
 git init -q . && git config core.autocrlf false
 printf '.cache/\nbuild/\nbuild-nowrap/\nunits/\n' > .gitignore
@@ -293,6 +311,27 @@ if grep -q "coverage: full (complete" <<<"$SDEF"; then
 else
     bad C-17c "status names a different coverage run" "$SDEF"
 fi
+JDEF="$(cm --json status | reasons)"
+if grep -q "coverage: full (complete)\. " <<<"$SDEF" && ! grep -qF "refresh:" <<<"$SDEF" && [ "$JDEF" = "|none" ]; then
+    ok C-20c "control: a complete run at HEAD with no stale file prints no refresh"
+else
+    bad C-20c "status asked to refresh a current, complete run" "$JDEF
+$SDEF"
+fi
+mkdir -p .cache/c_part/coverage && cp -R .cache/codemap/coverage/part .cache/c_part/coverage/
+SPART="$(cmc .cache/c_part status)"; JPART="$(cmc .cache/c_part --json status | reasons)"
+if grep -qF "coverage: part (PARTIAL; $REFRESH" <<<"$SPART" && [ "$JPART" = "not complete|refresh" ]; then
+    ok C-20b "a partial run at HEAD: status gives the refresh commands, for that reason alone"
+else
+    bad C-20b "a partial run was not flagged for refresh (or for another reason)" "$JPART
+$SPART"
+fi
+EMPTY="$(cmc .cache/c_none status)"
+if grep -qF "coverage: none ($REFRESH" <<<"$EMPTY"; then
+    ok C-20e "no coverage run at all: status gives the same refresh commands"
+else
+    bad C-20e "status with no coverage run did not say how to make one" "$EMPTY"
+fi
 if grep -q "executed by NO unit of coverage full.* 1 unit(s) of this run timed out (C)" <<<"$RFULL" \
    && ! grep -q "timed out" <<<"$RPART"; then
     ok C-18 "a no-unit reading names the run's timed-out unit; control: a run without timeouts names none"
@@ -315,6 +354,27 @@ if grep -qE "^legacyrun +[^ ]+ +PARTIAL " <<<"$LIST2" && grep -qE "^legacyingest
     ok C-19 "an old codemap --only run reads PARTIAL from its recorded source; an old ingest reads unknown"
 else
     bad C-19 "a run recorded before completeness was misread" "$LIST2"
+fi
+
+# ---------------------------------------------------------------- C-21
+# What `coverage run` leaves when it is stopped after the suite, before the mapping
+# writes coverage.json (run_suite_for_coverage: units in NAME/gcda, results in NAME/parallel)
+STOPPED=.cache/codemap/coverage/stopped
+mkdir -p "$STOPPED/gcda" && cp -R cfull/units/. "$STOPPED/gcda/" && cp -R cfull/parallel "$STOPPED/"
+BEFORE="$(cm tested sink --cov stopped)"
+REC="$(cm coverage ingest --name stopped --units-dir "$STOPPED/gcda" --build-dir build)"
+AFTER="$(cm tested sink --cov stopped)"
+if grep -q "no coverage 'stopped'" <<<"$BEFORE" \
+   && grep -q "complete: every unit the suite listed (4) ran" <<<"$REC" \
+   && grep -qE "^ +[0-9]+  A$" <<<"$AFTER" && grep -qE "^ +[0-9]+  B$" <<<"$AFTER" \
+   && [ -n "$(find "$STOPPED/gcda" -name '*.gcda' | head -1)" ]; then
+    ok C-21 "a run stopped before its mapping is re-mapped in place by the documented ingest: complete, units named, counters kept"
+else
+    bad C-21 "the documented recovery did not re-map a stopped run" "$BEFORE
+---
+$REC
+---
+$AFTER"
 fi
 
 # ---------------------------------------------------------------- C-07 / C-08
@@ -402,6 +462,15 @@ else
 $SK2
 $(head -1 <<<"$UT3")"
 fi
+mkdir -p .cache/c_stale/coverage && cp -R .cache/codemap/coverage/fx2 .cache/c_stale/coverage/
+SSTALE="$(cmc .cache/c_stale status)"; JSTALE="$(cmc .cache/c_stale --json status | reasons)"
+if grep -qF "1 file(s) changed after its build; $REFRESH" <<<"$SSTALE" \
+   && [ "$JSTALE" = "not complete,1 file(s) changed after its build|refresh" ]; then
+    ok C-20d "a run whose build predates an edited file: status names the stale file count and the refresh"
+else
+    bad C-20d "a stale-build run was not flagged for refresh" "$JSTALE
+$SSTALE"
+fi
 if grep -qE "^ +1  000_A$" <<<"$MN2"; then
     ok C-11c "control: other.cpp, not edited, is still measured -- the stale check is per file"
 else
@@ -425,6 +494,14 @@ else
     bad C-12 "the commit a coverage run is about was not reported (or was, at its own commit)" "$CLEAN
 ---
 $MOVED"
+fi
+SMOVED="$(cm status)"; JMOVED="$(cm --json status | reasons)"
+if grep -qE "coverage: [a-z0-9]+ \(complete, recorded at [0-9a-f]+; refresh: " <<<"$SMOVED" && grep -qF "; $REFRESH" <<<"$SMOVED" \
+   && [ "$JMOVED" = "recorded at another commit|refresh" ]; then
+    ok C-20 "a complete run recorded at another commit: status gives the refresh commands, for that reason alone"
+else
+    bad C-20 "a run from another commit was not flagged for refresh" "$JMOVED
+$SMOVED"
 fi
 
 # ---------------------------------------------------------------- C-15 / C-15c

@@ -1762,6 +1762,14 @@ def cmd_dot(a, st):
     out("\n".join(lines))
 
 
+# What `status` prints when coverage is missing or not current. The line is the only place
+# a new session learns the commands before it relies on a coverage answer, so it names
+# the whole refresh -- build-cov included, since `coverage run` maps onto that build.
+COVERAGE_REFRESH = ("refresh: `cmake -S . -B build-cov -DNAAB_COVERAGE=ON && make -C build-cov"
+                    " naab-lang naab-gov -j4`, then `python3 tools/codemap/codemap.py coverage run`"
+                    " in the background, 45+ min (CLAUDE.md, Code map > Coverage)")
+
+
 AUTHORITY = ("Its answers are leads (tiered, blind spots printed), not verdicts:"
              " docs/investigation-method.md decides, and the investigation-gates skill names"
              " the query that fits each gate.")
@@ -1807,9 +1815,23 @@ def cmd_status(a):
         name, _ = latest_coverage(a)
         cov = covmod.load(a.cache, name)
         res["coverage"] = {"name": name, "state": covmod.run_completeness(cov)["state"],
-                           "head": (cov.get("meta") or {}).get("head")}
+                           "head": (cov.get("meta") or {}).get("head"),
+                           "stale_files": len(cov.get("stale_files") or ())}
     except SystemExit:
         pass
+    c = res["coverage"]
+    # Why the coverage a read would use is not current. Each is a reason to refresh,
+    # not a reason to trust less than the read itself already says.
+    why = []
+    if c:
+        if c["state"] != "complete":
+            why.append("not complete")
+        if c["head"] and res["head"] and c["head"] != res["head"]:
+            why.append("recorded at another commit")
+        if c["stale_files"]:
+            why.append("%d file(s) changed after its build" % c["stale_files"])
+        c["refresh_reasons"] = why
+    res["coverage_refresh"] = COVERAGE_REFRESH if (why or not c) else None
     if a.json:
         return emit_json(dict(res, authority=AUTHORITY))
     parts = []
@@ -1837,13 +1859,14 @@ def cmd_status(a):
                      " then `python3 tools/codemap/codemap.py index` (about 2 min)")
     else:
         parts.append("NO INDEX: `python3 tools/codemap/codemap.py index` builds one (about 2 min)")
-    c = res["coverage"]
     if c:
         label = {"complete": "complete", "partial": "PARTIAL"}.get(c["state"], "completeness " + c["state"])
         at = ", recorded at %s" % c["head"] if c["head"] and c["head"] != res["head"] else ""
-        parts.append("coverage: %s (%s%s)" % (c["name"], label, at))
+        stale = ", %d file(s) changed after its build" % c["stale_files"] if c["stale_files"] else ""
+        refresh = "; %s" % res["coverage_refresh"] if res["coverage_refresh"] else ""
+        parts.append("coverage: %s (%s%s%s%s)" % (c["name"], label, at, stale, refresh))
     else:
-        parts.append("coverage: none (`codemap coverage run`, about 45 min on a NAAB_COVERAGE build)")
+        parts.append("coverage: none (%s)" % res["coverage_refresh"])
     if not res["valgrind"]:
         parts.append("profiles: valgrind missing")
     out("codemap: " + ". ".join(parts) + ". " + AUTHORITY)

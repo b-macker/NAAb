@@ -52,11 +52,31 @@ say in the report that the lead came from the map. A code-map count in a
 write-up is screened tier, with the commit it was measured at.
 
 The session-start hook prints `codemap status`: whether an index exists, how
-fresh it is, and which coverage run a read would use. When it says
-UNAVAILABLE, NO INDEX or UNMEASURABLE -- or the index is older than the code
-you are reading -- do the gate by hand. A gate is never skipped because the
-tool is down, and an absence the map reports ("0 callers", "executed by NO
-unit") is the map's absence until a probe confirms it.
+fresh it is, which coverage run a read would use, and the command that
+refreshes either one when it is not current. Refresh before you rely on it:
+
+- A stale INDEX costs seconds (`codemap index`). Refresh it rather than read
+  around it.
+- COVERAGE costs 45 minutes or more: the suite runs against the `build-cov`
+  build, then the counters are mapped. When a claim would rest on coverage and
+  the line says `refresh:` (the run is not complete, was recorded at another
+  commit, or files changed after its build), either run the line's commands in
+  the background, if the session has the time, or do the gate by hand and say
+  in the report that coverage was not used. A reading from a run the line flags
+  is not evidence.
+- A run stopped after its test phase keeps its per-unit counters in
+  `.cache/codemap/coverage/NAME/gcda` until a mapping succeeds (one was stopped
+  at an agent's 2-hour background limit while mapping). Re-map them with
+  `codemap coverage ingest --name NAME --units-dir
+  .cache/codemap/coverage/NAME/gcda`. A new `coverage run` under the same name
+  deletes them first.
+
+When the line says UNAVAILABLE, NO INDEX or UNMEASURABLE, or the index is
+older than the code you are reading and cannot be refreshed here, do the gate
+by hand. A gate is never skipped because the tool is down, and an absence the
+map reports ("0 callers", "executed by NO unit") is the map's absence until a
+probe confirms it. Work already queued for the map is recorded in
+`docs/open-investigations.md`; search it for `codemap`.
 
 ## G1 -- history, before changing anything
 
@@ -149,7 +169,8 @@ Code-map leads for this gate (each a starting point for the checks above):
   units' assertions, because entering a function is not checking it; `codemap
   untested --under PATH` lists functions no unit enters. A PARTIAL or
   completeness-UNKNOWN coverage run says so on every read, and "executed by
-  NO unit" from it is not evidence that nothing tests the function.
+  NO unit" from it is not evidence that nothing tests the function. Neither
+  is a reading from a run `codemap status` flags for refresh (above).
 
 ## G3 -- before calling a flake or CI failure fixed
 
