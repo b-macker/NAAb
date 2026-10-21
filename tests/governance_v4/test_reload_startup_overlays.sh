@@ -207,6 +207,23 @@ SELECT 1 AS x
 # ---- R-00: the harness ------------------------------------------------------
 setup r00 '"mode": "enforce"' "=" "$JS_TAIL"
 go r00
+IS_WINDOWS=0
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
+[ -n "${WINDIR:-}" ] && IS_WINDOWS=1
+# Two platform limits make the harness itself unrunnable, and each is
+# UNMEASURABLE, never a pass or a failure: the swap block is a <<python>>
+# expression, which evaluates to null without the embedded Python executor
+# (the subprocess fallback has no expression values -- build-windows prints
+# STEP1:null); and on Windows a config cannot be replaced under a running
+# program (0304af3a; every reload suite since skips there).
+if [[ "$OUT" == *REACHED_END* ]] && ! ran; then
+    skip "R-00" "the <<python>> harness block has no value here (no embedded Python executor) -- every arm is UNMEASURABLE"
+    report; exit 0
+fi
+if [ "$IS_WINDOWS" = 1 ] && ran && ! reloaded; then
+    skip "R-00" "mid-run file swap requires POSIX file semantics -- every arm is UNMEASURABLE"
+    report; exit 0
+fi
 if ran && reloaded && ! rejected && [[ "$OUT" == *JS_RAN:2* ]] && [[ "$OUT" == *REACHED_END* ]]; then
     ok "R-00" "the swap harness works and a no-op reload is accepted"
 else
