@@ -6104,10 +6104,6 @@ bool GovernanceEngine::reloadIfChanged() {
         // Parse into temporary rules
         GovernanceRules new_rules;
         loadFromJson(j, new_rules);
-        // The CLI's output overlay (report and telemetry destinations) is not
-        // in govern.json; lay it over the new rules as the startup path did,
-        // or every accepted reload -- even of the same file -- drops it.
-        applyStartupOutputs(new_rules, startup_outputs_);
 
         // Verify signature — reject unsigned changes
         // Quiet variant: verification's own diagnostics are worded for startup,
@@ -6161,6 +6157,20 @@ bool GovernanceEngine::reloadIfChanged() {
         // enforce) dropped to audit on the next reload. Reloads are always
         // signed by this point, so the override always applies.
         enforceMinimumLevels(new_rules);
+
+        // What the run laid over govern.json at startup -- the role, the
+        // environment, project-context rules, the CLI's output destinations
+        // and baselines flags -- is not in the file: lay it over the new rules
+        // in the order the startup path applied it, after the minimum levels
+        // as there, and before the ratchet compares them. Without it every
+        // accepted reload, even of the same file, dropped them, and a reload
+        // whose overlay the ratchet compares was always refused (A37).
+        // The sandbox sync below reads the shell decision from BEFORE the
+        // overlays: at startup the sandbox is synced before the role is
+        // applied, so a shell-less role reaches checkShellAllowed() but not
+        // SYS_EXEC (A54 is an open decision, not this reload's to make).
+        const bool sandbox_shell_allowed = new_rules.shell_allowed;
+        applyStartupOverlays(new_rules);
 
         // Re-apply governance self-protection to new rules (survives reload)
         addGovernanceProtectedPaths(new_rules);
@@ -6224,6 +6234,9 @@ bool GovernanceEngine::reloadIfChanged() {
         active_.store(new_rp->mode != GovernanceMode::OFF);
         loaded_mtime_ns_ = current_mtime;
         reload_count_++;
+        // A plugin file the new rules add is loaded on the next check; the
+        // files already loaded are skipped (loaded_plugin_files_).
+        plugins_loaded_.store(false);
 
         // Evidence Epoch: config reload invalidates prior-epoch evidence
         governance_epoch_++;
@@ -6239,7 +6252,7 @@ bool GovernanceEngine::reloadIfChanged() {
                 sb->setNetworkEnabled(false);
                 sb->removeCapability(security::Capability::NET_CONNECT);
             }
-            if (!new_rp->shell_allowed) {
+            if (!sandbox_shell_allowed) {
                 sb->setAllowExec(false);
                 sb->removeCapability(security::Capability::SYS_EXEC);
                 sb->markShellDisabledByPolicy();

@@ -994,7 +994,10 @@ struct GovernancePluginRule {
 struct GovernancePlugin {
     std::string file_path;        // relative to govern.json directory
     std::vector<GovernancePluginRule> rules;
-    bool loaded = false;
+    // Whether the file is loaded is engine state (GovernanceEngine::
+    // loaded_plugin_files_), not part of the rules: a flag here was lost with
+    // the rules every accepted reload replaced, and no plugin rule ran again
+    // (A37).
 };
 
 // ============================================================================
@@ -3213,6 +3216,10 @@ public:
     // Init-only, like getMutableRules(); reloadIfChanged() re-applies it.
     void setStartupOutputs(const StartupOutputs& outputs);
     static void applyStartupOutputs(GovernanceRules& target_rules, const StartupOutputs& outputs);
+    // Records --governance-record-baselines / --governance-check-baselines
+    // (or governance.record_baselines / check_baselines) and applies them to
+    // the live rules. Init-only; reloadIfChanged() re-applies them (A37).
+    void setStartupBaselineFlags(bool record, bool check);
 
     // --- Legacy Getters (backward compatible) ---
     int getTimeoutSeconds() const;
@@ -4200,7 +4207,13 @@ private:
 
     // Governance plugins
     std::string govern_json_dir_;           // Directory containing govern.json
-    bool plugins_loaded_ = false;           // Lazy loading flag
+    // Lazy loading flag. A reload clears it, so a plugin file the new rules
+    // add is loaded on the next check; files already loaded are skipped.
+    std::atomic<bool> plugins_loaded_{false};
+    // Resolved paths of the plugin files loaded into the interpreter.
+    std::set<std::string> loaded_plugin_files_;
+    std::mutex plugin_files_mutex_;         // guards loaded_plugin_files_
+    std::string resolvePluginPath(const GovernancePlugin& plugin) const;
     bool in_plugin_check_ = false;          // Re-entrancy guard
     std::unordered_set<std::string> warned_plugin_rules_;  // Dedup warnings
 
@@ -4351,6 +4364,25 @@ private:
     mutable std::mutex notices_mutex_;            // guards pending_notices_
     mutable std::mutex reload_mutex_;             // serializes reload attempts
     StartupOutputs startup_outputs_;              // set at init (setStartupOutputs), read by reloads
+
+    // A37: everything else the run laid over govern.json at startup, recorded
+    // so reloadIfChanged() lays it over every rule set it installs, before the
+    // ratchet compares them (applyStartupOverlays). Without it an accepted
+    // reload dropped each one, or -- where the ratchet compares the key --
+    // every reload was refused. The role and the environment are named by the
+    // run and DEFINED by govern.json, so a reload re-reads them from the new
+    // file by name; project-context extractions came from files read once at
+    // startup and are replayed as they were.
+    bool role_overlay_ = false;                   // applyAgentRole() ran: lay agent_id_'s role over reloads
+    std::shared_ptr<const std::vector<ContextExtraction>> startup_context_;  // as loaded, before applyToRules marked them
+    EnforcementLevel startup_context_level_ = EnforcementLevel::ADVISORY;
+    bool startup_context_hints_ = false;          // project_context.feed_optimization at startup
+    bool startup_baselines_record_ = false;
+    bool startup_baselines_check_ = false;
+    void applyStartupOverlays(GovernanceRules& target_rules);
+    static bool applyAgentRoleTo(GovernanceRules& target_rules, const std::string& agent_id);
+    static bool applyEnvironmentTo(GovernanceRules& target_rules, const std::string& env_name);
+    static void applyBaselineFlags(GovernanceRules& target_rules, bool record, bool check);
 
     // --- Guidance state (defined in governance_guidance.cpp) ---
     // Document cache, per-handle queues and cooldowns. Created lazily under

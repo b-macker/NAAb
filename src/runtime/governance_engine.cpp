@@ -859,6 +859,13 @@ bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
                         else if (rules().project_context.enforcement_level == "hard")
                             ctx_level = EnforcementLevel::HARD;
 
+                        // Recorded before applyToRules marks them: every
+                        // reload replays these (applyStartupOverlays). The
+                        // files are read once, so a program that edits them
+                        // cannot change what a reload applies (A37).
+                        startup_context_ = std::make_shared<const std::vector<ContextExtraction>>(extractions);
+                        startup_context_level_ = ctx_level;
+                        startup_context_hints_ = rules().project_context.feed_optimization;
                         loader.applyToRules(getMutableRules(), extractions, ctx_level);
 
                         if (rules().project_context.feed_optimization) {
@@ -6639,6 +6646,37 @@ void GovernanceEngine::setStartupOutputs(const StartupOutputs& o) {
     addGovernanceProtectedPaths(mr);
 }
 
+// Lays the environment env_name over target_rules. Returns false when the
+// rules define no such environment. Shared by applyEnvironment() at startup
+// and by every reload (applyStartupOverlays), which re-reads the environment
+// from the new file, so an operator's edit of it takes effect (A37).
+bool GovernanceEngine::applyEnvironmentTo(GovernanceRules& r, const std::string& env_name) {
+    auto it = r.environments.find(env_name);
+    if (it == r.environments.end()) return false;
+    const auto overrides = it->second;  // r is written below
+    for (const auto& [key, value] : overrides) {
+        if (key == "mode") {
+            if (value == "enforce") r.mode = GovernanceMode::ENFORCE;
+            else if (value == "audit") r.mode = GovernanceMode::AUDIT;
+            else if (value == "off") r.mode = GovernanceMode::OFF;
+        } else if (key == "quality_gate.enabled") {
+            r.quality_gate.enabled = (value == "true");
+        } else if (key == "governance_baseline.enabled") {
+            r.governance_baseline.enabled = (value == "true");
+        } else if (key == "governance_baseline.fail_on_regression") {
+            r.governance_baseline.fail_on_regression = (value == "true");
+        } else if (key == "output.file_output.report_sarif") {
+            r.output.file_output.report_sarif = value;
+        } else if (key == "output.file_output.report_json") {
+            r.output.file_output.report_json = value;
+        } else if (key == "output.file_output.report_junit") {
+            r.output.file_output.report_junit = value;
+        }
+        // Additional dot-path overrides can be added as needed
+    }
+    return true;
+}
+
 void GovernanceEngine::applyEnvironment(const std::string& env_name) {
     auto it = rules().environments.find(env_name);
     if (it == rules().environments.end()) {
@@ -6651,34 +6689,58 @@ void GovernanceEngine::applyEnvironment(const std::string& env_name) {
         return;
     }
 
-    auto& mr = getMutableRules();  // init-only: applyEnvironment called before concurrent execution
-    for (const auto& [key, value] : it->second) {
-        if (key == "mode") {
-            if (value == "enforce") mr.mode = GovernanceMode::ENFORCE;
-            else if (value == "audit") mr.mode = GovernanceMode::AUDIT;
-            else if (value == "off") mr.mode = GovernanceMode::OFF;
-        } else if (key == "quality_gate.enabled") {
-            mr.quality_gate.enabled = (value == "true");
-        } else if (key == "governance_baseline.enabled") {
-            mr.governance_baseline.enabled = (value == "true");
-        } else if (key == "governance_baseline.fail_on_regression") {
-            mr.governance_baseline.fail_on_regression = (value == "true");
-        } else if (key == "output.file_output.report_sarif") {
-            mr.output.file_output.report_sarif = value;
-        } else if (key == "output.file_output.report_json") {
-            mr.output.file_output.report_json = value;
-        } else if (key == "output.file_output.report_junit") {
-            mr.output.file_output.report_junit = value;
-        }
-        // Additional dot-path overrides can be added as needed
-    }
-    active_env_ = env_name;
+    // init-only: applyEnvironment called before concurrent execution
+    applyEnvironmentTo(getMutableRules(), env_name);
+    active_env_ = env_name;  // every reload lays it over its rules too
     fprintf(stderr, "[governance] Applied environment: %s\n", env_name.c_str());
     if (rules().verbose) {
         for (const auto& [key, value] : it->second) {
             fprintf(stderr, "[governance]   %s = %s\n", key.c_str(), value.c_str());
         }
     }
+}
+
+void GovernanceEngine::applyBaselineFlags(GovernanceRules& r, bool record, bool check) {
+    if (record) {
+        r.baselines.enabled = true;
+        r.baselines.auto_record = true;
+    }
+    if (check) {
+        r.baselines.enabled = true;
+        r.baselines.level = EnforcementLevel::HARD;
+    }
+}
+
+void GovernanceEngine::setStartupBaselineFlags(bool record, bool check) {
+    startup_baselines_record_ = record;
+    startup_baselines_check_ = check;
+    applyBaselineFlags(getMutableRules(), record, check);  // init-only
+}
+
+// Everything the run laid over govern.json at startup, laid over a reloaded
+// rule set in the order the startup path applied it: project context
+// (discoverAndLoad), then the role, the environment, the output destinations
+// and the baselines flags (main.cpp). Without this an accepted reload dropped
+// each of them, or -- where the ratchet compares the key -- every reload was
+// refused (A37).
+void GovernanceEngine::applyStartupOverlays(GovernanceRules& r) {
+    if (startup_context_ && !startup_context_->empty()) {
+        // A copy: applyToRules marks each extraction it handles.
+        auto extractions = *startup_context_;
+        ProjectContextLoader loader;
+        loader.applyToRules(r, extractions, startup_context_level_);
+        if (startup_context_hints_) {
+            loader.applyOptimizationHints(r.polyglot_optimization, extractions);
+        }
+    }
+    if (role_overlay_) applyAgentRoleTo(r, agent_id_);
+    if (!active_env_.empty() && !applyEnvironmentTo(r, active_env_)) {
+        fprintf(stderr,
+            "[governance] Reload: environment '%s' is not in the new govern.json; "
+            "its settings no longer apply\n", active_env_.c_str());
+    }
+    applyStartupOutputs(r, startup_outputs_);
+    applyBaselineFlags(r, startup_baselines_record_, startup_baselines_check_);
 }
 
 // ============================================================================
