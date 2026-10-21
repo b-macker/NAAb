@@ -3573,6 +3573,13 @@ public:
                                 const interpreter::NaabVal& result, int line = 0);
     std::string checkOutputSize(const std::string& language, size_t bytes,
                                 int line = 0, bool exact = true);
+    // What foreign code hands back, checked as one: the output cap above,
+    // then restrictions.polyglot_output's format (a STRING result must parse
+    // as JSON under "json"). Every route calls one of these; the format check
+    // used to sit in the tree-walker's parallel path only (A52).
+    std::string checkForeignResult(const std::string& language,
+                                   const interpreter::NaabVal& result, int line = 0);
+    std::string checkForeignResult(const std::string& language, const std::string& output);
     std::string checkDictSize(size_t size);
 
     // Rate limiting
@@ -3690,6 +3697,10 @@ public:
                                const std::string& type, int line = 0);
     void recordBaseline(const std::string& key, const std::string& output,
                          const std::string& type);
+    // One inline block's baseline, keyed by its language, text and line --
+    // the one place both engines build the key (A56).
+    std::string checkOutputBaseline(const std::string& language, const std::string& code,
+                                    const interpreter::NaabVal& result, int line);
 
     // --- Drift Tracking ---
     void writeDriftEvent(const std::string& language, const std::string& task_type,
@@ -4347,11 +4358,14 @@ private:
     // Uses void* to avoid nlohmann/json.hpp in header (kept in .cpp only)
     void* baselines_data_ = nullptr;
     bool baselines_loaded_ = false;
-    bool baselines_dirty_ = false;
+    mutable bool baselines_dirty_ = false;   // saved by writeReports() (A56)
     std::string baselines_path_;
+    mutable std::mutex baselines_mutex_;     // guards the four above
     int drift_write_count_ = 0;
-    void loadBaselines();
-    void saveBaselines();
+    void loadBaselinesLocked();
+    void recordBaselineLocked(const std::string& key, const std::string& output,
+                              const std::string& type);
+    void saveBaselines() const;
 
     // --- Mid-run reload state (Governance Under Survivability) ---
     int64_t loaded_mtime_ns_ = 0;                 // govern.json mtime as nanoseconds (fs clock epoch)

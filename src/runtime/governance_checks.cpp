@@ -6580,6 +6580,23 @@ std::string GovernanceEngine::checkOutputSize(const std::string& language, size_
     return "";
 }
 
+// The cap first: a result too large to hold is refused before it is parsed.
+std::string GovernanceEngine::checkForeignResult(const std::string& language,
+                                                 const interpreter::NaabVal& result, int line) {
+    std::string err = checkOutputSize(language, result, line);
+    if (!err.empty()) return err;
+    if (result.isString()) return checkPolyglotOutput(result.asString());
+    return "";
+}
+
+// codegen.run()'s output string, which is what its program printed.
+std::string GovernanceEngine::checkForeignResult(const std::string& language,
+                                                 const std::string& output) {
+    std::string err = checkOutputSize(language, output.size());
+    if (!err.empty()) return err;
+    return checkPolyglotOutput(output);
+}
+
 std::string GovernanceEngine::checkDictSize(size_t size) {
     clearTrace();
     int max = rules().limits.data.dict_size;
