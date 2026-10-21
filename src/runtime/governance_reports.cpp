@@ -1875,65 +1875,73 @@ bool GovernanceEngine::isTranscriptAgent(const std::string& agent_name) const {
 
 // --- Agent Role Application ---
 // C1: init-only — copy-mutate-swap to avoid writing shared rules_ptr_
-// Stands in for an allow list that admits nothing (see applyAgentRole).
+// Stands in for an allow list that admits nothing (see applyAgentRoleTo).
 static const char* const kNoLanguageAllowed =
     "(none: the agent role and languages.allowed share no language)";
 
-void GovernanceEngine::applyAgentRole() {
-    auto new_rules = std::make_shared<GovernanceRules>(rules());  // copy current
-    for (const auto& role : new_rules->agents) {
-        if (role.name == agent_id_) {
-            // Restrict allowed languages: intersect with base allowed_languages
-            if (!role.allowed_languages.empty()) {
-                if (new_rules->allowed_languages.empty()) {
-                    // No base restriction — apply role's languages as the restriction
-                    for (const auto& l : role.allowed_languages)
-                        new_rules->allowed_languages.insert(l);
-                } else {
-                    // Intersect: keep only languages in both base AND role
-                    std::unordered_set<std::string> intersection;
-                    for (const auto& l : role.allowed_languages) {
-                        if (new_rules->allowed_languages.count(l))
-                            intersection.insert(l);
-                    }
-                    // An EMPTY allow list means "unrestricted", so a role
-                    // whose languages share nothing with the project's must
-                    // not leave it empty: that turned `allowed: ["python"]`
-                    // plus a role naming "ruby" into permission to run Ruby
-                    // (measured), a role exceeding the project. The marker
-                    // is not a language name, so it admits nothing.
-                    if (intersection.empty())
-                        intersection.insert(kNoLanguageAllowed);
-                    new_rules->allowed_languages = intersection;
+// Lays the role named agent_id over target_rules. Returns whether a role of
+// that name exists. Shared by applyAgentRole() at startup and by every reload
+// (applyStartupOverlays), which re-reads the role from the new file (A37).
+bool GovernanceEngine::applyAgentRoleTo(GovernanceRules& target_rules,
+                                        const std::string& agent_id) {
+    for (const auto& role : target_rules.agents) {
+        if (role.name != agent_id) continue;
+        // Restrict allowed languages: intersect with base allowed_languages
+        if (!role.allowed_languages.empty()) {
+            if (target_rules.allowed_languages.empty()) {
+                // No base restriction — apply role's languages as the restriction
+                for (const auto& l : role.allowed_languages)
+                    target_rules.allowed_languages.insert(l);
+            } else {
+                // Intersect: keep only languages in both base AND role
+                std::unordered_set<std::string> intersection;
+                for (const auto& l : role.allowed_languages) {
+                    if (target_rules.allowed_languages.count(l))
+                        intersection.insert(l);
                 }
+                // An EMPTY allow list means "unrestricted", so a role
+                // whose languages share nothing with the project's must
+                // not leave it empty: that turned `allowed: ["python"]`
+                // plus a role naming "ruby" into permission to run Ruby
+                // (measured), a role exceeding the project. The marker
+                // is not a language name, so it admits nothing.
+                if (intersection.empty())
+                    intersection.insert(kNoLanguageAllowed);
+                target_rules.allowed_languages = intersection;
             }
-
-            // V-GOV-018: Apply per-role shell restriction.
-            // Roles can only restrict (deny shell); they cannot grant shell if
-            // the global policy already denies it.
-            if (role.shell_allowed_set && !role.shell_allowed) {
-                new_rules->shell_allowed = false;
-            }
-
-            // Publish updated rules
-            std::atomic_store(&rules_ptr_,
-                std::const_pointer_cast<const GovernanceRules>(new_rules));
-
-            // Path restrictions enforced at runtime via checkPathAccess()
-            fprintf(stderr, "[governance] Agent role applied: %s (languages: ",
-                    agent_id_.c_str());
-            bool first = true;
-            for (const auto& l : new_rules->allowed_languages) {
-                if (!first) fprintf(stderr, ", ");
-                fprintf(stderr, "%s", l.c_str());
-                first = false;
-            }
-            fprintf(stderr, "), shell: %s\n",
-                    new_rules->shell_allowed ? "allowed" : "blocked");
-            return;
         }
+
+        // V-GOV-018: Apply per-role shell restriction.
+        // Roles can only restrict (deny shell); they cannot grant shell if
+        // the global policy already denies it.
+        if (role.shell_allowed_set && !role.shell_allowed) {
+            target_rules.shell_allowed = false;
+        }
+        return true;
     }
-    // No matching role found — base rules apply unchanged
+    return false;
+}
+
+void GovernanceEngine::applyAgentRole() {
+    role_overlay_ = true;  // every reload lays the role over its rules too
+    auto new_rules = std::make_shared<GovernanceRules>(rules());  // copy current
+    if (!applyAgentRoleTo(*new_rules, agent_id_)) return;
+
+    // Publish updated rules
+    std::atomic_store(&rules_ptr_,
+        std::const_pointer_cast<const GovernanceRules>(new_rules));
+
+    // Path restrictions enforced at runtime via checkPathAccess()
+    fprintf(stderr, "[governance] Agent role applied: %s (languages: ",
+            agent_id_.c_str());
+    bool first = true;
+    for (const auto& l : new_rules->allowed_languages) {
+        if (!first) fprintf(stderr, ", ");
+        fprintf(stderr, "%s", l.c_str());
+        first = false;
+    }
+    fprintf(stderr, "), shell: %s\n",
+            new_rules->shell_allowed ? "allowed" : "blocked");
 }
 
 // --- Environment Variable Substitution ---
@@ -3042,9 +3050,15 @@ std::string GovernanceEngine::verifyPolyglotResult(
 // Governance Plugin API (#23): NAAb-based custom governance rules
 // ============================================================================
 
+// A plugin file's path relative to the govern.json directory.
+std::string GovernanceEngine::resolvePluginPath(const GovernancePlugin& plugin) const {
+    namespace fs = std::filesystem;
+    if (fs::path(plugin.file_path).is_absolute()) return plugin.file_path;
+    return (fs::path(govern_json_dir_) / plugin.file_path).string();
+}
+
 void GovernanceEngine::loadPlugins() {
-    if (plugins_loaded_) return;
-    plugins_loaded_ = true;
+    if (plugins_loaded_.exchange(true)) return;
 
     auto* interp = interpreter::g_current_interpreter;
     if (!interp) {
@@ -3053,15 +3067,19 @@ void GovernanceEngine::loadPlugins() {
     }
 
     namespace fs = std::filesystem;
-    for (auto& plugin : getMutableRules().governance_plugins) {
+    // Read-only: which files are loaded is engine state, so this no longer
+    // writes the published rules mid-run, and a reload -- which replaces them
+    // -- no longer forgets what is loaded (A37).
+    // Held, not borrowed: loading runs the plugin file, and a polyglot block
+    // in it may reload the config under this loop.
+    const auto rp = getRulesPtr();
+    for (const auto& plugin : rp->governance_plugins) {
         if (plugin.rules.empty()) continue;
 
-        // Resolve file path relative to govern.json directory
-        fs::path plugin_path;
-        if (fs::path(plugin.file_path).is_absolute()) {
-            plugin_path = plugin.file_path;
-        } else {
-            plugin_path = fs::path(govern_json_dir_) / plugin.file_path;
+        const fs::path plugin_path = resolvePluginPath(plugin);
+        {
+            std::lock_guard<std::mutex> lock(plugin_files_mutex_);
+            if (loaded_plugin_files_.count(plugin_path.string())) continue;  // loaded before a reload
         }
 
         if (!fs::exists(plugin_path)) {
@@ -3072,7 +3090,8 @@ void GovernanceEngine::loadPlugins() {
 
         try {
             interp->loadPluginFile(plugin_path.string());
-            plugin.loaded = true;
+            std::lock_guard<std::mutex> lock(plugin_files_mutex_);
+            loaded_plugin_files_.insert(plugin_path.string());
         } catch (const governance::GovernanceHardError&) {
             throw;
         } catch (const std::exception& e) {
@@ -3107,7 +3126,10 @@ std::string GovernanceEngine::checkPluginRules(
     } guard(in_plugin_check_);
 
     for (const auto& plugin : rules().governance_plugins) {
-        if (!plugin.loaded) continue;
+        {
+            std::lock_guard<std::mutex> lock(plugin_files_mutex_);
+            if (!loaded_plugin_files_.count(resolvePluginPath(plugin))) continue;
+        }
 
         for (const auto& rule : plugin.rules) {
             if (!rule.enabled) continue;

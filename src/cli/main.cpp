@@ -1956,21 +1956,14 @@ int main(int argc, char** argv) {
                     outs.report_sarif = !governance_report_sarif.empty() ? governance_report_sarif : gr.report_sarif;
                     outs.report_junit = !governance_report_junit.empty() ? governance_report_junit : gr.report_junit;
                     if (!outs.empty()) gov->setStartupOutputs(outs);
-                }
-            }
-            if (!use_vm && (!governance_report_json.empty() || !governance_report_sarif.empty() ||
-                !governance_report_junit.empty())) {
-                auto* gov = interpreter.getGovernance();
-                if (gov) {
-                    auto& rules = gov->getMutableRules();
-                    if (governance_record_baselines) {
-                        rules.baselines.enabled = true;
-                        rules.baselines.auto_record = true;
-                    }
-                    if (governance_check_baselines) {
-                        rules.baselines.enabled = true;
-                        rules.baselines.level = naab::governance::EnforcementLevel::HARD;
-                    }
+                    // Baselines flags, or govern.json's governance.record_/
+                    // check_baselines as on the VM. Applied whether or not a
+                    // report flag is given: they used to share an `if` with the
+                    // report flags, from when that block also set the report
+                    // paths. Recorded, so a reload keeps them (A37).
+                    const bool rec_bl = governance_record_baselines || gr.record_baselines;
+                    const bool chk_bl = governance_check_baselines || gr.check_baselines;
+                    if (rec_bl || chk_bl) gov->setStartupBaselineFlags(rec_bl, chk_bl);
                 }
             }
 
@@ -2227,6 +2220,14 @@ int main(int argc, char** argv) {
                         outs.report_sarif = governance_report_sarif;
                         outs.report_junit = governance_report_junit;
                         if (!outs.empty()) vm_governance.setStartupOutputs(outs);
+                    }
+                    // The baselines flags (CLI, else governance.record_/
+                    // check_baselines, merged above). The VM checks no output
+                    // baselines today; recorded so its rules say what the run
+                    // asked for, and a reload keeps it (A37).
+                    if (governance_record_baselines || governance_check_baselines) {
+                        vm_governance.setStartupBaselineFlags(governance_record_baselines,
+                                                              governance_check_baselines);
                     }
                 }
 

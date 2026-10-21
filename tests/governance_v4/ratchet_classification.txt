@@ -160,3 +160,32 @@ governance.report_json                   startup -- traced: read once by the CLI
 governance.report_sarif                  startup -- traced: read once by the CLI (main.cpp) and laid over every reloaded rule set (setStartupOutputs); nothing reads the reloaded value
 governance.report_junit                  startup -- traced: read once by the CLI (main.cpp) and laid over every reloaded rule set (setStartupOutputs); nothing reads the reloaded value
 governance.telemetry                     startup -- traced: read once by the CLI (main.cpp) and laid over every reloaded rule set (setStartupOutputs); nothing reads the reloaded value
+
+# --- Startup overlays a reload replays (A37) ----------------------------------
+# What the run laid over govern.json at startup is recorded and laid over every
+# reloaded rule set (GovernanceEngine::applyStartupOverlays). The role and the
+# environment it NAMES are re-read from the new file, so their effect is judged
+# by the ratchet like any other key; the keys below only choose or feed an
+# overlay, are read once before the program runs, and nothing reads the
+# reloaded value.
+governance.agent_id                      startup -- traced: read once by the CLI (main.cpp, VM path) to choose the role; a reload lays the role of the id chosen at startup over the new rules
+governance.default_env                   startup -- traced: read once by the CLI (main.cpp, VM path) to choose the environment; a reload lays the environment chosen at startup over the new rules
+governance.record_baselines              startup -- traced: read once by the CLI (main.cpp) and recorded (setStartupBaselineFlags); every reload lays the recorded flags over the new rules
+governance.check_baselines               startup -- traced: read once by the CLI (main.cpp) and recorded (setStartupBaselineFlags); every reload lays the recorded flags over the new rules
+project_context.dry_run                  startup -- traced: read only by discoverAndLoad() at load; a reload replays the extractions startup applied (applyStartupOverlays) and reads no project_context key
+project_context.enabled                  startup -- traced: read only by discoverAndLoad() at load; a reload replays the extractions startup applied (applyStartupOverlays) and reads no project_context key
+project_context.enforcement_level        startup -- traced: read only by discoverAndLoad() at load; the level applied is recorded with the extractions and replayed
+project_context.extract.banned_patterns  startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
+project_context.extract.custom_directives startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
+project_context.extract.language_preferences startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
+project_context.extract.style_rules      startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
+project_context.feed_optimization        startup -- traced: read only by discoverAndLoad() at load; recorded with the extractions and replayed
+project_context.ignore_files             startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
+project_context.max_file_size_kb         startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
+project_context.priority_source          startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
+project_context.show_extractions         startup -- traced: read only by discoverAndLoad() at load (the report printed there)
+project_context.sources.linters          startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
+project_context.sources.llm              startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
+project_context.sources.manifests        startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
+project_context.suppress_rules           startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
+project_context.watch_files              startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
