@@ -3935,6 +3935,21 @@ else
     echo "  test_pipefail_grep.sh: not found, skipping"
 fi
 
+FMT_LITERALS_SCRIPT="tests/self-audit/test_fmt_literals.sh"
+if [ -f "$FMT_LITERALS_SCRIPT" ]; then
+    # Gate on invalid literal fmt format strings (A42): C++17 does not check
+    # them at compile time, so a stray `{` in a help message throws instead
+    # of printing it. The scan reads files; the symptom arms run naab-lang.
+    if run_shell_test "$FMT_LITERALS_SCRIPT" 2>&1; then
+        echo "  test_fmt_literals.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_fmt_literals.sh")
+    fi
+else
+    echo "  test_fmt_literals.sh: not found, skipping"
+fi
+
 BSD_COVERAGE_SCRIPT="tests/self-audit/test_bsd_event_coverage.sh"
 if [ -f "$BSD_COVERAGE_SCRIPT" ]; then
     # Every function of every module the BSD stdlib event table covers is
