@@ -6569,8 +6569,10 @@ std::string GovernanceEngine::checkPolyglotBlockCount(size_t count) {
 }
 
 std::string GovernanceEngine::incrementAndCheckPolyglotBlockCount() {
-    ++polyglot_block_count_;
-    return checkPolyglotBlockCount(static_cast<size_t>(polyglot_block_count_));
+    // The value checked is the value this call incremented to: a separate read
+    // could see another thread's increment and both would check the same count.
+    const int count = ++polyglot_block_count_;
+    return checkPolyglotBlockCount(static_cast<size_t>(count));
 }
 
 std::string GovernanceEngine::checkStringLength(size_t length) {
@@ -7318,7 +7320,7 @@ void GovernanceEngine::restoreTaintState(const std::unordered_set<std::string>& 
 // across the full execution (parent + all async tasks combined).
 GovernanceEngine::CounterState GovernanceEngine::saveCounterState() const {
     CounterState s;
-    s.polyglot_block_count = polyglot_block_count_;
+    s.polyglot_block_count = polyglot_block_count_.load();
     s.total_polyglot_lines = total_polyglot_lines_;
     s.advisory_count       = advisory_count_;
     s.advisory_suppressed  = advisory_suppressed_;
@@ -7326,7 +7328,7 @@ GovernanceEngine::CounterState GovernanceEngine::saveCounterState() const {
 }
 
 void GovernanceEngine::restoreCounterState(const CounterState& s) {
-    polyglot_block_count_ = s.polyglot_block_count;
+    polyglot_block_count_.store(s.polyglot_block_count);
     total_polyglot_lines_ = s.total_polyglot_lines;
     advisory_count_       = s.advisory_count;
     advisory_suppressed_  = s.advisory_suppressed;

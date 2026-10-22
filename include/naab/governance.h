@@ -4302,8 +4302,9 @@ private:
     RateLimiter stdlib_rate_;
     RateLimiter file_ops_rate_;
 
-    // Execution counters
-    int polyglot_block_count_ = 0;
+    // Execution counters. The block count is changed by every VM that runs a
+    // polyglot block, async fn workers included, so it is one atomic step.
+    std::atomic<int> polyglot_block_count_{0};
     int total_polyglot_lines_ = 0;
 
     // Audit trail

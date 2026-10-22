@@ -3901,9 +3901,18 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             // the tree-walker's async path loads its own governance and was
             // already denied). Same capture-and-reactivate as the sandbox.
             auto* async_governance = governance::GovernanceEngine::getCurrent();
+            // The async VM's OWN engine pointer. 4f65b2b0 dropped it (the engine
+            // was not safe to share across threads then), and every check the VM
+            // guards with `governance_` -- the stdlib filesystem gate, the polyglot
+            // block checks and count, function attribution -- was skipped inside an
+            // async fn on the default engine: a blocked_paths file was read and a
+            // code_injection pattern ran. The engine state those checks change from
+            // several threads is synchronised, so the async VM gets the engine back
+            // (tests/governance_v4/test_vm_async_governance.sh).
+            auto* async_vm_governance = governance_;
             auto shared_future = std::async(std::launch::async,
                 [closure_copy, args, async_stdlib, file, globals_copy, async_sandbox_config,
-                 async_governance,
+                 async_governance, async_vm_governance,
                  owned_fns = std::move(async_owned_fns)]() mutable -> interpreter::NaabVal {
                     security::ScopedSandbox async_sandbox(async_sandbox_config);
                     struct GovernanceScope {
@@ -3916,6 +3925,7 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                     {
                         VM async_vm;
                         async_vm.setStdlib(async_stdlib.get());
+                        async_vm.setGovernance(async_vm_governance);
                         async_vm.setCurrentFile(file);
                         async_vm.setGlobals(globals_copy);
                         auto result = async_vm.callNaabFunction(
