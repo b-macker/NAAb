@@ -91,6 +91,20 @@
 #         fixture shape that fails to map turns this red; both twins read
 #         UNMEASURED (twin_b never ran, but only position could say so), and
 #         untested does not list twin_b as executed by no unit
+#   C-22  roadmap item 1: helper_binaries takes a helper binary a suite calls
+#         from the instrumented build when it is there, from build/ when only
+#         that has it (and says "uninstrumented"), and reports one in neither
+#         "absent". coverage run used to take every helper from build/
+#   C-23  the fixture's second program -- the only route to only_in_second --
+#         as helper_binaries picks it (instrumented) credits only_in_second to
+#         its unit; control: build/'s copy, what coverage run used to take,
+#         writes nothing and only_in_second is never credited
+#   C-24  run_extra_units runs a codemap-only unit with its own GCOV_PREFIX, and
+#         `coverage ingest` names it gtest:naab_unit_tests (EXTRA_UNIT_DISPLAY),
+#         so the recovery path names it too; a unit not built reads "absent";
+#         control: dead_function still reads no unit
+#   C-24b extra_units runs the GoogleTest binary through the repo's own runner
+#         (its exclusions apply) and reports a test program not built as None
 #
 # Needs a C++ compiler, gcov and libclang; each missing piece is UNMEASURABLE.
 # ============================================================
@@ -135,15 +149,21 @@ R="$W/repo"
 mkdir -p "$R"
 cp -R "$FIXTURE/." "$R/"
 cd "$R" || exit 1
+# A second program, the fixture's stand-in for a helper binary a suite calls
+# (naab-lsp, naab-verify-audit) or a C++ test program (naab_unit_tests): only it
+# reaches only_in_second(). Its main is in a file the index does not parse, so
+# it adds no unmatched position (C-10 pins those).
+printf '// reachable only through the second program\nint only_in_second(int x) { return x * 3 + 1; }\n' > second.cpp
+printf 'int only_in_second(int x);\nint main() { return only_in_second(2) == 7 ? 0 : 1; }\n' > second_main.cpp
 CM="$(native_path "$REPO/tools/codemap/codemap.py")"
 cm() { python3 "$CM" --repo . --cache .cache/codemap "$@" 2>&1; }
 cmc() { local c="$1"; shift; python3 "$CM" --repo . --cache "$c" "$@" 2>&1; }   # another cache
 reasons() { python3 -c 'import json, sys; d = json.load(sys.stdin); c = d["coverage"] or {}
 print("%s|%s" % (",".join(c.get("refresh_reasons", [])), "refresh" if d["coverage_refresh"] else "none"))'; }
-REFRESH='refresh: `cmake -S . -B build-cov -DNAAB_COVERAGE=ON && make -C build-cov naab-lang naab-gov -j4`, then `python3 tools/codemap/codemap.py coverage run` in the background'
+REFRESH='refresh: `cmake -S . -B build-cov -DNAAB_COVERAGE=ON && make -C build-cov naab-lang naab-gov naab-lsp naab-verify-audit naab_unit_tests naab_governance test_governance_c_api -j4`, then `python3 tools/codemap/codemap.py coverage run` in the background'
 g() { git -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "$@"; }
 git init -q . && git config core.autocrlf false
-printf '.cache/\nbuild/\nbuild-nowrap/\nunits/\n' > .gitignore
+printf '.cache/\nbuild/\nbuild-nowrap/\nbuild2/\nplain/\nunits/\n' > .gitignore
 g add -A && g commit -q -m "fixture"
 
 # --- builds: with the wrap (as NAAB_COVERAGE links naab-lang) and without it -------
@@ -159,7 +179,13 @@ build() {  # dir wrap(yes|no)
           "$CXX" --coverage fixture.cpp.o other.cpp.o templ.cpp.o -o fixture -pthread
       fi ) > "$W/build-$2.log" 2>&1
 }
-if ! build build yes || ! build build-nowrap no; then
+build_second() {  # dir --coverage|"" -- the second program, instrumented (build2) or not (plain)
+    mkdir -p "$1"
+    ( cd "$1" && "$CXX" -std=c++17 -O0 -g $2 -c ../second.cpp -o second.cpp.o \
+          && "$CXX" -std=c++17 -O0 -g $2 -c ../second_main.cpp -o second_main.cpp.o \
+          && "$CXX" $2 second.cpp.o second_main.cpp.o -o second ) > "$W/build-second$2.log" 2>&1
+}
+if ! build build yes || ! build build-nowrap no || ! build_second build2 --coverage || ! build_second plain ""; then
     skip C-ALL "the fixture did not build with --coverage here"; cat "$W"/build-*.log | sed 's/^/       | /'; finish
 fi
 python3 - <<'EOF'
@@ -167,7 +193,7 @@ import json, os
 w = os.getcwd()
 json.dump([{"directory": os.path.join(w, "build"), "file": os.path.join(w, f),
             "arguments": ["c++", "-std=c++17", "-I" + os.path.join(w, "include"), "-c", os.path.join(w, f), "-o", f + ".o"]}
-           for f in ("fixture.cpp", "other.cpp", "extra.cpp", "templ.cpp")],
+           for f in ("fixture.cpp", "other.cpp", "extra.cpp", "templ.cpp", "second.cpp")],
           open(os.path.join(w, "build", "compile_commands.json"), "w"))
 EOF
 IDX="$(cm index --jobs 2)"; irc=$?
@@ -552,6 +578,76 @@ if [ "$rc" -ne 0 ] && grep -q "DNAAB_COVERAGE=ON" <<<"$OUT"; then
     ok C-09 "ingest without a coverage build is refused with the command that makes one"
 else
     bad C-09 "a build directory without .gcno files was accepted (rc=$rc)" "$OUT"
+fi
+
+# ---------------------------------------------------------------- C-22 / C-23 / C-24
+# Roadmap item 1. `coverage run` copied every helper binary a suite calls from the
+# ordinary build/, so code only naab-lsp or naab-verify-audit reaches read
+# "executed by NO unit"; and the C++ test programs (naab_unit_tests, the C API's)
+# were never run at all. The fixture's second program plays each part: build2/ is
+# the instrumented build, plain/ the ordinary one.
+py() { python3 -c "import sys; sys.path.insert(0, '$(native_path "$REPO/tools/codemap")'); import codemap
+$1" 2>&1; }
+cp plain/second plain/onlyplain
+PICK="$(py 'for n, src, o in codemap.helper_binaries("plain", "build2", ["second", "onlyplain", "nowhere"]):
+    print(n, o, src)')"
+if grep -qx "second instrumented build2/second" <<<"$PICK" \
+   && grep -qx "onlyplain uninstrumented plain/onlyplain" <<<"$PICK" \
+   && grep -qx "nowhere absent None" <<<"$PICK"; then
+    ok C-22 "a helper binary comes from the instrumented build when it is there, else from build/ (said so), else absent"
+else
+    bad C-22 "helper binaries were not taken from the instrumented build" "$PICK"
+fi
+# C-23: the binary helper_binaries picks writes counters; the one from build/ -- what
+# coverage run used to copy -- writes none, so only_in_second, which is in no other
+# binary, read NOT IN THE BUILD (code a helper shares with naab-lang read "executed by
+# NO unit" instead; either way it was never credited)
+SRC2="$(py 'print(codemap.helper_binaries("plain", "build2", ["second"])[0][1])')"
+mkdir -p units2 units2c
+GCOV_PREFIX="$R/units2/000_S" "./$SRC2" >/dev/null 2>&1; s2=$?
+GCOV_PREFIX="$R/units2c/000_S" ./plain/second >/dev/null 2>&1; s2c=$?
+cm coverage ingest --name second --units-dir units2 --build-dir build2 >/dev/null
+cm coverage ingest --name secondc --units-dir units2c --build-dir build2 >/dev/null
+T2="$(cm tested only_in_second --cov second)"
+T2C="$(cm tested only_in_second --cov secondc)"
+if [ "$s2" -eq 0 ] && grep -qE "^ +1  000_S$" <<<"$T2" && grep -q "NOT IN THE BUILD" <<<"$T2C" \
+   && ! grep -qE "^ +[0-9]+  000_S$" <<<"$T2C" && [ "$s2c" -eq 0 ]; then
+    ok C-23 "only_in_second, reached only through the second program: executed when that program is the instrumented copy, never credited when it is build/'s -- what coverage run used to copy"
+else
+    bad C-23 "the instrumented helper's run was not credited (or the build/ copy's was)" "picked: $SRC2 rc=$s2/$s2c
+$T2
+---
+$T2C"
+fi
+# C-24: an extra unit runs with its own prefix under its codemap-only name, and the
+# name survives a re-map by `coverage ingest` (EXTRA_UNIT_DISPLAY); an unbuilt one is
+# reported absent, not an error. Control: dead_function still reads no unit.
+mkdir -p units3
+EXTRA="$(py "st, names = codemap.run_extra_units('$R/units3', [('900_gtest_naab_unit_tests', 'gtest:naab_unit_tests', ['$R/build2/second']), ('901_capi_test_governance_c_api', 'capi:test_governance_c_api', None)], '$R')
+for k in sorted(st): print(k, '=', st[k])")"
+cm coverage ingest --name extra --units-dir units3 --build-dir build2 >/dev/null
+T3="$(cm tested only_in_second --cov extra)"
+if grep -qx "gtest:naab_unit_tests = ran (exit 0)" <<<"$EXTRA" \
+   && grep -q "^capi:test_governance_c_api = absent" <<<"$EXTRA" \
+   && grep -qE "^ +1  gtest:naab_unit_tests$" <<<"$T3" \
+   && grep -q "executed by NO unit" <<<"$(cm tested dead_function --cov fx)"; then
+    ok C-24 "an extra unit runs with its own prefix and reads under its codemap-only name; an unbuilt one is absent, not an error"
+else
+    bad C-24 "the extra unit was not run, not credited, or not named" "$EXTRA
+---
+$T3"
+fi
+
+# C-24b: which C++ test programs a run has, and how each is run: the GoogleTest binary
+# through the repo's own runner (its exclusions apply), the C API test directly; one
+# not built is None. Fake instrumented build: the gtest binary only.
+mkdir -p "$W/fakecov" && : > "$W/fakecov/naab_unit_tests" && chmod +x "$W/fakecov/naab_unit_tests"
+EU="$(py "for d, disp, argv in codemap.extra_units('/copy', '$W/fakecov'): print(d, disp, argv)")"
+if grep -qx "900_gtest_naab_unit_tests gtest:naab_unit_tests \['bash', '/copy/tests/unit/run_unit_tests.sh', '$W/fakecov/naab_unit_tests'\]" <<<"$EU" \
+   && grep -qx "901_capi_test_governance_c_api capi:test_governance_c_api None" <<<"$EU"; then
+    ok C-24b "the GoogleTest binary runs through the repo's runner; a test program not built is None"
+else
+    bad C-24b "extra_units chose the wrong programs or the wrong way to run them" "$EU"
 fi
 
 finish

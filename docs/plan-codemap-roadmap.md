@@ -35,7 +35,7 @@ session picking up code-map work reads this first, then the item's own history
 | # | Item | Status |
 |---|---|---|
 | 0 | A58 sweep: fresh coverage run, `untested` per governance file, classify each | done 2026-10-22: all 47 classified (`docs/sweeps/A58.md`); findings A59-A62; its proposed tests and removals are open |
-| 1 | Coverage for the binaries `coverage run` does not instrument | planned |
+| 1 | Coverage for the binaries `coverage run` does not instrument | built 2026-10-22 (helpers from `build-cov`, gtest and C API units; C-22..C-24b); the A58 re-read against a run with them is pending |
 | 2 | `impact` prints the records that name each changed function | planned |
 | 3 | "Recorded at another commit" only when coverage-relevant files changed | planned |
 | 4 | `cite-check DOC`: do `path:line` citations still point where they say | planned |

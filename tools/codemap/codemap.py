@@ -1344,7 +1344,7 @@ def cmd_coverage(a, st):
     if not covmod.find_files(build, ".gcno"):
         raise SystemExit(covmod.install_hint(os.path.relpath(build, a.repo)))
     outdir = os.path.join(a.cache, "coverage", a.name)
-    names = {}
+    names, run_meta = {}, {}
     if a.action == "ingest":
         if not a.units_dir:
             raise SystemExit("codemap coverage ingest: --units-dir DIR (one GCOV_PREFIX tree per unit)")
@@ -1353,7 +1353,7 @@ def cmd_coverage(a, st):
         names = unit_names(par_out)
         comp = covmod.completeness(os.path.join(par_out, "results.json"))
     else:
-        units_dir, source, names = run_suite_for_coverage(a, build, outdir)
+        units_dir, source, names, run_meta = run_suite_for_coverage(a, build, outdir)
         comp = covmod.completeness(os.path.join(outdir, "parallel", "results.json"), selection=a.only or None)
     prog = (lambda i, n, u: sys.stderr.write("codemap: gcov %d/%d %s\n" % (i, n, u))) if a.verbose else None
     res = covmod.ingest(units_dir, build, st.db, a.repo, progress=prog, jobs=a.jobs or os.cpu_count() or 1)
@@ -1363,6 +1363,7 @@ def cmd_coverage(a, st):
     meta = {"name": a.name, "build_dir": build, "source": source,
             "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "head": git_head(a.repo),
             "completeness": comp}
+    meta.update(run_meta)   # where each helper binary came from; the extra units' outcomes
     covmod.save(res, outdir, meta)
     if a.action == "run" and not a.keep_raw:
         import shutil
@@ -1405,6 +1406,70 @@ def git_head(repo):
     return r.stdout.decode().strip()
 
 
+def helper_binaries(repo_build, cov_build, names):
+    """Where each helper binary a suite calls comes from: the instrumented build when it
+    has the binary, else repo_build (uninstrumented -- code only it reaches then reads
+    executed by no unit). -> [(name, source path or None, "instrumented"|"uninstrumented"|
+    "absent")]. Every helper used to come from repo_build, so naab-lsp and
+    naab-verify-audit never recorded a count (roadmap item 1)."""
+    picked = []
+    for name in names:
+        cov, plain = os.path.join(cov_build, name), os.path.join(repo_build, name)
+        if os.path.isfile(cov):
+            picked.append((name, cov, "instrumented"))
+        elif os.path.isfile(plain):
+            picked.append((name, plain, "uninstrumented"))
+        else:
+            picked.append((name, None, "absent"))
+    return picked
+
+
+# The codemap-only units' directories under a run's gcda tree, and the names a reading
+# prints. The name says where the execution came from: a gtest: or capi: unit ran a
+# C++ API, not a NAAb program. unit_names() applies them, so a run re-mapped with
+# `coverage ingest` names them too.
+EXTRA_UNIT_DISPLAY = {"900_gtest_naab_unit_tests": "gtest:naab_unit_tests",
+                      "901_capi_test_governance_c_api": "capi:test_governance_c_api"}
+
+
+def extra_units(copy, cov_build):
+    """The codemap-only units: C++ test programs the suite does not run, run from the
+    instrumented build. -> [(unit dir, display name, argv or None when not built)]."""
+    gtest = os.path.join(cov_build, "naab_unit_tests")
+    capi = os.path.join(cov_build, "test_governance_c_api")
+    argv = {
+        # through the repo's own runner, so its exclusions apply (hang entries are not run:
+        # a deadlocked or crashed process writes no counters)
+        "900_gtest_naab_unit_tests": ["bash", os.path.join(copy, "tests", "unit", "run_unit_tests.sh"), gtest]
+        if os.path.isfile(gtest) else None,
+        "901_capi_test_governance_c_api": [capi] if os.path.isfile(capi) else None,
+    }
+    return [(d, EXTRA_UNIT_DISPLAY[d], argv[d]) for d in sorted(EXTRA_UNIT_DISPLAY)]
+
+
+def run_extra_units(gcda, units, cwd, env=None, timeout=1800):
+    """Run each (unit dir, display, argv) with GCOV_PREFIX=gcda/<unit dir>. A unit whose
+    argv is None was not built: reported "absent", never an error. -> {display: status},
+    and {unit dir: display} for the ingest's names. The exit status is reported, not
+    judged: coverage records execution, and a failing test still executed code."""
+    status, names = {}, {}
+    for d, display, argv in units:
+        if argv is None:
+            status[display] = "absent (not built in the instrumented build)"
+            continue
+        e = dict(env or os.environ, GCOV_PREFIX=os.path.join(gcda, d))
+        try:
+            r = subprocess.run(argv, cwd=cwd, env=e, stdin=subprocess.DEVNULL,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+            status[display] = "ran (exit %d)" % r.returncode
+        except subprocess.TimeoutExpired:
+            status[display] = "timed out after %ds (a killed process writes no counters)" % timeout
+        except OSError as ex:
+            status[display] = "could not start: %s" % ex
+        names[d] = display
+    return status, names
+
+
 def run_suite_for_coverage(a, build, outdir):
     """Every run-all-tests.sh unit, against the instrumented binaries, in a worktree
     copy (tools/testrunner/dead_gate.py's), each unit with its own GCOV_PREFIX."""
@@ -1427,9 +1492,10 @@ def run_suite_for_coverage(a, build, outdir):
         dead_gate.overlay_working_tree(copy)
         b = os.path.join(copy, "build")
         os.makedirs(b, exist_ok=True)
-        for name in dead_gate.KEEP_BINARIES:
-            src = os.path.join(a.repo, "build", name)
-            if os.path.isfile(src):
+        binaries = {}
+        for name, src, origin in helper_binaries(os.path.join(a.repo, "build"), build, dead_gate.KEEP_BINARIES):
+            binaries[name] = origin
+            if src:
                 shutil.copy2(src, os.path.join(b, name))
         for name in ("naab-lang", "naab-gov"):
             src = os.path.join(build, name)
@@ -1444,19 +1510,27 @@ def run_suite_for_coverage(a, build, outdir):
         if a.only:
             cmd += ["--only", a.only, "--no-naab-phase"]
         out("codemap coverage: running the suite against %s (this takes a while)" % build)
+        out("  helper binaries: %s" % ", ".join("%s %s" % (n, o) for n, o in sorted(binaries.items())))
         subprocess.run(cmd, cwd=copy, env=env, stdin=subprocess.DEVNULL,
                        stdout=None if a.verbose else subprocess.DEVNULL)
+        extra = {}
+        if not a.only:   # a partial run is one suite's; the C++ test programs are not in it
+            extra, _ = run_extra_units(gcda, extra_units(copy, build), copy, env)
+            for display, st in sorted(extra.items()):
+                out("  %s: %s" % (display, st))
     finally:
         subprocess.run(["git", "worktree", "remove", "--force", copy], cwd=a.repo,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         shutil.rmtree(work, ignore_errors=True)
-    return gcda, "suite (parallel.py, %s)" % (a.only or "every unit"), unit_names(par_out)
+    return (gcda, "suite (parallel.py, %s)" % (a.only or "every unit"), unit_names(par_out),
+            {"binaries": binaries, "extra_units": extra})
 
 
 def unit_names(par_out):
     """parallel.py names each unit's directory NNN_<key made path-safe>; its
-    results.json maps them back to the suite key."""
-    names = {}
+    results.json maps them back to the suite key. The codemap-only units' names come
+    from EXTRA_UNIT_DISPLAY."""
+    names = dict(EXTRA_UNIT_DISPLAY)
     try:
         with open(os.path.join(par_out, "results.json")) as fh:
             for r in json.load(fh)["results"]:
@@ -1765,9 +1839,14 @@ def cmd_dot(a, st):
 # What `status` prints when coverage is missing or not current. The line is the only place
 # a new session learns the commands before it relies on a coverage answer, so it names
 # the whole refresh -- build-cov included, since `coverage run` maps onto that build.
-COVERAGE_REFRESH = ("refresh: `cmake -S . -B build-cov -DNAAB_COVERAGE=ON && make -C build-cov"
-                    " naab-lang naab-gov -j4`, then `python3 tools/codemap/codemap.py coverage run`"
-                    " in the background, 45+ min (CLAUDE.md, Code map > Coverage)")
+def _coverage_refresh():
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import gcovmap
+    return ("refresh: `%s`, then `python3 tools/codemap/codemap.py coverage run`"
+            " in the background, 45+ min (CLAUDE.md, Code map > Coverage)" % gcovmap.build_command("build-cov"))
+
+
+COVERAGE_REFRESH = _coverage_refresh()
 
 
 AUTHORITY = ("Its answers are leads (tiered, blind spots printed), not verdicts:"
