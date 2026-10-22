@@ -43,6 +43,17 @@
 #          seventh is refused (exit 3). A lost increment is a race this arm
 #          would catch only by chance; the count is atomic by construction and
 #          the TSan run is the evidence for that, not this arm
+#   AG-06  a tainted argument reaching a sink is checked in EVERY concurrent
+#          async fn. The VM used to mark a fixed label ("argument 1 of
+#          'file.write()'") in the engine's shared taint set, check it, and
+#          clear it: three lock acquisitions on a name every thread uses, so
+#          one thread's clear landed between another's mark and check and that
+#          write reached its sink unchecked. Measured before the fix, advisory
+#          level, 8 async fns x 20 writes: 155-160 of 160 violations recorded,
+#          all 160 in only 4 of 19 runs; ThreadSanitizer saw nothing, since
+#          every step held the lock. Controls: main{} and ONE async fn record
+#          all 160 (the counting works, and async alone loses nothing). Five
+#          runs, so a regression passes by luck about 0.21^5 of the time
 # ============================================================
 set -uo pipefail
 
@@ -240,6 +251,43 @@ if [ "$(cut -d'|' -f1,2 <<<"$k6")" = "0|ran" ] && [ "$(cut -d'|' -f1,2 <<<"$k7")
     pass "AG-05" "six concurrent async fns fit a limit of six; a seventh is refused"
 else
     fail "AG-05" "shared block count across concurrent async fns" "six=$k6 seven=$k7"
+fi
+
+# ---- AG-06 every concurrent tainted write is checked -----------------------------
+TAINT_CFG="{ $BASE, \"capabilities\": { \"filesystem\": { \"mode\": \"write\" } },
+  \"taint_tracking\": { \"enabled\": true, \"level\": \"advisory\", \"sources\": [\"env.get\"], \"sinks\": [\"file.write\"] },
+  \"telemetry\": { \"enabled\": true, \"output_file\": \"tel.jsonl\", \"deduplicate_checks\": false } }"
+mk_taint() {  # $1 = async fns, $2 = writes each; $1 = 0 writes from main{}
+    if [ "$1" -eq 0 ]; then
+        printf 'use file\nuse env\nmain {\n    for k in 0..%s {\n        let h = env.get("AG_BLOCKED_VAR")\n        file.write("out.txt", h)\n    }\n    print("MARKER done")\n}\n' "$2"
+        return
+    fi
+    printf 'use file\nuse env\nasync fn work(i) {\n    for k in 0..%s {\n        let h = env.get("AG_BLOCKED_VAR")\n        file.write("out_" + string(i) + ".txt", h)\n    }\n    return 1\n}\n' "$2"
+    printf 'main {\n    let fs = []\n    for i in 0..%s {\n        fs.push(work(i))\n    }\n    let n = 0\n    for f in fs {\n        n = n + (await f)\n    }\n    print("MARKER " + string(n))\n}\n' "$1"
+}
+# $1 = program -> "<rc>|<violations recorded>"
+taint_count() {
+    run "$TAINT_CFG" "$1" "" >/dev/null
+    local n=0
+    [ -f "$W/tel.jsonl" ] && n=$(grep -c 'taint_tracking.sink_violation' "$W/tel.jsonl")
+    printf '%s\n' "$n"
+}
+c_main=$(taint_count "$(mk_taint 0 160)")
+c_one=$(taint_count "$(mk_taint 1 160)")
+if [ "$c_main" != "160" ] || [ "$c_one" != "160" ]; then
+    fail "AG-06" "every concurrent tainted write is checked" \
+        "CONTROL: main{}=$c_main one-async=$c_one recorded, expected 160 each -- the count cannot be read"
+else
+    counts=""; short=0
+    for r in 1 2 3 4 5; do
+        c=$(taint_count "$(mk_taint 8 20)"); counts="$counts $c"
+        [ "$c" = "160" ] || short=1
+    done
+    if [ "$short" -eq 0 ]; then
+        pass "AG-06" "8 concurrent async fns x 20 tainted writes: all 160 checked in 5 of 5 runs"
+    else
+        fail "AG-06" "concurrent tainted writes reached the sink unchecked" "recorded per run:$counts (of 160)"
+    fi
 fi
 
 echo "Result: $PASS_COUNT passed, $FAIL_COUNT failed, $SKIP_COUNT skipped"

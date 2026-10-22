@@ -1944,12 +1944,13 @@ interpreter::NaabVal VM::run() {
                                 if (taint_stack_[arg_offset]) {
                                     any_arg_tainted_vm = true;
                                     std::string arg_label = "argument " + std::to_string(ai) + " of '" + full_method_name + "()'";
-                                    governance_->markTainted(arg_label);
                                     int gov_line = CURRENT_CHUNK().getLine(
                                         static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
-                                    std::string terr = governance_->checkTaintedSink(
+                                    // taint_stack_ says this argument is tainted; say so to the
+                                    // engine directly. Marking the label in the SHARED taint set
+                                    // raced: async fns share the engine and the label.
+                                    std::string terr = governance_->checkTaintedValueAtSink(
                                         arg_label, full_method_name, current_file_, gov_line);
-                                    governance_->clearTaint(arg_label);
                                     if (!terr.empty()) runtimeError("%s", terr.c_str());
                                 }
                             }
@@ -3037,11 +3038,15 @@ interpreter::NaabVal VM::run() {
                                         origin_arg = lit->second.source_arg;
                                     }
                                 }
-                                // Mark tainted with lineage so checkTaintedSink has origin info
+                                // The mark keeps the engine-wide name state as it was; the
+                                // decision does not read it back. Between a mark and a
+                                // name lookup, another async fn assigning a clean value to
+                                // a same-named global could clear it (A59 follow-up).
                                 governance_->markTainted(bound_var_names[bi],
                                     origin_func, origin_arg, current_file_, gov_line);
-                                std::string terr = governance_->checkTaintedSink(
-                                    bound_var_names[bi], sink_type, current_file_, gov_line);
+                                std::string terr = governance_->checkTaintedValueAtSink(
+                                    bound_var_names[bi], sink_type, current_file_, gov_line,
+                                    origin_func, origin_arg);
                                 if (!terr.empty()) runtimeError("%s", terr.c_str());
                             }
                         }
@@ -3989,14 +3994,14 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             auto& cf = frames_[frame_count_-1];
             int gov_line = cf.function->chunk.getLine(
                 static_cast<int>(cf.ip - cf.function->chunk.code.data()));
-            // checkTaintedSink looks the NAME up in the taint set, so the label
-            // must be marked first -- as the method-call sink site does. Without
-            // this the check could never fire: "print" listed as a sink was
-            // enforced by the tree-walker and silently ignored by the VM.
-            governance_->markTainted("(print-arg)");
-            std::string terr = governance_->checkTaintedSink(
+            // checkTaintedSink looks the NAME up in the taint set, so a lookup of
+            // an unmarked label could never fire: "print" listed as a sink was
+            // enforced by the tree-walker and silently ignored by the VM. The
+            // argument's taint is known here, so it is passed to the engine
+            // directly -- marking and clearing a fixed label in the shared set
+            // raced across async fns.
+            std::string terr = governance_->checkTaintedValueAtSink(
                 "(print-arg)", "print", current_file_, gov_line);
-            governance_->clearTaint("(print-arg)");
             if (!terr.empty()) runtimeError("%s", terr.c_str());
         }
         interpreter::NaabVal* args_ptr = stack_top_ - argc;
@@ -4047,10 +4052,8 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                     ptrdiff_t arg_offset = (stack_top_ - argc + ai) - stack_.get();
                     if (taint_stack_[arg_offset]) {
                         std::string arg_label = "argument " + std::to_string(ai) + " of '" + mod_name + "()'";
-                        governance_->markTainted(arg_label);
-                        std::string terr = governance_->checkTaintedSink(
+                        std::string terr = governance_->checkTaintedValueAtSink(
                             arg_label, mod_name, current_file_, 0);
-                        governance_->clearTaint(arg_label);
                         if (!terr.empty()) runtimeError("%s", terr.c_str());
                     }
                 }

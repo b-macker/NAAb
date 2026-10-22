@@ -6722,18 +6722,15 @@ std::string GovernanceEngine::checkDictSize(size_t size) {
 
 // --- Rate Limiting ---
 bool GovernanceEngine::checkPolyglotRate() {
-    polyglot_rate_.max_per_second = rules().limits.rate.max_polyglot_per_second;
-    return polyglot_rate_.check();
+    return polyglot_rate_.check(rules().limits.rate.max_polyglot_per_second);
 }
 
 bool GovernanceEngine::checkStdlibRate() {
-    stdlib_rate_.max_per_second = rules().limits.rate.max_stdlib_calls_per_second;
-    return stdlib_rate_.check();
+    return stdlib_rate_.check(rules().limits.rate.max_stdlib_calls_per_second);
 }
 
 bool GovernanceEngine::checkFileOpsRate() {
-    file_ops_rate_.max_per_second = rules().limits.rate.max_file_ops_per_second;
-    return file_ops_rate_.check();
+    return file_ops_rate_.check(rules().limits.rate.max_file_ops_per_second);
 }
 
 // --- Per-Language Getters ---
@@ -7426,7 +7423,27 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
             }
         }
     }
+    return taintedSinkDecision(var_name, sink_type, file, line);
+}
 
+std::string GovernanceEngine::checkTaintedValueAtSink(const std::string& label,
+                                                       const std::string& sink_type,
+                                                       const std::string& file, int line,
+                                                       const std::string& origin_func,
+                                                       const std::string& origin_arg) {
+    if (!rules().taint_tracking.enabled) return "";
+    clearTrace();
+    addTrace(fmt::format("variable '{}' is tainted", label));
+    if (rules().taint_tracking.lineage && !origin_func.empty()) {
+        addTrace(fmt::format("taint origin: {}('{}') at {}:{}",
+            origin_func, origin_arg, file, line));
+    }
+    return taintedSinkDecision(label, sink_type, file, line);
+}
+
+std::string GovernanceEngine::taintedSinkDecision(const std::string& var_name,
+                                                   const std::string& sink_type,
+                                                   const std::string& file, int line) {
     // FIX-DX-1: PREFIX match for sink types (not substring)
     // Auto-expand: file.append is equivalent to file.write for taint purposes
     std::string effective_sink = sink_type;
