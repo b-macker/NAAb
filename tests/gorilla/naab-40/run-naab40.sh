@@ -266,9 +266,9 @@ if should_run 1; then
         fail "A4" "overwrite didn't take latest" "$(echo "$output" | grep 'a4_' | head -1)"
 
     # A5: negative weight clamped to 0
-    grep <<<"$output" -q 'a5_negative_clamped: true' && \
-        pass "A5" "negative weight clamped to 0" || \
-        fail "A5" "negative weight not clamped" "$(echo "$output" | grep 'a5_' | head -1)"
+    grep <<<"$output" -q 'a5_negative_refused: true' && \
+        pass "A5" "a negative weight (a lowering) is refused" || \
+        fail "A5" "the program lowered a weight" "$(echo "$output" | grep 'a5_' | head -1)"
 
     # A6: multiple rules accumulate independently
     grep <<<"$output" -q 'a6_multi_rules: true' && \
@@ -369,6 +369,12 @@ if should_run 3; then
 
     WORKDIR_DASH=$(setup_workdir "cat3-dashboard")
     STDERR_FILE="$TEST_TMP/cat3_stderr.txt"
+    # The operator's calibration (C7): weight 0 for DASH-TRIGGER, written before
+    # the run. The program may only raise a weight (A60), so lowering one is
+    # done here, outside the run, where the operator does it.
+    mkdir -p "$WORKDIR_DASH/.naab"
+    printf '{"version": 1, "overrides": {"custom_rules.DASH-TRIGGER": {"weight": 0, "reason": "operator: suppress for testing"}}}\n' \
+        > "$WORKDIR_DASH/.naab/scoring-calibration.json"
 
     # C1-C6: Main dashboard test with violations
     dash_stdout=$(run_in_split "$WORKDIR_DASH" "cat3_dashboard_violations.naab" "$STDERR_FILE") && dash_exit=0 || dash_exit=$?
@@ -432,6 +438,9 @@ if should_run 3; then
     # Check that DASH-TRIGGER doesn't appear with +N (non-zero) prefix in score breakdown
     if py_gated_skip "C7"; then
         :
+    elif ! grep -q "DASH-TRIGGER" "$STDERR_FILE" 2>/dev/null; then
+        # Control: without a DASH-TRIGGER violation the absence below is vacuous.
+        fail "C7" "DASH-TRIGGER never fired -- the suppression cannot be read" "$(head -3 "$STDERR_FILE" 2>/dev/null)"
     elif ! grep -E "^\s*\+[1-9][0-9]*.*DASH-TRIGGER" "$STDERR_FILE" 2>/dev/null; then
         pass "C7" "weight=0 suppresses rule from scored breakdown"
     else

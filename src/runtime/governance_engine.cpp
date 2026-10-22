@@ -907,6 +907,51 @@ bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
 // Governance Self-Protection — add infrastructure paths to blocked_paths
 // ============================================================================
 
+// The file the engine reads scoring calibration from. A relative path is taken
+// from the telemetry output's directory when it has one, else the cwd -- the
+// rule loadScoringCalibration() always used. saveScoringCalibration() used the
+// path as written, so a save beside a telemetry file in another directory was
+// never read back (traced). Load, save and the program-write refusal (A60) all
+// go through here, so they name the same file.
+static std::string scoringCalibrationFile(const GovernanceRules& r) {
+    std::string path = r.scoring_calibration.path;
+    if (!path.empty() && path[0] != '/') {
+        const std::string& dir = r.telemetry_output.output_file;
+        auto slash = dir.find_last_of('/');
+        if (slash != std::string::npos) path = dir.substr(0, slash + 1) + path;
+    }
+    return path;
+}
+
+// One matcher for the recorded protected-write lists (evidence, engine state).
+// Resolves each entry exactly as checkPathAccessImpl resolves the target: a
+// relative entry against the CURRENT cwd, which is also where the engine's
+// next fopen() of it lands; a hard link to the same file matches too.
+static bool recordedPathMatches(const std::vector<std::string>& paths,
+                                const std::string& canon_n) {
+    if (paths.empty()) return false;
+    std::error_code ec;
+    const bool target_exists = std::filesystem::exists(canon_n, ec);
+    for (const auto& p : paths) {
+        std::string ep;
+        try {
+            std::filesystem::path t(p);
+            if (t.is_relative()) t = std::filesystem::absolute(t);
+            ep = std::filesystem::weakly_canonical(t).string();
+        } catch (...) {
+            continue;
+        }
+        std::replace(ep.begin(), ep.end(), '\\', '/');
+        if (ep == canon_n) return true;
+        if (target_exists) {
+            std::error_code ec2;
+            if (std::filesystem::exists(ep, ec2) &&
+                std::filesystem::equivalent(ep, canon_n, ec2) && !ec2) return true;
+        }
+    }
+    return false;
+}
+
 void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules) {
     auto& fs_cfg = target_rules.capabilities.filesystem;
     auto addProtectedPath = [&](const std::string& path) {
@@ -1001,39 +1046,47 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
             if (!ec) remember(abs.lexically_normal().string());
         }
     }
+
+    // Engine STATE the program must not write: the scoring calibration file.
+    // The engine reads it at the first scored violation, and a weight there
+    // replaces the configured one, so a program that wrote it before its first
+    // violation zeroed its own weights and passed the cumulative risk gate
+    // (A60, measured). governance.calibrate() may only RAISE a weight; lowering
+    // one is the operator's decision, made in this file outside the run.
+    // Reads stay allowed. Grow-only, like the evidence list.
+    if (target_rules.scoring_calibration.enabled) {
+        const std::string cal = scoringCalibrationFile(target_rules);
+        if (!cal.empty()) {
+            std::lock_guard<std::mutex> lk(evidence_paths_mutex_);
+            auto remember = [&](const std::string& p) {
+                if (std::find(engine_state_paths_.begin(), engine_state_paths_.end(), p) ==
+                    engine_state_paths_.end())
+                    engine_state_paths_.push_back(p);
+            };
+            remember(cal);
+            std::error_code ec;
+            const auto abs = std::filesystem::absolute(cal, ec);
+            if (!ec) remember(abs.lexically_normal().string());
+        }
+    }
+}
+
+bool GovernanceEngine::isEngineStatePath(const std::string& canon_n) const {
+    std::vector<std::string> paths;
+    {
+        std::lock_guard<std::mutex> lk(evidence_paths_mutex_);
+        paths = engine_state_paths_;
+    }
+    return recordedPathMatches(paths, canon_n);
 }
 
 bool GovernanceEngine::isEvidenceLogPath(const std::string& canon_n) const {
     std::vector<std::string> paths;
     {
         std::lock_guard<std::mutex> lk(evidence_paths_mutex_);
-        if (evidence_log_paths_.empty()) return false;
         paths = evidence_log_paths_;
     }
-    std::error_code ec;
-    const bool target_exists = std::filesystem::exists(canon_n, ec);
-    for (const auto& p : paths) {
-        // Resolve exactly as checkPathAccessImpl resolves the target: a
-        // relative entry against the CURRENT cwd, which is also where the
-        // engine's next fopen() of it lands.
-        std::string ep;
-        try {
-            std::filesystem::path t(p);
-            if (t.is_relative()) t = std::filesystem::absolute(t);
-            ep = std::filesystem::weakly_canonical(t).string();
-        } catch (...) {
-            continue;
-        }
-        std::replace(ep.begin(), ep.end(), '\\', '/');
-        if (ep == canon_n) return true;
-        // A second name for the same file (a hard link) is the same log.
-        if (target_exists) {
-            std::error_code ec2;
-            if (std::filesystem::exists(ep, ec2) &&
-                std::filesystem::equivalent(ep, canon_n, ec2) && !ec2) return true;
-        }
-    }
-    return false;
+    return recordedPathMatches(paths, canon_n);
 }
 
 // ============================================================================
@@ -2731,6 +2784,26 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
                 "file.append(\"" + filepath + "\", line)",
                 "file.append(\"output/my-log.jsonl\", line)"),
             "governance evidence file is not writable by the program: " + filepath);
+    }
+
+    // The scoring calibration file is engine STATE: its weights replace the
+    // configured ones, so a program that could write it could zero the weight
+    // of its own violations (A60). Lowering a weight is the operator's
+    // decision, made in this file outside the run; governance.calibrate() may
+    // only raise one. Reads stay allowed. Subprocess languages do not reach
+    // this gate (CONTRA-013).
+    if (mode == "write" && isEngineStatePath(canon_n)) {
+        return deny("governance.state_files", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Writing a governance state file is blocked: " + filepath,
+                currentFunction().empty() ? std::string()
+                                          : ("in function '" + currentFunction() + "'"),
+                "the engine reads its scoring weights from this file",
+                "A governed program can read this file but cannot change it.\n"
+                "Weights are lowered by the operator, outside the run.",
+                "file.write(\"" + filepath + "\", text)",
+                "file.write(\"output/notes.json\", text)"),
+            "governance state file is not writable by the program: " + filepath);
     }
 
     // Policy entries are resolved by resolvePolicyPath(), which the reload
@@ -4466,16 +4539,7 @@ void GovernanceEngine::loadScoringCalibration() const {
     scoring_calibration_loaded_.store(true, std::memory_order_relaxed);
     if (!rules().scoring_calibration.enabled) return;
 
-    std::string path = rules().scoring_calibration.path;
-    if (!path.empty() && path[0] != '/') {
-        // Resolve relative to govern.json directory
-        std::string dir = rules().telemetry_output.output_file;
-        auto slash = dir.find_last_of('/');
-        if (slash != std::string::npos) {
-            path = dir.substr(0, slash + 1) + path;
-        }
-        // If no directory context, use path as-is (relative to cwd)
-    }
+    const std::string path = scoringCalibrationFile(rules());
 
     std::ifstream in(path);
     if (!in.is_open()) return;  // No calibration file yet — normal for first run
@@ -4505,7 +4569,7 @@ void GovernanceEngine::saveScoringCalibration() const {
     std::lock_guard<std::mutex> lock(calibration_mutex_);
     if (scoring_calibration_.empty()) return;
 
-    std::string path = rules().scoring_calibration.path;
+    const std::string path = scoringCalibrationFile(rules());
 
     std::filesystem::path p(path);
     if (p.has_parent_path())
@@ -4544,13 +4608,45 @@ void GovernanceEngine::saveScoringCalibration() const {
 
 bool GovernanceEngine::calibrateRule(const std::string& rule_name,
                                       int weight_override,
-                                      const std::string& reason) {
+                                      const std::string& reason,
+                                      std::string* refused) {
     if (!rules().scoring_calibration.enabled) return false;
     loadScoringCalibration();
+    const int requested = std::max(0, weight_override);
     {
         std::lock_guard<std::mutex> lock(calibration_mutex_);
+        // RAISE-ONLY (owner's decision on A60, 2026-10-22). This is the
+        // governed program's call, and a lower weight is a lower risk score
+        // for its own violations: with scoring_calibration on, calibrate(rule,
+        // 0) let a program pass the cumulative risk gate it was failing.
+        // Lowering stays the operator's, in the calibration file. An override
+        // replaces the configured weight in EVERY context of the rule, so the
+        // floor is the highest weight the rule can have now: its override if
+        // it has one, else the highest configured weight over its contexts --
+        // each "rule:..." contextual key, plus the plain key or, without one,
+        // the default (enforce()'s waterfall).
+        int floor = 0;
+        auto cur = scoring_calibration_.find(rule_name);
+        if (cur != scoring_calibration_.end() && cur->second.weight_override >= 0) {
+            floor = cur->second.weight_override;
+        } else {
+            const auto& sc = rules().scoring;
+            const std::string ctx_prefix = rule_name + ":";
+            for (const auto& [key, w] : sc.rule_weights)
+                if (key.compare(0, ctx_prefix.size(), ctx_prefix) == 0) floor = std::max(floor, w);
+            auto plain = sc.rule_weights.find(rule_name);
+            if (plain != sc.rule_weights.end()) floor = std::max(floor, plain->second);
+            else if (rule_name == "code_quality.intent_validation.self_declared") floor = std::max(floor, 1);
+            else floor = std::max(floor, sc.default_weight);
+        }
+        if (requested < floor) {
+            if (refused)
+                *refused = "a program can only raise a rule's weight; lowering one is "
+                           "decided by the operator, outside the run";
+            return false;
+        }
         auto& entry = scoring_calibration_[rule_name];
-        entry.weight_override = std::max(0, weight_override);
+        entry.weight_override = requested;
         entry.reason = reason;
         entry.observation_count++;
 

@@ -3367,6 +3367,7 @@ public:
     // transcript or the audit trail. The governed program may read it but not
     // write it (checkPathAccessImpl).
     bool isEvidenceLogPath(const std::string& canon_n) const;
+    bool isEngineStatePath(const std::string& canon_n) const;  // scoring calibration file (A60)
     // The agent-channel text for a set of deliveries ("" for none).
     static std::string formatGuidance(const std::vector<GuidanceDelivery>& items);
     // Opaque outside governance_guidance.cpp.
@@ -3743,7 +3744,10 @@ public:
     bool verifyScoreIntegrity() const;
 
     // --- Scoring Calibration (operator-driven weight overrides) ---
-    bool calibrateRule(const std::string& rule_name, int weight_override, const std::string& reason);
+    // Raise-only (A60): a weight below the rule's current weight is refused and
+    // `refused` says why; lowering is the operator's, in the calibration file.
+    bool calibrateRule(const std::string& rule_name, int weight_override, const std::string& reason,
+                       std::string* refused = nullptr);
     bool resetCalibration(const std::string& rule_name);
     std::unordered_map<std::string, ScoringCalibrationEntry> getCalibrationOverrides() const;
 
@@ -4449,6 +4453,7 @@ private:
     // evidence_paths_mutex_ because checkPathAccess runs on async and agent
     // worker threads while a reload appends on the main thread.
     std::vector<std::string> evidence_log_paths_;
+    std::vector<std::string> engine_state_paths_;  // same mutex; writes refused, reads allowed
     mutable std::mutex evidence_paths_mutex_;
     // Terminal channel: the guidance section appended to a block message in
     // enforce(). Computed without telemetry (enforce()'s advisory branch holds

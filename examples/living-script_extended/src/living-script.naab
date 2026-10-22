@@ -1566,9 +1566,10 @@ main {
         print("INTROSPECTION|scoring_error=" + string(e))
     }
 
-    // governance.calibrate
+    // governance.calibrate -- a program may only RAISE a weight (A60); lowering
+    // one is the operator's, in the calibration file, outside the run
     try {
-        let cal_result = governance.calibrate("missing_docstrings", 1, "Reduced weight after introspection confirms docstrings present")
+        let cal_result = governance.calibrate("missing_docstrings", 4, "Raised weight: missing docstrings recur in this project")
         let cal_success = cal_result.get("success") ?? false
         print("INTROSPECTION|calibrate|success=" + string(cal_success) + "|rule=" + string(cal_result.get("rule") ?? ""))
     } catch (e) {

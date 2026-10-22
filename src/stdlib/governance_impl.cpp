@@ -431,12 +431,16 @@ static NaabVal governanceCalibrate(std::vector<NaabVal>& args) {
     std::string rule = args[0].asString();
     int weight = static_cast<int>(args[1].asInt());
     std::string reason = args[2].asString();
-    bool ok = engine->calibrateRule(rule, weight, reason);
+    std::string refused;
+    bool ok = engine->calibrateRule(rule, weight, reason, &refused);
+    if (!refused.empty())
+        fprintf(stderr, "[governance] calibrate refused for %s: %s\n", rule.c_str(), refused.c_str());
 
     std::unordered_map<std::string, NaabVal> result;
     result["success"] = NaabVal::makeBool(ok);
     result["rule"] = NaabVal::makeString(rule);
     result["weight"] = NaabVal::makeInt(weight);
+    if (!refused.empty()) result["refused"] = NaabVal::makeString(refused);
     return NaabVal::makeDict(std::move(result));
 }
 
