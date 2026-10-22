@@ -3120,7 +3120,7 @@ struct RateLimiter {
     int count_in_window = 0;
     // VM async fns share the engine, so check() runs on several threads at
     // once: unlocked, concurrent increments were lost and a limit let more
-    // calls through than it allows (ThreadSanitizer, A59 follow-up).
+    // calls through than it allows (ThreadSanitizer, A65 follow-up).
     std::mutex mutex;
 
     bool check(int limit) {
@@ -4068,7 +4068,7 @@ public:
     // set. Marking a fixed label, checking it and clearing it is three lock
     // acquisitions on a name every thread uses: with async fns sharing the
     // engine, one thread's clear landed between another's mark and check, and
-    // that write reached its sink unchecked (A59 follow-up).
+    // that write reached its sink unchecked (A65 follow-up).
     // origin_func/origin_arg: the value's lineage, traced when lineage is on.
     std::string checkTaintedValueAtSink(const std::string& label,
                                         const std::string& sink_type,

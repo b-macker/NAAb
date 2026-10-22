@@ -1,7 +1,7 @@
 # Plan — code map roadmap (`tools/codemap`)
 
 **Status:** planned 2026-10-21, nothing below is built. Agreed with the owner:
-finish the A58 governance coverage sweep first, then build all ten items in
+finish the A64 governance coverage sweep first, then build all ten items in
 the order below. Each item's premise was checked on 2026-10-21 against the tree
 at `18039b76` (master `dd7744fd` plus #329's docs/tooling), and the check is
 named beside it; two premises changed shape on that check and say how.
@@ -34,28 +34,28 @@ session picking up code-map work reads this first, then the item's own history
 
 | # | Item | Status |
 |---|---|---|
-| 0 | A58 sweep: fresh coverage run, `untested` per governance file, classify each | done 2026-10-22: all 47 classified (`docs/sweeps/A58.md`); findings A59-A62; its proposed tests and removals are open |
+| 0 | A64 sweep: fresh coverage run, `untested` per governance file, classify each | done 2026-10-22: all 47 classified (`docs/sweeps/A64.md`); findings A65-A62; its proposed tests and removals are open |
 | 1 | Coverage for the binaries `coverage run` does not instrument | **built** 2026-10-22 (helpers from `build-cov`, gtest and C API units; C-22..C-24b); sweep re-read against `sweep2` done: one function moved to executed, by the gtest unit |
 | 2 | `impact` prints the records that name each changed function | built 2026-10-22 (`githist.symbol_names()` shared with `history`; C-25/C-25c) |
 | 3 | "Recorded at another commit" only when coverage-relevant files changed | built 2026-10-22 (`coverage_commit_change()`; premise narrowed, below; C-26/b/c) |
 | 4 | `cite-check DOC`: do `path:line` citations still point where they say | built 2026-10-22 (`citecheck.py`; 14 arms, 11 mutants); first run over three docs below |
-| 5 | Sweep worklist: every item ends with a recorded outcome | built 2026-10-22 (`sweep init`/`status`; C-28); A58 not yet loaded into it |
+| 5 | Sweep worklist: every item ends with a recorded outcome | built 2026-10-22 (`sweep init`/`status`; C-28); A64 not yet loaded into it |
 | 6 | Pre-dispatch checks other than the filesystem gate: enumerate, then model | **built** 2026-10-22 -- and the enumeration found a route defect (A51 corrected, fixed) |
 | 7 | `untested` grouped by shared callers | built 2026-10-22 (`untested --group`; C-27) |
 | 8 | Functions defined in several files stored per file | planned |
 | 9 | PlantUML jar: reconcile the two digests, pin one | reconciled 2026-10-22 (two builds, a compile time apart; Maven's is signed); the pin awaits the owner |
 | 10 | How sessions use the map, from their transcripts | built 2026-10-22 (`usage.py`; 7 arms, 8 mutants); first run is authored usage |
 
-Order: 0, then 1 (it changes which A58 readings can be trusted), then 2 and 3
+Order: 0, then 1 (it changes which A64 readings can be trusted), then 2 and 3
 (small), 4, 5 and 7 (sweep tooling), 6, 8, 9, 10.
 
-## 0. The A58 sweep (classified 2026-10-22)
+## 0. The A64 sweep (classified 2026-10-22)
 
 `build-cov` rebuilt and a whole-suite run (`sweep`) started 2026-10-21 at
-`18039b76`. Steps and the settling rule are A58 in `docs/open-investigations.md`.
-Results are recorded per function in A58. **After item 1 lands, every A58
+`18039b76`. Steps and the settling rule are A64 in `docs/open-investigations.md`.
+Results are recorded per function in A64. **After item 1 lands, every A64
 "no unit" reading is re-read against a run that includes the newly instrumented
-binaries** -- an independent re-trace of the sweep's premise, recorded in A58.
+binaries** -- an independent re-trace of the sweep's premise, recorded in A64.
 
 ## 1. Coverage for the binaries `coverage run` does not instrument
 
@@ -80,7 +80,7 @@ attribution only if a reading needs it). `run-all-tests.sh` is not changed.
 **Also the C API (added 2026-10-22, A62).** `libnaab-governance` and its test
 program `test_governance_c_api` are not in KEEP_BINARIES and not a suite unit,
 so `naab_gov_check()`'s path reads "no unit" however well CI now tests it (the
-A58 sweep found A62 through exactly that reading). Instrument the library from
+A64 sweep found A62 through exactly that reading). Instrument the library from
 `build-cov` and run the test program as a codemap-only unit
 (`capi:test_governance_c_api`), the same way as the GoogleTest binary.
 
@@ -201,7 +201,7 @@ counts a row with an outcome but no evidence apart from the done ones, and
 flags rows whose function no longer exists in the index. Outcomes use the
 method's vocabulary (never built / working / regressed / removed on purpose /
 lost / decided) plus the action (test / restore / remove / none).
-A58's results are loaded into it once it exists.
+A64's results are loaded into it once it exists.
 
 **Done when.** Fixture: init from a coverage run, two outcomes recorded, status
 shows the rest open; control: a renamed function is flagged, not counted as

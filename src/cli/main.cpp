@@ -3905,7 +3905,7 @@ int main(int argc, char** argv) {
             } else if (subcmd == "test") {
                 fmt::print("To test a block, create a .naab file:\n");
                 fmt::print("  use BLOCK-ID as alias\n");
-                fmt::print("  main { let result = alias.function_name(args) }\n");
+                fmt::print("  main {{ let result = alias.function_name(args) }}\n");
             } else {
                 fmt::print("Block submission to public registry is planned for a future release.\n");
             }

@@ -7661,7 +7661,7 @@ NaabVal AgentModule::call(
 
     throw std::runtime_error(fmt::format(
         "Agent error: Unknown function 'agent.{}'\n\n"
-        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status, environment, register_tool, propose, commit, coherence, reset, record_validation\n\n"
+        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status, environment, register_tool, extract_code, propose, commit, coherence, reset, record_validation\n\n"
         "  Help:\n"
         "  - agent.create(name) — create agent handle from govern.json config\n"
         "  - agent.send(handle, msg) — send message, get response\n"
@@ -7671,7 +7671,7 @@ NaabVal AgentModule::call(
         "  - agent.batch(handles, msgs) — parallel: send msgs[i] to handles[i]\n"
         "  - agent.fan_out(handles, msg) — parallel: send same msg to all handles\n"
         "  - agent.pipeline(handles, msg) — sequential: chain agents, output->input\n"
-        "  - agent.check(name) — pre-flight: validate config + API key, returns {valid, error}\n"
+        "  - agent.check(name) — pre-flight: validate config + API key, returns {{valid, error}}\n"
         "  - agent.key_health(name) — key rotation status: active vs dead keys\n"
         "  - agent.dispatch_status() — run-level dispatch counters and hard stop status\n"
         "  - agent.environment(handle) — current environment snapshot: limits, state, coherence\n"

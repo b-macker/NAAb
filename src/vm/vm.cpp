@@ -2977,7 +2977,7 @@ interpreter::NaabVal VM::run() {
                                 // The mark keeps the engine-wide name state as it was; the
                                 // decision does not read it back. Between a mark and a
                                 // name lookup, another async fn assigning a clean value to
-                                // a same-named global could clear it (A59 follow-up).
+                                // a same-named global could clear it (A65 follow-up).
                                 governance_->markTainted(bound_var_names[bi],
                                     origin_func, origin_arg, current_file_, gov_line);
                                 std::string terr = governance_->checkTaintedValueAtSink(
