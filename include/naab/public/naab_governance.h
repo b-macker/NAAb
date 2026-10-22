@@ -118,7 +118,12 @@ NAAB_GOV_API char* naab_gov_scan(naab_gov_engine_t engine,
  * check_name: "secrets", "code_injection", "sql_injection",
  *             "dangerous_calls", "shell_injection", "imports",
  *             "obfuscation", "deserialization", "privilege_escalation",
- *             "oversimplification", "incomplete_logic", "encoding"
+ *             "oversimplification", "incomplete_logic", "encoding",
+ *             "path_traversal", "data_exfiltration", "crypto_weakness"
+ *
+ * Each check reads the same text it reads in naab_gov_scan(): secrets and
+ * SQL injection the raw code, imports the code with string literals kept,
+ * most others the code with string literals removed.
  *
  * Returns: malloc'd JSON string with check result.
  * Caller MUST free via naab_gov_free_string().

@@ -3469,9 +3469,17 @@ public:
     std::string checkCallDepth(size_t current_depth);
     std::string checkArraySize(size_t size);
     std::string checkPolyglotOutput(const std::string& output);
-    // C2 fix: preprocess code the same way checkPolyglotBlock does
-    // (normalizeUnicode, normalizeWhitespace, stripStringLiterals, expandDangerousAliases)
-    std::string preprocessCode(const std::string& language, const std::string& code);
+    // One named check of a polyglot block, run alone (naab_gov_check() in the
+    // C API). It reads exactly the text checkPolyglotBlock() gives that check
+    // -- raw for secrets and SQL, normalized for imports, the string-stripped
+    // text for most, both where the block runs it twice -- because both call
+    // the same dispatch (runBlockCheck in governance_checks.cpp). Returns false
+    // for a name it does not know; `err` is the check's own result.
+    bool runSingleBlockCheck(const std::string& check_name,
+                             const std::string& language,
+                             const std::string& code, int line,
+                             std::string& err);
+    static const std::vector<std::string>& singleBlockCheckNames();
 
     std::string checkDangerousCall(const std::string& language,
                                     const std::string& code, int line = 0);

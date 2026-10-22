@@ -12,8 +12,7 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <cstring>
-#include <unordered_map>
-#include <functional>
+#include <algorithm>
 
 using naab::governance::GovernanceEngine;
 
@@ -164,49 +163,11 @@ char* naab_gov_scan(naab_gov_engine_t engine,
 
 /* --- Single check dispatch --- */
 
-using CheckFn = std::function<std::string(GovernanceEngine&,
-                                           const std::string& /*lang*/,
-                                           const std::string& /*code*/,
-                                           int /*line*/)>;
-
-static const std::unordered_map<std::string, CheckFn>& getCheckTable() {
-    static const std::unordered_map<std::string, CheckFn> table = {
-        {"secrets",
-         [](auto& e, auto&, auto& c, int ln) { return e.checkSecrets(c, ln); }},
-        {"code_injection",
-         [](auto& e, auto& l, auto& c, int ln) { return e.checkCodeInjection(l, c, c, ln); }},
-        {"sql_injection",
-         [](auto& e, auto&, auto& c, int ln) { return e.checkSqlInjection(c, ln); }},
-        {"dangerous_calls",
-         [](auto& e, auto& l, auto& c, int ln) { return e.checkDangerousCall(l, c, ln); }},
-        {"shell_injection",
-         [](auto& e, auto&, auto& c, int ln) { return e.checkShellInjection(c, ln); }},
-        {"imports",
-         [](auto& e, auto& l, auto& c, int ln) { return e.checkImports(l, c, ln); }},
-        {"obfuscation",
-         [](auto& e, auto& l, auto& c, int ln) {
-             /* obfuscation needs raw + stripped; use code as both for single-check mode */
-             return e.checkObfuscationSignals(l, c, c, ln);
-         }},
-        {"deserialization",
-         [](auto& e, auto&, auto& c, int ln) { return e.checkUnsafeDeserialization(c, ln); }},
-        {"privilege_escalation",
-         [](auto& e, auto&, auto& c, int ln) { return e.checkPrivilegeEscalation(c, ln); }},
-        {"oversimplification",
-         [](auto& e, auto&, auto& c, int ln) { return e.checkOversimplification(c, ln); }},
-        {"incomplete_logic",
-         [](auto& e, auto&, auto& c, int ln) { return e.checkIncompleteLogic(c, ln); }},
-        {"encoding",
-         [](auto& e, auto&, auto& c, int ln) { return e.checkEncoding(c, ln); }},
-        {"path_traversal",
-         [](auto& e, auto&, auto& c, int ln) { return e.checkPathTraversal(c, ln); }},
-        {"data_exfiltration",
-         [](auto& e, auto&, auto& c, int ln) { return e.checkDataExfiltration(c, ln); }},
-        {"crypto_weakness",
-         [](auto& e, auto&, auto& c, int ln) { return e.checkCryptoWeakness(c, c, ln); }},
-    };
-    return table;
-}
+/* The named checks and the text each one reads live in the engine
+ * (GovernanceEngine::runSingleBlockCheck), shared with checkPolyglotBlock, so
+ * a check run here reads exactly what it reads in naab_gov_scan(). This file
+ * used to keep its own table and hand every check the string-stripped text,
+ * which hid secrets and SQL in string literals and JavaScript module names. */
 
 char* naab_gov_check(naab_gov_engine_t engine,
                       const char* check_name,
@@ -218,24 +179,16 @@ char* naab_gov_check(naab_gov_engine_t engine,
     try {
         CurrentEngineGuard guard(&engine->engine);
 
-        const auto& table = getCheckTable();
-        auto it = table.find(check_name);
-        if (it == table.end()) {
+        const auto& names = GovernanceEngine::singleBlockCheckNames();
+        if (std::find(names.begin(), names.end(), check_name) == names.end()) {
             engine->last_error = std::string("Unknown check: ") + check_name;
             return nullptr;
         }
 
         engine->engine.resetCheckResults();
-        // C2 fix: preprocess code the same way checkPolyglotBlock does
-        // (normalizeUnicode, normalizeWhitespace, stripStringLiterals,
-        // expandDangerousAliases) so single-check API can't be bypassed
-        // with homoglyphs, zero-width chars, or aliased functions
-        std::string preprocessed = engine->engine.preprocessCode(
-            std::string(language), std::string(code));
-        std::string err = it->second(engine->engine,
-                                      std::string(language),
-                                      preprocessed,
-                                      start_line);
+        std::string err;
+        engine->engine.runSingleBlockCheck(check_name, language, code,
+                                           start_line, err);
 
         nlohmann::json result;
         result["check"] = check_name;

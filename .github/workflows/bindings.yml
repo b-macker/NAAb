@@ -39,9 +39,12 @@ jobs:
       - name: Build shared library
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
-          ninja -C build naab_governance naab-gov -j$(nproc)
+          ninja -C build naab_governance naab-gov test_governance_c_api -j$(nproc)
           # Verify shared lib was built
           ls -la build/libnaab-governance.so*
+
+      - name: C API tests
+        run: ./build/test_governance_c_api
 
       - name: Prepare artifacts
         run: |

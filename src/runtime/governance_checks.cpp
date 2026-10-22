@@ -6803,15 +6803,142 @@ std::string GovernanceEngine::checkPolyglotBlock(
     return checkPolyglotBlock(language, code, source_file, line);
 }
 
-// C2 fix: expose preprocessing pipeline so naab_gov_check() C API can
-// apply the same normalization as checkPolyglotBlock before dispatch
-std::string GovernanceEngine::preprocessCode(const std::string& language, const std::string& code) {
-    std::string lang = normalizeLanguage(language);
-    std::string result = normalizeUnicode(code);
-    result = normalizeWhitespace(result);
-    result = stripStringLiterals(result, naab::lang::findLanguage(lang));
-    result = expandDangerousAliases(lang, result);
-    return result;
+// The texts a polyglot block's checks read. Each check reads the one that
+// keeps what it looks for: secrets and SQL live INSIDE string literals, so they
+// read the raw block; most pattern checks read `stripped` so a string's
+// content is not mistaken for code; import checks read `normalized` because a
+// module name is a string (require("child_process")).
+namespace {
+struct BlockViews {
+    std::string lang;          // normalizeLanguage(): js -> javascript
+    const std::string& raw;
+    std::string normalized;    // homoglyphs and whitespace tricks undone
+    std::string stripped;      // normalized, string literals removed, aliases expanded
+    std::string comment_scan;  // stripped, other comment openers re-marked as '#'
+};
+
+BlockViews makeBlockViews(const std::string& language, const std::string& code) {
+    BlockViews v{normalizeLanguage(language), code, {}, {}, {}};
+    // Unicode homoglyphs and whitespace are normalized on BOTH the raw and the
+    // stripped paths (Cyrillic е→e, fullwidth ｅ→e, zero-width removals;
+    // os.\nsystem, os . system, line continuations).
+    v.normalized = normalizeWhitespace(normalizeUnicode(code));
+    // FIX 16: strip string literals so code or paths inside a string are not
+    // matched as code.
+    v.stripped = stripStringLiterals(v.normalized, naab::lang::findLanguage(v.lang));
+    // Expand dangerous function aliases (s = os.system; s("rm") → os.system("rm"))
+    // so pattern checks catch indirect calls through variables.
+    v.stripped = expandDangerousAliases(v.lang, v.stripped);
+    // The checks that look for markers INSIDE comments (temporary code,
+    // oversimplification, incomplete logic) read `#`, `//` and `/* */` only.
+    // This is `stripped` with the language's other comment openers (`--`,
+    // `#=`, `=begin`, ...) re-marked as `#`; for languages with no such
+    // opener it is identical to `stripped`.
+    v.comment_scan = naab::lang::markCommentsForScan(v.stripped, v.lang);
+    return v;
+}
+
+// The checks naab_gov_check() can run alone. checkPolyglotBlock() runs each of
+// them through runBlockCheck() too, so which text a check reads is written
+// ONCE. Until this, the C API stripped string literals before every check
+// (321500ec, which meant to bring the block's homoglyph and alias handling to
+// it): a key-shaped string, a concatenated SELECT and require("child_process")
+// each passed the single check that the block path blocks.
+enum class BlockCheck {
+    Secrets, CodeInjection, SqlInjection, DangerousCalls, ShellInjection,
+    Imports, Obfuscation, Deserialization, PrivilegeEscalation,
+    Oversimplification, IncompleteLogic, Encoding, PathTraversal,
+    DataExfiltration, CryptoWeakness,
+};
+
+const std::vector<std::pair<std::string, BlockCheck>>& singleBlockChecks() {
+    static const std::vector<std::pair<std::string, BlockCheck>> table = {
+        {"secrets", BlockCheck::Secrets},
+        {"code_injection", BlockCheck::CodeInjection},
+        {"sql_injection", BlockCheck::SqlInjection},
+        {"dangerous_calls", BlockCheck::DangerousCalls},
+        {"shell_injection", BlockCheck::ShellInjection},
+        {"imports", BlockCheck::Imports},
+        {"obfuscation", BlockCheck::Obfuscation},
+        {"deserialization", BlockCheck::Deserialization},
+        {"privilege_escalation", BlockCheck::PrivilegeEscalation},
+        {"oversimplification", BlockCheck::Oversimplification},
+        {"incomplete_logic", BlockCheck::IncompleteLogic},
+        {"encoding", BlockCheck::Encoding},
+        {"path_traversal", BlockCheck::PathTraversal},
+        {"data_exfiltration", BlockCheck::DataExfiltration},
+        {"crypto_weakness", BlockCheck::CryptoWeakness},
+    };
+    return table;
+}
+
+std::string runBlockCheck(GovernanceEngine& e, BlockCheck c, const BlockViews& v, int line) {
+    std::string err;
+    switch (c) {
+    case BlockCheck::Secrets:
+        return e.checkSecrets(v.raw, line);  // secrets CAN be in strings
+    case BlockCheck::SqlInjection:
+        return e.checkSqlInjection(v.raw, line);  // SQL queries ARE in strings
+    case BlockCheck::DangerousCalls:
+        err = e.checkDangerousCall(v.lang, v.stripped, line);
+        if (!err.empty()) return err;
+        // Some dangerous patterns need the string content (preg_replace's /e
+        // modifier is inside the regex string), so the normalized text too.
+        return e.checkDangerousCall(v.lang, v.normalized, line);
+    case BlockCheck::Deserialization:
+        return e.checkUnsafeDeserialization(v.stripped, line);
+    case BlockCheck::PathTraversal:
+        return e.checkPathTraversal(v.stripped, line);  // FIX 16: not string paths
+    case BlockCheck::Encoding:
+        return e.checkEncoding(v.stripped, line);
+    case BlockCheck::Oversimplification:
+        return e.checkOversimplification(v.comment_scan, line);
+    case BlockCheck::IncompleteLogic:
+        return e.checkIncompleteLogic(v.comment_scan, line);
+    case BlockCheck::ShellInjection:
+        return e.checkShellInjection(v.stripped, line);
+    case BlockCheck::CodeInjection:
+        return e.checkCodeInjection(v.lang, v.stripped, v.normalized, line);
+    case BlockCheck::PrivilegeEscalation:
+        err = e.checkPrivilegeEscalation(v.stripped, line);
+        if (!err.empty()) return err;
+        // sudo and chmod +s appear inside string arguments to execution
+        // functions (os.system("sudo ..."), subprocess.run(["chmod", "+s", ...])).
+        return e.checkPrivilegeEscalation(v.normalized, line);
+    case BlockCheck::DataExfiltration:
+        return e.checkDataExfiltration(v.stripped, line);
+    case BlockCheck::CryptoWeakness:
+        return e.checkCryptoWeakness(v.stripped, v.normalized, line);
+    case BlockCheck::Obfuscation:
+        // co-occurrence: normalized + stripped
+        return e.checkObfuscationSignals(v.lang, v.normalized, v.stripped, line);
+    case BlockCheck::Imports:
+        // Module names are inside string literals (require("child_process")).
+        return e.checkImports(v.lang, v.normalized, line);
+    }
+    return "";
+}
+}  // namespace
+
+const std::vector<std::string>& GovernanceEngine::singleBlockCheckNames() {
+    static const std::vector<std::string> names = [] {
+        std::vector<std::string> n;
+        for (const auto& [name, check] : singleBlockChecks()) n.push_back(name);
+        return n;
+    }();
+    return names;
+}
+
+bool GovernanceEngine::runSingleBlockCheck(const std::string& check_name,
+                                           const std::string& language,
+                                           const std::string& code, int line,
+                                           std::string& err) {
+    for (const auto& [name, check] : singleBlockChecks()) {
+        if (name != check_name) continue;
+        err = runBlockCheck(*this, check, makeBlockViews(language, code), line);
+        return true;
+    }
+    return false;
 }
 
 std::string GovernanceEngine::checkPolyglotBlock(
@@ -6821,30 +6948,15 @@ std::string GovernanceEngine::checkPolyglotBlock(
     // Set check context for report tracking (file + line propagate to enforce/recordPass)
     setCheckContext(source_file, line);
 
-    // FIX 18: Normalize language aliases (bash→shell, js→javascript, etc.)
-    std::string lang = normalizeLanguage(language);
-
-    // Pre-process code — normalize Unicode homoglyphs and whitespace to prevent
-    // evasion via confusable characters (Cyrillic е→e, fullwidth ｅ→e, zero-width
-    // removals) and whitespace tricks (os.\nsystem, os . system, line continuations).
-    // Normalization runs on BOTH raw code and stripped code paths.
-    std::string normalized = normalizeUnicode(code);
-    normalized = normalizeWhitespace(normalized);
-
-    // FIX 16: Pre-process code — strip string literals for pattern matching
-    // This prevents false positives from code/paths inside strings
-    std::string stripped = stripStringLiterals(normalized, naab::lang::findLanguage(lang));
-
-    // Expand dangerous function aliases (e.g., s = os.system; s("rm") → os.system("rm"))
-    // so downstream pattern-based checks catch indirect calls through variables
-    stripped = expandDangerousAliases(lang, stripped);
-
-    // The checks that look for markers INSIDE comments (temporary code,
-    // oversimplification, incomplete logic) read `#`, `//` and `/* */` only.
-    // This is `stripped` with the language's other comment openers (`--`,
-    // `#=`, `=begin`, ...) re-marked as `#`; for languages with no such
-    // opener it is identical to `stripped`.
-    const std::string comment_scan = naab::lang::markCommentsForScan(stripped, lang);
+    // The texts the checks read (makeBlockViews above): the language name
+    // normalized (FIX 18: bash→shell, js→javascript), and the block
+    // normalized, string-stripped and comment-marked. naab_gov_check() builds
+    // the same views, so a check run alone reads what it reads here.
+    const BlockViews views = makeBlockViews(language, code);
+    const std::string& lang = views.lang;
+    const std::string& normalized = views.normalized;
+    const std::string& stripped = views.stripped;
+    const std::string& comment_scan = views.comment_scan;
 
     std::string err;
 
@@ -6897,7 +7009,7 @@ std::string GovernanceEngine::checkPolyglotBlock(
     }
 
     // Code quality checks — secrets/PII use RAW code (secrets CAN be in strings)
-    err = checkSecrets(code, line);
+    err = runBlockCheck(*this, BlockCheck::Secrets, views, line);
     if (!err.empty()) return err;
     err = checkPii(code, line);
     if (!err.empty()) return err;
@@ -6910,11 +7022,7 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
     err = checkHardcodedResults(stripped, line);
     if (!err.empty()) return err;
-    err = checkDangerousCall(lang, stripped, line);
-    if (!err.empty()) return err;
-    // Some dangerous patterns require string content visible (e.g., preg_replace /e
-    // modifier is inside the regex string). Check normalized (but not string-stripped) code.
-    err = checkDangerousCall(lang, normalized, line);
+    err = runBlockCheck(*this, BlockCheck::DangerousCalls, views, line);  // stripped, then normalized
     if (!err.empty()) return err;
 
     // New v3.0 checks — use stripped (strings removed, comments preserved)
@@ -6930,25 +7038,25 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
     err = checkDebugArtifacts(lang, stripped, line);
     if (!err.empty()) return err;
-    err = checkUnsafeDeserialization(stripped, line);
+    err = runBlockCheck(*this, BlockCheck::Deserialization, views, line);
     if (!err.empty()) return err;
-    err = checkSqlInjection(code, line);  // SQL queries ARE in strings, keep raw
+    err = runBlockCheck(*this, BlockCheck::SqlInjection, views, line);  // raw: SQL is in strings
     if (!err.empty()) return err;
-    err = checkPathTraversal(stripped, line);  // FIX 16: No more false positives from string paths
+    err = runBlockCheck(*this, BlockCheck::PathTraversal, views, line);
     if (!err.empty()) return err;
     err = checkHardcodedUrls(code, line);  // URLs ARE in strings
     if (!err.empty()) return err;
     err = checkHardcodedIps(code, line);   // IPs ARE in strings
     if (!err.empty()) return err;
-    err = checkEncoding(stripped, line);
+    err = runBlockCheck(*this, BlockCheck::Encoding, views, line);
     if (!err.empty()) return err;
     err = checkComplexity(stripped, line);
     if (!err.empty()) return err;
 
     // LLM anti-drift checks
-    err = checkOversimplification(comment_scan, line);
+    err = runBlockCheck(*this, BlockCheck::Oversimplification, views, line);
     if (!err.empty()) return err;
-    err = checkIncompleteLogic(comment_scan, line);
+    err = runBlockCheck(*this, BlockCheck::IncompleteLogic, views, line);
     if (!err.empty()) return err;
     err = checkHallucinatedApis(lang, normalized, line);  // Has its own stripping
     if (!err.empty()) return err;
@@ -6961,28 +7069,23 @@ std::string GovernanceEngine::checkPolyglotBlock(
     // bodies to prevent trivial compute_*/calculate_* stubs.
 
     // Security checks — use stripped code
-    err = checkShellInjection(stripped, line);
+    err = runBlockCheck(*this, BlockCheck::ShellInjection, views, line);
     if (!err.empty()) return err;
-    err = checkCodeInjection(lang, stripped, normalized, line);
+    err = runBlockCheck(*this, BlockCheck::CodeInjection, views, line);
     if (!err.empty()) return err;
-    err = checkPrivilegeEscalation(stripped, line);
+    err = runBlockCheck(*this, BlockCheck::PrivilegeEscalation, views, line);  // stripped, then normalized
     if (!err.empty()) return err;
-    // Privilege escalation commands (sudo, chmod +s) appear inside string args to
-    // execution functions (os.system("sudo ..."), subprocess.run(["chmod", "+s", ...])).
-    // Check normalized code to catch commands inside string literals.
-    err = checkPrivilegeEscalation(normalized, line);
-    if (!err.empty()) return err;
-    err = checkDataExfiltration(stripped, line);
+    err = runBlockCheck(*this, BlockCheck::DataExfiltration, views, line);
     if (!err.empty()) return err;
     err = checkResourceAbuse(stripped, line);
     if (!err.empty()) return err;
     err = checkInfoDisclosure(lang, stripped, line);
     if (!err.empty()) return err;
-    err = checkCryptoWeakness(stripped, normalized, line);
+    err = runBlockCheck(*this, BlockCheck::CryptoWeakness, views, line);
     if (!err.empty()) return err;
     err = checkVcsSecretExtraction(normalized, line);  // uses normalized raw code — secret targets in strings
     if (!err.empty()) return err;
-    err = checkObfuscationSignals(lang, normalized, stripped, line);  // co-occurrence: normalized + stripped
+    err = runBlockCheck(*this, BlockCheck::Obfuscation, views, line);
     if (!err.empty()) return err;
 
     // Capability checks for polyglot blocks
@@ -6995,7 +7098,7 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
 
     // Per-language checks — checkImports matches require('mod')/import 'mod' patterns
-    err = checkImports(lang, normalized, line);
+    err = runBlockCheck(*this, BlockCheck::Imports, views, line);
     if (!err.empty()) return err;
     err = checkBannedFunctions(lang, stripped, line);
     if (!err.empty()) return err;

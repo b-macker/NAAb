@@ -34,7 +34,7 @@ session picking up code-map work reads this first, then the item's own history
 
 | # | Item | Status |
 |---|---|---|
-| 0 | A58 sweep: fresh coverage run, `untested` per governance file, classify each | in progress |
+| 0 | A58 sweep: fresh coverage run, `untested` per governance file, classify each | done 2026-10-22: all 47 classified (`docs/sweeps/A58.md`); findings A59-A62; its proposed tests and removals are open |
 | 1 | Coverage for the binaries `coverage run` does not instrument | planned |
 | 2 | `impact` prints the records that name each changed function | planned |
 | 3 | "Recorded at another commit" only when coverage-relevant files changed | planned |
@@ -49,7 +49,7 @@ session picking up code-map work reads this first, then the item's own history
 Order: 0, then 1 (it changes which A58 readings can be trusted), then 2 and 3
 (small), 4, 5 and 7 (sweep tooling), 6, 8, 9, 10.
 
-## 0. The A58 sweep (in progress)
+## 0. The A58 sweep (classified 2026-10-22)
 
 `build-cov` rebuilt and a whole-suite run (`sweep`) started 2026-10-21 at
 `18039b76`. Steps and the settling rule are A58 in `docs/open-investigations.md`.
@@ -76,6 +76,13 @@ line names the extra targets. A codemap-only unit runs the GoogleTest binary
 from `build-cov` with its own `GCOV_PREFIX`, named `gtest:naab_unit_tests` so a
 reader sees where execution came from (one unit per binary first; per-test
 attribution only if a reading needs it). `run-all-tests.sh` is not changed.
+
+**Also the C API (added 2026-10-22, A62).** `libnaab-governance` and its test
+program `test_governance_c_api` are not in KEEP_BINARIES and not a suite unit,
+so `naab_gov_check()`'s path reads "no unit" however well CI now tests it (the
+A58 sweep found A62 through exactly that reading). Instrument the library from
+`build-cov` and run the test program as a codemap-only unit
+(`capi:test_governance_c_api`), the same way as the GoogleTest binary.
 
 **Direction of error.** Today: false "executed by NO unit" (alarming). After:
 more "executed" credits (reassuring), so the unit name must show it came from a
