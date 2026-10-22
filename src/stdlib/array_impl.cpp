@@ -10,6 +10,7 @@
 #include "naab/utils/error_formatter.h"
 #include <vector>
 #include <algorithm>
+#include <exception>
 #include <numeric>
 #include <stdexcept>
 #include <unordered_set>
@@ -438,8 +439,12 @@ interpreter::NaabVal ArrayModule::call(
             // and validate return type to maintain strict weak ordering.
             auto comp_fn = args[1];
             bool sort_error = false;
+            // What the comparator threw, rethrown once std::sort has returned.
+            // It used to be replaced by "must return a number", which made a
+            // HARD governance block inside the comparator catchable (A41).
+            std::exception_ptr comp_ex;
             std::sort(arr.begin(), arr.end(),
-                [this, &comp_fn, &sort_error](const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
+                [this, &comp_fn, &sort_error, &comp_ex](const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
                     if (sort_error) return false;  // Consistent ordering after error
                     try {
                         auto res = evaluator_(comp_fn, {a, b});
@@ -448,10 +453,12 @@ interpreter::NaabVal ArrayModule::call(
                         sort_error = true;
                         return false;
                     } catch (...) {
+                        comp_ex = std::current_exception();
                         sort_error = true;
                         return false;
                     }
                 });
+            if (comp_ex) std::rethrow_exception(comp_ex);
             if (sort_error) {
                 throw std::runtime_error(
                     "array.sort() comparator must return a number (negative, zero, or positive)");
@@ -482,8 +489,12 @@ interpreter::NaabVal ArrayModule::call(
         if (args.size() == 2 && evaluator_) {
             auto comp_fn = args[1];
             bool sort_error = false;
+            // What the comparator threw, rethrown once std::sort has returned.
+            // It used to be replaced by "must return a number", which made a
+            // HARD governance block inside the comparator catchable (A41).
+            std::exception_ptr comp_ex;
             std::sort(arr.begin(), arr.end(),
-                [this, &comp_fn, &sort_error](const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
+                [this, &comp_fn, &sort_error, &comp_ex](const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
                     if (sort_error) return false;
                     try {
                         auto res = evaluator_(comp_fn, {a, b});
@@ -492,10 +503,12 @@ interpreter::NaabVal ArrayModule::call(
                         sort_error = true;
                         return false;
                     } catch (...) {
+                        comp_ex = std::current_exception();
                         sort_error = true;
                         return false;
                     }
                 });
+            if (comp_ex) std::rethrow_exception(comp_ex);
             if (sort_error) {
                 throw std::runtime_error(
                     "array.sorted() comparator must return a number (negative, zero, or positive)");

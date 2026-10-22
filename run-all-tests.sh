@@ -2647,6 +2647,20 @@ else
     echo "  test_try_handler_leak.sh: not found, skipping"
 fi
 
+# VM: a callback that throws through native code (sort comparators, array.map_fn,
+# agent tools) must not jump into its caller's handler or leave the VM out of step (A41).
+CBTHROW_SCRIPT="tests/vm/test_callback_throw.sh"
+if [ -f "$CBTHROW_SCRIPT" ]; then
+    if run_shell_test "$CBTHROW_SCRIPT" 2>&1; then
+        echo "  test_callback_throw.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_callback_throw.sh")
+    fi
+else
+    echo "  test_callback_throw.sh: not found, skipping"
+fi
+
 # async fn semantics per engine (ASYNC-001): results agree, VM concurrent, tree-walker pinned synchronous.
 ASYNCSEM_SCRIPT="tests/vm/test_async_engine_semantics.sh"
 if [ -f "$ASYNCSEM_SCRIPT" ]; then
