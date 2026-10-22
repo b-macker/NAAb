@@ -48,4 +48,7 @@ tests/self-audit/test_codemap.sh	tool	tests tools/codemap (a libclang source ind
 tests/self-audit/test_codemap_profile.sh	tool	tests codemap profile (callgrind) on the compiled C++ fixture; never runs naab-lang
 tests/self-audit/test_codemap_history.sh	tool	tests codemap history (git log -L/-S, blame) on a git repository it builds; never runs naab-lang
 tests/self-audit/test_codemap_coverage.sh	tool	tests codemap coverage (gcov) on the compiled C++ fixture; never runs naab-lang
+tests/self-audit/test_codemap_citecheck.sh	tool	tests codemap cite-check (doc citations against source text) on a fixture repo; never runs naab-lang
+tests/self-audit/test_codemap_usage.sh	tool	tests tools/codemap/usage.py on a synthetic transcript; never runs naab-lang
 .claude/skills/investigation-gates/tests/selftest.sh	tool	self-test of the investigation-gates skill scripts (bash/Python, temp git repos); never runs naab-lang
+tests/self-audit/test_predispatch_enumeration.sh	tool	tests tools/codemap/predispatch_enum.py (libclang over vm.cpp and call_dispatch.cpp) against its classified list; never runs naab-lang

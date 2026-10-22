@@ -103,8 +103,30 @@
 #         `coverage ingest` names it gtest:naab_unit_tests (EXTRA_UNIT_DISPLAY),
 #         so the recovery path names it too; a unit not built reads "absent";
 #         control: dead_function still reads no unit
+#   C-24c a "no unit" reading names the binaries THAT run did not instrument
+#         (from its metadata); an ingest, which records none, says so; a run
+#         with everything instrumented names none
 #   C-24b extra_units runs the GoogleTest binary through the repo's own runner
 #         (its exclusions apply) and reports a test program not built as None
+#   C-25  roadmap item 2: impact lists, under each changed function, the
+#         tracked .md lines naming it (NOTES.md's X1 row for dead_function);
+#         sink, named only inside the longer identifier sink_all, and
+#         via_two_lambdas, named nowhere, list none; control (c): --no-records
+#         lists none and still lists the functions
+#   C-26  roadmap item 3: a commit changing only Markdown documentation is no
+#         reason to refresh coverage and reads print no "recorded at" note;
+#         (b) a CLAUDE.md (project_context reads it by name), a .md under
+#         tests/ and a non-Markdown file under docs/ each keep both; (c) a
+#         commit git cannot compare keeps the reason and says why
+#   C-27  roadmap item 7: `untested --group` puts sib_a and sib_b (group.cpp,
+#         both called only by caller_ab) in one group; control: lone_fn, which
+#         shares no caller, and caller_ab, which has none, stand alone
+#   C-28  roadmap item 5: `sweep init` lists group.cpp's four untested functions
+#         in docs/sweeps/grp.tsv and refuses to overwrite it; `sweep status`
+#         counts one done (state AND evidence), one open, one state without
+#         evidence (not done); a row whose function was renamed is flagged NOT
+#         IN INDEX and not counted done even with state and evidence; --add adds
+#         only what the worklist lacks and changes no row
 #
 # Needs a C++ compiler, gcov and libclang; each missing piece is UNMEASURABLE.
 # ============================================================
@@ -155,6 +177,28 @@ cd "$R" || exit 1
 # it adds no unmatched position (C-10 pins those).
 printf '// reachable only through the second program\nint only_in_second(int x) { return x * 3 + 1; }\n' > second.cpp
 printf 'int only_in_second(int x);\nint main() { return only_in_second(2) == 7 ? 0 : 1; }\n' > second_main.cpp
+# C-27/C-28: two siblings only caller_ab calls, and lone_fn; linked into the
+# fixture, called by nothing, so every one is executed by no unit.
+cat > group.cpp <<'GRP'
+// roadmap items 5 and 7: siblings one caller reaches, and a function alone
+int sib_a(int x) { return x + 1; }
+int sib_b(int x) { return x + 2; }
+int caller_ab(int x) { return sib_a(x) + sib_b(x); }
+int lone_fn(int x) { return x * 5; }
+GRP
+# A decision record for C-25: it names dead_function in a record row, and
+# `sink` only inside the longer identifier sink_all, which must not count.
+cat > NOTES.md <<'EOF'
+# Fixture notes
+
+| Id | Finding |
+|---|---|
+| X1 | `dead_function` is never called |
+
+## Helpers
+
+`sink_all` is a longer identifier; the shorter name never appears alone here.
+EOF
 CM="$(native_path "$REPO/tools/codemap/codemap.py")"
 cm() { python3 "$CM" --repo . --cache .cache/codemap "$@" 2>&1; }
 cmc() { local c="$1"; shift; python3 "$CM" --repo . --cache "$c" "$@" 2>&1; }   # another cache
@@ -169,14 +213,14 @@ g add -A && g commit -q -m "fixture"
 # --- builds: with the wrap (as NAAB_COVERAGE links naab-lang) and without it -------
 build() {  # dir wrap(yes|no)
     mkdir -p "$1"
-    ( cd "$1" && for f in fixture other templ; do
+    ( cd "$1" && for f in fixture other templ group; do
           "$CXX" -std=c++17 -O0 -g --coverage -I../include -c "../$f.cpp" -o "$f.cpp.o" || exit 1
       done
       if [ "$2" = yes ]; then
           "$CC" -c "$WRAP" -o coverage_exit.o || exit 1
-          "$CXX" --coverage -Wl,--wrap=_exit -Wl,--wrap=_Exit fixture.cpp.o other.cpp.o templ.cpp.o coverage_exit.o -o fixture -pthread
+          "$CXX" --coverage -Wl,--wrap=_exit -Wl,--wrap=_Exit fixture.cpp.o other.cpp.o templ.cpp.o group.cpp.o coverage_exit.o -o fixture -pthread
       else
-          "$CXX" --coverage fixture.cpp.o other.cpp.o templ.cpp.o -o fixture -pthread
+          "$CXX" --coverage fixture.cpp.o other.cpp.o templ.cpp.o group.cpp.o -o fixture -pthread
       fi ) > "$W/build-$2.log" 2>&1
 }
 build_second() {  # dir --coverage|"" -- the second program, instrumented (build2) or not (plain)
@@ -193,7 +237,7 @@ import json, os
 w = os.getcwd()
 json.dump([{"directory": os.path.join(w, "build"), "file": os.path.join(w, f),
             "arguments": ["c++", "-std=c++17", "-I" + os.path.join(w, "include"), "-c", os.path.join(w, f), "-o", f + ".o"]}
-           for f in ("fixture.cpp", "other.cpp", "extra.cpp", "templ.cpp", "second.cpp")],
+           for f in ("fixture.cpp", "other.cpp", "extra.cpp", "templ.cpp", "second.cpp", "group.cpp")],
           open(os.path.join(w, "build", "compile_commands.json"), "w"))
 EOF
 IDX="$(cm index --jobs 2)"; irc=$?
@@ -438,6 +482,34 @@ else
     bad C-08 "a stale index was not reported (or a fresh one was)" "$STALE"
 fi
 
+# ---------------------------------------------------------------- C-25 / C-25c
+# the "doc" lines printed under one changed function in impact's output
+docs_of() { awk -v fn="$1" '$0 ~ "^     " fn " +fixture[.]cpp:" {on=1; next}
+                            on && /^         doc  / {print; next} {on=0}' <<<"$2"; }
+DDOC="$(docs_of dead_function "$IMP")"; SDOC="$(docs_of sink "$IMP")"; VDOC="$(docs_of via_two_lambdas "$IMP")"
+IMPJ="$(cm --json impact --cov fx)"
+DJSON="$(python3 -c 'import json, sys; d = json.load(sys.stdin)
+print(";".join("%s=%s" % (c["name"], ",".join("%s:%d" % (r["file"], r["line"]) for r in c["records"]))
+               for c in d["changed"] if c["name"] in ("dead_function", "sink")))' <<<"$IMPJ" 2>&1)"
+if grep -qE "doc  NOTES.md:[0-9]+ \[X1\] " <<<"$DDOC" && [ -z "$SDOC" ] && [ -z "$VDOC" ] \
+   && grep -q "records: 1 of 3 changed functions are named" <<<"$IMP" \
+   && grep -qE "dead_function=NOTES.md:[0-9]+" <<<"$DJSON" && grep -qE "(^|;)sink=(;|$)" <<<"$DJSON"; then
+    ok C-25 "impact lists the record naming dead_function (X1); sink (named only inside sink_all) and via_two_lambdas list none"
+else
+    bad C-25 "impact's records are missing, or a longer identifier / an unnamed function counted" "dead_function: $DDOC
+sink: $SDOC
+via_two_lambdas: $VDOC
+json: $DJSON
+$IMP"
+fi
+NOREC="$(cm impact --cov fx --no-records)"
+if ! grep -q "^         doc  " <<<"$NOREC" && ! grep -q "records:" <<<"$NOREC" \
+   && grep -qE "^ +dead_function +fixture.cpp:" <<<"$NOREC"; then
+    ok C-25c "control: --no-records prints the changed functions and no record lines"
+else
+    bad C-25c "--no-records still searched the records, or dropped the changed functions" "$NOREC"
+fi
+
 # ---------------------------------------------------------------- C-13
 AF="$(cm tested apply_fn --cov fx)"
 AFL="uses_apply::<lambda@templ.cpp:$(grep -n 'return apply_fn(\[\]' templ.cpp | cut -d: -f1)>"
@@ -638,6 +710,35 @@ else
 $T3"
 fi
 
+# C-24c: a "no unit" reading names what THAT run did not instrument. An ingest records
+# no binaries, so it says so; a run whose metadata lists naab-lsp uninstrumented and the
+# C API test absent names both, and a run with everything instrumented names none.
+python3 - <<'PYMETA'
+import json, os, shutil
+for name, binaries, extra in (("blind", {"naab-lsp": "uninstrumented", "naab-gov": "instrumented"},
+                               {"capi:test_governance_c_api": "absent", "gtest:naab_unit_tests": "ran (exit 0)"}),
+                              ("seeing", {"naab-lsp": "instrumented"}, {"gtest:naab_unit_tests": "ran (exit 0)"})):
+    dst = os.path.join(".cache/codemap/coverage", name)
+    shutil.rmtree(dst, ignore_errors=True)
+    shutil.copytree(".cache/codemap/coverage/fx", dst)
+    p = os.path.join(dst, "coverage.json")
+    d = json.load(open(p)); d.setdefault("meta", {}).update(name=name, binaries=binaries, extra_units=extra)
+    json.dump(d, open(p, "w"))
+PYMETA
+NB_FX="$(cm tested dead_function --cov fx)"; NB_BL="$(cm tested dead_function --cov blind)"; NB_SE="$(cm tested dead_function --cov seeing)"
+if grep -q "does not record which binaries it instrumented" <<<"$NB_FX" \
+   && grep -q "(this run's: naab-lsp, capi:test_governance_c_api)" <<<"$NB_BL" \
+   && grep -q "a test reaching it only through an uninstrumented binary is not seen)" <<<"$NB_SE" \
+   && ! grep -q "this run's:" <<<"$NB_SE"; then
+    ok C-24c "a no-unit reading names the run's own uninstrumented binaries; an ingest says it does not know; a fully instrumented run names none"
+else
+    bad C-24c "the no-unit note does not reflect what the run instrumented" "$NB_FX
+---
+$NB_BL
+---
+$NB_SE"
+fi
+
 # C-24b: which C++ test programs a run has, and how each is run: the GoogleTest binary
 # through the repo's own runner (its exclusions apply), the C API test directly; one
 # not built is None. Fake instrumented build: the gtest binary only.
@@ -648,6 +749,104 @@ if grep -qx "900_gtest_naab_unit_tests gtest:naab_unit_tests \['bash', '/copy/te
     ok C-24b "the GoogleTest binary runs through the repo's runner; a test program not built is None"
 else
     bad C-24b "extra_units chose the wrong programs or the wrong way to run them" "$EU"
+fi
+
+# ---------------------------------------------------------------- C-27 (roadmap item 7)
+GRP="$(cm untested --under group.cpp --cov fx --group)"
+GJ="$(cm --json untested --under group.cpp --cov fx --group | python3 -c 'import json, sys; d = json.load(sys.stdin)
+print("groups=" + ";".join("+".join(sorted(m["name"] for m in g["members"])) + "@" + ",".join(g["shared_callers"])
+                           for g in d["groups"]))
+print("alone=" + ",".join(sorted(m["name"] for m in d["alone"])))' 2>&1)"
+if [ "$GJ" = "groups=sib_a+sib_b@caller_ab
+alone=caller_ab,lone_fn" ] && grep -q "group of 2, shared callers: caller_ab" <<<"$GRP"; then
+    ok C-27 "untested --group: sib_a and sib_b form one group by their shared caller; lone_fn and caller_ab stand alone"
+else
+    bad C-27 "untested siblings were not grouped, or an unrelated function joined them" "$GJ
+$GRP"
+fi
+
+# ---------------------------------------------------------------- C-28 (roadmap item 5)
+SW="$(cm sweep init grp --under group.cpp --cov fx)"
+SWAGAIN="$(cm sweep init grp --under group.cpp --cov fx)"; swrc=$?
+# record outcomes by hand, as a sweep would: one with evidence, one without; and
+# rename a third row's function, as a later refactor would
+python3 - <<'PYEDIT'
+p = "docs/sweeps/grp.tsv"
+out = []
+for ln in open(p).read().splitlines():
+    c = ln.split("\t")
+    if c[0] == "sib_a":
+        c[3:7] = ["lost", "remove", "abc1234 git log -S", "owner"]
+    elif c[0] == "sib_b":
+        c[3:7] = ["decided", "none", "", "owner"]
+    elif c[0] == "lone_fn":
+        c[0] = "lone_fn_renamed"; c[3:7] = ["working", "none", "a test", "owner"]
+    out.append("\t".join(c))
+open(p, "w").write("\n".join(out) + "\n")
+PYEDIT
+SWS="$(cm sweep status grp)"
+SWJ="$(cm --json sweep status grp | python3 -c 'import json, sys; d = json.load(sys.stdin)
+print("%(rows)d %(done)d %(open)d %(state_without_evidence)d" % d, ",".join(d["not_in_index"]), ",".join(d["open_rows"]))' 2>&1)"
+SWADD="$(cm sweep init grp --under group.cpp --cov fx --add)"
+if grep -q "4 functions listed" <<<"$SW" && [ "$swrc" -ne 0 ] && grep -q "exists" <<<"$SWAGAIN" \
+   && [ "$SWJ" = "4 1 1 1 lone_fn_renamed caller_ab" ] && grep -q "NOT IN INDEX (1)" <<<"$SWS" \
+   && grep -q "STATE WITHOUT EVIDENCE (1)" <<<"$SWS" && grep -q "1 functions added (3 already listed)" <<<"$SWADD"; then
+    ok C-28 "sweep: init lists 4 and refuses to overwrite; status: 1 done, 1 open, 1 state without evidence; a renamed row is flagged and not done; --add adds only the function the rename left unlisted"
+else
+    bad C-28 "the sweep worklist miscounted, overwrote, or passed a renamed row as done" "$SW
+$SWAGAIN
+$SWJ
+$SWS
+$SWADD"
+fi
+
+# ---------------------------------------------------------------- C-26 (roadmap item 3)
+# Last, because its commits would put a "recorded at another commit" note into the
+# reads of every arm after it. Files are added by name: units2/units3 are untracked.
+gc() { g add -- "$@" && g commit -q -m "c26 $1"; }
+D0="$(git rev-parse --short HEAD)"
+mkdir -p .cache/c_doc/coverage && cp -R .cache/codemap/coverage/fx .cache/c_doc/coverage/
+cp .cache/codemap/codemap.db .cache/c_doc/          # `tested` reads the index
+python3 - "$D0" <<'EOF'
+import json, sys
+p = ".cache/c_doc/coverage/fx/coverage.json"
+d = json.load(open(p)); d.setdefault("meta", {})["head"] = sys.argv[1]; json.dump(d, open(p, "w"))
+EOF
+J0="$(cmc .cache/c_doc --json status | reasons)"
+printf '\nMore notes.\n' >> NOTES.md; mkdir -p docs; printf '# Extra\n' > docs/extra.md
+gc NOTES.md docs/extra.md; D1="$(git rev-parse --short HEAD)"
+S1="$(cmc .cache/c_doc status)"; J1="$(cmc .cache/c_doc --json status | reasons)"
+T1="$(cmc .cache/c_doc tested sink --cov fx)"
+mkdir -p sub && printf '# Rules\n' > sub/CLAUDE.md && gc sub/CLAUDE.md; D2="$(git rev-parse --short HEAD)"
+mkdir -p tests && printf '# Case\n' > tests/case.md && gc tests/case.md; D3="$(git rev-parse --short HEAD)"
+printf '{}\n' > docs/data.json && gc docs/data.json; D4="$(git rev-parse --short HEAD)"
+J4="$(cmc .cache/c_doc --json status | reasons)"; T4="$(cmc .cache/c_doc tested sink --cov fx)"
+CC="$(py "for x, y in (('$D0', '$D1'), ('$D1', '$D2'), ('$D2', '$D3'), ('$D3', '$D4'), ('0000000a', '$D4')):
+    print('%s %s' % codemap.coverage_commit_change('.', x, y))")"
+if [ "$J0" != "${J0#*recorded at another commit}" ]; then
+    bad C-26 "control: a run at HEAD already read as recorded at another commit" "$J0"
+elif [ "$J1" = "${J1#*recorded at another commit}" ] && grep -q "recorded at $D0 (only documentation changed since)" <<<"$S1" \
+     && ! grep -q "was recorded at" <<<"$T1" && grep -qx "False 2 Markdown file(s)" <<<"$(sed -n 1p <<<"$CC")"; then
+    ok C-26 "a commit changing only Markdown is no reason to refresh, and reads print no note"
+else
+    bad C-26 "a documentation-only commit still asked for a refresh (or the note was printed)" "$J1
+$S1
+$T1
+$CC"
+fi
+if [ "$(sed -n 2,4p <<<"$CC")" = "True sub/CLAUDE.md
+True tests/case.md
+True docs/data.json" ] && [ "$J4" != "${J4#*recorded at another commit}" ] && grep -q "was recorded at $D0" <<<"$T4"; then
+    ok C-26b "a CLAUDE.md (read by name), a .md under tests/ and a non-Markdown file under docs/ each keep the reason and the note"
+else
+    bad C-26b "a commit that can change a run was taken for documentation" "$CC
+$J4
+$T4"
+fi
+if grep -qx "None commit 0000000a is not in this checkout (a shallow clone, or a run recorded elsewhere)" <<<"$(sed -n 5p <<<"$CC")"; then
+    ok C-26c "a commit git cannot compare keeps the reason and says why"
+else
+    bad C-26c "an unknown commit was not reported as uncomparable" "$CC"
 fi
 
 finish

@@ -54,6 +54,24 @@
 #          filesystemAccessMode gates fixfile.read before dispatch and not
 #          fixfile.write, which it maps to ""; CM-21b: with the dispatcher no
 #          longer calling the gate, the edges are withheld and stats says why
+#   CM-29  roadmap item 6, a MODULE gate: the dispatcher calls
+#          checkNetworkAllowed under `if (module == "fixnet")`, so fixnet.fetch
+#          gets a [predispatch] edge and reach stops there; fixfile.write, not
+#          under that guard, stays an entry. CM-29b: the same call under
+#          `if (module == "fixother")` in vm_dispatch leaves fixnet gated by
+#          tw_dispatch alone, which is no gate: the guard is READ, not assumed
+#          from the call's presence, and every dispatcher must run it. The gate
+#          sits in an `else if` after a fixfile branch, so a guard leaking into
+#          the else branch would also gate fixfile (CM-29's "modules fixnet")
+#   CM-30  a DETECTOR: checkStdlibRate, called for every module, gives every
+#          NAAb name a [precheck] edge that reach prints as context and NEVER
+#          stops at (fixnet.fetch stays an entry when it is the --gate);
+#          CM-30b: with the call removed, no [precheck] edge and no stats line
+#   CM-31  a helper is not a dispatcher: tw_dispatch calls tw_gates (which consults
+#          the allowlist) on its stdlib route and runs checkPreExecution itself,
+#          as VM::run calls VM::stdlibCallGates; the detector is credited to
+#          tw_dispatch. Crediting the allowlist's caller instead lost every
+#          detector VM::run runs (found when the VM's gates moved to a helper)
 #   CM-22  a function DEFINED in two files on one USR (main(int, char**) in a
 #          two-file repo, as naab-lang's and naab-gov's are) is stored once,
 #          and stats lists it with the copy kept; a static helper of the same
@@ -510,7 +528,7 @@ fi
 STATS="$(cm stats)"
 RD="$(cm reach read_impl --gate GovernanceEngine::checkPathAccess)"
 WR="$(cm reach write_impl --gate GovernanceEngine::checkPathAccess)"
-if grep -q "pre-dispatch gates: applied -- 1 NAAb names gated; callers checked: vm_dispatch" <<<"$STATS" \
+if grep -q "pre-dispatch gates: applied -- 1 NAAb names gated; callers checked: tw_gates, vm_dispatch" <<<"$STATS" \
    && grep -q "naab fixfile.read()  fixture.cpp:46  via GovernanceEngine::checkPathAccess" <<<"$RD" \
    && ! grep -q "^     naab fixfile.read()" <<<"$RD"; then
     ok CM-21 "the allowlist gates fixfile.read before dispatch; reach stops there"
@@ -523,6 +541,32 @@ if grep -q "^     naab fixfile.write()" <<<"$WR"; then
 else
     bad CM-21c "fixfile.write wrongly gated" "$WR"
 fi
+# ---------------------------------------------------------------- CM-29 / CM-30
+NETR="$(cm reach fetch_impl --gate GovernanceEngine::checkNetworkAllowed)"
+RATE="$(cm reach fetch_impl --gate GovernanceEngine::checkStdlibRate)"
+if grep -q "pre-dispatch module gate checkNetworkAllowed: applied -- modules fixnet, 1 NAAb names" <<<"$STATS" \
+   && grep -qE "naab fixnet.fetch\(\)  fixture.cpp:[0-9]+  via GovernanceEngine::checkNetworkAllowed" <<<"$NETR" \
+   && ! grep -q "^     naab fixnet.fetch()" <<<"$NETR" && grep -q "^     naab fixfile.write()" <<<"$WR"; then
+    ok CM-29 "a gate called under if (module == \"fixnet\") gates fixnet.fetch before dispatch; fixfile.write is not under it"
+else
+    bad CM-29 "the module gate was not applied to fixnet.fetch (or gated more)" "$STATS
+$NETR"
+fi
+if grep -q "pre-dispatch detector checkStdlibRate \[precheck, never a gate\]: refuses when the stdlib call rate is exceeded; modules all; dispatchers vm_dispatch" <<<"$STATS" \
+   && grep -q "^     naab fixnet.fetch()" <<<"$RATE" \
+   && grep -qE "before dispatch, NOT gating \(detectors\): (.*, )?checkStdlibRate(,|$)" <<<"$(grep -A2 "^     naab fixfile.write()" <<<"$WR")"; then
+    ok CM-30 "a detector run for every call is [precheck] context: printed beside fixfile.write, and as --gate it stops nothing"
+else
+    bad CM-30 "the detector was missing, or counted as a gate" "$STATS
+$RATE
+$WR"
+fi
+if grep -q "pre-dispatch detector checkPreExecution \[precheck, never a gate\]: refuses when a configured behavioural sequence completes; modules all; dispatchers tw_dispatch$" <<<"$STATS"; then
+    ok CM-31 "a detector the dispatcher runs is credited to it, not to the same-file helper that consults the allowlist"
+else
+    bad CM-31 "the route owner was not resolved through its helper" "$(grep 'pre-dispatch' <<<"$STATS")"
+fi
+
 # The verification is what makes a gate edge trustworthy: take the gate call out
 # of the only caller of the allowlist and the edges must be withheld.
 python3 - <<'EOF'
@@ -541,6 +585,36 @@ if grep -q "pre-dispatch gates: unverified: .*does not call checkPathAccess" <<<
 else
     bad CM-21b "an unverified pre-dispatch gate was still applied" "$STATS
 $RD"
+fi
+# CM-29b / CM-30b: the module gate's guard names another module, and the detector
+# call is gone. Neither may leave an edge behind.
+python3 - <<'EOF'
+p = "fixture.cpp"
+s = open(p).read()
+for old, new in (('    } else if (module == "fixnet") {\n        g.checkNetworkAllowed();',
+                  '    } else if (module == "fixother") {\n        g.checkNetworkAllowed();'),
+                 ("    g.checkStdlibRate();\n", "")):
+    assert s.count(old) == 1, old
+    s = s.replace(old, new)
+open(p, "w").write(s)
+EOF
+cm index >/dev/null
+STATS="$(cm stats)"
+NETR="$(cm reach fetch_impl --gate GovernanceEngine::checkNetworkAllowed)"
+WR="$(cm reach write_impl --gate GovernanceEngine::checkPathAccess)"
+if grep -q "pre-dispatch module gate checkNetworkAllowed: unverified: no module every dispatcher gates; gated by SOME dispatchers only (no edge): fixnet" <<<"$STATS" \
+   && grep -q "^     naab fixnet.fetch()" <<<"$NETR"; then
+    ok CM-29b "vm_dispatch's gate call now under if (module == \"fixother\"): fixnet is gated by one dispatcher of two, so by none -- the guard decides, and every dispatcher must agree"
+else
+    bad CM-29b "a gate under another module's guard still gated fixnet.fetch" "$STATS
+$NETR"
+fi
+if ! grep -q "pre-dispatch detector checkStdlibRate" <<<"$STATS" && ! grep -qE "NOT gating \(detectors\):.*checkStdlibRate" <<<"$WR" \
+   && grep -q "NOT gating (detectors): checkPreExecution$" <<<"$WR"; then
+    ok CM-30b "with the detector call removed, its [precheck] edge and stats line are gone; the other detector's stays (control)"
+else
+    bad CM-30b "a [precheck] edge outlived its call" "$STATS
+$WR"
 fi
 
 # ---------------------------------------------------------------- CM-22

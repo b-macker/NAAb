@@ -35,16 +35,16 @@ session picking up code-map work reads this first, then the item's own history
 | # | Item | Status |
 |---|---|---|
 | 0 | A58 sweep: fresh coverage run, `untested` per governance file, classify each | done 2026-10-22: all 47 classified (`docs/sweeps/A58.md`); findings A59-A62; its proposed tests and removals are open |
-| 1 | Coverage for the binaries `coverage run` does not instrument | built 2026-10-22 (helpers from `build-cov`, gtest and C API units; C-22..C-24b); the A58 re-read against a run with them is pending |
-| 2 | `impact` prints the records that name each changed function | planned |
-| 3 | "Recorded at another commit" only when coverage-relevant files changed | planned |
-| 4 | `cite-check DOC`: do `path:line` citations still point where they say | planned |
-| 5 | Sweep worklist: every item ends with a recorded outcome | planned |
-| 6 | Pre-dispatch checks other than the filesystem gate: enumerate, then model | planned |
-| 7 | `untested` grouped by shared callers | planned |
+| 1 | Coverage for the binaries `coverage run` does not instrument | **built** 2026-10-22 (helpers from `build-cov`, gtest and C API units; C-22..C-24b); sweep re-read against `sweep2` done: one function moved to executed, by the gtest unit |
+| 2 | `impact` prints the records that name each changed function | built 2026-10-22 (`githist.symbol_names()` shared with `history`; C-25/C-25c) |
+| 3 | "Recorded at another commit" only when coverage-relevant files changed | built 2026-10-22 (`coverage_commit_change()`; premise narrowed, below; C-26/b/c) |
+| 4 | `cite-check DOC`: do `path:line` citations still point where they say | built 2026-10-22 (`citecheck.py`; 14 arms, 11 mutants); first run over three docs below |
+| 5 | Sweep worklist: every item ends with a recorded outcome | built 2026-10-22 (`sweep init`/`status`; C-28); A58 not yet loaded into it |
+| 6 | Pre-dispatch checks other than the filesystem gate: enumerate, then model | **built** 2026-10-22 -- and the enumeration found a route defect (A51 corrected, fixed) |
+| 7 | `untested` grouped by shared callers | built 2026-10-22 (`untested --group`; C-27) |
 | 8 | Functions defined in several files stored per file | planned |
-| 9 | PlantUML jar: reconcile the two digests, pin one | planned (owner decision at the end) |
-| 10 | How sessions use the map, from their transcripts | planned |
+| 9 | PlantUML jar: reconcile the two digests, pin one | reconciled 2026-10-22 (two builds, a compile time apart; Maven's is signed); the pin awaits the owner |
+| 10 | How sessions use the map, from their transcripts | built 2026-10-22 (`usage.py`; 7 arms, 8 mutants); first run is authored usage |
 
 Order: 0, then 1 (it changes which A58 readings can be trusted), then 2 and 3
 (small), 4, 5 and 7 (sweep tooling), 6, 8, 9, 10.
@@ -93,6 +93,16 @@ executed after the change and "no unit" before (control: a function no binary
 reaches still reads "no unit"); the same for a gtest-only function; mutants for
 "copy from build/", "no gtest unit". CLAUDE.md's blind-spot list corrected.
 
+**Re-read (2026-10-22, observed).** `sweep2`, a complete run at `1027eece`
+with the helpers instrumented and the gtest and C API units, reads 45 of the six
+governance files' functions as executed by no unit, against the sweep record's
+47: `preprocessCode` no longer exists (A62 removed it), and
+`AgentModule::hasFunction` is now executed -- by `gtest:naab_unit_tests` only (19
+calls), the unit this item added. All 45 are already classified in the sweep
+record (matched by function name; lambdas carry line numbers that moved). So the
+item changed one reading, in the reassuring direction, and it is honest: the
+unit name says the execution came from a C++ test. Nothing new to classify.
+
 ## 2. `impact` prints the records that name each changed function
 
 **Premise (traced).** `codemap history FN` already lists every tracked `.md`
@@ -122,6 +132,20 @@ examples all change what a run would record). When git cannot compare the two
 (the run's commit is missing from a shallow clone, or git is unavailable) the
 reason stays, saying why.
 
+**Premise corrected when built (2026-10-22, traced).** "`*.md` and `docs/`" was
+too wide in three places, each a file a run reads: `docs/` holds `.naab`
+programs and JSON that suites read (`test_nested_unknown_keys.sh` and
+`test_template_coverage.sh` read `docs/govern-template.json`); `tests/` and
+`examples/` hold `.md` fixtures runs read (seven `CLAUDE.md`, seven
+`prompt.md`); and project_context reads `CLAUDE.md`, `gemini.md` and
+`.github/copilot-instructions.md` BY NAME, walking up from a project
+directory to `/` (`walkUpward()`, `src/runtime/project_context.cpp`) -- the
+repo's own 282 KB `CLAUDE.md` is skipped today only by the 100 KB default
+`max_file_size_kb`. Documentation is therefore Markdown outside `tests/` and
+`examples/` and not named like those three. Measured (observed, master's last
+200 commits): 25 changed only Markdown, 6 of them a `CLAUDE.md`, so the rule
+still drops the reason on 19 of 25.
+
 **Done when.** Fixture commits: a `.md`-only commit drops the reason; a `.cpp`
 commit keeps it; an unknown commit keeps it with "cannot compare". Mutant for
 each.
@@ -148,6 +172,20 @@ is near the line, not that the sentence is still true.
 **Done when.** A fixture doc with one citation per outcome, each beside a
 control; a run over CLAUDE.md, `open-investigations.md` and
 `docs/message-map.md` reported (counts per outcome), not acted on.
+
+**First run (observed, `1027eece`, reported, not acted on).** 148 citations:
+CLAUDE.md 10 (HOLDS 3, MOVED 1, GONE 1, AMBIGUOUS 5), `open-investigations.md`
+126 (HOLDS 26, MOVED 24, GONE 9, AMBIGUOUS 50, UNCHECKABLE 17),
+`message-map.md` 12 (HOLDS 4, MOVED 2, GONE 1, AMBIGUOUS 2, UNCHECKABLE 3); no
+FILE GONE. The doubt below ("HOLDS is the weakest") held: the first
+version's hand-checked samples found two false HOLDS (a directory span's
+`governance_v4` confirmed a stale `run-all-tests.sh:2197`, and `code_quality`,
+on 137 lines of `governance_checks.cpp`, confirmed a citation whose
+`PYTHON_EVAL_CHECKS` had moved 230 lines), and one rare name in a long table
+cell decided five citations at once. Each became a rule and an arm (CC-07,
+CC-08, CC-12). After them: 5 of 5 sampled HOLDS and 5 of 5 sampled MOVED point
+at the named line (one MOVED lands on a comment describing the code that
+moved). The run is a list of leads for the docs' owners, not a correction.
 
 ## 5. Sweep worklist
 
@@ -193,6 +231,41 @@ pre-dispatch check added later is noticed.
 fixture: a `[precheck]` edge never stops `reach`; the CM-21b-style control
 (dispatcher without the check adds nothing) for each new kind.
 
+**Done (2026-10-22).** The enumeration is not a reading; it is code.
+`tools/codemap/predispatch_enum.py` parses `vm.cpp` and `call_dispatch.cpp`
+through the extractor and lists every check each dispatcher calls under a
+stdlib-marker guard, plus every sink call that runs a stdlib function there
+(the routes, counted). `tools/codemap/predispatch_checks.txt` classifies the 64
+rows; `tests/self-audit/test_predispatch_enumeration.sh` (10 arms, 6 of them
+controls that each kind of difference is reported; 4 mutants of the enumerator
+killed) fails on anything unclassified or stale and on a class that disagrees
+with `store.py`'s model. CLAUDE.md's pre-dispatch gotcha carries the per-route
+table with file:lines (8 citations, all HOLD under `cite-check`). Model:
+`[predispatch]` for the `http` module gate, `[precheck]` for six detectors,
+credited to the function that owns the route (`_route_owners`), with fixture
+arms CM-29..CM-31 and the CM-21b-style controls CM-29b/CM-30b.
+
+What the premise check missed, and the enumeration found:
+- **Two more dispatchers.** `VM::callValue` (a module or builtin called as a
+  function) runs its own `file`/`http` gates, taint and dangerous-call checks;
+  the tree-walker's member route runs `math` constants. The first rule ("a
+  dispatcher calls the filesystem allowlist") could not see either -- a filter's
+  vocabulary bounds what it finds. The rule is now: calls the allowlist, or
+  calls a check or a sink under a marker guard.
+- **A route with fewer gates.** OP_GET_MEMBER's zero-argument call ran no
+  filesystem or network gate. A51 had recorded them as needing an argument; the
+  MODE gate needs none, and `env.load_dotenv` (no parentheses) under
+  `filesystem.mode: "none"` was refused only by the sandbox, catchably. Fixed by
+  one helper, `VM::stdlibCallGates`, for both routes (A51's correction).
+- **Detectors are credited to the route's owner.** Moving the gates into a
+  helper made the helper the allowlist's caller, and the model then lost every
+  detector `VM::run` runs itself; `_route_owners` resolves a same-file helper
+  called on a stdlib route to its caller (CM-31 is the arm, killed by removing it).
+
+Still screened: the enumerator reads guards, not control flow, so a check
+reached by fall-through rather than under a marker guard is not listed, and two
+routes under the same guard are one row (the count tells them apart).
+
 ## 7. `untested` grouped by shared callers
 
 **Change.** `untested --group` clusters the functions it lists by shared direct
@@ -235,6 +308,20 @@ sha256; check the signature against PlantUML's published key. Equal digests:
 pin. Different: find out why (different artefacts under one version?) and bring
 the owner the evidence and a recommendation. **The pin itself is the owner's
 decision** -- `--render` runs `java -jar` on a downloaded file.
+
+**Done 2026-10-22 up to the decision (observed, this container).** Different
+artefacts, but two BUILDS of one release, not two releases: 5,812 identical
+entries apart from `version/CompilationInfo.class` and `version/Version.class`,
+3 bytes each -- an embedded compile time 47 minutes apart (Maven's 16:46:13Z,
+GitHub's 15:59:17Z, 2026-09-05). Maven Central's jar (from Google's mirror;
+repo1 answered 429 again) matches Maven's published sha1 and md5 and carries a
+GOOD signature by the "PlantUML JAR Signing Key" (`C08C18EE...0213`), the key
+that also signed 1.2023.7, 1.2024.8 and 1.2026.6; against the GitHub jar the
+same signature is BAD, as it must be for different bytes. Not established: that
+the key is PlantUML's own (fetched from a keyserver by id; plantuml.com is
+blocked here), and GitHub's own asset digests (API 403). Evidence and both
+sha256s are in `tools/codemap/plantuml.sha256`. **Recommendation:** pin Maven
+Central's jar (sha256 `8a171e89...910e3`), the one a signature covers.
 
 ## 10. How sessions use the map
 

@@ -202,6 +202,11 @@ class Extractor:
         self.modules = {}       # class usr -> module name from getName()
         self.lambdas = {}       # (file, line, col) of a lambda -> its pseudo-symbol
         self.predispatch = None  # the parsed pre-dispatch allowlist, if this TU defines it
+        # Calls made only when a string comparison holds: (caller, callee, file, line,
+        # "lit1|lit2") for a call in the THEN branch of `if (x == "lit")`, or in a
+        # `&&` condition beside the comparison. Merge reads them to verify which
+        # stdlib modules a dispatcher gates (store.apply_predispatch, roadmap item 6).
+        self.guarded = set()
         self._in_repo = {}
 
     # -- helpers ---------------------------------------------------------
@@ -264,7 +269,7 @@ class Extractor:
     # -- walk --------------------------------------------------------------
     def run(self):
         root_ctx = {"fn": None, "callee": None, "thread": None, "dispatch": None,
-                    "in_call_method": None, "var": None}
+                    "in_call_method": None, "var": None, "guards": ()}
         # Explicit stack: deep expression trees exceed Python's recursion limit.
         # Each entry is a node still to be visited; visit() returns its children.
         stack = [(ch, root_ctx) for ch in reversed(list(self.tu.cursor.get_children()))]
@@ -389,6 +394,10 @@ class Extractor:
                 dst = self.lambda_of(tgt) or self.note_target(tgt)
                 name = qname(tgt)
                 self.edge("call", src, dst, ch, "virtual" if tgt.kind == K.CXX_METHOD and tgt.is_virtual_method() else "")
+                if ctx["guards"]:
+                    gfile, gline = self.site(ch)
+                    if gfile is not None and src and dst:
+                        self.guarded.add((src, dst, gfile, gline, "|".join(sorted(set(ctx["guards"])))))
                 if ctx["dispatch"]:
                     self.edge("dispatch", ctx["dispatch"], dst, ch)
                 new["callee"] = dst
@@ -429,21 +438,31 @@ class Extractor:
             new["var"] = None
             return [(x, new) for x in ch.get_children()]
 
-        if k == K.IF_STMT and ctx["in_call_method"]:
+        if k == K.IF_STMT:
             kids = list(ch.get_children())
-            name = self.dispatch_name(kids[0]) if kids else None
+            # The literals the condition compares with ==: the THEN branch runs only
+            # when one holds, and so does a call in an `&&` condition beside it. The
+            # ELSE branch inherits nothing (`if (m == "http") .. else if (m == "env")`).
+            lits = tuple(self.eq_literals(kids[0])) if kids else ()
+            then_ctx = dict(new, guards=ctx["guards"] + lits) if lits else new
+            cond_ctx = then_ctx if lits and self.is_and_chain(kids[0]) else new
+            name = self.dispatch_name(kids[0]) if kids and ctx["in_call_method"] else None
             if name:
                 file, line = self.site(ch)
                 key = "naab:%s.%s" % (ctx["in_call_method"], name)    # class usr resolved to module at merge
                 body = kids[1] if len(kids) > 1 else ch
                 self.dispatch_ranges[key] = {"file": file, "line": line, "end_line": body.extent.end.line,
                                              "class_usr": ctx["in_call_method"], "fn": name}
-                out = [(kids[0], dict(new, dispatch=None))]
+                out = [(kids[0], dict(cond_ctx, dispatch=None))]
                 if len(kids) > 1:
-                    out.append((kids[1], dict(new, dispatch=key)))
+                    out.append((kids[1], dict(then_ctx, dispatch=key)))
                 out.extend((x, dict(new, dispatch=None)) for x in kids[2:])
                 return out
-            return [(x, new) for x in kids]
+            out = [(kids[0], cond_ctx)] if kids else []
+            if len(kids) > 1:
+                out.append((kids[1], then_ctx))
+            out.extend((x, new) for x in kids[2:])
+            return out
 
         if k in (K.VAR_DECL, K.FIELD_DECL):
             new["var"] = (ch.spelling, ch.type.get_canonical().spelling or "")
@@ -552,6 +571,27 @@ class Extractor:
                 names.append(d.spelling[1:-1] if d.spelling.startswith('"') else d.spelling)
         return names if uses_param else []
 
+    @staticmethod
+    def eq_literals(cond):
+        """String literals that are operands of an == comparison in a condition
+        (`mod == "http"`, `sv.substr(0, 18) == "__stdlib_module__:"`)."""
+        found = []
+        for d in cond.walk_preorder():
+            is_eq = (d.kind == K.CALL_EXPR and d.spelling == "operator==") or \
+                    (d.kind == K.BINARY_OPERATOR and operator_spelling(d) == "==")
+            if is_eq:
+                for x in d.walk_preorder():
+                    if x.kind == K.STRING_LITERAL:
+                        found.append(x.spelling[1:-1] if x.spelling.startswith('"') else x.spelling)
+        return found
+
+    @staticmethod
+    def is_and_chain(cond):
+        d = cond
+        while d is not None and d.kind in (K.UNEXPOSED_EXPR, K.PAREN_EXPR):
+            d = next(iter(d.get_children()), None)
+        return d is not None and d.kind == K.BINARY_OPERATOR and operator_spelling(d) == "&&"
+
     # -- small pattern readers -----------------------------------------------
     @staticmethod
     def first_string(c):
@@ -612,7 +652,7 @@ class Extractor:
         return {"symbols": list(self.symbols.values()), "classes": list(self.classes.values()),
                 "edges": [list(e) for e in sorted(self.edges)], "includes": sorted(list(p) for p in includes),
                 "modules": self.modules, "dispatch_ranges": self.dispatch_ranges,
-                "predispatch": self.predispatch}
+                "predispatch": self.predispatch, "guarded": [list(g) for g in sorted(self.guarded)]}
 
 
 def extract_tu(repo, cdb_dir, source):

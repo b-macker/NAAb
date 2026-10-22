@@ -70,8 +70,9 @@ DEFAULT_REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 # checkPathAccess(), checkFunctionCapability()), keyed on runtime strings. Those
 # gates are not inside the stdlib function, so no chain from a NAAb name shows
 # them: an "ungated" NAAb entry point is a lead to check, not a finding.
-PREDISPATCH = ("the VM's pre-dispatch FILESYSTEM gate is modelled ([predispatch]) only when stats says "
-               "'applied'; other checks made before dispatch are not on chains that start at a NAAb name")
+PREDISPATCH = ("the pre-dispatch FILESYSTEM gate and the module gates (network) are modelled ([predispatch]) "
+               "only when stats says 'applied'; detectors run before dispatch (sequence pre-check, taint, "
+               "rate limits) are [precheck] context, never a gate")
 BLIND_SPOTS = [
     "calls through std::function or function pointers appear only where the function is taken as a value [value]",
     "code the preprocessor removes for this build (e.g. #ifdef _WIN32 on Linux) is not indexed",
@@ -91,8 +92,12 @@ LIB_NOISE_KINDS = {"constructor", "destructor", "conversion_function", "cxx_meth
 LIB_NOISE_NAMES = {"std::move", "std::forward", "std::make_shared", "std::make_unique", "std::get",
                    "std::swap", "std::addressof", "std::declval"}
 TIER = {"call": "ast", "ref": "value", "defines": "lambda", "dispatch": "dispatch", "thread": "thread",
-        "virtual": "virtual", "predispatch": "predispatch", "write": "write", "mutate": "mutate"}
-CONTROL_KINDS = ["call", "ref", "defines", "dispatch", "thread", "predispatch"]
+        "virtual": "virtual", "predispatch": "predispatch", "precheck": "precheck", "write": "write",
+        "mutate": "mutate"}
+# [precheck] is listed by callers/callees and walked by reach, but never counts as a
+# gate (reach's gate test names its tiers): a detector refuses only when more than
+# the call's name holds.
+CONTROL_KINDS = ["call", "ref", "defines", "dispatch", "thread", "predispatch", "precheck"]
 
 
 # --- output -----------------------------------------------------------------
@@ -659,7 +664,7 @@ def cmd_reach(a, st):
            "functions_reaching": len(toward) - len(sinks),
            "gated": [{"function": name_of(st, u), "site": site, "via": name_of(st, w)}
                      for u, (site, w) in sorted(gated.items(), key=lambda kv: name_of(st, kv[0]))],
-           "entry_points": {g: [{"entry": name_of(st, u), "chain": chain(u)} for u in groups[g]]
+           "entry_points": {g: [{"entry": name_of(st, u), "usr": u, "chain": chain(u)} for u in groups[g]]
                             for g, _ in ENTRY_GROUPS},
            "stopped_at_depth": len(cut),
            "tier": "call graph, backward [ast/value/lambda/virtual/dispatch/thread/predispatch]; 'gated' means the "
@@ -695,6 +700,11 @@ def cmd_reach(a, st):
         for e in rows[:a.max]:
             out("     %s" % e["entry"])
             out("        " + " -> ".join(e["chain"][1:]))
+            if g == "naab":
+                pre = sorted({name_of(st, dst).split("::")[-1] for _, _, dst, _, _, _ in
+                              st.edges_from(e["usr"], ["precheck"])})
+                if pre:
+                    out("        before dispatch, NOT gating (detectors): %s" % ", ".join(pre))
         if len(rows) > a.max:
             out("     ... +%d more (raise --max, or --json)" % (len(rows) - a.max))
     if cut:
@@ -1175,14 +1185,7 @@ def cmd_history(a, st):
         # agentSend's 97 commits, so there is no cost to save)
         res["line_history"] = githist.line_history(a.repo, t["file"], hs, he) if hs else []
         res["blame"] = githist.blame_summary(a.repo, t["file"], hs, he) if hs else []
-        if a.name:
-            names = [a.name]
-        elif t.get("kind") == "range":
-            names = []
-        elif t.get("kind") == "lambda" and "<lambda@" in t["name"]:
-            names = []                    # an unnamed lambda has no name to search
-        else:
-            names = githist.search_names(t["name"])
+        names = [a.name] if a.name else githist.symbol_names(t["name"], t.get("kind"))
         if names:
             whole, partial, paths = githist.name_history(a.repo, names[0],
                                                          () if a.all_paths else githist.DEFAULT_PATHS,
@@ -1406,6 +1409,37 @@ def git_head(repo):
     return r.stdout.decode().strip()
 
 
+# Markdown the engine reads BY NAME wherever it sits: project_context's LLM
+# instruction files (src/runtime/project_context.cpp LLM_FILES), found by walking
+# up from a project directory, so an edit to one can change what a run executes.
+RUNTIME_READ_MD = ("CLAUDE.md", "gemini.md", "copilot-instructions.md")
+
+
+def coverage_commit_change(repo, run_head, head):
+    """Whether the commits from a coverage run's commit to HEAD can change what a run
+    records: (True, a file that can), (False, what changed) when only documentation
+    did, or (None, why) when git cannot compare the two -- which keeps the refresh
+    reason, since it cannot be shown unneeded. Documentation is Markdown outside tests/
+    and examples/ (both hold .md fixtures that runs read) and not named like a file the
+    engine reads by name. docs/ as a whole is NOT documentation: it holds .naab
+    programs and JSON that suites read (test_nested_unknown_keys.sh,
+    test_template_coverage.sh)."""
+    try:
+        r = subprocess.run(["git", "-C", repo, "diff", "--name-only", "--no-renames", run_head, head],
+                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except OSError:
+        return None, "git is not available here"
+    if r.returncode != 0:
+        return None, ("commit %s is not in this checkout (a shallow clone, or a run recorded elsewhere)"
+                      % run_head)
+    files = [f for f in r.stdout.decode("utf-8", "replace").splitlines() if f]
+    for f in files:
+        if (not f.endswith(".md") or f.startswith(("tests/", "examples/"))
+                or f.rsplit("/", 1)[-1] in RUNTIME_READ_MD):
+            return True, f
+    return False, "%d Markdown file(s)" % len(files)
+
+
 def helper_binaries(repo_build, cov_build, names):
     """Where each helper binary a suite calls comes from: the instrumented build when it
     has the binary, else repo_build (uninstrumented -- code only it reaches then reads
@@ -1550,8 +1584,12 @@ def coverage_of(a, note=True):
     cov = covmod.load(a.cache, name)
     head, now = cov.get("meta", {}).get("head", ""), git_head(a.repo)
     if note and head and now and head != now and not a.json:
-        out("(coverage %s was recorded at %s; HEAD is %s -- functions added or moved since read as not"
-            " in the build or UNMEASURED, and an executed function may have changed since)" % (name, head, now))
+        # silent when only documentation changed since: nothing a run records can differ
+        rel, detail = coverage_commit_change(a.repo, head, now)
+        if rel is not False:
+            out("(coverage %s was recorded at %s; HEAD is %s -- functions added or moved since read as not"
+                " in the build or UNMEASURED, and an executed function may have changed since%s)"
+                % (name, head, now, "" if rel else "; the two cannot be compared: " + detail))
     comp = covmod.run_completeness(cov)
     if note and not a.json:
         if newer:
@@ -1565,6 +1603,20 @@ def coverage_of(a, note=True):
             out("COVERAGE COMPLETENESS UNKNOWN: run %s -- %s. \"Executed by NO unit\" below covers only the"
                 " units this run holds." % (name, "; ".join(comp["why"])))
     return name, cov
+
+
+def blind_binaries_note(cov):
+    """What a "no unit" reading of this run cannot see: code reached only through a
+    binary the run did not instrument. Runs since roadmap item 1 record which."""
+    meta = cov.get("meta") or {}
+    if "binaries" not in meta:
+        return ("a test reaching it only through an uninstrumented binary is not seen, and this run does not"
+                " record which binaries it instrumented (an ingest, or a run before roadmap item 1, which"
+                " instrumented none of naab-lsp, naab-verify-audit, the C++ unit tests or the C API test)")
+    blind = sorted(n for n, o in meta["binaries"].items() if o != "instrumented")
+    blind += sorted(d for d, st in (meta.get("extra_units") or {}).items() if not st.startswith("ran"))
+    return "a test reaching it only through an uninstrumented binary is not seen%s" % (
+        " (this run's: %s)" % ", ".join(blind) if blind else "")
 
 
 def timed_out_note(cov):
@@ -1612,8 +1664,7 @@ def cmd_tested(a, st):
                 % (s["name"], res["at"], name))
         elif not hits:
             out("%s  (%s): executed by NO unit of coverage %s (only the instrumented binaries record:"
-                " a test that reaches it only through another binary -- libnaab, naab-lsp, a unit"
-                " test -- is not seen)%s" % (s["name"], res["at"], name, timed_out_note(cov)))
+                " %s)%s" % (s["name"], res["at"], name, blind_binaries_note(cov), timed_out_note(cov)))
         else:
             out("%s  (%s): executed by %d unit(s) of coverage %s (execution, not verification):"
                 % (s["name"], res["at"], len(hits), name))
@@ -1621,6 +1672,158 @@ def cmd_tested(a, st):
                 out("     %8d  %s" % (n, u))
             if len(hits) > a.max:
                 out("     ... +%d more (--max)" % (len(hits) - a.max))
+
+
+def group_by_callers(st, functions):
+    """Cluster (usr, name, file, line) rows by shared direct callers: two functions
+    one caller calls are read together (roadmap item 7; sibling methods are where
+    a gate goes missing). Union-find over the callers' callee lists; a function
+    sharing no caller with another listed function stands alone."""
+    parent = {r[0]: r[0] for r in functions}
+
+    def find(u):
+        while parent[u] != u:
+            parent[u] = parent[parent[u]]
+            u = parent[u]
+        return u
+
+    callers_of, callees_of = {}, {}
+    for r in functions:
+        cs = {src for src, _, _, _ in incoming(st, r[0]) if src != r[0]}
+        callers_of[r[0]] = cs
+        for c in cs:
+            callees_of.setdefault(c, []).append(r[0])
+    for c, members in callees_of.items():
+        for m in members[1:]:
+            parent[find(m)] = find(members[0])
+    byroot = {}
+    for r in functions:
+        byroot.setdefault(find(r[0]), []).append(r)
+    groups, alone = [], []
+    for members in byroot.values():
+        if len(members) == 1:
+            alone.append(members[0])
+            continue
+        usrs = {m[0] for m in members}
+        shared = sorted((c for c, ms in callees_of.items() if len(set(ms) & usrs) >= 2),
+                        key=lambda c: (-len(set(callees_of[c]) & usrs), name_of(st, c)))
+        groups.append({"members": members, "callers": shared})
+    groups.sort(key=lambda g: (-len(g["members"]), g["members"][0][2], g["members"][0][3]))
+    return {"groups": groups, "alone": alone}
+
+
+# A sweep worklist (roadmap item 5): one row per function, committed beside the
+# sweep's write-up, so how many are still open survives sessions and an item
+# cannot be quietly dropped. States are the history pass's (docs/investigation-
+# method.md "Code shows what happens now; history shows what was meant").
+SWEEP_STATES = ("never built", "working", "regressed", "removed on purpose", "lost", "decided")
+SWEEP_ACTIONS = ("test", "restore", "remove", "none", "owner")
+SWEEP_COLUMNS = ("function", "file", "line", "state", "action", "evidence", "decided_by")
+
+
+def sweep_path(a):
+    return os.path.join(a.repo, "docs", "sweeps", a.name + ".tsv")
+
+
+def read_sweep(path):
+    rows, header = [], None
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        for ln in fh:
+            ln = ln.rstrip("\n")
+            if not ln.strip() or ln.startswith("#"):
+                continue
+            cells = ln.split("\t")
+            if header is None:
+                header = cells
+                continue
+            rows.append(dict(zip(header, cells + [""] * (len(header) - len(cells)))))
+    if header is None or tuple(header[:len(SWEEP_COLUMNS)]) != SWEEP_COLUMNS:
+        raise SystemExit("codemap: %s is not a sweep worklist (header %s)" % (path, "\t".join(SWEEP_COLUMNS)))
+    return rows
+
+
+def cmd_sweep(a, st):
+    """`sweep init NAME --under PATH...` writes docs/sweeps/NAME.tsv from a coverage
+    run's untested functions; `sweep status NAME` counts what is still open."""
+    path = sweep_path(a)
+    if a.action == "init":
+        if st is None:
+            raise SystemExit("codemap: no index here (`codemap index`)")
+        cname, cov = coverage_of(a, note=False)
+        listed = []
+        for under in a.under or ["src"]:
+            u = under.rstrip("/")
+            exact = os.path.isfile(os.path.join(a.repo, u))
+            for usr, n, f, l, e in st.db.execute(
+                    "SELECT usr, name, file, line, end_line FROM symbols WHERE is_def=1 AND %s AND kind IN "
+                    "('function_decl','cxx_method','constructor','destructor','function_template',"
+                    "'conversion_function','lambda') ORDER BY file, line" % ("file = ?" if exact else "file LIKE ?"),
+                    (u if exact else u + "/%",)).fetchall():
+                if covmod_status(cov, {"usr": usr, "file": f, "line": l, "end_line": e}) == "not_executed":
+                    listed.append((n, f, l))
+        old = read_sweep(path) if os.path.exists(path) else None
+        if old is not None and not a.add:
+            raise SystemExit("codemap: %s exists -- it holds recorded outcomes; --add adds functions it does not"
+                             " list and changes no row" % os.path.relpath(path, a.repo))
+        have = {(r["function"], r["file"]) for r in (old or [])}
+        new = [(n, f, l) for n, f, l in listed if (n, f) not in have]
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if old is None:
+            with open(path, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write("# sweep %s: functions compiled in and executed by no unit of coverage %s (%s),"
+                         " under %s, listed at %s\n" % (a.name, cname, run_state(cov), ", ".join(a.under or ["src"]),
+                                                         git_head(a.repo) or "?"))
+                fh.write("# state: %s (the history pass); action: %s\n"
+                         % (" | ".join(SWEEP_STATES), " | ".join(SWEEP_ACTIONS)))
+                fh.write("# a row is done when it has a state AND evidence (a commit, test, record or doc line)\n")
+                fh.write("\t".join(SWEEP_COLUMNS) + "\n")
+        with open(path, "a", encoding="utf-8", newline="\n") as fh:
+            for n, f, l in new:
+                fh.write("\t".join((n, f, str(l), "", "", "", "")) + "\n")
+        out("%s: %d functions %s (%d already listed)" % (os.path.relpath(path, a.repo), len(new),
+                                                          "added" if old is not None else "listed",
+                                                          len(listed) - len(new)))
+        return 0
+    if not os.path.exists(path):
+        raise SystemExit("codemap: no sweep %r (codemap sweep init %s --under PATH)" % (a.name, a.name))
+    rows = read_sweep(path)
+    missing = []
+    if st is not None:
+        for r in rows:
+            if not st.db.execute("SELECT 1 FROM symbols WHERE is_def=1 AND name=? AND file=? LIMIT 1",
+                                 (r["function"], r["file"])).fetchone():
+                missing.append(r)
+    gone = {id(r) for r in missing if r["action"] != "remove"}   # removing it was the outcome
+    done = [r for r in rows if r["state"] in SWEEP_STATES and r["evidence"].strip() and id(r) not in gone]
+    no_evidence = [r for r in rows if r["state"] in SWEEP_STATES and not r["evidence"].strip()]
+    unknown = [r for r in rows if r["state"].strip() and r["state"] not in SWEEP_STATES]
+    open_rows = [r for r in rows if not r["state"].strip()]
+    res = {"sweep": a.name, "rows": len(rows), "done": len(done), "open": len(open_rows),
+           "state_without_evidence": len(no_evidence), "unknown_state": len(unknown),
+           "by_state": {s_: sum(1 for r in done if r["state"] == s_) for s_ in SWEEP_STATES},
+           "not_in_index": [r["function"] for r in missing] if st is not None else None}
+    if a.json:
+        return emit_json(dict(res, open_rows=[r["function"] for r in open_rows]))
+    out("sweep %s: %d functions -- %d done (state and evidence), %d OPEN, %d with a state but NO evidence"
+        " (not done), %d with an unknown state" % (a.name, len(rows), len(done), len(open_rows),
+                                                  len(no_evidence), len(unknown)))
+    out("  done by state: %s" % (", ".join("%s %d" % kv for kv in res["by_state"].items() if kv[1]) or "none"))
+    if st is None:
+        out("  NOT IN INDEX: UNMEASURABLE -- no index here, so renamed or removed functions are not found")
+    elif missing:
+        out("  NOT IN INDEX (%d): renamed, moved or removed since the sweep -- a row for a function that is gone"
+            " is not done by being gone (only a recorded `remove` with evidence is):" % len(missing))
+        for r in missing[: a.max]:
+            out("     %s  %s" % (r["function"], r["file"]))
+    for label, part in (("OPEN", open_rows), ("STATE WITHOUT EVIDENCE", no_evidence), ("UNKNOWN STATE", unknown)):
+        if part:
+            out("  %s (%d):" % (label, len(part)))
+            for r in part[: a.max]:
+                out("     %-60s %s:%s%s" % (r["function"][:60], r["file"], r["line"],
+                                          "  [%s]" % r["state"] if r["state"] else ""))
+            if len(part) > a.max:
+                out("     ... +%d more (--max)" % (len(part) - a.max))
+    return 0
 
 
 def cmd_untested(a, st):
@@ -1639,20 +1842,44 @@ def cmd_untested(a, st):
     unmeasured = [r[:4] for r in rows if st_of[r[0]] == "unmeasured"]
     absent = [r for r in rows if st_of[r[0]] == "not_in_build"]
     ran = len([r for r in rows if st_of[r[0]] == "executed"])
+    groups = group_by_callers(st, never) if a.group else None
     if a.json:
-        return emit_json({"coverage": name, "coverage_completeness": run_state(cov),
-                          "under": under, "indexed": len(rows), "executed": ran,
-                          "untested": [{"name": n, "at": loc(f, l)} for _, n, f, l in never],
-                          "unmeasured": [{"name": n, "at": loc(f, l)} for _, n, f, l in unmeasured],
-                          "not_in_build": len(absent)})
+        res = {"coverage": name, "coverage_completeness": run_state(cov),
+               "under": under, "indexed": len(rows), "executed": ran,
+               "untested": [{"name": n, "at": loc(f, l)} for _, n, f, l in never],
+               "unmeasured": [{"name": n, "at": loc(f, l)} for _, n, f, l in unmeasured],
+               "not_in_build": len(absent)}
+        if groups is not None:
+            res["groups"] = [{"members": [{"name": n, "at": loc(f, l)} for _, n, f, l in g["members"]],
+                              "shared_callers": [name_of(st, c) for c in g["callers"]]} for g in groups["groups"]]
+            res["alone"] = [{"name": n, "at": loc(f, l)} for _, n, f, l in groups["alone"]]
+        return emit_json(res)
     out("coverage %s, %s: %d indexed functions; %d executed by some unit, %d compiled but executed by NO unit,"
         " %d UNMEASURED (a function at their position could not be matched to one definition, or the file"
         " changed after the build),"
         " %d not in the instrumented build (not measured)"
         % (name, under, len(rows), ran, len(never), len(unmeasured), len(absent)))
     if never:
-        out("  (executed by NO unit = no run of an instrumented binary entered it; a test reaching it only"
-            " through another binary -- libnaab, naab-lsp, a unit test -- is not seen)%s" % timed_out_note(cov))
+        out("  (executed by NO unit = no run of an instrumented binary entered it; %s)%s"
+            % (blind_binaries_note(cov), timed_out_note(cov)))
+    if groups is not None:
+        out("  grouped by shared direct callers (every edge tier; screened -- siblings are where gates go"
+            " missing, so read a group together): %d groups, %d functions alone"
+            % (len(groups["groups"]), len(groups["alone"])))
+        for g in groups["groups"][: a.max]:
+            out("  group of %d, shared callers: %s%s" % (
+                len(g["members"]), ", ".join(name_of(st, c)[:60] for c in g["callers"][:3]),
+                " +%d more" % (len(g["callers"]) - 3) if len(g["callers"]) > 3 else ""))
+            for _, n, f, l in g["members"][: a.per_file]:
+                out("          %-60s %s" % (n[:60], loc(f, l)))
+            if len(g["members"]) > a.per_file:
+                out("          ... +%d more" % (len(g["members"]) - a.per_file))
+        if len(groups["groups"]) > a.max:
+            out("  ... +%d more groups (--max)" % (len(groups["groups"]) - a.max))
+        out("  alone (no caller shared with another untested function): %d" % len(groups["alone"]))
+        for _, n, f, l in groups["alone"][: a.max]:
+            out("          %-60s %s" % (n[:60], loc(f, l)))
+        return
     by_file = {}
     for usr, n, f, l in never:
         by_file.setdefault(f, []).append((l, n))
@@ -1682,6 +1909,15 @@ def cmd_impact(a, st):
                 "'conversion_function','lambda')", (f,)).fetchall():
             if any(not (hi < l or lo > (e or l)) for lo, hi in rs):
                 changed.append({"usr": usr, "name": n, "file": f, "line": l, "kind": kind})
+    # The records that name each changed function -- the gotchas and decisions
+    # about it -- from the same search `history` uses (githist.records), so a
+    # change is read against what was already decided before it is made.
+    if not a.no_records:
+        import githist
+        for c in changed:
+            c["record_names"] = githist.symbol_names(c["name"], c["kind"])
+            c["records"], c["records_dropped"] = (githist.records(a.repo, c["record_names"])
+                                                  if c["record_names"] else ([], []))
     # callers, breadth first, up to --depth
     callers, entry, frontier, seen = {}, set(), [c["usr"] for c in changed], {c["usr"] for c in changed}
     for d in range(1, a.depth + 1):
@@ -1729,8 +1965,24 @@ def cmd_impact(a, st):
     if stale:
         out("  STALE INDEX: %s changed after the index was built -- line ranges may be off;"
             " run `codemap index` (seconds)" % ", ".join(stale[:5]))
+    if not a.no_records and changed:
+        named = [c for c in changed if c["records"]]
+        nameless = [c for c in changed if not c["record_names"]]
+        out("  records: %d of %d changed functions are named in tracked .md files (whole word, by name, as"
+            " `history`: a same-named method of another class counts too);"
+            " %d named in none%s -- read them before changing the code (--no-records to skip)"
+            % (len(named), len(changed), len(changed) - len(named) - len(nameless),
+               "; %d unnamed lambdas have no name to search" % len(nameless) if nameless else ""))
     for c in changed[: a.max]:
         out("     %-60s %s" % (c["name"][:60], loc(c["file"], c["line"])))
+        if a.no_records:
+            continue
+        for r in c["records"][: a.records_max]:
+            out("         doc  %s:%d %s %s" % (r["file"], r["line"], r["where"], r["text"][:90]))
+        if len(c["records"]) > a.records_max:
+            out("         doc  ... +%d more (codemap history %s)" % (len(c["records"]) - a.records_max, c["name"]))
+        for nm, cnt in c["records_dropped"]:
+            out("         doc  '%s' not searched: too common (%d mentions)" % (nm, cnt))
     if len(changed) > a.max:
         out("     ... +%d more" % (len(changed) - a.max))
     out("  callers within %d levels: %d; entry points reached (NAAb names, main, functions nothing calls): %d"
@@ -1868,6 +2120,43 @@ def libclang_state():
     return "ok"
 
 
+def cmd_cite_check(a):
+    """Do a doc's `path:line` citations still point where they say? Each is checked by
+    the backticked names beside it (citecheck.py), never by its number. Screened."""
+    import citecheck
+    files = citecheck.tracked_files(a.repo)
+    rows = []
+    for doc in a.docs:
+        if not os.path.isfile(doc if os.path.isabs(doc) else os.path.join(a.repo, doc)):
+            raise SystemExit("codemap: no such doc %r" % doc)
+        rows += citecheck.check(a.repo, doc, a.window, files)
+    counts = {o: sum(1 for r in rows if r["outcome"] == o) for o in citecheck.OUTCOMES}
+    if a.json:
+        return emit_json({"window": a.window, "counts": counts, "citations": rows})
+    out("cite-check %s: %d citations -- %s" % (", ".join(a.docs), len(rows),
+                                              ", ".join("%s %d" % (o, counts[o]) for o in citecheck.OUTCOMES)))
+    out("  (screened: HOLDS = a backticked name from the citation's sentence or table cell is within %d lines of"
+        " the cited line at HEAD -- not that the sentence is still true; a sentence naming something in ANOTHER"
+        " file reads GONE or MOVED. Nothing is edited.)" % a.window)
+    for r in rows:
+        if r["outcome"] == "HOLDS" and not a.all:
+            continue
+        span = "%d" % r["line"] + ("-%d" % r["end_line"] if r["end_line"] != r["line"] else "")
+        tail = ""
+        if r["outcome"] == "MOVED":
+            tail = " -> %d (%s)" % (r["new_line"], r["by"])
+        elif r["outcome"] == "HOLDS":
+            tail = " (%s)" % r["by"]
+        elif r.get("note"):
+            tail = " (%s)" % r["note"]
+        elif r["outcome"] in ("GONE", "UNCHECKABLE") and r["identifiers"]:
+            tail = " [%s]" % ", ".join(r["identifiers"][:4])
+        if r.get("file_from") == "continuation":
+            tail += " {a `:N` -- its file is the one named before it}"
+        out("  %-11s %s:%d  %s:%s%s" % (r["outcome"], r["doc"], r["doc_line"], r["file"] or r["cited"], span, tail))
+    return 0
+
+
 def cmd_status(a):
     """Whether the code map can answer here, and how fresh its answers are. Never
     builds anything -- the session-start hook prints this so a session knows, before
@@ -1906,7 +2195,14 @@ def cmd_status(a):
         if c["state"] != "complete":
             why.append("not complete")
         if c["head"] and res["head"] and c["head"] != res["head"]:
-            why.append("recorded at another commit")
+            # a docs-only change since the run is no reason: a warning that fires on
+            # noise trains a reader to skip it (roadmap item 3)
+            rel, detail = coverage_commit_change(a.repo, c["head"], res["head"])
+            c["commit_change"] = {"relevant": rel, "detail": detail}
+            if rel:
+                why.append("recorded at another commit")
+            elif rel is None:
+                why.append("recorded at another commit (cannot compare: %s)" % detail)
         if c["stale_files"]:
             why.append("%d file(s) changed after its build" % c["stale_files"])
         c["refresh_reasons"] = why
@@ -1941,6 +2237,8 @@ def cmd_status(a):
     if c:
         label = {"complete": "complete", "partial": "PARTIAL"}.get(c["state"], "completeness " + c["state"])
         at = ", recorded at %s" % c["head"] if c["head"] and c["head"] != res["head"] else ""
+        if at and c.get("commit_change", {}).get("relevant") is False:
+            at += " (only documentation changed since)"
         stale = ", %d file(s) changed after its build" % c["stale_files"] if c["stale_files"] else ""
         refresh = "; %s" % res["coverage_refresh"] if res["coverage_refresh"] else ""
         parts.append("coverage: %s (%s%s%s%s)" % (c["name"], label, at, stale, refresh))
@@ -1960,6 +2258,7 @@ def cmd_stats(a, st):
            "symbols": st.count("symbols"), "classes": st.count("classes"), "edges": kinds,
            "tags": st.count("tags"), "unindexed": m.get("unindexed") or [],
            "predispatch": m.get("predispatch") or {"status": "absent"}, "blind_spots": BLIND_SPOTS,
+           "predispatch_modules": m.get("predispatch_modules"),
            "definition_collisions": m.get("definition_collisions")}
     if a.json:
         return emit_json(res)
@@ -1970,6 +2269,19 @@ def cmd_stats(a, st):
     pd = res["predispatch"]
     out("pre-dispatch gates: %s%s" % (pd.get("status"), "" if pd.get("status") != "applied" else
         " -- %d NAAb names gated; callers checked: %s" % (pd["names_gated"], ", ".join(pd["callers_checked"]))))
+    pm = res["predispatch_modules"]
+    if pm is None:
+        out("pre-dispatch module gates and detectors: UNMEASURABLE (index built before they were read; re-index)")
+    else:
+        for g, r in sorted(pm.get("module_gates", {}).items()):
+            out("pre-dispatch module gate %s: %s%s" % (g, r["status"], "" if r["status"] != "applied" else
+                " -- modules %s, %d NAAb names" % (", ".join(r["modules"]), r["names_gated"])) +
+                ("; gated by SOME dispatchers only (no edge): %s" % ", ".join(r["not_every_dispatcher"])
+                 if r.get("not_every_dispatcher") else ""))
+        for d, r in sorted(pm.get("prechecks", {}).items()):
+            out("pre-dispatch detector %s [precheck, never a gate]: refuses when %s; modules %s; dispatchers %s"
+                % (d, r["needs"], r["modules"] if r["modules"] == "all" else ", ".join(r["modules"]),
+                   ", ".join(r["dispatchers"])))
     if res["unindexed"]:
         out("not in the build, so not indexed (%d tracked C/C++ files): %s%s"
             % (len(res["unindexed"]), ", ".join(res["unindexed"][:8]),
@@ -2054,9 +2366,25 @@ def main(argv=None):
     s = sub.add_parser("untested", help="indexed functions compiled in but executed by no unit")
     s.add_argument("--under", help="path prefix (default src)"); s.add_argument("--cov")
     s.add_argument("--max", type=int, default=30, help="files listed"); s.add_argument("--per-file", type=int, default=5)
+    s.add_argument("--group", action="store_true",
+                   help="cluster them by shared direct callers, so siblings are read together")
+    s = sub.add_parser("sweep", help="a sweep worklist in docs/sweeps/NAME.tsv: init from untested, status")
+    s.add_argument("action", choices=("init", "status"))
+    s.add_argument("name")
+    s.add_argument("--under", action="append", help="init: path prefix or file (repeatable; default src)")
+    s.add_argument("--cov"); s.add_argument("--add", action="store_true",
+                                            help="init: add functions an existing worklist lacks; no row changes")
+    s.add_argument("--max", type=int, default=30, help="rows listed per section")
     s = sub.add_parser("impact", help="a change's functions, their callers, and the units that execute them")
     s.add_argument("rev", nargs="?", default="HEAD", help="compare the working tree with REV (default HEAD)")
     s.add_argument("--cov"); s.add_argument("--depth", type=int, default=3); s.add_argument("--max", type=int, default=25)
+    s.add_argument("--no-records", action="store_true",
+                   help="do not list the tracked .md lines naming each changed function")
+    s.add_argument("--records-max", type=int, default=5, help="records printed per changed function")
+    s = sub.add_parser("cite-check", help="do a doc's path:line citations still point where they say (screened)")
+    s.add_argument("docs", nargs="+", help="the docs to check (never edited)")
+    s.add_argument("--window", type=int, default=5, help="lines either side of the cited line that count as there")
+    s.add_argument("--all", action="store_true", help="also list the citations that HOLD")
     s = sub.add_parser("history", help="the history pass for one function: line history, name, blame, PRs, records")
     s.add_argument("symbol", nargs="?")
     s.add_argument("--range", help="FILE:START-END instead of an indexed function")
@@ -2073,6 +2401,8 @@ def main(argv=None):
         return cmd_index(a)
     if a.cmd == "status":
         return cmd_status(a) or 0
+    if a.cmd == "cite-check":
+        return cmd_cite_check(a) or 0
     if a.cmd == "profile":
         return cmd_profile(a)
     db = os.path.join(a.cache, "codemap.db")
@@ -2087,6 +2417,8 @@ def main(argv=None):
         return cmd_history(a, storemod.Store(db) if os.path.exists(db) else None) or 0
     if a.cmd == "coverage":
         return cmd_coverage(a, storemod.Store(db) if os.path.exists(db) else None) or 0
+    if a.cmd == "sweep":
+        return cmd_sweep(a, storemod.Store(db) if os.path.exists(db) else None) or 0
     st = storemod.Store(db)
     return globals()["cmd_" + a.cmd](a, st) or 0
 

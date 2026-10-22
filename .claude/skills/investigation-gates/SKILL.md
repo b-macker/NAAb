@@ -59,8 +59,9 @@ refreshes either one when it is not current. Refresh before you rely on it:
   around it.
 - COVERAGE costs 45 minutes or more: the suite runs against the `build-cov`
   build, then the counters are mapped. When a claim would rest on coverage and
-  the line says `refresh:` (the run is not complete, was recorded at another
-  commit, or files changed after its build), either run the line's commands in
+  the line says `refresh:` (the run is not complete, was recorded at a commit
+  followed by changes a run can see -- anything but Markdown documentation --
+  or files changed after its build), either run the line's commands in
   the background, if the session has the time, or do the gate by hand and say
   in the report that coverage was not used. A reading from a run the line flags
   is not evidence.
@@ -103,9 +104,12 @@ bash $S/history_pass.sh -f <file you will edit> -g <subject noun> <identifier>..
   `codemap callers FN --depth 2` before the edit -- it follows calls made
   inside lambdas, through callbacks and on other threads, each edge marked
   with its tier -- and `codemap impact` after it: the functions the
-  uncommitted change touches, their callers up to the entry points, and the
-  units that EXECUTE them. Run those units first; they enter the code, which
-  is not the same as checking it.
+  uncommitted change touches, under each the tracked `.md` records that name
+  it (the gotchas and decisions about it -- "check whether this was already
+  decided" starts there; the search is by name, so a decision recorded
+  without the function's name is not found), their callers up to the entry points, and the units that
+  EXECUTE them. Run those units first; they enter the code, which is not the
+  same as checking it.
 - **Every copy** ("A fix lands in one copy"): `codemap types BASE` lists every
   subclass (every executor class) and `codemap explain FN` its overrides. A
   copy of a BEHAVIOUR under another name -- the VM's and the tree-walker's

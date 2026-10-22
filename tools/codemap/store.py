@@ -27,6 +27,7 @@ CREATE TABLE bases(cls TEXT, base_usr TEXT, base_name TEXT, UNIQUE(cls, base_usr
 CREATE TABLE includes(src TEXT, dst TEXT, UNIQUE(src, dst));
 CREATE TABLE tags(file TEXT, line INT, tag TEXT, text TEXT);
 CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE guarded(src TEXT, dst TEXT, file TEXT, line INT, literals TEXT, UNIQUE(src, dst, file, line));
 CREATE INDEX symbols_name ON symbols(name);
 """
 
@@ -34,6 +35,145 @@ CREATE INDEX symbols_name ON symbols(name);
 # The gates the VM and the tree-walker run before dispatching a NAAb stdlib
 # call that the allowlist classifies (vm.cpp OP_CALL_METHOD, call_dispatch.cpp).
 PREDISPATCH_GATES = ("checkFilesystemAllowed", "checkPathAccess")
+
+
+# Roadmap item 6, from reading both dispatchers end to end (CLAUDE.md, "Pre-dispatch
+# checks"). A MODULE gate is called by a dispatcher under `if (module == "m")`: it
+# refuses every call of that module by policy, so it may stop `reach` -- added only
+# for a module EVERY dispatcher gates that way.
+MODULE_GATES = (("GovernanceEngine", "checkNetworkAllowed"),)
+# A DETECTOR refuses only when something beyond the call's name holds: a configured
+# sequence completes, an argument is tainted, a rate is exceeded, a pattern matches.
+# Its [precheck] edge is context -- `reach` prints it and never stops at it, since
+# treating it as a gate would report a sink as governed that no policy guards.
+# (class, method, what it needs before it refuses)
+DETECTORS = (("GovernanceEngine", "checkPreExecution", "a configured behavioural sequence completes"),
+             ("GovernanceEngine", "checkTaintedValueAtSink", "an argument is tainted"),
+             ("Interpreter", "checkExpressionTaintedSink", "an argument is tainted"),
+             ("GovernanceEngine", "checkStdlibRate", "the stdlib call rate is exceeded"),
+             ("GovernanceEngine", "checkFileOpsRate", "the file operation rate is exceeded"),
+             ("GovernanceEngine", "checkDangerousCall", "a dangerous-call pattern matches the NAAb name"))
+
+
+def _class_method(db, cls_name, method):
+    """The one definition of Class::method (any namespace), or None."""
+    hits = db.execute("SELECT s.usr FROM symbols s JOIN classes c ON c.usr=s.class_usr "
+                      "WHERE (c.name=? OR c.name LIKE ?) AND s.name LIKE ? AND s.is_def=1",
+                      (cls_name, "%::" + cls_name, "%::" + method)).fetchall()
+    return hits[0][0] if len(hits) == 1 else None
+
+
+def _reached_from(db, dispatcher):
+    """The dispatcher and the helpers it calls that are defined in its own file
+    (VM::callStdlibMethod, vm.cpp's bsdPreCheck): checks there run on its routes."""
+    row = db.execute("SELECT file FROM symbols WHERE usr=?", (dispatcher,)).fetchone()
+    if not row:
+        return [dispatcher]
+    helpers = [r[0] for r in db.execute(
+        "SELECT DISTINCT e.dst FROM edges e JOIN symbols s ON s.usr=e.dst "
+        "WHERE e.kind='call' AND e.src=? AND s.file=? AND s.is_def=1", (dispatcher, row[0]))]
+    return [dispatcher] + [h for h in helpers if h != dispatcher]
+
+
+_MARKER_LIKE = ("%__stdlib_module__:%", "%__stdlib_call__:%", "%__builtin__:%")
+
+
+def _route_owners(db, callers):
+    """Each allowlist caller, replaced by the same-file function that calls it on a
+    stdlib route (a guard naming a stdlib marker), when there is one: VM::run
+    calls VM::stdlibCallGates, which consults the allowlist, and the checks a
+    route makes are VM::run's -- crediting them to the helper would lose the
+    ones VM::run makes itself (the BSD pre-check, the rate limits)."""
+    out = []
+    for c in callers:
+        row = db.execute("SELECT file FROM symbols WHERE usr=?", (c,)).fetchone()
+        owners = [r[0] for r in db.execute(
+            "SELECT DISTINCT g.src FROM guarded g JOIN symbols s ON s.usr=g.src "
+            "WHERE g.dst=? AND s.file=? AND s.is_def=1 AND g.src<>? AND ("
+            + " OR ".join("g.literals LIKE ?" for _ in _MARKER_LIKE) + ")",
+            (c, row[0] if row else "", c) + _MARKER_LIKE)] if row else []
+        for o in owners or [c]:
+            if o not in out:
+                out.append(o)
+    return out
+
+
+def apply_module_checks(db, callers, module_names):
+    """[predispatch] module-gate edges and [precheck] detector edges (roadmap item 6)."""
+    callers = _route_owners(db, callers)
+    names_of = {}
+    for (usr,) in db.execute("SELECT usr FROM symbols WHERE usr LIKE 'naab:%'").fetchall():
+        names_of.setdefault(usr[5:].partition(".")[0], []).append(usr)
+    report = {"module_gates": {}, "prechecks": {}}
+    if not callers:
+        report["status"] = "no dispatchers (nothing outside tests/ calls the allowlist)"
+        return report
+    for cls, g in MODULE_GATES:
+        gu = _class_method(db, cls, g)
+        if gu is None:
+            report["module_gates"][g] = {"status": "unverified: %s::%s does not resolve to one definition" % (cls, g)}
+            continue
+        per = []
+        for c in callers:
+            mods = set()
+            reach = _reached_from(db, c)
+            for (lits,) in db.execute("SELECT literals FROM guarded WHERE dst=? AND src IN (%s)"
+                                      % ",".join("?" * len(reach)), [gu] + reach):
+                mods.update(x for x in lits.split("|") if x in module_names)
+            per.append(mods)
+        verified = sorted(set.intersection(*per)) if per else []
+        missing = sorted(set.union(*per) - set(verified)) if per else []
+        site = db.execute("SELECT file, line FROM guarded WHERE dst=? ORDER BY file, line", (gu,)).fetchone()
+        n = 0
+        for m in verified:
+            for usr in names_of.get(m, []):
+                db.execute("INSERT OR IGNORE INTO edges VALUES(?,?,?,?,?,?)",
+                           ("predispatch", usr, gu, site[0], site[1], "module:" + m))
+                n += 1
+        report["module_gates"][g] = {"status": "applied" if verified else "unverified: no module every dispatcher gates",
+                                     "modules": verified, "names_gated": n,
+                                     "not_every_dispatcher": missing}
+    for cls, meth, needs in DETECTORS:
+        du = _class_method(db, cls, meth)
+        if du is None:
+            continue                      # not in this code base (a fixture has few)
+        by_dispatcher = {}
+        for c in callers:
+            reach = _reached_from(db, c)
+            hits = [r for r in db.execute(
+                "SELECT src, file, line FROM edges WHERE kind='call' AND dst=? AND src IN (%s)"
+                % ",".join("?" * len(reach)), [du] + reach)]
+            if not hits:
+                continue
+            mods = set()
+            unguarded = False
+            for src, f, l in hits:
+                g = db.execute("SELECT literals FROM guarded WHERE src=? AND dst=? AND file=? AND line=?",
+                               (src, du, f, l)).fetchone()
+                named = {x for x in (g[0].split("|") if g else []) if x in module_names}
+                if named:
+                    mods |= named
+                else:
+                    unguarded = True
+            by_dispatcher[c] = (None if unguarded else mods, hits[0])
+        if not by_dispatcher:
+            continue
+        targets = set()
+        for mods, _ in by_dispatcher.values():
+            targets |= set(names_of) if mods is None else mods
+        dnames = sorted(db.execute("SELECT name FROM symbols WHERE usr=?", (c,)).fetchone()[0]
+                        for c in by_dispatcher)
+        f, l = next(iter(by_dispatcher.values()))[1][1:]
+        n = 0
+        for m in sorted(targets):
+            for usr in names_of.get(m, []):
+                db.execute("INSERT OR IGNORE INTO edges VALUES(?,?,?,?,?,?)",
+                           ("precheck", usr, du, f, l, "%s; dispatchers: %s" % (needs, ", ".join(dnames))))
+                n += 1
+        report["prechecks"][meth] = {"needs": needs, "dispatchers": dnames, "names": n,
+                                     "modules": "all" if any(m is None for m, _ in by_dispatcher.values())
+                                     else sorted(targets)}
+    return report
 
 
 def apply_predispatch(db, pd):
@@ -128,6 +268,8 @@ def build(db_path, shards, tags, meta):
             db.executemany("INSERT OR IGNORE INTO bases VALUES(?,?,?)",
                            [(c["usr"], b["usr"], b["name"]) for b in c["bases"]])
         db.executemany("INSERT OR IGNORE INTO includes VALUES(?,?)", [tuple(p) for p in sh["includes"]])
+        db.executemany("INSERT OR IGNORE INTO guarded VALUES(?,?,?,?,?)",
+                       [tuple(g) for g in sh.get("guarded", [])])
     db.executemany("INSERT INTO symbols VALUES(?,?,?,?,?,?,?,?,?,?,?)", list(symbols.values()))
 
     # Name the stdlib dispatch entries by their module ("naab:file.read"), now
@@ -151,6 +293,15 @@ def build(db_path, shards, tags, meta):
         if hit:
             db.execute("UPDATE OR IGNORE edges SET dst=? WHERE dst=?", (hit[0], dst))
     meta["predispatch"] = apply_predispatch(db, predispatch)
+    # Module gates and detectors, checked against the same dispatchers (callers of the
+    # allowlist outside tests/): one definition of "a dispatcher" for every kind.
+    dispatchers = []
+    if predispatch:
+        dispatchers = [r[0] for r in db.execute(
+            "SELECT DISTINCT e.src FROM edges e JOIN symbols s ON s.usr=e.src "
+            "WHERE e.kind='call' AND e.dst=? AND s.file NOT LIKE 'tests/%'", (predispatch["usr"],)).fetchall()]
+    module_names = {r[0] for r in db.execute("SELECT module FROM classes WHERE module != ''")}
+    meta["predispatch_modules"] = apply_module_checks(db, dispatchers, module_names)
     # A USR is the symbols key, so a function DEFINED in more than one file -- each
     # binary's main(int, char**), one helper per tool -- is stored once: the first
     # definition read is kept, the others are lost and their call edges merge into
