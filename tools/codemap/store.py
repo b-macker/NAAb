@@ -239,6 +239,14 @@ def build(db_path, shards, tags, meta):
     symbols = {}
     def_files = {}                     # usr -> files defining it (callables)
     predispatch = None
+    def_rows = {}                      # usr -> {file: its definition's row}
+    shard_defs = []                    # per shard: usr -> the file its definition is in
+    for sh in shards:
+        seen = {}
+        for s in sh["symbols"]:
+            if s.get("is_def") and s["kind"] in DEFINITION_KINDS:
+                seen.setdefault(s["usr"], s["file"])
+        shard_defs.append(seen)
     for sh in shards:
         pd = sh.get("predispatch")
         if pd and (predispatch is None or (pd.get("modules") and not predispatch.get("modules"))):
@@ -253,6 +261,7 @@ def build(db_path, shards, tags, meta):
                 def_files.setdefault(row[0], [])
                 if row[3] not in def_files[row[0]]:
                     def_files[row[0]].append(row[3])
+                def_rows.setdefault(row[0], {}).setdefault(row[3], row)
             cur = symbols.get(s["usr"])
             # A definition beats a declaration. The class and the virtual flag
             # (1 virtual, 2 pure) may be known only from the declaration.
@@ -261,15 +270,57 @@ def build(db_path, shards, tags, meta):
             if other is not None:
                 keep = keep[:8] + (keep[8] or other[8], max(keep[9] or 0, other[9] or 0), keep[10] or other[10])
             symbols[s["usr"]] = keep
-        db.executemany("INSERT OR IGNORE INTO edges VALUES(?,?,?,?,?,?)", [tuple(e) for e in sh["edges"]])
         for c in sh["classes"]:
             db.execute("INSERT OR IGNORE INTO classes VALUES(?,?,?,?,?,?)",
                        (c["usr"], c["name"], c["file"], c["line"], c["end_line"], ""))
             db.executemany("INSERT OR IGNORE INTO bases VALUES(?,?,?)",
                            [(c["usr"], b["usr"], b["name"]) for b in c["bases"]])
         db.executemany("INSERT OR IGNORE INTO includes VALUES(?,?)", [tuple(p) for p in sh["includes"]])
-        db.executemany("INSERT OR IGNORE INTO guarded VALUES(?,?,?,?,?)",
-                       [tuple(g) for g in sh.get("guarded", [])])
+    # A USR is the symbols key, and a function DEFINED in more than one file --
+    # each binary's main(int, char**), one helper per tool -- has one USR. Each
+    # definition gets its own entry, `USR@FILE` (roadmap item 8): a call made
+    # inside a definition carries that definition's file, and a call TO one goes
+    # to the definition the calling file's translation unit saw. A call from a
+    # translation unit that saw none (only a declaration) may land in any of
+    # them, so it gets an edge to each, noted as ambiguous: which one a caller
+    # means depends on the link, which the index does not know.
+    split = {u: fs for u, fs in def_files.items() if len(fs) > 1 and u in symbols}
+    for u, fs in split.items():
+        del symbols[u]
+        for f in fs:
+            r = def_rows[u][f]
+            symbols["%s@%s" % (u, f)] = ("%s@%s" % (u, f),) + r[1:]
+
+    def own(u, f, seen):
+        """The entry for a definition a call is made INSIDE of (`f` = the call's file)."""
+        if u not in split:
+            return u
+        if f in split[u]:
+            return "%s@%s" % (u, f)
+        return "%s@%s" % (u, seen[u]) if seen.get(u) in split[u] else u
+
+    def targets(u, seen):
+        """The entries a call TO u may land in: (entry, note-or-None)."""
+        if u not in split:
+            return [(u, None)]
+        if seen.get(u) in split[u]:
+            return [("%s@%s" % (u, seen[u]), None)]
+        return [("%s@%s" % (u, f), "ambiguous: one of %d definitions" % len(split[u])) for f in split[u]]
+
+    for sh, seen in zip(shards, shard_defs):
+        rows = []
+        for e in sh["edges"]:
+            src = own(e[1], e[3], seen)
+            for dst, note in targets(e[2], seen):
+                rows.append((e[0], src, dst, e[3], e[4],
+                             e[5] if not note else (e[5] + "; " if e[5] else "") + note))
+        db.executemany("INSERT OR IGNORE INTO edges VALUES(?,?,?,?,?,?)", rows)
+        grows = []
+        for g in sh.get("guarded", []):
+            src = own(g[0], g[2], seen)
+            for dst, _ in targets(g[1], seen):
+                grows.append((src, dst, g[2], g[3], g[4]))
+        db.executemany("INSERT OR IGNORE INTO guarded VALUES(?,?,?,?,?)", grows)
     db.executemany("INSERT INTO symbols VALUES(?,?,?,?,?,?,?,?,?,?,?)", list(symbols.values()))
 
     # Name the stdlib dispatch entries by their module ("naab:file.read"), now
@@ -302,14 +353,12 @@ def build(db_path, shards, tags, meta):
             "WHERE e.kind='call' AND e.dst=? AND s.file NOT LIKE 'tests/%'", (predispatch["usr"],)).fetchall()]
     module_names = {r[0] for r in db.execute("SELECT module FROM classes WHERE module != ''")}
     meta["predispatch_modules"] = apply_module_checks(db, dispatchers, module_names)
-    # A USR is the symbols key, so a function DEFINED in more than one file -- each
-    # binary's main(int, char**), one helper per tool -- is stored once: the first
-    # definition read is kept, the others are lost and their call edges merge into
-    # it. Which definition a caller means depends on the link, which the index does
-    # not know; recorded so `stats` names every such function instead of hiding it.
+    # Recorded so `stats` names every function defined in more than one file:
+    # each is stored per file now, and whether its definitions share a binary (an
+    # ODR violation) is a question the index cannot answer.
     meta["definition_collisions"] = sorted(
-        ({"usr": u, "name": symbols[u][1], "kept": symbols[u][3], "files": sorted(fs)}
-         for u, fs in def_files.items() if len(fs) > 1 and u in symbols),
+        ({"usr": u, "name": def_rows[u][fs[0]][1], "files": sorted(fs), "stored": "per file"}
+         for u, fs in split.items()),
         key=lambda c: (c["name"], c["usr"]))
     db.executemany("INSERT INTO tags VALUES(?,?,?,?)", tags)
     db.executemany("INSERT OR REPLACE INTO meta VALUES(?,?)", [(k, json.dumps(v)) for k, v in meta.items()])

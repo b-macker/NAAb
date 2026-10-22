@@ -72,12 +72,14 @@
 #          as VM::run calls VM::stdlibCallGates; the detector is credited to
 #          tw_dispatch. Crediting the allowlist's caller instead lost every
 #          detector VM::run runs (found when the VM's gates moved to a helper)
-#   CM-22  a function DEFINED in two files on one USR (main(int, char**) in a
-#          two-file repo, as naab-lang's and naab-gov's are) is stored once,
-#          and stats lists it with the copy kept; a static helper of the same
-#          name in both files (file-qualified USRs) is not listed; CM-22c: the
-#          fixture, whose two files each have a static helper(int), reads
-#          "none"
+#   CM-22  functions DEFINED in two files on one USR (main(int, char**) and a
+#          non-static shared() in a.cpp and b.cpp, as naab-lang's and naab-gov's
+#          mains are) are stored per file and listed by stats; same-named static
+#          helpers (file-qualified USRs) are not. CM-22b: each main keeps its own
+#          callees (they used to merge into the first definition read). CM-22d:
+#          c.cpp, which saw only a declaration of shared(), calls each definition,
+#          marked ambiguous; a.cpp's call, which saw a.cpp's, calls that one only.
+#          CM-22c: the fixture reports no collision (control)
 #   CM-23  `codemap status` -- the line the session-start hook prints -- tells
 #          the states apart, with libclang FORCED by stand-in modules so the
 #          arms do not depend on this machine: (a) libclang loads, a compile
@@ -620,21 +622,40 @@ fi
 # ---------------------------------------------------------------- CM-22
 FIXSTATS="$(cm stats)"
 mkdir -p "$W/dup/build"
-printf 'static int helper() { return 1; }\nint main(int argc, char** argv) { (void)argv; return helper() + argc; }\n' > "$W/dup/a.cpp"
-printf 'static int helper() { return 2; }\nint main(int argc, char** argv) { (void)argv; return helper() - argc; }\n' > "$W/dup/b.cpp"
+printf 'static int helper() { return 1; }\nint shared() { return 10; }\nint main(int argc, char** argv) { (void)argv; return helper() + shared() + argc; }\n' > "$W/dup/a.cpp"
+printf 'static int helper() { return 2; }\nint shared() { return 20; }\nint main(int argc, char** argv) { (void)argv; return helper() - argc; }\n' > "$W/dup/b.cpp"
+printf 'int shared();\nint user() { return shared(); }\n' > "$W/dup/c.cpp"
 ( cd "$W/dup" && python3 -c "
 import json, os
 w = os.getcwd()
 json.dump([{'directory': os.path.join(w, 'build'), 'file': os.path.join(w, f),
-            'arguments': ['c++', '-std=c++17', '-c', os.path.join(w, f), '-o', f + '.o']} for f in ('a.cpp', 'b.cpp')],
+            'arguments': ['c++', '-std=c++17', '-c', os.path.join(w, f), '-o', f + '.o']} for f in ('a.cpp', 'b.cpp', 'c.cpp')],
           open(os.path.join(w, 'build', 'compile_commands.json'), 'w'))" \
   && python3 "$CM" --repo . --cache .cache/codemap index --jobs 2 >/dev/null 2>&1 )
-DUP="$( cd "$W/dup" && python3 "$CM" --repo . --cache .cache/codemap stats 2>&1 )"
-if grep -q "defined in more than one file, stored once (1)" <<<"$DUP" \
-   && grep -qE "^  main  kept (a|b)\.cpp; also (a|b)\.cpp$" <<<"$DUP" && ! grep -q "helper  kept" <<<"$DUP"; then
-    ok CM-22 "main defined in two files is listed as stored once; the static helpers are not"
+dupcm() { ( cd "$W/dup" && python3 "$CM" --repo . --cache .cache/codemap "$@" 2>&1 ); }
+DUP="$(dupcm stats)"
+if grep -q "defined in more than one file, stored per file (2)" <<<"$DUP" \
+   && grep -qx "  main  a.cpp, b.cpp" <<<"$DUP" && grep -qx "  shared  a.cpp, b.cpp" <<<"$DUP" \
+   && ! grep -q "^  helper " <<<"$DUP"; then
+    ok CM-22 "main and shared, each defined in two files, are listed as stored per file; the static helpers are not"
 else
-    bad CM-22 "a definition collision was not reported (or a static was)" "$(grep -A3 'defined in more' <<<"$DUP")"
+    bad CM-22 "a definition collision was not reported per file (or a static was)" "$(grep -A3 'defined in more' <<<"$DUP")"
+fi
+CA="$(dupcm callees a.cpp:main)"; CB="$(dupcm callees b.cpp:main)"
+if grep -qE "^  -> a\.cpp:shared +\[ast\] a\.cpp:3$" <<<"$CA" && grep -qE "^  -> helper +\[ast\] a\.cpp:3$" <<<"$CA" \
+   && ! grep -q "b\.cpp" <<<"$CA" && grep -qE "^  -> helper +\[ast\] b\.cpp:3$" <<<"$CB" && ! grep -q "shared" <<<"$CB"; then
+    ok CM-22b "each main keeps its own callees: a.cpp's calls its shared and helper, b.cpp's only its helper"
+else
+    bad CM-22b "two definitions' callees merged or crossed" "$CA
+$CB"
+fi
+RA="$(dupcm callers a.cpp:shared)"; RB="$(dupcm callers b.cpp:shared)"
+if grep -qE "^  <- a\.cpp:main +\[ast\] a\.cpp:3$" <<<"$RA" && grep -qE "^  <- user +\[ast, ambiguous\] c\.cpp:2$" <<<"$RA" \
+   && grep -qE "^  <- user +\[ast, ambiguous\] c\.cpp:2$" <<<"$RB" && ! grep -q "main" <<<"$RB"; then
+    ok CM-22d "a call from a file that saw no definition goes to each, marked ambiguous; a.cpp's own call goes to a.cpp's alone"
+else
+    bad CM-22d "calls into a multiply-defined function were routed wrongly" "$RA
+$RB"
 fi
 if grep -q "defined in more than one file: none" <<<"$FIXSTATS"; then
     ok CM-22c "control: the fixture's same-named static helpers are not a collision"

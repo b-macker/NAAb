@@ -81,8 +81,9 @@ BLIND_SPOTS = [
     "what actually runs for a given program needs a run (codemap profile)",
     "writes through a pointer or reference handed to another function, or by a mutating method "
     "not in the list, are not seen; writes to locals are not recorded",
-    "a function DEFINED in more than one file (each binary's main) is stored once -- the others' "
-    "definitions are not indexed and their calls merge into the one kept; `stats` lists every such function",
+    "a function DEFINED in more than one file (each binary's main) is stored once PER FILE (name it "
+    "FILE:NAME); a call from a file that saw no definition of it is an edge to each, marked ambiguous, "
+    "because which one runs depends on the link; `stats` lists every such function",
     PREDISPATCH,
 ]
 # Library calls a reader rarely wants in a callee list: constructors, member
@@ -307,6 +308,10 @@ def pick_among(syms, query):
 def name_of(st, usr):
     s = st.symbol(usr)
     if s:
+        # One of several definitions of one USR (store.build): FILE:NAME, the
+        # form `pick` accepts, or two lines would read the same.
+        if usr.endswith("@" + s["file"]):
+            return "%s:%s" % (s["file"], s["name"])
         return s["name"]
     c = st.class_row(usr)
     return c["name"] if c else usr
@@ -335,11 +340,18 @@ def overriders(st, usr):
     return seen
 
 
+def tier_of(kind, note):
+    """An edge's tier; a call into a function defined in several files, from a file
+    that saw none of the definitions, may land in any of them (store.build)."""
+    t = TIER[kind]
+    return t + ", ambiguous" if note and "ambiguous:" in note else t
+
+
 def incoming(st, usr):
     """(caller_usr, tier, site_file, site_line) for everything that reaches usr."""
     rows = []
     for kind, src, _, f, l, note in st.edges_to(usr, CONTROL_KINDS):
-        rows.append((src, TIER[kind], f, l))
+        rows.append((src, tier_of(kind, note), f, l))
     for base in ancestors_overridden(st, usr):
         for kind, src, _, f, l, note in st.edges_to(base, ["call"]):
             rows.append((src, "virtual", f, l))
@@ -354,7 +366,7 @@ def outgoing(st, usr):
                 if m and m["virtual"] and m["is_def"]]
     rows = []
     for kind, _, dst, f, l, note in st.edges_from(usr, CONTROL_KINDS):
-        rows.append((dst, TIER[kind], f, l))
+        rows.append((dst, tier_of(kind, note), f, l))
         if kind == "call" and note == "virtual":
             for sub in overriders(st, dst):
                 rows.append((sub, "virtual", f, l))
@@ -2289,11 +2301,12 @@ def cmd_stats(a, st):
     dc = res["definition_collisions"]
     if dc is None:
         out("defined in more than one file: UNMEASURABLE (index built before this was recorded; re-index)")
+    elif dc and "kept" in dc[0]:
+        out("defined in more than one file: stored once (an index built before per-file storage; re-index)")
     elif dc:
-        out("defined in more than one file, stored once (%d) -- the first is kept, the others' calls merge into it:"
-            % len(dc))
+        out("defined in more than one file, stored per file (%d) -- name one FILE:NAME:" % len(dc))
         for c in dc[:12]:
-            out("  %s  kept %s; also %s" % (c["name"], c["kept"], ", ".join(f for f in c["files"] if f != c["kept"])))
+            out("  %s  %s" % (c["name"], ", ".join(c["files"])))
         if len(dc) > 12:
             out("  ... +%d more (--json)" % (len(dc) - 12))
     else:

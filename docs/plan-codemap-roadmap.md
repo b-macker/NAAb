@@ -42,7 +42,7 @@ session picking up code-map work reads this first, then the item's own history
 | 5 | Sweep worklist: every item ends with a recorded outcome | built 2026-10-22 (`sweep init`/`status`; C-28); A64 not yet loaded into it |
 | 6 | Pre-dispatch checks other than the filesystem gate: enumerate, then model | **built** 2026-10-22 -- and the enumeration found a route defect (A51 corrected, fixed) |
 | 7 | `untested` grouped by shared callers | built 2026-10-22 (`untested --group`; C-27) |
-| 8 | Functions defined in several files stored per file | planned |
+| 8 | Functions defined in several files stored per file | **built** 2026-10-22 (per-file storage; CM-22/22b/22d, C-29); neither NAAb candidate is a live ODR violation |
 | 9 | PlantUML jar: reconcile the two digests, pin one | reconciled 2026-10-22 (two builds, a compile time apart; Maven's is signed); the pin awaits the owner |
 | 10 | How sessions use the map, from their transcripts | built 2026-10-22 (`usage.py`; 7 arms, 8 mutants); first run is authored usage |
 
@@ -295,6 +295,42 @@ separate ones (harmless).
 **Done when.** Fixture: two `main`s in two files keep their own callees; control:
 an ordinary function is unchanged. `gov_main.cpp`'s `main` stops reading
 UNMEASURED in coverage (the CM-22 case).
+
+**Done (2026-10-22).** `store.build` gives each definition of a multiply-defined
+USR its own entry (`USR@FILE`), addressed `FILE:NAME` as `reach` already accepted
+and printed that way by `callers`/`callees`. Edges made inside a definition carry
+its file; a call goes to the definition the calling translation unit saw, and a
+call from one that saw only a declaration is an edge to every definition, marked
+`[ast, ambiguous]` -- which one runs depends on the link. On NAAb (observed): 6
+functions stored per file, `src/cli/gov_main.cpp:main` with its own 7 callees.
+Tests: `test_codemap.sh` CM-22 (stats), CM-22b (each `main` keeps its callees),
+CM-22d (an ambiguous call goes to each definition, a resolvable one to one);
+`test_codemap_coverage.sh` C-29 (two mains on one USR in two programs, each
+credited to its own run, neither position unmatched). Mutants: no split (CM-22,
+22b, 22d, C-29 red), every incoming call ambiguous and outgoing edges not
+remapped (CM-22b, 22d red).
+
+**The revert check caught a test that could not fail.** C-29's first version
+passed with per-file storage removed: the fixture's second program had `int
+main()` and the first `int main(int, char**)` -- different USRs, so no collision
+existed to test. The arm now gives both the same signature and goes red on that
+mutant. Without the mutant run it would have shipped green and tested nothing.
+
+**The two NAAb candidates (observed with `nm` over naab-lang, naab-gov,
+naab_unit_tests, naab-lsp and libnaab.a).**
+- `StackFrame::toString`: two DIFFERENT classes share the qualified name
+  `naab::interpreter::StackFrame` (`include/naab/interpreter.h` and
+  `src/interpreter/error_context.h`, different members), each with an
+  out-of-line `toString()`, both compiled into `libnaab_interpreter.a`. No binary
+  links `error_context.o` (no `InterpreterErrorReporter` symbol anywhere, one
+  `toString` per binary), so the second class is dead code today, and pulling it
+  in would fail the link (duplicate strong symbol) rather than misbehave. Open
+  for the owner: delete `error_context.cpp`/`.h`, or rename its class.
+- `OrchestraModule`: defined in both `orchestra.h` and `stdlib_new_modules.h`,
+  member for member identical, so no ODR violation today; one TU including both
+  would fail to compile. An edit to one copy would silently become a violation
+  (an inline `getName` and vtable chosen by the linker). Open for the owner:
+  keep one definition.
 
 ## 9. PlantUML jar: reconcile the two digests, pin one
 

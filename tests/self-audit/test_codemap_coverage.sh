@@ -99,6 +99,11 @@
 #         as helper_binaries picks it (instrumented) credits only_in_second to
 #         its unit; control: build/'s copy, what coverage run used to take,
 #         writes nothing and only_in_second is never credited
+#   C-29  roadmap item 8: the second program's main is indexed beside the
+#         fixture's (one USR, two files); each is stored per file, so the
+#         second's is credited to its run and neither is an unmatched position
+#         (stored once, gov_main.cpp's main on NAAb had no entry of its own and
+#         its position read UNMEASURED in every run)
 #   C-24  run_extra_units runs a codemap-only unit with its own GCOV_PREFIX, and
 #         `coverage ingest` names it gtest:naab_unit_tests (EXTRA_UNIT_DISPLAY),
 #         so the recovery path names it too; a unit not built reads "absent";
@@ -173,10 +178,13 @@ cp -R "$FIXTURE/." "$R/"
 cd "$R" || exit 1
 # A second program, the fixture's stand-in for a helper binary a suite calls
 # (naab-lsp, naab-verify-audit) or a C++ test program (naab_unit_tests): only it
-# reaches only_in_second(). Its main is in a file the index does not parse, so
-# it adds no unmatched position (C-10 pins those).
+# reaches only_in_second(). Its main is indexed beside the fixture's own (other.cpp):
+# one name, one USR (both main(int, char**): a different signature is a different
+# USR and no collision at all), two definitions, as naab-lang's and naab-gov's are --
+# each stored per file (roadmap item 8), so neither adds an unmatched position
+# (C-10 pins those) and each is credited to its own program (C-29).
 printf '// reachable only through the second program\nint only_in_second(int x) { return x * 3 + 1; }\n' > second.cpp
-printf 'int only_in_second(int x);\nint main() { return only_in_second(2) == 7 ? 0 : 1; }\n' > second_main.cpp
+printf 'int only_in_second(int x);\nint main(int argc, char** argv) { (void)argc; (void)argv; return only_in_second(2) == 7 ? 0 : 1; }\n' > second_main.cpp
 # C-27/C-28: two siblings only caller_ab calls, and lone_fn; linked into the
 # fixture, called by nothing, so every one is executed by no unit.
 cat > group.cpp <<'GRP'
@@ -237,7 +245,7 @@ import json, os
 w = os.getcwd()
 json.dump([{"directory": os.path.join(w, "build"), "file": os.path.join(w, f),
             "arguments": ["c++", "-std=c++17", "-I" + os.path.join(w, "include"), "-c", os.path.join(w, f), "-o", f + ".o"]}
-           for f in ("fixture.cpp", "other.cpp", "extra.cpp", "templ.cpp", "second.cpp", "group.cpp")],
+           for f in ("fixture.cpp", "other.cpp", "extra.cpp", "templ.cpp", "second.cpp", "second_main.cpp", "group.cpp")],
           open(os.path.join(w, "build", "compile_commands.json"), "w"))
 EOF
 IDX="$(cm index --jobs 2)"; irc=$?
@@ -690,6 +698,28 @@ else
 $T2
 ---
 $T2C"
+fi
+# C-29 (roadmap item 8): the second program's main and the fixture's share a USR.
+# Stored once, only one of the two had an entry -- gov_main.cpp's main on NAAb was
+# unmatched in every run. Stored per file, each is credited to the program that ran it.
+TM2="$(cm tested second_main.cpp:main --cov second)"
+TMO="$(cm tested other.cpp:main --cov second)"
+FXO="$(cm tested other.cpp:main --cov fx)"
+FX2="$(cm tested second_main.cpp:main --cov fx)"
+UM2="$(python3 -c "import json; print(' '.join(sorted(json.load(open('.cache/codemap/coverage/second/coverage.json'))['unmatched'])))" 2>&1)"
+if grep -qE "^ +1  000_S$" <<<"$TM2" && grep -q "NOT IN THE BUILD" <<<"$TMO" \
+   && grep -qE "executed by [1-9][0-9]* unit" <<<"$FXO" && grep -q "NOT IN THE BUILD" <<<"$FX2" \
+   && ! grep -q "second_main" <<<"$UM2"; then
+    ok C-29 "two mains on one USR, each read in its own program: the second's run credits second_main.cpp's, the fixture's runs other.cpp's, and neither position is unmatched"
+else
+    bad C-29 "a multiply-defined main was not mapped per file" "$TM2
+---
+$TMO
+---
+$FXO
+---
+$FX2
+--- unmatched: $UM2"
 fi
 # C-24: an extra unit runs with its own prefix under its codemap-only name, and the
 # name survives a re-map by `coverage ingest` (EXTRA_UNIT_DISPLAY); an unbuilt one is
