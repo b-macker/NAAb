@@ -1474,6 +1474,10 @@ void GovernanceEngine::writeReports() const {
     writeFile(rules().output.file_output.report_csv, generateCsvReport());
     writeFile(rules().output.file_output.report_html, generateHtmlReport());
     writeTelemetry();
+    // Recorded output baselines. They used to be saved only by the engine's
+    // destructor, which a CLI run never reaches: it leaves through _exit()
+    // after writing its reports (A56).
+    saveBaselines();
 }
 
 // --- Telemetry JSONL Output ---
@@ -2593,7 +2597,10 @@ std::string GovernanceEngine::generateVerificationCode(
 
 // --- Output Baselines ---
 
-void GovernanceEngine::loadBaselines() {
+// The baselines store is shared: the VM's async fn workers run blocks on the
+// same engine, so every function below holds baselines_mutex_ (the *Locked
+// helpers expect it held). A mismatch is enforced after the lock is released.
+void GovernanceEngine::loadBaselinesLocked() {
     if (baselines_loaded_) return;
     baselines_loaded_ = true;
 
@@ -2623,8 +2630,9 @@ void GovernanceEngine::loadBaselines() {
     if (!data->contains("entries")) (*data)["entries"] = nlohmann::json::object();
 }
 
-void GovernanceEngine::saveBaselines() {
-    if (!baselines_data_) return;
+void GovernanceEngine::saveBaselines() const {
+    std::lock_guard<std::mutex> lock(baselines_mutex_);
+    if (!baselines_dirty_ || !baselines_data_) return;
     auto* data = static_cast<nlohmann::json*>(baselines_data_);
 
     auto parent = std::filesystem::path(baselines_path_).parent_path();
@@ -2635,13 +2643,14 @@ void GovernanceEngine::saveBaselines() {
     std::ofstream out(baselines_path_);
     if (out.is_open()) {
         out << data->dump(2) << "\n";
+        baselines_dirty_ = false;
     }
 }
 
-void GovernanceEngine::recordBaseline(const std::string& key,
-                                       const std::string& output,
-                                       const std::string& type) {
-    loadBaselines();
+void GovernanceEngine::recordBaselineLocked(const std::string& key,
+                                            const std::string& output,
+                                            const std::string& type) {
+    loadBaselinesLocked();
     if (!baselines_data_) return;
     auto* data = static_cast<nlohmann::json*>(baselines_data_);
 
@@ -2660,48 +2669,59 @@ void GovernanceEngine::recordBaseline(const std::string& key,
     baselines_dirty_ = true;
 }
 
+void GovernanceEngine::recordBaseline(const std::string& key,
+                                       const std::string& output,
+                                       const std::string& type) {
+    std::lock_guard<std::mutex> lock(baselines_mutex_);
+    recordBaselineLocked(key, output, type);
+}
+
 std::string GovernanceEngine::checkBaseline(const std::string& key,
                                              const std::string& output,
                                              const std::string& type,
                                              int line) {
     if (!rules().baselines.enabled) return "";
 
-    loadBaselines();
-    if (!baselines_data_) return "";
-    auto* data = static_cast<nlohmann::json*>(baselines_data_);
+    std::string expected;
+    {
+        std::lock_guard<std::mutex> lock(baselines_mutex_);
+        loadBaselinesLocked();
+        if (!baselines_data_) return "";
+        auto* data = static_cast<nlohmann::json*>(baselines_data_);
 
-    auto& entries = (*data)["entries"];
-    if (!entries.contains(key)) {
-        // No baseline exists
-        if (rules().baselines.auto_record) {
-            recordBaseline(key, output, type);
+        auto& entries = (*data)["entries"];
+        if (!entries.contains(key)) {
+            // No baseline exists
+            if (rules().baselines.auto_record) {
+                recordBaselineLocked(key, output, type);
+            }
+            return "";
         }
-        return "";
-    }
 
-    auto& entry = entries[key];
-    std::string expected = entry.contains("output") && entry["output"].is_string() ? entry["output"].get<std::string>() : "";
-    std::string expected_type = entry.contains("type") && entry["type"].is_string() ? entry["type"].get<std::string>() : "";
+        auto& entry = entries[key];
+        expected = entry.contains("output") && entry["output"].is_string() ? entry["output"].get<std::string>() : "";
+        std::string expected_type = entry.contains("type") && entry["type"].is_string() ? entry["type"].get<std::string>() : "";
 
-    // Compare using tolerance for numeric types
-    bool matches = false;
-    if ((type == "float" || type == "int") &&
-        (expected_type == "float" || expected_type == "int")) {
-        matches = compareResults(output, expected, rules().baselines.tolerance);
-    } else {
-        matches = (output == expected);
-    }
+        // Compare using tolerance for numeric types
+        bool matches = false;
+        if ((type == "float" || type == "int") &&
+            (expected_type == "float" || expected_type == "int")) {
+            matches = compareResults(output, expected, rules().baselines.tolerance);
+        } else {
+            matches = (output == expected);
+        }
 
-    if (matches) {
-        // Update runs counter and last_seen
-        int runs = (entry.contains("runs") && entry["runs"].is_number_integer()) ? entry["runs"].get<int>() : 0;
-        entry["runs"] = runs + 1;
-        auto now = std::chrono::system_clock::now();
-        auto ts = std::chrono::duration_cast<std::chrono::seconds>(
-            now.time_since_epoch()).count();
-        entry["last_seen"] = ts;
-        baselines_dirty_ = true;
-        return "";
+        if (matches) {
+            // Update runs counter and last_seen
+            int runs = (entry.contains("runs") && entry["runs"].is_number_integer()) ? entry["runs"].get<int>() : 0;
+            entry["runs"] = runs + 1;
+            auto now = std::chrono::system_clock::now();
+            auto ts = std::chrono::duration_cast<std::chrono::seconds>(
+                now.time_since_epoch()).count();
+            entry["last_seen"] = ts;
+            baselines_dirty_ = true;
+            return "";
+        }
     }
 
     // Mismatch
@@ -2713,6 +2733,24 @@ std::string GovernanceEngine::checkBaseline(const std::string& key,
             "baselines",
             "Output has changed from previously recorded baseline",
             "", ""));
+}
+
+// One inline block's output baseline, for both engines and both tree-walker
+// paths (A56): keyed language:hash:line, the hash over the block's own text,
+// so a baseline recorded on one engine is the one the other checks. "" when
+// governance is off, baselines are off or the block returned nothing.
+std::string GovernanceEngine::checkOutputBaseline(const std::string& language,
+                                                  const std::string& code,
+                                                  const interpreter::NaabVal& result,
+                                                  int line) {
+    if (!isActive() || result.isNull() || !rules().baselines.enabled) return "";
+    std::size_t code_hash = std::hash<std::string>{}(code);
+    char hash_buf[16];
+    snprintf(hash_buf, sizeof(hash_buf), "%06zx", code_hash & 0xFFFFFF);
+    std::string key = language + ":" +
+        (rules().baselines.hash_keys ? std::string(hash_buf) : "") +
+        ":" + std::to_string(line);
+    return checkBaseline(key, result.toString(), result.getTypeName(), line);
 }
 
 // --- Drift Tracking ---

@@ -887,9 +887,9 @@ void Interpreter::flushExecutorOutput(runtime::Executor* executor) {
     }
 }
 
-void Interpreter::checkForeignOutputSize(const std::string& language) {
+void Interpreter::checkForeignResult(const std::string& language) {
     if (!governance_ || !governance_->isActive()) return;
-    std::string err = governance_->checkOutputSize(language, result_);
+    std::string err = governance_->checkForeignResult(language, result_);
     if (!err.empty()) throw std::runtime_error(err);
 }
 

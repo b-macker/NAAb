@@ -587,9 +587,9 @@ void Interpreter::visit(ast::CallExpr& node) {
                         throw std::runtime_error(
                             "Runtime error in " + runtime_name + ".exec(): " + err);
                     }
-                    // What the runtime handed back is a block's output (A18).
+                    // What the runtime handed back is a block's output (A18, A52).
                     if (governance_ && governance_->isActive()) {
-                        std::string out_err = governance_->checkOutputSize(rt.language, result_);
+                        std::string out_err = governance_->checkForeignResult(rt.language, result_);
                         if (!out_err.empty()) throw std::runtime_error(out_err);
                     }
                     return;
@@ -1277,7 +1277,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 profileStart("BLOCK-JS calls");
                 result_ = executor->callFunction(block->member_path, args);
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
-                checkForeignOutputSize(block->metadata.language);  // A18
+                checkForeignResult(block->metadata.language);  // A18, A52
                 profileEnd("BLOCK-JS calls");
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Block returned: {}\n", result_.toString());
@@ -1307,7 +1307,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 profileStart("BLOCK-CPP calls");
                 result_ = executor->callFunction(block->member_path, args);
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
-                checkForeignOutputSize(block->metadata.language);  // A18
+                checkForeignResult(block->metadata.language);  // A18, A52
                 profileEnd("BLOCK-CPP calls");
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Block returned: {}\n", result_.toString());
@@ -1337,7 +1337,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 profileStart("BLOCK-PY calls");
                 result_ = executor->callFunction(block->member_path, args);
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
-                checkForeignOutputSize(block->metadata.language);  // A18
+                checkForeignResult(block->metadata.language);  // A18, A52
                 profileEnd("BLOCK-PY calls");
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Block returned: {}\n", result_.toString());
@@ -2563,7 +2563,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 LOG_DEBUG("[INFO] Calling function: {}\n", function_to_call);
                 result_ = executor->callFunction(function_to_call, args);
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
-                checkForeignOutputSize(block->metadata.language);  // A18
+                checkForeignResult(block->metadata.language);  // A18, A52
 
                 if (!result_.isNull()) {
                     LOG_DEBUG("[SUCCESS] Block call completed\n");

@@ -25,8 +25,9 @@ A text check can be evaded by building the call at runtime. So a cell where the
 runtime contains the action costs nothing when a text check misses. A cell
 where only a text check stands is where an evasion is a real escape. A cell
 where nothing stands is open even to the plain form. Fixing the comment and
-string stripper one bug at a time (#294, #295, interpolation) does not say
-which of these a given bug sits in. This map does.
+string stripper one bug at a time (#294, #295, interpolation in #36) does not
+say which of these a given bug sits in. This map does -- and it said #36 moves
+no cell (below).
 
 ## Method
 
@@ -278,10 +279,17 @@ column where the project has **enabled** shell; the four are Python's env read
 
 ### What this means for the text-check work
 
-Hardening the text checks (reading the raw text as well as the stripped text,
-handling interpolation) helps only the 25 **TEXT** cells: python env (every
-column) and net (`unrestricted`), node fs/net/env with shell enabled, and
-php/cpp/rust net with shell enabled. It does nothing for the 39 **OPEN** cells,
+Hardening the text checks helps at most the 25 **TEXT** cells: python env
+(every column) and net (`unrestricted`), node fs/net/env with shell enabled,
+and php/cpp/rust net with shell enabled. **Interpolation handling (#36, landed
+2026-10-21) moves none of them** (measured): every TEXT cell's rule
+(`dangerous_calls`, `imports`, `network`, `code_injection`) reads the raw,
+unstripped text, so the interpolated form of the action was already refused;
+#36 only makes the checks that read the *stripped* text (`banned_functions`,
+`blocked_commands`, the quality checks) see interpolated calls as they see
+inline ones, and on real code it changed nothing (`corpus_diff`: 0 of 1700
+blocks). Reading the raw text as well is the remaining lever for the TEXT
+cells. None of this does anything for the 39 **OPEN** cells,
 which a plain call already passes, all of them in columns where the project has
 enabled shell. Those need runtime enforcement inside the running language --
 per-language runtime flags, a compile-time gate, or OS-level support (seccomp,

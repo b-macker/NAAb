@@ -821,7 +821,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     }
                     result_ = executor->callFunction(block->metadata.block_id, nval_args);
                     flushExecutorOutput(executor);
-                    checkForeignOutputSize(block->metadata.language);  // A18
+                    checkForeignResult(block->metadata.language);  // A18, A52
 
                     if (block_loader_) {
                         int tokens_saved = (block->metadata.token_count > 0)

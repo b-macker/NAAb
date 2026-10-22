@@ -19,7 +19,8 @@
 # bcf647a0 and had no caller.
 #
 # Every result of foreign code a program receives now goes through one check,
-# checkPolyglotOutput(): inline blocks and persistent runtimes' .exec() on both
+# checkOutputSize() -- since A52 inside checkForeignResult(), which adds the
+# restrictions.polyglot_output format check: inline blocks and persistent runtimes' .exec() on both
 # engines, codegen.run(), and block-library method calls. Like every other
 # limits.* check it is HARD with no level key.
 #
