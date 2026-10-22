@@ -90,14 +90,24 @@ fi
 
 # FL-03 -- plant both A42 texts back into the real files.
 plant() { # FILE FIXED_TEXT BROKEN_TEXT -> the planted file on stdout; rc 1 if FIXED_TEXT absent
+    # Bytes in, bytes out: the sources hold non-ASCII (em dashes, arrows), and
+    # Python's text stdout uses the locale's encoding -- cp1252 under MSYS2,
+    # ASCII under a C locale -- which cannot write them (UnicodeEncodeError,
+    # first seen on build-windows; reproduce with PYTHONUTF8=0
+    # PYTHONCOERCECLOCALE=0 LC_ALL=C).
     python3 - "$1" "$2" "$3" <<'PY'
 import sys
 path, fixed, broken = sys.argv[1:4]
-text = open(path, encoding="utf-8").read()
-if text.count(fixed) != 1:
+text = open(path, "rb").read()
+fixed_b, broken_b = fixed.encode("utf-8"), broken.encode("utf-8")
+if text.count(fixed_b) != 1:
     sys.exit(1)
-sys.stdout.write(text.replace(fixed, broken))
+sys.stdout.buffer.write(text.replace(fixed_b, broken_b))
 PY
+}
+# rc 1 = the text is not in the source; anything else = the helper itself broke.
+plant_problem() { # LABEL RC
+    if [ "$2" -eq 1 ]; then echo "$1: the fixed text is no longer in the source"; else echo "$1: the planting helper failed (rc=$2)"; fi
 }
 A_FIXED='returns {{valid, error}}\n"'
 A_BROKEN='returns {valid, error}\n"'
@@ -106,8 +116,8 @@ M_BROKEN='main { let result = alias.function_name(args) }'
 A_PLANT="$(plant src/stdlib/agent_impl.cpp "$A_FIXED" "$A_BROKEN")"; A_RC=$?
 M_PLANT="$(plant src/cli/main.cpp "$M_FIXED" "$M_BROKEN")"; M_RC=$?
 if [ "$A_RC" -ne 0 ] || [ "$M_RC" -ne 0 ]; then
-    bad "FL-03" "the fixed A42 texts are no longer in the source (agent=$A_RC main=$M_RC)" \
-        "update the planted texts in this arm to the current wording"
+    bad "FL-03" "could not plant the A42 texts (agent rc=$A_RC, main rc=$M_RC)" \
+        "$( [ "$A_RC" -ne 0 ] && plant_problem agent_impl.cpp "$A_RC"; [ "$M_RC" -ne 0 ] && plant_problem main.cpp "$M_RC")"
 else
     A_OUT="$(python3 "$TOOL" --label src/stdlib/agent_impl.cpp - <<<"$A_PLANT" 2>&1)"
     M_OUT="$(python3 "$TOOL" --label src/cli/main.cpp - <<<"$M_PLANT" 2>&1)"
@@ -127,8 +137,8 @@ L_FIXED='LOG_DEBUG("[Manifest] Found: {}\n", manifest_path.string());'
 L_BROKEN='LOG_DEBUG("[Manifest] Found: {} in {}\n", manifest_path.string());'
 L_PLANT="$(plant src/manifest/manifest_loader.cpp "$L_FIXED" "$L_BROKEN")"; L_RC=$?
 if [ "$L_RC" -ne 0 ]; then
-    bad "FL-04" "the LOG_DEBUG site this arm plants into has changed" \
-        "pick another LOG_* call in a real file"
+    bad "FL-04" "could not plant the LOG_DEBUG defect (rc=$L_RC)" \
+        "$(plant_problem manifest_loader.cpp "$L_RC")"
 else
     L_OUT="$(python3 "$TOOL" --label src/manifest/manifest_loader.cpp - <<<"$L_PLANT" 2>&1)"
     if grep -q 'LOG_DEBUG: 2 field(s) but 1 argument(s)' <<<"$L_OUT" && grep -q '^1 problem(s)$' <<<"$L_OUT"; then
