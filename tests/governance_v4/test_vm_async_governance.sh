@@ -39,10 +39,17 @@
 #          which #269 already propagated. A control that the split is what the
 #          defect was, not a general async failure
 #   AG-05  the block count is SHARED across concurrent async fns: limit 6,
-#          six concurrent async fns with one block each run (exit 0); a
-#          seventh is refused (exit 3). A lost increment is a race this arm
-#          would catch only by chance; the count is atomic by construction and
-#          the TSan run is the evidence for that, not this arm
+#          six concurrent async fns with one <<sqlite>> block each run (exit
+#          0); a seventh is refused (exit 3); control: seven run with no limit.
+#          SQLite runs in-process on every build, so the arm measures the count
+#          and not an executor. A lost increment is a race this arm would catch
+#          only by chance; the count is atomic by construction and the TSan run
+#          is the evidence for that, not this arm
+#   AG-05p the same with <<python>>, behind a viability probe (six concurrent
+#          Python async fns with no limit must run). Windows builds run Python
+#          as a separate process, and AG-05 written in Python failed there
+#          (build-windows, 4cd75ccc) with no detail reaching the log; where the
+#          probe fails the arm reports UNMEASURABLE with what the probe saw
 #   AG-06  a tainted argument reaching a sink is checked in EVERY concurrent
 #          async fn. The VM used to mark a fixed label ("argument 1 of
 #          'file.write()'") in the engine's shared taint set, check it, and
@@ -70,7 +77,9 @@ _SYSTMP="${TMPDIR:-/tmp}"
 TEST_TMP="${_SYSTMP}/naab-vm-async-gov-$$"
 PASS_COUNT=0; FAIL_COUNT=0; SKIP_COUNT=0
 pass() { PASS_COUNT=$((PASS_COUNT+1)); echo "  PASS [$1] $2"; }
-fail() { FAIL_COUNT=$((FAIL_COUNT+1)); echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && echo "       -> $3"; }
+# The detail goes on the FAIL line itself: run-all-tests.sh's summary keeps only
+# PASS/FAIL/Result lines, and a detail on its own line never reached a CI log.
+fail() { FAIL_COUNT=$((FAIL_COUNT+1)); echo "  FAIL [$1] $2${3:+ -- $3}"; }
 skip() { SKIP_COUNT=$((SKIP_COUNT+1)); echo "  SKIP [$1] UNMEASURABLE: $2"; }
 cleanup() { rm -rf "$TEST_TMP"; teardown_isolated_trust; }
 trap cleanup EXIT
@@ -238,19 +247,37 @@ else
 fi
 
 # ---- AG-05 one shared count across concurrent async fns --------------------------
-mk_conc() {  # $1 = number of concurrent async fns
+mk_conc() {  # $1 = number of concurrent async fns, $2 = block (default sqlite)
     local n="$1" i
-    printf 'async fn work(i) {\n    let a = <<python\n1\n>>\n    return i\n}\nmain {\n    let fs = []\n'
+    local block
+    if [ "${2:-sqlite}" = python ]; then block='<<python\n1\n>>'; else block='<<sqlite\nSELECT 1 AS v\n>>'; fi
+    printf "async fn work(i) {\n    let a = $block\n    return i\n}\nmain {\n    let fs = []\n"
     for i in $(seq 1 "$n"); do printf '    fs.push(work(%s))\n' "$i"; done
     printf '    let total = 0\n    for f in fs {\n        total = total + (await f)\n    }\n    print("MARKER " + string(total))\n}\n'
 }
 CONC_CFG="{ $BASE, \"limits\": { \"execution\": { \"polyglot_blocks\": 6 } } }"
-k6=$(run "$CONC_CFG" "$(mk_conc 6)" "")
-k7=$(run "$CONC_CFG" "$(mk_conc 7)" "")
-if [ "$(cut -d'|' -f1,2 <<<"$k6")" = "0|ran" ] && [ "$(cut -d'|' -f1,2 <<<"$k7")" = "3|blocked" ]; then
-    pass "AG-05" "six concurrent async fns fit a limit of six; a seventh is refused"
+# $1 = id, $2 = block language
+assert_shared_count() {
+    local id="$1" lang="$2" free k6 k7
+    free=$(run "{ $BASE }" "$(mk_conc 7 "$lang")" "")
+    k6=$(run "$CONC_CFG" "$(mk_conc 6 "$lang")" "")
+    k7=$(run "$CONC_CFG" "$(mk_conc 7 "$lang")" "")
+    if [ "$(cut -d'|' -f1,2 <<<"$free")" != "0|ran" ]; then
+        fail "$id" "shared block count ($lang)" "CONTROL: seven async fns did not run with no limit ($free)"
+    elif [ "$(cut -d'|' -f1,2 <<<"$k6")" = "0|ran" ] && [ "$(cut -d'|' -f1,2 <<<"$k7")" = "3|blocked" ]; then
+        pass "$id" "six concurrent async fns ($lang) fit a limit of six; a seventh is refused"
+    else
+        fail "$id" "shared block count across concurrent async fns ($lang)" "six=$k6 seven=$k7"
+    fi
+}
+assert_shared_count AG-05 sqlite
+
+# ---- AG-05p the same count with Python blocks, where they can run concurrently -----
+probe=$(run "{ $BASE }" "$(mk_conc 6 python)" "")
+if [ "$(cut -d'|' -f1,2 <<<"$probe")" != "0|ran" ]; then
+    skip "AG-05p" "six concurrent <<python>> async fns did not run with no limit on this build ($probe: rc|ran-or-not|marker), so the Python variant cannot be read; AG-05 measures the count"
 else
-    fail "AG-05" "shared block count across concurrent async fns" "six=$k6 seven=$k7"
+    assert_shared_count AG-05p python
 fi
 
 # ---- AG-06 every concurrent tainted write is checked -----------------------------
