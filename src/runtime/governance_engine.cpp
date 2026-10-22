@@ -7557,7 +7557,10 @@ void GovernanceEngine::auditPolyglotOutputs() {
 
 void GovernanceEngine::auditTaintFlows() {
     std::lock_guard<std::mutex> lock(audit_data_mutex_);
-    // Taint flows are already accumulated via addTaintFlow() calls from checkTaintedSink()
+    // Taint flows are recorded as they are refused: taintedSinkDecision()
+    // pushes each one under this lock (addTaintFlow() has no caller). Only
+    // BLOCKED flows are recorded, so the allowed and sanitized counts below
+    // stay 0.
     // Pass 2 just records a summary finding
     if (taint_flows_.empty()) return;
 
