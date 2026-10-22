@@ -652,6 +652,11 @@ static std::string injectAfterHeaders(const std::string& decls, const std::strin
 
 interpreter::NaabVal VM::run() {
     CallFrame* frame = &frames_[frame_count_ - 1];
+    // Handlers below this index belong to frames outside this invocation:
+    // when run() is re-entered for a callback, the native caller sits on the
+    // C++ stack between them and us, so only handlers pushed here may catch
+    // here (A41). The top-level run() starts at 0 and sees every handler.
+    const size_t handler_floor = exception_handlers_.size();
 
 #define READ_INSTR() (*frame->ip++)
 #define CURRENT_CHUNK() (frame->function->chunk)
@@ -2794,9 +2799,13 @@ interpreter::NaabVal VM::run() {
                 // V-TAINT-THROW: preserve taint across throw/catch to prevent laundering
                 bool was_tainted = governance_ ? peekTaint(0) : false;
                 interpreter::NaabVal exception = pop();
-                // Unwind to nearest exception handler
-                if (exception_handlers_.empty()) {
-                    runtimeError("Uncaught exception: %s", exception.toString().c_str());
+                // Unwind to nearest exception handler -- one this invocation
+                // pushed. With none, leave run() carrying the value: a nested
+                // run()'s caller restores the VM and the run() that owns the
+                // handler delivers it (A41).
+                if (exception_handlers_.size() <= handler_floor) {
+                    throw VMThrownValue("Uncaught exception: " + exception.toString() +
+                                        stackTraceText(), exception, was_tainted);
                 }
                 ExceptionHandler handler = exception_handlers_.back();
                 exception_handlers_.pop_back();
@@ -3600,9 +3609,28 @@ interpreter::NaabVal VM::run() {
 #endif
       } catch (const governance::GovernanceHardError&) {
         throw;  // uncatchable — bypass NAAb exception handlers entirely
+      } catch (const VMThrownValue& t) {
+        // A NAAb throw carried out of a callback's run() (OP_THROW): the
+        // catch gets the thrown value itself, as for a direct throw.
+        if (exception_handlers_.size() > handler_floor) {
+            ExceptionHandler handler = exception_handlers_.back();
+            exception_handlers_.pop_back();
+            while (frame_count_ - 1 > handler.frame_index) {
+                closeUpvalues(frames_[frame_count_ - 1].slots);
+                frame_count_--;
+            }
+            frame = &frames_[frame_count_ - 1];
+            stack_top_ = handler.stack_base;
+            syncTaintTop();
+            frame->ip = handler.catch_ip;
+            push(t.value);
+            if (t.tainted) peekTaint(0) = true;  // V-TAINT-THROW across the callback
+        } else {
+            throw;
+        }
       } catch (const VMException& e) {
         // Route VM runtime errors through the exception handler system
-        if (!exception_handlers_.empty()) {
+        if (exception_handlers_.size() > handler_floor) {
             ExceptionHandler handler = exception_handlers_.back();
             exception_handlers_.pop_back();
             while (frame_count_ - 1 > handler.frame_index) {
@@ -3618,7 +3646,7 @@ interpreter::NaabVal VM::run() {
             err["message"] = interpreter::NaabVal::makeString(e.what());
             push(interpreter::NaabVal::makeDict(std::move(err)));
         } else {
-            throw std::runtime_error(e.what());
+            throw;  // keep the type: an outer run() routes it without a second trace
         }
       } catch (const std::runtime_error& e) {
         // Route C++ exceptions (from stdlib, polyglot, etc.) through exception handlers
@@ -3637,7 +3665,7 @@ interpreter::NaabVal VM::run() {
             }
             trace += " [" + fn->source_file + ":" + std::to_string(line) + "]";
         }
-        if (!exception_handlers_.empty()) {
+        if (exception_handlers_.size() > handler_floor) {
             ExceptionHandler handler = exception_handlers_.back();
             exception_handlers_.pop_back();
             while (frame_count_ - 1 > handler.frame_index) {
@@ -4144,8 +4172,33 @@ interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
     // Only when THIS function's own OP_RETURN fires (frame_count_ drops
     // below this level) does run() return.
     int saved_stop = stop_frame_count_;
+    const int caller_frames = frame_count_ - 1;  // frames below the callback's own
+    const size_t caller_handlers = exception_handlers_.size();
     stop_frame_count_ = frame_count_ - 1;
-    interpreter::NaabVal result = run();
+    interpreter::NaabVal result;
+    try {
+        result = run();
+    } catch (...) {
+        // The callback threw out of run() (A41). Put the VM back as the
+        // native caller found it -- frames, handlers, stack, stop level,
+        // depth -- before the exception reaches that caller. Without this a
+        // caller that survives the throw (an agent tool loop, a sort that
+        // rethrows later) returned into a VM still holding the callback's
+        // frames, and the next instruction read the wrong stack slots.
+        while (frame_count_ > caller_frames) {
+            closeUpvalues(frames_[frame_count_ - 1].slots);
+            frame_count_--;
+        }
+        while (exception_handlers_.size() > caller_handlers) exception_handlers_.pop_back();
+        stop_frame_count_ = saved_stop;
+        interpreter::NaabVal* old_top = stack_top_;
+        stack_top_ = saved_stack_top;
+        for (auto* p = stack_top_; p < old_top; p++)
+            *p = interpreter::NaabVal();
+        syncTaintTop();
+        --run_depth_;
+        throw;
+    }
     stop_frame_count_ = saved_stop;
 
     // Restore stack to before the call — the result is returned by value,
@@ -5196,11 +5249,22 @@ void VM::runtimeError(const char* format, ...) {
     va_end(args);
     msg.resize(needed);
 
-    // Build stack trace (always — both caught and uncaught errors need context)
+    // Stack trace (always — both caught and uncaught errors need context)
+    std::string trace = stackTraceText();
+
+    // If there's an exception handler, route through it (with context)
+    if (!exception_handlers_.empty()) {
+        throw VMException(msg + trace);
+    }
+
+    throw std::runtime_error(msg + trace);
+}
+
+std::string VM::stackTraceText() const {
     std::string trace;
     for (int i = frame_count_ - 1; i >= 0; i--) {
-        CallFrame* f = &frames_[i];
-        CompiledFunction* fn = f->function;
+        const CallFrame* f = &frames_[i];
+        const CompiledFunction* fn = f->function;
         int offset = static_cast<int>(f->ip - fn->chunk.code.data()) - 1;
         int line = fn->chunk.getLine(offset);
         trace += "\n  at ";
@@ -5211,13 +5275,7 @@ void VM::runtimeError(const char* format, ...) {
         }
         trace += " [" + fn->source_file + ":" + std::to_string(line) + "]";
     }
-
-    // If there's an exception handler, route through it (with context)
-    if (!exception_handlers_.empty()) {
-        throw VMException(msg + trace);
-    }
-
-    throw std::runtime_error(msg + trace);
+    return trace;
 }
 
 std::vector<std::string> VM::getStackTrace() const {

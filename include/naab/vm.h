@@ -34,6 +34,19 @@ struct VMException : public std::runtime_error {
     VMException(const std::string& msg) : std::runtime_error(msg) {}
 };
 
+// A NAAb `throw` that no handler of the current run() invocation can catch
+// (A41). A callback -- a sort comparator, an agent tool, array.map_fn -- runs
+// in a nested run() with its native caller on the C++ stack between it and
+// the caller's frames, so it may not jump to a handler those frames pushed.
+// It leaves run() as this exception instead, carrying the thrown value and
+// its taint, and the run() that owns the handler delivers the value itself.
+struct VMThrownValue : public VMException {
+    interpreter::NaabVal value;
+    bool tainted = false;
+    VMThrownValue(const std::string& msg, interpreter::NaabVal v, bool t)
+        : VMException(msg), value(std::move(v)), tainted(t) {}
+};
+
 // ============================================================================
 // Opcodes — 8-bit, ~90 instructions
 // ============================================================================
@@ -545,6 +558,8 @@ private:
 
     // Error
     [[noreturn]] void runtimeError(const char* format, ...);
+    // "\n  at fn() [file:line]" for every live frame, innermost first.
+    std::string stackTraceText() const;
     std::vector<std::string> getStackTrace() const;
 };
 

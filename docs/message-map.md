@@ -170,6 +170,9 @@ misleading -- fail-unhelpful. Two verified in pass 3 loosen governance: REST
 skips every per-function check (A45; fixed 2026-10-19, with three extraction defects found while fixing it, A47-A49), and the run token cap misses tool-loop
 calls (A46; fixed 2026-10-19, with the challenge, propose and time-budget gaps found while fixing it). A44 is stricter than documented. The unfiltered model-facing channels (voice, agent
 review, guidance) are where a loosening could enter, so they were checked
-hardest; A41's full reach (whether a misrouted dispatch could reach a governed
-call) is undetermined -- tracing the exception path out of
-`VM::callNaabFunction()` would settle it.
+hardest. A41 was traced and fixed on 2026-10-22: a callback's throw left its
+frames and stack slots behind, so the next call read its receiver from a stale
+slot while keeping the script's own method name and arguments (observed:
+`r.get(...)` dispatched as `agent.get`). Whether such a misroute could reach a
+governed call ungated was not determined before the fix closed the route; it
+cannot occur now (`tests/vm/test_callback_throw.sh`).
