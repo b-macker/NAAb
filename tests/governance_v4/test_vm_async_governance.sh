@@ -45,11 +45,13 @@
 #          and not an executor. A lost increment is a race this arm would catch
 #          only by chance; the count is atomic by construction and the TSan run
 #          is the evidence for that, not this arm
-#   AG-05p the same with <<python>>, behind a viability probe (six concurrent
-#          Python async fns with no limit must run). Windows builds run Python
-#          as a separate process, and AG-05 written in Python failed there
-#          (build-windows, 4cd75ccc) with no detail reaching the log; where the
-#          probe fails the arm reports UNMEASURABLE with what the probe saw
+#   AG-05p the same with <<python>>, behind a viability probe (seven
+#          concurrent Python async fns with no limit must run). Windows builds
+#          run Python as a separate process, and it failed there at random:
+#          concurrent blocks took the same temp script name, and one block's
+#          cleanup deleted another's script (fixed in GenericSubprocessExecutor;
+#          tests/robustness/test_compile_tempdir_cleanup.sh TD-C). Where the
+#          probe fails the arm reports UNMEASURABLE with the error it saw
 #   AG-06  a tainted argument reaching a sink is checked in EVERY concurrent
 #          async fn. The VM used to mark a fixed label ("argument 1 of
 #          'file.write()'") in the engine's shared taint set, check it, and
@@ -65,7 +67,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NAAB="$SCRIPT_DIR/../../build/naab-lang"
+NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
 
 # Every govern.json below is unsigned; with a key in the ambient trust store an
 # unsigned config is an INTEGRITY BLOCK at exit 3, the code this suite reads as
@@ -104,8 +106,16 @@ run() {
     printf '%s\n' "$2" > "$W/t.naab"
     local o rc m=n
     o=$(cd "$W" && AG_BLOCKED_VAR=VALUE_THAT_MUST_NOT_PRINT timeout 60s "$NAAB" run t.naab ${3:-} 2>&1); rc=$?
+    printf '%s\n' "$o" > "$TEST_TMP/last.out"
     [ -f "$W/MARK" ] && m=y
     if grep -q "MARKER" <<<"$o"; then echo "$rc|ran|$m"; else echo "$rc|blocked|$m"; fi
+}
+
+# The first line of the last run's output that says what went wrong, for a
+# FAIL or SKIP line (run() is called in $( ), so it leaves its output in a file).
+why() {
+    grep -v '^\[governance\]' "$TEST_TMP/last.out" 2>/dev/null \
+        | grep -m1 -iE "error|gone|can't|failed|denied" | cut -c1-160
 }
 
 BASE='"mode": "enforce", "security": { "sandbox_level": "elevated" }'
@@ -258,24 +268,26 @@ mk_conc() {  # $1 = number of concurrent async fns, $2 = block (default sqlite)
 CONC_CFG="{ $BASE, \"limits\": { \"execution\": { \"polyglot_blocks\": 6 } } }"
 # $1 = id, $2 = block language
 assert_shared_count() {
-    local id="$1" lang="$2" free k6 k7
-    free=$(run "{ $BASE }" "$(mk_conc 7 "$lang")" "")
-    k6=$(run "$CONC_CFG" "$(mk_conc 6 "$lang")" "")
-    k7=$(run "$CONC_CFG" "$(mk_conc 7 "$lang")" "")
+    local id="$1" lang="$2" free k6 k7 free_why k6_why k7_why
+    free=$(run "{ $BASE }" "$(mk_conc 7 "$lang")" ""); free_why=$(why)
+    k6=$(run "$CONC_CFG" "$(mk_conc 6 "$lang")" ""); k6_why=$(why)
+    k7=$(run "$CONC_CFG" "$(mk_conc 7 "$lang")" ""); k7_why=$(why)
     if [ "$(cut -d'|' -f1,2 <<<"$free")" != "0|ran" ]; then
-        fail "$id" "shared block count ($lang)" "CONTROL: seven async fns did not run with no limit ($free)"
+        fail "$id" "shared block count ($lang)" "CONTROL: seven async fns did not run with no limit ($free: $free_why)"
     elif [ "$(cut -d'|' -f1,2 <<<"$k6")" = "0|ran" ] && [ "$(cut -d'|' -f1,2 <<<"$k7")" = "3|blocked" ]; then
         pass "$id" "six concurrent async fns ($lang) fit a limit of six; a seventh is refused"
     else
-        fail "$id" "shared block count across concurrent async fns ($lang)" "six=$k6 seven=$k7"
+        fail "$id" "shared block count across concurrent async fns ($lang)" "six=$k6 ($k6_why) seven=$k7 ($k7_why)"
     fi
 }
 assert_shared_count AG-05 sqlite
 
 # ---- AG-05p the same count with Python blocks, where they can run concurrently -----
-probe=$(run "{ $BASE }" "$(mk_conc 6 python)" "")
+# The probe is the arm's own no-limit run (seven): it first asked for six, so a
+# build that ran six and not seven passed the probe and failed the control.
+probe=$(run "{ $BASE }" "$(mk_conc 7 python)" ""); probe_why=$(why)
 if [ "$(cut -d'|' -f1,2 <<<"$probe")" != "0|ran" ]; then
-    skip "AG-05p" "six concurrent <<python>> async fns did not run with no limit on this build ($probe: rc|ran-or-not|marker), so the Python variant cannot be read; AG-05 measures the count"
+    skip "AG-05p" "seven concurrent <<python>> async fns did not run with no limit on this build ($probe: $probe_why), so the Python variant cannot be read; AG-05 measures the count"
 else
     assert_shared_count AG-05p python
 fi
