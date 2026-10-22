@@ -72,15 +72,76 @@
 #   C-19  a run recorded before completeness was kept: codemap's own `run`
 #         always named its --only regex in `source`, so it reads PARTIAL; an
 #         old ingest reads unknown
+#   C-20  `status` -- the line the session-start hook prints -- gives the
+#         refresh commands whenever the run a read would use is not current,
+#         and names why: (a) recorded at another commit, (b) not complete,
+#         (d) files changed after its build, (e) no run at all; control (c):
+#         a complete run at HEAD with no stale file prints no refresh. Each
+#         reason is checked alone where the fixture allows (JSON
+#         refresh_reasons), so a mutant dropping one reason turns its arm red
+#   C-21  the recovery CLAUDE.md and the skill give for a run stopped after
+#         its test phase works on the layout `coverage run` leaves: counters
+#         in .cache/codemap/coverage/NAME/gcda and parallel.py's results in
+#         NAME/parallel, no coverage.json yet. `coverage ingest --name NAME
+#         --units-dir .cache/codemap/coverage/NAME/gcda` maps them in place,
+#         reads completeness and unit names from NAME/parallel, and keeps the
+#         counters; control: before it, the stopped run is not readable
 #   C-10  positions matched to no single definition are enumerated EXACTLY:
 #         the one line holding twin_a and twin_b, nothing else -- so a new
 #         fixture shape that fails to map turns this red; both twins read
 #         UNMEASURED (twin_b never ran, but only position could say so), and
 #         untested does not list twin_b as executed by no unit
+#   C-22  roadmap item 1: helper_binaries takes a helper binary a suite calls
+#         from the instrumented build when it is there, from build/ when only
+#         that has it (and says "uninstrumented"), and reports one in neither
+#         "absent". coverage run used to take every helper from build/
+#   C-23  the fixture's second program -- the only route to only_in_second --
+#         as helper_binaries picks it (instrumented) credits only_in_second to
+#         its unit; control: build/'s copy, what coverage run used to take,
+#         writes nothing and only_in_second is never credited
+#   C-29  roadmap item 8: the second program's main is indexed beside the
+#         fixture's (one USR, two files); each is stored per file, so the
+#         second's is credited to its run and neither is an unmatched position
+#         (stored once, gov_main.cpp's main on NAAb had no entry of its own and
+#         its position read UNMEASURED in every run)
+#   C-24  run_extra_units runs a codemap-only unit with its own GCOV_PREFIX, and
+#         `coverage ingest` names it gtest:naab_unit_tests (EXTRA_UNIT_DISPLAY),
+#         so the recovery path names it too; a unit not built reads "absent";
+#         control: dead_function still reads no unit
+#   C-24c a "no unit" reading names the binaries THAT run did not instrument
+#         (from its metadata); an ingest, which records none, says so; a run
+#         with everything instrumented names none
+#   C-24b extra_units runs the GoogleTest binary through the repo's own runner
+#         (its exclusions apply) and reports a test program not built as None
+#   C-25  roadmap item 2: impact lists, under each changed function, the
+#         tracked .md lines naming it (NOTES.md's X1 row for dead_function);
+#         sink, named only inside the longer identifier sink_all, and
+#         via_two_lambdas, named nowhere, list none; control (c): --no-records
+#         lists none and still lists the functions
+#   C-26  roadmap item 3: a commit changing only Markdown documentation is no
+#         reason to refresh coverage and reads print no "recorded at" note;
+#         (b) a CLAUDE.md (project_context reads it by name), a .md under
+#         tests/ and a non-Markdown file under docs/ each keep both; (c) a
+#         commit git cannot compare keeps the reason and says why
+#   C-27  roadmap item 7: `untested --group` puts sib_a and sib_b (group.cpp,
+#         both called only by caller_ab) in one group; control: lone_fn, which
+#         shares no caller, and caller_ab, which has none, stand alone
+#   C-28  roadmap item 5: `sweep init` lists group.cpp's four untested functions
+#         in docs/sweeps/grp.tsv and refuses to overwrite it; `sweep status`
+#         counts one done (state AND evidence), one open, one state without
+#         evidence (not done); a row whose function was renamed is flagged NOT
+#         IN INDEX and not counted done even with state and evidence; --add adds
+#         only what the worklist lacks and changes no row
 #
 # Needs a C++ compiler, gcov and libclang; each missing piece is UNMEASURABLE.
 # ============================================================
 set -uo pipefail
+# Every fixture run below names its own GCOV_PREFIX, and C-06 needs one run with
+# none. Under `codemap coverage run` each unit inherits a prefix of its own
+# (parallel.py --unit-env), so the "prefix-less" run wrote into that one and
+# C-06 failed in the A64 sweep run for that reason alone (reproduced: 30 of 31
+# with GCOV_PREFIX set, 31 of 31 without).
+unset GCOV_PREFIX GCOV_PREFIX_STRIP
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -115,27 +176,68 @@ R="$W/repo"
 mkdir -p "$R"
 cp -R "$FIXTURE/." "$R/"
 cd "$R" || exit 1
+# A second program, the fixture's stand-in for a helper binary a suite calls
+# (naab-lsp, naab-verify-audit) or a C++ test program (naab_unit_tests): only it
+# reaches only_in_second(). Its main is indexed beside the fixture's own (other.cpp):
+# one name, one USR (both main(int, char**): a different signature is a different
+# USR and no collision at all), two definitions, as naab-lang's and naab-gov's are --
+# each stored per file (roadmap item 8), so neither adds an unmatched position
+# (C-10 pins those) and each is credited to its own program (C-29).
+printf '// reachable only through the second program\nint only_in_second(int x) { return x * 3 + 1; }\n' > second.cpp
+printf 'int only_in_second(int x);\nint main(int argc, char** argv) { (void)argc; (void)argv; return only_in_second(2) == 7 ? 0 : 1; }\n' > second_main.cpp
+# C-27/C-28: two siblings only caller_ab calls, and lone_fn; linked into the
+# fixture, called by nothing, so every one is executed by no unit.
+cat > group.cpp <<'GRP'
+// roadmap items 5 and 7: siblings one caller reaches, and a function alone
+int sib_a(int x) { return x + 1; }
+int sib_b(int x) { return x + 2; }
+int caller_ab(int x) { return sib_a(x) + sib_b(x); }
+int lone_fn(int x) { return x * 5; }
+GRP
+# A decision record for C-25: it names dead_function in a record row, and
+# `sink` only inside the longer identifier sink_all, which must not count.
+cat > NOTES.md <<'EOF'
+# Fixture notes
+
+| Id | Finding |
+|---|---|
+| X1 | `dead_function` is never called |
+
+## Helpers
+
+`sink_all` is a longer identifier; the shorter name never appears alone here.
+EOF
 CM="$(native_path "$REPO/tools/codemap/codemap.py")"
 cm() { python3 "$CM" --repo . --cache .cache/codemap "$@" 2>&1; }
+cmc() { local c="$1"; shift; python3 "$CM" --repo . --cache "$c" "$@" 2>&1; }   # another cache
+reasons() { python3 -c 'import json, sys; d = json.load(sys.stdin); c = d["coverage"] or {}
+print("%s|%s" % (",".join(c.get("refresh_reasons", [])), "refresh" if d["coverage_refresh"] else "none"))'; }
+REFRESH='refresh: `cmake -S . -B build-cov -DNAAB_COVERAGE=ON && make -C build-cov naab-lang naab-gov naab-lsp naab-verify-audit naab_unit_tests naab_governance test_governance_c_api -j4`, then `python3 tools/codemap/codemap.py coverage run` in the background'
 g() { git -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "$@"; }
 git init -q . && git config core.autocrlf false
-printf '.cache/\nbuild/\nbuild-nowrap/\nunits/\n' > .gitignore
+printf '.cache/\nbuild/\nbuild-nowrap/\nbuild2/\nplain/\nunits/\n' > .gitignore
 g add -A && g commit -q -m "fixture"
 
 # --- builds: with the wrap (as NAAB_COVERAGE links naab-lang) and without it -------
 build() {  # dir wrap(yes|no)
     mkdir -p "$1"
-    ( cd "$1" && for f in fixture other templ; do
+    ( cd "$1" && for f in fixture other templ group; do
           "$CXX" -std=c++17 -O0 -g --coverage -I../include -c "../$f.cpp" -o "$f.cpp.o" || exit 1
       done
       if [ "$2" = yes ]; then
           "$CC" -c "$WRAP" -o coverage_exit.o || exit 1
-          "$CXX" --coverage -Wl,--wrap=_exit -Wl,--wrap=_Exit fixture.cpp.o other.cpp.o templ.cpp.o coverage_exit.o -o fixture -pthread
+          "$CXX" --coverage -Wl,--wrap=_exit -Wl,--wrap=_Exit fixture.cpp.o other.cpp.o templ.cpp.o group.cpp.o coverage_exit.o -o fixture -pthread
       else
-          "$CXX" --coverage fixture.cpp.o other.cpp.o templ.cpp.o -o fixture -pthread
+          "$CXX" --coverage fixture.cpp.o other.cpp.o templ.cpp.o group.cpp.o -o fixture -pthread
       fi ) > "$W/build-$2.log" 2>&1
 }
-if ! build build yes || ! build build-nowrap no; then
+build_second() {  # dir --coverage|"" -- the second program, instrumented (build2) or not (plain)
+    mkdir -p "$1"
+    ( cd "$1" && "$CXX" -std=c++17 -O0 -g $2 -c ../second.cpp -o second.cpp.o \
+          && "$CXX" -std=c++17 -O0 -g $2 -c ../second_main.cpp -o second_main.cpp.o \
+          && "$CXX" $2 second.cpp.o second_main.cpp.o -o second ) > "$W/build-second$2.log" 2>&1
+}
+if ! build build yes || ! build build-nowrap no || ! build_second build2 --coverage || ! build_second plain ""; then
     skip C-ALL "the fixture did not build with --coverage here"; cat "$W"/build-*.log | sed 's/^/       | /'; finish
 fi
 python3 - <<'EOF'
@@ -143,7 +245,7 @@ import json, os
 w = os.getcwd()
 json.dump([{"directory": os.path.join(w, "build"), "file": os.path.join(w, f),
             "arguments": ["c++", "-std=c++17", "-I" + os.path.join(w, "include"), "-c", os.path.join(w, f), "-o", f + ".o"]}
-           for f in ("fixture.cpp", "other.cpp", "extra.cpp", "templ.cpp")],
+           for f in ("fixture.cpp", "other.cpp", "extra.cpp", "templ.cpp", "second.cpp", "second_main.cpp", "group.cpp")],
           open(os.path.join(w, "build", "compile_commands.json"), "w"))
 EOF
 IDX="$(cm index --jobs 2)"; irc=$?
@@ -293,6 +395,27 @@ if grep -q "coverage: full (complete" <<<"$SDEF"; then
 else
     bad C-17c "status names a different coverage run" "$SDEF"
 fi
+JDEF="$(cm --json status | reasons)"
+if grep -q "coverage: full (complete)\. " <<<"$SDEF" && ! grep -qF "refresh:" <<<"$SDEF" && [ "$JDEF" = "|none" ]; then
+    ok C-20c "control: a complete run at HEAD with no stale file prints no refresh"
+else
+    bad C-20c "status asked to refresh a current, complete run" "$JDEF
+$SDEF"
+fi
+mkdir -p .cache/c_part/coverage && cp -R .cache/codemap/coverage/part .cache/c_part/coverage/
+SPART="$(cmc .cache/c_part status)"; JPART="$(cmc .cache/c_part --json status | reasons)"
+if grep -qF "coverage: part (PARTIAL; $REFRESH" <<<"$SPART" && [ "$JPART" = "not complete|refresh" ]; then
+    ok C-20b "a partial run at HEAD: status gives the refresh commands, for that reason alone"
+else
+    bad C-20b "a partial run was not flagged for refresh (or for another reason)" "$JPART
+$SPART"
+fi
+EMPTY="$(cmc .cache/c_none status)"
+if grep -qF "coverage: none ($REFRESH" <<<"$EMPTY"; then
+    ok C-20e "no coverage run at all: status gives the same refresh commands"
+else
+    bad C-20e "status with no coverage run did not say how to make one" "$EMPTY"
+fi
 if grep -q "executed by NO unit of coverage full.* 1 unit(s) of this run timed out (C)" <<<"$RFULL" \
    && ! grep -q "timed out" <<<"$RPART"; then
     ok C-18 "a no-unit reading names the run's timed-out unit; control: a run without timeouts names none"
@@ -315,6 +438,27 @@ if grep -qE "^legacyrun +[^ ]+ +PARTIAL " <<<"$LIST2" && grep -qE "^legacyingest
     ok C-19 "an old codemap --only run reads PARTIAL from its recorded source; an old ingest reads unknown"
 else
     bad C-19 "a run recorded before completeness was misread" "$LIST2"
+fi
+
+# ---------------------------------------------------------------- C-21
+# What `coverage run` leaves when it is stopped after the suite, before the mapping
+# writes coverage.json (run_suite_for_coverage: units in NAME/gcda, results in NAME/parallel)
+STOPPED=.cache/codemap/coverage/stopped
+mkdir -p "$STOPPED/gcda" && cp -R cfull/units/. "$STOPPED/gcda/" && cp -R cfull/parallel "$STOPPED/"
+BEFORE="$(cm tested sink --cov stopped)"
+REC="$(cm coverage ingest --name stopped --units-dir "$STOPPED/gcda" --build-dir build)"
+AFTER="$(cm tested sink --cov stopped)"
+if grep -q "no coverage 'stopped'" <<<"$BEFORE" \
+   && grep -q "complete: every unit the suite listed (4) ran" <<<"$REC" \
+   && grep -qE "^ +[0-9]+  A$" <<<"$AFTER" && grep -qE "^ +[0-9]+  B$" <<<"$AFTER" \
+   && [ -n "$(find "$STOPPED/gcda" -name '*.gcda' | head -1)" ]; then
+    ok C-21 "a run stopped before its mapping is re-mapped in place by the documented ingest: complete, units named, counters kept"
+else
+    bad C-21 "the documented recovery did not re-map a stopped run" "$BEFORE
+---
+$REC
+---
+$AFTER"
 fi
 
 # ---------------------------------------------------------------- C-07 / C-08
@@ -344,6 +488,34 @@ if grep -q "STALE INDEX: fixture.cpp" <<<"$STALE" && ! grep -q "STALE INDEX" <<<
     ok C-08 "impact on an index older than the changed file says so; after re-indexing it does not"
 else
     bad C-08 "a stale index was not reported (or a fresh one was)" "$STALE"
+fi
+
+# ---------------------------------------------------------------- C-25 / C-25c
+# the "doc" lines printed under one changed function in impact's output
+docs_of() { awk -v fn="$1" '$0 ~ "^     " fn " +fixture[.]cpp:" {on=1; next}
+                            on && /^         doc  / {print; next} {on=0}' <<<"$2"; }
+DDOC="$(docs_of dead_function "$IMP")"; SDOC="$(docs_of sink "$IMP")"; VDOC="$(docs_of via_two_lambdas "$IMP")"
+IMPJ="$(cm --json impact --cov fx)"
+DJSON="$(python3 -c 'import json, sys; d = json.load(sys.stdin)
+print(";".join("%s=%s" % (c["name"], ",".join("%s:%d" % (r["file"], r["line"]) for r in c["records"]))
+               for c in d["changed"] if c["name"] in ("dead_function", "sink")))' <<<"$IMPJ" 2>&1)"
+if grep -qE "doc  NOTES.md:[0-9]+ \[X1\] " <<<"$DDOC" && [ -z "$SDOC" ] && [ -z "$VDOC" ] \
+   && grep -q "records: 1 of 3 changed functions are named" <<<"$IMP" \
+   && grep -qE "dead_function=NOTES.md:[0-9]+" <<<"$DJSON" && grep -qE "(^|;)sink=(;|$)" <<<"$DJSON"; then
+    ok C-25 "impact lists the record naming dead_function (X1); sink (named only inside sink_all) and via_two_lambdas list none"
+else
+    bad C-25 "impact's records are missing, or a longer identifier / an unnamed function counted" "dead_function: $DDOC
+sink: $SDOC
+via_two_lambdas: $VDOC
+json: $DJSON
+$IMP"
+fi
+NOREC="$(cm impact --cov fx --no-records)"
+if ! grep -q "^         doc  " <<<"$NOREC" && ! grep -q "records:" <<<"$NOREC" \
+   && grep -qE "^ +dead_function +fixture.cpp:" <<<"$NOREC"; then
+    ok C-25c "control: --no-records prints the changed functions and no record lines"
+else
+    bad C-25c "--no-records still searched the records, or dropped the changed functions" "$NOREC"
 fi
 
 # ---------------------------------------------------------------- C-13
@@ -402,6 +574,15 @@ else
 $SK2
 $(head -1 <<<"$UT3")"
 fi
+mkdir -p .cache/c_stale/coverage && cp -R .cache/codemap/coverage/fx2 .cache/c_stale/coverage/
+SSTALE="$(cmc .cache/c_stale status)"; JSTALE="$(cmc .cache/c_stale --json status | reasons)"
+if grep -qF "1 file(s) changed after its build; $REFRESH" <<<"$SSTALE" \
+   && [ "$JSTALE" = "not complete,1 file(s) changed after its build|refresh" ]; then
+    ok C-20d "a run whose build predates an edited file: status names the stale file count and the refresh"
+else
+    bad C-20d "a stale-build run was not flagged for refresh" "$JSTALE
+$SSTALE"
+fi
 if grep -qE "^ +1  000_A$" <<<"$MN2"; then
     ok C-11c "control: other.cpp, not edited, is still measured -- the stale check is per file"
 else
@@ -425,6 +606,14 @@ else
     bad C-12 "the commit a coverage run is about was not reported (or was, at its own commit)" "$CLEAN
 ---
 $MOVED"
+fi
+SMOVED="$(cm status)"; JMOVED="$(cm --json status | reasons)"
+if grep -qE "coverage: [a-z0-9]+ \(complete, recorded at [0-9a-f]+; refresh: " <<<"$SMOVED" && grep -qF "; $REFRESH" <<<"$SMOVED" \
+   && [ "$JMOVED" = "recorded at another commit|refresh" ]; then
+    ok C-20 "a complete run recorded at another commit: status gives the refresh commands, for that reason alone"
+else
+    bad C-20 "a run from another commit was not flagged for refresh" "$JMOVED
+$SMOVED"
 fi
 
 # ---------------------------------------------------------------- C-15 / C-15c
@@ -469,6 +658,225 @@ if [ "$rc" -ne 0 ] && grep -q "DNAAB_COVERAGE=ON" <<<"$OUT"; then
     ok C-09 "ingest without a coverage build is refused with the command that makes one"
 else
     bad C-09 "a build directory without .gcno files was accepted (rc=$rc)" "$OUT"
+fi
+
+# ---------------------------------------------------------------- C-22 / C-23 / C-24
+# Roadmap item 1. `coverage run` copied every helper binary a suite calls from the
+# ordinary build/, so code only naab-lsp or naab-verify-audit reaches read
+# "executed by NO unit"; and the C++ test programs (naab_unit_tests, the C API's)
+# were never run at all. The fixture's second program plays each part: build2/ is
+# the instrumented build, plain/ the ordinary one.
+py() { python3 -c "import sys; sys.path.insert(0, '$(native_path "$REPO/tools/codemap")'); import codemap
+$1" 2>&1; }
+cp plain/second plain/onlyplain
+PICK="$(py 'for n, src, o in codemap.helper_binaries("plain", "build2", ["second", "onlyplain", "nowhere"]):
+    print(n, o, src)')"
+if grep -qx "second instrumented build2/second" <<<"$PICK" \
+   && grep -qx "onlyplain uninstrumented plain/onlyplain" <<<"$PICK" \
+   && grep -qx "nowhere absent None" <<<"$PICK"; then
+    ok C-22 "a helper binary comes from the instrumented build when it is there, else from build/ (said so), else absent"
+else
+    bad C-22 "helper binaries were not taken from the instrumented build" "$PICK"
+fi
+# C-23: the binary helper_binaries picks writes counters; the one from build/ -- what
+# coverage run used to copy -- writes none, so only_in_second, which is in no other
+# binary, read NOT IN THE BUILD (code a helper shares with naab-lang read "executed by
+# NO unit" instead; either way it was never credited)
+SRC2="$(py 'print(codemap.helper_binaries("plain", "build2", ["second"])[0][1])')"
+mkdir -p units2 units2c
+GCOV_PREFIX="$R/units2/000_S" "./$SRC2" >/dev/null 2>&1; s2=$?
+GCOV_PREFIX="$R/units2c/000_S" ./plain/second >/dev/null 2>&1; s2c=$?
+cm coverage ingest --name second --units-dir units2 --build-dir build2 >/dev/null
+cm coverage ingest --name secondc --units-dir units2c --build-dir build2 >/dev/null
+T2="$(cm tested only_in_second --cov second)"
+T2C="$(cm tested only_in_second --cov secondc)"
+if [ "$s2" -eq 0 ] && grep -qE "^ +1  000_S$" <<<"$T2" && grep -q "NOT IN THE BUILD" <<<"$T2C" \
+   && ! grep -qE "^ +[0-9]+  000_S$" <<<"$T2C" && [ "$s2c" -eq 0 ]; then
+    ok C-23 "only_in_second, reached only through the second program: executed when that program is the instrumented copy, never credited when it is build/'s -- what coverage run used to copy"
+else
+    bad C-23 "the instrumented helper's run was not credited (or the build/ copy's was)" "picked: $SRC2 rc=$s2/$s2c
+$T2
+---
+$T2C"
+fi
+# C-29 (roadmap item 8): the second program's main and the fixture's share a USR.
+# Stored once, only one of the two had an entry -- gov_main.cpp's main on NAAb was
+# unmatched in every run. Stored per file, each is credited to the program that ran it.
+TM2="$(cm tested second_main.cpp:main --cov second)"
+TMO="$(cm tested other.cpp:main --cov second)"
+FXO="$(cm tested other.cpp:main --cov fx)"
+FX2="$(cm tested second_main.cpp:main --cov fx)"
+UM2="$(python3 -c "import json; print(' '.join(sorted(json.load(open('.cache/codemap/coverage/second/coverage.json'))['unmatched'])))" 2>&1)"
+if grep -qE "^ +1  000_S$" <<<"$TM2" && grep -q "NOT IN THE BUILD" <<<"$TMO" \
+   && grep -qE "executed by [1-9][0-9]* unit" <<<"$FXO" && grep -q "NOT IN THE BUILD" <<<"$FX2" \
+   && ! grep -q "second_main" <<<"$UM2"; then
+    ok C-29 "two mains on one USR, each read in its own program: the second's run credits second_main.cpp's, the fixture's runs other.cpp's, and neither position is unmatched"
+else
+    bad C-29 "a multiply-defined main was not mapped per file" "$TM2
+---
+$TMO
+---
+$FXO
+---
+$FX2
+--- unmatched: $UM2"
+fi
+# C-24: an extra unit runs with its own prefix under its codemap-only name, and the
+# name survives a re-map by `coverage ingest` (EXTRA_UNIT_DISPLAY); an unbuilt one is
+# reported absent, not an error. Control: dead_function still reads no unit.
+mkdir -p units3
+EXTRA="$(py "st, names = codemap.run_extra_units('$R/units3', [('900_gtest_naab_unit_tests', 'gtest:naab_unit_tests', ['$R/build2/second']), ('901_capi_test_governance_c_api', 'capi:test_governance_c_api', None)], '$R')
+for k in sorted(st): print(k, '=', st[k])")"
+cm coverage ingest --name extra --units-dir units3 --build-dir build2 >/dev/null
+T3="$(cm tested only_in_second --cov extra)"
+if grep -qx "gtest:naab_unit_tests = ran (exit 0)" <<<"$EXTRA" \
+   && grep -q "^capi:test_governance_c_api = absent" <<<"$EXTRA" \
+   && grep -qE "^ +1  gtest:naab_unit_tests$" <<<"$T3" \
+   && grep -q "executed by NO unit" <<<"$(cm tested dead_function --cov fx)"; then
+    ok C-24 "an extra unit runs with its own prefix and reads under its codemap-only name; an unbuilt one is absent, not an error"
+else
+    bad C-24 "the extra unit was not run, not credited, or not named" "$EXTRA
+---
+$T3"
+fi
+
+# C-24c: a "no unit" reading names what THAT run did not instrument. An ingest records
+# no binaries, so it says so; a run whose metadata lists naab-lsp uninstrumented and the
+# C API test absent names both, and a run with everything instrumented names none.
+python3 - <<'PYMETA'
+import json, os, shutil
+for name, binaries, extra in (("blind", {"naab-lsp": "uninstrumented", "naab-gov": "instrumented"},
+                               {"capi:test_governance_c_api": "absent", "gtest:naab_unit_tests": "ran (exit 0)"}),
+                              ("seeing", {"naab-lsp": "instrumented"}, {"gtest:naab_unit_tests": "ran (exit 0)"})):
+    dst = os.path.join(".cache/codemap/coverage", name)
+    shutil.rmtree(dst, ignore_errors=True)
+    shutil.copytree(".cache/codemap/coverage/fx", dst)
+    p = os.path.join(dst, "coverage.json")
+    d = json.load(open(p)); d.setdefault("meta", {}).update(name=name, binaries=binaries, extra_units=extra)
+    json.dump(d, open(p, "w"))
+PYMETA
+NB_FX="$(cm tested dead_function --cov fx)"; NB_BL="$(cm tested dead_function --cov blind)"; NB_SE="$(cm tested dead_function --cov seeing)"
+if grep -q "does not record which binaries it instrumented" <<<"$NB_FX" \
+   && grep -q "(this run's: naab-lsp, capi:test_governance_c_api)" <<<"$NB_BL" \
+   && grep -q "a test reaching it only through an uninstrumented binary is not seen)" <<<"$NB_SE" \
+   && ! grep -q "this run's:" <<<"$NB_SE"; then
+    ok C-24c "a no-unit reading names the run's own uninstrumented binaries; an ingest says it does not know; a fully instrumented run names none"
+else
+    bad C-24c "the no-unit note does not reflect what the run instrumented" "$NB_FX
+---
+$NB_BL
+---
+$NB_SE"
+fi
+
+# C-24b: which C++ test programs a run has, and how each is run: the GoogleTest binary
+# through the repo's own runner (its exclusions apply), the C API test directly; one
+# not built is None. Fake instrumented build: the gtest binary only.
+mkdir -p "$W/fakecov" && : > "$W/fakecov/naab_unit_tests" && chmod +x "$W/fakecov/naab_unit_tests"
+EU="$(py "for d, disp, argv in codemap.extra_units('/copy', '$W/fakecov'): print(d, disp, argv)")"
+if grep -qx "900_gtest_naab_unit_tests gtest:naab_unit_tests \['bash', '/copy/tests/unit/run_unit_tests.sh', '$W/fakecov/naab_unit_tests'\]" <<<"$EU" \
+   && grep -qx "901_capi_test_governance_c_api capi:test_governance_c_api None" <<<"$EU"; then
+    ok C-24b "the GoogleTest binary runs through the repo's runner; a test program not built is None"
+else
+    bad C-24b "extra_units chose the wrong programs or the wrong way to run them" "$EU"
+fi
+
+# ---------------------------------------------------------------- C-27 (roadmap item 7)
+GRP="$(cm untested --under group.cpp --cov fx --group)"
+GJ="$(cm --json untested --under group.cpp --cov fx --group | python3 -c 'import json, sys; d = json.load(sys.stdin)
+print("groups=" + ";".join("+".join(sorted(m["name"] for m in g["members"])) + "@" + ",".join(g["shared_callers"])
+                           for g in d["groups"]))
+print("alone=" + ",".join(sorted(m["name"] for m in d["alone"])))' 2>&1)"
+if [ "$GJ" = "groups=sib_a+sib_b@caller_ab
+alone=caller_ab,lone_fn" ] && grep -q "group of 2, shared callers: caller_ab" <<<"$GRP"; then
+    ok C-27 "untested --group: sib_a and sib_b form one group by their shared caller; lone_fn and caller_ab stand alone"
+else
+    bad C-27 "untested siblings were not grouped, or an unrelated function joined them" "$GJ
+$GRP"
+fi
+
+# ---------------------------------------------------------------- C-28 (roadmap item 5)
+SW="$(cm sweep init grp --under group.cpp --cov fx)"
+SWAGAIN="$(cm sweep init grp --under group.cpp --cov fx)"; swrc=$?
+# record outcomes by hand, as a sweep would: one with evidence, one without; and
+# rename a third row's function, as a later refactor would
+python3 - <<'PYEDIT'
+p = "docs/sweeps/grp.tsv"
+out = []
+for ln in open(p).read().splitlines():
+    c = ln.split("\t")
+    if c[0] == "sib_a":
+        c[3:7] = ["lost", "remove", "abc1234 git log -S", "owner"]
+    elif c[0] == "sib_b":
+        c[3:7] = ["decided", "none", "", "owner"]
+    elif c[0] == "lone_fn":
+        c[0] = "lone_fn_renamed"; c[3:7] = ["working", "none", "a test", "owner"]
+    out.append("\t".join(c))
+open(p, "w").write("\n".join(out) + "\n")
+PYEDIT
+SWS="$(cm sweep status grp)"
+SWJ="$(cm --json sweep status grp | python3 -c 'import json, sys; d = json.load(sys.stdin)
+print("%(rows)d %(done)d %(open)d %(state_without_evidence)d" % d, ",".join(d["not_in_index"]), ",".join(d["open_rows"]))' 2>&1)"
+SWADD="$(cm sweep init grp --under group.cpp --cov fx --add)"
+if grep -q "4 functions listed" <<<"$SW" && [ "$swrc" -ne 0 ] && grep -q "exists" <<<"$SWAGAIN" \
+   && [ "$SWJ" = "4 1 1 1 lone_fn_renamed caller_ab" ] && grep -q "NOT IN INDEX (1)" <<<"$SWS" \
+   && grep -q "STATE WITHOUT EVIDENCE (1)" <<<"$SWS" && grep -q "1 functions added (3 already listed)" <<<"$SWADD"; then
+    ok C-28 "sweep: init lists 4 and refuses to overwrite; status: 1 done, 1 open, 1 state without evidence; a renamed row is flagged and not done; --add adds only the function the rename left unlisted"
+else
+    bad C-28 "the sweep worklist miscounted, overwrote, or passed a renamed row as done" "$SW
+$SWAGAIN
+$SWJ
+$SWS
+$SWADD"
+fi
+
+# ---------------------------------------------------------------- C-26 (roadmap item 3)
+# Last, because its commits would put a "recorded at another commit" note into the
+# reads of every arm after it. Files are added by name: units2/units3 are untracked.
+gc() { g add -- "$@" && g commit -q -m "c26 $1"; }
+D0="$(git rev-parse --short HEAD)"
+mkdir -p .cache/c_doc/coverage && cp -R .cache/codemap/coverage/fx .cache/c_doc/coverage/
+cp .cache/codemap/codemap.db .cache/c_doc/          # `tested` reads the index
+python3 - "$D0" <<'EOF'
+import json, sys
+p = ".cache/c_doc/coverage/fx/coverage.json"
+d = json.load(open(p)); d.setdefault("meta", {})["head"] = sys.argv[1]; json.dump(d, open(p, "w"))
+EOF
+J0="$(cmc .cache/c_doc --json status | reasons)"
+printf '\nMore notes.\n' >> NOTES.md; mkdir -p docs; printf '# Extra\n' > docs/extra.md
+gc NOTES.md docs/extra.md; D1="$(git rev-parse --short HEAD)"
+S1="$(cmc .cache/c_doc status)"; J1="$(cmc .cache/c_doc --json status | reasons)"
+T1="$(cmc .cache/c_doc tested sink --cov fx)"
+mkdir -p sub && printf '# Rules\n' > sub/CLAUDE.md && gc sub/CLAUDE.md; D2="$(git rev-parse --short HEAD)"
+mkdir -p tests && printf '# Case\n' > tests/case.md && gc tests/case.md; D3="$(git rev-parse --short HEAD)"
+printf '{}\n' > docs/data.json && gc docs/data.json; D4="$(git rev-parse --short HEAD)"
+J4="$(cmc .cache/c_doc --json status | reasons)"; T4="$(cmc .cache/c_doc tested sink --cov fx)"
+CC="$(py "for x, y in (('$D0', '$D1'), ('$D1', '$D2'), ('$D2', '$D3'), ('$D3', '$D4'), ('0000000a', '$D4')):
+    print('%s %s' % codemap.coverage_commit_change('.', x, y))")"
+if [ "$J0" != "${J0#*recorded at another commit}" ]; then
+    bad C-26 "control: a run at HEAD already read as recorded at another commit" "$J0"
+elif [ "$J1" = "${J1#*recorded at another commit}" ] && grep -q "recorded at $D0 (only documentation changed since)" <<<"$S1" \
+     && ! grep -q "was recorded at" <<<"$T1" && grep -qx "False 2 Markdown file(s)" <<<"$(sed -n 1p <<<"$CC")"; then
+    ok C-26 "a commit changing only Markdown is no reason to refresh, and reads print no note"
+else
+    bad C-26 "a documentation-only commit still asked for a refresh (or the note was printed)" "$J1
+$S1
+$T1
+$CC"
+fi
+if [ "$(sed -n 2,4p <<<"$CC")" = "True sub/CLAUDE.md
+True tests/case.md
+True docs/data.json" ] && [ "$J4" != "${J4#*recorded at another commit}" ] && grep -q "was recorded at $D0" <<<"$T4"; then
+    ok C-26b "a CLAUDE.md (read by name), a .md under tests/ and a non-Markdown file under docs/ each keep the reason and the note"
+else
+    bad C-26b "a commit that can change a run was taken for documentation" "$CC
+$J4
+$T4"
+fi
+if grep -qx "None commit 0000000a is not in this checkout (a shallow clone, or a run recorded elsewhere)" <<<"$(sed -n 5p <<<"$CC")"; then
+    ok C-26c "a commit git cannot compare keeps the reason and says why"
+else
+    bad C-26c "an unknown commit was not reported as uncomparable" "$CC"
 fi
 
 finish

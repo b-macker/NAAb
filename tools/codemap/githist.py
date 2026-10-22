@@ -259,3 +259,11 @@ def search_names(qualified):
     if len(parts) >= 2:
         names.append("%s::%s" % (parts[-2], short))
     return names or [short]
+
+
+def symbol_names(qualified, kind=None):
+    """The names to search for an indexed symbol (history and impact share this):
+    none for a line range or an unnamed lambda, which have no name of their own."""
+    if kind == "range" or (kind == "lambda" and "<lambda@" in qualified):
+        return []
+    return search_names(qualified)

@@ -4080,6 +4080,55 @@ else
     echo "  test_codemap_coverage.sh: not found, skipping"
 fi
 
+CODEMAP_CITE_SCRIPT="tests/self-audit/test_codemap_citecheck.sh"
+if [ -f "$CODEMAP_CITE_SCRIPT" ]; then
+    # `codemap cite-check DOC` judges a doc's path:line citations by the names
+    # beside them, never by the number: HOLDS / MOVED / GONE / AMBIGUOUS /
+    # FILE GONE / UNCHECKABLE, on a fixture repo and doc with a control per
+    # outcome. HOLDS is the reassuring answer, so a name on more than 10 lines of
+    # the file must not confirm one (CC-07).
+    if run_shell_test "$CODEMAP_CITE_SCRIPT" 2>&1; then
+        echo "  test_codemap_citecheck.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_codemap_citecheck.sh")
+    fi
+else
+    echo "  test_codemap_citecheck.sh: not found, skipping"
+fi
+
+CODEMAP_USAGE_SCRIPT="tests/self-audit/test_codemap_usage.sh"
+if [ -f "$CODEMAP_USAGE_SCRIPT" ]; then
+    # tools/codemap/usage.py counts code-map invocations in Claude Code
+    # transcripts (calls, errors, repeats, grep-after) and prints names and
+    # counts only. A synthetic transcript holds one case per rule; CU-06 is the
+    # arm that fails if command text reaches the report.
+    if run_shell_test "$CODEMAP_USAGE_SCRIPT" 2>&1; then
+        echo "  test_codemap_usage.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_codemap_usage.sh")
+    fi
+else
+    echo "  test_codemap_usage.sh: not found, skipping"
+fi
+
+PREDISPATCH_ENUM_SCRIPT="tests/self-audit/test_predispatch_enumeration.sh"
+if [ -f "$PREDISPATCH_ENUM_SCRIPT" ]; then
+    # Every engine check the VM and tree-walker stdlib dispatchers make is listed
+    # and classified in tools/codemap/predispatch_checks.txt (roadmap item 6). A
+    # new check fails until it is classified; a listed one the code stopped
+    # making fails too. UNMEASURABLE without libclang.
+    if run_shell_test "$PREDISPATCH_ENUM_SCRIPT" 2>&1; then
+        echo "  test_predispatch_enumeration.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_predispatch_enumeration.sh")
+    fi
+else
+    echo "  test_predispatch_enumeration.sh: not found, skipping"
+fi
+
 NAABAPOS_SCRIPT="tests/governance_v4/test_naab_comment_apostrophe.sh"
 if [ -f "$NAABAPOS_SCRIPT" ]; then
     # An apostrophe in a NAAb # comment must not open a "string" that hides

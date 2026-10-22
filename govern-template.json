@@ -2226,7 +2226,7 @@
     "rationale": "Repeated advisories harden — persistent issues must be addressed"
   },
 
-  "_comment_scoring_calibration": "Scoring Calibration — operator-driven weight overrides. Persists calibration to .naab/scoring-calibration.json. Use governance.calibrate(rule, weight, reason) to set overrides. governance.calibration() returns current overrides.",
+  "_comment_scoring_calibration": "Scoring Calibration — weight overrides read from .naab/scoring-calibration.json (a relative path is taken from the telemetry file's directory when it has one, else the working directory). An override replaces the configured weight in every context of the rule. The OPERATOR lowers weights by editing that file outside the run; the governed program may read it but not write it, and its governance.calibrate(rule, weight, reason) may only RAISE a weight above the rule's current one (A60: a program that could lower its own weights could pass the cumulative risk gate it was failing). governance.calibration() returns current overrides.",
   "scoring_calibration": {
     "enabled": false,
     "path": ".naab/scoring-calibration.json",

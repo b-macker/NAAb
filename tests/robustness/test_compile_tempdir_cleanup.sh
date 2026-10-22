@@ -22,6 +22,13 @@
 # directory in a ScopedTempDir (include/naab/scoped_temp_dir.h), which removes
 # it in its destructor.
 #
+# The sub-* shapes are GenericSubprocessExecutor (php, typescript, and python
+# where there is no embedded Python). It used to write its script to the first
+# free naab_temp_<lang>.<ext> name in the shared temp directory, so concurrent
+# blocks took the same name and one deleted the script another was running;
+# it now takes a naab_sub_ directory like the compiled executors. The stub
+# replaces php.
+#
 # HOW IT IS MEASURED. Each run gets its own empty TMPDIR, and afterwards the
 # test asserts no naab_* directory is left in it. That alone cannot fail for a
 # directory created somewhere else, so every arm also needs to learn WHICH
@@ -129,12 +136,16 @@ prog() {  # $1 = shape -> program text on stdout
             printf 'main {\n    let p = <<julia\nPROGRAM_FILE\n>>\n    print(p)\n}\n' ;;
         zig-ret)
             printf 'main {\n    let p = <<zig\nconst x: i32 = 1;\n>>\n    print(p)\n}\n' ;;
+        sub-ret)    # GenericSubprocessExecutor::executeWithReturn (php, ts, python without pybind11)
+            printf 'main {\n    let p = <<php\necho 1;\n>>\n    print(p)\n}\n' ;;
+        sub-exec)   # GenericSubprocessExecutor::execute()
+            printf 'main {\n    runtime p = php.start()\n    p.exec(<<php\necho 1;\n>>)\n}\n' ;;
     esac
 }
 
 # shape -> "<tool the stub replaces> <directory prefix> [engine flag]"
 # For Julia the stub replaces the RUNNER: there is no compile step.
-SHAPES="cpp-expr cpp-main cpp-stmt cpp-exec cpp-block rust-ret rust-exec go-ret go-exec cs-ret cs-exec nim-ret julia-ret zig-ret"
+SHAPES="cpp-expr cpp-main cpp-stmt cpp-exec cpp-block rust-ret rust-exec go-ret go-exec cs-ret cs-exec nim-ret julia-ret zig-ret sub-ret sub-exec"
 shape_info() {
     case "$1" in
         cpp-block)  echo "clang++ naab_cpp_bl_ --tree-walk" ;;
@@ -145,6 +156,7 @@ shape_info() {
         nim-*)      echo "nim naab_nim_" ;;
         julia-*)    echo "julia naab_julia_" ;;
         zig-*)      echo "zig naab_zig_" ;;
+        sub-*)      echo "php naab_sub_" ;;
     esac
 }
 # Prefixes with no shape above. Empty: every prefix in src/ has a case.
@@ -264,6 +276,60 @@ for mode in fail hang; do
         check_clean "$id" "$arm" "$made" "stub $tool ${mode}s"
     done
 done
+
+# ---- TD-C: concurrent subprocess blocks each run their own script -----------
+# GenericSubprocessExecutor named its script by taking the first free
+# naab_temp_<lang>.<ext> in the shared temp directory. Concurrent VM async fns
+# took the same name, and one block's cleanup deleted the script another was
+# about to run: with python on a build without pybind11, 6 of 10 runs of 16
+# concurrent async fns failed with "can't open file ... naab_temp_python_4.py".
+# The stub php reads its script after a pause of 0-90 ms (set from its pid, so
+# blocks finish at different times -- the window is authored, to make the race
+# likely: one block's cleanup must land before a block sharing its name reads)
+# and fails if the script is gone. A fixed pause did not reproduce it on the
+# pre-fix build (0 of 5). TD-C-ctl: one async fn runs.
+make_reader_stub() {  # $1 = arm dir
+    mkdir -p "$1/stub"
+    cat > "$1/stub/php" <<'EOF2'
+#!/bin/sh
+sleep "0.0$(( $$ % 10 ))"
+cat "$1" >/dev/null 2>&1 || { echo "script gone: $1" >&2; exit 2; }
+echo 1
+EOF2
+    chmod +x "$1/stub/php"
+}
+conc_prog() {  # $1 = async fns
+    printf 'async fn work(i) {\n    let a = <<php\necho 1;\n>>\n    return i\n}\nmain {\n    let fs = []\n'
+    for i in $(seq 1 "$1"); do printf '    fs.push(work(%s))\n' "$i"; done
+    printf '    let total = 0\n    for f in fs {\n        total = total + (await f)\n    }\n    print("MARKER " + string(total))\n}\n'
+}
+CARM="$(new_arm C-sub)"
+make_reader_stub "$CARM"
+conc_prog 1 > "$CARM/one.naab"
+conc_prog 16 > "$CARM/many.naab"
+run_naab "$CARM" "$CARM/one.naab" "$CARM/stub"
+if [ "$RC" -ne 0 ] || ! grep -q "MARKER 1" <<<"$OUT"; then
+    bad "TD-C-ctl" "CONTROL: one async fn with a stub php block did not run (rc=$RC)" \
+        "$(echo "$OUT" | grep -v '^\[governance\]' | grep -m3 .)"
+else
+    ok "TD-C-ctl" "CONTROL: one async fn with a stub php block runs"
+    failed_runs=0; first_err=""
+    for r in 1 2 3 4 5; do
+        run_naab "$CARM" "$CARM/many.naab" "$CARM/stub"
+        if [ "$RC" -ne 0 ] || ! grep -q "MARKER 136" <<<"$OUT"; then
+            failed_runs=$((failed_runs + 1))
+            [ -z "$first_err" ] && first_err="$(echo "$OUT" | grep -v '^\[governance\]' | grep -m1 'gone\|rror' | cut -c1-160)"
+        fi
+    done
+    left="$(leftovers "$CARM/tmp")"
+    if [ "$failed_runs" -ne 0 ]; then
+        bad "TD-C" "16 concurrent async fns with a php block: $failed_runs of 5 runs failed" "$first_err"
+    elif [ -n "$left" ]; then
+        bad "TD-C" "16 concurrent async fns: directories left behind" "$(echo "$left" | sed "s|$CARM/tmp/||" | tr '\n' ' ')"
+    else
+        ok "TD-C" "16 concurrent async fns with a php block: 5 of 5 runs, each block ran its own script, nothing left"
+    fi
+fi
 
 # ---- real-toolchain arms ---------------------------------------------------
 # Only shapes whose block prints its own path, and only toolchains whose

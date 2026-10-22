@@ -6,7 +6,27 @@
 # runs only a jar whose digest someone has checked against the publisher and
 # pinned here.
 #
-# Not pinned yet, and why: on 2026-10-16 the plantuml-mit 1.2026.8 jar from the
-# GitHub release had sha1 ef49f4f3..., while the sha1 Maven Central publishes for
-# the same version is d1953557.... The two were not reconciled (Maven Central
-# answered with rate limits), so neither digest is pinned here.
+# Not pinned yet: the pin is the owner's decision (roadmap item 9). The two
+# digests seen on 2026-10-16 were reconciled on 2026-10-22 (observed, this
+# container):
+#   - They are two BUILDS of plantuml-mit 1.2026.8, not two releases: the jars
+#     have the same 5812 entries, same sizes and entry timestamps; exactly two
+#     classes differ (version/CompilationInfo.class, version/Version.class), in
+#     3 bytes each -- an embedded compile time, 2026-09-05T16:46:13.766Z in
+#     Maven Central's jar, 15:59:17.045Z in the GitHub release's.
+#   - Maven Central's jar (fetched from Google's Maven Central mirror; repo1
+#     answered 429): sha1 d19535573bd16fc2150592448a91d164a2163aaa and md5
+#     b163a091b04c4688e96b57e5f40c3cb4, both equal to what Maven publishes;
+#     its .asc is a GOOD signature by "PlantUML JAR Signing Key", rsa4096
+#     C08C 18EE 1706 DB37 8BD9  93C8 0195 86D4 4BD8 0213, which also signed
+#     plantuml-mit 1.2023.7, 1.2024.8 and 1.2026.6 on Maven. That key was
+#     fetched from keyserver.ubuntu.com by key id; confirming it against a page
+#     PlantUML controls was UNMEASURABLE here (plantuml.com is blocked by this
+#     environment's proxy).
+#       sha256 8a171e8941d1f68f4ec28f5c180a4bf8d54a2cd679348370d4ba59fc9fb910e3
+#   - The GitHub release jar: sha1 ef49f4f313d06de6575dcaa67361df432c028048,
+#     sha256 3629c9cd017c7f73e6450396eea0040216c7e1eef8473ce33cc1aad469dab2f9;
+#     Maven's signature reads BAD against it (it covers the other build), and
+#     the release's own digests could not be read (GitHub's API answered 403).
+# Recommendation put to the owner: pin Maven Central's jar by the sha256 above,
+# recording "Maven Central, signature by C08C...0213" as where it was verified.

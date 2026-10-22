@@ -1858,81 +1858,9 @@ interpreter::NaabVal VM::run() {
                                         return frames_[i].function->name;
                                     }, frame_count_);
                             }
-                            std::string fs_mode =
-                                governance::GovernanceEngine::filesystemAccessMode(mod, method);
-                            if (!fs_mode.empty()) {
-                                // log.set_output("stderr"/"stdout") names no file.
-                                bool fs_is_file_sink = true;
-                                if (mod == "log" && argc > 0) {
-                                    interpreter::NaabVal sink = stack_top_[-argc];
-                                    if (sink.isString() && (sink.asString() == "stderr" ||
-                                                            sink.asString() == "stdout")) {
-                                        fs_is_file_sink = false;
-                                    }
-                                }
-                                if (!fs_is_file_sink) { /* not a filesystem access */ }
-                                else {
-                                // Gates: capabilities.filesystem.mode. isActive() is
-                                // false only for `mode: "off"`; note the sibling
-                                // checkDangerousCall below already carries this gate.
-                                std::string err = governance_->isActive()
-                                    ? governance_->checkFilesystemAllowed(fs_mode) : std::string();
-                                if (!err.empty()) runtimeError("%s", err.c_str());
-                                // Path-level access check (first arg = file path)
-                                if (argc > 0) {
-                                    interpreter::NaabVal path_arg = stack_top_[-argc];
-                                    if (path_arg.isString()) {
-                                        // Gates: capabilities.filesystem allowed_paths/blocked_paths.
-                                        std::string perr = governance_->isActive()
-                                            ? governance_->checkPathAccess(path_arg.asString(), fs_mode)
-                                            : std::string();
-                                        if (!perr.empty()) runtimeError("%s", perr.c_str());
-                                    }
-                                }
-                                // copy/move: also check destination path (second arg).
-                                // A directory destination is resolved to the file
-                                // the OS will land on (dir/basename(src)), or a
-                                // copy INTO a protected path is validated against
-                                // the directory name and passes.
-                                if ((method == "copy" || method == "move") && argc > 1) {
-                                    interpreter::NaabVal dest_arg = stack_top_[-argc + 1];
-                                    interpreter::NaabVal src_arg = stack_top_[-argc];
-                                    if (dest_arg.isString()) {
-                                        std::string eff = governance::GovernanceEngine::copyMoveDestination(
-                                            src_arg.isString() ? src_arg.asString() : std::string(),
-                                            dest_arg.asString());
-                                        // Gates: the same path policy, on a copy/move DESTINATION.
-                                        std::string perr = governance_->isActive()
-                                            ? governance_->checkPathAccess(eff, "write")
-                                            : std::string();
-                                        if (!perr.empty()) runtimeError("%s", perr.c_str());
-                                    }
-                                }
-                                }
-                            }
-                            if (mod == "http") {
-                                // Gates: capabilities.network on a stdlib http call.
-                                std::string err = governance_->isActive()
-                                    ? governance_->checkNetworkAllowed() : std::string();
-                                if (!err.empty()) runtimeError("%s", err.c_str());
-                            } else if (mod == "env") {
-                                // Finding E fix: enforce governance dangerous-call policy on env access
-                                if (governance_->isActive()) {
-                                    std::string full = "env." + method;
-                                    std::string err = governance_->checkDangerousCall("naab", full, 0);
-                                    if (!err.empty()) runtimeError("%s", err.c_str());
-                                }
-                            }
-
-                            // Generic dangerous-calls policy check for ALL stdlib modules
-                            // (mirrors tree-walker call_dispatch.cpp:1366 — Finding C parity)
-                            if (governance_->isActive()) {
-                                std::string full_call = mod + "." + method;
-                                int gov_line = CURRENT_CHUNK().getLine(
-                                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
-                                std::string derr = governance_->checkDangerousCall("naab", full_call, gov_line);
-                                if (!derr.empty()) runtimeError("%s", derr.c_str());
-                            }
+                            stdlibCallGates(mod, method, static_cast<int>(argc), stack_top_ - argc,
+                                CURRENT_CHUNK().getLine(
+                                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4));
                         }
 
                         // Governance: check if this is a taint sink (e.g., env.set_var)
@@ -1944,12 +1872,13 @@ interpreter::NaabVal VM::run() {
                                 if (taint_stack_[arg_offset]) {
                                     any_arg_tainted_vm = true;
                                     std::string arg_label = "argument " + std::to_string(ai) + " of '" + full_method_name + "()'";
-                                    governance_->markTainted(arg_label);
                                     int gov_line = CURRENT_CHUNK().getLine(
                                         static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
-                                    std::string terr = governance_->checkTaintedSink(
+                                    // taint_stack_ says this argument is tainted; say so to the
+                                    // engine directly. Marking the label in the SHARED taint set
+                                    // raced: async fns share the engine and the label.
+                                    std::string terr = governance_->checkTaintedValueAtSink(
                                         arg_label, full_method_name, current_file_, gov_line);
-                                    governance_->clearTaint(arg_label);
                                     if (!terr.empty()) runtimeError("%s", terr.c_str());
                                 }
                             }
@@ -2731,6 +2660,13 @@ interpreter::NaabVal VM::run() {
                         // attribution, which the checks inside the call read (without
                         // it, a function granted nothing read the whole environment),
                         // and behavioural sequence detection.
+                        //
+                        // It also gets the module gates OP_CALL_METHOD runs, through the
+                        // same helper: the filesystem MODE gate needs no argument, and
+                        // `env.load_dotenv` without parentheses reads `.env` -- under
+                        // `filesystem.mode: "none"` it was refused only by the sandbox,
+                        // as an error a NAAb try/catch could catch, where
+                        // `env.load_dotenv()` is a HARD block (A51 correction).
                         int member_line = 0;
                         if (governance_) {
                             if (governance_->functionAttributionEnabled()) {
@@ -2739,9 +2675,10 @@ interpreter::NaabVal VM::run() {
                                         return frames_[i].function->name;
                                     }, frame_count_);
                             }
+                            member_line = CURRENT_CHUNK().getLine(
+                                static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                            stdlibCallGates(mod, name, 0, nullptr, member_line);
                             if (bsdEnabled(governance_)) {
-                                member_line = CURRENT_CHUNK().getLine(
-                                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
                                 std::string block_msg = bsdPreCheck(governance_, mod, name, "",
                                     current_file_, member_line);
                                 if (!block_msg.empty()) runtimeError("%s", block_msg.c_str());
@@ -3037,11 +2974,15 @@ interpreter::NaabVal VM::run() {
                                         origin_arg = lit->second.source_arg;
                                     }
                                 }
-                                // Mark tainted with lineage so checkTaintedSink has origin info
+                                // The mark keeps the engine-wide name state as it was; the
+                                // decision does not read it back. Between a mark and a
+                                // name lookup, another async fn assigning a clean value to
+                                // a same-named global could clear it (A65 follow-up).
                                 governance_->markTainted(bound_var_names[bi],
                                     origin_func, origin_arg, current_file_, gov_line);
-                                std::string terr = governance_->checkTaintedSink(
-                                    bound_var_names[bi], sink_type, current_file_, gov_line);
+                                std::string terr = governance_->checkTaintedValueAtSink(
+                                    bound_var_names[bi], sink_type, current_file_, gov_line,
+                                    origin_func, origin_arg);
                                 if (!terr.empty()) runtimeError("%s", terr.c_str());
                             }
                         }
@@ -3901,9 +3842,18 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             // the tree-walker's async path loads its own governance and was
             // already denied). Same capture-and-reactivate as the sandbox.
             auto* async_governance = governance::GovernanceEngine::getCurrent();
+            // The async VM's OWN engine pointer. 4f65b2b0 dropped it (the engine
+            // was not safe to share across threads then), and every check the VM
+            // guards with `governance_` -- the stdlib filesystem gate, the polyglot
+            // block checks and count, function attribution -- was skipped inside an
+            // async fn on the default engine: a blocked_paths file was read and a
+            // code_injection pattern ran. The engine state those checks change from
+            // several threads is synchronised, so the async VM gets the engine back
+            // (tests/governance_v4/test_vm_async_governance.sh).
+            auto* async_vm_governance = governance_;
             auto shared_future = std::async(std::launch::async,
                 [closure_copy, args, async_stdlib, file, globals_copy, async_sandbox_config,
-                 async_governance,
+                 async_governance, async_vm_governance,
                  owned_fns = std::move(async_owned_fns)]() mutable -> interpreter::NaabVal {
                     security::ScopedSandbox async_sandbox(async_sandbox_config);
                     struct GovernanceScope {
@@ -3916,6 +3866,7 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                     {
                         VM async_vm;
                         async_vm.setStdlib(async_stdlib.get());
+                        async_vm.setGovernance(async_vm_governance);
                         async_vm.setCurrentFile(file);
                         async_vm.setGlobals(globals_copy);
                         auto result = async_vm.callNaabFunction(
@@ -3979,14 +3930,14 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             auto& cf = frames_[frame_count_-1];
             int gov_line = cf.function->chunk.getLine(
                 static_cast<int>(cf.ip - cf.function->chunk.code.data()));
-            // checkTaintedSink looks the NAME up in the taint set, so the label
-            // must be marked first -- as the method-call sink site does. Without
-            // this the check could never fire: "print" listed as a sink was
-            // enforced by the tree-walker and silently ignored by the VM.
-            governance_->markTainted("(print-arg)");
-            std::string terr = governance_->checkTaintedSink(
+            // checkTaintedSink looks the NAME up in the taint set, so a lookup of
+            // an unmarked label could never fire: "print" listed as a sink was
+            // enforced by the tree-walker and silently ignored by the VM. The
+            // argument's taint is known here, so it is passed to the engine
+            // directly -- marking and clearing a fixed label in the shared set
+            // raced across async fns.
+            std::string terr = governance_->checkTaintedValueAtSink(
                 "(print-arg)", "print", current_file_, gov_line);
-            governance_->clearTaint("(print-arg)");
             if (!terr.empty()) runtimeError("%s", terr.c_str());
         }
         interpreter::NaabVal* args_ptr = stack_top_ - argc;
@@ -4037,10 +3988,8 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                     ptrdiff_t arg_offset = (stack_top_ - argc + ai) - stack_.get();
                     if (taint_stack_[arg_offset]) {
                         std::string arg_label = "argument " + std::to_string(ai) + " of '" + mod_name + "()'";
-                        governance_->markTainted(arg_label);
-                        std::string terr = governance_->checkTaintedSink(
+                        std::string terr = governance_->checkTaintedValueAtSink(
                             arg_label, mod_name, current_file_, 0);
-                        governance_->clearTaint(arg_label);
                         if (!terr.empty()) runtimeError("%s", terr.c_str());
                     }
                 }
@@ -4845,6 +4794,90 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
                      method.c_str());
     }
     runtimeError("Cannot call method '%s' on %s", method.c_str(), obj.getTypeName().c_str());
+}
+
+// The module gates a stdlib call gets before it runs: the filesystem mode and
+// path policy (for what filesystemAccessMode() classifies), the network gate on
+// http, and the dangerous-call policy. One copy for both VM routes that call a
+// stdlib function (OP_CALL_METHOD, and OP_GET_MEMBER's zero-argument call), so a
+// gate added to one route cannot miss the other -- the second route had only the
+// checks someone remembered to copy (A51). args[0..argc) are the call's
+// arguments; refusal is a runtimeError, as at the call site.
+void VM::stdlibCallGates(const std::string& mod, const std::string& method,
+                         int argc, interpreter::NaabVal* args, int line) {
+    if (!governance_) return;
+    std::string fs_mode =
+        governance::GovernanceEngine::filesystemAccessMode(mod, method);
+    if (!fs_mode.empty()) {
+        // log.set_output("stderr"/"stdout") names no file.
+        bool fs_is_file_sink = true;
+        if (mod == "log" && argc > 0) {
+            interpreter::NaabVal sink = args[0];
+            if (sink.isString() && (sink.asString() == "stderr" ||
+                                    sink.asString() == "stdout")) {
+                fs_is_file_sink = false;
+            }
+        }
+        if (fs_is_file_sink) {
+            // Gates: capabilities.filesystem.mode. isActive() is
+            // false only for `mode: "off"`; note the sibling
+            // checkDangerousCall below already carries this gate.
+            std::string err = governance_->isActive()
+                ? governance_->checkFilesystemAllowed(fs_mode) : std::string();
+            if (!err.empty()) runtimeError("%s", err.c_str());
+            // Path-level access check (first arg = file path)
+            if (argc > 0) {
+                interpreter::NaabVal path_arg = args[0];
+                if (path_arg.isString()) {
+                    // Gates: capabilities.filesystem allowed_paths/blocked_paths.
+                    std::string perr = governance_->isActive()
+                        ? governance_->checkPathAccess(path_arg.asString(), fs_mode)
+                        : std::string();
+                    if (!perr.empty()) runtimeError("%s", perr.c_str());
+                }
+            }
+            // copy/move: also check destination path (second arg).
+            // A directory destination is resolved to the file
+            // the OS will land on (dir/basename(src)), or a
+            // copy INTO a protected path is validated against
+            // the directory name and passes.
+            if ((method == "copy" || method == "move") && argc > 1) {
+                interpreter::NaabVal dest_arg = args[1];
+                interpreter::NaabVal src_arg = args[0];
+                if (dest_arg.isString()) {
+                    std::string eff = governance::GovernanceEngine::copyMoveDestination(
+                        src_arg.isString() ? src_arg.asString() : std::string(),
+                        dest_arg.asString());
+                    // Gates: the same path policy, on a copy/move DESTINATION.
+                    std::string perr = governance_->isActive()
+                        ? governance_->checkPathAccess(eff, "write")
+                        : std::string();
+                    if (!perr.empty()) runtimeError("%s", perr.c_str());
+                }
+            }
+        }
+    }
+    if (mod == "http") {
+        // Gates: capabilities.network on a stdlib http call.
+        std::string err = governance_->isActive()
+            ? governance_->checkNetworkAllowed() : std::string();
+        if (!err.empty()) runtimeError("%s", err.c_str());
+    } else if (mod == "env") {
+        // Finding E fix: enforce governance dangerous-call policy on env access
+        if (governance_->isActive()) {
+            std::string full = "env." + method;
+            std::string err = governance_->checkDangerousCall("naab", full, 0);
+            if (!err.empty()) runtimeError("%s", err.c_str());
+        }
+    }
+
+    // Generic dangerous-calls policy check for ALL stdlib modules
+    // (mirrors tree-walker call_dispatch.cpp:1366 — Finding C parity)
+    if (governance_->isActive()) {
+        std::string full_call = mod + "." + method;
+        std::string derr = governance_->checkDangerousCall("naab", full_call, line);
+        if (!derr.empty()) runtimeError("%s", derr.c_str());
+    }
 }
 
 interpreter::NaabVal VM::callStdlibMethod(const std::string& module, const std::string& method,

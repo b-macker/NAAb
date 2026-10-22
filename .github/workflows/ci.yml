@@ -58,6 +58,16 @@ jobs:
           ninja -C build naab_unit_tests -j$(nproc)
           bash tests/unit/run_unit_tests.sh
 
+      # The C API (libnaab-governance, what the Go/Rust/Java/C#/Python bindings
+      # call) had its own test program, registered only with ctest, which no
+      # workflow runs. Its single-check test sat red while naab_gov_check() let
+      # a key-shaped string, a concatenated SELECT and require("child_process")
+      # through, each blocked by naab_gov_scan() (A62).
+      - name: C API tests
+        run: |
+          ninja -C build naab_governance test_governance_c_api -j$(nproc)
+          ./build/test_governance_c_api
+
       # Report-only timing: run_timed.sh runs run-all-tests.sh unchanged and
       # returns its exit status, so the verdict is the suite's own. A shim in
       # front of `timeout` records how long each suite and .naab test took; the

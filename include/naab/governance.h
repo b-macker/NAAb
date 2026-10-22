@@ -3118,8 +3118,14 @@ struct RateLimiter {
     int max_per_second = 0;
     std::chrono::steady_clock::time_point window_start;
     int count_in_window = 0;
+    // VM async fns share the engine, so check() runs on several threads at
+    // once: unlocked, concurrent increments were lost and a limit let more
+    // calls through than it allows (ThreadSanitizer, A65 follow-up).
+    std::mutex mutex;
 
-    bool check() {
+    bool check(int limit) {
+        std::lock_guard<std::mutex> lock(mutex);
+        max_per_second = limit;
         if (max_per_second <= 0) return true;
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
@@ -3361,6 +3367,7 @@ public:
     // transcript or the audit trail. The governed program may read it but not
     // write it (checkPathAccessImpl).
     bool isEvidenceLogPath(const std::string& canon_n) const;
+    bool isEngineStatePath(const std::string& canon_n) const;  // scoring calibration file (A60)
     // The agent-channel text for a set of deliveries ("" for none).
     static std::string formatGuidance(const std::vector<GuidanceDelivery>& items);
     // Opaque outside governance_guidance.cpp.
@@ -3462,9 +3469,17 @@ public:
     std::string checkCallDepth(size_t current_depth);
     std::string checkArraySize(size_t size);
     std::string checkPolyglotOutput(const std::string& output);
-    // C2 fix: preprocess code the same way checkPolyglotBlock does
-    // (normalizeUnicode, normalizeWhitespace, stripStringLiterals, expandDangerousAliases)
-    std::string preprocessCode(const std::string& language, const std::string& code);
+    // One named check of a polyglot block, run alone (naab_gov_check() in the
+    // C API). It reads exactly the text checkPolyglotBlock() gives that check
+    // -- raw for secrets and SQL, normalized for imports, the string-stripped
+    // text for most, both where the block runs it twice -- because both call
+    // the same dispatch (runBlockCheck in governance_checks.cpp). Returns false
+    // for a name it does not know; `err` is the check's own result.
+    bool runSingleBlockCheck(const std::string& check_name,
+                             const std::string& language,
+                             const std::string& code, int line,
+                             std::string& err);
+    static const std::vector<std::string>& singleBlockCheckNames();
 
     std::string checkDangerousCall(const std::string& language,
                                     const std::string& code, int line = 0);
@@ -3737,7 +3752,10 @@ public:
     bool verifyScoreIntegrity() const;
 
     // --- Scoring Calibration (operator-driven weight overrides) ---
-    bool calibrateRule(const std::string& rule_name, int weight_override, const std::string& reason);
+    // Raise-only (A60): a weight below the rule's current weight is refused and
+    // `refused` says why; lowering is the operator's, in the calibration file.
+    bool calibrateRule(const std::string& rule_name, int weight_override, const std::string& reason,
+                       std::string* refused = nullptr);
     bool resetCalibration(const std::string& rule_name);
     std::unordered_map<std::string, ScoringCalibrationEntry> getCalibrationOverrides() const;
 
@@ -4045,6 +4063,18 @@ public:
     std::string checkTaintedSink(const std::string& var_name,
                                   const std::string& sink_type,
                                   const std::string& file, int line);
+    // The same decision for a value the CALLER knows is tainted (the VM's
+    // taint_stack_), without passing that knowledge through the shared taint
+    // set. Marking a fixed label, checking it and clearing it is three lock
+    // acquisitions on a name every thread uses: with async fns sharing the
+    // engine, one thread's clear landed between another's mark and check, and
+    // that write reached its sink unchecked (A65 follow-up).
+    // origin_func/origin_arg: the value's lineage, traced when lineage is on.
+    std::string checkTaintedValueAtSink(const std::string& label,
+                                        const std::string& sink_type,
+                                        const std::string& file, int line,
+                                        const std::string& origin_func = "",
+                                        const std::string& origin_arg = "");
     bool isTaintSource(const std::string& func_name) const;
     bool isSanitizer(const std::string& func_name) const;
 
@@ -4069,7 +4099,7 @@ public:
     bool lastReturnWasTainted() const;
     void setLastReturnTainted(bool v);
     void setLastReturnTainted(bool v, const std::string& source_func);
-    const std::string& lastTaintSource() const { return last_taint_source_; }
+    const std::string& lastTaintSource() const;  // per thread, see setLastReturnTainted()
 
     // --- Hooks ---
     void fireHook(const HookConfig& hook,
@@ -4079,6 +4109,13 @@ public:
     static std::vector<std::string> validateSchema(const std::string& json_path);
 
 private:
+    // checkTaintedSink() and checkTaintedValueAtSink() once the value is known
+    // tainted: the sink match, the record and the message. One copy, so the two
+    // entry points cannot drift.
+    std::string taintedSinkDecision(const std::string& var_name,
+                                    const std::string& sink_type,
+                                    const std::string& file, int line);
+
     // --- extends / policy distribution ---
     bool loadWithExtends(const std::string& path, int depth,
                          int max_depth, std::set<std::string>& visited,
@@ -4140,8 +4177,8 @@ private:
     std::unordered_set<std::string> taint_set_;
     std::unordered_map<std::string, TaintMetadata> taint_lineage_;
     mutable std::mutex taint_mutex_;  // BUG-N: Thread-safe taint operations
-    bool last_return_tainted_ = false;  // BUG-D: Track function return taint
-    std::string last_taint_source_;      // Lineage: which source function produced the taint
+    // BUG-D's return-taint flag and its source are PER THREAD (governance_checks.cpp),
+    // not members: every VM, async fn workers included, shares one engine.
 
     // Execution-based contracts (v6)
     bool in_contract_test_ = false;  // Re-entrancy guard for execution contracts
@@ -4302,8 +4339,9 @@ private:
     RateLimiter stdlib_rate_;
     RateLimiter file_ops_rate_;
 
-    // Execution counters
-    int polyglot_block_count_ = 0;
+    // Execution counters. The block count is changed by every VM that runs a
+    // polyglot block, async fn workers included, so it is one atomic step.
+    std::atomic<int> polyglot_block_count_{0};
     int total_polyglot_lines_ = 0;
 
     // Audit trail
@@ -4423,6 +4461,7 @@ private:
     // evidence_paths_mutex_ because checkPathAccess runs on async and agent
     // worker threads while a reload appends on the main thread.
     std::vector<std::string> evidence_log_paths_;
+    std::vector<std::string> engine_state_paths_;  // same mutex; writes refused, reads allowed
     mutable std::mutex evidence_paths_mutex_;
     // Terminal channel: the guidance section appended to a block message in
     // enforce(). Computed without telemetry (enforce()'s advisory branch holds

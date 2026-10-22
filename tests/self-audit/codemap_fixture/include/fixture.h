@@ -67,7 +67,7 @@ class GovernanceEngine {
 public:
     std::string filesystemAccessMode(const std::string& module, const std::string& method);
     bool checkFilesystemAllowed(const std::string& mode);
-    bool checkPathAccess(const std::string& path);
+    bool checkPathAccess(const std::string& path); bool checkNetworkAllowed(); bool checkStdlibRate(); bool checkPreExecution();  // one line: later lines are pinned
 };
 int vm_dispatch(GovernanceEngine& g, Module& m, const std::string& module,
                 const std::string& method, int x);
@@ -116,3 +116,16 @@ int twin_b();                            //   tells them apart
 int never_linked(int x);                 // defined in extra.cpp, which no binary links
 void touch_tls();
 void profile_shapes();
+
+// --- pre-dispatch, roadmap item 6: a second module the dispatcher gates by
+// `if (module == "fixnet")` (a module gate), and a rate check it runs for every
+// call (a detector: refuses only when more than the name holds)
+class NetModule : public Module {
+public:
+    std::string getName() const override { return "fixnet"; }
+    int call(const std::string& function_name, int x) override;
+};
+int fetch_impl(int x);
+int tw_gates(GovernanceEngine& g, const std::string& module, const std::string& method);
+int tw_dispatch(GovernanceEngine& g, Module& m, const std::string& marker,
+                const std::string& module, const std::string& method, int x);

@@ -2,7 +2,7 @@
 #include "naab/interpreter.h" // For Value definition
 #include "naab/subprocess_helpers.h" // For execute_subprocess_with_pipes
 #include "naab/language_descriptors.h" // withPrelude(): php opener
-#include "naab/temp_file_guard.h"   // For TempFileGuard
+#include "naab/scoped_temp_dir.h"   // For ScopedTempDir
 #include "naab/sandbox.h" // For security sandbox
 #include "naab/resource_limits.h" // Enterprise security: Resource limits
 #include "naab/audit_logger.h" // For security audit logging
@@ -121,23 +121,14 @@ bool naab::runtime::GenericSubprocessExecutor::execute(const std::string& code) 
     } else {
         // Write to temp file, then run (e.g., "go run {}")
 
-        // Generate a unique temporary file path
-        std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-        std::filesystem::path temp_file_path = temp_dir / ("naab_temp_" + language_id_ + file_extension_);
-
-        int counter = 0;
-        while (std::filesystem::exists(temp_file_path)) {
-            temp_file_path = temp_dir / (
-                "naab_temp_" + language_id_ + "_" + std::to_string(counter++) + file_extension_
-            );
-            if (counter > 1000) { // Safety break
-                fmt::print("[ERROR] Failed to find unique temp file name for {} execution\n", language_id_);
-                return false;
-            }
+        // A private directory per block, removed on every exit (scoped_temp_dir.h
+        // says why a name in the shared temp directory is not enough).
+        ScopedTempDir block_dir(std::filesystem::temp_directory_path(), "naab_sub_");
+        if (!block_dir.valid()) {
+            fmt::print("[ERROR] Failed to create a temp directory for {} execution\n", language_id_);
+            return false;
         }
-
-        // Create TempFileGuard, which ensures deletion on scope exit
-        TempFileGuard temp_file_guard(temp_file_path);
+        std::filesystem::path temp_file_path = block_dir.path() / ("block" + file_extension_);
 
         // Write code to temp file
         std::ofstream ofs(temp_file_path);
@@ -149,10 +140,7 @@ bool naab::runtime::GenericSubprocessExecutor::execute(const std::string& code) 
         ofs.close();
 
         std::string command_line = format_command(command_template_, temp_file_path.string());
-        bool success = runCommand(command_line);
-
-        // temp_file_guard's destructor will handle deletion
-        return success;
+        return runCommand(command_line);
     }
 }
 
@@ -198,21 +186,13 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
             cmd, args, stdout_output, stderr_output, nullptr, &containment);
 
     } else {
-        // Write to temp file and run
-        std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-        std::filesystem::path temp_file_path = temp_dir / ("naab_temp_" + language_id_ + file_extension_);
-
-        int counter = 0;
-        while (std::filesystem::exists(temp_file_path)) {
-            temp_file_path = temp_dir / (
-                "naab_temp_" + language_id_ + "_" + std::to_string(counter++) + file_extension_
-            );
-            if (counter > 1000) {
-                throw std::runtime_error("Failed to find unique temp file name");
-            }
+        // Write to a file in a private directory per block and run it. The
+        // directory is removed on every exit, exceptions included.
+        ScopedTempDir block_dir(std::filesystem::temp_directory_path(), "naab_sub_");
+        if (!block_dir.valid()) {
+            throw std::runtime_error("Failed to create a temp directory for the block");
         }
-
-        TempFileGuard temp_file_guard(temp_file_path);
+        std::filesystem::path temp_file_path = block_dir.path() / ("block" + file_extension_);
 
         // Phase 2.3: Multi-line support - add language-specific wrapping
         std::string wrapped_code = code;

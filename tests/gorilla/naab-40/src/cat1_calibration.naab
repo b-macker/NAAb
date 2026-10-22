@@ -47,16 +47,18 @@ main {
     }
     print("a4_overwrite_latest: " + string(a4_ok))
 
-    // A5: Negative weight clamped to 0
+    // A5: A negative weight would LOWER the rule (from the default weight) and
+    // is refused: the program may only raise a weight; lowering is the
+    // operator's, in the calibration file (A60, raise-only)
     let a5_ok = false
     try {
-        governance.calibrate("neg_rule", -5, "negative test")
+        let r = governance.calibrate("neg_rule", -5, "negative test")
         let c = governance.calibration()
-        a5_ok = c.get("neg_rule").get("weight") == 0
+        a5_ok = r.get("success") == false && c.get("neg_rule") == null
     } catch (e) {
         print("a5_error: " + string(e))
     }
-    print("a5_negative_clamped: " + string(a5_ok))
+    print("a5_negative_refused: " + string(a5_ok))
 
     // A6: Multiple rules accumulate independently
     let a6_ok = false
@@ -105,7 +107,7 @@ main {
     // A10: calibration() returns non-empty updated_at string
     let a10_ok = false
     try {
-        governance.calibrate("ts_rule", 1, "timestamp test")
+        governance.calibrate("ts_rule", 5, "timestamp test")
         let c = governance.calibration()
         let ts = c.get("ts_rule").get("updated_at")
         a10_ok = type(ts) == "string" && ts.length() > 0

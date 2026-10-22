@@ -106,6 +106,12 @@ int vm_dispatch(GovernanceEngine& g, Module& m, const std::string& module,
         g.checkFilesystemAllowed(mode);
         g.checkPathAccess(method);
     }
+    if (module == "fixfile") {
+        (void)0;                      // an else-if inherits nothing from this guard
+    } else if (module == "fixnet") {
+        g.checkNetworkAllowed();
+    }
+    g.checkStdlibRate();
     return m.call(method, x);
 }
 
@@ -194,3 +200,39 @@ void profile_shapes() {
     (void)one_liner();
     (void)twin_a();
 }
+
+// --- pre-dispatch, roadmap item 6 (declared at the end of fixture.h)
+bool GovernanceEngine::checkNetworkAllowed() { return true; }
+bool GovernanceEngine::checkStdlibRate() { return true; }
+int fetch_impl(int x) { return x * 7; }
+// the second dispatcher (NAAb has two: the VM's and the tree-walker's): a gate counts
+// for a module only when EVERY dispatcher runs it. Its gates sit in a same-file
+// helper called on its stdlib route, as VM::run's sit in VM::stdlibCallGates, and
+// the detector is its own: the helper consults the allowlist, the dispatcher owns
+// the route
+int tw_dispatch(GovernanceEngine& g, Module& m, const std::string& marker,
+                const std::string& module, const std::string& method, int x) {
+    if (marker == "__stdlib_module__:") {
+        tw_gates(g, module, method);
+        g.checkPreExecution();
+    }
+    return m.call(method, x);
+}
+int NetModule::call(const std::string& function_name, int x) {
+    if (function_name == "fetch") {
+        return fetch_impl(x);
+    }
+    return 0;
+}
+int tw_gates(GovernanceEngine& g, const std::string& module, const std::string& method) {
+    std::string mode = g.filesystemAccessMode(module, method);
+    if (!mode.empty()) {
+        g.checkFilesystemAllowed(mode);
+        g.checkPathAccess(module);
+    }
+    if (module == "fixnet") {
+        g.checkNetworkAllowed();
+    }
+    return 0;
+}
+bool GovernanceEngine::checkPreExecution() { return true; }

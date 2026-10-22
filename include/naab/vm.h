@@ -524,6 +524,9 @@ private:
                                            int argc, interpreter::NaabVal* args);
     interpreter::NaabVal callStdlibMethod(const std::string& module, const std::string& method,
                                           int argc, interpreter::NaabVal* args);
+    // The module gates every VM route runs before calling a stdlib function.
+    void stdlibCallGates(const std::string& mod, const std::string& method,
+                         int argc, interpreter::NaabVal* args, int line);
     interpreter::NaabVal callBuiltinFunction(const std::string& name, int argc,
                                              interpreter::NaabVal* args);
 

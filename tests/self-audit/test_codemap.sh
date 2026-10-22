@@ -54,12 +54,32 @@
 #          filesystemAccessMode gates fixfile.read before dispatch and not
 #          fixfile.write, which it maps to ""; CM-21b: with the dispatcher no
 #          longer calling the gate, the edges are withheld and stats says why
-#   CM-22  a function DEFINED in two files on one USR (main(int, char**) in a
-#          two-file repo, as naab-lang's and naab-gov's are) is stored once,
-#          and stats lists it with the copy kept; a static helper of the same
-#          name in both files (file-qualified USRs) is not listed; CM-22c: the
-#          fixture, whose two files each have a static helper(int), reads
-#          "none"
+#   CM-29  roadmap item 6, a MODULE gate: the dispatcher calls
+#          checkNetworkAllowed under `if (module == "fixnet")`, so fixnet.fetch
+#          gets a [predispatch] edge and reach stops there; fixfile.write, not
+#          under that guard, stays an entry. CM-29b: the same call under
+#          `if (module == "fixother")` in vm_dispatch leaves fixnet gated by
+#          tw_dispatch alone, which is no gate: the guard is READ, not assumed
+#          from the call's presence, and every dispatcher must run it. The gate
+#          sits in an `else if` after a fixfile branch, so a guard leaking into
+#          the else branch would also gate fixfile (CM-29's "modules fixnet")
+#   CM-30  a DETECTOR: checkStdlibRate, called for every module, gives every
+#          NAAb name a [precheck] edge that reach prints as context and NEVER
+#          stops at (fixnet.fetch stays an entry when it is the --gate);
+#          CM-30b: with the call removed, no [precheck] edge and no stats line
+#   CM-31  a helper is not a dispatcher: tw_dispatch calls tw_gates (which consults
+#          the allowlist) on its stdlib route and runs checkPreExecution itself,
+#          as VM::run calls VM::stdlibCallGates; the detector is credited to
+#          tw_dispatch. Crediting the allowlist's caller instead lost every
+#          detector VM::run runs (found when the VM's gates moved to a helper)
+#   CM-22  functions DEFINED in two files on one USR (main(int, char**) and a
+#          non-static shared() in a.cpp and b.cpp, as naab-lang's and naab-gov's
+#          mains are) are stored per file and listed by stats; same-named static
+#          helpers (file-qualified USRs) are not. CM-22b: each main keeps its own
+#          callees (they used to merge into the first definition read). CM-22d:
+#          c.cpp, which saw only a declaration of shared(), calls each definition,
+#          marked ambiguous; a.cpp's call, which saw a.cpp's, calls that one only.
+#          CM-22c: the fixture reports no collision (control)
 #   CM-23  `codemap status` -- the line the session-start hook prints -- tells
 #          the states apart, with libclang FORCED by stand-in modules so the
 #          arms do not depend on this machine: (a) libclang loads, a compile
@@ -510,7 +530,7 @@ fi
 STATS="$(cm stats)"
 RD="$(cm reach read_impl --gate GovernanceEngine::checkPathAccess)"
 WR="$(cm reach write_impl --gate GovernanceEngine::checkPathAccess)"
-if grep -q "pre-dispatch gates: applied -- 1 NAAb names gated; callers checked: vm_dispatch" <<<"$STATS" \
+if grep -q "pre-dispatch gates: applied -- 1 NAAb names gated; callers checked: tw_gates, vm_dispatch" <<<"$STATS" \
    && grep -q "naab fixfile.read()  fixture.cpp:46  via GovernanceEngine::checkPathAccess" <<<"$RD" \
    && ! grep -q "^     naab fixfile.read()" <<<"$RD"; then
     ok CM-21 "the allowlist gates fixfile.read before dispatch; reach stops there"
@@ -523,6 +543,32 @@ if grep -q "^     naab fixfile.write()" <<<"$WR"; then
 else
     bad CM-21c "fixfile.write wrongly gated" "$WR"
 fi
+# ---------------------------------------------------------------- CM-29 / CM-30
+NETR="$(cm reach fetch_impl --gate GovernanceEngine::checkNetworkAllowed)"
+RATE="$(cm reach fetch_impl --gate GovernanceEngine::checkStdlibRate)"
+if grep -q "pre-dispatch module gate checkNetworkAllowed: applied -- modules fixnet, 1 NAAb names" <<<"$STATS" \
+   && grep -qE "naab fixnet.fetch\(\)  fixture.cpp:[0-9]+  via GovernanceEngine::checkNetworkAllowed" <<<"$NETR" \
+   && ! grep -q "^     naab fixnet.fetch()" <<<"$NETR" && grep -q "^     naab fixfile.write()" <<<"$WR"; then
+    ok CM-29 "a gate called under if (module == \"fixnet\") gates fixnet.fetch before dispatch; fixfile.write is not under it"
+else
+    bad CM-29 "the module gate was not applied to fixnet.fetch (or gated more)" "$STATS
+$NETR"
+fi
+if grep -q "pre-dispatch detector checkStdlibRate \[precheck, never a gate\]: refuses when the stdlib call rate is exceeded; modules all; dispatchers vm_dispatch" <<<"$STATS" \
+   && grep -q "^     naab fixnet.fetch()" <<<"$RATE" \
+   && grep -qE "before dispatch, NOT gating \(detectors\): (.*, )?checkStdlibRate(,|$)" <<<"$(grep -A2 "^     naab fixfile.write()" <<<"$WR")"; then
+    ok CM-30 "a detector run for every call is [precheck] context: printed beside fixfile.write, and as --gate it stops nothing"
+else
+    bad CM-30 "the detector was missing, or counted as a gate" "$STATS
+$RATE
+$WR"
+fi
+if grep -q "pre-dispatch detector checkPreExecution \[precheck, never a gate\]: refuses when a configured behavioural sequence completes; modules all; dispatchers tw_dispatch$" <<<"$STATS"; then
+    ok CM-31 "a detector the dispatcher runs is credited to it, not to the same-file helper that consults the allowlist"
+else
+    bad CM-31 "the route owner was not resolved through its helper" "$(grep 'pre-dispatch' <<<"$STATS")"
+fi
+
 # The verification is what makes a gate edge trustworthy: take the gate call out
 # of the only caller of the allowlist and the edges must be withheld.
 python3 - <<'EOF'
@@ -542,25 +588,74 @@ else
     bad CM-21b "an unverified pre-dispatch gate was still applied" "$STATS
 $RD"
 fi
+# CM-29b / CM-30b: the module gate's guard names another module, and the detector
+# call is gone. Neither may leave an edge behind.
+python3 - <<'EOF'
+p = "fixture.cpp"
+s = open(p).read()
+for old, new in (('    } else if (module == "fixnet") {\n        g.checkNetworkAllowed();',
+                  '    } else if (module == "fixother") {\n        g.checkNetworkAllowed();'),
+                 ("    g.checkStdlibRate();\n", "")):
+    assert s.count(old) == 1, old
+    s = s.replace(old, new)
+open(p, "w").write(s)
+EOF
+cm index >/dev/null
+STATS="$(cm stats)"
+NETR="$(cm reach fetch_impl --gate GovernanceEngine::checkNetworkAllowed)"
+WR="$(cm reach write_impl --gate GovernanceEngine::checkPathAccess)"
+if grep -q "pre-dispatch module gate checkNetworkAllowed: unverified: no module every dispatcher gates; gated by SOME dispatchers only (no edge): fixnet" <<<"$STATS" \
+   && grep -q "^     naab fixnet.fetch()" <<<"$NETR"; then
+    ok CM-29b "vm_dispatch's gate call now under if (module == \"fixother\"): fixnet is gated by one dispatcher of two, so by none -- the guard decides, and every dispatcher must agree"
+else
+    bad CM-29b "a gate under another module's guard still gated fixnet.fetch" "$STATS
+$NETR"
+fi
+if ! grep -q "pre-dispatch detector checkStdlibRate" <<<"$STATS" && ! grep -qE "NOT gating \(detectors\):.*checkStdlibRate" <<<"$WR" \
+   && grep -q "NOT gating (detectors): checkPreExecution$" <<<"$WR"; then
+    ok CM-30b "with the detector call removed, its [precheck] edge and stats line are gone; the other detector's stays (control)"
+else
+    bad CM-30b "a [precheck] edge outlived its call" "$STATS
+$WR"
+fi
 
 # ---------------------------------------------------------------- CM-22
 FIXSTATS="$(cm stats)"
 mkdir -p "$W/dup/build"
-printf 'static int helper() { return 1; }\nint main(int argc, char** argv) { (void)argv; return helper() + argc; }\n' > "$W/dup/a.cpp"
-printf 'static int helper() { return 2; }\nint main(int argc, char** argv) { (void)argv; return helper() - argc; }\n' > "$W/dup/b.cpp"
+printf 'static int helper() { return 1; }\nint shared() { return 10; }\nint main(int argc, char** argv) { (void)argv; return helper() + shared() + argc; }\n' > "$W/dup/a.cpp"
+printf 'static int helper() { return 2; }\nint shared() { return 20; }\nint main(int argc, char** argv) { (void)argv; return helper() - argc; }\n' > "$W/dup/b.cpp"
+printf 'int shared();\nint user() { return shared(); }\n' > "$W/dup/c.cpp"
 ( cd "$W/dup" && python3 -c "
 import json, os
 w = os.getcwd()
 json.dump([{'directory': os.path.join(w, 'build'), 'file': os.path.join(w, f),
-            'arguments': ['c++', '-std=c++17', '-c', os.path.join(w, f), '-o', f + '.o']} for f in ('a.cpp', 'b.cpp')],
+            'arguments': ['c++', '-std=c++17', '-c', os.path.join(w, f), '-o', f + '.o']} for f in ('a.cpp', 'b.cpp', 'c.cpp')],
           open(os.path.join(w, 'build', 'compile_commands.json'), 'w'))" \
   && python3 "$CM" --repo . --cache .cache/codemap index --jobs 2 >/dev/null 2>&1 )
-DUP="$( cd "$W/dup" && python3 "$CM" --repo . --cache .cache/codemap stats 2>&1 )"
-if grep -q "defined in more than one file, stored once (1)" <<<"$DUP" \
-   && grep -qE "^  main  kept (a|b)\.cpp; also (a|b)\.cpp$" <<<"$DUP" && ! grep -q "helper  kept" <<<"$DUP"; then
-    ok CM-22 "main defined in two files is listed as stored once; the static helpers are not"
+dupcm() { ( cd "$W/dup" && python3 "$CM" --repo . --cache .cache/codemap "$@" 2>&1 ); }
+DUP="$(dupcm stats)"
+if grep -q "defined in more than one file, stored per file (2)" <<<"$DUP" \
+   && grep -qx "  main  a.cpp, b.cpp" <<<"$DUP" && grep -qx "  shared  a.cpp, b.cpp" <<<"$DUP" \
+   && ! grep -q "^  helper " <<<"$DUP"; then
+    ok CM-22 "main and shared, each defined in two files, are listed as stored per file; the static helpers are not"
 else
-    bad CM-22 "a definition collision was not reported (or a static was)" "$(grep -A3 'defined in more' <<<"$DUP")"
+    bad CM-22 "a definition collision was not reported per file (or a static was)" "$(grep -A3 'defined in more' <<<"$DUP")"
+fi
+CA="$(dupcm callees a.cpp:main)"; CB="$(dupcm callees b.cpp:main)"
+if grep -qE "^  -> a\.cpp:shared +\[ast\] a\.cpp:3$" <<<"$CA" && grep -qE "^  -> helper +\[ast\] a\.cpp:3$" <<<"$CA" \
+   && ! grep -q "b\.cpp" <<<"$CA" && grep -qE "^  -> helper +\[ast\] b\.cpp:3$" <<<"$CB" && ! grep -q "shared" <<<"$CB"; then
+    ok CM-22b "each main keeps its own callees: a.cpp's calls its shared and helper, b.cpp's only its helper"
+else
+    bad CM-22b "two definitions' callees merged or crossed" "$CA
+$CB"
+fi
+RA="$(dupcm callers a.cpp:shared)"; RB="$(dupcm callers b.cpp:shared)"
+if grep -qE "^  <- a\.cpp:main +\[ast\] a\.cpp:3$" <<<"$RA" && grep -qE "^  <- user +\[ast, ambiguous\] c\.cpp:2$" <<<"$RA" \
+   && grep -qE "^  <- user +\[ast, ambiguous\] c\.cpp:2$" <<<"$RB" && ! grep -q "main" <<<"$RB"; then
+    ok CM-22d "a call from a file that saw no definition goes to each, marked ambiguous; a.cpp's own call goes to a.cpp's alone"
+else
+    bad CM-22d "calls into a multiply-defined function were routed wrongly" "$RA
+$RB"
 fi
 if grep -q "defined in more than one file: none" <<<"$FIXSTATS"; then
     ok CM-22c "control: the fixture's same-named static helpers are not a collision"

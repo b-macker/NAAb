@@ -1,6 +1,6 @@
 """codemap coverage (gcovmap.py): which functions the test suite executes, mapped onto the index.
 
-    cmake -S . -B build-cov -DNAAB_COVERAGE=ON && make -C build-cov naab-lang naab-gov -j4
+    cmake -S . -B build-cov -DNAAB_COVERAGE=ON && make -C build-cov <COV_TARGETS> -j4   # COV_TARGETS below
     codemap coverage run --name suite            # every run-all-tests.sh unit, one gcov tree each
     codemap tested GovernanceEngine::checkPathAccessImpl   # which units executed it
     codemap untested --under src/runtime         # compiled in, executed by no unit
@@ -19,12 +19,18 @@ What it cannot see, and says: a process killed by a signal (a timeout's SIGKILL)
 or replaced by exec writes nothing; a forked child's lines between fork and exec
 are not recorded; a unit that ran naab-lang with GCOV_PREFIX scrubbed from its
 environment writes into the build directory itself, collected as
-"(unattributed)"; code in no instrumented binary (naab-lsp's own sources, a file
-the build skips) reads "not in the build", never "untested", while code that IS
-in naab-lang but that a test reaches only through an uninstrumented binary
-(libnaab, naab-lsp, the GoogleTest unit tests) reads executed by no unit -- the
-false-untested direction. Execution is not verification: a unit that executes a
-function may assert nothing about it.
+"(unattributed)"; code in no instrumented binary (a file the build skips) reads
+"not in the build", never "untested". `coverage run` takes every binary in
+COV_TARGETS from the instrumented build: the helper binaries suites call
+(naab-lsp, naab-verify-audit) run instrumented, and the GoogleTest binary and the
+C API's test program run as codemap-only units ("gtest:...", "capi:..."), so a
+reading names when its execution came from a C++ test rather than from a NAAb
+program. A helper missing from the instrumented build is taken from build/
+uninstrumented and the run says so -- code only it reaches then reads executed by
+no unit, the false-untested direction. Only naab-lang and naab-gov wrap _exit, so
+a helper that leaves through _exit writes nothing. libnaab is linked by no suite.
+Execution is not verification: a unit that executes a function may assert
+nothing about it.
 """
 
 import json
@@ -38,12 +44,24 @@ CALLABLE_KINDS = ("constructor", "conversion_function", "cxx_method", "destructo
                   "function_template", "lambda")
 UNATTRIBUTED = "(unattributed)"
 
+# What `coverage run` takes from the instrumented build: the interpreter and the
+# governance CLI the suite runs, the helper binaries suites call
+# (tools/testrunner/dead_gate.py KEEP_BINARIES; libnaab is linked by no suite), and
+# the two C++ test programs run as codemap-only units. One list, so the install
+# hint, the status line and CLAUDE.md cannot drift apart.
+COV_TARGETS = ("naab-lang naab-gov naab-lsp naab-verify-audit naab_unit_tests naab_governance"
+               " test_governance_c_api")
+
+
+def build_command(build_dir):
+    return "cmake -S . -B {0} -DNAAB_COVERAGE=ON && make -C {0} {1} -j4".format(build_dir, COV_TARGETS)
+
 
 def install_hint(build_dir):
     return ("codemap coverage needs an instrumented build in %s:\n"
-            "  cmake -S . -B %s -DNAAB_COVERAGE=ON && make -C %s naab-lang naab-gov -j4\n"
+            "  %s\n"
             "(GCC only; it is slower than the normal build and is never installed)"
-            % (build_dir, build_dir, build_dir))
+            % (build_dir, build_command(build_dir)))
 
 
 def find_files(root, suffix):
