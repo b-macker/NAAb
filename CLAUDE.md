@@ -525,10 +525,10 @@ Always run `bash tests/security/test_error_msg_leaks.sh` after changing any erro
 
   | Route | Where | Runs |
   |---|---|---|
-  | A: `module.fn(args)` | `vm.cpp:1861`, OP_CALL_METHOD's `stdlibCallGates` call | `VM::stdlibCallGates` (filesystem mode and path, copy/move destination, network on http, dangerous call), attribution, argument taint, BSD pre-check and record, rate limits (inside `callStdlibMethod`) |
-  | C: `module.fn` with no parentheses | `vm.cpp:2680`, OP_GET_MEMBER's `stdlibCallGates` call | the same `stdlibCallGates` with no arguments, attribution, BSD, rate limits |
-  | B/D: a `__builtin__:` marker naming a module | `vm.cpp:1968`, `vm.cpp:2711` (`hasModule`) | rate limits, taint source/sanitizer -- nothing else; reachable only for `string`, the one builtin that is also a module |
-  | E: a module or builtin called as a function | `VM::callValue`, its `callBuiltinFunction` calls at `vm.cpp:3944` and `vm.cpp:3999` | `file`/`http`: filesystem write / network gate, dangerous call, argument taint, the print sink; the call itself (`callBuiltinFunction`) only errors for `file`/`http` |
+  | A: `module.fn(args)` | `vm.cpp:1866`, OP_CALL_METHOD's `stdlibCallGates` call | `VM::stdlibCallGates` (filesystem mode and path, copy/move destination, network on http, dangerous call), attribution, argument taint, BSD pre-check and record, rate limits (inside `callStdlibMethod`) |
+  | C: `module.fn` with no parentheses | `vm.cpp:2685`, OP_GET_MEMBER's `stdlibCallGates` call | the same `stdlibCallGates` with no arguments, attribution, BSD, rate limits |
+  | B/D: a `__builtin__:` marker naming a module | `vm.cpp:1973`, `vm.cpp:2716` (`hasModule`) | rate limits, taint source/sanitizer -- nothing else; reachable only for `string`, the one builtin that is also a module |
+  | E: a module or builtin called as a function | `VM::callValue`, its `callBuiltinFunction` calls at `vm.cpp:3972` and `vm.cpp:4027` | `file`/`http`: filesystem write / network gate, dangerous call, argument taint, the print sink; the call itself (`callBuiltinFunction`) only errors for `file`/`http` |
   | tree-walker call | `call_dispatch.cpp:1371`, the `__stdlib_call__:` branch | filesystem mode and path, network, dangerous call, argument taint, rate limits; no BSD (B11) |
   | tree-walker member | `call_dispatch.cpp:3241` (`math_constants`) | math constants only |
 
