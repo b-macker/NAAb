@@ -95,6 +95,12 @@
 # Needs a C++ compiler, gcov and libclang; each missing piece is UNMEASURABLE.
 # ============================================================
 set -uo pipefail
+# Every fixture run below names its own GCOV_PREFIX, and C-06 needs one run with
+# none. Under `codemap coverage run` each unit inherits a prefix of its own
+# (parallel.py --unit-env), so the "prefix-less" run wrote into that one and
+# C-06 failed in the A58 sweep run for that reason alone (reproduced: 30 of 31
+# with GCOV_PREFIX set, 31 of 31 without).
+unset GCOV_PREFIX GCOV_PREFIX_STRIP
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"

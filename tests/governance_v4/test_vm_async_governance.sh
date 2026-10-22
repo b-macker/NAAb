@@ -38,10 +38,11 @@
 #          both before and after the fix -- it reaches the thread-local engine,
 #          which #269 already propagated. A control that the split is what the
 #          defect was, not a general async failure
-#   AG-05  the block count is SHARED and exact across concurrent async fns:
-#          limit 6, six concurrent async fns with one block each run (exit 0);
-#          a seventh is refused (exit 3). A lost increment would let the
-#          seventh through
+#   AG-05  the block count is SHARED across concurrent async fns: limit 6,
+#          six concurrent async fns with one block each run (exit 0); a
+#          seventh is refused (exit 3). A lost increment is a race this arm
+#          would catch only by chance; the count is atomic by construction and
+#          the TSan run is the evidence for that, not this arm
 # ============================================================
 set -uo pipefail
 
@@ -225,7 +226,7 @@ else
     fail "AG-04" "thread-local env route inside an async fn" "restricted=$e_vm unrestricted=$e_ok"
 fi
 
-# ---- AG-05 one shared, exact count across concurrent async fns -------------------
+# ---- AG-05 one shared count across concurrent async fns --------------------------
 mk_conc() {  # $1 = number of concurrent async fns
     local n="$1" i
     printf 'async fn work(i) {\n    let a = <<python\n1\n>>\n    return i\n}\nmain {\n    let fs = []\n'
