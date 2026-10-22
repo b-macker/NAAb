@@ -7334,19 +7334,33 @@ void GovernanceEngine::restoreCounterState(const CounterState& s) {
     advisory_suppressed_  = s.advisory_suppressed;
 }
 
-// BUG-D: Track function return taint
+// BUG-D: Track function return taint. The flag is set by a stdlib call and read
+// by the VM or interpreter that made that call, on the same thread, so it is per
+// THREAD rather than an engine member: an async fn's VM shares the engine, and a
+// shared flag let one thread's return taint mark -- or clear -- another thread's
+// value (ThreadSanitizer reported the race once async VMs got the engine back).
+// Same precedent as t_function_stack and t_current_decision_trace.
+namespace {
+thread_local bool t_last_return_tainted = false;
+thread_local std::string t_last_taint_source;  // lineage: the source function
+}
+
 bool GovernanceEngine::lastReturnWasTainted() const {
-    return last_return_tainted_;
+    return t_last_return_tainted;
+}
+
+const std::string& GovernanceEngine::lastTaintSource() const {
+    return t_last_taint_source;
 }
 
 void GovernanceEngine::setLastReturnTainted(bool v) {
-    last_return_tainted_ = v;
-    if (!v) last_taint_source_.clear();
+    t_last_return_tainted = v;
+    if (!v) t_last_taint_source.clear();
 }
 
 void GovernanceEngine::setLastReturnTainted(bool v, const std::string& source_func) {
-    last_return_tainted_ = v;
-    last_taint_source_ = v ? source_func : "";
+    t_last_return_tainted = v;
+    t_last_taint_source = v ? source_func : "";
 }
 
 bool GovernanceEngine::isTaintSource(const std::string& func_name) const {

@@ -4069,7 +4069,7 @@ public:
     bool lastReturnWasTainted() const;
     void setLastReturnTainted(bool v);
     void setLastReturnTainted(bool v, const std::string& source_func);
-    const std::string& lastTaintSource() const { return last_taint_source_; }
+    const std::string& lastTaintSource() const;  // per thread, see setLastReturnTainted()
 
     // --- Hooks ---
     void fireHook(const HookConfig& hook,
@@ -4140,8 +4140,8 @@ private:
     std::unordered_set<std::string> taint_set_;
     std::unordered_map<std::string, TaintMetadata> taint_lineage_;
     mutable std::mutex taint_mutex_;  // BUG-N: Thread-safe taint operations
-    bool last_return_tainted_ = false;  // BUG-D: Track function return taint
-    std::string last_taint_source_;      // Lineage: which source function produced the taint
+    // BUG-D's return-taint flag and its source are PER THREAD (governance_checks.cpp),
+    // not members: every VM, async fn workers included, shares one engine.
 
     // Execution-based contracts (v6)
     bool in_contract_test_ = false;  // Re-entrancy guard for execution contracts
