@@ -34,6 +34,7 @@
 #         (control: the pattern does not refuse everything)
 #   S-*   the consumed flag cannot outlive the call that set it
 #   F-*   the member route keeps function attribution
+#   G-*   the member route runs the module gates OP_CALL_METHOD runs (one helper)
 #   P-*   process.getpid no longer completes a process.exec step; process.run does
 #
 # VM only: the tree-walker records no BSD event for a stdlib call at all (B11),
@@ -347,6 +348,37 @@ fattr() {  # $1=id  $2=function  $3=expression  $4=expect (refused|ran)  $5=why
 fattr "F-01c" harvest 'env.get_all()' refused "control: env.get_all() in a function granted nothing"
 fattr "F-01"  harvest 'env.get_all'   refused "env.get_all (no parentheses) in a function granted nothing"
 fattr "F-01s" reader  'env.get_all'   ran     "control: env.get_all (no parentheses) in a function granted ENV_READ"
+
+# ── G: the member route runs the module gates ────────────────────────────────
+# The filesystem MODE gate needs no argument, so a zero-argument call reaches it:
+# `env.load_dotenv` without parentheses reads `.env`. Before the route shared
+# OP_CALL_METHOD's gates (VM::stdlibCallGates), `filesystem.mode: "none"` stopped
+# it only in the sandbox, as an error the program caught and ran on from (exit
+# 0); the same call with parentheses is a HARD block. The file was read in
+# neither case -- the defect is the tier.
+echo -e "${CYAN}--- G: the member route runs the module gates ---${NC}"
+gate_arm() {  # $1=id  $2=fs mode  $3=expression  $4=expect (hard|loaded)  $5=why
+    local d="$TEST_TMP/g_$1"; mkdir -p "$d"
+    printf '{ "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "elevated" },\n  "capabilities": { "filesystem": { "mode": "%s" } } }\n' "$2" > "$d/govern.json"
+    echo "G_DOT_TOKEN=dot_loaded" > "$d/.env"
+    printf 'use env\nuse file\nmain {\n  try {\n    let r = %s\n  } catch (e) {\n    print("CAUGHT")\n  }\n  print("TOKEN=" + (env.get("G_DOT_TOKEN") ?? "none"))\n}\n' "$3" > "$d/prog.naab"
+    OUT="$(cd "$d" && timeout 60s "$NAAB" run prog.naab 2>&1)"; RC=$?
+    if [ "$4" = hard ]; then
+        if [ "$RC" = 3 ] && ! grep -q '^CAUGHT' <<<"$OUT" && ! grep -q 'TOKEN=dot_loaded' <<<"$OUT"; then
+            pass "$1" "$5: HARD block, not caught, nothing loaded"
+        else
+            fail "$1" "$5: expected a HARD block" "rc=$RC caught=$(grep -c '^CAUGHT' <<<"$OUT") $(grep -m1 -E '^TOKEN=' <<<"$OUT")"
+        fi
+    else
+        if [ "$RC" = 0 ] && grep -q 'TOKEN=dot_loaded' <<<"$OUT"; then pass "$1" "$5: loaded"
+        else fail "$1" "$5: expected .env to load" "rc=$RC $(tail -2 <<<"$OUT" | tr '\n' ' ')"; fi
+    fi
+}
+gate_arm "G-01c" none 'env.load_dotenv()' hard   "control: env.load_dotenv() under filesystem.mode none"
+gate_arm "G-01"  none 'env.load_dotenv'   hard   "env.load_dotenv (no parentheses) under filesystem.mode none"
+gate_arm "G-01s" read 'env.load_dotenv'   loaded "control: env.load_dotenv (no parentheses) where reads are allowed"
+gate_arm "G-02c" read 'file.write()'      hard   "control: file.write() under filesystem.mode read"
+gate_arm "G-02"  read 'file.write'        hard   "file.write (no parentheses) under filesystem.mode read"
 
 # ── P: process.getpid is not a process start ─────────────────────────────────
 echo -e "${CYAN}--- P: process.getpid is not a process start ---${NC}"
