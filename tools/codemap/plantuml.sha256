@@ -1,14 +1,18 @@
 # sha256 of PlantUML jars `codemap uml --render` may run, one per line:
 #   <sha256>  <file name>  <where it was verified against>
 #
-# Deliberately empty. `codemap uml` always writes the .puml TEXT, which any
-# PlantUML viewer renders; --render runs `java -jar` on a downloaded jar, so it
-# runs only a jar whose digest someone has checked against the publisher and
-# pinned here.
+# `codemap uml` always writes the .puml TEXT, which any PlantUML viewer
+# renders; --render runs `java -jar` on a downloaded jar, so it runs only a jar
+# whose digest someone has checked against the publisher and pinned here.
 #
-# Not pinned yet: the pin is the owner's decision (roadmap item 9). The two
-# digests seen on 2026-10-16 were reconciled on 2026-10-22 (observed, this
-# container):
+# Pinned 2026-10-23 by the owner's decision (roadmap item 9): Maven Central's
+# plantuml-mit 1.2026.8, the build a signature covers. Re-checked that day
+# before pinning (observed, this container): the jar fetched again from Google's
+# Maven Central mirror has the sha256 below, its sha1 equals the .sha1 Maven
+# publishes, and its .asc is a GOOD signature by C08C...0213 (key fetched again
+# from keyserver.ubuntu.com by id). A newer PlantUML is a new line here, after
+# the same checks. The two digests seen on 2026-10-16 were reconciled on
+# 2026-10-22 (observed, this container):
 #   - They are two BUILDS of plantuml-mit 1.2026.8, not two releases: the jars
 #     have the same 5812 entries, same sizes and entry timestamps; exactly two
 #     classes differ (version/CompilationInfo.class, version/Version.class), in
@@ -28,5 +32,6 @@
 #     sha256 3629c9cd017c7f73e6450396eea0040216c7e1eef8473ce33cc1aad469dab2f9;
 #     Maven's signature reads BAD against it (it covers the other build), and
 #     the release's own digests could not be read (GitHub's API answered 403).
-# Recommendation put to the owner: pin Maven Central's jar by the sha256 above,
-# recording "Maven Central, signature by C08C...0213" as where it was verified.
+# The GitHub release's build is deliberately NOT pinned: no signature covers it.
+
+8a171e8941d1f68f4ec28f5c180a4bf8d54a2cd679348370d4ba59fc9fb910e3  plantuml-mit-1.2026.8.jar  Maven Central, sha1 as published, GOOD signature by C08C...0213

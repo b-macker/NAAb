@@ -1783,7 +1783,7 @@ def cmd_sweep(a, st):
         if old is None:
             with open(path, "w", encoding="utf-8", newline="\n") as fh:
                 fh.write("# sweep %s: functions compiled in and executed by no unit of coverage %s (%s),"
-                         " under %s, listed at %s\n" % (a.name, cname, run_state(cov), ", ".join(a.under or ["src"]),
+                         " under %s, listed at %s\n" % (a.name, cname, run_state(cov)["state"], ", ".join(a.under or ["src"]),
                                                          git_head(a.repo) or "?"))
                 fh.write("# state: %s (the history pass); action: %s\n"
                          % (" | ".join(SWEEP_STATES), " | ".join(SWEEP_ACTIONS)))
@@ -1813,6 +1813,7 @@ def cmd_sweep(a, st):
     res = {"sweep": a.name, "rows": len(rows), "done": len(done), "open": len(open_rows),
            "state_without_evidence": len(no_evidence), "unknown_state": len(unknown),
            "by_state": {s_: sum(1 for r in done if r["state"] == s_) for s_ in SWEEP_STATES},
+           "by_action": {x: sum(1 for r in done if r["action"].strip() == x) for x in SWEEP_ACTIONS + ("",)},
            "not_in_index": [r["function"] for r in missing] if st is not None else None}
     if a.json:
         return emit_json(dict(res, open_rows=[r["function"] for r in open_rows]))
@@ -1820,6 +1821,9 @@ def cmd_sweep(a, st):
         " (not done), %d with an unknown state" % (a.name, len(rows), len(done), len(open_rows),
                                                   len(no_evidence), len(unknown)))
     out("  done by state: %s" % (", ".join("%s %d" % kv for kv in res["by_state"].items() if kv[1]) or "none"))
+    # done means classified; whether each action has been taken is not something the worklist knows
+    out("  their recorded actions (classified is not acted on): %s"
+        % (", ".join("%s %d" % (k or "no action", v) for k, v in res["by_action"].items() if v) or "none"))
     if st is None:
         out("  NOT IN INDEX: UNMEASURABLE -- no index here, so renamed or removed functions are not found")
     elif missing:

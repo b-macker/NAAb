@@ -797,6 +797,7 @@ fi
 
 # ---------------------------------------------------------------- C-28 (roadmap item 5)
 SW="$(cm sweep init grp --under group.cpp --cov fx)"
+SWHEAD="$(head -1 docs/sweeps/grp.tsv)"
 SWAGAIN="$(cm sweep init grp --under group.cpp --cov fx)"; swrc=$?
 # record outcomes by hand, as a sweep would: one with evidence, one without; and
 # rename a third row's function, as a later refactor would
@@ -820,10 +821,13 @@ print("%(rows)d %(done)d %(open)d %(state_without_evidence)d" % d, ",".join(d["n
 SWADD="$(cm sweep init grp --under group.cpp --cov fx --add)"
 if grep -q "4 functions listed" <<<"$SW" && [ "$swrc" -ne 0 ] && grep -q "exists" <<<"$SWAGAIN" \
    && [ "$SWJ" = "4 1 1 1 lone_fn_renamed caller_ab" ] && grep -q "NOT IN INDEX (1)" <<<"$SWS" \
-   && grep -q "STATE WITHOUT EVIDENCE (1)" <<<"$SWS" && grep -q "1 functions added (3 already listed)" <<<"$SWADD"; then
-    ok C-28 "sweep: init lists 4 and refuses to overwrite; status: 1 done, 1 open, 1 state without evidence; a renamed row is flagged and not done; --add adds only the function the rename left unlisted"
+   && grep -q "STATE WITHOUT EVIDENCE (1)" <<<"$SWS" && grep -q "1 functions added (3 already listed)" <<<"$SWADD" \
+   && grep -qE "of coverage fx \((complete|partial|unknown)\), under group.cpp" <<<"$SWHEAD" \
+   && grep -q "their recorded actions (classified is not acted on): remove 1$" <<<"$SWS"; then
+    ok C-28 "sweep: init lists 4 and refuses to overwrite; its header names the run's completeness; status: 1 done (its action shown), 1 open, 1 state without evidence; a renamed row is flagged and not done; --add adds only the function the rename left unlisted"
 else
-    bad C-28 "the sweep worklist miscounted, overwrote, or passed a renamed row as done" "$SW
+    bad C-28 "the sweep worklist miscounted, overwrote, passed a renamed row as done, wrote a raw header, or did not show the done rows' actions" "$SW
+$SWHEAD
 $SWAGAIN
 $SWJ
 $SWS
