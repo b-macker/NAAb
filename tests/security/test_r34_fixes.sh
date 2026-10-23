@@ -43,8 +43,12 @@ check $? "deepCopy throws on depth overflow (not silent return)"
 echo ""
 echo "--- V-GOV-023 Part 2: VM collection governance ---"
 
-# T5: OP_LIST has checkArraySize
-grep -A5 'VM_CASE(OP_LIST)' "$SRC/vm/vm.cpp" | grep -q 'checkArraySize'
+# T5: OP_LIST has checkArraySize -- since D10 through naab::checkArrayGrowth()
+# (include/naab/array_growth.h), accepted only while that helper still calls
+# limits::checkArraySize; the behaviour is test_array_size_paths.sh AS-01.
+OPLIST_CTX="$(grep -A5 'VM_CASE(OP_LIST)' "$SRC/vm/vm.cpp")"
+grep -q 'checkArraySize' <<<"$OPLIST_CTX" || { grep -q 'checkArrayGrowth' <<<"$OPLIST_CTX" \
+    && grep -q 'limits::checkArraySize(new_size)' "$SRC/../include/naab/array_growth.h"; }
 check $? "OP_LIST has checkArraySize"
 
 # T6: OP_DICT has checkArraySize

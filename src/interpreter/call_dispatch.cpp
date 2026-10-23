@@ -17,6 +17,7 @@
 #include "naab/js_executor_adapter.h"
 #endif
 #include "naab/governance.h"
+#include "naab/array_growth.h"
 #include <fmt/core.h>
 #include <iostream>
 #include <sstream>
@@ -761,6 +762,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
                 if (method_name == "add" || method_name == "push" || method_name == "append") {
                     if (args.empty()) throw std::runtime_error("array.add() requires 1 argument");
+                    {
+                        std::string gerr = naab::checkArrayGrowth(governance_.get(), arr.size() + 1);
+                        if (!gerr.empty()) throw std::runtime_error(gerr);
+                    }
                     arr.push_back(args[0]);
                     auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
                     if (obj_id && current_env_->has(obj_id->getName())) {
@@ -929,6 +934,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
                 if (method_name == "unshift") {
                     if (args.empty()) throw std::runtime_error("array.unshift() requires 1 argument");
+                    {
+                        std::string gerr = naab::checkArrayGrowth(governance_.get(), arr.size() + 1);
+                        if (!gerr.empty()) throw std::runtime_error(gerr);
+                    }
                     arr.insert(arr.begin(), args[0]);
                     auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
                     if (obj_id && current_env_->has(obj_id->getName())) {
@@ -943,6 +952,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                     if (idx < 0) idx += static_cast<int>(arr.size());
                     if (idx < 0 || idx > static_cast<int>(arr.size()))
                         throw std::runtime_error("Insert index " + std::to_string(idx) + " out of bounds");
+                    {
+                        std::string gerr = naab::checkArrayGrowth(governance_.get(), arr.size() + 1);
+                        if (!gerr.empty()) throw std::runtime_error(gerr);
+                    }
                     arr.insert(arr.begin() + idx, args[1]);
                     auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
                     if (obj_id && current_env_->has(obj_id->getName())) {
@@ -1762,6 +1775,10 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
             if (method_name == "add" || method_name == "push" || method_name == "append") {
                 if (args.empty()) throw std::runtime_error("array.add() requires 1 argument");
+                {
+                    std::string gerr = naab::checkArrayGrowth(governance_.get(), arr.size() + 1);
+                    if (!gerr.empty()) throw std::runtime_error(gerr);
+                }
                 arr.push_back(args[0]);
                 auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
                 if (obj_id && current_env_->has(obj_id->getName())) {
@@ -1927,6 +1944,10 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
             if (method_name == "unshift") {
                 if (args.empty()) throw std::runtime_error("array.unshift() requires 1 argument");
+                {
+                    std::string gerr = naab::checkArrayGrowth(governance_.get(), arr.size() + 1);
+                    if (!gerr.empty()) throw std::runtime_error(gerr);
+                }
                 arr.insert(arr.begin(), args[0]);
                 auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
                 if (obj_id && current_env_->has(obj_id->getName())) {
@@ -1941,6 +1962,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (idx < 0) idx += static_cast<int>(arr.size());
                 if (idx < 0 || idx > static_cast<int>(arr.size()))
                     throw std::runtime_error("Insert index " + std::to_string(idx) + " out of bounds");
+                {
+                    std::string gerr = naab::checkArrayGrowth(governance_.get(), arr.size() + 1);
+                    if (!gerr.empty()) throw std::runtime_error(gerr);
+                }
                 arr.insert(arr.begin() + idx, args[1]);
                 auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
                 if (obj_id && current_env_->has(obj_id->getName())) {
@@ -2840,15 +2865,23 @@ void Interpreter::visit(ast::CallExpr& node) {
             throw std::runtime_error("range() step cannot be zero");
         }
 
+        // Count first, in 64 bits, and check the size before building the list
+        // (D10): range() used to build it before any check, and `i += step` in
+        // int could overflow past INT_MAX.
+        int64_t count = 0;
+        if (step > 0 && end > start)
+            count = (static_cast<int64_t>(end) - start + step - 1) / step;
+        else if (step < 0 && end < start)
+            count = (static_cast<int64_t>(start) - end - static_cast<int64_t>(step) - 1)
+                    / -static_cast<int64_t>(step);
+        {
+            std::string gerr = naab::checkArrayGrowth(governance_.get(), static_cast<size_t>(count));
+            if (!gerr.empty()) throw std::runtime_error(gerr);
+        }
         std::vector<NaabVal> result;
-        if (step > 0) {
-            for (int i = start; i < end; i += step) {
-                result.push_back(NaabVal::makeInt(i));
-            }
-        } else {
-            for (int i = start; i > end; i += step) {
-                result.push_back(NaabVal::makeInt(i));
-            }
+        result.reserve(static_cast<size_t>(count));
+        for (int64_t k = 0; k < count; k++) {
+            result.push_back(NaabVal::makeInt(static_cast<int>(start + k * step)));
         }
 
         result_ = NaabVal::makeList(std::move(result));

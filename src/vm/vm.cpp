@@ -22,6 +22,7 @@
 #endif
 #include "naab/resource_limits.h"
 #include "naab/limits.h"
+#include "naab/array_growth.h"
 #include <climits>
 #include <cmath>
 #include <algorithm>
@@ -359,14 +360,23 @@ interpreter::NaabVal VM::callBuiltinFunction(const std::string& name, int argc,
             step = args[2].isInt() ? args[2].asInt() : naab::math::safeDoubleToInt(args[2].asDouble());
         }
         if (step == 0) runtimeError("range() step cannot be zero");
-        std::vector<interpreter::NaabVal> result;
-        if (step > 0) {
-            for (int i = start; i < end; i += step)
-                result.push_back(interpreter::NaabVal::makeInt(i));
-        } else {
-            for (int i = start; i > end; i += step)
-                result.push_back(interpreter::NaabVal::makeInt(i));
+        // Count first, in 64 bits, and check the size before building the list
+        // (D10): range() used to build it before any check, and `i += step` in
+        // int could overflow past INT_MAX.
+        int64_t count = 0;
+        if (step > 0 && end > start)
+            count = (static_cast<int64_t>(end) - start + step - 1) / step;
+        else if (step < 0 && end < start)
+            count = (static_cast<int64_t>(start) - end - static_cast<int64_t>(step) - 1)
+                    / -static_cast<int64_t>(step);
+        {
+            std::string gerr = naab::checkArrayGrowth(governance_, static_cast<size_t>(count));
+            if (!gerr.empty()) runtimeError("%s", gerr.c_str());
         }
+        std::vector<interpreter::NaabVal> result;
+        result.reserve(static_cast<size_t>(count));
+        for (int64_t k = 0; k < count; k++)
+            result.push_back(interpreter::NaabVal::makeInt(static_cast<int>(start + k * step)));
         return interpreter::NaabVal::makeList(std::move(result));
     }
     if (name == "__slice") {
@@ -930,18 +940,10 @@ interpreter::NaabVal VM::run() {
                     // doubling to ~33M elements ran until bad_alloc. Both engines
                     // had the same gap, so differential testing could not see it.
                     size_t combined = result.size() + blist.size();
-                    naab::limits::checkArraySize(combined);
-                    if (governance_) {
-                        // isActive() is false only for govern.json `mode: "off"`.
-                        // The tree-walker gates every equivalent check this way
-                        // (call_dispatch.cpp: 0 bare guards of 14 calls); the VM
-                        // gated some and not others, INSIDE THE SAME BLOCKS --
-                        // e.g. checkDangerousCall at :1839/:3861 and the taint
-                        // sink at :3870 already carry it. So `mode: "off"` meant
-                        // two different things per engine. Gates:
-                        // limits.data.array_size (list concatenation).
-                        std::string gerr = governance_->isActive()
-                            ? governance_->checkArraySize(combined) : std::string();
+                    {
+                        // limits.data.array_size (list concatenation); the
+                        // helper skips the configured limit for `mode: "off"`.
+                        std::string gerr = naab::checkArrayGrowth(governance_, combined);
                         if (!gerr.empty()) runtimeError("%s", gerr.c_str());
                     }
                     result.insert(result.end(), blist.begin(), blist.end());
@@ -2272,9 +2274,8 @@ interpreter::NaabVal VM::run() {
             VM_CASE(OP_LIST): {
                 int count = static_cast<int>(arg);
                 // V-GOV-023: Enforce governance array size limit on literal lists
-                naab::limits::checkArraySize(count);
-                if (governance_ && governance_->isActive()) {
-                    std::string gerr = governance_->checkArraySize(count);
+                {
+                    std::string gerr = naab::checkArrayGrowth(governance_, static_cast<size_t>(count));
                     if (!gerr.empty()) runtimeError("%s", gerr.c_str());
                 }
                 // Taint: list is tainted if ANY element is tainted
@@ -2463,9 +2464,8 @@ interpreter::NaabVal VM::run() {
                 if (start <= end) {
                     // C10 fix: enforce governance array size limit (matching OP_LIST)
                     int64_t range_size = end - start;
-                    naab::limits::checkArraySize(static_cast<int>(std::min(range_size, (int64_t)INT32_MAX)));
-                    if (governance_ && governance_->isActive()) {
-                        std::string gerr = governance_->checkArraySize(static_cast<size_t>(range_size));
+                    {
+                        std::string gerr = naab::checkArrayGrowth(governance_, static_cast<size_t>(range_size));
                         if (!gerr.empty()) runtimeError("%s", gerr.c_str());
                     }
                     range_list.reserve(range_size);
@@ -4507,6 +4507,10 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
         }
         if (method == "push" || method == "add" || method == "append") {
             if (argc < 1) runtimeError("push() requires 1 argument");
+            {
+                std::string gerr = naab::checkArrayGrowth(governance_, list.size() + 1);
+                if (!gerr.empty()) runtimeError("%s", gerr.c_str());
+            }
             list.push_back(args[0]);
             return interpreter::NaabVal::makeNull();
         }
@@ -4675,6 +4679,10 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
         }
         if (method == "unshift") {
             if (argc < 1) runtimeError("unshift() requires 1 argument");
+            {
+                std::string gerr = naab::checkArrayGrowth(governance_, list.size() + 1);
+                if (!gerr.empty()) runtimeError("%s", gerr.c_str());
+            }
             list.insert(list.begin(), args[0]);
             return interpreter::NaabVal::makeInt(static_cast<int>(list.size()));
         }
@@ -4699,6 +4707,10 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
             if (idx < 0) idx += static_cast<int>(list.size());
             if (idx < 0 || idx > static_cast<int>(list.size()))
                 runtimeError("Insert index %d out of bounds", idx);
+            {
+                std::string gerr = naab::checkArrayGrowth(governance_, list.size() + 1);
+                if (!gerr.empty()) runtimeError("%s", gerr.c_str());
+            }
             list.insert(list.begin() + idx, args[1]);
             return interpreter::NaabVal::makeNull();
         }

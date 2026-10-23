@@ -9,6 +9,7 @@
 #include "naab/string_interpolation.h"
 #include "naab/interpreter.h"
 #include "naab/governance.h"
+#include "naab/array_growth.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/error_helpers.h"
@@ -318,9 +319,8 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 // engines must agree, or the limit enforces on one and not the
                 // other depending on --tree-walk.
                 size_t combined_size = left_vec.size() + right_vec.size();
-                naab::limits::checkArraySize(combined_size);
-                if (governance_ && governance_->isActive()) {
-                    std::string gerr = governance_->checkArraySize(combined_size);
+                {
+                    std::string gerr = naab::checkArrayGrowth(governance_.get(), combined_size);
                     if (!gerr.empty()) throw std::runtime_error(gerr);
                 }
 
@@ -1252,8 +1252,8 @@ void Interpreter::visit(ast::ListExpr& node) {
         list.push_back(eval(*elem));
     }
     // Governance array size check on literals
-    if (governance_ && governance_->isActive()) {
-        std::string err = governance_->checkArraySize(list.size());
+    {
+        std::string err = naab::checkArrayGrowth(governance_.get(), list.size());
         if (!err.empty()) throw std::runtime_error(err);
     }
     result_ = NaabVal::makeList(std::move(list));

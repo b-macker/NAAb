@@ -16,6 +16,7 @@
 #include <unordered_set>
 #include <memory>
 #include "naab/limits.h"
+#include "naab/array_growth.h"
 #include <sstream>
 
 namespace naab {
@@ -81,8 +82,13 @@ interpreter::NaabVal ArrayModule::call(
             );
         }
         ensureArray(args[0], "array.push");
-        // V-GOV-023: enforce array size limits on native push
-        limits::checkArraySize(args[0].asList().size() + 1);
+        // V-GOV-023: enforce array size limits on native push -- the fixed cap
+        // and the configured limits.array_size (D10)
+        {
+            std::string gerr = checkArrayGrowth(governance::GovernanceEngine::getCurrent(),
+                                                args[0].asList().size() + 1);
+            if (!gerr.empty()) throw std::runtime_error(gerr);
+        }
         args[0].asList().push_back(args[1]);
         return args[0];
     }
@@ -157,8 +163,13 @@ interpreter::NaabVal ArrayModule::call(
             );
         }
         ensureArray(args[0], "array.unshift");
-        // V-GOV-023: enforce array size limits on native unshift
-        limits::checkArraySize(args[0].asList().size() + 1);
+        // V-GOV-023: enforce array size limits on native unshift -- the fixed
+        // cap and the configured limits.array_size (D10)
+        {
+            std::string gerr = checkArrayGrowth(governance::GovernanceEngine::getCurrent(),
+                                                args[0].asList().size() + 1);
+            if (!gerr.empty()) throw std::runtime_error(gerr);
+        }
         args[0].asList().insert(args[0].asList().begin(), args[1]);
         return args[0];
     }
