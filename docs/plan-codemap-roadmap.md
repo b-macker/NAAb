@@ -1,8 +1,12 @@
 # Plan — code map roadmap (`tools/codemap`)
 
-**Status:** planned 2026-10-21, nothing below is built. Agreed with the owner:
-finish the A64 governance coverage sweep first, then build all ten items in
-the order below. Each item's premise was checked on 2026-10-21 against the tree
+**Status:** finished 2026-10-23. All ten items are built, item 9's pin is made
+(the owner's decision), and A64's results are loaded into item 5's worklist;
+the table below says where each landed. What is left is not this plan's: A64's
+proposed tests and the owner's calls on its dead functions (`codemap sweep
+status A64`), and item 8's two duplicate definitions. Planned 2026-10-21 and
+agreed with the owner: finish the A64 governance coverage sweep first, then
+build all ten items in the order below. Each item's premise was checked on 2026-10-21 against the tree
 at `18039b76` (master `dd7744fd` plus #329's docs/tooling), and the check is
 named beside it; two premises changed shape on that check and say how.
 
@@ -34,16 +38,16 @@ session picking up code-map work reads this first, then the item's own history
 
 | # | Item | Status |
 |---|---|---|
-| 0 | A64 sweep: fresh coverage run, `untested` per governance file, classify each | done 2026-10-22: all 47 classified (`docs/sweeps/A64.md`); findings A65-A62; its proposed tests and removals are open |
+| 0 | A64 sweep: fresh coverage run, `untested` per governance file, classify each | done 2026-10-22: all 47 classified (`docs/sweeps/A64.md`); findings A65-A62; loaded into the worklist 2026-10-23 (`docs/sweeps/A64.tsv`): 23 rows await a test, 21 an owner's call |
 | 1 | Coverage for the binaries `coverage run` does not instrument | **built** 2026-10-22 (helpers from `build-cov`, gtest and C API units; C-22..C-24b); sweep re-read against `sweep2` done: one function moved to executed, by the gtest unit |
 | 2 | `impact` prints the records that name each changed function | built 2026-10-22 (`githist.symbol_names()` shared with `history`; C-25/C-25c) |
 | 3 | "Recorded at another commit" only when coverage-relevant files changed | built 2026-10-22 (`coverage_commit_change()`; premise narrowed, below; C-26/b/c) |
 | 4 | `cite-check DOC`: do `path:line` citations still point where they say | built 2026-10-22 (`citecheck.py`; 14 arms, 11 mutants); first run over three docs below |
-| 5 | Sweep worklist: every item ends with a recorded outcome | built 2026-10-22 (`sweep init`/`status`; C-28); A64 not yet loaded into it |
+| 5 | Sweep worklist: every item ends with a recorded outcome | built 2026-10-22 (`sweep init`/`status`; C-28); A64 loaded 2026-10-23, and `status` now prints the done rows' actions |
 | 6 | Pre-dispatch checks other than the filesystem gate: enumerate, then model | **built** 2026-10-22 -- and the enumeration found a route defect (A51 corrected, fixed) |
 | 7 | `untested` grouped by shared callers | built 2026-10-22 (`untested --group`; C-27) |
 | 8 | Functions defined in several files stored per file | **built** 2026-10-22 (per-file storage; CM-22/22b/22d, C-29); neither NAAb candidate is a live ODR violation |
-| 9 | PlantUML jar: reconcile the two digests, pin one | reconciled 2026-10-22 (two builds, a compile time apart; Maven's is signed); the pin awaits the owner |
+| 9 | PlantUML jar: reconcile the two digests, pin one | reconciled 2026-10-22 (two builds, a compile time apart; Maven's is signed); **pinned** 2026-10-23 by the owner: Maven Central's jar; a render verified |
 | 10 | How sessions use the map, from their transcripts | built 2026-10-22 (`usage.py`; 7 arms, 8 mutants); first run is authored usage |
 
 Order: 0, then 1 (it changes which A64 readings can be trusted), then 2 and 3
@@ -203,6 +207,23 @@ method's vocabulary (never built / working / regressed / removed on purpose /
 lost / decided) plus the action (test / restore / remove / none).
 A64's results are loaded into it once it exists.
 
+**Loaded (2026-10-23).** `sweep init A64 --cov sweep2` over the six governance
+files listed the 45 functions `A64.md` re-read against `sweep2`; the two the
+earlier `sweep` run also read (`preprocessCode`, removed by A62, and
+`AgentModule::hasFunction`, executed by the unit tests) were added by hand, so
+the worklist holds the record's 47. Each row's state, action and evidence are
+the record's, except the dead functions' state: `A64.md` said "never called",
+and the history pass's vocabulary needed to know whether a caller ever
+existed. The pickaxe over `src` and `include` answered it per name (observed):
+19 never had one (never built), and two lost theirs to a named replacement
+(`setAgentTurn` in `944e0932`, `requiresMainBlock` in `a73dab9b`: removed on
+purpose). `status` then read "47 done, 0 OPEN", which is this item's own doubt
+("items 5 and 7 can become the thing they measure"): done means classified,
+and 44 rows still have an action no one has taken. `status` now prints the
+done rows' recorded actions beside the count (C-28 pins the line), and
+`sweep init`'s header names the run's completeness instead of printing its
+internal record (found loading A64; C-28 pins it).
+
 **Done when.** Fixture: init from a coverage run, two outcomes recorded, status
 shows the rest open; control: a renamed function is flagged, not counted as
 done.
@@ -358,6 +379,15 @@ the key is PlantUML's own (fetched from a keyserver by id; plantuml.com is
 blocked here), and GitHub's own asset digests (API 403). Evidence and both
 sha256s are in `tools/codemap/plantuml.sha256`. **Recommendation:** pin Maven
 Central's jar (sha256 `8a171e89...910e3`), the one a signature covers.
+
+**Pinned (2026-10-23, the owner's decision).** Re-checked before pinning
+(observed, this container): the jar fetched again from Google's Maven Central
+mirror has that sha256, its sha1 equals the `.sha1` Maven publishes, and its
+`.asc` is a good signature by `C08C...0213` (key fetched again by id). Then
+`CODEMAP_PLANTUML_JAR=<jar> codemap uml Executor --render` exited 0 and wrote
+an SVG holding every one of the 17 classes in the `.puml` (control: the same
+jar with one byte appended was refused, exit 3, no SVG written). CM-13 is
+unchanged: it plants an unpinned jar and needs no network.
 
 ## 10. How sessions use the map
 
