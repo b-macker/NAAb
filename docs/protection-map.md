@@ -99,6 +99,38 @@ whose command cannot be found now reports UNMEASURABLE, never containment
 (`probe_broken()`); `--plant-bare LANG/ACTION/COLUMN` reproduces the defect end
 to end and `--selftest` checks the classifier both directions.
 
+**An action that did not happen counts as stopped only when the arm's output
+says something refused it** (D17, 2026-10-23). Until then any arm whose action
+was absent read **contained**: a run killed by the harness timeout, stopped by
+naab-lang's `--timeout`, crashed, or whose script was deleted or swapped by a
+concurrent block. That last shape is A63, the PHP executor's shared temp name
+(fixed in #329). Run in isolation, 400 one-block PHP programs 16 at a time,
+the pre-fix executor lost the script in 18 and ran another program's script
+in 36; master's binary, 0 of 400. Inside the map the race did not occur in 13
+runs of the PHP row (4 and 16 jobs), because the probes rarely start at the
+same moment. It is the likely cause of the one `php/write/unrestricted/shell`
+cell that read CONTAINED instead of OPEN in a CI run of #333's earlier head
+(built before #329), but that run's output was not kept, so this is not
+confirmed. Now:
+
+- An arm stopped from outside (harness timeout, `--timeout`, a signal) is
+  UNMEASURABLE ("arm did not complete").
+- An arm whose full output carries none of `REFUSALS` is UNMEASURABLE ("no
+  refusal in the arm's output"). `REFUSALS` lists the language gate, the
+  sandbox, embedded Python's path and import hooks, the child-environment
+  scrub, and Go's thread-creation failure under `RLIMIT_NPROC` (direct and
+  through cgo, the non-root go cells).
+- The comparator fails on either reason, as it does on a broken probe. It
+  prints the arm's exit code and output beside every differing cell (lines
+  starting `EVIDENCE`), so a CI failure shows the run behind the verdict.
+
+Each refusal shape in the list was seen in the output of every cell credited
+that way, as root and as an ordinary user (2026-10-23, all 323 cells; the rust
+row with `/root` made traversable for the run). The rule changed no verdict in
+either baseline. `--plant-fail` and `--plant-hang` make one cell's runtime arm
+die before its block runs. Both read UNMEASURABLE; with the rule reverted, both
+read CONTAINED (PM-07).
+
 ### `restricted/deny`
 
 | language | exec | read | write | net | env |
@@ -311,6 +343,11 @@ presets add go, php, rust and cpp).
 - A probe whose external command (`touch`/`cat`/`curl`) is not installed reports
   UNMEASURABLE, not containment. If one is missing in CI the cell drops out of
   the baseline comparison rather than flipping to contained.
+- A cell is credited as stopped when the arm's output carries a refusal. That
+  refusal is not checked to be of the probed action itself, so a refusal of
+  something else in the same run (another sandbox violation logged on the way)
+  would still credit the cell. A new refusal shape reads UNMEASURABLE until it
+  is added to `REFUSALS`, which errs toward reporting less protection.
 - The text checks are the langconform all-on rule set (`restrictions` and
   `languages.per_language` from `tools/langconform/config.json`). A project
   with fewer rules enabled has fewer TEXT cells and more OPEN ones.

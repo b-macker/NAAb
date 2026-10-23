@@ -10,8 +10,12 @@
 # every text check silenced), TEXT-ONLY (only a source-text check stops the
 # plain form -- an evasion is a real escape), OPEN (nothing stops it), or
 # NO_API. A control run with no policy at all must perform the action, or the
-# cell is UNMEASURABLE rather than "contained". docs/protection-map.md is the
-# rendered map; tools/protmap/baseline.json is what this suite pins.
+# cell is UNMEASURABLE rather than "contained". And an arm whose action did not
+# happen is credited as stopped only when its output carries a refusal
+# (protmap.REFUSALS) and the run finished on its own -- an arm that died for
+# another reason (a deleted script, a crash, a timeout) is UNMEASURABLE.
+# docs/protection-map.md is the rendered map; tools/protmap/baseline.json is
+# what this suite pins.
 #
 #   PM-00  the instrument runs: the python row is measurable (python is the
 #          embedded executor every Linux build has). A dead interpreter makes
@@ -39,6 +43,11 @@
 #   PM-06  CONTROL: a planted bare-name exec probe reports UNMEASURABLE, not a
 #          containment verdict -- the PATH artifact the absolute-path fix closed
 #          (root only: as non-root no column can host the artifact)
+#   PM-07  CONTROL: a runtime arm made to fail before its block (PM-07) or to
+#          hang until --timeout (PM-07h) reads UNMEASURABLE with that reason,
+#          never CONTAINED; PM-07c: the same cell, unplanted, is CONTAINED here
+#   PM-08  CONTROL: the comparator FAILS on a baselined cell the instrument
+#          failed on; PM-08c: it skips one this platform cannot measure
 #
 # The baseline has a root and a nonroot section: RLIMIT_NPROC does not bind
 # root, so the same build contains less when run as root (3 cells differ as of 2026-10-09: go read/write/net at standard/shell);
@@ -142,7 +151,7 @@ if [ $crc -eq 0 ] && [ -n "$summary" ]; then
     ok PM-02 "map equals the committed $PROFILE baseline: ${summary#BASELINE }"
 else
     bad PM-02 "map differs from tools/protmap/baseline.json (regenerate it AND docs/protection-map.md if the change is intended)" \
-        "$(printf '%s\n' "$cout" | grep -E '^(DIFF|BASELINE)')"
+        "$(printf '%s\n' "$cout" | grep -E '^(DIFF|EVIDENCE|BASELINE)')"
 fi
 
 # --- PM-03 ---
@@ -242,6 +251,70 @@ except Exception: print('PARSE_FAIL')" 2>/dev/null)"
         OPEN|TEXT-ONLY) skip PM-06 "bare name resolved here ($verdict); PATH did not hide it -- UNMEASURABLE control" ;;
         *)            bad PM-06 "could not classify the planted probe ($verdict)" "$pb" ;;
     esac
+fi
+
+# --- PM-07: CONTROL -- a runtime arm that dies for a reason unrelated to the
+# policy must read UNMEASURABLE, never CONTAINED. The cell is python's write at
+# standard/deny: CONTAINED in this run (PM-07c), its arm refused by embedded
+# Python's path hook. --plant-fail throws before the block runs; --plant-hang
+# loops until naab-lang's --timeout stops it. Before the refusal rule both read
+# CONTAINED (verified by reverting it: the shape a deleted or swapped script --
+# A63 -- produced). Each asserts its REASON: the timeout rule and the refusal
+# rule both catch a hang, and only the reason shows which one did.
+PCELL="python/write/standard/deny"
+pc="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['$PCELL']['verdict'])" "$W/cells.json" 2>/dev/null)"
+if [ "$pc" = CONTAINED ]; then
+    ok PM-07c "control: $PCELL reads CONTAINED in this measurement (its arm's refusal is credited)"
+else
+    bad PM-07c "control: $PCELL reads '$pc', expected CONTAINED -- PM-07 below would prove nothing"
+fi
+plant_why() {  # $1 = fail|hang; prints "VERDICT|why"
+    python3 "$TOOL" --naab "$NAAB" --plant-"$1" "$PCELL" --jobs 2 2>&1 | tail -1 | python3 -c "import json,sys
+try:
+    c = json.loads(sys.stdin.read()); print(c.get('verdict', '?') + '|' + c.get('why', ''))
+except Exception: print('PARSE_FAIL|')" 2>/dev/null
+}
+pf="$(plant_why fail)"
+case "$pf" in
+    "UNMEASURABLE|no refusal in the arm's output"*) ok PM-07 "an arm that fails before its block reads UNMEASURABLE (no refusal), not contained" ;;
+    *) bad PM-07 "an arm that failed for an unrelated reason read '$pf' -- absence of the action credited as containment" ;;
+esac
+ph="$(plant_why hang)"
+case "$ph" in
+    "UNMEASURABLE|arm did not complete: naab-lang --timeout fired"*) ok PM-07h "an arm stopped by --timeout reads UNMEASURABLE (did not complete)" ;;
+    *) bad PM-07h "an arm stopped by --timeout read '$ph'" ;;
+esac
+
+# --- PM-08: CONTROL of the comparator -- a baselined cell the INSTRUMENT
+# failed on (no refusal / did not complete / probe broken) must fail the
+# comparison, never be skipped like a cell this platform cannot measure.
+# PM-08c: the same cell UNMEASURABLE for an ordinary reason (toolchain absent)
+# is skipped. Planted into a copy of this run's measurement, as PM-04 is.
+cmp_planted() {  # $1 = why to plant; prints the comparator's exit code
+    python3 - "$W/cells.json" "$W/p8.json" "$W/p8base.json" "$PROFILE" "$PCELL" "$1" "$TOOL" <<'EOF3'
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("protmap", sys.argv[7])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+cells = json.load(open(sys.argv[1]))
+json.dump({sys.argv[4]: {k: v["verdict"] for k, v in cells.items() if v["verdict"] in m.RANK}},
+          open(sys.argv[3], "w"))
+cells[sys.argv[5]] = {"verdict": "UNMEASURABLE", "why": sys.argv[6]}
+json.dump(cells, open(sys.argv[2], "w"))
+EOF3
+    python3 "$TOOL" --cells "$W/p8.json" --baseline "$W/p8base.json" --profile "$PROFILE" >"$W/p8.out" 2>&1
+    echo $?
+}
+r8="$(cmp_planted "no refusal in the arm's output (runtime arm)")"
+if [ "$r8" != 0 ] && grep -q "^DIFF $PCELL: CONTAINED -> UNMEASURABLE" "$W/p8.out"; then
+    ok PM-08 "comparator fails on a baselined cell the instrument failed on"
+else
+    bad PM-08 "comparator skipped an instrument failure (exit $r8)" "$(cat "$W/p8.out")"
+fi
+r8c="$(cmp_planted "language did not run (toolchain absent?)")"
+if [ "$r8c" = 0 ]; then
+    ok PM-08c "control: a cell this platform cannot measure is skipped, not failed"
+else
+    bad PM-08c "comparator failed on an ordinary unmeasurable cell (exit $r8c)" "$(cat "$W/p8.out")"
 fi
 
 report
