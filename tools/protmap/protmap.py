@@ -302,11 +302,56 @@ class Listener:
         self.sock.close()
 
 
+# What a run prints when something REFUSED its action. An arm whose action did
+# not happen is credited as stopped (CONTAINED, or an enforce-only gate) only
+# when its output carries one of these; otherwise it may have died for a reason
+# that has nothing to do with the policy, and the absence proves nothing. Each
+# was observed in the output of every cell credited that way (root and
+# non-root, 2026-10-22):
+REFUSALS = (
+    "execution denied by sandbox",          # the language gate (language_registry.cpp)
+    "[SANDBOX VIOLATION]",                  # the sandbox (sandbox.cpp logViolation)
+    "PermissionError",                      # embedded Python's audit hook (path policy)
+    "Import blocked by governance policy",  # embedded Python's import hook
+    "Withheld environment variable",        # the child-environment scrub (enforce)
+    "failed to create new OS thread",       # Go under RLIMIT_NPROC=0 (non-root)
+    "pthread_create failed: Resource temporarily unavailable",  # the same, via
+                                            # cgo: Go's net package (non-root)
+)
+# A shape not listed reads UNMEASURABLE and fails the baseline comparison with
+# the arm's output beside it -- never CONTAINED. The two shapes that motivated
+# this (A63, a PHP script deleted or replaced by a concurrent block before it
+# ran: 54 of 400 concurrent runs on the pre-fix executor) both leave the
+# action undone with no refusal, and both used to read CONTAINED.
+
+
+def refused(out, err):
+    return any(sig in out or sig in err for sig in REFUSALS)
+
+
+def incomplete_reason(rc, out, err):
+    """Why a run did not finish under its own steam, or "" when it did. A run
+    the harness or naab-lang's own --timeout stopped, or that a signal killed,
+    did not get as far as attempting the action: its absence is not evidence
+    that anything stopped the action. naab-lang prints its errors on STDOUT."""
+    if rc is None:
+        return "harness timeout"
+    if rc < 0:
+        return f"killed by signal {-rc}"
+    if any("Execution timeout: script exceeded the configured time limit" in s for s in (out, err)):
+        return "naab-lang --timeout fired"
+    return ""
+
+
 def run_probe(naab, lang, action, mode, level, rules, policy=True, timeout=90,
-              tools=None, snippet=None):
+              tools=None, snippet=None, prelude="", naab_timeout=60):
     """Run one block; return (happened, exit_code, output, audit_rules,
-    broken) -- `broken` is True when the action did not happen and the
-    output says the probe's own command was not found."""
+    broken, incomplete, refused) -- `broken` is True when the action did not
+    happen and the output says the probe's own command was not found;
+    `incomplete` is incomplete_reason() when the action did not happen, else
+    ""; `refused` is True when the FULL output carries a REFUSALS line (the
+    returned output is only its tail). `prelude` is NAAb code run before the
+    block: only the --plant-* controls set it."""
     tools = tools if tools is not None else tool_paths()
     snippet = snippet if snippet is not None else SNIPPETS[lang][action]
     w = tempfile.mkdtemp(prefix="protmap-")
@@ -328,18 +373,18 @@ def run_probe(naab, lang, action, mode, level, rules, policy=True, timeout=90,
             # The pause keeps the process alive; nothing else changes.
             pause = "    time.sleep(1.5)\n" if action == "net" else ""
             use = "use time\n" if pause else ""
-            f.write("%smain {\n    let r = <<%s\n%s\n>>\n%s    print(\"V=\" + string(r))\n}\n"
-                    % (use, lang, code, pause))
+            f.write("%smain {\n%s    let r = <<%s\n%s\n>>\n%s    print(\"V=\" + string(r))\n}\n"
+                    % (use, prelude, lang, code, pause))
         env = dict(os.environ)
         env[ENV_NAME] = env_token
         try:
-            p = subprocess.run([naab, "p.naab", "--timeout", "60"], cwd=w, env=env,
+            p = subprocess.run([naab, "p.naab", "--timeout", str(naab_timeout)], cwd=w, env=env,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
             out = p.stdout.decode("utf-8", "replace")
             err = p.stderr.decode("utf-8", "replace")
             rc = p.returncode
         except subprocess.TimeoutExpired:
-            out, err, rc = "", "TIMEOUT", -1
+            out, err, rc = "", "TIMEOUT", None
         if action == "exec":
             happened = os.path.exists(os.path.join(w, mark))
         elif action == "read":
@@ -360,7 +405,9 @@ def run_probe(naab, lang, action, mode, level, rules, policy=True, timeout=90,
                [k.lower() for k in tools_needed(snippet)] + \
                [w_ for w_ in ("touch", "cat", "curl") if w_ in snippet.split("\"")]
         broken = (not happened) and probe_broken(out + "\n" + err, cmds)
-        return happened, rc, ("OUT:" + out[-400:] + " ERR:" + err[-800:]), audit, broken
+        incomplete = "" if happened else incomplete_reason(rc, out, err)
+        return (happened, rc, ("OUT:" + out[-400:] + " ERR:" + err[-800:]), audit, broken,
+                incomplete, refused(out, err))
     finally:
         if lis:
             lis.close()
@@ -424,6 +471,10 @@ def registered_runtimes(naab):
 
 
 RANK = {"CONTAINED": 2, "NO_API": 2, "TEXT-ONLY": 1, "OPEN": 0}
+# UNMEASURABLE reasons that mean the INSTRUMENT failed on a cell this platform
+# can measure (the language ran, the control performed the action), as opposed
+# to one it cannot (toolchain absent). compare() fails on these, never skips.
+INSTRUMENT_FAILURES = ("probe broken", "arm did not complete", "no refusal in the arm's output")
 
 
 def compare(cells, baseline):
@@ -433,7 +484,7 @@ def compare(cells, baseline):
     fails, skipped = [], 0
     for key, want in sorted(baseline.items()):
         got = cells.get(key, {}).get("verdict")
-        if got == "UNMEASURABLE" and cells[key].get("why", "").startswith("probe broken"):
+        if got == "UNMEASURABLE" and cells[key].get("why", "").startswith(INSTRUMENT_FAILURES):
             # Not "this platform cannot measure it" -- the instrument failed on
             # a cell it measured before. Skipping it would hide exactly the
             # defect the probe-broken check exists to surface.
@@ -452,13 +503,25 @@ def compare(cells, baseline):
     return fails, skipped
 
 
-def measure(naab, langs, levels, jobs, snippets=None, measure_permitted=False):
+# --plant-fail / --plant-hang: NAAb code run before the RUNTIME arm's block, so
+# that arm dies for a reason unrelated to the policy -- the shape a deleted or
+# swapped script, a crash or an overloaded runner produces. The control and
+# text arms are untouched. CONTROLS of the instrument: the cell must read
+# UNMEASURABLE; before the refusal rule both read CONTAINED.
+PLANTS = {
+    "fail": ('    throw "protmap planted failure"\n', 60),
+    "hang": ("    let pm_n = 0\n    while true { pm_n = pm_n + 1 }\n", 2),
+}
+
+
+def measure(naab, langs, levels, jobs, snippets=None, measure_permitted=False, plant=None):
     """measure_permitted: also measure exec in a column whose policy permits it
     (normally PERMITTED, never probed). Only --plant-bare uses it: its subject
     is the INSTRUMENT, and since shell-off refuses every separate-process
     language the one column left where a bare command name can fail to resolve
     while the language runs is standard/shell (PATH restricted by the level,
-    fork allowed for root)."""
+    fork allowed for root). plant: (lang, action, column, kind) -- a PLANTS
+    prelude for that cell's runtime arm."""
     rules = text_rules()
     tools = tool_paths()
     snippets = snippets or SNIPPETS
@@ -476,10 +539,16 @@ def measure(naab, langs, levels, jobs, snippets=None, measure_permitted=False):
                     continue  # permitted by this column's policy
                 jobs_list.append((lang, action, "audit", lv, True))
                 jobs_list.append((lang, action, "enforce", lv, True))
+    def planted(j):
+        if plant and j == (plant[0], plant[1], "audit", plant[2], True):
+            prelude, naab_timeout = PLANTS[plant[3]]
+            return {"prelude": prelude, "naab_timeout": naab_timeout}
+        return {}
+
     results = {}
     with concurrent.futures.ThreadPoolExecutor(jobs) as ex:
         futs = {ex.submit(run_probe, naab, *j[:4], rules, j[4], 90, tools,
-                          snippets[j[0]][j[1]]): j for j in jobs_list}
+                          snippets[j[0]][j[1]], **planted(j)): j for j in jobs_list}
         for f in concurrent.futures.as_completed(futs):
             results[futs[f]] = f.result()
 
@@ -502,6 +571,15 @@ def measure(naab, langs, levels, jobs, snippets=None, measure_permitted=False):
                 cell = {"control": ctl[0], "runtime_stops": not rt[0],
                         "text_stops": not tx[0], "text_exit": tx[1],
                         "text_rules": rt[3]}
+                # What the arms printed, kept for every cell where an arm's
+                # action did not happen, so a verdict that differs from the
+                # baseline can be checked against the run it came from (the
+                # comparator prints these). Not part of the baseline.
+                if not rt[0]:
+                    cell["runtime_exit"] = rt[1]
+                    cell["runtime_output"] = rt[2]
+                if not tx[0]:
+                    cell["text_output"] = tx[2]
                 missing = [t.lower() for t in tools_needed(snippets[lang][action]) if not tools[t]]
                 if not alive:
                     v = "UNMEASURABLE"
@@ -522,7 +600,17 @@ def measure(naab, langs, levels, jobs, snippets=None, measure_permitted=False):
                     # containment result (the bare-name defect, caught).
                     v = "UNMEASURABLE"
                     cell["why"] = "probe broken: its command was not found (runtime arm)"
-                    cell["runtime_output"] = rt[2]
+                elif not rt[0] and rt[5]:
+                    # Stopped from outside before it could attempt the action:
+                    # the action's absence says nothing about containment.
+                    v = "UNMEASURABLE"
+                    cell["why"] = "arm did not complete: " + rt[5] + " (runtime arm)"
+                elif not rt[0] and not rt[6]:
+                    # The action did not happen, and nothing in the run says
+                    # anything refused it: a deleted script, a crash or a
+                    # compile failure looks exactly like this.
+                    v = "UNMEASURABLE"
+                    cell["why"] = "no refusal in the arm's output (runtime arm)"
                 elif not rt[0]:
                     v = "CONTAINED"
                     # display detail only (not baselined): the whole language
@@ -531,7 +619,9 @@ def measure(naab, langs, levels, jobs, snippets=None, measure_permitted=False):
                 elif not tx[0] and tx[4]:
                     v = "UNMEASURABLE"
                     cell["why"] = "probe broken: its command was not found (text arm)"
-                    cell["text_output"] = tx[2]
+                elif not tx[0] and tx[5]:
+                    v = "UNMEASURABLE"
+                    cell["why"] = "arm did not complete: " + tx[5] + " (text arm)"
                 elif not tx[0]:
                     # Something in enforce mode stopped it. It is a TEXT check
                     # only if naab-gov -- which reads the source and never runs
@@ -545,6 +635,9 @@ def measure(naab, langs, levels, jobs, snippets=None, measure_permitted=False):
                         cell["why"] = "naab-gov not built: cannot attribute the block"
                     elif static:
                         v = "TEXT-ONLY"
+                    elif not tx[6]:
+                        v = "UNMEASURABLE"
+                        cell["why"] = "no refusal in the arm's output (text arm)"
                     else:
                         v = "CONTAINED"
                         cell["why"] = "runtime gate active only in enforce mode"
@@ -635,6 +728,13 @@ def main(argv):
                     help="CONTROL: measure one cell with its absolute command "
                          "paths replaced by bare names (the original defect); "
                          "prints the cell as JSON")
+    ap.add_argument("--plant-fail", metavar="LANG/ACTION/COLUMN",
+                    help="CONTROL: measure one cell with its runtime arm made to "
+                         "fail before the block runs; prints the cell as JSON "
+                         "(must read UNMEASURABLE, never CONTAINED)")
+    ap.add_argument("--plant-hang", metavar="LANG/ACTION/COLUMN",
+                    help="CONTROL: the same, with the runtime arm made to hang "
+                         "until naab-lang's --timeout stops it")
     ap.add_argument("--selftest", action="store_true",
                     help="check probe_broken() against outputs captured from "
                          "the runtimes, both directions")
@@ -661,12 +761,22 @@ def main(argv):
         cells = measure(a.naab, [lang], [col], a.jobs, planted, measure_permitted=True)
         print(json.dumps(cells[f"{lang}/{action}/{col}"], sort_keys=True))
         return 0
+    for kind in ("fail", "hang"):
+        target = getattr(a, "plant_" + kind)
+        if target:
+            lang, action, col = target.split("/", 2)
+            cells = measure(a.naab, [lang], [col], a.jobs, plant=(lang, action, col, kind))
+            print(json.dumps(cells[target], sort_keys=True))
+            return 0
     for l in langs:
         if l not in SNIPPETS:
             ap.error(f"no snippets for {l}")
     if a.cells:
         with open(a.cells, encoding="utf-8") as f:
             cells = json.load(f)
+        # A saved measurement may cover fewer languages than the default list
+        # (--langs when it was made); render only those it holds.
+        langs = [l for l in langs if any(k.startswith(l + "/") for k in cells)]
     else:
         cells = measure(a.naab, langs, levels, a.jobs)
     md = render_md(cells, langs, levels)
@@ -703,6 +813,18 @@ def main(argv):
         fails, skipped = compare(cells, base)
         for line in fails:
             print("DIFF " + line)
+            # The arm output behind the verdict: without it a CI log shows
+            # only that a cell changed, never why (a PHP cell once read
+            # CONTAINED in one CI run and the cause could not be recovered).
+            cell = cells.get(line.split(":", 1)[0], {})
+            for arm in ("runtime", "text"):
+                if cell.get(arm + "_output"):
+                    ex = cell.get("runtime_exit") if arm == "runtime" else cell.get("text_exit")
+                    text = " ".join(cell[arm + "_output"].split())[-600:]
+                    # ASCII only: naab-lang's output carries non-ASCII marks,
+                    # and a non-UTF-8 locale would make print() raise here.
+                    print(f"EVIDENCE   {arm} arm exit={ex}: "
+                          + text.encode("ascii", "replace").decode("ascii"))
         print(f"BASELINE {len(base) - skipped - len([x for x in fails if 'not in baseline' not in x])}"
               f" match, {len(fails)} differ, {skipped} unmeasurable here")
         return 1 if fails else 0
