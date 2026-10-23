@@ -826,7 +826,7 @@ if grep -q "4 functions listed" <<<"$SW" && [ "$swrc" -ne 0 ] && grep -q "exists
    && grep -q "their recorded actions (classified is not acted on): remove 1$" <<<"$SWS"; then
     ok C-28 "sweep: init lists 4 and refuses to overwrite; its header names the run's completeness; status: 1 done (its action shown), 1 open, 1 state without evidence; a renamed row is flagged and not done; --add adds only the function the rename left unlisted"
 else
-    bad C-28 "the sweep worklist miscounted, overwrote, passed a renamed row as done, or wrote a raw header" "$SW
+    bad C-28 "the sweep worklist miscounted, overwrote, passed a renamed row as done, wrote a raw header, or did not show the done rows' actions" "$SW
 $SWHEAD
 $SWAGAIN
 $SWJ
