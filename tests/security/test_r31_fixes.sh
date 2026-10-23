@@ -31,16 +31,27 @@ JSON
 echo "=== V-GOV-023: Native array governance bypass ==="
 
 SRC_ARRAY="$SCRIPT_DIR/../../src/stdlib/array_impl.cpp"
+# Since D10 the guard is naab::checkArrayGrowth() (include/naab/array_growth.h),
+# which applies limits::checkArraySize AND the configured limit; accept it only
+# while the helper still calls checkArraySize. The behaviour is pinned by
+# tests/governance_v4/test_array_size_paths.sh AS-05 (mod_push / mod_unshift).
+GROWTH_H="$SCRIPT_DIR/../../include/naab/array_growth.h"
+helper_checks_size() { grep -q 'limits::checkArraySize(new_size)' "$GROWTH_H" 2>/dev/null; }
+guard_before() { # PATTERN -> 0 when a size guard sits in the 5 lines before it
+    local ctx; ctx="$(grep -B5 "$1" "$SRC_ARRAY")"
+    grep -q 'checkArraySize' <<<"$ctx" && return 0
+    grep -q 'checkArrayGrowth' <<<"$ctx" && helper_checks_size
+}
 
 # Test 1: Source — checkArraySize in push
-if grep -q 'checkArraySize.*push' "$SRC_ARRAY" || grep -B2 'push_back.*args\[1\]' "$SRC_ARRAY" | grep -q 'checkArraySize'; then
+if grep -q 'checkArraySize.*push' "$SRC_ARRAY" || guard_before 'push_back.*args\[1\]'; then
     pass "V-GOV-023 T1: checkArraySize guard in push"
 else
     fail "V-GOV-023 T1: checkArraySize not found in push"
 fi
 
 # Test 2: Source — checkArraySize in unshift
-if grep -q 'checkArraySize.*unshift' "$SRC_ARRAY" || grep -B2 'insert.*begin.*args\[1\]' "$SRC_ARRAY" | grep -q 'checkArraySize'; then
+if grep -q 'checkArraySize.*unshift' "$SRC_ARRAY" || guard_before 'insert.*begin.*args\[1\]'; then
     pass "V-GOV-023 T2: checkArraySize guard in unshift"
 else
     fail "V-GOV-023 T2: checkArraySize not found in unshift"

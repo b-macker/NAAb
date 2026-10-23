@@ -23,12 +23,19 @@
 # execution with no gate on the path, so nothing was mid-verdict. The missing
 # end-of-run verdict is an audit gap, not a bypassed check.
 #
-# STILL OPEN, deliberately not fixed here: array.push has the same gap and is
-# NOT fixed by this change. It calls naab::limits::checkArraySize (a fixed
-# 10,000,000 cap) and never governance_->checkArraySize, so a configured limit
-# does not apply to it — verified, and AS-05 pins that measurement rather than
-# asserting the wrong behaviour is correct. stdlib has no accessor to the engine,
-# so wiring it is a larger change than this PR should carry. Register item.
+# THE REST OF THE GROWTH PATHS (D10). That fix left array.push for later: it
+# called only naab::limits::checkArraySize (a fixed 10,000,000 cap), stdlib had
+# no accessor to the engine, and gating it changes behaviour for configs that
+# set the key. AS-05 pinned the gap as a measurement. Tracing the rest found the
+# same gap at every way an array grows one element at a time, on both engines:
+# .push/.append/.add, .unshift, .insert, array.push, array.unshift -- and
+# range(), which also built its whole list before ANY check, so not even the
+# fixed cap applied to it. Measured with limits.array_size = 1000: each grew to
+# 1500 and the run exited 0 under "Governance: PASS". They now answer to the
+# same check as a literal, through one helper (include/naab/array_growth.h).
+# The tree-walker's `0..N` is a lazy range object, not an array, so it has
+# nothing to gate; the VM materialises it and was already checked -- so a
+# `for i in 0..N` past the limit blocks on the VM only (A66, open).
 #
 #   AS-01  POSITIVE CONTROL. A list LITERAL over the limit must block (exit 3).
 #          Without it, AS-02's block is equally satisfied by a config that
@@ -39,10 +46,13 @@
 #   AS-04  CONTROL. With NO limit configured (default 0 = disabled), a large
 #          concatenation must be unaffected. This is the backward-compatibility
 #          assertion: the change must not start blocking runs that pass today.
-#   AS-05  MEASUREMENT, not an assertion of correctness: records that
-#          array.push still escapes the configured limit. Fails if push starts
-#          being gated, which is the prompt to update this file and the register
-#          together rather than letting the two drift.
+#   AS-05  every one-element growth path and range() over the limit blocks
+#          (exit 3, nothing after it runs), both engines
+#   AS-06  CONTROL, per path: growing to EXACTLY the limit still works -- a gate
+#          that blocks every push would pass AS-05
+#   AS-07  CONTROL, per path: with no limit configured, growth to 3000 is
+#          unaffected (backward compatibility)
+#   AS-08  the block is HARD: a try/catch around the growth does not catch it
 # ============================================================
 set -uo pipefail
 
@@ -81,10 +91,6 @@ main { let a = [1] let i = 0 while i < 20 { a = a + a i = i + 1 } print("CONCAT_
 X
 cat > "$W/limited/small.naab" <<'X'
 main { let a = [1,2,3] let b = [4,5] let c = a + b print("SMALL_" + string(c.length())) }
-X
-cat > "$W/limited/push.naab" <<'X'
-use array
-main { let a = [] let i = 0 while i < 3000 { a = array.push(a, i) i = i + 1 } print("PUSH_" + string(array.length(a))) }
 X
 cat > "$W/unlimited/big.naab" <<'X'
 main { let a = [1] let i = 0 while i < 12 { a = a + a i = i + 1 } print("BIG_" + string(a.length())) }
@@ -132,13 +138,91 @@ else
         "exit $BIG with limits.array_size absent (default 0 = disabled). This must stay backward compatible — it is the difference between fixing a gate and starting to block runs that pass today."
 fi
 
-PUSH=$(run_ec "$W/limited" push.naab)
-if [ "$PUSH" = "0" ]; then
-    ok "AS-05" "MEASUREMENT: array.push still escapes the configured limit (known, registered)"
-else
-    bad "AS-05" "array.push behaviour changed — this file and the register are now out of date" \
-        "exit $PUSH, was 0. If push is now gated that is an improvement, not a regression: update this assertion and the open-investigations row together."
-fi
+# ---- AS-05..AS-08: every way an array grows, per path and per engine (D10) ----
+# grow_stmt PATH -> one NAAb statement that grows `a` by one element (value i)
+grow_stmt() {
+    case "$1" in
+        push)        echo 'a.push(i)' ;;
+        append)      echo 'a.append(i)' ;;
+        add)         echo 'a.add(i)' ;;
+        unshift)     echo 'a.unshift(i)' ;;
+        insert)      echo 'a.insert(0, i)' ;;
+        mod_push)    echo 'a = array.push(a, i)' ;;
+        mod_unshift) echo 'a = array.unshift(a, i)' ;;
+    esac
+}
+# mk PATH N DIR -> writes DIR/PATH_N.naab, which grows an array to N elements
+# along PATH and then prints LEN_<length>. Nothing after the growth runs if the
+# growth is blocked, so a missing LEN_ line is the block's observable effect.
+mk() {
+    local f="$3/$1_$2.naab"
+    if [ "$1" = "range" ]; then
+        printf 'use array\nmain { let a = range(%s) print("LEN_" + string(array.length(a))) }\n' "$2" > "$f"
+    else
+        printf 'use array\nmain { let a = [] let i = 0 while i < %s { %s i = i + 1 } print("LEN_" + string(array.length(a))) }\n' \
+            "$2" "$(grow_stmt "$1")" > "$f"
+    fi
+    echo "$f"
+}
+# out DIR FILE FLAGS -> stdout+stderr, then "RC=<exit>" on the last line
+out() { ( cd "$1" && ulimit -v 2000000 2>/dev/null; timeout 90 "$NAAB" ${3:-} "$2" 2>&1; echo "RC=$?" ); }
+
+for path in push append add unshift insert mod_push mod_unshift range; do
+    for eng in vm tw; do
+        flags=""; [ "$eng" = "tw" ] && flags="--tree-walk"
+        f=$(mk "$path" 1500 "$W/limited")
+        O=$(out "$W/limited" "$(basename "$f")" "$flags"); O="${O//$'\r'/}"
+        rc="${O##*RC=}"
+        if [ "$rc" = "3" ] && grep -q 'exceeds limit of 1000' <<<"$O" && ! grep -q 'LEN_' <<<"$O"; then
+            ok "AS-05/$path/$eng" "$path past the limit blocks (exit 3)"
+        else
+            bad "AS-05/$path/$eng" "$path grows past limits.array_size" \
+                "exit $rc, expected 3 with 'exceeds limit of 1000' and no LEN_ line. Got: $(grep -m1 -E 'LEN_|exceeds|Error' <<<"$O")"
+        fi
+        f=$(mk "$path" 1000 "$W/limited")
+        O=$(out "$W/limited" "$(basename "$f")" "$flags"); O="${O//$'\r'/}"
+        rc="${O##*RC=}"
+        if [ "$rc" = "0" ] && grep -q 'LEN_1000' <<<"$O"; then
+            ok "AS-06/$path/$eng" "CONTROL: $path to exactly the limit (1000) still works"
+        else
+            bad "AS-06/$path/$eng" "$path is refused AT the limit" \
+                "exit $rc, expected 0 and LEN_1000. A gate that blocks every growth passes AS-05; this arm is what tells it apart."
+        fi
+        f=$(mk "$path" 3000 "$W/unlimited")
+        O=$(out "$W/unlimited" "$(basename "$f")" "$flags"); O="${O//$'\r'/}"
+        rc="${O##*RC=}"
+        if [ "$rc" = "0" ] && grep -q 'LEN_3000' <<<"$O"; then
+            ok "AS-07/$path/$eng" "CONTROL: $path with no limit configured reaches 3000"
+        else
+            bad "AS-07/$path/$eng" "$path changed behaviour for a config that sets no limit" \
+                "exit $rc, expected 0 and LEN_3000 with limits.array_size absent (default 0 = off)."
+        fi
+    done
+done
+
+cat > "$W/limited/catch.naab" <<'X'
+main {
+    let a = []
+    try {
+        let i = 0
+        while i < 1500 { a.push(i) i = i + 1 }
+    } catch (e) {
+        print("CAUGHT")
+    }
+    print("AFTER")
+}
+X
+for eng in vm tw; do
+    flags=""; [ "$eng" = "tw" ] && flags="--tree-walk"
+    O=$(out "$W/limited" catch.naab "$flags"); O="${O//$'\r'/}"
+    rc="${O##*RC=}"
+    if [ "$rc" = "3" ] && ! grep -q 'CAUGHT\|AFTER' <<<"$O"; then
+        ok "AS-08/$eng" "the block is HARD: a try/catch around the push does not catch it"
+    else
+        bad "AS-08/$eng" "the limit's block is catchable or absent" \
+            "exit $rc, expected 3 with neither CAUGHT nor AFTER printed."
+    fi
+done
 
 echo ""
 if [ "$FAIL" -eq 0 ]; then
