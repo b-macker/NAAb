@@ -397,7 +397,8 @@ void print_usage() {
     fmt::print("  naab-lang blocks index [path]       Build search index\n");
     fmt::print("  naab-lang api [port]                Start REST API server\n");
     fmt::print("  naab-lang mcp                       Serve governed execution over MCP (stdio)\n");
-    fmt::print("  naab-lang init                      Create naab.toml manifest\n");
+    fmt::print("  naab-lang init                      Create naab.toml and a standard govern.json\n");
+    fmt::print("  naab-lang init --governance-preset P  P: relaxed|standard|strict|paranoid\n");
     fmt::print("  naab-lang init --package            Create package project structure\n");
     fmt::print("  naab-lang manifest check            Validate naab.toml\n");
     fmt::print("  naab-lang calibrate                 Benchmark installed languages\n");
@@ -426,7 +427,7 @@ void print_usage() {
     fmt::print("  --pipe                              Pipe mode: io.write() → stderr,\n");
     fmt::print("                                      io.output() → stdout (for JSON)\n");
     fmt::print("\nGovernance Options:\n");
-    fmt::print("  --no-governance                     Completely disable governance engine\n");
+    fmt::print("  --no-governance                     Run without a govern.json (one that is found still applies)\n");
     fmt::print("  --governance-override               Override soft-mandatory governance rules\n");
     fmt::print("  --governance-verbose               Show detailed governance check results\n");
     fmt::print("  --governance-report <path>          Write JSON governance report to file\n");
@@ -2058,9 +2059,9 @@ int main(int argc, char** argv) {
                     }
                     if (require_governance) {
                         fmt::print(stderr,
-                            "Error: --require-governance set but no govern.json found.\n"
-                            "  Search root: {}\n"
-                            "  Create a govern.json or remove --require-governance.\n",
+                            "Error: No govern.json found in '{}' or any parent directory.\n"
+                            "  NAAb requires a govern.json by default.\n"
+                            "  Create one with: naab-lang init\n",
                             script_dir.string());
                         fflush(stderr);
                         return 4;

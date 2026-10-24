@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+> This section was not kept up to date between #165 and the README review of
+> 2026-10-24. "Highlights since #165" below is a short list of user-visible
+> features from that period, not a complete record; `git log` is the complete
+> record.
+
+### Changed
+- **README and demo checked against the binary.** Every command, config example and code block in `README.md` was run against the current build, and the claims that did not hold were corrected:
+  - The opening example shows the engine's real output, and says that sequence detection needs a pattern you write and `behavioral_sequences.enabled`.
+  - The CI report flags are `--governance-sarif PATH`, `--governance-junit PATH` and `--governance-report PATH`, placed after the file name. The old `naab-lang app.naab --governance-report sarif > results.sarif` wrote a JSON report to a file named `sarif` and the program's output to `results.sarif`.
+  - The config example uses keys the loader reads (`restrictions.code_injection`, `restrictions.shell_injection`, `limits.code.max_lines_per_block`, `limits.timeout.global`). Four of its keys were read by nothing.
+  - The signing commands work as written: `--keygen PATH` needs the directory to exist and writes `PATH` and `PATH.pub`.
+  - Response secret scanning is described as opt-in (`code_quality.no_secrets`), BSD's 16 built-in patterns as advisory unless declared, and CDD as 23 signals.
+  - Spread and rest syntax (`[...a]`, `fn(...args)`) and `const` immutability are no longer listed: none of them exists. Neither do `bolo.report`, `array.insert`, `math.log`, `math.sum`, `http.fetch` or `env.args` as module functions.
+  - The pipeline example pipes into user functions; piping into a standard-library function does not work yet (A67).
+  - Added: TypeScript and SQL blocks, the MCP server, live guidance, propose/commit, output admissibility, run budgets, the `collections` module, and a "what it does not contain" note pointing at the protection map.
+  - `tests/self-audit/test_readme_claims.sh` runs the README's examples and the demo, so a claim that stops holding fails the suite.
+- **The demo blocks each scene for the reason it narrates.** `demo/governance_demo.sh` now requires exit 3 and the scene's own rule; scene 6 used to be blocked by the sandbox rather than by taint tracking, and scene 7 (all issues fixed) failed on two of its own checks. Re-recorded.
+- **The no-govern.json error names the real requirement.** It said `--require-governance set`, a flag nobody had passed, because requiring a govern.json is the default. It now says so and points at `naab-lang init`. The `--no-governance` help line no longer claims to disable the engine (it has not since #244).
+
+### Fixed
+- **A project made with `naab-lang init` could not run hello world.** With the default `standard` preset (and `relaxed`), the generated `govern.json` set `complexity_floor` to `"level": "off"`. `"off"` is not a level, so the check ran at hard and refused `main` for a complexity score below 10: the README's own hello world exited 3. More generally the generator wrote checks its profile meant to switch off in forms the loader ignores or enforces anyway (`"enabled": false` on a check that a present block switches on, `"level": "off"`), plus keys nothing reads. It now leaves out what its profile turns off, and each preset runs hello world with no "has no effect" or "not a setting" warning (`tests/cli/test_init_governance.sh` Test 10).
+- **Optional chaining on null on the VM** (`a?.b`, `a?.m()`). The null path popped one value too many, so the expression took the value below it: `print(u?.name)` failed with "Value is not callable", and `let n = u?.name` set `n` to the print builtin. Wrong since optional chaining was added; the tree-walker was correct. Test: `tests/vm/test_optional_chaining.sh`, plus a differential probe.
+- **Rule and setting names are no longer redacted in error messages.** The error sanitizer took any word starting with `token`, `secret`, `credential` or `auth` for a secret, so a rule named `credential_exfiltration` printed as `<redacted>` and `max_tokens_per_run` as `max_<redacted>`. A separator (`:`, `=`, whitespace or a quote) between the keyword and the value is now required. `token=value` without quotes is now redacted, which it was not before.
+
+### Highlights since #165 (not a complete list)
+- `naab-lang mcp`: governed execution over the Model Context Protocol, one worker process per call (#307).
+- Live guidance: project knowledge from markdown, SQLite, https, command and MCP sources, delivered when governance observes the matching event (#309, #310, #312, #316).
+- `<<sql>>` blocks: in-process SQLite with no filesystem reach, variables bound as parameters (#291). TypeScript blocks run through `tsx`.
+- Function-scope capabilities (`capabilities.functions`): which actions a function may take, intersected down the call stack.
+- `capabilities.shell.enabled: false` refuses every language that runs as a separate process (#298).
+- The protection map: per language and forbidden action, which layer stops it (#296).
+- The run's evidence files are protected from the governed program (#314), and a reload cannot move or switch them off (#317).
+- `limits.array_size` applies at every way an array grows (#335).
+- `string.slice`, and one implementation of slice/substring/replace for both engines (#262).
+
 ### Added
 - **Output admissibility: the `undetermined` verdict** (`circuit_breaker.output_admissibility.on_undetermined`)
   - A gate that passes because it has no basis to judge now says so. Inside the adaptive baseline window every statistical signal's penalty is suppressed, so coherence sits at its ceiling and the threshold comparison passes on a number that was never a judgement.
@@ -15,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Policy: `"pass"` (default, no behaviour change), `"quarantine"`, `"block"`. Ratchet-enforced (`pass` < `quarantine` < `block`).
   - Undetermined holds never advance the quarantine streak: `adaptive_baseline_window` and `max_quarantine_streak` both default to 5, so counting them would terminate every agent on its last calibrating turn regardless of behaviour.
 - **Behavioral Sequence Detection (BSD)** — FSM-based multi-step attack pattern matching
-  - Configurable via `behavioral_sequences` in govern.json — patterns are fully user-defined, no hardcoded rules
+  - Configurable via `behavioral_sequences` in govern.json. Your patterns replace the built-in set (16 patterns today, advisory unless `default_pattern_enforcement` is `"declared"`)
   - Detail globs for per-argument matching (e.g., `env.get:*SECRET*|*TOKEN*`)
   - Decay/expiry — events older than N turns or N seconds don't match
   - Pre-execution blocking — dangerous sequences blocked before the final step runs

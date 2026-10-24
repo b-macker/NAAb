@@ -282,6 +282,52 @@ GovernanceInitConfig naab::cli::presetToConfig(const std::string& preset,
 // ---------------------------------------------------------------------------
 // Per-language config builder
 // ---------------------------------------------------------------------------
+// A profile that turns a check OFF must leave it out of the file (owner's
+// decision 2026-10-24). Two loader rules made the old output mean the opposite
+// of what it said:
+//   - every code_quality.* and restrictions.* block is enabled by its PRESENCE;
+//     "enabled": false there is ignored (and warned about), so the check ran;
+//   - "off" is not an enforcement level, and where a key sets only a level an
+//     unknown level is enforced at HARD.
+// So the relaxed and standard profiles enforced at hard the checks they wrote
+// down as off (relaxed: 30 of them), and Hello World was blocked by
+// complexity_floor. Outside those two sections "enabled": false is honoured,
+// so "level": "off" becomes that. Test: tests/cli/test_init_governance.sh
+// (every preset loads with no ignored-setting or unknown-level warning, and
+// Hello World runs).
+static bool isOffBlock(const json& v) {
+    if (!v.is_object()) return false;
+    if (v.contains("enabled") && v["enabled"].is_boolean() && !v["enabled"].get<bool>())
+        return true;
+    return v.contains("level") && v["level"].is_string() &&
+           v["level"].get<std::string>() == "off";
+}
+
+static void replaceOffLevels(json& v) {
+    if (v.is_object()) {
+        if (v.contains("level") && v["level"].is_string() &&
+            v["level"].get<std::string>() == "off") {
+            v.erase("level");
+            v["enabled"] = false;
+        }
+        for (auto& item : v.items()) replaceOffLevels(item.value());
+    } else if (v.is_array()) {
+        for (auto& item : v) replaceOffLevels(item);
+    }
+}
+
+static void pruneDisabledChecks(json& root) {
+    for (const char* section : {"code_quality", "restrictions"}) {
+        if (!root.contains(section) || !root[section].is_object()) continue;
+        auto& sec = root[section];
+        for (auto it = sec.begin(); it != sec.end();) {
+            if (isOffBlock(it.value())) it = sec.erase(it);
+            else ++it;
+        }
+    }
+    replaceOffLevels(root);
+}
+
 static json buildPerLanguage(const std::string& lang, StrictnessPreset s) {
     json pl;
     bool strict_plus = (s >= StrictnessPreset::STRICT);
@@ -413,7 +459,6 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         else if (cap == CapabilityLevel::STANDARD) fs["mode"] = "read";
         else fs["mode"] = "write";
         fs["blocked_paths"] = json::array({"/etc/shadow", "/etc/passwd"});
-        fs["blocked_extensions"] = json::array({".exe", ".dll", ".so"});
         fs["allow_symlinks"] = true;
         fs["allow_hidden_files"] = true;
         fs["allow_absolute_paths"] = true;
@@ -438,17 +483,10 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         ev["blocked_write"] = json::array({"PATH", "HOME", "LD_PRELOAD"});
         root["capabilities"]["env_vars"] = ev;
     }
-    // process
-    {
-        json pr;
-        pr["spawn"] = (cap != CapabilityLevel::MINIMAL);
-        pr["signals"] = (cap == CapabilityLevel::FULL);
-        int max_procs = (cap == CapabilityLevel::MINIMAL) ? 0 :
-                        (cap == CapabilityLevel::FULL) ? 10 : 5;
-        pr["max_processes"] = max_procs;
-        pr["allow_daemon"] = false;
-        root["capabilities"]["process"] = pr;
-    }
+    // No "process" block and no filesystem "blocked_extensions": the engine
+    // parses both and no check reads them (it says so at load), so a generated
+    // file that set them told the operator something was limited that was not.
+    // Process starts are gated by capabilities.shell.enabled.
     // time
     {
         json tm;
@@ -497,19 +535,11 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         bs["enabled"] = config.taint_enabled; // enable BSD when taint is on
         bs["window_size"] = 100;
         bs["rationale"] = "Detect multi-step suspicious patterns across runtime events";
-        json patterns;
-        patterns["agent_output_to_file"] = {
-            {"sequence", json::array({"AGENT_RESPONSE", "FILE_WRITE"})},
-            {"level", "advisory"},
-            {"rationale", "LLM output written directly to file — verify content was reviewed"}
-        };
-        patterns["cross_agent_data_relay"] = {
-            {"sequence", json::array({"AGENT_RESPONSE", "FILE_WRITE"})},
-            {"cross_agent", true},
-            {"level", "advisory"},
-            {"rationale", "Data relay across agents — verify output was validated between stages"}
-        };
-        bs["patterns"] = patterns;
+        // No "patterns": the engine's built-in set applies. Two patterns used
+        // to be written here as an OBJECT keyed by name; the loader reads an
+        // array, so they were never loaded (each drew a "not a setting the
+        // engine reads" warning), and writing them as an array would REPLACE
+        // the built-in set with these two.
         root["behavioral_sequences"] = bs;
     }
 
@@ -612,8 +642,6 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["limits"]["data"] = {
             {"array_size", arr_size},
             {"dict_size", 50000},
-            {"string_length", 1000000},
-            {"nesting_depth", 20},
             {"output_size", 1000000},
             {"input_size", 1000000}
         };
@@ -644,14 +672,9 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"message", "Programs should have a main block"}
         };
     }
-    {
-        root["requirements"]["error_handling"] = {
-            {"enabled", isEnabled(s, 2)},
-            {"level", fixedLevel(s, "off", "off", "soft", "hard")},
-            {"require_try_catch", strict_plus},
-            {"require_catch_body", strict_plus}
-        };
-    }
+    // No requirements.error_handling or requirements.naming_conventions: no
+    // check enforces either (the engine warns "accepted but no check enforces
+    // it"), so writing them on at strict promised a rule that does not exist.
     {
         root["requirements"]["strict_types"] = {
             {"enabled", paranoid},
@@ -665,15 +688,6 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"allow_global_constants", true},
             {"allow_global_functions", true},
             {"block_global_variables", strict_plus}
-        };
-    }
-    {
-        root["requirements"]["naming_conventions"] = {
-            {"enabled", strict_plus},
-            {"level", fixedLevel(s, "off", "off", "advisory", "soft")},
-            {"variables", "snake_case"},
-            {"functions", "snake_case"},
-            {"constants", "UPPER_SNAKE_CASE"}
         };
     }
     {
@@ -1609,6 +1623,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         };
     }
 
+    pruneDisabledChecks(root);
     return root.dump(2);
 }
 

@@ -1145,6 +1145,12 @@ rendered output even though its source string does. Pinned by
 `test_limit_attribution.sh` LA-03, written to PASS while the defect stands and
 FAIL the moment it is fixed. The candidate fix (require a separator) LOOSENS a
 redaction pattern; the open question is whether any real secret form lacks one.
+**Fixed 2026-10-24** by the owner's decision to require the separator (`:`, `=`,
+whitespace or a quote). The real forms checked stay redacted: `Authorization: Bearer`,
+`token "..."`, `secret:"..."`, `password ...`, JSON `"token": "..."` and
+`api_key='...'` (`test_error_sanitizer_verr001.sh` T12-T17), and `token=value`
+without quotes, which the old pattern missed, is now redacted (T11). LA-03 was
+flipped to assert the name survives.
 
 **The leak suite's comment filter cannot match.** `test_error_msg_leaks.sh` pipes
 `grep -n` output into `grep -v '^\s*//'`, but every line already carries an `N:`

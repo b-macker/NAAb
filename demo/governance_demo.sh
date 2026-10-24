@@ -93,18 +93,29 @@ header() {
 }
 
 show_code() {
-    echo -e "${DIM}─── $1 ───${NC}"
+    echo -e "${DIM}─── $(basename "$1") ───${NC}"
     echo -e "${YELLOW}"
     cat "$1"
     echo -e "${NC}"
     pause 1
 }
 
+# $1 = scene file, $2 = text the refusal must contain (the rule that should
+# fire). Any failure used to count as success, so a scene stopped by the
+# sandbox, a parse error or a missing executor looked exactly like one stopped
+# by the check it demonstrates -- scene 6 read that way for months.
 run_expect_fail() {
-    echo -e "${DIM}$ naab-lang $1${NC}"
+    echo -e "${DIM}$ naab-lang $(basename "$1")${NC}"
     echo ""
-    if "$NAAB" "$1" 2>&1; then
+    local out rc
+    out=$(cd "$DEMO_DIR" && "$NAAB" "$(basename "$1")" 2>&1) && rc=0 || rc=$?   # set -e: keep the status
+    echo "$out"
+    if [ "$rc" -eq 0 ]; then
         echo -e "${RED}${BOLD}  UNEXPECTED: No governance error!${NC}"
+        exit 1
+    fi
+    if [ "$rc" -ne 3 ] || ! grep -qF -- "$2" <<<"$out"; then
+        echo -e "${RED}${BOLD}  UNEXPECTED: blocked (exit $rc), but not by: $2${NC}"
         exit 1
     fi
     echo ""
@@ -113,9 +124,9 @@ run_expect_fail() {
 }
 
 run_expect_pass() {
-    echo -e "${DIM}$ naab-lang $1${NC}"
+    echo -e "${DIM}$ naab-lang $(basename "$1")${NC}"
     echo ""
-    if ! env USER_QUERY="hello world" API_KEY="from-env" "$NAAB" "$1" 2>&1; then
+    if ! (cd "$DEMO_DIR" && env USER_QUERY="hello world" API_KEY="from-env" "$NAAB" "$(basename "$1")") 2>&1; then
         echo -e "${RED}${BOLD}  UNEXPECTED: Governance error on fixed code!${NC}"
         exit 1
     fi
@@ -147,34 +158,34 @@ pause 3
 # --- Scene 1: Hallucinated API ---
 header 1 "AI uses JavaScript .push() in Python"
 echo -e "  ${DIM}AI models frequently confuse APIs across languages.${NC}"
-echo -e "  ${DIM}NAAb knows 86+ cross-language confusion patterns.${NC}"
+echo -e "  ${DIM}NAAb knows 100+ hallucinated-API patterns across six languages.${NC}"
 echo ""
 show_code "$DEMO_DIR/scene1_hallucination.naab"
-run_expect_fail "$DEMO_DIR/scene1_hallucination.naab"
+run_expect_fail "$DEMO_DIR/scene1_hallucination.naab" "code_quality.no_hallucinated_apis"
 
 # --- Scene 2: Unknown Import ---
 header 2 "AI hallucinates a Python package"
 echo -e "  ${DIM}AI invents packages that don't exist.${NC}"
-echo -e "  ${DIM}NAAb validates imports against 180+ known modules.${NC}"
+echo -e "  ${DIM}NAAb checks Python imports against 290+ known modules.${NC}"
 echo ""
 show_code "$DEMO_DIR/scene2_bad_import.naab"
-run_expect_fail "$DEMO_DIR/scene2_bad_import.naab"
+run_expect_fail "$DEMO_DIR/scene2_bad_import.naab" "Unknown Python module"
 
 # --- Scene 3: Stub Function ---
 header 3 "AI ships a stub as 'complete'"
 echo -e "  ${DIM}AI writes validate_user_input() that always returns true.${NC}"
-echo -e "  ${DIM}NAAb detects 80+ oversimplification patterns.${NC}"
+echo -e "  ${DIM}NAAb flags validators that cannot fail as incomplete logic.${NC}"
 echo ""
 show_code "$DEMO_DIR/scene3_stub.naab"
-run_expect_fail "$DEMO_DIR/scene3_stub.naab"
+run_expect_fail "$DEMO_DIR/scene3_stub.naab" "code_quality.no_incomplete_logic"
 
 # --- Scene 4: Hardcoded Secret ---
 header 4 "AI hardcodes an API key"
 echo -e "  ${DIM}AI puts secrets directly in source code.${NC}"
-echo -e "  ${DIM}NAAb detects 18 secret patterns with entropy analysis.${NC}"
+echo -e "  ${DIM}NAAb matches nearly 20 secret formats (API keys, tokens, private keys).${NC}"
 echo ""
 show_code "$DEMO_DIR/scene4_secret.naab"
-run_expect_fail "$DEMO_DIR/scene4_secret.naab"
+run_expect_fail "$DEMO_DIR/scene4_secret.naab" "code_quality.no_secrets"
 
 # --- Scene 5: Incomplete Logic ---
 header 5 "AI swallows errors with empty catch"
@@ -182,7 +193,7 @@ echo -e "  ${DIM}AI generates try/catch that silently ignores failures.${NC}"
 echo -e "  ${DIM}NAAb detects empty error handlers and dummy conditionals.${NC}"
 echo ""
 show_code "$DEMO_DIR/scene5_incomplete.naab"
-run_expect_fail "$DEMO_DIR/scene5_incomplete.naab"
+run_expect_fail "$DEMO_DIR/scene5_incomplete.naab" "code_quality.no_incomplete_logic"
 
 # --- Scene 6: Taint Tracking ---
 header 6 "AI passes user input to shell"
@@ -190,7 +201,7 @@ echo -e "  ${DIM}AI reads from environment and passes directly to shell.${NC}"
 echo -e "  ${DIM}NAAb tracks data flow: source -> variable -> sink.${NC}"
 echo ""
 show_code "$DEMO_DIR/scene6_taint.naab"
-run_expect_fail "$DEMO_DIR/scene6_taint.naab"
+run_expect_fail "$DEMO_DIR/scene6_taint.naab" "Taint tracking violation"
 
 # --- Scene 7: Fixed Version ---
 header 7 "All issues fixed — governance passes"

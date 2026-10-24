@@ -65,11 +65,18 @@ else
     fail "T5: checks_lang_naab.cpp missing agent_prompt_from_file check"
 fi
 
-# T6: agent_output_to_file BSD pattern
-if grep -q 'agent_output_to_file' "$SRC_GOVINIT"; then
-    pass "T6: governance_init.cpp has agent_output_to_file BSD pattern"
+# T6: no BSD pattern map the engine ignores
+# The generator used to write an agent_output_to_file and a cross_agent_data_relay
+# pattern as an OBJECT keyed by name. The engine reads patterns as an array, so
+# neither was ever loaded (each drew "not a setting the engine reads"), and this
+# check passed on a pattern that never ran. Since 2026-10-24 the generator writes
+# no patterns (the built-in set applies). What is checked now: it writes no
+# name-keyed pattern map. The behaviour is tests/cli/test_init_governance.sh
+# Test 10 (every preset loads with no ignored setting).
+if ! grep -qE 'patterns\["[a-z_]+"\]' "$SRC_GOVINIT"; then
+    pass "T6: governance_init.cpp writes no name-keyed BSD pattern map"
 else
-    fail "T6: governance_init.cpp missing agent_output_to_file BSD pattern"
+    fail "T6: governance_init.cpp writes BSD patterns as a name-keyed map the engine never loads"
 fi
 
 # ── Structural Verification Tests ─────────────────────────────────────────────
