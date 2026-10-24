@@ -2647,6 +2647,19 @@ else
     echo "  test_try_handler_leak.sh: not found, skipping"
 fi
 
+# VM: a?.b and a?.m() on null must give null and leave the stack balanced.
+OPTCHAIN_SCRIPT="tests/vm/test_optional_chaining.sh"
+if [ -f "$OPTCHAIN_SCRIPT" ]; then
+    if run_shell_test "$OPTCHAIN_SCRIPT" 2>&1; then
+        echo "  test_optional_chaining.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_optional_chaining.sh")
+    fi
+else
+    echo "  test_optional_chaining.sh: not found, skipping"
+fi
+
 # VM: a callback that throws through native code (sort comparators, array.map_fn,
 # agent tools) must not jump into its caller's handler or leave the VM out of step (A41).
 CBTHROW_SCRIPT="tests/vm/test_callback_throw.sh"
@@ -3976,6 +3989,20 @@ if [ -f "$BSD_COVERAGE_SCRIPT" ]; then
     fi
 else
     echo "  test_bsd_event_coverage.sh: not found, skipping"
+fi
+
+README_CLAIMS_SCRIPT="tests/self-audit/test_readme_claims.sh"
+if [ -f "$README_CLAIMS_SCRIPT" ]; then
+    # README.md against the binary: its commands, config blocks, code blocks,
+    # stdlib table, language list and the demo.
+    if run_shell_test "$README_CLAIMS_SCRIPT" 2>&1; then
+        echo "  test_readme_claims.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_readme_claims.sh")
+    fi
+else
+    echo "  test_readme_claims.sh: not found, skipping"
 fi
 
 TIMING_SCRIPT="tests/self-audit/test_test_timing.sh"

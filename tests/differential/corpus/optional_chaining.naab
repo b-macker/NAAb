@@ -1,0 +1,25 @@
+// Differential probe: optional chaining on null. The VM popped one value too
+// many on the null path of `a?.b` and `a?.m()`, so the expression took the
+// value below it (the print builtin, a neighbouring local) while the
+// tree-walker gave null. The locals in f() are what shows the stack shift.
+fn f(u) {
+    let a = 1
+    let r = u?.x
+    let m = u?.get("x")
+    let b = 2
+    return string(a) + "," + string(r) + "," + string(m) + "," + string(b)
+}
+main {
+    let u = null
+    print(u?.name)
+    let n = u?.name
+    print(n)
+    print(u?.a?.b)
+    print(u?.get("k"))
+    print(u?.name ?? "none")
+    print(f(null))
+    print(f({"x": 5}))
+    let d = {"name": "Ann"}
+    print(d?.name)
+    print("END")
+}

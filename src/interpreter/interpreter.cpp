@@ -748,9 +748,9 @@ void Interpreter::setSourceCode(const std::string& source, const std::string& fi
             // govern.json not found in directory hierarchy
             if (require_governance_) {
                 throw std::runtime_error(
-                    "Governance error: --require-governance set but no govern.json found.\n\n"
-                    "  Search root: " + dir.string() + "\n"
-                    "  Create a govern.json or remove --require-governance.\n"
+                    "Governance error: No govern.json found in '" + dir.string() + "' or any parent directory.\n\n"
+                    "  NAAb requires a govern.json by default.\n"
+                    "  Create one with: naab-lang init\n"
                 );
             }
             fprintf(stderr,

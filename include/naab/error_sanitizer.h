@@ -186,7 +186,13 @@ namespace patterns {
 
 // API keys, tokens (e.g., "token: abc123...")
 // V-ERR-001: expanded to include camelCase variants and lowered min length 16→8
-inline const char* API_KEY = R"((?:api[_\-]?key|apiKey|api_secret|token|access_token|refresh_token|secret|secretKey|password|passwd|auth|authorization|authToken|bearer|bearerToken|credential)[:\s]*['"]?([a-zA-Z0-9_\-\.]{8,})['"]?)";
+// The keyword must be SEPARATED from the value by ':', '=', whitespace or a
+// quote (owner's decision 2026-10-24). With no separator required, every
+// identifier that merely starts with a keyword read as a secret: a rule named
+// credential_exfiltration printed as "<redacted>", max_tokens_per_run as
+// max_<redacted>. '=' was not a separator before, so token=value with no
+// quotes was not redacted; it is now. Test: test_error_sanitizer_verr001.sh.
+inline const char* API_KEY = R"((?:api[_\-]?key|apiKey|api_secret|token|access_token|refresh_token|secret|secretKey|password|passwd|auth|authorization|authToken|bearer|bearerToken|credential)(?:[:=\s]+['"]?|['"])([a-zA-Z0-9_\-\.]{8,})['"]?)";
 
 // Email addresses
 inline const char* EMAIL = R"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})";

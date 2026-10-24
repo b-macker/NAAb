@@ -160,11 +160,18 @@ else
     fail "T15c: governance_config.cpp missing cross_agent parsing"
 fi
 
-# T15d: governance_init.cpp has cross_agent_data_relay template pattern
-if grep -q 'cross_agent_data_relay' "$SRC_INIT"; then
-    pass "T15d: governance_init.cpp has cross_agent_data_relay pattern"
+# T15d: no BSD pattern map the engine ignores
+# The generator used to write an agent_output_to_file and a cross_agent_data_relay
+# pattern as an OBJECT keyed by name. The engine reads patterns as an array, so
+# neither was ever loaded (each drew "not a setting the engine reads"), and this
+# check passed on a pattern that never ran. Since 2026-10-24 the generator writes
+# no patterns (the built-in set applies). What is checked now: it writes no
+# name-keyed pattern map. The behaviour is tests/cli/test_init_governance.sh
+# Test 10 (every preset loads with no ignored setting).
+if ! grep -qE 'patterns\["[a-z_]+"\]' "$SRC_INIT"; then
+    pass "T15d: governance_init.cpp writes no name-keyed BSD pattern map"
 else
-    fail "T15d: governance_init.cpp missing cross_agent_data_relay pattern"
+    fail "T15d: governance_init.cpp writes BSD patterns as a name-keyed map the engine never loads"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
