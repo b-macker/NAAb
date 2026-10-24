@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The config example uses keys the loader reads (`restrictions.code_injection`, `restrictions.shell_injection`, `limits.code.max_lines_per_block`, `limits.timeout.global`). Four of its keys were read by nothing.
   - The signing commands work as written: `--keygen PATH` needs the directory to exist and writes `PATH` and `PATH.pub`.
   - Response secret scanning is described as opt-in (`code_quality.no_secrets`), BSD's 16 built-in patterns as advisory unless declared, and CDD as 23 signals.
-  - Spread and rest syntax (`[...a]`, `fn(...args)`) and `const` immutability are no longer listed: none of them exists. Neither do `bolo.report`, `array.insert`, `math.log`, `math.sum`, `http.fetch` or `env.args` as module functions.
+  - Spread and rest syntax (`[...a]`, `fn(...args)`), `const` immutability and `bolo.report` are no longer listed: none of them exists.
   - The pipeline example pipes into user functions; piping into a standard-library function does not work yet (A67).
   - Added: TypeScript and SQL blocks, the MCP server, live guidance, propose/commit, output admissibility, run budgets, the `collections` module, and a "what it does not contain" note pointing at the protection map.
   - `tests/self-audit/test_readme_claims.sh` runs the README's examples and the demo, so a claim that stops holding fails the suite.
