@@ -30,8 +30,13 @@
 #   SR-02  file.exists of a bare missing name is false, not a sandbox stop
 #   SR-03  file.append creates a bare new name
 #   SR-04  io.write_file of a bare new name succeeds (a second module route)
-#   SR-05  a new name under a directory that does not exist yet: write is
-#          refused by the filesystem (no such directory), not by the sandbox
+#   SR-05  a new name under a directory that does not exist yet is not a
+#          sandbox violation. What happens instead depends on the platform:
+#          under a sandbox on POSIX, file.write opens with O_NOFOLLOW and does
+#          not create the directory ("Failed to open file for writing"); on
+#          Windows that branch is compiled out and FIX 26 creates it. Either
+#          is accepted with its own evidence; neither is the sandbox's call
+#          (A76(e) records the difference)
 #   SR-C1  CONTROL: "../outside.txt" is still a sandbox violation
 #   SR-C2  CONTROL: an absolute path outside the project is still refused
 #   SR-C3  CONTROL: "data/out.txt" (existing directory) keeps working
@@ -65,6 +70,7 @@ echo '{"version":"5.0","mode":"enforce","capabilities":{"filesystem":{"mode":"wr
 # run ID ENGINE_FLAG BODY -> OUT, RC; files the previous arm left are removed.
 run() {
     rm -f "$P"/out.txt "$P"/new.log "$P"/io_out.txt "$P"/data/out.txt "$W"/outside.txt "$W"/abs_outside.txt
+    rm -rf "$P/nodir"
     printf 'use file\nuse io\nmain {\n%s\n}\n' "$3" > "$P/t.naab"
     OUT=$(cd "$P" && TMPDIR="$W/childtmp" timeout 60 "$NAAB" $2 t.naab 2>&1); RC=$?
 }
@@ -109,13 +115,24 @@ for eng in "" "--tree-walk"; do
         file.write("nodir/out.txt", "x")
         print("WROTE")
     } catch (e) {
-        print("CAUGHT")
-    }'
-    if ! grep -q 'SANDBOX VIOLATION' <<<"$OUT" && ! grep -qx 'WROTE' <<<"$OUT"; then
-        ok "SR-05/$tag" "a missing directory fails as a missing directory, not as a sandbox violation"
+        print("CAUGHT: " + string(e))
+    }
+    print("END")'
+    sr05=""
+    if grep -q 'SANDBOX VIOLATION' <<<"$OUT"; then
+        sr05="the sandbox refused it"
+    elif [ "$RC" != 0 ] || ! grep -qx 'END' <<<"$OUT"; then
+        sr05="the program did not run to its end (rc=$RC)"
+    elif grep -qx 'WROTE' <<<"$OUT" && [ "$(cat "$P/nodir/out.txt" 2>/dev/null)" = "x" ]; then
+        ok "SR-05/$tag" "nodir/out.txt: not a sandbox violation; the directory was created and the file written"
+    elif grep -q '^CAUGHT: .*Failed to open file for writing: nodir/out.txt' <<<"$OUT" && [ ! -e "$P/nodir" ]; then
+        ok "SR-05/$tag" "nodir/out.txt: not a sandbox violation; the filesystem refused it (no such directory)"
     else
-        bad "SR-05/$tag" "nodir/out.txt: expected a filesystem failure, not the sandbox" "rc=$RC $(grep -m1 -E 'VIOLATION|Error|WROTE|CAUGHT' <<<"$OUT")"
+        sr05="neither the file was written nor the filesystem's refusal printed: $(grep -m1 -E 'WROTE|CAUGHT' <<<"$OUT")"
     fi
+    # The outcome goes in the FAIL line itself: the suite summary quotes only
+    # lines matching fail/error/..., which the detail line need not.
+    [ -z "$sr05" ] || bad "SR-05/$tag" "nodir/out.txt: expected no sandbox violation, got: $sr05"
 
     run SR-C1 "$eng" '    file.write("../outside.txt", "x")
     print("WROTE")'
