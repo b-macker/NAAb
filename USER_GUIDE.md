@@ -204,7 +204,17 @@ main {
 
 ### Equality
 
-`==` compares numbers, strings, booleans and null by value, and `5 == 5.0` is `true`. For arrays and dictionaries `==` is always `false`, even for the same variable, so compare their elements instead.
+```naab
+main {
+    print(5 == 5.0)                                   // "true"
+    print("1" == 1)                                   // "false"
+    print([1, 2] == [1, 2])                           // "true"
+    print([1, 2] == [2, 1])                           // "false"
+    print({"a": 1, "b": 2} == {"b": 2, "a": 1})       // "true"
+}
+```
+
+`==` compares by value. Numbers compare numerically, and values of different types are never equal (no conversion). Arrays compare element by element in order, dictionaries key by key in any order, and structs by type and fields.
 
 ---
 
@@ -435,6 +445,10 @@ fn make_counter() {
     }
 }
 
+fn greet(name = "World") {
+    return "Hello, " + name + "!"
+}
+
 fn twice(s) { return s + " " + s }
 fn exclaim(s) { return s + "!" }
 
@@ -449,6 +463,9 @@ main {
     counter()
     print(counter())                               // 2
 
+    print(greet())                                 // "Hello, World!"
+    print(greet("Ada"))                            // "Hello, Ada!"
+
     print("hi" |> twice |> exclaim)                // "hi hi!"
 }
 ```
@@ -456,7 +473,7 @@ main {
 - Functions are values: pass them, return them, store them.
 - `fn(x) { ... }` is an anonymous function, and it keeps access to the variables around it (`make_counter`).
 - `value |> f` is `f(value)`. The right-hand side must be one of your own functions; piping into a standard-library function does not work yet.
-- Default parameter values (`fn greet(name = "World")`) parse, but the default engine does not apply them yet. Pass every argument.
+- A parameter with a default (`name = "World"`) may be left out of a call. The default is evaluated on every call and may use earlier parameters.
 
 ---
 
@@ -580,7 +597,7 @@ main {
 
 What a program may touch is set in two places: `capabilities` in `govern.json`, and the runtime sandbox.
 
-The sandbox has four levels: `restricted`, `standard`, `elevated` and `unrestricted`. A new project runs at `standard`, which suits a program that computes and reads its own files. A program that writes files, reads environment variables or runs shell blocks needs `elevated`, set at the top level of `govern.json`:
+The sandbox has four levels: `restricted`, `standard`, `elevated` and `unrestricted`. A new project runs at `standard`, which allows reading and writing files in the project directory and the temp directory. A program that reads environment variables or runs shell blocks needs `elevated`, set at the top level of `govern.json`:
 
 ```json
 "security": {
@@ -595,7 +612,7 @@ In a new project:
 | Action | New project | To allow it |
 |---|---|---|
 | Read a file in the project | allowed | |
-| Write a file | refused | `capabilities.filesystem.mode: "write"`, and `elevated` |
+| Write a file in the project | refused | `capabilities.filesystem.mode: "write"` |
 | Read an environment variable | refused by the sandbox | `elevated` |
 | Read `AWS_SECRET_ACCESS_KEY` or `GITHUB_TOKEN` | refused | they are in `capabilities.env_vars.blocked_read` |
 | Network access | refused | `capabilities.network.enabled: true` |
@@ -611,6 +628,7 @@ main {
     let manifest = file.read("naab.toml")
     print(manifest.contains("[package]"))   // "true"
     print(file.exists("naab.toml"))         // "true"
+    print(file.exists("missing.txt"))       // "false"
 
     let data = json.parse("{\"items\": [1, 2, 3]}")
     print(data["items"].length())           // 3
@@ -620,7 +638,7 @@ main {
 
 ### Writing files
 
-With `elevated` set, change `capabilities.filesystem.mode` from `"read"` to `"write"`:
+Change `capabilities.filesystem.mode` in `govern.json` from `"read"` to `"write"`:
 
 ```json
 "filesystem": {
@@ -651,8 +669,8 @@ The `standard` sandbox refuses `env.get()`. With `elevated` set:
 use env
 
 main {
-    let home = env.get("HOME")
-    print(home != null)                         // "true"
+    let path = env.get("PATH")
+    print(path != null)                         // "true"
     print(env.get("NO_SUCH_VARIABLE") ?? "unset")  // "unset"
 }
 ```
@@ -846,7 +864,7 @@ naab-lang app.naab --governance-sarif results.sarif # SARIF, for GitHub code sca
 naab-lang app.naab --governance-junit results.xml   # JUnit XML
 ```
 
-Report flags go after the file name.
+Options may go before or after the file name.
 
 ---
 
@@ -870,15 +888,11 @@ Report flags go after the file name.
 
 These do not work as written yet:
 
-- **Default parameter values** (`fn f(x = 1)`) are not applied: the parameter gets an unrelated value. Pass every argument.
 - **`const`** declares a variable but does not prevent reassignment.
 - **Spread and rest** (`[...a]`, `f(...args)`) do not parse.
 - **Piping into a standard-library function** (`x |> string.upper()`) does not work; pipe into your own functions.
 - **Type annotations** are checked by `naab-lang check`, not at run time.
-- **`==` on arrays and dictionaries** is always `false`.
-- **`limits.timeout.global` below 30** is not applied: the run gets 30 seconds.
 - **`time.sleep()`** is not interrupted by the time limit: one long sleep runs to the end before the run is stopped.
-- **A new file at the top of the project** (`file.write("out.txt", ...)`, `file.exists("missing.txt")`) is refused by the `standard` sandbox, while the same name inside an existing subdirectory is accepted. `elevated` does not have this problem.
 
 ---
 

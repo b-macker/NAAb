@@ -57,6 +57,10 @@
 #          and the program may not write a source
 #   RC-21  scanning agent replies for secrets is off by default and ends the
 #          run when on
+#   RC-22  every program in USER_GUIDE.md, each in a fresh `naab-lang init`
+#          project with only the govern.json change its section shows: its
+#          exit code, the values its comments promise, and the output block
+#          that follows it
 #
 # Outcomes are PASS, FAIL or UNMEASURABLE. UNMEASURABLE is for a missing
 # prerequisite (no embedded Python, no network, no compiler, the agent stub on
@@ -74,6 +78,7 @@ NAAB_GOV="${NAAB_GOV:-$REPO/build/naab-gov}"
 README="${README_UNDER_TEST:-$REPO/README.md}"
 TOUR="${TOUR_UNDER_TEST:-$REPO/docs/language-tour.md}"
 QS="${QUICKSTART_UNDER_TEST:-$REPO/examples/quickstart}"
+GUIDE="${GUIDE_UNDER_TEST:-$REPO/USER_GUIDE.md}"
 
 PASS=0; FAIL=0; UNM=0
 pass() { PASS=$((PASS + 1)); echo "  PASS [$1] $2"; }
@@ -97,7 +102,7 @@ trap 'teardown_isolated_trust; [ -n "${KEEP_TMP:-}" ] || rm -rf "$WORK"' EXIT
 echo ""
 echo "=== README and language tour claims vs the binary ==="
 
-for f in "$README" "$TOUR" "$QS/agent_task.naab" "$QS/govern.json"; do
+for f in "$README" "$TOUR" "$GUIDE" "$QS/agent_task.naab" "$QS/govern.json"; do
     if [ ! -f "$f" ]; then
         fail "SETUP" "not found: $f"
         echo "Results: $PASS passed, $FAIL failed, $UNM unmeasurable"; exit 1
@@ -118,6 +123,20 @@ doc_block() {
                  if (tag == lang) { n++; if (n == want) cur = 1 }
                  next }
         cur { print }'
+}
+# doc_after FILE LANG N -> the ```text block that directly follows the Nth
+# LANG block (only blank lines between), or nothing.
+doc_after() {
+    doc "$1" | awk -v lang="$2" -v want="$3" '
+        /^```/ { if (open) { open = 0
+                             if (cur) { cur = 0; after = 1 } else if (grab) { exit }
+                             next }
+                 open = 1; tag = substr($0, 4)
+                 if (after) { after = 0; if (tag == "text") grab = 1; next }
+                 if (tag == lang) { n++; if (n == want) cur = 1 }
+                 next }
+        open && grab { print; next }
+        !open && after && $0 !~ /^[[:space:]]*$/ { after = 0 }'
 }
 doc_count() {
     doc "$1" | awk -v lang="$2" '
@@ -956,6 +975,99 @@ if readme_says "RC-21" '`code_quality.no_secrets` (off by default; when on, a hi
         fi
     fi
 fi
+
+# ---- RC-22: every USER_GUIDE.md program ---------------------------------------
+# The guide's promise: save a program in a project made with `naab-lang init`
+# and it prints what the guide shows, with only the govern.json change shown
+# before it. So each block runs in a fresh init project, with the change its
+# section names chosen from what the block calls (file.write/append ->
+# filesystem.mode "write"; env.get or <<shell -> sandbox_level "elevated";
+# <<javascript -> javascript allowed). A block whose first line is
+# `// PATH.naab` is a module, written at PATH for the programs after it; one
+# starting `// Refused: exit N` must exit N. Checked: the exit code, every
+# value its print comments promise, and an output block right after it
+# (stdout exactly; for a refusal, each of its lines in the output, "..."
+# skipped).
+NGUIDE=$(doc_count "$GUIDE" naab)
+[ "$NGUIDE" -ge 20 ] || fail "RC-22" "expected at least 20 naab blocks in USER_GUIDE.md, found $NGUIDE"
+GUIDE_MODS="$WORK/rc22_modules"; rm -rf "$GUIDE_MODS"; mkdir -p "$GUIDE_MODS"
+for i in $(seq 1 "$NGUIDE"); do
+    BLOCK=$(doc_block "$GUIDE" naab "$i")
+    FIRSTLINE=$(head -1 <<<"$BLOCK")
+    if [[ "$FIRSTLINE" =~ ^//[[:space:]]*([A-Za-z0-9_./-]+\.naab)[[:space:]]*$ ]]; then
+        MP="$GUIDE_MODS/${BASH_REMATCH[1]}"; mkdir -p "$(dirname "$MP")"
+        printf '%s\n' "$BLOCK" > "$MP"
+        continue
+    fi
+    WANT_RC=0
+    if [[ "$FIRSTLINE" =~ ^//[[:space:]]*Refused:[[:space:]]*exit[[:space:]]*([0-9]+) ]]; then
+        WANT_RC="${BASH_REMATCH[1]}"
+    fi
+    FIRST=$(grep -m1 -vE '^\s*(//.*)?$' <<<"$BLOCK" | head -c 50)
+    D=$(newdir "rc22_$i")
+    (cd "$D" && "$NAAB" init </dev/null >/dev/null 2>&1)
+    if [ ! -s "$D/govern.json" ]; then
+        fail "RC-22" "guide block $i ($FIRST): naab-lang init wrote no govern.json"; continue
+    fi
+    EDITS=""
+    if grep -qE 'file\.(write|append)\(' <<<"$BLOCK"; then EDITS="$EDITS write"; fi
+    if grep -qE 'env\.get\(|<<shell' <<<"$BLOCK"; then EDITS="$EDITS elevated"; fi
+    if grep -qF '<<javascript' <<<"$BLOCK"; then EDITS="$EDITS javascript"; fi
+    if [ -n "$EDITS" ]; then
+        # Bytes in and out, so no native Python opens an MSYS path.
+        python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+edits = sys.argv[1].split()
+if "write" in edits:
+    d["capabilities"]["filesystem"]["mode"] = "write"
+if "elevated" in edits:
+    d.setdefault("security", {})["sandbox_level"] = "elevated"
+if "javascript" in edits:
+    d["languages"]["allowed"].append("javascript")
+json.dump(d, sys.stdout, indent=2)
+' "$EDITS" < "$D/govern.json" > "$D/govern.json.new" && mv "$D/govern.json.new" "$D/govern.json"
+    fi
+    cp -R "$GUIDE_MODS/." "$D/"
+    printf '%s\n' "$BLOCK" > "$D/prog.naab"
+    STDOUT_LINES=$(cd "$D" && timeout 120 "$NAAB" prog.naab </dev/null 2>"$D/stderr.txt"); RC=$?
+    STDOUT_LINES=$(lines "$STDOUT_LINES")
+    ALL=$(lines "$STDOUT_LINES
+$(cat "$D/stderr.txt")")
+    if grep -qF '<<python' <<<"$BLOCK" && grep -qE "$PY_MISSING_RE" <<<"$ALL"; then
+        unm "RC-22" "guide block $i ($FIRST): no Python executor here"; continue
+    fi
+    if [ "$RC" != "$WANT_RC" ]; then
+        if [ "$IS_WINDOWS" = 1 ] && grep -qF '<<shell' <<<"$BLOCK"; then
+            unm "RC-22" "guide block $i ($FIRST): the shell block did not run on this platform (rc=$RC)"; continue
+        fi
+        fail "RC-22" "guide block $i ($FIRST) exited $RC, want $WANT_RC" "$(grep -m1 -E '^Error|VIOLATION' <<<"$ALL")"; continue
+    fi
+    WANT_MISS=""; NWANT=0
+    while IFS= read -r want; do
+        [ -n "$want" ] || continue
+        NWANT=$((NWANT + 1))
+        grep -qxF -- "$want" <<<"$STDOUT_LINES" || WANT_MISS="$WANT_MISS | $want"
+    done < <(sed -nE 's/^.*print\(.*\)[[:space:]]*\/\/[[:space:]]*"(.*)"[[:space:]]*$/\1/p; s/^.*print\(.*\)[[:space:]]*\/\/[[:space:]]*(-?[0-9]+(\.[0-9]+)?)[[:space:]]*$/\1/p' <<<"$BLOCK")
+    OUTBLOCK=$(doc_after "$GUIDE" naab "$i")
+    OUT_MISS=""
+    if [ -n "$OUTBLOCK" ]; then
+        if [ "$WANT_RC" = 0 ]; then
+            [ "$STDOUT_LINES" = "$OUTBLOCK" ] || OUT_MISS="stdout is not the output block shown"
+        else
+            while IFS= read -r ol; do
+                case "$ol" in ''|'  ...'|'...') continue ;; esac
+                grep -qF -- "$ol" <<<"$ALL" || OUT_MISS="$OUT_MISS | $ol"
+            done <<<"$OUTBLOCK"
+        fi
+    fi
+    if [ -n "$WANT_MISS$OUT_MISS" ]; then
+        fail "RC-22" "guide block $i ($FIRST) did not print what the guide shows" "$WANT_MISS $OUT_MISS"
+    else
+        SHOWN=""; [ -n "$OUTBLOCK" ] && SHOWN=" and its output block"
+        pass "RC-22" "guide block $i ($FIRST) exits $WANT_RC with the $NWANT promised value(s)$SHOWN${EDITS:+ (govern.json:$EDITS)}"
+    fi
+done
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $UNM unmeasurable"

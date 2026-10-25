@@ -317,10 +317,13 @@ void Compiler::compileFunctionBody(const std::string& name,
     };
     fn->is_generator = containsYield(body);
 
-    // Count required params (those without defaults)
-    for (auto& param : params) {
-        if (!param.default_value.has_value()) {
-            fn->arity++;
+    // The fewest arguments a call may pass: up to and including the last
+    // parameter without a default. Counting the parameters without one let
+    // `fn f(a = 1, b)` be called as f(5), leaving b unset; the tree-walker
+    // refuses that call.
+    for (size_t i = 0; i < params.size(); i++) {
+        if (!params[i].default_value.has_value()) {
+            fn->arity = static_cast<int>(i) + 1;
         }
     }
 
@@ -330,6 +333,31 @@ void Compiler::compileFunctionBody(const std::string& name,
     for (auto& param : params) {
         addLocal(param.name);
         markInitialized();
+    }
+
+    // Defaults (A71). VM::callFunction() pads the slots of the parameters a
+    // call left out; fill each one that has a default, in order, before the
+    // body. This follows the tree-walker (call_dispatch.cpp): the default is
+    // evaluated on every call, in the callee's scope, so it may use earlier
+    // parameters and captured variables, and it is copied unless the
+    // parameter is a `ref` type.
+    for (size_t i = 0; i < params.size(); i++) {
+        if (!params[i].default_value.has_value()) continue;
+        ast::Expr* def = params[i].default_value->get();
+        int dline = def->getLocation().line;
+        emitWide(OpCode::OP_ARG_PASSED, static_cast<uint32_t>(i), dline);
+        int passed = emitJump(OpCode::OP_JUMP_IF_TRUE, dline);
+        emitOp(OpCode::OP_POP, dline);           // the test (not passed)
+        def->accept(*this);
+        if (!params[i].type.is_reference) {
+            emitOp(OpCode::OP_COPY_VALUE, dline);
+        }
+        emitWide(OpCode::OP_SET_LOCAL, static_cast<uint32_t>(resolveLocal(current_, params[i].name)), dline);
+        emitOp(OpCode::OP_POP, dline);           // the default's value
+        int done = emitJump(OpCode::OP_JUMP, dline);
+        patchJump(passed);
+        emitOp(OpCode::OP_POP, dline);           // the test (passed)
+        patchJump(done);
     }
 
     // Compile the body

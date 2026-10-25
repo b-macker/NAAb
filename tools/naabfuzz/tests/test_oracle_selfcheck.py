@@ -126,13 +126,27 @@ class TestStringsAndMath(unittest.TestCase):
         self.assertEqual(r.lines[0].text, "-3")
 
 
-class TestOracleGaps(unittest.TestCase):
-    def test_list_eq_is_gap(self):
-        with self.assertRaises(OracleGap):
-            Oracle().run(A.Program(main_body=[
-                A.Print(A.Binary("==",
-                                 A.ListLit([A.IntLit(1)]),
-                                 A.ListLit([A.IntLit(1)])))]))
+class TestOracleListEquality(unittest.TestCase):
+    # Lists compare element by element in both engines (A72); this used to
+    # be an OracleGap because both called every list unequal.
+    def eq(self, a, b, op="=="):
+        r = print_of(A.Binary(op, A.ListLit(a), A.ListLit(b)))
+        self.assertIsNone(r.error)
+        return r.lines[0].text
+
+    def test_equal_lists(self):
+        self.assertEqual(self.eq([A.IntLit(1)], [A.IntLit(1)]), "true")
+        self.assertEqual(self.eq([], []), "true")
+
+    def test_elements_use_scalar_rules(self):
+        self.assertEqual(self.eq([A.IntLit(1)], [A.FloatLit(1.0)]), "true")
+        self.assertEqual(self.eq([A.IntLit(1)], [A.StrLit("1")]), "false")
+
+    def test_order_and_length_matter(self):
+        self.assertEqual(self.eq([A.IntLit(1), A.IntLit(2)],
+                                 [A.IntLit(2), A.IntLit(1)]), "false")
+        self.assertEqual(self.eq([A.IntLit(1)], [A.IntLit(1), A.IntLit(2)]), "false")
+        self.assertEqual(self.eq([A.IntLit(1)], [A.IntLit(2)], "!="), "true")
 
 
 class TestEmitterAndGen(unittest.TestCase):

@@ -1,0 +1,43 @@
+// Differential probe: default parameter values. The VM never applied them:
+// a parameter left out of a call read whatever the stack held next (null, or
+// the callee's first local), while the tree-walker used the default. The
+// local `t` in d() is what shows the slot aliasing. (A71)
+fn a(name = "World") {
+    return name
+}
+fn c(x, y = 10) {
+    return x + y
+}
+fn d(n = 5) {
+    let t = 100
+    return string(n) + "," + string(t)
+}
+fn m(a, b = 2, c = 3) {
+    return a + b + c
+}
+fn area(w, h = w) {
+    return w * h
+}
+fn collect(x, acc = []) {
+    acc.push(x)
+    return acc
+}
+main {
+    print(a())
+    print(a("Ann"))
+    print(a(null))
+    print(c(1))
+    print(c(1, 2))
+    print(d())
+    print(m(1))
+    print(m(1, 10))
+    print(m(1, 10, 100))
+    print(area(3))
+    print(area(3, 4))
+    print(collect(1))
+    print(collect(2))
+    let base = 7
+    let f = fn(x, y = base) { return x + y }
+    print(f(1))
+    print("END")
+}

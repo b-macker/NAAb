@@ -255,7 +255,7 @@ naab-lang app.naab --governance-junit results.xml
 naab-lang app.naab --governance-report results.json
 ```
 
-The report flags go after the file name. `naab-gov lint app.naab` checks a file without running it.
+The report flags may go before or after the file name. `naab-gov lint app.naab` checks a file without running it.
 
 ---
 

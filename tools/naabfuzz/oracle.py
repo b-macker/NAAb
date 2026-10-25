@@ -384,9 +384,11 @@ class Oracle:
         if l.v is None or r.v is None:
             return l.v is None and r.v is None
         if isinstance(l.v, list) and isinstance(r.v, list):
-            # Engines use reference equality for lists ([1,2]==[1,2] is
-            # false) — not exactly predictable at AST level
-            raise OracleGap("list == is reference equality")
+            # Lists compare element by element with these same rules, in both
+            # engines (include/naab/value_equality.h, A72). Before, both
+            # called every list unequal, and this was an OracleGap.
+            return len(l.v) == len(r.v) and all(
+                self.value_eq(a, b) for a, b in zip(l.v, r.v))
         # Mixed families compare unequal without error ("a" == 1 -> false)
         return False
 

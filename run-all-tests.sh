@@ -788,6 +788,32 @@ else
     echo "  Init governance test script not found, skipping"
 fi
 
+# govern.json's run time limit applies as written; --timeout can raise it (A74).
+TIMEOUTCFG_SCRIPT="tests/cli/test_timeout_config.sh"
+if [ -f "$TIMEOUTCFG_SCRIPT" ]; then
+    if run_shell_test "$TIMEOUTCFG_SCRIPT" 2>&1; then
+        echo "  test_timeout_config.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_timeout_config.sh")
+    fi
+else
+    echo "  test_timeout_config.sh: not found, skipping"
+fi
+
+# Run options work before the file name as well as after it (A70(a)).
+FLAGPOS_SCRIPT="tests/cli/test_flag_position.sh"
+if [ -f "$FLAGPOS_SCRIPT" ]; then
+    if run_shell_test "$FLAGPOS_SCRIPT" 2>&1; then
+        echo "  test_flag_position.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_flag_position.sh")
+    fi
+else
+    echo "  test_flag_position.sh: not found, skipping"
+fi
+
 # --- Multi-Agent Governance Integration Tests ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -1699,6 +1725,20 @@ if [ -f "$RELNEW_SCRIPT" ]; then
     fi
 else
     echo "  test_relative_new_path.sh: not found, skipping"
+fi
+
+# The sandbox side of the same defect: at `standard`, a bare new name is
+# judged by where it lands (A73).
+SBREL_SCRIPT="tests/security/test_sandbox_relative_path.sh"
+if [ -f "$SBREL_SCRIPT" ]; then
+    if run_shell_test "$SBREL_SCRIPT" 2>&1; then
+        echo "  test_sandbox_relative_path.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_sandbox_relative_path.sh")
+    fi
+else
+    echo "  test_sandbox_relative_path.sh: not found, skipping"
 fi
 
 # --- naab-gov check: one output shape for both verdicts ---
@@ -2662,6 +2702,32 @@ if [ -f "$OPTCHAIN_SCRIPT" ]; then
     fi
 else
     echo "  test_optional_chaining.sh: not found, skipping"
+fi
+
+# VM: a parameter the call leaves out gets its default, as on the tree-walker (A71).
+DEFPARAMS_SCRIPT="tests/vm/test_default_params.sh"
+if [ -f "$DEFPARAMS_SCRIPT" ]; then
+    if run_shell_test "$DEFPARAMS_SCRIPT" 2>&1; then
+        echo "  test_default_params.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_default_params.sh")
+    fi
+else
+    echo "  test_default_params.sh: not found, skipping"
+fi
+
+# == and != compare lists, dictionaries and structs by value, both engines (A72).
+VALEQ_SCRIPT="tests/vm/test_value_equality.sh"
+if [ -f "$VALEQ_SCRIPT" ]; then
+    if run_shell_test "$VALEQ_SCRIPT" 2>&1; then
+        echo "  test_value_equality.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_value_equality.sh")
+    fi
+else
+    echo "  test_value_equality.sh: not found, skipping"
 fi
 
 # VM: a callback that throws through native code (sort comparators, array.map_fn,
