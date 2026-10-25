@@ -22,7 +22,7 @@
 # LA-02 asserts an ABSENCE: the per-agent error must not mention the run-level
 # budget. An absence passes trivially if the string appears nowhere, so LA-03
 # drives the RUN-LEVEL limit as its positive control -- and in doing so found a
-# real engine defect, documented at LA-03 itself.
+# real engine defect (ErrorSanitizer over-redaction, fixed 2026-10-24; see LA-03).
 #
 # LA-04 guards the policy boundary: say which budget bound, never name a
 # configuration key or how to raise it.
@@ -137,33 +137,27 @@ fi
 # Without this, LA-02 passes on a build where NEITHER message names any key.
 B_OUT=$(run_case "$TEST_TMP/b" 9999999 60)
 
-# LA-03 is a KNOWN-DEFECT check, not a plain assertion, and the defect it
-# documents was found by running this suite.
+# LA-03: the RUN-LEVEL limit binds, and its message names it. This is LA-02's
+# positive control: without a case that does name the run-level budget, LA-02's
+# absence would pass on a build where no message names any key.
 #
-# The run-level error's SOURCE string names its key:
-#   s_dispatch.stop_reason = "max_tokens_per_run (" + N + ") exceeded"
-# but the rendered output is "max_<redacted> (60) exceeded". ErrorSanitizer's
-# API_KEY pattern (include/naab/error_sanitizer.h:189) alternates on the bare
-# word `token`, then `[:\s]*` matches EMPTY, then the capture group eats 8+
-# identifier characters -- so it matches `token` inside `max_tokens_per_run` and
-# swallows `s_per_run`. Same for `tokens_remaining` and
-# `authorization_required`. A security control over-redacting into a false
-# positive, destroying the diagnostic it was never meant to touch.
-#
-# This is why the check cannot simply assert the key is present: it is not, and
-# a permanently red gate would break CI's 0-unexpected-failures invariant for a
-# defect that is not this suite's subject. It is written so it PASSES while the
-# defect stands, naming it, and FAILS the moment the sanitizer is fixed -- which
-# forces this comment and LA-02's control story to be updated rather than
-# silently rotting.
+# Until 2026-10-24 the rendered message read "max_<redacted> (60) exceeded",
+# although its source string is "max_tokens_per_run (" + N + ") exceeded".
+# ErrorSanitizer's API_KEY pattern (include/naab/error_sanitizer.h) needed no
+# separator after its keyword, so it matched `token` inside the name and
+# swallowed the rest -- the same defect that printed a rule named
+# credential_exfiltration as "<redacted>". This arm was written to PASS while
+# that defect stood and FAIL once fixed. The pattern now needs ':', '=',
+# whitespace or a quote between keyword and value (owner's decision), so it is
+# a plain assertion again, and the mangled form is a regression.
 if grep <<<"$B_OUT" -q "max_tokens_per_run"; then
-    fail "LA-03" "sanitizer no longer mangles the run-level key — UPDATE THIS TEST" \
-         "the known defect appears fixed; make this a plain assertion and drop the xfail wording"
+    pass "LA-03" "run-level limit bound, and its message names it"
 elif grep <<<"$B_OUT" -q "max_<redacted>"; then
-    pass "LA-03" "run-level key mangled to max_<redacted> — known ErrorSanitizer defect, documented"
+    fail "LA-03" "run-level key mangled to max_<redacted>" \
+         "ErrorSanitizer over-redacts identifiers again (API_KEY pattern lost its separator)"
 else
     fail "LA-03" "run-level limit did not bind — LA-02's control is absent" \
-         "expected either the key or its redacted form; got neither"
+         "expected the run-level key in the output; got neither it nor its redacted form"
 fi
 
 # --- LA-04: diagnosis, not remediation -------------------------------------

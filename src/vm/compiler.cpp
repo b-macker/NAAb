@@ -1638,8 +1638,10 @@ void Compiler::visit(ast::CallExpr& node) {
                               (static_cast<uint32_t>(node.getArgs().size()) & 0xFF);
             emitWide(OpCode::OP_CALL_METHOD, packed, line);
             int end = emitJump(OpCode::OP_JUMP, line);
+            // Null path: OP_JUMP_IF_NULL consumed the dup when it jumped, so
+            // the original null is the only value left and is the result.
+            // Popping here removed it too (tests/vm/test_optional_chaining.sh).
             patchJump(skip_call);
-            emitOp(OpCode::OP_POP, line); // pop null dup, leave original null
             patchJump(end);
             return;
         }
@@ -1676,9 +1678,11 @@ void Compiler::visit(ast::MemberExpr& node) {
         int name_idx = identifierConstant(node.getMember());
         emitWide(OpCode::OP_GET_MEMBER, static_cast<uint32_t>(name_idx), line);
         int end = emitJump(OpCode::OP_JUMP, line);
+        // Null path: OP_JUMP_IF_NULL consumed the dup when it jumped, so the
+        // original null is the only value left and is the result. A POP here
+        // removed it too, and the expression took the value below it
+        // (tests/vm/test_optional_chaining.sh).
         patchJump(skip);
-        emitOp(OpCode::OP_POP, line); // pop null dup
-        // original null remains on stack
         patchJump(end);
     } else {
         int name_idx = identifierConstant(node.getMember());

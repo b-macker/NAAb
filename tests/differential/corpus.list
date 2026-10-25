@@ -16,6 +16,7 @@ tests/differential/corpus/known_fork_mixed_compare.naab probe
 tests/differential/corpus/list_index.naab probe
 tests/differential/corpus/math_stdlib.naab probe
 tests/differential/corpus/null_coalesce.naab probe
+tests/differential/corpus/optional_chaining.naab probe
 tests/differential/corpus/plus_overload_order.naab probe
 tests/differential/corpus/precedence.naab probe
 tests/differential/corpus/string_ops.naab probe

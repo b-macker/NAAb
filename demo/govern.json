@@ -5,6 +5,9 @@
     "languages": {
         "allowed": ["python", "shell"]
     },
+    "security": {
+        "sandbox_level": "elevated"
+    },
     "capabilities": {
         "network": false,
         "filesystem": "read"

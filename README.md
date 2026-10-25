@@ -7,35 +7,34 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Discussions](https://img.shields.io/badge/Discussions-enabled-blue.svg)](https://github.com/b-macker/NAAb/discussions)
 
-AI agents can read your secrets, encode them, and send them to an external API — all in three steps. NAAb blocks the sequence **before the network call fires.**
+AI agents can read your secrets, encode them, and send them to an external API — all in three steps. NAAb can block that sequence **before the network call fires.**
 
 ```
 $ naab-lang agent_task.naab
+Error: Governance error: Behavioral sequence 'credential_exfiltration' blocked before execution: 'agent.send' would complete a dangerous 3-step pattern [HARD-MANDATORY]
 
-[governance] Behavioral sequence 'credential_exfiltration' blocked before execution.
+  Rule: behavioral_sequences.credential_exfiltration
 
-  Pattern matched:
-    Step 1 — env.get("API_SECRET_KEY")        ✓ matched
-    Step 2 — crypto.base64_encode(secret)     ✓ matched
-    Step 3 — agent.send(handle, encoded)      ✗ BLOCKED
-
-  Rule: behavioral_sequences.credential_exfiltration [HARD]
-  The sequence env.get:*KEY* → encode → agent.send matches a known
-  exfiltration pattern. Execution was stopped before the API call.
+  Help:
+  - This action would complete a known dangerous sequence.
+  - The operation was blocked before execution.
 ```
 
-No prompt engineering. No post-hoc log scanning. The agent never reaches the network.
+The program read `API_SECRET_KEY` with `env.get`, base64-encoded it, and called `agent.send`. The send was refused before a request left the process, and the run exited with code 3. No prompt engineering, and no scanning of logs after the fact.
+
+That refusal comes from a pattern you write in `govern.json` (below). Sequence detection is off until `behavioral_sequences.enabled` is true, and none of the built-in patterns covers this chain.
 
 ---
 
 ## How It Works
 
-NAAb is a programming language with a governance engine built into the runtime. You define behavioral rules in `govern.json` — multi-step attack patterns, capability limits, secret scanning — and the engine enforces them as your code runs, not after.
+NAAb is a programming language with a governance engine built into the runtime. You write rules in `govern.json` — multi-step patterns, capability limits, secret scanning — and the engine enforces them while your code runs, not afterwards.
 
 ```json
 {
   "version": "5.0",
   "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
   "behavioral_sequences": {
     "enabled": true,
     "patterns": [
@@ -47,7 +46,7 @@ NAAb is a programming language with a governance engine built into the runtime. 
       },
       {
         "name": "config_harvest",
-        "sequence": ["file.read:*config*|file.read:*govern*", "agent.send"],
+        "sequence": ["file.read:*config*", "agent.send"],
         "level": "hard",
         "rationale": "Reading config files then sending content to an external agent."
       }
@@ -56,28 +55,31 @@ NAAb is a programming language with a governance engine built into the runtime. 
 }
 ```
 
-The patterns are yours to define. The engine tracks event sequences across your entire script — with configurable gap limits, decay timers, and enforcement tiers — and blocks the final step before it executes.
+Each step names an event (`env.get`, `file.read`, `agent.send`, `http.post`, ...) and can match its detail with a glob after `:`; `|` separates alternatives. The engine tracks events across the whole run, with a configurable gap between steps, and blocks the step that would complete the pattern. Listing `patterns` replaces the 16 built-in ones; those are advisory unless you set `"default_pattern_enforcement": "declared"`. `sandbox_level: "elevated"` lets the program read the environment at all: at `standard`, the default under `enforce`, the sandbox refuses `env.get` before any pattern is reached.
 
 ### What Else Gets Blocked
 
 | Threat | How NAAb stops it |
 |--------|-------------------|
-| Credential exfiltration | Sequence detection — `env.get(SECRET)` → encode → `agent.send` blocked pre-execution |
-| Config harvesting | `file.read(govern.json)` → `agent.send` blocked before API call |
-| Agent drift | Context Drift Detection tracks coherence across turns — circular loops, scope creep, contradictions |
-| Leaked secrets in responses | `checkSecrets()` scans every agent response — API keys, JWTs, hardcoded passwords hard-blocked |
-| Capability abuse | `filesystem: read` mode, `shell: disabled` — enforced at sandbox level, not by prompt |
-| Tainted data reaching shell | VM taint tracking — `env.get` output reaching `shell_exec` blocked with full lineage trace |
+| Credential exfiltration | A sequence pattern: `env.get` of a secret → encode → `agent.send`, refused before the send |
+| Rewriting the policy | `govern.json`, its signature and the trusted keys are protected paths: the program cannot read or overwrite them through NAAb's standard library or embedded Python |
+| Agent drift | Context Drift Detection scores 23 signals per turn (repetition, circular actions, mandate drift, failed validations, ...) into a coherence score; output admissibility can quarantine or block a reply whose score is too low |
+| Secrets in agent traffic | With `code_quality.no_secrets` on, every prompt, response, tool argument and tool result is scanned against 19 secret formats, and a hit ends the run. It is off by default |
+| Capability abuse | `shell.enabled: false` refuses every language that runs as a separate process; `network.enabled: false` and `filesystem.mode` are enforced by the runtime, not by the prompt |
+| Tainted data reaching a sink | Taint tracking: a value from `env.get` reaching a shell block is refused, with the chain of where it came from |
 
-### Governance That Can't Be Bypassed
+### A Policy the Program Can't Rewrite
 
-Rules live in `govern.json`, not in prompts. A signed govern.json with Ed25519 means the agent can't modify its own constraints mid-run. A one-way ratchet ensures mid-run reloads can only tighten rules, never loosen them.
+Rules live in `govern.json`, not in prompts. Sign it with Ed25519 and any later edit is an integrity block (exit 3) on the next run. A config change picked up during a run is accepted only if it tightens the rules (the ratchet).
 
 ```bash
-naab-lang --keygen ./keys/governance
-naab-lang --sign-governance                    # Sign govern.json
-naab-lang --trust-key ./keys/governance.pub   # Install on CI
+mkdir -p keys
+naab-lang --keygen ./keys/governance                          # writes keys/governance and keys/governance.pub
+naab-lang --trust-key ./keys/governance.pub                   # trust the public key on this machine
+naab-lang --signing-key ./keys/governance --sign-governance   # writes govern.json.sig
 ```
+
+**What it does not contain.** Path rules reach NAAb's standard library and the embedded Python executor. They do not reach languages that run as a separate process (shell, Ruby, Node, PHP, ...) while shell is enabled; NAAb prints the advisory `CONTRA-013` when a config is in that state. The [protection map](docs/protection-map.md) records, for each language and forbidden action, which layer stops it: 39 of its 323 cells are open when run as root (36 as an ordinary user), all but four of the open and text-only cells in configurations where the project enables shell. See also the [security model](docs/SECURITY.md).
 
 ---
 
@@ -110,7 +112,7 @@ AI models generate code that looks right but isn't. Every session starts fresh �
 - **Security patterns bypassed** — hardcoded secrets, SQL injection, `except: pass` swallowing errors
 - **Language misuse** — Python for heavy computation, JavaScript for file operations, Shell for complex logic
 
-Prompts are suggestions. **`govern.json` is policy.** NAAb checks every polyglot block against your policies before execution — where it can't be bypassed.
+Prompts are suggestions. **`govern.json` is policy.** NAAb checks every polyglot block against your policy before it runs.
 
 ---
 
@@ -118,24 +120,21 @@ Prompts are suggestions. **`govern.json` is policy.** NAAb checks every polyglot
 
 | Capability | Details |
 |---|---|
-| **Governance Engine** | 50+ checks, 4-tier policy engine (hard / soft / advisory / detect), `govern.json` config |
-| **Polyglot Execution** | 12 languages in one file — Python, JavaScript, Rust, C++, Go, C#, Ruby, PHP, Shell, Nim, Zig, Julia |
-| **Smart Error Messages** | "Did you mean?" suggestions via Levenshtein distance, detailed fixes with examples |
-| **Standard Library** | 24 registered modules — array, string, math, json, http, file, path, time, debug, dict, env, csv, regex, crypto, log, uuid, validate, process, io, bolo, agent, governance, codegen, orchestra |
-| **Language Features** | Generators/yield, interfaces, pattern matching with guards, f-strings, async/await, lambdas, closures, pipeline, destructuring |
+| **Governance Engine** | 50+ checks, four enforcement levels (hard / soft / advisory / detect), configured in `govern.json` |
+| **Polyglot Execution** | 14 languages in one file — Python, JavaScript, TypeScript, Rust, C++, Go, C#, Ruby, PHP, Shell, Nim, Zig, Julia, and SQL (in-process SQLite) |
+| **Smart Error Messages** | "Did you mean?" suggestions, and help text with a wrong and a right example |
+| **Standard Library** | 25 modules — array, string, math, json, http, file, path, time, debug, dict, env, csv, regex, crypto, log, uuid, validate, process, io, collections, bolo, agent, governance, codegen, orchestra |
+| **Language Features** | Generators/yield, interfaces, pattern matching with guards, f-strings, async/await, lambdas, closures, pipeline operator, destructuring, optional chaining |
 | **CI/CD Integration** | SARIF (GitHub Code Scanning), JUnit XML (Jenkins/GitLab), JSON reports |
-| **Project Context** | Auto-reads CLAUDE.md, .editorconfig, .eslintrc, package.json to supplement governance |
-| **Developer Tools** | Interactive REPL, URL imports, LLM-friendly syntax (keyword aliases, optional semicolons), 204 error messages |
-| **Bytecode VM** | Stack-based compiler + VM (default engine, ~8x faster than tree-walking), computed goto dispatch, NaN-boxing fast paths, constant folding |
-| **Runtime Security** | Behavioral Sequence Detection (BSD), Context Drift Detection (CDD), VM taint lineage tracking, polyglot subprocess containment |
-| **Ed25519 Signing** | Trust-anchored governance — `--keygen`, `--sign-governance`, `--trust-key`, one-way ratchet |
-| **Cumulative Scoring** | Advisory findings accumulate weighted scores — green/yellow/red zones with configurable thresholds |
-| **Agent Governance** | Multi-agent role enforcement, per-agent permissions, standing lease TTL, advisory escalation, output contracts, telemetry JSONL |
-| **Governance Pulse** | Real-time health monitoring (HEALTHY/DEGRADED/IMPAIRED), evidence epochs, governance entropy detection |
-| **Multi-Agent Orchestration** | `orchestra` module — sequential refinement, consensus voting, convergence enforcement |
-| **Dynamic Code Execution** | `codegen.run()` — governed runtime code generation with same 39+ checks as static polyglot blocks |
-| **Enterprise Features** | Policy inheritance (`extends`), telemetry forwarding (webhook/SIEM), REST API multi-key auth, polyglot hot-reload |
-| **Subprocess Containment** | OS-level restrictions on polyglot child processes — RLIMIT_NPROC, PATH restriction, env scrubbing, timeout |
+| **Bytecode VM** | Stack-based compiler + VM (the default engine), computed-goto dispatch, NaN-boxed values, constant folding. About 10x faster than the tree-walker on one recursion-and-loop benchmark (unoptimised build) |
+| **Runtime Security** | Behavioral Sequence Detection, Context Drift Detection, taint tracking with lineage, subprocess containment |
+| **Ed25519 Signing** | `--keygen`, `--sign-governance`, `--trust-key`; mid-run reloads can only tighten |
+| **Agent Governance** | Per-agent roles and permissions, run budgets, standing leases, step-up challenges, output contracts, output admissibility, propose/commit, telemetry with a tamper-evident hash chain |
+| **Live Guidance** | Project knowledge from markdown files, SQLite, HTTPS, commands or MCP servers, delivered to the agent or the terminal when governance sees the matching event |
+| **MCP Server** | `naab-lang mcp` serves governed execution over the Model Context Protocol; each call runs in a fresh worker process |
+| **Orchestration** | `orchestra` module — sequential refinement, consensus voting, convergence checks, admissible-candidate selection |
+| **Dynamic Code Execution** | `codegen.run()` — runtime-generated code goes through the same checks as a static polyglot block |
+| **Enterprise Features** | Policy inheritance (`extends`), telemetry forwarding to a webhook or SIEM, REST API with per-key scopes, governance C API with Go/Rust/Java/C#/Python bindings |
 
 ---
 
@@ -146,44 +145,48 @@ Prompts are suggestions. **`govern.json` is policy.** NAAb checks every polyglot
 git clone --recursive https://github.com/b-macker/NAAb.git
 cd NAAb
 mkdir build && cd build
-cmake .. -G Ninja
-ninja naab-lang -j$(nproc)
+cmake ..
+make naab-lang -j4
 
-# Run a file
-./naab-lang hello.naab
-
-# Start interactive REPL
-./naab-lang
+# Create a project: init writes naab.toml and a standard govern.json
+mkdir ../hello && cd ../hello
+../build/naab-lang init
 ```
 
-Detailed build instructions: [INSTALL.md](INSTALL.md) · Language guide: [USER_GUIDE.md](USER_GUIDE.md) · Release history: [CHANGELOG.md](CHANGELOG.md)
-
-### Hello World
-
 ```naab
+// hello.naab
 main {
     let name = "World"
     print("Hello, " + name + "!")
 }
 ```
 
+```bash
+../build/naab-lang hello.naab      # run a file
+../build/naab-lang                 # interactive REPL
+```
+
+NAAb looks for a `govern.json` in the program's directory and its parents, and refuses to run a program without one (exit 4). `naab-lang init --governance-preset relaxed|standard|strict|paranoid` picks how strict the generated file is; `--no-governance` waives the requirement, but a `govern.json` that is found still applies.
+
+Detailed build instructions: [INSTALL.md](INSTALL.md) · Language guide: [USER_GUIDE.md](USER_GUIDE.md) · Release history: [CHANGELOG.md](CHANGELOG.md)
+
 ---
 
 ## Governance Engine
 
-NAAb's governance engine is what sets it apart. Drop a `govern.json` in your project root and every polyglot block is checked before execution.
+Drop a `govern.json` in your project root and every polyglot block is checked before it runs.
 
 ### What It Catches
 
 | Category | Examples | Patterns |
 |---|---|---|
-| **Hallucinated APIs** | `.push()` in Python, `print()` in JS, `len()` in JS | 86+ cross-language patterns |
-| **Oversimplification** | `def validate(): return True`, `pass`-only bodies, identity functions | 35+ stub patterns |
-| **Incomplete Logic** | `except: pass`, bare raises, `"something went wrong"` messages | 40+ patterns |
-| **Security** | SQL injection, path traversal, shell injection, hardcoded secrets | Entropy-based detection |
+| **Hallucinated APIs** | `.push()` in Python, `print()` in JS, `len()` in JS | 100+ patterns across languages |
+| **Oversimplification** | `def validate(): return True`, `pass`-only bodies, identity functions | 60+ stub patterns |
+| **Incomplete Logic** | `except: pass`, bare raises, `"something went wrong"` messages | 50+ patterns |
+| **Security** | SQL injection, path traversal, shell injection, hardcoded secrets | 19 secret formats |
 | **Code Quality** | TODO/FIXME, debug artifacts, mock data, hardcoded URLs/IPs | Dead code detection |
 | **Taint Tracking** | Untrusted data (`env.get`, polyglot output) reaching sinks (shell, env) | Source/sink/sanitizer with prefix matching |
-| **PII Exposure** | SSN patterns, credit card numbers, API keys in strings | Regex + entropy |
+| **PII Exposure** | SSNs, credit card numbers, emails, phone numbers, IP addresses | Pattern-based, each kind switchable |
 
 ### Four Policy Levels
 
@@ -213,26 +216,28 @@ NAAb's governance engine is what sets it apart. Drop a `govern.json` in your pro
   },
 
   "restrictions": {
-    "no_eval": { "level": "hard" },
-    "no_shell_injection": { "level": "hard" }
+    "code_injection": { "level": "hard" },
+    "shell_injection": { "level": "hard" }
   },
 
   "limits": {
-    "max_lines_per_block": 200,
-    "timeout_seconds": 30
+    "code": { "max_lines_per_block": 200 },
+    "timeout": { "global": 30 }
   }
 }
 ```
 
+Every setting, with its default and a comment: [`govern-template.json`](govern-template.json).
+
 ### Project Context Awareness
 
-NAAb can read your existing project configuration files and supplement governance rules — without overriding `govern.json`:
+NAAb can read your existing project files and add rules from them — without overriding `govern.json`. Off by default; turn it on with `project_context.enabled`.
 
-- **Layer 1:** LLM instruction files — `CLAUDE.md`, `.cursorrules`, `AGENTS.md`
-- **Layer 2:** Linter configs — `.eslintrc`, `.flake8`, `pyproject.toml`
-- **Layer 3:** Project manifests — `package.json`, `Cargo.toml`, `go.mod`
+- **Layer 1:** LLM instruction files — `CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`, `gemini.md`
+- **Layer 2:** Linter configs — `.editorconfig`, `.eslintrc`, `.prettierrc`, `biome.json`
+- **Layer 3:** Project manifests — `package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `Gemfile`, `composer.json`
 
-Each layer is opt-in and toggleable.
+Each layer can be switched on and off.
 
 ### Custom Rules
 
@@ -242,6 +247,7 @@ Define your own regex-based governance rules:
 {
   "custom_rules": [
     {
+      "id": "no-print-debugging",
       "name": "no_print_debugging",
       "pattern": "console\\.log|print\\(.*debug",
       "message": "Remove debug print statements before committing",
@@ -255,14 +261,16 @@ Define your own regex-based governance rules:
 
 ```bash
 # GitHub Code Scanning (SARIF)
-naab-lang app.naab --governance-report sarif > results.sarif
+naab-lang app.naab --governance-sarif results.sarif
 
 # Jenkins / GitLab CI (JUnit XML)
-naab-lang app.naab --governance-report junit > results.xml
+naab-lang app.naab --governance-junit results.xml
 
 # Custom tooling (JSON)
-naab-lang app.naab --governance-report json > results.json
+naab-lang app.naab --governance-report results.json
 ```
+
+The report flags go after the file name. `naab-gov lint app.naab` checks a file without running it.
 
 > **[Build your govern.json interactively](https://b-macker.github.io/NAAb/governance.html)** | [Full governance reference (Chapter 21)](docs/book/chapter21.md)
 >
@@ -298,56 +306,53 @@ NAAb supports multi-agent environments where different AI agents have different 
 
 ```bash
 # Run with agent identity
-naab-lang --agent-id analyzer app.naab
+naab-lang app.naab --agent-id analyzer
 
 # View governance dashboard
-naab-lang --agent-id analyzer --governance-dashboard app.naab
+naab-lang app.naab --agent-id analyzer --governance-dashboard
 ```
 
 **Agent features:**
-- **Standing Lease** — TTL on agent authorization. Expired lease forces step-up challenge.
-- **Output Contracts** — validate LLM response structure against a schema (required fields, types, regex).
-- **Risk Budget** — finite risk budget consumed by BSD matches and CDD signals. Agent blocked when exhausted.
+- **Standing Lease** — a time or turn limit on an agent's authorization. An expired lease forces a step-up challenge; passing it renews the lease.
+- **Output Contracts** — check a reply's structure: required fields, field types, regexes (`format: "json"`).
+- **Run Budgets** — `agent_dispatch.hard_stop` caps calls, tokens and time for the whole run, counting tool-loop turns, challenges and proposals too.
+- **Risk Budget** — with `exposure_tracking.enabled`, each behavioral-sequence match and each turn on which a drift signal fires costs one unit, and admission refuses the next send when none is left.
+- **Output Admissibility** — after drift scoring, a reply below the coherence threshold is quarantined, attested or blocked.
+- **Propose / Commit** — `agent.propose()` generates candidate replies without changing any state; `agent.commit()` runs the full post-receive checks on the one you pick.
+- **Validation** — `agent.record_validation(handle, passed)` feeds your test results into the agent's coherence score.
 - **Key Rotation** — `api_key_env` accepts string or array. Dead keys (401) marked and rotated. `key_retry_after_seconds` enables revival.
 - **Model Fallback** — `model` accepts string or array. On 404/503, next model in chain is tried.
-- **Tool Execution** — `agent.register_tool()` + governed tool loop with 7 defense layers.
+- **Tool Execution** — `agent.register_tool()` + a governed tool loop: the tool must be listed in `govern.json` and registered, and its arguments and results are scanned.
 - **Code Extraction** — `agent.extract_code(response, lang)` extracts code from markdown fences.
 - **Environment Awareness** — `agent.environment(handle)` returns real-time config, state, and health.
 
 ### Runtime Security: BSD, CDD & Subprocess Containment
 
-Beyond static checks, NAAb monitors runtime behavior patterns:
+Beyond static checks, NAAb monitors runtime behavior:
 
-- **Behavioral Sequence Detection (BSD)** — catches multi-step attack patterns like "read secrets → encode → exfiltrate". Patterns are fully configurable in govern.json — no hardcoded rules. Dangerous sequences are blocked *before* the final step executes. Pattern names accept both UPPERCASE_UNDERSCORE and lowercase.dot notation.
-- **Context Drift Detection (CDD)** — monitors LLM agent conversations for coherence drift: repeated failures, circular actions, scope creep, contradictions. Configurable thresholds and per-signal weights. 8 signals including coherence velocity, vocabulary contraction, capability underutilization, and semantic stability.
-- **VM Taint Lineage** — every tainted value carries a full chain showing where it was tainted and why, making governance violations actionable.
+- **Behavioral Sequence Detection (BSD)** — catches multi-step patterns like "read secret → encode → send", blocking the step that would complete one. Off by default. Your `patterns` replace the 16 built-in ones, which are advisory unless `default_pattern_enforcement` is `"declared"`. Write steps in event form (`agent.send`, `file.read`); the loader warns about a spelling no event matches.
+- **Context Drift Detection (CDD)** — scores an agent conversation turn by turn on 23 signals: repeated failures, circular actions, scope creep, contradictions, response repetition, mandate alignment, failed validations and more. Each signal can be switched on or off globally or per agent, and an adaptive baseline learns what is normal for each agent before it penalises.
+- **Taint Lineage** — every tainted value carries a chain showing where it was tainted and why, making governance violations actionable.
 - **Governance Pulse** — real-time self-assessment (HEALTHY/DEGRADED/IMPAIRED) with hysteresis and evidence epochs. `governance.health()` returns instrumentation status.
-- **Polyglot Subprocess Containment** — OS-level restrictions on child processes: RLIMIT_NPROC=0 (blocks fork), PATH restriction, environment scrubbing, timeout with SIGKILL. Catches runtime-constructed commands that evade static source scanning.
+- **Polyglot Subprocess Containment** — restrictions on child processes: no fork or exec at the `standard` sandbox level, a restricted PATH, environment scrubbing (variables in `env_vars.blocked_read` never reach a child), and a timeout with SIGKILL. It catches commands built at run time that a source scan cannot see.
 
-### Ed25519 Governance Signing
+### Live Guidance
 
-Trust-anchored signing ensures govern.json integrity:
+`guidance.sources` lists where your project knowledge lives — markdown documents, a SQLite database, an `https://` URL, a command, or an MCP server. When governance observes something (an agent's first send, a drift signal, a failed validation, a violation), the matching section is delivered to the agent's next request or appended to the message shown in the terminal. Sources are re-read when they change, the governed program may not write them, and their text is scanned for secrets before delivery. See [docs/plan-live-guidance.md](docs/plan-live-guidance.md).
 
-```bash
-# Generate keypair
-naab-lang --keygen ./keys/governance
+### MCP Server
 
-# Sign govern.json
-naab-lang --signing-key ./keys/governance.key --sign-governance
-
-# Install public key on CI/team machines
-naab-lang --trust-key ./keys/governance.pub
-```
-
-Signed governance enforces a one-way ratchet — mid-run config reloads can only tighten restrictions, never loosen them.
+`naab-lang mcp` serves governed execution over the Model Context Protocol on stdio, with the tools `naab_lease`, `naab_propose`, `naab_commit`, `naab_run` and `naab_verify_attestation`. No user code runs in the server process: every call runs in a fresh `naab-lang` worker, and behavioral-sequence events carry across calls from the same caller. See [docs/plan-mcp-service.md](docs/plan-mcp-service.md).
 
 ---
 
 ## Polyglot Execution
 
-Use each language where it shines — Python for data science, Rust for performance, JavaScript for web, Go for concurrency, Shell for file ops. Variables flow between languages automatically. No FFI, no serialization, no microservices.
+Use each language where it shines — Python for data science, Rust for performance, JavaScript for web, Go for concurrency, SQL for queries. Variables flow between languages automatically. No FFI, no serialization, no microservices.
 
-**Supported languages:** Python · JavaScript · Rust · C++ · Go · C# · Ruby · PHP · Shell · Nim · Zig · Julia
+**Supported languages:** Python · JavaScript · TypeScript · Rust · C++ · Go · C# · Ruby · PHP · Shell · Nim · Zig · Julia · SQL
+
+A language runs only if `govern.json` allows it (`languages.allowed`) and its compiler or interpreter is installed. The standard `init` profile allows Python and Shell; the example below also needs `javascript` in that list.
 
 > Zig and Julia executors ship with the runtime but are disabled by default in `naab.toml` — flip `zig = true` / `julia = true` under `[polyglot]` to enable them.
 
@@ -376,14 +381,29 @@ const data = "Stats: mean=30, stdev=15.81";
 }
 ```
 
+SQL blocks run in an in-process SQLite database with no filesystem access; the rows of the last query come back as a list of dicts:
+
+```naab
+main {
+    let rows = <<sql
+CREATE TABLE langs(name TEXT, year INT);
+INSERT INTO langs VALUES ('python', 1991), ('go', 2009), ('rust', 2010);
+SELECT name, year FROM langs WHERE year > 2000 ORDER BY year;
+>>
+    for row in rows {
+        print(row["name"] + " " + string(row["year"]))
+    }
+}
+```
+
 ### Key Polyglot Features
 
-- **Variable binding** — Pass NAAb variables into polyglot blocks with `<<python[x, y]`
-- **Parallel execution** — Independent blocks run concurrently with automatic dependency analysis
+- **Variable binding** — Pass NAAb variables into polyglot blocks with `<<python[x, y]` (SQL receives them as bound parameters, never as text)
 - **Persistent runtimes** — Keep interpreter state across multiple calls with the `runtime` keyword
-- **JSON sovereign pipe** — Return structured data from any language with `naab_return()` or `-> JSON` header
+- **JSON sovereign pipe** — Return structured data from any language with `naab_return()` or a `-> JSON` header
 - **Error mapping** — Polyglot errors map back to NAAb source locations and flow into try/catch
 - **Block-header awareness** — Go gets `package main`, PHP gets `<?php` automatically
+- **Parallel execution** — on the tree-walker (`--tree-walk`), independent blocks run concurrently after a dependency analysis
 
 ---
 
@@ -461,14 +481,16 @@ main {
 ### Pipeline Operator
 
 ```naab
-main {
-    let result = "hello world"
-        |> string.upper()
-        |> string.split(" ")
+fn twice(s) { return s + " " + s }
+fn shout(s) { return s + "!" }
 
-    print(result)  // ["HELLO", "WORLD"]
+main {
+    let result = "hello" |> twice |> shout
+    print(result)  // "hello hello!"
 }
 ```
+
+The right-hand side is a function of your own; piping into a standard-library function (`|> string.upper()`) does not work yet.
 
 ### If Expressions
 
@@ -550,9 +572,8 @@ main {
 
 ### More Language Features
 
-- Optional chaining (`user?.name`), null coalescing (`x ?? "default"`, `x ??= fallback`)
+- Optional chaining (`user?.name`, `obj?.method()`), null coalescing (`x ?? "default"`, `x ??= fallback`)
 - Destructuring (`let [a, b] = arr`, `let {x, y} = dict`)
-- Spread/rest (`[...arr1, ...arr2]`, `fn(...args)`)
 - `in` / `not in` operators, array slicing (`arr[1:3]`)
 - Structs, enums, module system with imports/exports/URL imports
 - For loops with destructuring, while loops, break/continue
@@ -562,7 +583,7 @@ main {
 
 ## Standard Library
 
-24 modules with 204 error messages, "Did you mean?" suggestions, and detailed documentation.
+25 modules, with "Did you mean?" suggestions on a misspelled function.
 
 ```naab
 main {
@@ -570,9 +591,11 @@ main {
     let data = json.parse('{"name": "NAAb", "type": "language"}')
     print(data["name"])
 
-    // HTTP
+    // HTTP (needs "capabilities": {"network": {"enabled": true}})
     let response = http.get("https://api.github.com/repos/b-macker/NAAb")
-    print(json.parse(response)["stargazers_count"])
+    if response["status"] == 200 {
+        print(json.parse(response["body"])["stargazers_count"])
+    }
 
     // File I/O
     file.write("output.txt", "Hello from NAAb!")
@@ -588,30 +611,31 @@ main {
 
 | Module | Functions |
 |---|---|
-| `array` | push, pop, shift, unshift, map_fn, filter_fn, reduce_fn, sort, slice_arr, find, reverse, length, contains, first, last, join |
-| `string` | split, join, upper, lower, trim, replace, reverse, contains, starts_with, ends_with, length, char_at, index_of, substring, repeat, pad_left, pad_right |
-| `math` | sqrt, pow, abs, floor, ceil, round, min, max, sin, cos, random, PI, E |
-| `json` | parse, stringify |
+| `array` | push, pop, shift, unshift, map_fn, filter_fn, reduce_fn, sort, sorted, slice_arr, find, reverse, length, contains, first, last, join |
+| `string` | split, join, upper, lower, trim, replace, reverse, contains, starts_with, ends_with, length, char_at, index_of, substring, slice, repeat, pad_left, pad_right, format |
+| `math` | sqrt, pow, abs, floor, ceil, round, min, max, sin, cos, tan, random, PI, E |
+| `json` | parse, stringify, pretty, is_valid |
 | `http` | get, post, put, delete, head, patch (with headers, body, timeout) |
 | `file` | read, write, append, exists, delete, list_dir, create_dir, is_file, is_dir, read_lines, write_lines, copy, move, size, basename, dirname, extension |
 | `path` | join, dirname, basename, extension, resolve, is_absolute, normalize, exists |
 | `time` | now, now_millis, sleep, format_timestamp, parse_datetime, year, month, day, hour, minute, second, weekday |
 | `debug` | inspect, type, trace, watch, snapshot, diff, keys, values, log, timer, compare, stack, env |
-| `env` | get, set_var, list |
-| `csv` | parse, stringify |
+| `env` | get, has, get_int, get_bool, set_var, list, load_dotenv |
+| `csv` | parse, stringify, read, write, read_dict, write_dict |
 | `regex` | search, matches, find, find_all, replace, replace_first, split, groups, find_groups, escape, is_valid |
-| `crypto` | hash, sha256, sha512, md5, sha1, random_bytes, random_string, random_int, base64_encode, base64_decode, hex_encode, hex_decode, compare_digest, generate_token, hash_password |
+| `crypto` | hash, sha256, sha512, md5, sha1, hmac, random_bytes, random_string, random_int, base64_encode, base64_decode, hex_encode, hex_decode, compare_digest, generate_token, hash_password |
 | `dict` | get, get_or, has_key, keys, values, entries, merge, size |
-| `io` | print, println, input, read_line, read_file, write_file, write_error, exists, list_dir |
+| `collections` | Set, set_add, set_contains, set_remove, set_size |
+| `io` | print, println, input, read_line, read_file, write_file, write, write_error, exists, list_dir |
 | `log` | debug, info, warn, error, set_level, get_level, set_format, set_output |
 | `process` | run, exit, getpid, kill |
 | `uuid` | v4, v5, nil, is_valid |
 | `validate` | email, url, ip, ipv6, is_int, is_float, is_string, int_range, length, matches, not_empty |
-| `agent` | create, send, run, extract_code, register_tool, batch, fan_out, pipeline, check, key_health, dispatch_status, environment |
+| `agent` | create, send, run, propose, commit, record_validation, extract_code, register_tool, batch, fan_out, pipeline, check, usage, reset, key_health, dispatch_status, environment |
 | `codegen` | run, run_with_args, run_strict, supported_languages, is_enabled |
-| `orchestra` | sequential_refinement, consensus_vote, enforce_convergence |
-| `governance` | health |
-| `bolo` | scan, report (governance integration) |
+| `orchestra` | sequential_refinement, consensus_vote, enforce_convergence, select_admissible |
+| `governance` | health, guidance, findings, evaluate, score, calibrate |
+| `bolo` | scan, summary, violations, check_count, profiles, load_profile, load_config, reset |
 
 ---
 
@@ -622,39 +646,35 @@ main {
 NAAb doesn't just tell you what's wrong — it tells you how to fix it:
 
 ```
-Error: Unknown function "array.pussh"
+Error: Unknown array function: append
 
-  Did you mean: array.push ?
-
-  Help:
-  - array.push(arr, value) adds an element to the end of an array
-
-  Example:
-    ✗ Wrong: array.pussh(my_list, 42)
-    ✓ Right: array.push(my_list, 42)
+  Did you mean: array.push()?
+  Example: array.push(my_array, new_item)
+  Note: push() mutates the original array.
 ```
 
 ### Common Mistake Detection
 
-NAAb detects ~35 patterns where developers (and AI) use the wrong language's idioms:
+NAAb recognises idioms from other languages and names the NAAb equivalent:
 
-- `array.append()` → "That's Python. In NAAb, use `array.push()`"
-- `console.log()` → "That's JavaScript. In NAAb, use `print()`"
-- `str.upper()` → "Use `string.upper(str)` or `str.upper()` (dot-notation)"
+- `array.append()` → "Did you mean: array.push()?"
+- `console.log()` → "NAAb does not have a 'Console' object. Use: print(...)"
+- `array.pussh()` → "Did you mean: push?", followed by the module's function list
 
 ### LLM-Friendly Syntax
 
 NAAb accepts multiple keyword styles so AI-generated code works without manual edits:
 
 - `function` / `func` / `fn` / `def` — all valid
-- `let` / `const` — mutable and immutable bindings
+- `let` / `const` — both declare a variable (`const` does not yet prevent reassignment)
 - Semicolons — optional (accepted but not required)
 - `return` — optional in single-expression functions
 
 ### Tooling
 
-- **`naab-lsp`** — Language Server Protocol implementation (`tools/naab-lsp/`), built and installed alongside the main binary. Powers the [VS Code extension](vscode-naab/).
-- **`naab-gov`** — standalone governance CLI (`src/cli/gov_main.cpp`) for working with govern.json outside script execution.
+- **`naab-lsp`** — Language Server Protocol implementation (`tools/naab-lsp/`, `make naab-lsp`). Powers the [VS Code extension](vscode-naab/).
+- **`naab-gov`** — standalone governance CLI (`src/cli/gov_main.cpp`, `make naab-gov`) for linting files and working with govern.json without running a program.
+- **`naab-lang mcp`** — the MCP server described above.
 - **Governance C API bindings** — embed the governance engine in other agent frameworks via `bindings/` (C#, Go, Java, Python, Rust), backed by the C API in `src/api/governance_c_api.cpp`.
 
 ---
@@ -737,18 +757,19 @@ Source Code (.naab)
   └─────────────────────────────────────────────┘
     |
   ├── Native execution (NAAb code)
-  ├── Python executor (C API)
-  ├── JavaScript executor (QuickJS)
+  ├── Python executor (embedded CPython; a subprocess when pybind11 is absent)
+  ├── JavaScript executor (QuickJS, in-process)
+  ├── SQL executor (SQLite, in-process)
   ├── Go/Rust/C++/C#/Nim/Zig/Julia executors (compile & run)
-  ├── Ruby/PHP executors (interpreted)
+  ├── Ruby/PHP/TypeScript executors (interpreted)
   └── Shell executor (subprocess)
 ```
 
-- **120,000+** lines of C++17
-- **438** regression tests
-- **24** standard library modules with **204** error messages
-- Bytecode VM default (~8x faster), tree-walker via `--tree-walk`
-- Built with Abseil, fmt, spdlog, nlohmann/json, QuickJS
+- About 158,000 lines of C++17 in `src/` and `include/`
+- Over 440 test suites and programs in `run-all-tests.sh`
+- 25 standard library modules
+- Bytecode VM by default, tree-walker via `--tree-walk`
+- Built with Abseil, fmt, spdlog, nlohmann/json, QuickJS, SQLite
 
 ---
 
@@ -758,7 +779,7 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for build inst
 
 ### Areas for Contribution
 - VM optimization (`src/vm/`)
-- Agent governance extensions (`src/runtime/governance.cpp`)
+- Agent governance extensions (`src/runtime/governance_*.cpp`, `src/stdlib/agent_impl.cpp`)
 - New standard library modules
 - Documentation and tutorials
 - IDE integrations (Vim, Emacs, IntelliJ, VS Code)

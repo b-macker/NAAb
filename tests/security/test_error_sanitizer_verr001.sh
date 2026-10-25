@@ -103,6 +103,42 @@ int main() {
     check("T7: IP 192.168.1.100 in message is redacted",
           "Connection to 192.168.1.100 failed", "192.168.1.100", true);
 
+    // T8-T15: a keyword must be SEPARATED from its value (owner's decision
+    // 2026-10-24). The API_KEY pattern used to accept no separator at all, so
+    // any identifier that merely started with a keyword was taken for a
+    // secret: the operator's own rule name printed as "<redacted>", and
+    // max_tokens_per_run as max_<redacted>. A separator is ':', '=',
+    // whitespace or a quote. T8-T10 are the names that must now survive;
+    // T11 is the one form that is newly redacted ('=' was never a separator
+    // here, so token=value without quotes slipped through); T12-T15 are the
+    // separated forms that were redacted before and must stay redacted.
+    check("T8: rule name credential_exfiltration NOT redacted",
+          "Behavioral sequence 'credential_exfiltration' blocked before execution",
+          "credential_exfiltration", false);
+    check("T9: config key max_tokens_per_run NOT redacted",
+          "max_tokens_per_run (60) exceeded", "max_tokens_per_run", false);
+    check("T10: identifier authorization_required NOT redacted",
+          "Request failed: authorization_required by policy",
+          "authorization_required", false);
+    check("T11: token=value without quotes is redacted",
+          "Rejected token=abc12345xyz in request", "abc12345xyz", true);
+    check("T12: Authorization: Bearer <value> is redacted",
+          "Header Authorization: Bearer eyJabc12345def was refused",
+          "eyJabc12345def", true);
+    check("T13: token \"value\" (space, then quote) is redacted",
+          "Bad token \"abc12345xyz\" given", "abc12345xyz", true);
+    check("T14: secret:\"value\" (colon, quote, no space) is redacted",
+          "Got secret:\"zz9876543210\" here", "zz9876543210", true);
+    check("T15: password <value> (space only) is redacted",
+          "Wrong password abcd12345 entered", "abcd12345", true);
+    // T16-T17: the two written forms a secret most often takes in a message,
+    // JSON and a quoted assignment. Both must stay redacted with a separator
+    // required (T16 is caught by QUOTED_VALUE, T17 by API_KEY).
+    check("T16: JSON \"token\": \"value\" is redacted",
+          "Body was {\"token\": \"abcd1234efgh\"}", "abcd1234efgh", true);
+    check("T17: api_key='value' is redacted",
+          "Config line api_key='abcd1234efgh' rejected", "abcd1234efgh", true);
+
     std::cout << "\nResults: " << pass << " passed, " << fail << " failed\n";
     return fail == 0 ? 0 : 1;
 }
