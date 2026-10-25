@@ -33,6 +33,13 @@
 # The merge now carries the limit over as written.
 # Every arm but TC-05/06 runs on both engines: the tree-walker read neither
 # govern.json limit before 2026-10-25.
+#
+# Kill table (each mutant rebuilt, this suite and its neighbours run):
+#   max(flag, configured) instead of min     TC-02/03/04 on both engines
+#   tree-walker does not merge the limits     TC-01/02/03 tree-walk
+# Not measured here, so those mutants survive: an explicit 30 s limit capping a
+# larger flag, an inherited limit above 30 s (both need a 30 s+ wait), the
+# memory limit, and the sandbox-level clamp (docs/open-investigations.md A79).
 # ============================================================
 set -uo pipefail
 
