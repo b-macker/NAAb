@@ -1,0 +1,126 @@
+# ============================================================
+# flag_policy.txt -- how each src/cli/main.cpp command-line option relates to
+# govern.json's policy. One decision per option, so a new option cannot land
+# without someone making this call (Bundle 1 item 1.6).
+#
+# Read by tests/cli/test_flag_policy.sh, which compares the OPTION column
+# against tools/flag_policy_coverage.py's extraction of main.cpp:
+#   - an option main.cpp parses but this file lacks  -> FAIL (classify it)
+#   - an option this file lists but main.cpp dropped -> FAIL (remove it)
+#
+# Format: option<TAB>category<TAB>one-line reason.  Categories:
+#
+#   bypass-guarded:<fn>  can waive or loosen governance enforcement for a run,
+#                        and is DEFENDED in main.cpp by <fn> (the bypass-flag
+#                        block: checkBlocked, which also honours the operator's
+#                        integrity.blocked_flags, or implicitBlock for a signed
+#                        project). The test greps main.cpp for <fn>, so the
+#                        named defense cannot silently disappear.
+#   run-policy           a run-time flag that selects, requires, or overrides a
+#                        govern.json setting. govern.json is primary; a CLI
+#                        override is lockable via integrity.blocked_flags. Some
+#                        (--sandbox-level, --allow-network) CAN loosen and are
+#                        defended only by the operator opting to lock them --
+#                        the reason says so. SCREENED: this is the relationship,
+#                        not a proof of the enforcement direction.
+#   governance-evidence  produces or annotates governance observation only
+#                        (reports, SARIF/JUnit, telemetry, dashboard, lint
+#                        verdict, override justification). Never loosens.
+#   governance-admin     a subcommand (or its argument) that manages a
+#                        governance artifact outside a governed run: authoring
+#                        govern.json via init, signing, the trust store,
+#                        approvals, telemetry-chain verification, attestation.
+#   neutral              no govern.json setting behind it (engine default,
+#                        resource/output/debug utility, fmt/scan/race/calibrate
+#                        knobs, the package lockfile, help/version, and the
+#                        rejected -e/-c inline-code flags).
+#
+# SCREENED, NOT VERIFIED (docs/investigation-method.md). The extraction is a
+# search over source text; the category is a reviewer's decision about the
+# relationship, not a behavioural proof of the direction of enforcement. The
+# governance reload/bypass suites are where direction is tested. The guard's
+# job is the CLASS: no new option reaches main.cpp without this decision.
+# ============================================================
+--agent-id	run-policy	selects the agent role enforced from govern.json agents; also sets telemetry identity
+--allow-network	run-policy	enables network (loosens the default); lockable via integrity.blocked_flags
+--api-key	run-policy	REST api server auth key; CLI overrides govern.json api.keys
+--api-rate-limit	run-policy	REST api server rate limit; CLI overrides govern.json api.*
+--api-timeout	run-policy	REST api server request timeout; CLI overrides govern.json api.*
+--approve	governance-admin	approves a governance action/key in the approvals store
+--attest	governance-admin	environment attestation: verifies govern.json prerequisites, runs no program
+--authorized-by	governance-admin	names the trusted key authorizing --trust-key/--sign-key (read via findFlagValue)
+--block	neutral	race subcommand: which polyglot block alternative to race; no govern.json bearing
+--category	neutral	blocks/scan listing filter; no govern.json bearing
+--check	neutral	fmt subcommand: check formatting only; no govern.json bearing
+--command	neutral	rejected inline-code flag (-c) from other languages; prints a help error, not an option
+--debug	neutral	enable the interactive debugger; execution utility
+--diff	neutral	fmt subcommand: show a diff only; no govern.json bearing
+--drift-baseline-save	bypass-guarded:checkBlocked	saves a drift baseline; wired into the bypass-flag block (operator-lockable)
+--env	run-policy	applies a named environment's overrides from govern.json
+--eval	neutral	rejected inline-code flag (-e) from other languages; prints a help error, not an option
+--event-seed	run-policy	MCP worker plumbing (replayed sequence events); server-only, only tightens, refuses if malformed
+--event-stream-fd	run-policy	MCP worker plumbing (event stream fd); server-only, only tightens, refuses if malformed
+--exec	neutral	rejected inline-code flag from other languages; prints a help error, not an option
+--expiry	governance-admin	expiry for a governance approval in the approvals store
+--explain	neutral	explain execution step by step; execution utility
+--force	neutral	init: overwrite existing scaffolding files; no run-time governance effect
+--gc-stats	neutral	print GC statistics; runtime diagnostic
+--gc-threshold	neutral	GC allocation threshold; runtime tuning
+--governance	governance-admin	init: create only govern.json (authors the policy file)
+--governance-baseline-save	bypass-guarded:checkBlocked	saves governance results as baseline; wired into the bypass-flag block (operator-lockable)
+--governance-check-baselines	run-policy	enforces recorded output baselines (HARD); CLI equivalent of the govern.json baselines section
+--governance-dashboard	governance-evidence	prints the agent governance summary after a run; observes only
+--governance-junit	governance-evidence	writes a JUnit governance report to a path; observes only
+--governance-override	bypass-guarded:checkBlocked	overrides soft-mandatory rules; defended by checkBlocked and implicitBlock
+--governance-preset	governance-admin	init: pick the generated govern.json preset (authors the policy file)
+--governance-record-baselines	run-policy	records output baselines; CLI equivalent of the govern.json baselines section
+--governance-report	governance-evidence	writes a JSON governance report to a path; observes only
+--governance-sarif	governance-evidence	writes a SARIF governance report to a path; observes only
+--governance-telemetry	governance-evidence	writes telemetry events to a JSONL path; recorded as a startup output, the program cannot write it
+--governance-verbose	governance-evidence	shows detailed governance check results; observes only
+--help	neutral	print usage; no govern.json bearing
+--hmac-key	governance-admin	HMAC key for --verify-telemetry-chain (verifies tamper-evident evidence)
+--iterations	neutral	calibrate/benchmark iteration count; no govern.json bearing
+--key-info	governance-admin	show a trusted key's info (trust store)
+--keygen	governance-admin	generate an Ed25519 signing keypair (trust store)
+--language	neutral	scan subcommand language filter; no govern.json bearing
+--languages	governance-admin	init: the languages list written into the generated govern.json (also a race/calibrate filter)
+--lease-grant	run-policy	MCP worker plumbing (capability lease); server-only, only tightens, refuses if malformed
+--lint-only	governance-evidence	runs governance checks without executing; reports the verdict only
+--list-approvals	governance-admin	list governance approvals (approvals store)
+--list-keys	governance-admin	list trusted key fingerprints (trust store)
+--lock	neutral	write naab.lock dependency pins; package integrity artifact, not govern.json
+--lock-check	neutral	verify naab.lock; package integrity artifact, not govern.json
+--lock-path	neutral	path to naab.lock; package integrity artifact, not govern.json
+--max-body	run-policy	REST api server max request body; CLI overrides govern.json api.*
+--memory-limit	run-policy	per-block memory cap; bounds a run, cannot relax govern.json limits
+--no-color	neutral	disable colored error messages; output utility
+--no-governance	bypass-guarded:checkBlocked	waives the no-govern.json-found requirement; defended by checkBlocked and implicitBlock
+--output	neutral	calibrate output path; no govern.json bearing
+--override-reason	governance-evidence	records the justification for --governance-override in the decision trail
+--package	neutral	init: package project layout; no run-time governance effect
+--pipe	neutral	route io.write to stderr and io.output to stdout; output utility
+--profile	neutral	enable performance profiling; execution utility
+--quiet	neutral	suppress non-essential output; output utility
+--reason	governance-admin	justification for an approve/revoke action (approvals store)
+--repl	neutral	start the REPL; execution mode
+--require-governance	run-policy	reaffirms that a govern.json is required (tightening; cannot loosen)
+--revoke-approval	governance-admin	revoke a governance approval (approvals store)
+--revoke-key	governance-admin	revoke a trusted key (trust store)
+--sandbox-level	run-policy	overrides security.sandbox_level; CAN loosen the sandbox, lockable via integrity.blocked_flags (A13)
+--scan	neutral	run the C++ code-quality scanner; not a governed run
+--sign-baseline	governance-admin	sign a drift baseline (trust store)
+--sign-governance	governance-admin	sign govern.json (produces govern.json.sig)
+--sign-key	governance-admin	authorize a public key by signing it with a trusted private key
+--signing-key	governance-admin	override NAAB_SIGNING_KEY for this signing invocation
+--strict	neutral	alias of --strict-types; type-check strictness, no governance bearing
+--strict-types	neutral	strict type checking; no governance bearing
+--taint	governance-admin	init: turn on taint tracking and sequence detection in the generated govern.json
+--tasks	neutral	calibrate/benchmark task filter; no govern.json bearing
+--timeout	run-policy	run time limit; raises but cannot lower govern.json's limit
+--tree-walk	bypass-guarded:checkBlocked	selects the tree-walker engine; wired into the bypass-flag block (operator-lockable, defence in depth)
+--trust-key	governance-admin	install a public key into the trust store
+--verbose	neutral	enable verbose output; output utility
+--verify-telemetry-chain	governance-admin	verify the telemetry tamper-evident hash chain (governance evidence integrity)
+--version	neutral	print version; no govern.json bearing
+--vm	neutral	select the VM engine (the default); governance is enforced on both engines
