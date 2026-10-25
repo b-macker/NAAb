@@ -228,6 +228,31 @@ static void warnUnknownConfiguredSandboxLevel(const std::string& configured) {
         "from govern.json.\n", configured);
 }
 
+// govern.json is the project's policy and a flag a local convenience, so a
+// flag may only TIGHTEN a configured run limit: min(flag, configured). With
+// nothing configured the flag, else the built-in default, applies. Both
+// engines call this (the tree-walker never read either limit before).
+//
+// History: 6c9426af took max(flag, configured) so "--timeout can extend but
+// not shrink the govern.json limit"; the owner reversed that on 2026-10-25
+// ("govern.json is king"). The memory limit took the flag whenever it was not
+// the 512 default, so --memory-limit beat a configured limit upward.
+static void applyConfiguredRunLimits(
+    const naab::governance::GovernanceRules& rules,
+    unsigned int& timeout, bool timeout_from_flag,
+    size_t& memory_limit, bool memory_from_flag)
+{
+    // A configured 0 is left out, so it cannot be read as "no limit".
+    if (rules.runtime.timeout_configured && rules.runtime.timeout > 0) {
+        const unsigned int configured = static_cast<unsigned int>(rules.runtime.timeout);
+        timeout = timeout_from_flag ? std::min(timeout, configured) : configured;
+    }
+    if (rules.runtime.memory_limit > 0) {
+        memory_limit = memory_from_flag ? std::min(memory_limit, rules.runtime.memory_limit)
+                                        : rules.runtime.memory_limit;
+    }
+}
+
 static void applyGovernanceSandbox(
     const naab::governance::GovernanceRules& rules,
     naab::security::SandboxConfig& config,
@@ -261,22 +286,34 @@ static void applyGovernanceSandbox(
         config.max_cpu_seconds = timeout;
         config.max_memory_mb = memory_limit;
     }
+    // Under enforce, a level above `standard` must come from govern.json: a
+    // --sandbox-level flag may tighten below it but not raise it (owner's
+    // decision 2026-10-25; this used to clamp only the "unrestricted" default,
+    // so --sandbox-level elevated kept a run elevated that govern.json never
+    // granted). Same rule as the VM's inline block.
     if (enforce_mode && rules.sandbox_level_config.empty() &&
-        sandbox_level == "unrestricted") {
+        sandboxLevelRank(sandbox_level) > sandboxLevelRank("standard")) {
+        const std::string from = sandbox_level;
         sandbox_level = "standard";
         config = createEnterpriseConfig();
         config.max_cpu_seconds = timeout;
         config.max_memory_mb = memory_limit;
         level_changed = true;
         fmt::print(stderr,
-            "[governance] Sandbox: upgraded unrestricted → standard "
-            "(enforce mode; set security.sandbox_level in govern.json to override)\n");
+            "[governance] Sandbox: upgraded {} → standard "
+            "(enforce mode; set security.sandbox_level in govern.json to override)\n", from);
     }
+    // The merged run limits apply whether or not the level changed: before,
+    // they reached the sandbox only inside the level-rebuild branches, so a
+    // configured memory limit never reached a child process otherwise.
+    config.max_cpu_seconds = timeout;
+    config.max_memory_mb = memory_limit;
     syncGovernanceToSandbox(rules, config);
     naab::security::SandboxManager::instance().setDefaultConfig(config);
     auto* live = naab::security::ScopedSandbox::getCurrent();
     if (!live) return;
     if (level_changed) live->replaceConfig(config);
+    live->setResourceLimits(timeout, memory_limit);
     if (!rules.network_allowed) {
         live->setNetworkEnabled(false);
         live->removeCapability(naab::security::Capability::NET_CONNECT);
@@ -444,9 +481,10 @@ void print_usage() {
     fmt::print("\nSecurity Options:\n");
     fmt::print("  --sandbox-level <level>             Security: restricted|standard|elevated|unrestricted\n");
     fmt::print("                                      (default: unrestricted)\n");
-    fmt::print("  --timeout <seconds>                 Time limit for the run (default: 30, or govern.json's\n");
-    fmt::print("                                      limit, which --timeout can raise but not lower)\n");
-    fmt::print("  --memory-limit <MB>                 Memory limit per block (default: 512)\n");
+    fmt::print("  --timeout <seconds>                 Time limit for the run (default: 30); a limit in\n");
+    fmt::print("                                      govern.json caps it\n");
+    fmt::print("  --memory-limit <MB>                 Memory limit per block (default: 512); a limit in\n");
+    fmt::print("                                      govern.json caps it\n");
     fmt::print("  --allow-network                     Enable network access (default: disabled)\n");
 }
 
@@ -1273,6 +1311,7 @@ int main(int argc, char** argv) {
         unsigned int timeout = global_timeout > 0 ? global_timeout : 30;
         bool timeout_from_flag = global_timeout > 0;  // --timeout before the file
         size_t memory_limit = global_memory_limit > 0 ? global_memory_limit : 512;
+        bool memory_from_flag = global_memory_limit > 0;  // --memory-limit before the file
         bool network_enabled = global_allow_network;
         std::string filename;
         std::vector<std::string> script_args;
@@ -1301,7 +1340,7 @@ int main(int argc, char** argv) {
                     fprintf(stderr, "Error: --timeout requires a numeric value\n"); return 1;
                 }
             } else if (arg == "--memory-limit" && i + 1 < argc) {
-                try { memory_limit = std::stoull(argv[++i]); } catch (const std::exception&) {
+                try { memory_limit = std::stoull(argv[++i]); memory_from_flag = true; } catch (const std::exception&) {
                     fprintf(stderr, "Error: --memory-limit requires a numeric value\n"); return 1;
                 }
             } else if (arg == "--allow-network") {
@@ -2144,18 +2183,9 @@ int main(int argc, char** argv) {
                     if (!rules.report_sarif.empty() && governance_report_sarif.empty()) governance_report_sarif = rules.report_sarif;
                     if (!rules.report_junit.empty() && governance_report_junit.empty()) governance_report_junit = rules.report_junit;
                     if (!rules.default_env.empty() && governance_env.empty()) governance_env = rules.default_env;
-                    // Category B: runtime limits
-                    // govern.json is authoritative for timeout: apply if it specifies a non-default
-                    // value, taking the maximum of govern.json and any CLI --timeout override so
-                    // that --timeout can extend but not shrink the govern.json limit. With no
-                    // --timeout the configured value applies as written: taking the max with the
-                    // built-in 30 s default raised every limit below 30 to 30 (A74). A value of 0
-                    // is left out, so it cannot be read as "no limit".
-                    if (rules.runtime.timeout != 30 && rules.runtime.timeout > 0) {
-                        unsigned int configured = static_cast<unsigned int>(rules.runtime.timeout);
-                        timeout = timeout_from_flag ? std::max(timeout, configured) : configured;
-                    }
-                    if (rules.runtime.memory_limit > 0 && memory_limit == 512) memory_limit = rules.runtime.memory_limit;
+                    // Category B: runtime limits -- a flag may only lower a configured one
+                    applyConfiguredRunLimits(rules, timeout, timeout_from_flag,
+                                             memory_limit, memory_from_flag);
                     if (rules.runtime.gc_threshold != 5000 && gc_threshold == 5000) gc_threshold = rules.runtime.gc_threshold;
                     if (rules.runtime.gc_stats && !gc_stats) gc_stats = true;
                     // Category C: security
@@ -2184,18 +2214,26 @@ int main(int argc, char** argv) {
                     // A discovered govern.json applies whatever the flags say: --no-governance
                     // only waives the requirement when none is found (#244).
                     bool upgraded_to_standard = sandbox_level_changed;
+                    // A level above `standard` must come from govern.json (see
+                    // applyGovernanceSandbox()).
                     if (vm_governance.getMode() == naab::governance::GovernanceMode::ENFORCE &&
                         rules.sandbox_level_config.empty() &&
-                        sandbox_level == "unrestricted") {
+                        sandboxLevelRank(sandbox_level) > sandboxLevelRank("standard")) {
+                        const std::string clamped_from = sandbox_level;
                         sandbox_level = "standard";
                         security_config = createEnterpriseConfig();
                         security_config.max_cpu_seconds = timeout;
                         security_config.max_memory_mb = memory_limit;
                         upgraded_to_standard = true;
                         fmt::print(stderr,
-                            "[governance] Sandbox: upgraded unrestricted → standard "
-                            "(enforce mode; set security.sandbox_level in govern.json to override)\n");
+                            "[governance] Sandbox: upgraded {} → standard "
+                            "(enforce mode; set security.sandbox_level in govern.json to override)\n",
+                            clamped_from);
                     }
+                    // The merged run limits, whether or not the level changed (they
+                    // used to reach the sandbox only inside the rebuild branches above).
+                    security_config.max_cpu_seconds = timeout;
+                    security_config.max_memory_mb = memory_limit;
                     // Sync governance capabilities into sandbox (tighten only). This used
                     // to be skipped under --no-governance, so with a discovered config the
                     // flag still dropped shell/network/env restrictions from the sandbox.
@@ -2210,6 +2248,7 @@ int main(int argc, char** argv) {
                             if (upgraded_to_standard) {
                                 live_sb->replaceConfig(security_config);
                             }
+                            live_sb->setResourceLimits(timeout, memory_limit);
                             if (!rules.network_allowed) {
                                 live_sb->setNetworkEnabled(false);
                                 live_sb->removeCapability(naab::security::Capability::NET_CONNECT);
@@ -2836,6 +2875,10 @@ int main(int argc, char** argv) {
             } else {
                 // govern.json sandbox settings reached only the VM path; this is
                 // the tree-walker's equivalent of the block in `if (use_vm)`.
+                if (gov_loaded) {
+                    applyConfiguredRunLimits(shared_governance.getRules(), timeout,
+                                             timeout_from_flag, memory_limit, memory_from_flag);
+                }
                 if (gov_loaded && shared_governance.isActive()) {
                     applyGovernanceSandbox(
                         shared_governance.getRules(), security_config, sandbox_level,

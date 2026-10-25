@@ -2885,6 +2885,11 @@ struct GovernanceRules {
     // --- Runtime limits (configurable via govern.json "runtime" section) ---
     struct RuntimeConfig {
         int timeout = 30;
+        // True when govern.json sets a run time limit (runtime.timeout,
+        // limits.timeout.global or limits.execution.timeout_seconds) or an
+        // extends parent's applies. The CLI reads it to tell "configured 30"
+        // from the built-in default: a flag may only lower a configured limit.
+        bool timeout_configured = false;
         size_t memory_limit = 0;     // 0 = unlimited
         size_t gc_threshold = 5000;
         bool gc_stats = false;
