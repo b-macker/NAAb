@@ -1,0 +1,30 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "behavioral_sequences": {
+    "enabled": true,
+    "patterns": [
+      {
+        "name": "credential_exfiltration",
+        "sequence": ["env.get:*KEY*|*SECRET*|*TOKEN*", "encode|base64", "agent.send|http.post"],
+        "level": "hard",
+        "rationale": "Reading credentials then encoding and sending matches exfiltration."
+      },
+      {
+        "name": "config_harvest",
+        "sequence": ["file.read:*config*", "agent.send"],
+        "level": "hard",
+        "rationale": "Reading config files then sending content to an external agent."
+      }
+    ]
+  },
+  "agents": {
+    "assistant": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "api_key_env": "GEMINI_API_KEY",
+      "max_tokens": 256
+    }
+  }
+}

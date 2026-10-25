@@ -519,6 +519,9 @@ for dir in "${TEST_DIRS[@]}"; do
         # Exclude runtime-boundary-demo (requires run.sh for govern.json setup)
         # Exclude agent_harness (requires run.sh to start the agent stub; its
         #   behaviour is covered by tests/governance_v4/test_agent_harness_example.sh)
+        # Exclude quickstart (exits 3 by design: the README's hero, refused before
+        #   it sends; tests/self-audit/test_readme_claims.sh RC-02 runs it with a
+        #   stub model and a control that does send)
         while IFS= read -r -d '' test_file; do
             run_test "$test_file" "$timeout"
         done < <(find "$dir" -name "*.naab" -type f \
@@ -528,6 +531,7 @@ for dir in "${TEST_DIRS[@]}"; do
             -not -path "*/governed_codegen_py/*" \
             -not -path "*/runtime-boundary-demo/*" \
             -not -path "*/agent_harness/*" \
+            -not -path "*/quickstart/*" \
             -print0 | sort -z)
     else
         while IFS= read -r -d '' test_file; do

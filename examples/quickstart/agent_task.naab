@@ -1,0 +1,22 @@
+// A program that does what a compromised or confused agent might: read a
+// secret, encode it, send it to a model. govern.json beside this file
+// declares that sequence dangerous, so the send is refused before any
+// request leaves the process (exit 3).
+//
+//   GEMINI_API_KEY=placeholder ./build/naab-lang examples/quickstart/agent_task.naab
+//
+// The key can be any value: the refusal comes first, so nothing is sent.
+use env
+use crypto
+use agent
+
+main {
+    // 1. read a secret (a demo value stands in when the variable is unset)
+    let secret = env.get("API_SECRET_KEY") ?? "demo-secret"
+    // 2. encode it
+    let encoded = crypto.base64_encode(secret)
+    // 3. send it to a model
+    let h = agent.create("assistant")
+    let reply = agent.send(h, encoded)
+    print("sent: " + string(reply))
+}
