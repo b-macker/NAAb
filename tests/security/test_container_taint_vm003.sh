@@ -104,11 +104,18 @@ main {
 }
 NAAB
 
-SECRET_KEY="s3cr3t" out=$("$NAAB" --no-governance "$WORK_DIR/vm003_t3.naab" 2>&1 || true)
-if grep <<<"$out" -qi "governance.*error\|taint.*block\|violation"; then
-    fail "governance fired with --no-governance: $out"
+# This program has no sink, so nothing should refuse it. It used to pass on
+# "no line matches violation", which a PASS summary ("0 violations") breaks
+# now that --no-governance no longer skips the post-run audit (A78), and which
+# an interpreter that ran nothing would also pass. Assert that it ran. The
+# variable goes INSIDE the substitution: `VAR=x out=$(cmd)` is an assignment
+# statement, so the child never saw SECRET_KEY and read null.
+t3_rc=0
+out=$(SECRET_KEY="s3cr3t" "$NAAB" --no-governance "$WORK_DIR/vm003_t3.naab" 2>&1) || t3_rc=$?
+if [ "$t3_rc" -eq 0 ] && grep -qx "no-gov: s3cr3t" <<<"$out"; then
+    ok "no-governance: ran to its end without a governance error"
 else
-    ok "no-governance: ran without governance error"
+    fail "the no-sink program should run under --no-governance (rc=$t3_rc): $out"
 fi
 
 echo ""
