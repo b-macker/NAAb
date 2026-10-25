@@ -59,7 +59,14 @@ case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
 if [ -n "${WINDIR:-}" ]; then IS_WINDOWS=1; fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/readme-claims-XXXXXX")"
-trap '[ -n "${KEEP_TMP:-}" ] || rm -rf "$WORK"' EXIT
+# Every arm writes an unsigned govern.json, which is an INTEGRITY BLOCK when
+# the trust store holds any key, so the suite gets an empty store of its own
+# instead of whatever ~/.naab/trusted-keys holds. RC-06 trusts a key and uses
+# a second store, so that key never reaches the arms after it.
+# shellcheck source=../helpers/trust_setup.sh
+source "$REPO/tests/helpers/trust_setup.sh"
+setup_isolated_trust
+trap 'teardown_isolated_trust; [ -n "${KEEP_TMP:-}" ] || rm -rf "$WORK"' EXIT
 
 echo ""
 echo "=== README claims vs the binary ==="
@@ -342,7 +349,7 @@ SIGN_IDX=$(readme_find bash '--sign-governance')
 if [ "$SIGN_IDX" -eq 0 ]; then
     fail "RC-06" "README has no signing commands block"
 else
-    D=$(newdir rc06); mkdir -p "$D/home"
+    D=$(newdir rc06); mkdir -p "$D/home" "$D/trust"
     echo '{"version": "5.0", "mode": "enforce"}' > "$D/govern.json"
     printf 'main {\n    print("SIGNED_RUN")\n}\n' > "$D/app.naab"
     SIGN_FAIL=""
@@ -352,21 +359,21 @@ else
         argv=()
         read -r -a argv <<<"$cmd"
         [ "${argv[0]}" = "naab-lang" ] && argv[0]="$NAAB"
-        (cd "$D" && HOME="$D/home" "${argv[@]}" </dev/null >"$D/sign.log" 2>&1) \
+        (cd "$D" && HOME="$D/home" NAAB_TRUST_STORE_DIR="$D/trust" "${argv[@]}" </dev/null >"$D/sign.log" 2>&1) \
             || SIGN_FAIL="$SIGN_FAIL | $cmd: $(tail -1 "$D/sign.log")"
     done < <(readme_block bash "$SIGN_IDX")
     if [ -n "$SIGN_FAIL" ]; then
         if [ "$IS_WINDOWS" -eq 1 ]; then unm "RC-06" "signing commands failed on Windows:$SIGN_FAIL"
         else fail "RC-06" "a README signing command failed" "$SIGN_FAIL"; fi
     else
-        OUT=$(cd "$D" && HOME="$D/home" "$NAAB" app.naab </dev/null 2>&1); RC=$?
+        OUT=$(cd "$D" && HOME="$D/home" NAAB_TRUST_STORE_DIR="$D/trust" "$NAAB" app.naab </dev/null 2>&1); RC=$?
         if [ "$RC" -eq 0 ] && grep -qx 'SIGNED_RUN' <<<"$(tr -d '\r' <<<"$OUT")" && [ -f "$D/govern.json.sig" ]; then
             pass "RC-06a" "the README's signing commands work as written; the signed config runs"
         else
             fail "RC-06a" "the signed config did not run" "rc=$RC $(grep -m1 -E 'Error|INTEGRITY' <<<"$OUT")"
         fi
         printf '{"version": "5.0", "mode": "enforce", "languages": {"allowed": ["python"]}}\n' > "$D/govern.json"
-        OUT=$(cd "$D" && HOME="$D/home" "$NAAB" app.naab </dev/null 2>&1); RC=$?
+        OUT=$(cd "$D" && HOME="$D/home" NAAB_TRUST_STORE_DIR="$D/trust" "$NAAB" app.naab </dev/null 2>&1); RC=$?
         if [ "$RC" -eq 3 ] && grep -qF 'INTEGRITY BLOCK' <<<"$OUT"; then
             pass "RC-06b" "after an edit, the signed project is an integrity block (exit 3)"
         else
