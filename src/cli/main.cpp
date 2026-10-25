@@ -1638,18 +1638,14 @@ int main(int argc, char** argv) {
                                 stored_sig.pop_back();
 
                             if (_signing_key && *_signing_key) {
-                                // Ed25519: read key file, verify sig
-                                std::ifstream kf(_signing_key);
-                                if (kf.is_open()) {
-                                    std::string key_pem((std::istreambuf_iterator<char>(kf)),
-                                                         std::istreambuf_iterator<char>());
-                                    // Sig format: "ed25519:<base64>"
-                                    if (stored_sig.rfind("ed25519:", 0) == 0) {
-                                        std::string b64 = stored_sig.substr(8);
-                                        _has_authority = naab::security::CryptoUtils::ed25519Verify(
-                                            content, b64, key_pem);
-                                    }
-                                }
+                                // Ed25519: authority is holding the trusted PRIVATE key
+                                // that signed this file. This used to hand the key file to
+                                // ed25519Verify(), which reads only a public key, and to
+                                // take "<sig>:<ts>" as the signature -- so the owner's key
+                                // never worked and the public key unlocked a file signed
+                                // without a timestamp (tests/security/test_flag_authority.sh).
+                                _has_authority = naab::governance::GovernanceEngine::
+                                    signingKeySignedContent(content, stored_sig);
                             } else if (_govern_key && *_govern_key) {
                                 // Legacy HMAC: verify key produces matching sig
                                 std::string expected_hmac = naab::security::CryptoUtils::hmacSha256(

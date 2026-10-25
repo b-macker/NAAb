@@ -3830,6 +3830,13 @@ public:
     // Read private key PEM from NAAB_SIGNING_KEY env var (for CLI key-signing operations).
     static std::string readSigningKeyForCLI();
 
+    // Is NAAB_SIGNING_KEY the trusted private key whose signature stored_sig
+    // ("ed25519:..." as read from govern.json.sig) is over content? This is the
+    // authority to use a flag the owner locked: the private key, never the
+    // public one.
+    static bool signingKeySignedContent(const std::string& content,
+                                        const std::string& stored_sig);
+
     // Feature 5: Environment selector
     void applyEnvironment(const std::string& env_name);
 
