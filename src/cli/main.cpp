@@ -2061,7 +2061,12 @@ int main(int argc, char** argv) {
                     fflush(stderr);
                     _exit(3);
                 }
-                if (!gov_loaded && !no_governance) {
+                // --no-governance waives the "no govern.json found" requirement
+                // below; it does not waive this check. Governance artifacts mean
+                // a config was here, and deleting it then passing the flag is the
+                // route F2 exists to close (.naab_cache/ is written only beside a
+                // loaded govern.json).
+                if (!gov_loaded) {
                     // F2: Detect govern.json deletion — governance artifacts imply prior config
                     {
                         bool had_governance = false;
@@ -2088,7 +2093,7 @@ int main(int argc, char** argv) {
                             _exit(3);
                         }
                     }
-                    if (require_governance) {
+                    if (require_governance && !no_governance) {  // the flag's waiver
                         fmt::print(stderr,
                             "Error: No govern.json found in '{}' or any parent directory.\n"
                             "  NAAb requires a govern.json by default.\n"
@@ -2097,7 +2102,7 @@ int main(int argc, char** argv) {
                         fflush(stderr);
                         return 4;
                     }
-                    if (!global_quiet) {
+                    if (!global_quiet && !no_governance) {
                         fprintf(stderr,
                             "[governance] Warning: No govern.json found in '%s' or any parent directory.\n"
                             "  Running WITHOUT governance restrictions.\n"
@@ -2175,11 +2180,11 @@ int main(int argc, char** argv) {
                         security_config.max_cpu_seconds = timeout;
                         security_config.max_memory_mb = memory_limit;
                     }
-                    // Fail-closed: enforce mode defaults to standard sandbox (not unrestricted)
-                    // Only apply when governance is actually active (not --no-governance)
+                    // Fail-closed: enforce mode defaults to standard sandbox (not unrestricted).
+                    // A discovered govern.json applies whatever the flags say: --no-governance
+                    // only waives the requirement when none is found (#244).
                     bool upgraded_to_standard = sandbox_level_changed;
-                    if (!no_governance &&
-                        vm_governance.getMode() == naab::governance::GovernanceMode::ENFORCE &&
+                    if (vm_governance.getMode() == naab::governance::GovernanceMode::ENFORCE &&
                         rules.sandbox_level_config.empty() &&
                         sandbox_level == "unrestricted") {
                         sandbox_level = "standard";
@@ -2191,9 +2196,10 @@ int main(int argc, char** argv) {
                             "[governance] Sandbox: upgraded unrestricted → standard "
                             "(enforce mode; set security.sandbox_level in govern.json to override)\n");
                     }
-                    // Sync governance capabilities into sandbox (tighten only)
-                    // Skip when --no-governance — user explicitly opted out
-                    if (!no_governance) {
+                    // Sync governance capabilities into sandbox (tighten only). This used
+                    // to be skipped under --no-governance, so with a discovered config the
+                    // flag still dropped shell/network/env restrictions from the sandbox.
+                    {
                         syncGovernanceToSandbox(rules, security_config);
                         naab::security::SandboxManager::instance().setDefaultConfig(security_config);
                         // Update the live sandbox with governance-driven restrictions
@@ -2768,12 +2774,12 @@ int main(int argc, char** argv) {
                 }
 
                 // Pass 2: Post-execution validation audit (VM path)
-                if (vm_governance.isActive() && !no_governance) {
+                if (vm_governance.isActive()) {
                     vm_governance.runPostExecutionAudit();
                 }
 
                 // Pass 3: Execution-based contract tests (must_produce, must_vary, etc.)
-                if (vm_governance.isActive() && !no_governance) {
+                if (vm_governance.isActive()) {
                     vm_governance.setVMCallbacks(
                         [&bytecode_vm](naab::interpreter::NaabVal fn, const std::vector<naab::interpreter::NaabVal>& args, bool taint) {
                             return bytecode_vm.callNaabFunction(fn, args, taint);
@@ -2830,7 +2836,7 @@ int main(int argc, char** argv) {
             } else {
                 // govern.json sandbox settings reached only the VM path; this is
                 // the tree-walker's equivalent of the block in `if (use_vm)`.
-                if (gov_loaded && !no_governance && shared_governance.isActive()) {
+                if (gov_loaded && shared_governance.isActive()) {
                     applyGovernanceSandbox(
                         shared_governance.getRules(), security_config, sandbox_level,
                         timeout, memory_limit,
@@ -2952,7 +2958,7 @@ int main(int argc, char** argv) {
                 // Pass 3: Execution-based contract tests (must_produce, must_vary, etc.)
                 {
                     auto* gov = interpreter.getGovernance();
-                    if (gov && gov->isActive() && !no_governance) {
+                    if (gov && gov->isActive()) {
                         std::string contract_err = gov->runExecutionContracts();
                         if (!contract_err.empty()) {
                             fprintf(stderr, "Error: %s\n", contract_err.c_str());
