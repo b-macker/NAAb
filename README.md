@@ -129,7 +129,9 @@ main {
 ../build/naab-lang                 # interactive REPL
 ```
 
-NAAb looks for a `govern.json` in the program's directory and its parents, and refuses to run a program without one (exit 4). `naab-lang init --governance-preset relaxed|standard|strict|paranoid` picks how strict the generated file is. `--no-governance` waives the requirement, but a `govern.json` that is found still applies.
+NAAb looks for a `govern.json` in the program's directory and its parents, and refuses to run a program without one (exit 4). `naab-lang init --governance-preset relaxed|standard|strict|paranoid` picks how strict the generated file is; a preset leaves taint tracking and sequence detection off unless `--taint` is added, while plain `init` turns both on. `--no-governance` waives the requirement, but a `govern.json` that is found still applies.
+
+The [user guide](USER_GUIDE.md) goes on from here: the language, modules, other languages, and working with the policy.
 
 ---
 
@@ -337,7 +339,7 @@ const data = "Stats: mean=30, stdev=15.81";
 }
 ```
 
-A language runs only if `govern.json` allows it and its compiler or interpreter is installed (the standard `init` profile allows Python and Shell). More, including SQL blocks and persistent runtimes: the [language tour](docs/language-tour.md#polyglot-blocks).
+A language runs only if `govern.json` allows it and its compiler or interpreter is installed (the standard `init` profile allows Python and Shell; a shell block also needs `security.sandbox_level: "elevated"`). More, including SQL blocks and persistent runtimes: the [language tour](docs/language-tour.md#polyglot-blocks).
 
 ### Tooling
 

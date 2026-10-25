@@ -1,866 +1,890 @@
-# NAAb Language User Guide
-**Version**: 1.1.0
-**Last Updated**: April 29, 2026
+# NAAb User Guide
 
-## Table of Contents
+This guide takes you from an empty directory to a working NAAb project: writing and running programs, splitting them into modules, calling other languages, and working with the policy file every project has. The [README](README.md) says what NAAb is for. The [language tour](docs/language-tour.md) is the feature reference.
 
-1. [Introduction](#introduction)
-2. [Getting Started](#getting-started)
-3. [Language Basics](#language-basics)
-4. [Working with Data](#working-with-data)
-5. [Functions](#functions)
-6. [Control Flow](#control-flow)
-7. [Error Handling](#error-handling)
-8. [Standard Library](#standard-library)
-9. [Multi-File Applications](#multi-file-applications)
-10. [Block Assembly](#block-assembly)
-11. [Advanced Features](#advanced-features)
-12. [Best Practices](#best-practices)
+Every program here is a complete file. Save it in a project made with `naab-lang init`, run it, and it prints what the guide shows. Where a program needs a change to `govern.json`, the change is shown just before it.
 
----
+## Contents
 
-## Introduction
-
-NAAb is a modern polyglot orchestration language designed for seamlessly integrating code across multiple programming languages within a single application. NAAb's core philosophy is: **Orchestrate in NAAb, Compute in the Best Language for the Task.**
-
-### Key Features
-
-- **Polyglot by design**: Execute code blocks in 12 languages — Python, JavaScript, Shell, Go, Nim, Rust, C++, C#, Ruby, PHP, Zig, and Julia — all within `<< >>` blocks
-- **Bytecode VM**: Stack-based bytecode compiler and virtual machine as the default execution engine (~8x faster than tree-walking)
-- **Governance engine**: 50+ built-in checks, taint tracking, 4-tier enforcement (HARD/SOFT/ADVISORY/DETECT), agent roles, and CI/CD integration
-- **Pipeline syntax**: Chain operations with `|>` operator
-- **Rich stdlib**: 19 modules (array, string, math, json, file, time, env, io, csv, regex, crypto, debug, dict, path, log, uuid, validate, process, bolo)
-- **NaN-boxing**: 8-byte inline values for int/double/bool/null — zero heap allocation for primitives
-- **Type-safe composition**: Validate block compatibility before execution
-- **Exception handling**: try/catch with stack traces
-- **Module system**: Import/export for code organization
+1. [Set up a project](#1-set-up-a-project)
+2. [Program structure](#2-program-structure)
+3. [Values](#3-values)
+4. [Strings, arrays and dictionaries](#4-strings-arrays-and-dictionaries)
+5. [Control flow](#5-control-flow)
+6. [Functions](#6-functions)
+7. [Structs and enums](#7-structs-and-enums)
+8. [Errors](#8-errors)
+9. [Modules](#9-modules)
+10. [Files, environment and network](#10-files-environment-and-network)
+11. [Other languages](#11-other-languages)
+12. [Working with the policy](#12-working-with-the-policy)
+13. [Tools](#13-tools)
+14. [Not working yet](#14-not-working-yet)
 
 ---
 
-## Getting Started
+## 1. Set up a project
 
-### Installation
-
-# Build
-cmake -B build
-cmake --build build -j4
-
-# Install (symlink to PATH)
-ln -sf $(pwd)/build/naab-lang /usr/local/bin/naab
-```
-
-### Your First Program
-
-Create `hello.naab`:
-
-```naab
-print("Hello, NAAb!")
-```
-
-Run it:
+### Build
 
 ```bash
-naab hello.naab
+git clone --recursive https://github.com/b-macker/NAAb.git
+cd NAAb
+mkdir build && cd build
+cmake ..
+make naab-lang naab-gov -j4
+cd ..
+export PATH="$PWD/build:$PATH"
 ```
 
-Output:
-```
-Hello, NAAb!
-```
+`naab-lang` runs programs; `naab-gov` checks them without running them. [INSTALL.md](INSTALL.md) lists the dependencies, and the compilers each polyglot language needs.
 
-### Interactive REPL
+### Create a project
 
 ```bash
-~/naab-repl
+mkdir hello && cd hello
+naab-lang init
 ```
 
-Try these commands:
+`init` writes two files:
+
+- `naab.toml`: the project manifest (name, version, dependencies).
+- `govern.json`: the project's policy: which languages may run, what the program may touch (files, network, environment, shell), and which code-quality checks apply at which level.
+
+NAAb looks for a `govern.json` in the program's directory and then in each parent directory. It refuses to run a program without one, with exit code 4. `--no-governance` waives that requirement, but a `govern.json` that is found still applies.
+
+### Your first program
+
+Save this as `hello.naab` and run it with `naab-lang hello.naab`:
 
 ```naab
-> let x = 42
-> print(x)
-42
-> let sum = 10 + 32
-> print(sum)
-42
+main {
+    let name = "World"
+    print("Hello, " + name + "!")
+}
 ```
+
+```text
+Hello, World!
+```
+
+That is the program's output, on stdout. The governance engine reports on stderr:
+
+```text
+[governance] WARNING contradiction.CONTRA-013
+Governance warning: capabilities.filesystem path rules are enforced inside NAAb's standard library and the embedded Python executor only. ...
+[governance] Loaded: /home/you/hello/govern.json (mode: enforce)
+[governance] Sandbox: upgraded unrestricted → standard (enforce mode; set security.sandbox_level in govern.json to override)
+
+[governance] Summary (mode: enforce): 8 passed, 1 warning, 0 blocked
+  ⚠ contradiction.CONTRA-013            [advisory]  WARN
+
+-- Governance: PASS (9 static, 0 runtime, 0 violations) --
+```
+
+- **CONTRA-013** is an advisory warning: execution continues. The generated `govern.json` blocks some paths (`/etc/shadow`, `/etc/passwd`). NAAb enforces that inside its own standard library and embedded Python, but not inside a shell block, which runs as a separate process. The warning currently appears for every project with path rules unless the sandbox is `restricted`, even one that never runs shell.
+- **Sandbox** is the runtime's own containment. With `mode: enforce` and no `security.sandbox_level`, it runs at `standard`. [Section 10](#10-files-environment-and-network) shows what that refuses and how to change it.
+- **Summary** and **Governance: PASS** list the checks that ran and their results.
+
+### The REPL
+
+`naab-lang` with no arguments starts an interactive session. `.help` lists its commands and `.exit` leaves.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Success |
+| 1 | Runtime error (an uncaught error, a parse error) |
+| 2 | Quality gate failed |
+| 3 | Refused by the policy |
+| 4 | Configuration error, including "no govern.json found" |
 
 ---
 
-## Language Basics
+## 2. Program structure
 
-### Variables
-
-```naab
-let name = "Alice"
-let age = 30
-let score = 95.5
-let active = true
-```
-
-Variables are dynamically typed but support type annotations:
+A program's statements go in `main { }`. At the top level of a file, only these are allowed: `use`, `import`, `export`, `struct`, `enum`, functions and `main`. A `let` outside a function or `main` is a parse error.
 
 ```naab
-let count: int = 42
-let name: string = "Bob"
-```
+// A line comment
+/* A block comment */
+use string
 
-### Data Types
+fn shout(text) {
+    return string.upper(text) + "!"
+}
 
-- **Int**: `42`, `-10`, `0`
-- **Float**: `3.14`, `-0.5`, `2.0`
-- **String**: `"hello"`, `'world'`
-- **Bool**: `true`, `false`
-- **Array**: `[1, 2, 3]`, `["a", "b", "c"]`
-- **Dict**: `{"key": "value", "count": 42}`
-
-### Operators
-
-**Arithmetic**:
-```naab
-let a = 10 + 5    // 15
-let b = 10 - 5    // 5
-let c = 10 * 5    // 50
-let d = 10 / 5    // 2
-let e = 10 % 3    // 1
-```
-
-**Comparison**:
-```naab
-let eq = (5 == 5)   // true
-let ne = (5 != 3)   // true
-let lt = (3 < 5)    // true
-let le = (5 <= 5)   // true
-let gt = (5 > 3)    // true
-let ge = (5 >= 5)   // true
-```
-
-**Logical**:
-```naab
-let and = true && false    // false
-let or = true || false     // true
-let not = !true            // false
-```
-
-**Short-circuit evaluation**:
-```naab
-// Second expression not evaluated if first is false
-if (x != 0 && (100 / x) > 5) {
-    print("Safe division")
+main {
+    print(shout("hello"))  // "HELLO!"
 }
 ```
+
+- `use MODULE` names a standard-library module the file uses. Write one for each module you call.
+- Semicolons are optional.
+- `fn`, `function`, `func` and `def` all declare a function.
+- `print(a, b, c)` prints its arguments separated by spaces, then a newline. `io.write(text)` prints without a newline.
 
 ---
 
-## Working with Data
-
-### Arrays
+## 3. Values
 
 ```naab
-import "stdlib" as std
+main {
+    let name = "Alice"     // string
+    let age = 30           // int
+    let score = 95.5       // float
+    let active = true      // bool
+    let nothing = null
 
-let numbers = [1, 2, 3, 4, 5]
-
-// Access
-print(numbers[0])  // 1
-
-// Length
-print(std.length(numbers))  // 5
-
-// Add element
-numbers = std.push(numbers, 6)  // [1, 2, 3, 4, 5, 6]
-
-// Remove last
-let last = std.pop(numbers)  // 6
-
-// Reverse
-let reversed = std.reverse(numbers)  // [5, 4, 3, 2, 1]
-
-// Check contains
-let has = std.contains(numbers, 3)  // true
-
-// Join to string
-let joined = std.join(numbers, ",")  // "1,2,3,4,5"
+    print(typeof(name), typeof(age), typeof(score), typeof(active), typeof(nothing))
+    print(7 / 2)              // 3.5
+    print(10 / 5)             // 2
+    print(int(7 / 2))         // 3
+    print(7 % 3)              // 1
+    print("n=" + string(5))   // "n=5"
+    print(int("42") + 1)      // 43
+}
 ```
 
-### Higher-Order Array Functions
+```text
+string int float bool null
+3.5
+2
+3
+1
+n=5
+43
+```
+
+- Division always gives a float: `7 / 2` is `3.5`, and `10 / 5` is the float `2`. Use `int()` or `math.floor()` for a whole number. `//` starts a comment; there is no integer-division operator and no `**` (use `math.pow`).
+- `+` joins strings, and converts a non-string on its right: `"x" + 5` is `"x5"`.
+- `int()`, `float()` and `string()` convert between types.
+
+### Interpolation
 
 ```naab
-// Map - transform array
-fn double(x) {
-    return x * 2
+main {
+    let name = "Ada"
+    let items = 3
+    print("Hello, ${name}!")                     // "Hello, Ada!"
+    print(f"{name} has {items * 2} items")        // "Ada has 6 items"
+    print("A literal \${name} stays as written")  // "A literal ${name} stays as written"
 }
-let doubled = std.map_fn(numbers, double)  // [2, 4, 6, 8, 10]
-
-// Filter - select elements
-fn is_even(x) {
-    return x % 2 == 0
-}
-let evens = std.filter_fn(numbers, is_even)  // [2, 4]
-
-// Reduce - aggregate
-fn add(acc, x) {
-    return acc + x
-}
-let sum = std.reduce_fn(numbers, add, 0)  // 15
-
-// Find - first match
-fn greater_than_3(x) {
-    return x > 3
-}
-let found = std.find(numbers, greater_than_3)  // 4
 ```
+
+`${...}` works in every string; `f"..."` uses `{...}`. Both take any expression.
+
+### Null
+
+```naab
+main {
+    let settings = {"theme": "dark"}
+    let size = settings.get("size") ?? 12
+    print(size)  // 12
+}
+```
+
+`a ?? b` is `a` unless `a` is null. `?.` stops at a null instead of failing (`user?.name`).
+
+### Type annotations
+
+```naab
+fn add(x: int, y: int) -> int {
+    return x + y
+}
+
+main {
+    let count: int = 42
+    print(add(count, 1))  // 43
+}
+```
+
+`naab-lang check FILE` reports a value that does not match its annotation. A program still runs with one: the default engine does not check annotations at run time.
+
+### Equality
+
+`==` compares numbers, strings, booleans and null by value, and `5 == 5.0` is `true`. For arrays and dictionaries `==` is always `false`, even for the same variable, so compare their elements instead.
+
+---
+
+## 4. Strings, arrays and dictionaries
+
+Most operations come in two forms: a method (`text.upper()`) and a module function (`string.upper(text)`).
 
 ### Strings
 
 ```naab
-import "stdlib" as std
+use string
 
-let text = "Hello, World!"
+main {
+    let text = "Hello, World!"
+    print(text.length())                       // 13
+    print(text.upper())                        // "HELLO, WORLD!"
+    print(text.replace("World", "NAAb"))       // "Hello, NAAb!"
+    print(text.contains("World"))              // "true"
+    print(text.starts_with("Hello"))           // "true"
+    print(text.substring(0, 5))                // "Hello"
+    print(text.slice(-6))                      // "World!"
+    print(string.index_of(text, "World"))      // 7
+    print("  padded  ".trim())                 // "padded"
+    print(string.pad_left("7", 3, "0"))        // "007"
+    print(string.repeat("ab", 3))              // "ababab"
+    print(text[0])                             // "H"
 
-// Length
-print(std.length(text))  // 13
+    let parts = string.split("a,b,c", ",")
+    print(parts.length())                      // 3
+    print(parts.join(" + "))                   // "a + b + c"
+}
+```
 
-// Case conversion
-let upper = std.upper(text)  // "HELLO, WORLD!"
-let lower = std.lower(text)  // "hello, world!"
+### Arrays
 
-// Trim whitespace
-let trimmed = std.trim("  hello  ")  // "hello"
+```naab
+use array
 
-// Split
-let words = std.split(text, ", ")  // ["Hello", "World!"]
+main {
+    let nums = [3, 1, 2]
+    nums.push(4)
+    print(nums)                       // "[3, 1, 2, 4]"
+    print(nums.length())              // 4
+    print(nums[0], nums[-1])          // "3 4"
+    print(nums[1:3])                  // "[1, 2]"
+    print(nums.contains(2), 2 in nums, 9 not in nums)  // "true true true"
 
-// Replace
-let replaced = std.replace(text, "World", "NAAb")  // "Hello, NAAb!"
+    print(array.sorted(nums))         // "[1, 2, 3, 4]"
+    print(nums)                       // "[3, 1, 2, 4]"
+    nums.sort()
+    print(nums)                       // "[1, 2, 3, 4]"
 
-// Check contains
-let has = std.contains(text, "World")  // true
+    let last = nums.pop()
+    print(last, nums)                 // "4 [1, 2, 3]"
+}
+```
 
-// Check prefix/suffix
-let starts = std.starts_with(text, "Hello")  // true
-let ends = std.ends_with(text, "!")  // true
+`array.sorted()` returns a new sorted array; `.sort()` sorts in place.
 
-// Substring
-let sub = std.substring(text, 0, 5)  // "Hello"
+To transform an array, pass a function to `array.map_fn`, `array.filter_fn` or `array.reduce_fn`. Arrays have no `.map()` or `.filter()` methods.
 
-// Find index
-let index = std.index_of(text, "World")  // 7
+```naab
+use array
 
-// Repeat
-let repeated = std.repeat("ha", 3)  // "hahaha"
+main {
+    let nums = [1, 2, 3, 4, 5]
+    let doubled = array.map_fn(nums, fn(x) { return x * 2 })
+    let evens = array.filter_fn(nums, fn(x) { return x % 2 == 0 })
+    let total = array.reduce_fn(nums, fn(sum, x) { return sum + x }, 0)
+    let first_big = nums.find(fn(x) { return x > 3 })
+
+    print(doubled)    // "[2, 4, 6, 8, 10]"
+    print(evens)      // "[2, 4]"
+    print(total)      // 15
+    print(first_big)  // 4
+}
 ```
 
 ### Dictionaries
 
 ```naab
-let person = {
-    "name": "Alice",
-    "age": 30,
-    "city": "Boston"
+use dict
+
+main {
+    let person = {"name": "Alice", "age": 30}
+    let point = {x: 1, y: 2}     // keys may be written without quotes
+
+    print(person["name"])        // "Alice"
+    print(point.x)               // 1
+
+    person["age"] = 31
+    person["city"] = "Boston"
+    print(person["age"])         // 31
+    print(person.size())         // 3
+
+    print(person.has("city"))                // "true"
+    print(person.get("zip"))                 // "null"
+    print(person.get("zip", "unknown"))      // "unknown"
+
+    for [key, value] in point.entries() {
+        print(key, value)
+    }
+}
+```
+
+Reading a missing key with `d["key"]` is an error; use `.get()` when the key may be absent. Keys do not keep the order they were added in, so do not rely on the order of `keys()`, `values()` or `entries()`.
+
+### Copies and shared values
+
+```naab
+fn add_item(list) {
+    list.push(99)
 }
 
-// Access
-print(person["name"])  // "Alice"
+main {
+    let a = [1, 2]
+    let b = a                    // a copy
+    b.push(3)
+    print(a, b)                  // "[1, 2] [1, 2, 3]"
 
-// Modify
-person["age"] = 31
+    add_item(a)                  // a function works on the caller's array
+    print(a)                     // "[1, 2, 99]"
 
-// Check key exists
-// (use try/catch for safe access)
+    let players = [{"name": "ann", "hp": 10}]
+    for p in players {
+        p["hp"] = p["hp"] - 1    // the loop variable is the element itself
+    }
+    print(players[0]["hp"])      // 9
+
+    let first = players[0]       // a copy again
+    first["hp"] = 0
+    print(players[0]["hp"])      // 9
+
+    players[0]["hp"] = 50        // change a nested value in place
+    print(players[0]["hp"])      // 50
+}
 ```
+
+`let b = a` copies an array or dictionary. Passing one to a function, or looping over it with `for`, does not.
 
 ---
 
-## Functions
-
-### Function Declaration
+## 5. Control flow
 
 ```naab
-fn greet(name) {
-    return "Hello, " + name + "!"
-}
+main {
+    let score = 85
+    if score >= 90 {
+        print("A")
+    } else if score >= 80 {
+        print("B")
+    } else {
+        print("C")
+    }
 
-let message = greet("Alice")
-print(message)  // "Hello, Alice!"
+    let grade = if score >= 80 { "pass" } else { "fail" }
+    print(grade)  // "pass"
+
+    let count = 0
+    while count < 3 {
+        count = count + 1
+    }
+    print(count)  // 3
+
+    for n in [1, 2, 3, 4, 5] {
+        if n == 2 { continue }
+        if n == 4 { break }
+        print(n)
+    }
+
+    let total = 0
+    for i in 0..4 {
+        total += i
+    }
+    print(total)  // 6
+
+    let status = 404
+    let message = match status {
+        200 => "OK"
+        404 => "Not Found"
+        n if n >= 500 => "Server Error"
+        _ => "Unknown"
+    }
+    print(message)  // "Not Found"
+}
 ```
 
-### Default Parameters
-
-```naab
-fn greet(name = "World") {
-    return "Hello, " + name + "!"
-}
-
-print(greet())        // "Hello, World!"
-print(greet("Bob"))   // "Hello, Bob!"
+```text
+B
+pass
+3
+1
+3
+6
+Not Found
 ```
 
-### Recursive Functions
+- Parentheses around a condition are optional.
+- `0..4` counts 0, 1, 2, 3; `range(0, 4)` does the same.
+- `match` takes literals, guards (`n if n >= 500`), array patterns and `_`; the [tour](docs/language-tour.md#pattern-matching) shows them all.
+- A loop that runs more than `limits.execution.loop_iterations` times (1,000,000 in a new project) is stopped with exit code 3. The whole run is stopped after `limits.timeout.global` seconds (60 in a new project). `--timeout N` can raise that limit for one run, but not lower it.
+
+---
+
+## 6. Functions
 
 ```naab
 fn factorial(n) {
-    if (n <= 1) {
+    if n <= 1 {
         return 1
     }
     return n * factorial(n - 1)
 }
 
-print(factorial(5))  // 120
-```
-
-### Function as Values
-
-```naab
-fn apply(callback, value) {
-    return callback(value)
+fn apply(f, value) {
+    return f(value)
 }
 
-fn double(x) {
-    return x * 2
+fn divmod(a, b) {
+    return [int(a / b), a % b]
 }
 
-let result = apply(double, 5)  // 10
-```
-
----
-
-## Control Flow
-
-### If Statements
-
-```naab
-let age = 25
-
-if (age >= 18) {
-    print("Adult")
-} else {
-    print("Minor")
-}
-```
-
-### Nested If
-
-```naab
-let score = 85
-
-if (score >= 90) {
-    print("A")
-} else if (score >= 80) {
-    print("B")
-} else if (score >= 70) {
-    print("C")
-} else {
-    print("F")
-}
-```
-
-### While Loops
-
-```naab
-let count = 0
-
-while (count < 5) {
-    print(count)
-    count = count + 1
-}
-// Prints: 0 1 2 3 4
-```
-
-### For Loops
-
-```naab
-let numbers = [1, 2, 3, 4, 5]
-
-for (num in numbers) {
-    print(num)
-}
-// Prints: 1 2 3 4 5
-```
-
-### Break and Continue
-
-```naab
-// Break - exit loop
-let i = 0
-while (true) {
-    if (i >= 5) {
-        break
+fn make_counter() {
+    let count = 0
+    return fn() {
+        count = count + 1
+        return count
     }
-    print(i)
-    i = i + 1
 }
 
-// Continue - skip iteration
-for (x in [1, 2, 3, 4, 5]) {
-    if (x % 2 == 0) {
-        continue  // Skip even numbers
+fn twice(s) { return s + " " + s }
+fn exclaim(s) { return s + "!" }
+
+main {
+    print(factorial(5))                            // 120
+    print(apply(fn(x) { return x * 10 }, 4))       // 40
+
+    let [q, r] = divmod(17, 5)
+    print(q, r)                                    // "3 2"
+
+    let counter = make_counter()
+    counter()
+    print(counter())                               // 2
+
+    print("hi" |> twice |> exclaim)                // "hi hi!"
+}
+```
+
+- Functions are values: pass them, return them, store them.
+- `fn(x) { ... }` is an anonymous function, and it keeps access to the variables around it (`make_counter`).
+- `value |> f` is `f(value)`. The right-hand side must be one of your own functions; piping into a standard-library function does not work yet.
+- Default parameter values (`fn greet(name = "World")`) parse, but the default engine does not apply them yet. Pass every argument.
+
+---
+
+## 7. Structs and enums
+
+```naab
+struct Point {
+    x: int
+    y: int
+}
+
+enum Color {
+    Red,
+    Green,
+    Blue
+}
+
+fn describe(c) {
+    return match c {
+        Color.Red => "warm"
+        Color.Green => "natural"
+        _ => "cool"
     }
-    print(x)  // Prints: 1 3 5
+}
+
+main {
+    let p = new Point { x: 3, y: 4 }
+    p.x = 10
+    print(p.x, p.y)              // "10 4"
+    print(describe(Color.Green)) // "natural"
+    print(Color.Blue == Color.Blue) // "true"
 }
 ```
+
+Interfaces, and functions attached to a struct (`fn Point.to_string(p)`), are in the [tour](docs/language-tour.md#interfaces).
 
 ---
 
-## Error Handling
-
-### Try/Catch
+## 8. Errors
 
 ```naab
-try {
-    // Risky operation
-    let result = 10 / 0
-} catch (error) {
-    print("Error occurred: " + error)
-}
-```
-
-### Try/Catch/Finally
-
-```naab
-let file = "data.txt"
-
-try {
-    // Open and read file
-    let data = read_file(file)
-    process(data)
-} catch (error) {
-    print("Failed to process file: " + error)
-} finally {
-    // Always executed
-    print("Cleanup complete")
-}
-```
-
-### Throwing Errors
-
-```naab
-fn divide(a, b) {
-    if (b == 0) {
-        throw "Division by zero"
+fn parse_age(text) {
+    let n = int(text)
+    if n < 0 {
+        throw "age cannot be negative"
     }
-    return a / b
+    return n
 }
 
-try {
-    let result = divide(10, 0)
-} catch (error) {
-    print("Error: " + error)  // "Error: Division by zero"
+main {
+    try {
+        parse_age("-3")
+    } catch (e) {
+        print("caught: " + e)   // "caught: age cannot be negative"
+    } finally {
+        print("done")           // "done"
+    }
+
+    try {
+        throw {"code": 42, "reason": "custom"}
+    } catch (e) {
+        print(e["code"])        // 42
+    }
+
+    try {
+        let d = {"a": 1}
+        print(d["missing"])
+    } catch (e) {
+        print(typeof(e))        // "dict"
+    }
 }
 ```
+
+- `throw` takes any value, and `catch` receives it unchanged.
+- An error raised by NAAb itself (a missing key, a failed conversion) arrives as a dictionary whose `message` holds the full error text.
+- An error raised inside a block of another language can be caught the same way ([tour](docs/language-tour.md#error-handling)).
+- A policy refusal at HARD level cannot be caught: the program stops with exit code 3. See [Section 12](#12-working-with-the-policy).
 
 ---
 
-## Standard Library
+## 9. Modules
 
-NAAb provides 13 built-in modules:
+A module is a `.naab` file whose shareable functions are marked `export`. Save this as `lib/text_utils.naab`:
 
-### Core Modules
-
-**io** - File I/O operations:
 ```naab
-import "stdlib" as std
+// lib/text_utils.naab
+export fn initials(name) {
+    let parts = name.split(" ")
+    let result = ""
+    for part in parts {
+        result = result + part[0]
+    }
+    return result
+}
 
-// Read file
-let content = std.read_file("data.txt")
-
-// Write file
-std.write_file("output.txt", "Hello")
-
-// Check exists
-let exists = std.exists("data.txt")
+export fn shout(text) {
+    return text.upper() + "!"
+}
 ```
 
-**json** - JSON parsing and serialization:
+And this as `main.naab`, beside the `lib` directory:
+
 ```naab
-import "stdlib" as std
+import {initials, shout} from "./lib/text_utils.naab"
+import * as text from "./lib/text_utils.naab"
 
-// Parse JSON
-let obj = std.parse('{"name": "Alice", "age": 30}')
-
-// Stringify
-let json = std.stringify(obj)
+main {
+    print(initials("Grace Brewster Hopper"))   // "GBH"
+    print(shout("ready"))                      // "READY!"
+    print(text.initials("Ada Lovelace"))       // "AL"
+}
 ```
 
-**http** - HTTP requests:
-```naab
-import "stdlib" as std
-
-// GET request
-let response = std.get("https://api.example.com/data")
-
-// POST request
-let result = std.post("https://api.example.com/create", {
-    "name": "Bob",
-    "email": "bob@example.com"
-})
-```
-
-### Data Modules
-
-**string** - String manipulation (see [Strings](#strings) section)
-
-**array** - Array operations (see [Arrays](#arrays) section)
-
-**math** - Mathematical functions:
-```naab
-import "stdlib" as std
-
-let abs_val = std.abs(-5)         // 5
-let floor_val = std.floor(3.7)    // 3.0
-let ceil_val = std.ceil(3.2)      // 4.0
-let round_val = std.round(3.6)    // 4.0
-let max_val = std.max(5, 10)      // 10
-let min_val = std.min(5, 10)      // 5
-let pow_val = std.pow(2, 3)       // 8.0
-let sqrt_val = std.sqrt(16)       // 4.0
-```
-
-**collections** - Advanced data structures
-
-### System Modules
-
-**time** - Time operations:
-```naab
-import "stdlib" as std
-
-let now = std.now()
-let timestamp = std.timestamp()
-```
-
-**env** - Environment variables:
-```naab
-import "stdlib" as std
-
-let home = std.getenv("HOME")
-std.setenv("MY_VAR", "value")
-```
-
-**csv** - CSV file handling
-
-**regex** - Regular expressions
-
-**crypto** - Cryptographic functions
-
-**file** - Advanced file operations
+- `import {a, b} from "PATH"` brings in named functions, and `import {a as b} from "PATH"` renames one. `import * as m from "PATH"` brings in the whole module as `m`.
+- Only exported functions can be imported.
+- An imported module gets the same content checks as the file that imports it (secrets, placeholders, incomplete logic).
 
 ---
 
-## Multi-File Applications
+## 10. Files, environment and network
 
-### Exporting Functions
+What a program may touch is set in two places: `capabilities` in `govern.json`, and the runtime sandbox.
 
-Create `math_utils.naab`:
-
-```naab
-export fn add(a, b) {
-    return a + b
-}
-
-export fn multiply(a, b) {
-    return a * b
-}
-```
-
-### Importing Functions
-
-Create `main.naab`:
-
-```naab
-import {add, multiply} from "./math_utils.naab"
-
-let sum = add(5, 3)        // 8
-let product = multiply(5, 3)  // 15
-
-print("Sum: " + sum)
-print("Product: " + product)
-```
-
-### Wildcard Imports
-
-```naab
-import * as math from "./math_utils.naab"
-
-let sum = math.add(5, 3)
-let product = math.multiply(5, 3)
-```
-
-### Aliasing
-
-```naab
-import {add as plus, multiply as times} from "./math_utils.naab"
-
-let result = plus(5, times(2, 3))  // 11
-```
-
----
-
-## Block Assembly
-
-### Searching for Blocks
-
-```bash
-naab blocks search "validate email"
-```
-
-Output:
-```
-Search results for "validate email":
-
-1. BLOCK-PY-09145 (python)
-   Validate email address format
-   Input: string → Output: bool
-   Score: 0.95
-
-2. BLOCK-JS-03421 (javascript)
-   Email validation with regex
-   Input: string → Output: bool
-   Score: 0.87
-```
-
-### Listing Available Blocks
-
-```bash
-naab blocks list
-```
-
-Output:
-```
-Total blocks: 24,483
-
-By language:
-  Python:     8,234 blocks
-  C++:        7,621 blocks
-  JavaScript: 5,142 blocks
-  Go:         2,341 blocks
-  Rust:         845 blocks
-  Java:         300 blocks
-```
-
-### Using Blocks in Code
-
-```naab
-use BLOCK-PY-09145 as validate_email
-
-let email = "alice@example.com"
-let valid = validate_email(email)
-
-if (valid) {
-    print("Valid email")
-} else {
-    print("Invalid email")
-}
-```
-
-### Validating Block Composition
-
-```bash
-naab validate "BLOCK-PY-09145,BLOCK-JS-03421"
-```
-
-Output shows type compatibility and suggestions for adapters if types don't match.
-
----
-
-## Advanced Features
-
-### Pipeline Syntax
-
-Chain operations with `|>`:
-
-```naab
-let result = data
-    |> normalize
-    |> validate
-    |> process
-    |> format
-
-// Equivalent to:
-let temp1 = normalize(data)
-let temp2 = validate(temp1)
-let temp3 = process(temp2)
-let result = format(temp3)
-```
-
-Example with arrays:
-
-```naab
-let numbers = [1, 2, 3, 4, 5]
-
-let result = numbers
-    |> filter_evens
-    |> double_values
-    |> sum_all
-
-print(result)
-```
-
-### Type Annotations
-
-```naab
-fn add(x: int, y: int): int {
-    return x + y
-}
-
-let numbers: array<int> = [1, 2, 3]
-let config: dict<string, any> = {"debug": true}
-```
-
-Supported types:
-- `int`, `float`, `string`, `bool`, `void`, `any`
-- `array<T>` - homogeneous arrays
-- `dict<K,V>` - key-value maps
-- `function<T1, T2, ..., R>` - function types
-
----
-
-## Best Practices
-
-### 1. Use Type Annotations for Public APIs
-
-```naab
-// Good
-export fn calculate_discount(price: float, percent: float): float {
-    return price * (1 - percent / 100)
-}
-
-// Less clear
-export fn calculate_discount(price, percent) {
-    return price * (1 - percent / 100)
-}
-```
-
-### 2. Handle Errors Gracefully
-
-```naab
-// Good
-try {
-    let data = std.read_file("config.json")
-    let config = std.parse(data)
-    process(config)
-} catch (error) {
-    print("Failed to load config: " + error)
-    use_defaults()
-}
-
-// Bad - unhandled errors crash program
-let data = std.read_file("config.json")
-let config = std.parse(data)
-```
-
-### 3. Use Descriptive Variable Names
-
-```naab
-// Good
-let user_email = "alice@example.com"
-let total_price = 99.99
-let is_valid = true
-
-// Bad
-let e = "alice@example.com"
-let t = 99.99
-let v = true
-```
-
-### 4. Break Down Complex Functions
-
-```naab
-// Good
-fn process_order(order) {
-    let validated = validate_order(order)
-    let calculated = calculate_totals(validated)
-    let formatted = format_receipt(calculated)
-    return formatted
-}
-
-// Bad - too much in one function
-fn process_order(order) {
-    // 50 lines of validation, calculation, formatting...
-}
-```
-
-### 5. Use Constants for Magic Numbers
-
-```naab
-// Good
-let TAX_RATE = 0.08
-let total = price * (1 + TAX_RATE)
-
-// Bad
-let total = price * 1.08
-```
-
-### 6. Leverage the Standard Library
-
-```naab
-// Good - use stdlib
-import "stdlib" as std
-let upper = std.upper(text)
-
-// Bad - reinvent the wheel
-fn to_upper(text) {
-    // Manual uppercase implementation...
-}
-```
-
-### 7. Organize Code into Modules
-
-```naab
-// utils/string_helpers.naab
-export fn capitalize(text) { ... }
-export fn reverse(text) { ... }
-
-// utils/math_helpers.naab
-export fn average(numbers) { ... }
-export fn median(numbers) { ... }
-
-// main.naab
-import * as strings from "./utils/string_helpers.naab"
-import * as math from "./utils/math_helpers.naab"
-```
-
----
-
-## Governance
-
-NAAb includes a built-in governance engine that enforces project-level policies on polyglot code blocks. Place a `govern.json` file in your project directory to enable it.
-
-### Quick Example
+The sandbox has four levels: `restricted`, `standard`, `elevated` and `unrestricted`. A new project runs at `standard`, which suits a program that computes and reads its own files. A program that writes files, reads environment variables or runs shell blocks needs `elevated`, set at the top level of `govern.json`:
 
 ```json
-{
-  "version": "5.0",
-  "mode": "enforce",
-  "code_quality": {
-    "no_secrets": { "level": "hard" },
-    "no_oversimplification": { "level": "soft" },
-    "no_hallucinated_apis": { "level": "advisory" }
-  }
+"security": {
+  "sandbox_level": "elevated"
 }
 ```
 
-Key features:
-- **50+ built-in checks** for security, code quality, and LLM anti-drift
-- **Four enforcement levels**: HARD (block), SOFT (overridable), ADVISORY (warn), DETECT (catchable block for test configs)
-- **CI/CD integration** via `--governance-sarif` and `--governance-junit` flags
-- **Custom rules** with regex patterns for project-specific policies
+`elevated` relaxes only the sandbox. Everything in `capabilities` still applies.
 
-For the full governance reference, see [Chapter 21: Governance and LLM Code Quality](docs/book/chapter21.md).
+In a new project:
+
+| Action | New project | To allow it |
+|---|---|---|
+| Read a file in the project | allowed | |
+| Write a file | refused | `capabilities.filesystem.mode: "write"`, and `elevated` |
+| Read an environment variable | refused by the sandbox | `elevated` |
+| Read `AWS_SECRET_ACCESS_KEY` or `GITHUB_TOKEN` | refused | they are in `capabilities.env_vars.blocked_read` |
+| Network access | refused | `capabilities.network.enabled: true` |
+| Write `govern.json` | refused | never: the policy file is protected |
+
+### Reading files
+
+```naab
+use file
+use json
+
+main {
+    let manifest = file.read("naab.toml")
+    print(manifest.contains("[package]"))   // "true"
+    print(file.exists("naab.toml"))         // "true"
+
+    let data = json.parse("{\"items\": [1, 2, 3]}")
+    print(data["items"].length())           // 3
+    print(json.stringify([1, 2, 3]))        // "[1,2,3]"
+}
+```
+
+### Writing files
+
+With `elevated` set, change `capabilities.filesystem.mode` from `"read"` to `"write"`:
+
+```json
+"filesystem": {
+  "mode": "write",
+  ...
+}
+```
+
+```naab
+use file
+
+main {
+    file.write("notes.txt", "first line\n")
+    file.append("notes.txt", "second line\n")
+    let lines = file.read_lines("notes.txt")
+    print(lines.length())  // 2
+    print(lines[1])        // "second line"
+}
+```
+
+Paths listed in `capabilities.filesystem.blocked_paths` stay refused, and so do `govern.json`, its signature file and the trusted-keys directory, whatever the mode.
+
+### Environment variables
+
+The `standard` sandbox refuses `env.get()`. With `elevated` set:
+
+```naab
+use env
+
+main {
+    let home = env.get("HOME")
+    print(home != null)                         // "true"
+    print(env.get("NO_SUCH_VARIABLE") ?? "unset")  // "unset"
+}
+```
+
+`env.get()` returns null for a variable that is not set. A variable in `capabilities.env_vars.blocked_read` is refused even at `elevated`, and it is also withheld from every process the program starts.
+
+### Network
+
+A new project has `capabilities.network.enabled: false`, so `http.get()` stops the program with exit code 3. Set it to `true` to allow requests, and use `allowed_hosts` / `blocked_hosts` to say where. `http.get(url)` returns a dictionary with `status`, `body` and `headers`.
 
 ---
 
-## Next Steps
+## 11. Other languages
 
-- Read the [NAAb Book](docs/book/) for comprehensive documentation (21 chapters)
-- See [Quick Start](docs/book/QUICK_START.md) for getting started
-- Browse [examples/](examples/) for real-world examples
+A block written as `<<language ... >>` runs code in another language. The closing `>>` must start its own line. A language runs only if `languages.allowed` in `govern.json` lists it and its interpreter or compiler is installed. A new project allows `python` and `shell`.
+
+```naab
+main {
+    let numbers = [3, 1, 4, 1, 5]
+    let stats = <<python[numbers]
+import statistics
+{"mean": statistics.mean(numbers), "max": max(numbers)}
+>>
+    print(stats["mean"])  // 2.8
+    print(stats["max"])   // 5
+
+    let name = "ada"
+    let upper = <<python[name]
+name.upper()
+>>
+    print(upper)          // "ADA"
+}
+```
+
+- `<<python[numbers]` passes NAAb variables into the block.
+- The block's last expression comes back as a NAAb value: a number, string, list or dict.
+- `naab_return()`, `-> JSON` blocks, persistent runtimes and SQL are in the [tour](docs/language-tour.md#polyglot-blocks).
+
+### Another language
+
+To use JavaScript, add it to `languages.allowed`:
+
+```json
+"languages": {
+  "allowed": ["python", "shell", "javascript"],
+  ...
+}
+```
+
+```naab
+main {
+    let total = <<javascript
+[1, 2, 3, 4].reduce((sum, x) => sum + x, 0)
+>>
+    print(total)  // 10
+}
+```
+
+A language that is not listed is refused before the program starts:
+
+```text
+Error: Governance error: Language "ruby" is not allowed [HARD-MANDATORY]
+
+  At: line 2: <<ruby
+  Rule: languages.allowed = [shell, python]
+
+  Help:
+  - Only shell, python polyglot blocks are permitted
+  - To allow ruby, add it to the "allowed" array in govern.json
+```
+
+### Shell blocks
+
+A new project lists `shell` in `languages.allowed`, but the `standard` sandbox refuses to start a shell ("shell execution denied by sandbox"). Shell blocks need `security.sandbox_level: "elevated"`, as for environment variables above:
+
+```naab
+main {
+    let greeting = <<shell
+echo "hello from shell"
+>>
+    print(greeting)  // "hello from shell"
+}
+```
+
+A shell block runs as a separate process. The filesystem path rules do not reach it: that is what the CONTRA-013 warning says. `capabilities.shell.enabled: false` refuses shell, and every other language that runs as a separate process, outright.
+
+### What the per-language rules catch
+
+Each language has its own rules under `languages.per_language`. In a new project, Python may not call `eval()` or `exec()`, and `import os` is refused as a code-injection risk: import only what you need (`from os import path`). A block that is not inside `try`/`catch` gets an advisory note ("Polyglot blocks without try/catch").
 
 ---
 
-## Getting Help
+## 12. Working with the policy
 
-- **Documentation**: `docs/book/`
-- **Examples**: `examples/`
-- **Tests**: `tests/`
+### Reading a refusal
 
-Run `naab --help` for command-line options.
+This program leaves a `TODO` in a function:
+
+```naab
+// Refused: exit 3
+fn total(items) {
+    // TODO: handle discounts
+    let sum = 0
+    for item in items {
+        sum = sum + item
+    }
+    return sum
+}
+
+main {
+    print(total([1, 2, 3]))
+}
+```
+
+```text
+Error: Governance error: Placeholder "TODO" found in code [SOFT-MANDATORY]
+
+  At: line 2: // TODO: handle discounts
+  Rule: code_quality.no_placeholders = <redacted>
+
+  Help:
+  - Code must be complete — no placeholder markers allowed.
+  - Implement the actual functionality instead of deferring.
+  - The most common fix: delete the comment and write real logic.
+  ...
+```
+
+- The first line says what was found and the level, here SOFT.
+- `At:` gives the line where the enclosing function starts, then the offending text.
+- `Rule:` names the `govern.json` key that decided it.
+- `Help:` and `Example:` say how to fix the code.
+
+Nothing ran: the checks happen before the program starts.
+
+### Levels
+
+Every rule has a level:
+
+| Level | What happens |
+|---|---|
+| HARD | Stops the program (exit 3). `try`/`catch` cannot catch it and `--governance-override` does not lift it. |
+| SOFT | Stops the program (exit 3) unless it is run with `--governance-override`. |
+| ADVISORY | Prints a warning and continues. |
+| DETECT | Stops the operation, but `try`/`catch` can catch it. For test configurations. |
+
+The `TODO` above is SOFT, so `naab-lang total.naab --governance-override` runs it and prints `6`. A Python block that swallows an exception is HARD in a new project:
+
+```naab
+// Refused: exit 3
+main {
+    let size = <<python
+from os import path
+try:
+    n = path.getsize("naab.toml")
+except Exception:
+    pass
+n
+>>
+    print(size)
+}
+```
+
+```text
+Error: Governance error: Incomplete logic detected: "except Exception:
+    pass" [HARD-MANDATORY]
+
+  Rule: code_quality.no_incomplete_logic
+```
+
+`--governance-override` changes nothing here: the program is refused with exit code 3 either way.
+
+### Pre-flight notes
+
+Before a program runs, the scanner may print `[scanner] Pre-flight notes`: advisory style findings, each with a line number and a suggested fix. They do not stop the program.
+
+### Changing the policy
+
+`govern.json` is an ordinary JSON file in the project, and the policy is whatever it says. A few ways to start:
+
+- `naab-lang init --governance-preset relaxed|standard|strict|paranoid` writes a stricter or looser file. Every preset turns taint tracking and sequence detection off unless `--taint` is also given; plain `naab-lang init` turns both on.
+- [`govern-template.json`](govern-template.json) lists every key, each with its default and a `_comment_` explaining it.
+- `"mode"` is `"enforce"` (refusals stop the program), `"audit"` (they are reported and the program continues) or `"off"`.
+- A signed `govern.json` cannot be edited without the change being detected. The [README](README.md#how-it-works) shows the signing commands.
+
+### Reports
+
+```bash
+naab-lang app.naab --governance-verbose             # every check and its result
+naab-lang app.naab --governance-report report.json  # JSON
+naab-lang app.naab --governance-sarif results.sarif # SARIF, for GitHub code scanning
+naab-lang app.naab --governance-junit results.xml   # JUnit XML
+```
+
+Report flags go after the file name.
+
+---
+
+## 13. Tools
+
+| Command | What it does |
+|---|---|
+| `naab-lang FILE` | Run a program (also `naab-lang run FILE`) |
+| `naab-lang` | Start the REPL |
+| `naab-lang check FILE` | Check type annotations without running |
+| `naab-lang fmt FILE` | Format the file in place |
+| `naab-lang parse FILE` | Parse and summarise (imports, functions, whether there is a `main`) |
+| `naab-gov lint FILE` | Run the policy checks without running the program (exit 3 on a refusal) |
+| `naab-lang init` | Create `naab.toml` and `govern.json` |
+| `naab-lang FILE --timeout N` | Allow this run N seconds, when N is above `limits.timeout.global` |
+| `naab-lang --help` | Every command and option |
+
+---
+
+## 14. Not working yet
+
+These do not work as written yet:
+
+- **Default parameter values** (`fn f(x = 1)`) are not applied: the parameter gets an unrelated value. Pass every argument.
+- **`const`** declares a variable but does not prevent reassignment.
+- **Spread and rest** (`[...a]`, `f(...args)`) do not parse.
+- **Piping into a standard-library function** (`x |> string.upper()`) does not work; pipe into your own functions.
+- **Type annotations** are checked by `naab-lang check`, not at run time.
+- **`==` on arrays and dictionaries** is always `false`.
+- **`limits.timeout.global` below 30** is not applied: the run gets 30 seconds.
+- **`time.sleep()`** is not interrupted by the time limit: one long sleep runs to the end before the run is stopped.
+- **A new file at the top of the project** (`file.write("out.txt", ...)`, `file.exists("missing.txt")`) is refused by the `standard` sandbox, while the same name inside an existing subdirectory is accepted. `elevated` does not have this problem.
+
+---
+
+## Where next
+
+- [Language tour](docs/language-tour.md): every feature, polyglot blocks in depth, and the standard-library table.
+- [README](README.md): the governance engine, agents, and configuration.
+- [Chapter 21: Governance](docs/book/chapter21.md): the governance reference.
+- [examples/](examples/): complete programs.
