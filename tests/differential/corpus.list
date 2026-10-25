@@ -17,6 +17,8 @@ tests/differential/corpus/list_index.naab probe
 tests/differential/corpus/math_stdlib.naab probe
 tests/differential/corpus/null_coalesce.naab probe
 tests/differential/corpus/optional_chaining.naab probe
+tests/differential/corpus/default_params.naab probe
+tests/differential/corpus/value_equality.naab probe
 tests/differential/corpus/plus_overload_order.naab probe
 tests/differential/corpus/precedence.naab probe
 tests/differential/corpus/string_ops.naab probe

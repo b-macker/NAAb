@@ -399,6 +399,7 @@ void print_usage() {
     fmt::print("  naab-lang mcp                       Serve governed execution over MCP (stdio)\n");
     fmt::print("  naab-lang init                      Create naab.toml and a standard govern.json\n");
     fmt::print("  naab-lang init --governance-preset P  P: relaxed|standard|strict|paranoid\n");
+    fmt::print("      [--taint] [--languages a,b]     --taint: taint tracking and sequence detection on\n");
     fmt::print("  naab-lang init --package            Create package project structure\n");
     fmt::print("  naab-lang manifest check            Validate naab.toml\n");
     fmt::print("  naab-lang calibrate                 Benchmark installed languages\n");
@@ -443,7 +444,8 @@ void print_usage() {
     fmt::print("\nSecurity Options:\n");
     fmt::print("  --sandbox-level <level>             Security: restricted|standard|elevated|unrestricted\n");
     fmt::print("                                      (default: unrestricted)\n");
-    fmt::print("  --timeout <seconds>                 Execution timeout per block (default: 30)\n");
+    fmt::print("  --timeout <seconds>                 Time limit for the run (default: 30, or govern.json's\n");
+    fmt::print("                                      limit, which --timeout can raise but not lower)\n");
     fmt::print("  --memory-limit <MB>                 Memory limit per block (default: 512)\n");
     fmt::print("  --allow-network                     Enable network access (default: disabled)\n");
 }
@@ -584,6 +586,15 @@ int main(int argc, char** argv) {
     bool global_governance_dashboard = false;
     std::string global_agent_id = "anonymous";
     std::string global_governance_telemetry;
+    // Run options that also work BEFORE the file name (A70(a)): each was read
+    // only by the run loop, so written first it was taken for the command.
+    std::string global_governance_report_json;   // --governance-report PATH
+    std::string global_governance_report_sarif;  // --governance-sarif PATH
+    std::string global_governance_report_junit;  // --governance-junit PATH
+    bool global_governance_record_baselines = false;
+    bool global_governance_check_baselines = false;
+    size_t global_memory_limit = 0;              // --memory-limit MB (0 = default)
+    bool global_allow_network = false;
     bool global_governance_baseline_save = false;
     bool global_drift_baseline_save = false;
     std::string global_governance_env;
@@ -659,6 +670,29 @@ int main(int argc, char** argv) {
             command_arg_index++;
         } else if (arg == "--governance-telemetry" && command_arg_index + 1 < argc) {
             global_governance_telemetry = argv[++command_arg_index];
+            command_arg_index++;
+        } else if (arg == "--governance-report" && command_arg_index + 1 < argc) {
+            global_governance_report_json = argv[++command_arg_index];
+            command_arg_index++;
+        } else if (arg == "--governance-sarif" && command_arg_index + 1 < argc) {
+            global_governance_report_sarif = argv[++command_arg_index];
+            command_arg_index++;
+        } else if (arg == "--governance-junit" && command_arg_index + 1 < argc) {
+            global_governance_report_junit = argv[++command_arg_index];
+            command_arg_index++;
+        } else if (arg == "--governance-record-baselines") {
+            global_governance_record_baselines = true;
+            command_arg_index++;
+        } else if (arg == "--governance-check-baselines") {
+            global_governance_check_baselines = true;
+            command_arg_index++;
+        } else if (arg == "--memory-limit" && command_arg_index + 1 < argc) {
+            try { global_memory_limit = std::stoull(argv[++command_arg_index]); } catch (const std::exception&) {
+                fprintf(stderr, "Error: --memory-limit requires a numeric value\n"); return 1;
+            }
+            command_arg_index++;
+        } else if (arg == "--allow-network") {
+            global_allow_network = true;
             command_arg_index++;
         } else if (arg == "--governance-baseline-save") {
             global_governance_baseline_save = true;
@@ -1217,8 +1251,8 @@ int main(int argc, char** argv) {
         bool governance_dashboard = global_governance_dashboard;
         std::string agent_id = global_agent_id;
         std::string governance_telemetry_path = global_governance_telemetry;
-        bool governance_record_baselines = false;
-        bool governance_check_baselines = false;
+        bool governance_record_baselines = global_governance_record_baselines;
+        bool governance_check_baselines = global_governance_check_baselines;
         bool governance_baseline_save = global_governance_baseline_save;
         bool drift_baseline_save = global_drift_baseline_save;
         std::string governance_env = global_governance_env;
@@ -1232,13 +1266,14 @@ int main(int argc, char** argv) {
         std::string lease_grant = global_lease_grant;
         std::string event_seed = global_event_seed;
         int event_stream_fd = global_event_stream_fd;
-        std::string governance_report_json;
-        std::string governance_report_sarif;
-        std::string governance_report_junit;
+        std::string governance_report_json = global_governance_report_json;
+        std::string governance_report_sarif = global_governance_report_sarif;
+        std::string governance_report_junit = global_governance_report_junit;
         std::string sandbox_level = global_sandbox_level;  // Inherit from global pre-scan
         unsigned int timeout = global_timeout > 0 ? global_timeout : 30;
-        size_t memory_limit = 512;
-        bool network_enabled = false;
+        bool timeout_from_flag = global_timeout > 0;  // --timeout before the file
+        size_t memory_limit = global_memory_limit > 0 ? global_memory_limit : 512;
+        bool network_enabled = global_allow_network;
         std::string filename;
         std::vector<std::string> script_args;
 
@@ -1262,7 +1297,7 @@ int main(int argc, char** argv) {
             } else if (arg == "--sandbox-level" && i + 1 < argc) {
                 sandbox_level = argv[++i];
             } else if (arg == "--timeout" && i + 1 < argc) {
-                try { int t = std::stoi(argv[++i]); timeout = t > 0 ? static_cast<unsigned int>(t) : 0; } catch (const std::exception&) {
+                try { int t = std::stoi(argv[++i]); timeout = t > 0 ? static_cast<unsigned int>(t) : 0; timeout_from_flag = t > 0; } catch (const std::exception&) {
                     fprintf(stderr, "Error: --timeout requires a numeric value\n"); return 1;
                 }
             } else if (arg == "--memory-limit" && i + 1 < argc) {
@@ -1357,7 +1392,7 @@ int main(int argc, char** argv) {
                            "    --no-color            Disable colored error messages\n"
                            "    --pipe                Pipe mode (io.write→stderr, io.output→stdout)\n"
                            "    --sandbox-level <L>   Security level\n"
-                           "    --timeout <seconds>   Execution timeout per block\n"
+                           "    --timeout <seconds>   Time limit for the run\n"
                            "    --memory-limit <MB>   Memory limit per block\n"
                            "    --allow-network       Enable network access\n"
                            "    --governance-override Override soft-mandatory governance rules\n"
@@ -2111,8 +2146,14 @@ int main(int argc, char** argv) {
                     // Category B: runtime limits
                     // govern.json is authoritative for timeout: apply if it specifies a non-default
                     // value, taking the maximum of govern.json and any CLI --timeout override so
-                    // that --timeout can extend but not shrink the govern.json limit.
-                    if (rules.runtime.timeout != 30) timeout = std::max(timeout, (unsigned int)rules.runtime.timeout);
+                    // that --timeout can extend but not shrink the govern.json limit. With no
+                    // --timeout the configured value applies as written: taking the max with the
+                    // built-in 30 s default raised every limit below 30 to 30 (A74). A value of 0
+                    // is left out, so it cannot be read as "no limit".
+                    if (rules.runtime.timeout != 30 && rules.runtime.timeout > 0) {
+                        unsigned int configured = static_cast<unsigned int>(rules.runtime.timeout);
+                        timeout = timeout_from_flag ? std::max(timeout, configured) : configured;
+                    }
                     if (rules.runtime.memory_limit > 0 && memory_limit == 512) memory_limit = rules.runtime.memory_limit;
                     if (rules.runtime.gc_threshold != 5000 && gc_threshold == 5000) gc_threshold = rules.runtime.gc_threshold;
                     if (rules.runtime.gc_stats && !gc_stats) gc_stats = true;

@@ -151,10 +151,20 @@ std::string Sandbox::normalizePath(const std::string& path) const {
             return resolved;
         }
 
-        // If realpath fails (file doesn't exist), use filesystem for basic normalization
+        // If realpath fails (file doesn't exist), use filesystem for basic
+        // normalization. A relative path is made absolute against the working
+        // directory first: weakly_canonical() returns a relative path unchanged
+        // when its first component does not exist, so a bare new name
+        // ("out.txt") never matched an absolute allowed path and was refused
+        // (A73; the governance gate had the same defect, checkPathAccessImpl()).
         std::error_code ec;
-        auto fs_path = std::filesystem::weakly_canonical(
-            std::filesystem::path(path), ec);
+        std::filesystem::path target(path);
+        if (target.is_relative()) {
+            auto abs = std::filesystem::absolute(target, ec);
+            if (!ec) target = abs;
+            ec.clear();
+        }
+        auto fs_path = std::filesystem::weakly_canonical(target, ec);
         if (!ec) {
             return fs_path.string();
         }

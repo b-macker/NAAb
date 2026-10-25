@@ -158,6 +158,9 @@ enum class OpCode : uint8_t {
     // Persistent runtime
     OP_RUNTIME_START,   // [name_idx:24, lang_idx:24] Create persistent runtime
     OP_RUNTIME_EXEC,    // [runtime_idx:24] Execute on persistent runtime
+
+    // Parameters
+    OP_ARG_PASSED,      // [param:24] Push true if the call passed parameter `param`
 };
 
 // ============================================================================
@@ -281,6 +284,7 @@ struct CallFrame {
     interpreter::NaabVal* slots = nullptr;  // Base into value stack
     VMClosure* closure = nullptr;        // Closure with upvalues (if any)
     int handler_count = 0;               // Exception handlers in this frame
+    int argc = 0;                        // Arguments the call passed (the rest are defaults)
     std::string source_file;
 };
 

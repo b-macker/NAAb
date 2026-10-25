@@ -6,6 +6,7 @@
 //           visit(RangeExpr), visit(StructLiteralExpr)
 
 #include "naab/limits.h"
+#include "naab/value_equality.h"
 #include "naab/string_interpolation.h"
 #include "naab/interpreter.h"
 #include "naab/governance.h"
@@ -672,86 +673,16 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             break;
         }
 
-        case ast::BinaryOp::Eq: {
-            // Type-aware equality comparison
-            // For numeric types: compare numerically (10 == 10.0 is true)
-            // For strings: compare as strings
-            // For different types: false (no implicit coercion)
-
-            // Check for null comparisons first (null == null should be true)
-            bool left_null = isNull(left);
-            bool right_null = isNull(right);
-
-            if (left_null && right_null) {
-                // Both null: equal
-                result_ = NaabVal::makeBool(true);
-            } else if (left_null || right_null) {
-                // One null, one non-null: not equal
-                result_ = NaabVal::makeBool(false);
-            } else {
-                // Neither is null - proceed with type-specific comparisons
-                bool left_is_numeric = left.isInt() ||
-                                      left.isDouble();
-                bool right_is_numeric = right.isInt() ||
-                                       right.isDouble();
-
-                if (left.isBool() &&
-                    right.isBool()) {
-                    // Both bools: compare as bools
-                    result_ = NaabVal::makeBool(left.toBool() == right.toBool());
-                } else if (left_is_numeric && right_is_numeric) {
-                    // Both numeric: compare as numbers
-                    result_ = NaabVal::makeBool(left.toFloat() == right.toFloat());
-                } else if (left.isString() &&
-                           right.isString()) {
-                    // Both strings: compare as strings
-                    result_ = NaabVal::makeBool(left.toString() == right.toString());
-                } else {
-                    // Different types: not equal
-                    result_ = NaabVal::makeBool(false);
-                }
-            }
+        case ast::BinaryOp::Eq:
+            // One definition for both engines (naab/value_equality.h): scalars
+            // without coercion (10 == 10.0), lists, dictionaries and structs by
+            // value (A72).
+            result_ = NaabVal::makeBool(valuesEqual(left, right));
             break;
-        }
 
-        case ast::BinaryOp::Ne: {
-            // Type-aware inequality comparison (inverse of Eq)
-
-            // Check for null comparisons first (null != null should be false)
-            bool left_null = isNull(left);
-            bool right_null = isNull(right);
-
-            if (left_null && right_null) {
-                // Both null: not different (false)
-                result_ = NaabVal::makeBool(false);
-            } else if (left_null || right_null) {
-                // One null, one non-null: different (true)
-                result_ = NaabVal::makeBool(true);
-            } else {
-                // Neither is null - proceed with type-specific comparisons
-                bool left_is_numeric = left.isInt() ||
-                                      left.isDouble();
-                bool right_is_numeric = right.isInt() ||
-                                       right.isDouble();
-
-                if (left.isBool() &&
-                    right.isBool()) {
-                    // Both bools: compare as bools
-                    result_ = NaabVal::makeBool(left.toBool() != right.toBool());
-                } else if (left_is_numeric && right_is_numeric) {
-                    // Both numeric: compare as numbers
-                    result_ = NaabVal::makeBool(left.toFloat() != right.toFloat());
-                } else if (left.isString() &&
-                           right.isString()) {
-                    // Both strings: compare as strings
-                    result_ = NaabVal::makeBool(left.toString() != right.toString());
-                } else {
-                    // Different types: not equal
-                    result_ = NaabVal::makeBool(true);
-                }
-            }
+        case ast::BinaryOp::Ne:
+            result_ = NaabVal::makeBool(!valuesEqual(left, right));
             break;
-        }
 
         case ast::BinaryOp::Lt:
             if (!isOrderComparable(left, right)) {

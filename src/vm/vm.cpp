@@ -1,5 +1,6 @@
 #include "naab/sql_executor.h"
 #include "naab/vm.h"
+#include "naab/value_equality.h"
 #include "naab/string_interpolation.h"
 #include "naab/compiler.h"
 #include "naab/debugger.h"
@@ -710,7 +711,7 @@ interpreter::NaabVal VM::run() {
 #endif
 
 #ifdef USE_COMPUTED_GOTO
-    // Dispatch table: 80 entries, one per opcode. Unimplemented opcodes → vm_default.
+    // Dispatch table: 81 entries, one per opcode. Unimplemented opcodes → vm_default.
     static void* dispatch_table[] = {
         &&vm_OP_CONST, &&vm_OP_NULL, &&vm_OP_TRUE, &&vm_OP_FALSE,        // 0-3
         &&vm_OP_POP, &&vm_OP_POPN, &&vm_OP_DUP, &&vm_OP_SWAP,           // 4-7
@@ -744,6 +745,7 @@ interpreter::NaabVal VM::run() {
         &&vm_OP_YIELD, &&vm_OP_AWAIT,                                     // 74-75
         &&vm_STUB_NOP, &&vm_STUB_NOP,                                     // 76-77 (MAKE_GEN/ASYNC — reserved)
         &&vm_OP_RUNTIME_START, &&vm_STUB_NOP,                              // 78-79 (RUNTIME_START, EXEC via CALL_METHOD)
+        &&vm_OP_ARG_PASSED,                                                // 80
     };
 
     #define VM_CASE(opcode) vm_##opcode
@@ -795,6 +797,13 @@ interpreter::NaabVal VM::run() {
 
             VM_CASE(OP_TRUE): {
                 push(interpreter::NaabVal::makeBool(true));
+            }
+                VM_NEXT();
+
+            VM_CASE(OP_ARG_PASSED): {
+                // Did this call pass parameter `arg`? A function's prologue asks
+                // before filling a missing parameter with its default.
+                push(interpreter::NaabVal::makeBool(frame->argc > static_cast<int>(arg)));
             }
                 VM_NEXT();
 
@@ -1209,18 +1218,7 @@ interpreter::NaabVal VM::run() {
                 bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
-                bool eq = false;
-                if (a.isNull() && b.isNull()) {
-                    eq = true;
-                } else if (a.isNull() || b.isNull()) {
-                    eq = false;
-                } else if (a.isBool() && b.isBool()) {
-                    eq = a.toBool() == b.toBool();
-                } else if ((a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble())) {
-                    eq = a.toFloat() == b.toFloat();
-                } else if (a.isString() && b.isString()) {
-                    eq = a.toString() == b.toString();
-                }
+                bool eq = interpreter::valuesEqual(a, b);  // naab/value_equality.h (A72)
                 push(interpreter::NaabVal::makeBool(eq));
                 peekTaint(0) = ta || tb;
             }
@@ -1230,18 +1228,7 @@ interpreter::NaabVal VM::run() {
                 bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
-                bool eq = false;
-                if (a.isNull() && b.isNull()) {
-                    eq = true;
-                } else if (a.isNull() || b.isNull()) {
-                    eq = false;
-                } else if (a.isBool() && b.isBool()) {
-                    eq = a.toBool() == b.toBool();
-                } else if ((a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble())) {
-                    eq = a.toFloat() == b.toFloat();
-                } else if (a.isString() && b.isString()) {
-                    eq = a.toString() == b.toString();
-                }
+                bool eq = interpreter::valuesEqual(a, b);  // naab/value_equality.h (A72)
                 push(interpreter::NaabVal::makeBool(!eq));
                 peekTaint(0) = ta || tb;
             }
@@ -4100,13 +4087,22 @@ bool VM::callFunction(VMClosure* closure, int argc) {
         runtimeError("Stack overflow (call depth exceeded)");
     }
 
+    // A parameter the call left out still needs its own slot: without one the
+    // callee's first local would sit where the parameter is read (A71). Pad
+    // with null; the function's prologue (OP_ARG_PASSED) replaces each padded
+    // slot that has a default, in order, before the body runs.
+    for (int i = argc; i < fn->max_arity; i++) {
+        push(interpreter::NaabVal::makeNull());
+    }
+
     CallFrame* new_frame = &frames_[frame_count_++];
     new_frame->function = fn;
     new_frame->closure = closure;
     new_frame->ip = fn->chunk.code.data();
     // The callee + args are already on the stack
     // slots points to the callee's slot (slot 0 = function itself)
-    new_frame->slots = stack_top_ - argc - 1;
+    new_frame->slots = stack_top_ - std::max(argc, fn->max_arity) - 1;
+    new_frame->argc = argc;
     new_frame->handler_count = 0;
     new_frame->source_file = fn->source_file;
 
@@ -5390,6 +5386,7 @@ static const char* opcodeName(OpCode op) {
         case OpCode::OP_MAKE_ASYNC: return "OP_MAKE_ASYNC";
         case OpCode::OP_RUNTIME_START: return "OP_RUNTIME_START";
         case OpCode::OP_RUNTIME_EXEC: return "OP_RUNTIME_EXEC";
+        case OpCode::OP_ARG_PASSED: return "OP_ARG_PASSED";
     }
     return "OP_UNKNOWN";
 }
@@ -5472,6 +5469,7 @@ int disassembleInstruction(const Chunk& chunk, int offset) {
         case OpCode::OP_TRY_BEGIN:
         case OpCode::OP_CATCH_BEGIN:
         case OpCode::OP_POLYGLOT:
+        case OpCode::OP_ARG_PASSED:
             printf("%-24s %d", name_str, arg);
             // For constant references, show the value
             if (op == OpCode::OP_CONST && arg < chunk.constants.size()) {

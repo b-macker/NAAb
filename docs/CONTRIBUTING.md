@@ -338,7 +338,7 @@ Update documentation when you:
 ### Documentation Files
 
 - **README.md**: Project overview, quick start
-- **USER_GUIDE.md**: Complete language guide
+- **USER_GUIDE.md**: Guide to working in a NAAb project, from `naab-lang init` to the policy
 - **docs/book/**: The NAAb Book (21 chapters covering all features)
 - **docs/book/QUICK_START.md**: Getting started guide
 

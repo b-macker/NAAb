@@ -2,6 +2,7 @@
 // See include/naab/naab_val.h for the class definition
 
 #include "naab/naab_val.h"
+#include "naab/value_equality.h"
 #include "naab/interpreter.h"
 #include "naab/vm.h"
 #include <mutex>
@@ -713,6 +714,71 @@ void NaabVal::forEachHeapValue(std::function<void(NaabVal)> callback) {
         // calls release() — net effect: the two releases balance the one
         // manual retain + one copy-constructor retain.
     }
+}
+
+// ============================================================================
+// valuesEqual -- the language's == (value_equality.h, A72)
+// ============================================================================
+
+namespace {
+// Deeper than any value a program builds by hand; a value nested past it is
+// almost certainly cyclic (a list that holds itself through a reference), and
+// an error is better than a stack overflow or a guessed answer.
+constexpr int kMaxEqualityDepth = 256;
+
+bool valuesEqualAt(const NaabVal& a, const NaabVal& b, int depth) {
+    if (depth > kMaxEqualityDepth) {
+        throw std::runtime_error(
+            "Comparison error: values are nested too deeply to compare\n\n"
+            "  Help:\n"
+            "  - == compares lists and dictionaries element by element\n"
+            "  - A list or dictionary that contains itself cannot be compared\n");
+    }
+    if (a.isNull() || b.isNull()) return a.isNull() && b.isNull();
+    if (a.isBool() && b.isBool()) return a.toBool() == b.toBool();
+    if ((a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble())) {
+        return a.toFloat() == b.toFloat();
+    }
+    if (a.isString() && b.isString()) return a.toString() == b.toString();
+    if (a.isList() && b.isList()) {
+        const auto& la = a.asListConst();
+        const auto& lb = b.asListConst();
+        if (&la == &lb) return true;
+        if (la.size() != lb.size()) return false;
+        for (size_t i = 0; i < la.size(); i++) {
+            if (!valuesEqualAt(la[i], lb[i], depth + 1)) return false;
+        }
+        return true;
+    }
+    if (a.isDict() && b.isDict()) {
+        const auto& da = a.asDictConst();
+        const auto& db = b.asDictConst();
+        if (&da == &db) return true;
+        if (da.size() != db.size()) return false;
+        for (const auto& [key, val] : da) {
+            auto it = db.find(key);
+            if (it == db.end() || !valuesEqualAt(val, it->second, depth + 1)) return false;
+        }
+        return true;
+    }
+    if (a.isStructVal() && b.isStructVal()) {
+        const auto& sa = a.asStructConst();
+        const auto& sb = b.asStructConst();
+        if (!sa || !sb) return sa == sb;
+        if (sa == sb) return true;
+        if (sa->type_name != sb->type_name) return false;
+        if (sa->field_values.size() != sb->field_values.size()) return false;
+        for (size_t i = 0; i < sa->field_values.size(); i++) {
+            if (!valuesEqualAt(sa->field_values[i], sb->field_values[i], depth + 1)) return false;
+        }
+        return true;
+    }
+    return false;
+}
+}  // namespace
+
+bool valuesEqual(const NaabVal& a, const NaabVal& b) {
+    return valuesEqualAt(a, b, 0);
 }
 
 } // namespace interpreter

@@ -6633,6 +6633,7 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
     // --- Limits: child wins or parent wins, with gap-filling ---
     auto& cl = child.limits;
     const auto& bl = base.limits;
+    const int child_global_before = cl.timeout.global;
 
     if (parent_wins) {
         if (bl.timeout.global > 0) cl.timeout.global = bl.timeout.global;
@@ -6652,6 +6653,20 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
             cl.execution.call_depth = bl.execution.call_depth;
         if (!child.explicitly_set.count("limits.execution.polyglot_blocks") && bl.execution.polyglot_blocks > 0)
             cl.execution.polyglot_blocks = bl.execution.polyglot_blocks;
+    }
+    // The run reads runtime.timeout (main.cpp), which loadFromJson() sets
+    // together with limits.timeout.global; the merge above sets only the limits
+    // copy, so an inherited limit never reached the run. That was hidden while
+    // the CLI took max(30, configured): test_extends.sh T2's parent 30 equalled
+    // the floor (A74). Carry a merged limit over, capped at the built-in
+    // default, so no run gets longer than it did before; whether an inherited
+    // limit above it should apply is open (A74). Under child_wins a child that
+    // set its own runtime.timeout keeps it.
+    if (cl.timeout.global > 0 && cl.timeout.global != child_global_before) {
+        const int builtin = GovernanceRules::RuntimeConfig{}.timeout;
+        if (parent_wins || child.runtime.timeout == builtin) {
+            child.runtime.timeout = std::min(cl.timeout.global, builtin);
+        }
     }
     // Memory limits
     if (parent_wins) {
