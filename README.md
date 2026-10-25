@@ -304,7 +304,7 @@ naab-lang app.naab --agent-id analyzer --governance-dashboard   # and print the 
 
 ### MCP server
 
-`naab-lang mcp` serves governed execution over the Model Context Protocol on stdio, with the tools `naab_lease`, `naab_propose`, `naab_commit`, `naab_run` and `naab_verify_attestation`. No user code runs in the server process: every call runs in a fresh worker. See [docs/plan-mcp-service.md](docs/plan-mcp-service.md).
+`naab-lang mcp` serves governed execution over the Model Context Protocol on stdio, with the tools `naab_lease`, `naab_propose`, `naab_commit`, `naab_run` and `naab_verify_attestation`. No user code runs in the server process: every call runs in a fresh worker. It is not available on Windows yet. See [docs/plan-mcp-service.md](docs/plan-mcp-service.md).
 
 ### Polyglot blocks
 

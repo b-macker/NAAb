@@ -783,7 +783,7 @@ else
         '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"readme-claims","version":"1"}}}' \
         '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
         '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-        | timeout 30 "$NAAB" mcp 2>/dev/null \
+        | timeout 30 "$NAAB" mcp 2>"$D/mcp.err" \
         | python3 -c '
 import json, sys
 for line in sys.stdin:
@@ -795,8 +795,14 @@ for line in sys.stdin:
         for t in m.get("result", {}).get("tools", []):
             print(t.get("name"))
 ' | tr -d '\r' | sort -u)
-    if [ -z "$BIN_TOOLS" ]; then
-        fail "RC-16" "the MCP server listed no tools"
+    # The server is POSIX-only for now (mcp_server.cpp, _WIN32 branch), and
+    # the README says so; a build that says it has no server measures nothing.
+    if [ -z "$BIN_TOOLS" ] && grep -qF 'is not available on this platform' "$D/mcp.err"; then
+        if readme_says "RC-16" 'not available on Windows yet'; then
+            unm "RC-16" "naab-lang mcp is not available on this platform, as the README says"
+        fi
+    elif [ -z "$BIN_TOOLS" ]; then
+        fail "RC-16" "the MCP server listed no tools" "$(head -2 "$D/mcp.err")"
     elif [ "$DOC_TOOLS" = "$BIN_TOOLS" ]; then
         pass "RC-16" "naab-lang mcp lists exactly the $(grep -c . <<<"$DOC_TOOLS") tools the README names"
     else
