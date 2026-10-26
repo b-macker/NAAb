@@ -814,6 +814,20 @@ else
     echo "  test_flag_position.sh: not found, skipping"
 fi
 
+# Every CLI option main.cpp parses is classified against govern.json's policy
+# (Bundle 1 item 1.6).
+FLAGPOLICY_SCRIPT="tests/cli/test_flag_policy.sh"
+if [ -f "$FLAGPOLICY_SCRIPT" ]; then
+    if run_shell_test "$FLAGPOLICY_SCRIPT" 2>&1; then
+        echo "  test_flag_policy.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_flag_policy.sh")
+    fi
+else
+    echo "  test_flag_policy.sh: not found, skipping"
+fi
+
 # --- Multi-Agent Governance Integration Tests ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
