@@ -120,6 +120,13 @@ int run(int argc, char** argv) {
 '''
 
 
+def _out(line: str) -> None:
+    """Write one line as bytes. print() writes "\r\n" on Windows, and a CR on
+    every option made test_flag_policy.sh read each one as unclassified AND
+    stale (build-windows, a0d60fc1; FC-09). ASCII, as FC-08 requires."""
+    sys.stdout.buffer.write((line + "\n").encode("ascii", "replace"))
+
+
 def self_test() -> int:
     """Positive control: the extractor finds a planted literal and excludes
     every literal that lives only in a comment. Returns the failure count."""
@@ -139,9 +146,9 @@ def self_test() -> int:
     if not found:
         failures.append("extractor found nothing on the fixture")
     for f in failures:
-        print("self-test FAIL: %s" % f)
-    print("self-test failures: %d" % len(failures))
-    print("self-test extracted: %s" % " ".join(found))
+        _out("self-test FAIL: %s" % f)
+    _out("self-test failures: %d" % len(failures))
+    _out("self-test extracted: %s" % " ".join(found))
     return len(failures)
 
 
@@ -154,7 +161,7 @@ def main(argv) -> int:
     # extract: source on stdin (keeps a native Windows python off MSYS paths).
     src = sys.stdin.buffer.read().decode("utf-8", "replace")
     for opt in extract(src):
-        print(opt)
+        _out(opt)
     return 0
 
 

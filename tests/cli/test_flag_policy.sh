@@ -36,6 +36,18 @@
 #   FC-07  NEGATIVE CONTROL: FC-04's grep is load-bearing -- a fabricated
 #          function name is reported absent from main.cpp
 #   FC-08  the tool output is ASCII
+#   FC-09  the extraction carries no CR even when Python's text stdout writes
+#          "\r\n" (Windows does; Linux reproduces it with
+#          sys.stdout.reconfigure). build-windows failed FC-02 and FC-03 for
+#          every option at a0d60fc1 because print() ended each one in a CR
+#          that the policy file's first column lacks. FC-09c is its control:
+#          the same route does put a CR on a plain print().
+#   FC-09b the suite's own normalisation (norm_list) removes a CR, so a CR
+#          that still reaches it cannot fail every option again
+#
+# Kill table (each mutant applied by hand, this suite run):
+#   extract writes with print() again          FC-09
+#   norm_list without enc_strip_cr             FC-09b
 # ============================================================
 set -uo pipefail
 
@@ -64,7 +76,7 @@ for f in "$TOOL" "$DATA" "$MAIN_CPP"; do
 done
 
 # --- FC-01: extractor self-test (positive control) --------------------------
-ST="$(python3 "$TOOL" self-test 2>&1)"; ST_RC=$?
+ST="$(python3 "$TOOL" self-test 2>&1 | enc_strip_cr)"; ST_RC=$?
 if [ "$ST_RC" -eq 0 ] && grep -qx 'self-test failures: 0' <<<"$ST"; then
     ok "FC-01" "extractor self-test passes (planted found, comment-only excluded)"
 else
@@ -76,8 +88,12 @@ fi
 # Windows python never opens an MSYS path). Both are sorted in C-locale (byte)
 # order -- the tool sorts in Python codepoint order, and `comm` demands the two
 # inputs share one collation, which only LC_ALL=C guarantees across locales.
-CLASSIFIED="$(grep -v '^#' "$DATA" | grep -v '^[[:space:]]*$' | cut -f1 | LC_ALL=C sort -u)"
-PARSED="$(python3 "$TOOL" extract < "$MAIN_CPP" | LC_ALL=C sort -u)"
+# norm_list also drops any CR: the tool writes bytes, and a CR that reaches
+# here means some handle is still in text mode (FC-09/FC-09b).
+norm_list() { enc_strip_cr | LC_ALL=C sort -u; }
+CLASSIFIED="$(grep -v '^#' "$DATA" | grep -v '^[[:space:]]*$' | cut -f1 | norm_list)"
+PARSED_RAW="$(python3 "$TOOL" extract < "$MAIN_CPP")"
+PARSED="$(printf '%s\n' "$PARSED_RAW" | norm_list)"
 
 # --- FC-02: no parsed option is unclassified --------------------------------
 UNCLASSIFIED="$(LC_ALL=C comm -23 <(printf '%s\n' "$PARSED") <(printf '%s\n' "$CLASSIFIED") | grep -v '^$')"
@@ -146,7 +162,7 @@ fi
 # FC-02's comparison provably CAN fire on a new option.
 PLANT='--zzz-flag-policy-probe'
 PLANTED_SRC="$(printf '%s\n    } else if (arg == "%s") { probe = true;\n' "$MAIN_SRC" "$PLANT")"
-PROBE_OUT="$(printf '%s' "$PLANTED_SRC" | python3 "$TOOL" extract)"
+PROBE_OUT="$(printf '%s' "$PLANTED_SRC" | python3 "$TOOL" extract | enc_strip_cr)"
 if grep -qx -- "$PLANT" <<<"$PROBE_OUT" && ! grep -qx -- "$PLANT" <<<"$CLASSIFIED"; then
     ok "FC-06" "control: a planted option is extracted and would fail FC-02"
 else
@@ -159,6 +175,44 @@ if grep -qF -- "$FAKE_FN" <<<"$MAIN_SRC"; then
     bad "FC-07" "control failed: a fabricated function name was found in main.cpp" ""
 else
     ok "FC-07" "control: a fabricated function name is reported absent (FC-04's grep is load-bearing)"
+fi
+
+# --- FC-09: no CR in the extraction, even with "\r\n" text stdout ------------
+# The tool is run as Windows runs it: Python's text stdout translating "\n" to
+# "\r\n". FC-09c first shows that this route puts a CR on a plain print(), so
+# an FC-09 pass is not an artefact of a route that never writes one.
+CRLF_PRELUDE='import runpy, sys; sys.stdout.reconfigure(newline="\r\n")'
+CTRL="$(python3 -c "$CRLF_PRELUDE"'; print("x")' 2>&1)"
+if [[ "$CTRL" == *$'\r'* ]]; then
+    ok "FC-09c" "control: a print() under \"\\r\\n\" text stdout ends in a CR"
+    CRLF_RUN="$(python3 -c "$CRLF_PRELUDE"'; t = sys.argv[1]; sys.argv = [t, "extract"]; runpy.run_path(t, run_name="__main__")' "$TOOL" < "$MAIN_CPP")"
+    if [ -z "$CRLF_RUN" ]; then
+        bad "FC-09" "the extractor printed nothing under \"\\r\\n\" text stdout -- broken probe, not a result" ""
+    elif [[ "$CRLF_RUN" == *$'\r'* ]]; then
+        bad "FC-09" "the extraction carries a CR under \"\\r\\n\" text stdout (Windows): every option would read unclassified and stale" "$(printf '%s' "$CRLF_RUN" | head -3 | od -c | head -4)"
+    elif [ "$CRLF_RUN" != "$PARSED_RAW" ]; then
+        bad "FC-09" "the extraction under \"\\r\\n\" text stdout differs from the plain run" ""
+    else
+        ok "FC-09" "the extraction carries no CR under \"\\r\\n\" text stdout"
+    fi
+else
+    unm "FC-09c" "this python cannot reconfigure stdout to \"\\r\\n\" -- FC-09 not measured"
+fi
+
+# --- FC-09b: the suite's own normalisation removes a CR ----------------------
+# Built in bash, not sed: under MSYS a text tool may itself drop the CR.
+WITH_CR="${PARSED_RAW//$'\n'/$'\r\n'}"$'\r'
+if [[ "$WITH_CR" != *$'\r'* ]]; then
+    unm "FC-09b" "could not build a CR-laden copy of the extraction here"
+else
+    # Against PARSED, not flag_policy.txt, so only the CR handling is judged
+    # here; an unclassified option is FC-02's to report.
+    CR_LEFT="$(LC_ALL=C comm -3 <(printf '%s\n' "$WITH_CR" | norm_list) <(printf '%s\n' "$PARSED") | grep -v '^$')"
+    if [ -z "$CR_LEFT" ]; then
+        ok "FC-09b" "a CR on every extracted option normalises to the same option list"
+    else
+        bad "FC-09b" "a CR on the extracted options breaks the comparison (norm_list does not strip it)" "$(printf '%s' "$CR_LEFT" | head -3 | od -c | head -4)"
+    fi
 fi
 
 # --- FC-08: ASCII -----------------------------------------------------------
