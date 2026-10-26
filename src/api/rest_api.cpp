@@ -226,8 +226,8 @@ public:
                     {"exit_code", exit_code}
                 };
                 if (w.out_truncated) response["output_truncated"] = true;
-#endif
                 res.set_content(response.dump(2), "application/json");
+#endif
 
             } catch (const json::exception& e) {
                 res.status = 400;
