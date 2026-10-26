@@ -9,9 +9,11 @@
 // value and exited 0, while the same code as a file was a HARD block (exit 3).
 // The REPL can neither apply such a config nor report under it, so it does not
 // start where one is enforced or audited (owner's decision 2026-10-26) and
-// points to `naab-lang run`. Beside mode off, or with no govern.json found, it
-// runs as before. --no-governance changes nothing here: it waives only the
-// requirement that a config be found.
+// points to `naab-lang run`. A govern.json that is found and does not load (a
+// parse error, an invalid value) refuses it too, with exit 4, as the run path
+// does. Beside mode off, or with no govern.json found, it runs as before.
+// --no-governance changes nothing here: it waives only the requirement that a
+// config be found.
 #include "naab/governance.h"
 #include <cstdio>
 #include <filesystem>
@@ -38,6 +40,18 @@ inline int refuseBesideGovernance() {
             "  Execution is blocked. Only the project owner can authorize changes.\n");
         fflush(nullptr);
         return 3;
+    }
+    if (!loaded && gov.getLastError() != "not_found") {
+        // A config was found and could not be loaded (a parse error, an invalid
+        // value): the run path refuses with exit 4 and runs nothing. Starting
+        // here instead would run code beside a policy nobody could read.
+        // discoverAndLoad() has already printed why.
+        fprintf(stderr,
+            "Error: the REPL cannot run beside a govern.json that does not load\n\n"
+            "  Help:\n"
+            "  - Fix the configuration error above. Nothing was run.\n");
+        fflush(nullptr);
+        return 4;
     }
     if (!loaded) return 0;
     using governance::GovernanceMode;

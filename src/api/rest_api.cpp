@@ -446,7 +446,7 @@ public:
                 naab::governance::GovernanceEngine engine;
 
                 // Always use server-side governance config — never accept client-supplied config
-                engine.discoverAndLoad(std::filesystem::current_path().string());
+                const bool config_ok = engine.discoverAndLoad(std::filesystem::current_path().string());
 
                 // Refuse rather than answer "blocked": false for a request that was
                 // never governed. discoverAndLoad() is best-effort: with no config
@@ -467,6 +467,19 @@ public:
                     res.status = 400;
                     res.set_content(json{
                         {"error", "No governance config"},
+                        {"status", "error"}
+                    }.dump(2), "application/json");
+                    return;
+                }
+                // A config that was found and did not load (a parse error, an
+                // unresolvable extends, a failed signature) is the same case: the
+                // checks would run against nothing. Discovery records the
+                // directory before it loads, so the test above does not see it
+                // (A84; measured before this: 200 with "blocked": false).
+                if (!config_ok) {
+                    res.status = 400;
+                    res.set_content(json{
+                        {"error", "Governance config could not be loaded"},
                         {"status", "error"}
                     }.dump(2), "application/json");
                     return;

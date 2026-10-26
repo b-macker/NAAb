@@ -1820,6 +1820,19 @@ else
     echo "  test_vm_polyglot_audit.sh: not found, skipping"
 fi
 
+# --- a govern.json that is found and does not load refuses the run (A84) ---
+MALCFG_SCRIPT="tests/cli/test_malformed_config.sh"
+if [ -f "$MALCFG_SCRIPT" ]; then
+    if run_shell_test "$MALCFG_SCRIPT" 2>&1; then
+        echo "  test_malformed_config.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_malformed_config.sh")
+    fi
+else
+    echo "  test_malformed_config.sh: not found, skipping"
+fi
+
 # --- naab-gov check: one output shape for both verdicts ---
 # The JSON builder in cmdCheck was reachable only on a PASS; a HARD block threw
 # past it to main()'s plain-text handler. Exit codes were always right, so this

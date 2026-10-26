@@ -57,11 +57,16 @@ ok()  { PASS=$((PASS+1)); echo "  PASS [$1] $2"; }
 bad() { FAIL=$((FAIL+1)); echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && printf '%s\n' "$3" | head -8 | sed 's/^/       | /'; }
 unm() { UNM=$((UNM+1)); echo "  UNMEASURABLE [$1] $2"; }
 
+# An unsigned govern.json with a key in the trust store is an INTEGRITY BLOCK:
+# isolate the store so the result does not depend on this machine's keys.
+source "$REPO/tests/helpers/trust_setup.sh"
+setup_isolated_trust
 W="$(mktemp -d "${TMPDIR:-/tmp}/naab-restw-XXXXXX")"
 PIDS=()
 cleanup() {
     for p in "${PIDS[@]}"; do kill "$p" 2>/dev/null; wait "$p" 2>/dev/null; done
     rm -rf "$W"
+    teardown_isolated_trust
 }
 trap cleanup EXIT
 

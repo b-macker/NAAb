@@ -57,7 +57,12 @@ W="$(mktemp -d)"
 cleanup() { teardown_isolated_trust; rm -rf "$W"; }
 trap cleanup EXIT
 cd "$W"
-echo '{ "governance": { "version": "1.0", "mode": "audit" } }' > govern.json
+# Mode off: the REPL refuses to start beside a config in mode enforce or audit
+# (it loads no govern.json, so it could not apply one -- A80). The REPL never
+# read this file; it is here so the B-01 run finds a config. `mode` is read at
+# the top level only: the earlier `{"governance": {"mode": "audit"}}` form was
+# mode enforce by default.
+echo '{ "version": "1.0", "mode": "off" }' > govern.json
 
 # --- usability pre-check: did the REPL actually start? ---
 # The REPL is `naab-lang` with NO subcommand. Anything else prints usage text,

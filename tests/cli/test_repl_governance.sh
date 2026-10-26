@@ -21,10 +21,14 @@
 #   RG-08   the standalone naab-repl binaries refuse too (UNMEASURABLE if
 #           not built)
 #   RG-09   the refusal says what to run instead
+#   RG-10   a govern.json that does not parse: refused, exit 4, as the run
+#           path refuses it (RG-10b: an empty file; RG-10c CONTROL: a file run
+#           there exits 4 too, so the arm compares like with like)
 #
 # Kill table (each mutant rebuilt, this suite run):
-#   gate call removed from naab::repl::run()    RG-01/01b/02/05/06/07/09
+#   gate call removed from naab::repl::run()    RG-01/01b/02/05/06/07/09/10/10b
 #   audit allowed (enforce only)                RG-02
+#   a config that fails to load allowed         RG-10/10b
 # ============================================================
 set -uo pipefail
 
@@ -42,8 +46,12 @@ ok()  { PASS=$((PASS+1)); echo "  PASS [$1] $2"; }
 bad() { FAIL=$((FAIL+1)); echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && printf '%s\n' "$3" | head -8 | sed 's/^/       | /'; }
 unm() { UNM=$((UNM+1)); echo "  UNMEASURABLE [$1] $2"; }
 
+# An unsigned govern.json with a key in the trust store is an INTEGRITY BLOCK:
+# isolate the store so the result does not depend on this machine's keys.
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
 W="$(mktemp -d "${TMPDIR:-/tmp}/naab-replgov-XXXXXX")"
-trap 'rm -rf "$W"' EXIT
+trap 'teardown_isolated_trust; rm -rf "$W"' EXIT
 
 # A directory with no govern.json anywhere above it is needed for RG-04.
 has_config_above() {
@@ -60,6 +68,8 @@ mk enforce '{"version":"5.0","mode":"enforce","security":{"sandbox_level":"eleva
 mk audit   '{"version":"5.0","mode":"audit"}'
 mk off     '{"version":"5.0","mode":"off"}'
 mk none    ''
+mk broken  '{ "mode": "enforce", '
+mkdir -p "$W/empty"; : > "$W/empty/govern.json"
 mkdir -p "$W/enforce/sub/deeper"
 
 CODE='print("REPL-" + string(6 * 7))'
@@ -128,6 +138,23 @@ if grep -q 'naab-lang run' <<<"$RG01_OUT" && grep -q 'Help:' <<<"$RG01_OUT" && g
     ok "RG-09" "the refusal names the mode and says to run the code as a file"
 else
     bad "RG-09" "the refusal should name the mode and point to naab-lang run" "$RG01_OUT"
+fi
+
+# A config found but unreadable: the run path refuses it (exit 4), so the REPL
+# must not start there either -- it would run code beside a policy no engine
+# could read. Measured before the fix: the REPL ran the code, exit 0.
+repl broken "$CODE"
+if refused; then ok "RG-10" "a govern.json that does not parse: the REPL is refused (exit 4, nothing ran)"
+else bad "RG-10" "the REPL should refuse beside a govern.json that does not load" "rc=$RC $OUT"; fi
+repl empty "$CODE"
+if refused; then ok "RG-10b" "an empty govern.json: the REPL is refused the same way"
+else bad "RG-10b" "the REPL should refuse beside an empty govern.json" "rc=$RC $OUT"; fi
+printf '%s\n' 'main { print("FILE-RAN") }' > "$W/broken/p.naab"
+FOUT="$(cd "$W/broken" && timeout 20 "$NAAB" run p.naab 2>&1)"; FRC=$?
+if [ "$FRC" = 4 ] && ! grep -q 'FILE-RAN' <<<"$FOUT"; then
+    ok "RG-10c" "control: a file run beside the same config is refused with exit 4 too"
+else
+    bad "RG-10c" "the run path should refuse a govern.json that does not parse" "rc=$FRC $FOUT"
 fi
 
 echo ""

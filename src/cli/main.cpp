@@ -1665,6 +1665,25 @@ int main(int argc, char** argv) {
         auto gov_script_dir = gov_abs_file.parent_path();
         bool gov_loaded = shared_governance.discoverAndLoad(gov_script_dir.string());
 
+        // A govern.json that is FOUND and does not load (a parse error, an empty
+        // file, an unresolvable extends, an array over the cap) refuses the run
+        // on either engine, whatever the flags (A84). --no-governance waives only
+        // a config that is not found (A78). A load failure used to read as "not
+        // found" -- b998cf26 turned the parse error's throw into `return false`
+        // to stop a crash -- so the refusal named no govern.json at all, and
+        // --no-governance ran the program with none of the policy beside it.
+        // discoverAndLoad() has printed what failed; an integrity failure keeps
+        // its own exit 3 below.
+        if (!gov_loaded && !naab::governance::g_governance_hard_block &&
+            shared_governance.getLastError() != "not_found") {
+            fprintf(stderr,
+                "Error: govern.json was found but could not be loaded\n\n"
+                "  Help:\n"
+                "  - Fix the configuration error above. Nothing was run.\n");
+            fflush(nullptr);
+            _exit(4);
+        }
+
         // Replay the caller's earlier events before anything runs. Unreadable
         // history refuses the run: running without it would under-detect.
         if (!event_seed.empty() && gov_loaded &&
