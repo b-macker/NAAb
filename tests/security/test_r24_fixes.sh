@@ -70,6 +70,18 @@ if [[ $api_up -eq 0 ]]; then
     fail "V-API-004: REST API failed to start on port $PORT" "$(tail -5 "$WORK_DIR/api.log")"
     # Skip the rest of the API tests
 else
+  # On Windows /execute answers 501 by design: each request needs a POSIX
+  # worker process (tests/helpers/rest_platform.sh). The documented answer is
+  # checked before the arms are reported UNMEASURABLE, so a server broken some
+  # other way still fails them.
+  source "$SCRIPT_DIR/../helpers/rest_platform.sh"
+  PROBE_CODE=$(curl -s -o "$WORK_DIR/probe.json" -w '%{http_code}' --max-time 5 \
+      -H "Authorization: Bearer r24test" -H "Content-Type: application/json" \
+      -d '{"code":"main { }"}' "http://127.0.0.1:$PORT/api/v1/execute" 2>>"$WORK_DIR/api.log")
+  if rest_execute_unavailable && rest_execute_is_501 "$PROBE_CODE" "$(cat "$WORK_DIR/probe.json" 2>/dev/null)"; then
+    skip "V-API-004-T1: /execute runs no program on this platform (501, by design) -- UNMEASURABLE"
+    skip "V-API-004-T2: /execute runs no program on this platform (501, by design) -- UNMEASURABLE"
+  else
     # Test 1: infinite loop must NOT hang the worker — should return within ~3s
     START=$(date +%s)
     HTTP_CODE=$(curl -s -o "$WORK_DIR/loop.json" -w '%{http_code}' \
@@ -108,6 +120,7 @@ else
     else
         fail "V-API-004-T2: fast script failed (http=$HTTP_CODE)" "$(cat "$WORK_DIR/fast.json" 2>/dev/null)"
     fi
+  fi
 
     kill "$SERVER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true

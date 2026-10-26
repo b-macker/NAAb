@@ -5,9 +5,11 @@
 
 set -euo pipefail
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
-PASS=0; FAIL=0
+PASS=0; FAIL=0; UNM=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+unm()  { echo "  SKIP: $1 -- UNMEASURABLE"; UNM=$((UNM + 1)); }
+NAAB_ABS="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"   # NAAB may be relative
 
 WORKDIR="${HOME}/.naab/test_taint_array_$$"
 mkdir -p "$WORKDIR"
@@ -33,6 +35,16 @@ cat > "$WORKDIR/govern.json" << 'EOF'
 }
 EOF
 
+# The taint source is a <<python>> block's value. Where a python block returns
+# no value (no embedded Python: every Windows build), no tainted value exists
+# and no arm below can tell propagation from its absence -- T4, which expects
+# NO block, would pass for nothing. Probe it under mode off first.
+mkdir -p "$WORKDIR/probe"; echo '{ "mode": "off" }' > "$WORKDIR/probe/govern.json"
+printf 'main {\n  let r = <<python\n"PYVAL"\n>>\n  print("PY=" + string(r))\n}\n' > "$WORKDIR/probe/p.naab"
+probe=$(cd "$WORKDIR/probe" && "$NAAB_ABS" p.naab 2>&1) || true
+PY_OK=1; grep -q 'PY=PYVAL' <<<"$probe" || PY_OK=0
+[ "$PY_OK" = 1 ] || echo "  NOTE: a <<python>> block returns no value here (${probe:0:120}); the taint arms are UNMEASURABLE"
+
 # ---------------------------------------------------------------------------
 # T1: array.map_fn on tainted data → result must remain tainted
 # ---------------------------------------------------------------------------
@@ -52,7 +64,9 @@ main {
 EOF
 
 out=$("$NAAB" "$WORKDIR/test_map.naab" 2>&1) || true
-if grep <<<"$out" -qiE "Taint tracking violation|sink_violation"; then
+if [ "$PY_OK" = 0 ]; then
+    unm "T1 array.map_fn: no python value to taint here"
+elif grep <<<"$out" -qiE "Taint tracking violation|sink_violation"; then
     ok "file.write blocked — taint propagated through array.map_fn"
 else
     fail "file.write NOT blocked — taint lost through array.map_fn: ${out:0:200}"
@@ -78,7 +92,9 @@ main {
 EOF
 
 out=$("$NAAB" "$WORKDIR/test_filter.naab" 2>&1) || true
-if grep <<<"$out" -qiE "Taint tracking violation|sink_violation"; then
+if [ "$PY_OK" = 0 ]; then
+    unm "T2 array.filter_fn: no python value to taint here"
+elif grep <<<"$out" -qiE "Taint tracking violation|sink_violation"; then
     ok "file.write blocked — taint propagated through array.filter_fn"
 else
     fail "file.write NOT blocked — taint lost through array.filter_fn: ${out:0:200}"
@@ -104,7 +120,9 @@ main {
 EOF
 
 out=$("$NAAB" "$WORKDIR/test_reduce.naab" 2>&1) || true
-if grep <<<"$out" -qiE "Taint tracking violation|sink_violation"; then
+if [ "$PY_OK" = 0 ]; then
+    unm "T3 array.reduce_fn: no python value to taint here"
+elif grep <<<"$out" -qiE "Taint tracking violation|sink_violation"; then
     ok "file.write blocked — taint propagated through array.reduce_fn"
 else
     fail "file.write NOT blocked — taint lost through array.reduce_fn: ${out:0:200}"
@@ -143,7 +161,9 @@ EOF
 out=$("$NAAB" "$WORKDIR/test_sanitized.naab" 2>&1) || ec=$?
 ec=${ec:-0}
 # After sanitization, file.write should succeed (or fail for unrelated reasons like missing dir)
-if grep <<<"$out" -qi "taint.*block\|tainted.*sink"; then
+if [ "$PY_OK" = 0 ]; then
+    unm "T4 sanitized data: no python value to taint here, so no block proves nothing"
+elif grep <<<"$out" -qi "taint.*block\|tainted.*sink"; then
     fail "file.write blocked despite sanitization — false positive"
 else
     ok "sanitized data passes through without taint block"
@@ -165,11 +185,12 @@ else
 fi
 mkdir -p "$WORKDIR/aud/data"; cp "$WORKDIR/test_map.naab" "$WORKDIR/aud/"
 sed 's/"mode": "enforce"/"mode": "audit"/' "$WORKDIR/govern.json" > "$WORKDIR/aud/govern.json"
-NAAB_ABS="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"   # NAAB may be relative
 out=$(cd "$WORKDIR/aud" && "$NAAB_ABS" --tree-walk test_map.naab 2>&1) || true
 # (the tree-walker's expression-path check ends the run even under audit,
 # docs/open-investigations.md A83(e): the violation, recorded or not, is the claim)
-if grep <<<"$out" -qiE "Taint tracking violation|sink_violation"; then
+if [ "$PY_OK" = 0 ]; then
+    unm "T5 tree-walk (audit): no python value to taint here"
+elif grep <<<"$out" -qiE "Taint tracking violation|sink_violation"; then
     ok "tree-walk (audit): taint propagated through array.map_fn is recorded at the sink"
 else
     fail "tree-walk (audit): taint lost through array.map_fn: ${out:0:200}"
@@ -177,5 +198,5 @@ fi
 echo ""
 
 TOTAL=$((PASS + FAIL))
-echo "Results: ${PASS}/${TOTAL} passed"
+echo "Results: ${PASS}/${TOTAL} passed, ${UNM} unmeasurable"
 [[ "$FAIL" -eq 0 ]]

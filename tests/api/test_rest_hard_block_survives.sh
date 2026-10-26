@@ -73,6 +73,20 @@ execute() {  # execute NAAB_SOURCE -> response body
 }
 
 echo "=== R: a HARD block fails the request, not the server ==="
+# On Windows /execute answers 501 by design: each request needs a POSIX worker
+# process (tests/helpers/rest_platform.sh). Confirm that documented answer,
+# then report the arms UNMEASURABLE -- a server broken some other way still
+# fails them.
+source "$REPO/tests/helpers/rest_platform.sh"
+if rest_execute_unavailable; then
+    probe_body="$(curl -s -w '\n%{http_code}' -X POST "http://127.0.0.1:$PORT/api/v1/execute" \
+        -H "Authorization: Bearer k-test" -H "Content-Type: application/json" -d '{"code":"main { }"}' 2>&1)"
+    probe_code="${probe_body##*$'\n'}"
+    if rest_execute_is_501 "$probe_code" "$probe_body"; then
+        echo "  SKIP [R-01..R-03] /execute runs no program on this platform (501, by design) -- UNMEASURABLE"
+        exit 0
+    fi
+fi
 resp="$(execute 'use file
 main {
     let s = file.read("govern.json")

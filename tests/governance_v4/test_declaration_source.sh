@@ -211,6 +211,18 @@ else
     done
     [ "$up" -eq 1 ] || { rest_ok=0; why="API server did not start: $(head -c 200 "$W/server.log")"; }
 fi
+# On Windows /execute answers 501 by design: each request needs a POSIX worker
+# process (tests/helpers/rest_platform.sh). The documented answer is checked
+# before the REST arms are reported UNMEASURABLE, so a server broken some other
+# way still fails them.
+source "$SCRIPT_DIR/../helpers/rest_platform.sh"
+if [ "$rest_ok" -eq 1 ] && rest_execute_unavailable; then
+    probe_body="$(curl -s -w '\n%{http_code}' -X POST "http://127.0.0.1:$PORT/api/v1/execute" \
+        -H "Authorization: Bearer k-ds" -H "Content-Type: application/json" -d '{"code":"main { }"}' 2>&1)"
+    if rest_execute_is_501 "${probe_body##*$'\n'}" "$probe_body"; then
+        rest_ok=0; why="/execute runs no program on this platform (501, by design)"
+    fi
+fi
 
 # execute <source>: sets REXIT (exit_code, or "?") and RRAN (yes/no)
 execute() {

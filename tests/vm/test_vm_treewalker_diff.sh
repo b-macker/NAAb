@@ -49,7 +49,7 @@ setup_isolated_trust
 "$NAAB" --trust-key "$TMPBASE/test-key.pem.pub" 2>/dev/null
 SIGNING_KEY="$TMPBASE/test-key.pem"
 
-PASS=0; FAIL=0; KNOWN=0
+PASS=0; FAIL=0; KNOWN=0; UNM=0
 
 cleanup() { teardown_isolated_trust; rm -rf "$TMPBASE"; }
 trap cleanup EXIT
@@ -91,6 +91,15 @@ run_diff() {
     TW_OUT=$(cd "$dir" && "$NAAB" --tree-walk test.naab 2>&1) && TW_RC=$? || TW_RC=$?
 
     local want; want="$(expected_vm "$id")"
+    # An arm whose language has no executor on this platform (Windows has no
+    # <<shell>>) measures nothing: say so rather than read its exit as a verdict.
+    # Before the tree-walk refusal both engines failed alike there and the
+    # comparison read "same".
+    if [ -n "$want" ] && [ "$VM_RC" != "$want" ] && grep -q 'No executor found for language' <<<"$VM_OUT"; then
+        echo "  SKIP [$id] UNMEASURABLE: no executor for this arm's language here -- ${VM_OUT:0:120}"
+        UNM=$((UNM + 1))
+        return
+    fi
     if [ -n "$want" ]; then
         if [ "$VM_RC" = "$want" ] && tw_refused "$TW_RC" "$TW_OUT"; then
             echo "  PASS [$id] VM=$VM_RC (expected $want); --tree-walk refused under enforce (TW=$TW_RC)"
@@ -436,8 +445,8 @@ main {
 }"
 
 echo ""
-TOTAL=$((PASS + FAIL + KNOWN))
-echo "=== Differential Results: $PASS passed, $FAIL failed, $KNOWN known divergences (of $TOTAL tests) ==="
+TOTAL=$((PASS + FAIL + KNOWN + UNM))
+echo "=== Differential Results: $PASS passed, $FAIL failed, $KNOWN known divergences, $UNM unmeasurable (of $TOTAL tests) ==="
 
 if [ $KNOWN -gt 0 ]; then
     echo ""
