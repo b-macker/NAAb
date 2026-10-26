@@ -77,14 +77,20 @@ T="$(mktemp -d)"
 cleanup() { stop_stub 2>/dev/null; teardown_isolated_trust; [ -n "${KEEP_TMP:-}" ] || rm -rf "$T"; }
 trap cleanup EXIT
 printf '{"version":"4.0","mode":"enforce","security":{"sandbox_level":"elevated"}}\n' > "$T/govern.json"
+# The tree-walker, the oracle here, is refused under enforce (CT-TW), so its
+# runs are in $T/tw beside the same config in mode audit: these arms are about
+# where an exception lands, and audit keeps the checks the taint arms read.
+mkdir -p "$T/tw"
+printf '{"version":"4.0","mode":"audit","security":{"sandbox_level":"elevated"}}\n' > "$T/tw/govern.json"
 
-# run NAME ENGINE PROGRAM -> OUT, RC   (in $T, under $T/govern.json)
+# run NAME ENGINE PROGRAM -> OUT, RC   (in $T, under $T/govern.json; tw: $T/tw)
 # Every capture drops CR: a native Windows build may end its lines in CRLF, and
 # the arms match whole lines (grep -x).
 run() {
-    printf '%s\n' "$3" > "$T/$1.naab"
+    local d="$T"; [ "$2" = tw ] && d="$T/tw"
+    printf '%s\n' "$3" > "$d/$1.naab"
     local a=("$NAAB" run); [ "$2" = tw ] && a+=(--tree-walk); a+=("$1.naab")
-    OUT="$(cd "$T" && timeout 30s "${a[@]}" 2>&1)"; RC=$?; OUT="${OUT//$'\r'/}"
+    OUT="$(cd "$d" && timeout 30s "${a[@]}" 2>&1)"; RC=$?; OUT="${OUT//$'\r'/}"
 }
 show() { grep -v '^\[governance\] Loaded\|^-- Governance' <<<"$OUT" | head -4 | tr '\n' '|'; }
 
@@ -274,10 +280,13 @@ done
 TD="$T/taint"; mkdir -p "$TD"
 printf '%s\n' '{"version":"4.0","mode":"enforce","security":{"sandbox_level":"elevated"},
  "taint_tracking":{"enabled":true,"level":"advisory","sources":["env.get"],"sinks":["file.write"],"sanitizers":["sanitize_"]}}' > "$TD/govern.json"
+# the tree-walker beside an audit copy (it is refused under enforce)
+mkdir -p "$TD/tw"; sed 's/"mode":"enforce"/"mode":"audit"/' "$TD/govern.json" > "$TD/tw/govern.json"
 taint_run() { # NAME ENGINE BODY
-    printf 'use env\nuse file\nmain {\n    let s = env.get("A41_SRC")\n%s\n    print("DONE")\n}\n' "$3" > "$TD/$1.naab"
+    local d="$TD"; [ "$2" = tw ] && d="$TD/tw"
+    printf 'use env\nuse file\nmain {\n    let s = env.get("A41_SRC")\n%s\n    print("DONE")\n}\n' "$3" > "$d/$1.naab"
     local a=("$NAAB" run); [ "$2" = tw ] && a+=(--tree-walk); a+=("$1.naab")
-    OUT="$(cd "$TD" && A41_SRC=value timeout 30s "${a[@]}" 2>&1)"; RC=$?; OUT="${OUT//$'\r'/}"
+    OUT="$(cd "$d" && A41_SRC=value timeout 30s "${a[@]}" 2>&1)"; RC=$?; OUT="${OUT//$'\r'/}"
 }
 flagged() { grep -qiE 'sink_violation|Taint tracking violation' <<<"$OUT"; }
 for eng in vm tw; do
@@ -312,7 +321,16 @@ hard_run() { # NAME ENGINE BODY
     local a=("$NAAB" run); [ "$2" = tw ] && a+=(--tree-walk); a+=("$1.naab")
     OUT="$(cd "$HD" && timeout 30s "${a[@]}" 2>&1)"; RC=$?; OUT="${OUT//$'\r'/}"
 }
-for eng in vm tw; do
+# A HARD block needs enforce, where the tree-walker is refused: the VM measures
+# this, and CT-TW pins the refusal.
+source "$REPO/tests/helpers/tree_walk_refusal.sh"
+hard_run "c-tw" tw '    try { let s = file.read("secret.txt") } catch (e) { print("CAUGHT") }'
+if tw_refused "$RC" "$OUT" && ! grep -q 'CAUGHT\|^AFTER' <<<"$OUT"; then
+    ok "CT-TW" "under an enforce config --tree-walk is refused before it runs"
+else
+    bad "CT-TW" "--tree-walk ran under an enforce config (rc=$RC)" "$(show)"
+fi
+for eng in vm; do
     hard_run "c-$eng" "$eng" '    try { let s = file.read("secret.txt") } catch (e) { print("CAUGHT") }'
     if [ "$RC" -eq 3 ] && ! grep -q 'CAUGHT\|^AFTER' <<<"$OUT"; then
         ok "CT-17c/$eng" "control: the blocked read called directly is HARD (rc=3, not caught)"
@@ -351,11 +369,16 @@ printf '%s\n' '{"version":"4.0","mode":"enforce","security":{"sandbox_level":"el
    "a_thrower":{"must_produce":[{"args":[1],"expect":2}]},
    "b_wrong":{"must_produce":[{"args":[1],"expect":99}]}}}}' > "$CD/govern.json"
 printf '%s\n' 'fn a_thrower(x) { throw "contract-boom" }' 'fn b_wrong(x) { return x * 2 }' 'main { print("RAN") }' > "$CD/c.naab"
+# the tree-walker beside an audit copy (it is refused under enforce)
+mkdir -p "$CD/tw"; sed 's/"mode":"enforce"/"mode":"audit"/' "$CD/govern.json" > "$CD/tw/govern.json"; cp "$CD/c.naab" "$CD/tw/"
 for eng in vm tw; do
-    a=("$NAAB" run); [ "$eng" = tw ] && a+=(--tree-walk); a+=(c.naab)
-    OUT="$(cd "$CD" && timeout 30s "${a[@]}" 2>&1)"; RC=$?; OUT="${OUT//$'\r'/}"
+    a=("$NAAB" run); cdir="$CD"; [ "$eng" = tw ] && { a+=(--tree-walk); cdir="$CD/tw"; }; a+=(c.naab)
+    OUT="$(cd "$cdir" && timeout 30s "${a[@]}" 2>&1)"; RC=$?; OUT="${OUT//$'\r'/}"
+    # Under audit (the tree-walker) a finding prints its first line only, so
+    # "Got: 2" is the VM's half; both engines must test b_wrong after the throw.
+    got_ok=yes; [ "$eng" = vm ] && ! grep -q 'Got: 2' <<<"$OUT" && got_ok=no
     if [ "$RC" -eq 0 ] && grep -q "'a_thrower' threw an exception" <<<"$OUT" \
-       && grep -q "'b_wrong' returned wrong value" <<<"$OUT" && grep -q 'Got: 2' <<<"$OUT"; then
+       && grep -q "'b_wrong' returned wrong value" <<<"$OUT" && [ "$got_ok" = yes ]; then
         ok "CT-20/$eng" "after a throwing golden test, the next function is tested and reported (Got: 2)"
     else
         bad "CT-20/$eng" "contract tests after a throwing one (rc=$RC)" "$(show)"

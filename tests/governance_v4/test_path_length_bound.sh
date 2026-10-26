@@ -33,14 +33,15 @@
 #          perfectly.
 #   PB-03  BOUNDARY. A path just under the limit is NOT blocked. Distinguishes a
 #          real threshold from a check that rejects anything long.
-#   PB-04  ENGINE PARITY. The tree-walker must agree. checkPathAccess is shared,
-#          so a divergence here means the bound was added to a caller rather
-#          than to the check.
+#   PB-04  the tree-walker is refused under enforce (Bundle 2), so the path
+#          never reaches it. It used to check engine parity: checkPathAccess is
+#          shared, so a divergence meant the bound was in a caller.
 # ============================================================
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; }
@@ -131,12 +132,13 @@ else
         "exit 3 on ~7000 bytes, under the 8192 limit. The threshold is wrong, or the check rejects on something other than length."
 fi
 
-read -r EC4 _ <<<"$(timed huge.naab --tree-walk)"
-if [ "$EC4" = "3" ]; then
-    ok "PB-04" "ENGINE PARITY: tree-walker refuses it too"
+# PB-04 compared the tree-walker. Under enforce it is now refused before
+# anything runs (Bundle 2), so the oversized path never reaches it.
+OUT4="$(timeout 120 "$NAAB" --tree-walk huge.naab 2>&1)"; EC4=$?
+if tw_refused "$EC4" "$OUT4"; then
+    ok "PB-04" "the tree-walker is refused under enforce; the path never reaches it"
 else
-    bad "PB-04" "engines disagree on the oversized path" \
-        "VM exit $EC, tree-walk exit $EC4. checkPathAccess is shared, so a divergence means the bound landed in a caller rather than in the check."
+    bad "PB-04" "the tree-walker should be refused under enforce" "tree-walk exit $EC4"
 fi
 
 echo ""

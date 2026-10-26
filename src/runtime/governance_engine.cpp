@@ -6781,6 +6781,22 @@ void GovernanceEngine::setStartupOutputs(const StartupOutputs& o) {
     addGovernanceProtectedPaths(mr);
 }
 
+// The mode applyEnvironmentTo() would leave: an environment's "mode" key read
+// as it reads it, else the loaded mode.
+GovernanceMode GovernanceEngine::modeUnderEnvironment(const std::string& env_name) const {
+    const auto& r = rules();
+    GovernanceMode m = r.mode;
+    if (env_name.empty()) return m;
+    auto it = r.environments.find(env_name);
+    if (it == r.environments.end()) return m;
+    auto mk = it->second.find("mode");
+    if (mk == it->second.end()) return m;
+    if (mk->second == "enforce") m = GovernanceMode::ENFORCE;
+    else if (mk->second == "audit") m = GovernanceMode::AUDIT;
+    else if (mk->second == "off") m = GovernanceMode::OFF;
+    return m;
+}
+
 // Lays the environment env_name over target_rules. Returns false when the
 // rules define no such environment. Shared by applyEnvironment() at startup
 // and by every reload (applyStartupOverlays), which re-reads the environment

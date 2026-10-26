@@ -16,6 +16,11 @@
 # fix. UM-02 (--tree-walk) is the FIX: it failed before and passes now. Without
 # UM-02 the suite would be green against the half-fixed tree. UM-03 proves the
 # gate does not over-block a permitted `use` on the engine that was changed.
+#
+# Under enforce --tree-walk is refused before it runs (UM-02t), so the
+# tree-walker's arms run beside audit copies of the two configs: there the gate
+# is RECORDED ("AUDIT capabilities.filesystem: ... Filesystem access is not
+# allowed") rather than blocking, which is what the ungated path never printed.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$HERE/../../build/naab-lang"
@@ -49,14 +54,22 @@ if [ "$EC" = "3" ] && grep <<<"$OUT" -qi "Filesystem access is not allowed"; the
 else bad "UM-01" "VM path lost its gate" "exit $EC; $(echo "$OUT"|head -2)"; fi
 
 # THE FIX: the tree-walker reaches ModuleRegistry, which was ungated.
+source "$HERE/../helpers/tree_walk_refusal.sh"
 OUT=$(cd "$W" && cp deny.json govern.json && timeout 20 "$NAAB" --tree-walk probe.naab 2>&1); EC=$?
-if [ "$EC" != "0" ] && ! grep <<<"$OUT" -q "USED=USE_SECRET" && grep <<<"$OUT" -qi "Filesystem access is not allowed"; then
-    ok "UM-02" "FIX (--tree-walk): use module under mode:none is blocked (was USED=USE_SECRET / PASS / exit 0)"
+if tw_refused "$EC" "$OUT" && ! grep <<<"$OUT" -q "USED=USE_SECRET"; then
+    ok "UM-02t" "under the enforce config --tree-walk is refused before the module loads"
+else bad "UM-02t" "--tree-walk ran under an enforce config" "exit $EC; $(echo "$OUT"|head -2)"; fi
+
+sed 's/"mode":"enforce"/"mode":"audit"/' "$W/deny.json" > "$W/deny_audit.json"
+sed 's/"mode":"enforce"/"mode":"audit"/' "$W/allow.json" > "$W/allow_audit.json"
+OUT=$(cd "$W" && cp deny_audit.json govern.json && timeout 20 "$NAAB" --tree-walk probe.naab 2>&1); EC=$?
+if grep <<<"$OUT" -q "AUDIT capabilities.filesystem" && grep <<<"$OUT" -qi "Filesystem access is not allowed"; then
+    ok "UM-02" "FIX (--tree-walk, audit): use module under mode:none reaches the filesystem gate (it was ungated)"
 else bad "UM-02" "tree-walk still bypasses filesystem governance via ModuleRegistry" "exit $EC; $(echo "$OUT"|head -2)"; fi
 
-OUT=$(cd "$W" && cp allow.json govern.json && timeout 20 "$NAAB" --tree-walk probe.naab 2>&1); EC=$?
-if grep <<<"$OUT" -q "USED=USE_SECRET"; then
-    ok "UM-03" "CONTROL (--tree-walk): a permitted use module still works (no over-block on the changed engine)"
+OUT=$(cd "$W" && cp allow_audit.json govern.json && timeout 20 "$NAAB" --tree-walk probe.naab 2>&1); EC=$?
+if grep <<<"$OUT" -q "USED=USE_SECRET" && ! grep <<<"$OUT" -q "AUDIT capabilities.filesystem"; then
+    ok "UM-03" "CONTROL (--tree-walk, audit): a permitted use module works and records no filesystem violation"
 else bad "UM-03" "the fix over-blocks a permitted use on tree-walk" "exit $EC; $(echo "$OUT"|head -2)"; fi
 
 echo

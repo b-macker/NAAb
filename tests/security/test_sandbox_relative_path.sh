@@ -40,7 +40,8 @@
 #   SR-C1  CONTROL: "../outside.txt" is still a sandbox violation
 #   SR-C2  CONTROL: an absolute path outside the project is still refused
 #   SR-C3  CONTROL: "data/out.txt" (existing directory) keeps working
-# Each arm runs on both engines.
+# Each arm runs on the VM. The sandbox class is shared by both engines, and
+# under this enforce config --tree-walk is refused before it runs (SR-TW).
 # ============================================================
 set -uo pipefail
 
@@ -77,7 +78,16 @@ run() {
 
 # The harness must reach the sandbox at all: with the sandbox raised to
 # elevated the same refusal must vanish, or the C arms prove nothing.
-for eng in "" "--tree-walk"; do
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+run SR-TW --tree-walk '    file.write("out.txt", "hello")
+    print("WROTE")'
+if tw_refused "$RC" "$OUT" && [ ! -e "$P/out.txt" ]; then
+    ok "SR-TW" "under this enforce config --tree-walk is refused before the program runs"
+else
+    bad "SR-TW" "--tree-walk ran under an enforce config" "rc=$RC"
+fi
+
+for eng in ""; do
     tag="${eng:-vm}"; tag="${tag#--}"
 
     run SR-01 "$eng" '    file.write("out.txt", "hello")

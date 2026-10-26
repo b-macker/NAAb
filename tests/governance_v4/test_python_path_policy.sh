@@ -26,7 +26,7 @@
 #   PY-01  CONTROL: NAAb's file.read of the same path is HARD-blocked, so the
 #          path really is in the policy the Python arms are tested against
 #   PY-02  a read of a blocked path is denied (VM)
-#   PY-03  same on the tree-walker
+#   PY-03  the tree-walker is refused under enforce (Bundle 2)
 #   PY-04  an OBFUSCATED read (no literal open(, no `os.` token) is denied --
 #          the load-bearing arm: no source-text gate can see it
 #   PY-05  a write outside allowed_paths is denied and the file is not created
@@ -39,6 +39,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 
@@ -103,9 +104,11 @@ out=$(run t.naab)
 if grep -q 'R=DENIED' <<<"$out" && ! grep -q 'VAULT_CONTENT' <<<"$out"; then ok "PY-02" "a <<python>> read of a blocked path is denied (VM)"
 else bad "PY-02" "python read a blocked path (VM)" "$(grep -m2 -E 'R=' <<<"$out")"; fi
 
-out=$(run t.naab --tree-walk)
-if grep -q 'R=DENIED' <<<"$out" && ! grep -q 'VAULT_CONTENT' <<<"$out"; then ok "PY-03" "same on the tree-walker"
-else bad "PY-03" "python read a blocked path (tree-walk)" "$(grep -m2 -E 'R=' <<<"$out")"; fi
+# PY-03 ran this on the tree-walker; under enforce it is now refused before
+# anything runs (Bundle 2), so the block never reaches it.
+out=$(run t.naab --tree-walk); rc=$?
+if tw_refused "$rc" "$out" && ! grep -q 'VAULT_CONTENT' <<<"$out"; then ok "PY-03" "the tree-walker is refused under enforce; nothing was read"
+else bad "PY-03" "the tree-walker should be refused under enforce (rc=$rc)" "$(grep -m2 -E 'R=' <<<"$out")"; fi
 
 cat > "$W/o.naab" <<'EOF'
 main {

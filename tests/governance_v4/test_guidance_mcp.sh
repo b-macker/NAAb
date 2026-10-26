@@ -10,7 +10,8 @@
 # receives, so what the client SENT is observed, not inferred.
 #
 #   deliver   M-01/M-01t resources become sections; a pull delivers one (VM,
-#                        tree-walker); GUIDANCE_SOURCE_REFRESH type mcp ok
+#                        tree-walker under audit; M-TW: refused under enforce);
+#                        GUIDANCE_SOURCE_REFRESH type mcp ok
 #             M-08       a resource on the second page of a paginated list
 #             M-09       "resources" in govern.json: only those URIs are read,
 #                        and the server is not asked for its list
@@ -115,8 +116,8 @@ cfg() {
     if [[ "$top" == *'"filesystem"'* ]]; then :
     elif [[ "$top" == *'"capabilities": {'* ]]; then top="${top/'"capabilities": {'/'"capabilities": {'"$prot, "}"
     else top="\"capabilities\": {$prot}, $top"; fi
-    printf '{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"},\n "telemetry": {"enabled": true, "output_file": "tele.jsonl"},\n %s\n "guidance": {"sources": %s %s}}\n' \
-        "$top" "$2" "${4:-}" > "$1/govern.json"
+    printf '{"version": "5.0", "mode": "%s", "security": {"sandbox_level": "elevated"},\n "telemetry": {"enabled": true, "output_file": "tele.jsonl"},\n %s\n "guidance": {"sources": %s %s}}\n' \
+        "${CFG_MODE:-enforce}" "$top" "$2" "${4:-}" > "$1/govern.json"
 }
 run() {  # $1 dir, $2 engine, $3 program -> sets OUT, RC
     printf '%s\n' "$3" > "$1/p.naab"
@@ -135,9 +136,18 @@ sessions() { grep -c . "$1/sessions" 2>/dev/null || echo 0; }
 
 # ---------------------------------------------------------------------------
 echo "== resources are fetched whole and delivered like a document"
+# Under enforce --tree-walk is refused before it runs (M-TW); the tree-walker's
+# arms (M-01t, M-12t) run under audit, where guidance is fetched as under enforce.
+mode_for() { [ "$1" = tw ] && echo audit || echo enforce; }
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+d="$TEST_TMP/mtw"; behaviour "$d" "MCP_MTW"; cfg "$d" "[$(src "$d")]"
+run "$d" tw "$PULL"
+if tw_refused "$RC" "$OUT" && [[ "$OUT" != *"MCP_MTW"* ]]; then
+    pass "M-TW" "under an enforce config --tree-walk is refused before anything runs"
+else fail "M-TW" "--tree-walk ran under an enforce config" "rc=$RC ${OUT:0:300}"; fi
 for eng in vm tw; do
     id="M-01"; [ "$eng" = tw ] && id="M-01t"
-    d="$TEST_TMP/m01-$eng"; behaviour "$d" "MCP_M1"; cfg "$d" "[$(src "$d")]"
+    d="$TEST_TMP/m01-$eng"; behaviour "$d" "MCP_M1"; CFG_MODE=$(mode_for $eng) cfg "$d" "[$(src "$d")]"
     run "$d" "$eng" "$PULL"
     if [[ "$OUT" == *"N=1"* ]] && [[ "$OUT" == *"MCP_M1: roll back"* ]] &&
        grep -q '"type":"mcp"' <<<"$(tele "$d")" && grep -q '"outcome":"ok"' <<<"$(tele "$d")"; then
@@ -276,7 +286,7 @@ echo ""
 echo "== one server start per run; operator authority; never from naab-gov"
 for eng in vm tw; do
     id="M-12"; [ "$eng" = tw ] && id="M-12t"
-    d="$TEST_TMP/m12-$eng"; behaviour "$d" "MCP_M12"; cfg "$d" "[$(src "$d")]"
+    d="$TEST_TMP/m12-$eng"; behaviour "$d" "MCP_M12"; CFG_MODE=$(mode_for $eng) cfg "$d" "[$(src "$d")]"
     run "$d" "$eng" 'use governance
 use array
 async fn work(n) {

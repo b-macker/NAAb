@@ -52,6 +52,13 @@
 #              (docs/open-investigations.md B11), so the fixture gives 0 rows
 #              there on every build.
 #
+# The VM runs under enforce. Under enforce --tree-walk is refused before it runs
+# (MS-TW), so the tree-walker's arms run under an audit copy of each config: a
+# check that blocks on the VM is RECORDED there ("AUDIT <rule>") and the run
+# goes on, and a control must record no such line. Its module path
+# (ModuleRegistry, visit(Program)) is separate code from the VM's, so these
+# arms keep measuring it.
+#
 # Against an interpreter that does nothing every blocked-arm fails.
 # ============================================================
 set -uo pipefail
@@ -94,7 +101,10 @@ BODY_CLEAN='fn compute(x) {\n    return x * 2\n}\n'
 BODY_STUB='fn compute(x) {\n    return []\n}\n'
 
 # case <dir> <config>: fresh directory with that govern.json
-newcase() { rm -rf "$W/$1"; mkdir -p "$W/$1"; printf '%s\n' "$2" > "$W/$1/govern.json"; }
+# (ENG=tw writes it in mode audit: the tree-walker is refused under enforce)
+newcase() { rm -rf "$W/$1"; mkdir -p "$W/$1"
+            if [ "${ENG:-vm}" = tw ]; then printf '%s\n' "$2" | sed 's/"mode": "enforce"/"mode": "audit"/' > "$W/$1/govern.json"
+            else printf '%s\n' "$2" > "$W/$1/govern.json"; fi; }
 # module <dir> <body>: mod.naab exporting the body's function
 module() { printf "export $2" > "$W/$1/mod.naab"; }
 importer() { printf 'import "mod.naab" as m\nmain {\n    print("RAN")\n}\n' > "$W/$1/main.naab"; }
@@ -102,7 +112,18 @@ entry() { printf "$2"'main {\n    print("RAN")\n}\n' > "$W/$1/main.naab"; }
 # run <dir> <engine flag>: sets RC and OUT
 run() { OUT="$(cd "$W/$1" && timeout 60 "$NAAB" run $2 main.naab 2>&1)"; RC=$?; }
 ran() { case "$OUT" in *RAN*) return 0 ;; *) return 1 ;; esac; }
-blocked_by() { [ "$RC" -eq 3 ] && ! ran && case "$OUT" in *"$1"*) true ;; *) false ;; esac; }
+# vm: refused (exit 3, main never ran). tw (audit): recorded and the run went
+# on -- or refused, for the checks audit does not soften (secrets and PII block
+# under audit too, [HARD-MANDATORY]); either way the check fired on its path.
+blocked_by() {
+    if [ "${ENG:-vm}" = tw ] && [ "$RC" -eq 0 ]; then ran && grep -q "AUDIT .*$1" <<<"$OUT"
+    else [ "$RC" -eq 3 ] && ! ran && case "$OUT" in *"$1"*) true ;; *) false ;; esac; fi
+}
+# ran cleanly; on the tree-walker (audit) also with no AUDIT line naming $1
+clean_run() {
+    [ "$RC" -eq 0 ] && ran || return 1
+    [ "${ENG:-vm}" != tw ] || ! grep -q "AUDIT .*$1" <<<"$OUT"
+}
 
 ENGINES="vm tw"
 flag() { [ "$1" = tw ] && echo "--tree-walk" || echo ""; }
@@ -110,6 +131,7 @@ flag() { [ "$1" = tw ] && echo "--tree-walk" || echo ""; }
 check_pair() {  # <id> <rule> <body> <label>
     local id="$1" rule="$2" body="$3" label="$4" e
     for e in $ENGINES; do
+        ENG=$e
         newcase "$id-$e" "$STRICT"; module "$id-$e" "$body"; importer "$id-$e"
         run "$id-$e" "$(flag $e)"
         if blocked_by "$rule"; then
@@ -133,6 +155,7 @@ check_pair MS-03 code_quality.no_pii "$BODY_PII" "a PII string"
 check_pair MS-04 code_quality.no_incomplete_logic "$BODY_INCOMPLETE" "an incomplete-logic sentinel return"
 
 for e in $ENGINES; do
+    ENG=$e
     # MS-05: top-level export in a module
     newcase "MS-05-$e" "$STRICT"
     printf 'export let KEY = "AKIAIOSFODNN7EXAMPLE"\nexport fn get() {\n    return 1\n}\n' > "$W/MS-05-$e/mod.naab"
@@ -164,7 +187,7 @@ for e in $ENGINES; do
     # MS-08c: clean module
     newcase "MS-08c-$e" "$STRICT"; module "MS-08c-$e" "$BODY_CLEAN"; importer "MS-08c-$e"
     run "MS-08c-$e" "$(flag $e)"
-    if [ "$RC" -eq 0 ] && ran; then
+    if clean_run code_quality; then
         pass "MS-08c/$e" "CONTROL: a clean module imports and runs"
     else
         fail "MS-08c/$e" "CONTROL: a clean module was refused" "exit=$RC $(printf '%s' "$OUT" | grep -m1 -E 'Rule|rror')"
@@ -172,7 +195,7 @@ for e in $ENGINES; do
     # MS-09 / MS-09c: heuristic stays skipped for modules
     newcase "MS-09-$e" "$HEUR"; module "MS-09-$e" "$BODY_STUB"; importer "MS-09-$e"
     run "MS-09-$e" "$(flag $e)"
-    if [ "$RC" -eq 0 ] && ran; then
+    if clean_run no_oversimplification; then
         pass "MS-09/$e" "an oversimplified module function does not block (heuristics stay skipped)"
     else
         fail "MS-09/$e" "a heuristic check now blocks module imports" "exit=$RC"
@@ -195,12 +218,20 @@ for e in $ENGINES; do
     newcase "MS-10c-$e" "$CONTRACT"
     entry "MS-10c-$e" 'use math\nfn compute(x) {\n    return math.sqrt(x)\n}\n'
     run "MS-10c-$e" "$(flag $e)"
-    if [ "$RC" -eq 0 ] && ran; then
+    if clean_run must_call; then
         pass "MS-10c/$e" "CONTROL: a body that satisfies the contract runs"
     else
         fail "MS-10c/$e" "CONTROL: a satisfying body was refused" "exit=$RC"
     fi
 done
+
+ENG=vm
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+newcase "MS-TW" "$STRICT"; module "MS-TW" "$BODY_TODO"; importer "MS-TW"
+run "MS-TW" --tree-walk
+if tw_refused "$RC" "$OUT" && ! ran; then
+    pass "MS-TW" "under an enforce config --tree-walk is refused before the importer runs"
+else fail "MS-TW" "--tree-walk ran under an enforce config" "exit=$RC"; fi
 
 # MS-11: runtime rows after an import are not collapsed by dedup
 BSD_DEDUP='{ "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "elevated" },

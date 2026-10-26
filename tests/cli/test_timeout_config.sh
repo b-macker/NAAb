@@ -32,7 +32,8 @@
 # was hidden by the 30 s floor (test_extends.sh T2's parent 30 equalled it).
 # The merge now carries the limit over as written.
 # Every arm but TC-05/06 runs on both engines: the tree-walker read neither
-# govern.json limit before 2026-10-25.
+# govern.json limit before 2026-10-25. Its arms run the same configs at mode
+# audit, because under enforce it is refused (Bundle 2, TC-TW).
 #
 # Kill table (each mutant rebuilt, this suite and its neighbours run):
 #   max(flag, configured) instead of min     TC-02/03/04 on both engines
@@ -45,6 +46,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 
@@ -86,17 +88,26 @@ EOF
 mkdir -p "$W/six"; cp "$W/spin.naab" "$W/six/"
 echo '{"version":"5.0","mode":"enforce","limits":{"timeout":{"global":6},"execution":{"loop_iterations":2000000000}}}' > "$W/six/govern.json"
 
-# timed ARGS... -> OUT, RC, SECS. The outer timeout is well past the old 30 s
-# failure, so an unfixed build reads as slow rather than being killed silently.
+# The tree-walker is refused under enforce (Bundle 2; TC-TW), so its arms run
+# the same configs at mode audit, where it still merges the limits.
+mkdir -p "$W/aud/six"
+for f in govern.json spin.naab quick.naab six/govern.json six/spin.naab; do cp "$W/$f" "$W/aud/$f"; done
+sed -i 's/"mode":"enforce"/"mode":"audit"/' "$W/aud/govern.json" "$W/aud/six/govern.json"
+
+# timed ARGS... -> OUT, RC, SECS, run from $D. The outer timeout is well past
+# the old 30 s failure, so an unfixed build reads as slow rather than being
+# killed silently.
+D="$W"
 timed() {
     local start=$SECONDS
-    OUT=$(cd "$W" && timeout 45 "$NAAB" "$@" 2>&1); RC=$?
+    OUT=$(cd "$D" && timeout 45 "$NAAB" "$@" 2>&1); RC=$?
     SECS=$((SECONDS - start))
 }
 stopped_by_clock() { [ "$RC" != 0 ] && [ "$RC" != 124 ] && grep -qi 'timeout' <<<"$OUT"; }
 
 for eng in "" "--tree-walk"; do
     tag="${eng:-vm}"; tag="${tag#--}"
+    D="$W"; [ -n "$eng" ] && D="$W/aud"
 
     timed spin.naab $eng --timeout 6
     if stopped_by_clock && [ "$SECS" -ge 1 ] && [ "$SECS" -le 4 ]; then
@@ -121,7 +132,7 @@ for eng in "" "--tree-walk"; do
 
     # TC-04: a 6 s limit, lowered by the flag.
     start=$SECONDS
-    OUT=$(cd "$W/six" && timeout 45 "$NAAB" spin.naab $eng --timeout 2 2>&1); RC=$?
+    OUT=$(cd "$D/six" && timeout 45 "$NAAB" spin.naab $eng --timeout 2 2>&1); RC=$?
     SECS=$((SECONDS - start))
     if stopped_by_clock && [ "$SECS" -ge 1 ] && [ "$SECS" -le 4 ]; then
         ok "TC-04/$tag" "--timeout 2 lowers govern.json's 6 s limit (${SECS}s)"
@@ -136,6 +147,11 @@ for eng in "" "--tree-walk"; do
         bad "TC-C1/$tag" "a quick program should finish" "rc=$RC $(grep -m1 -i 'error' <<<"$OUT")"
     fi
 done
+
+D="$W"
+OUT=$(cd "$W" && timeout 45 "$NAAB" quick.naab --tree-walk 2>&1); RC=$?
+if tw_refused "$RC" "$OUT"; then ok "TC-TW" "the enforce config refuses --tree-walk (its arms above run at mode audit)"
+else bad "TC-TW" "the enforce config should refuse --tree-walk" "rc=$RC"; fi
 
 # Extends: base/ holds the parent, kid/ and pw/ the children.
 mkdir -p "$W/base" "$W/kid" "$W/pw"

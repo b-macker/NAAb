@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # test_uncatchable.sh — GovernanceHardError: HARD governance blocks are uncatchable
 # Verifies that NAAb try/catch cannot swallow governance HARD violations.
-# Tests both VM (default) and tree-walker engines.
+# Runs on the VM (default). Under enforce --tree-walk is refused before the
+# program runs (exit 4), so the tree-walker's arms (T1c/T1d, T6c) assert that
+# refusal: an uncatchable HARD block needs enforce, which the tree-walker no
+# longer runs under, and a "no BYPASS printed" check alone would pass on it.
 
 set -euo pipefail
 
@@ -123,10 +126,12 @@ EOF
 check "T1a" "VM: blocked env.get in try/catch exits 3" "3" "$T1_VM_EXIT"
 check_not_contains "T1b" "VM: catch block did not execute" "$DIR/t1_vm_out.log" "BYPASS"
 
-# Tree-walker engine
+# Tree-walker engine: refused under enforce before the program runs
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
 (cd "$DIR" && "$NAAB" --tree-walk test.naab) >"$DIR/t1_tw_out.log" 2>"$DIR/t1_tw_err.log" && T1_TW_EXIT=0 || T1_TW_EXIT=$?
-check "T1c" "Tree-walker: blocked env.get in try/catch exits 3" "3" "$T1_TW_EXIT"
-check_not_contains "T1d" "Tree-walker: catch block did not execute" "$DIR/t1_tw_out.log" "BYPASS"
+T1_TW_REFUSED=no; tw_refused "$T1_TW_EXIT" "$(cat "$DIR/t1_tw_err.log")" && T1_TW_REFUSED=yes
+check "T1c" "Tree-walker: refused under enforce (exit 4) before the program runs" "yes" "$T1_TW_REFUSED"
+check_not_contains "T1d" "Tree-walker: nothing of the program ran" "$DIR/t1_tw_out.log" "BYPASS"
 
 echo ""
 
@@ -257,8 +262,8 @@ check "T5a" "Advisory enforcement exits 0" "0" "$T5_EXIT"
 
 echo ""
 
-# ---------- T6: tree-walker nested try/catch → still exit 3 ----------
-echo "--- T6: tree-walker nested try/catch → still exit 3 ---"
+# ---------- T6: nested try/catch → still exit 3 ----------
+echo "--- T6: nested try/catch → still exit 3 ---"
 DIR=$(setup_test "t6")
 cat > "$DIR/test.naab" <<'EOF'
 main {
@@ -280,9 +285,12 @@ main {
 }
 EOF
 
-(cd "$DIR" && "$NAAB" --tree-walk test.naab) >"$DIR/t6_out.log" 2>"$DIR/t6_err.log" && T6_EXIT=0 || T6_EXIT=$?
-check "T6a" "Tree-walker nested try/catch exits 3" "3" "$T6_EXIT"
+(cd "$DIR" && "$NAAB" test.naab) >"$DIR/t6_out.log" 2>"$DIR/t6_err.log" && T6_EXIT=0 || T6_EXIT=$?
+check "T6a" "VM: nested try/catch exits 3" "3" "$T6_EXIT"
 check_not_contains "T6b" "No catch blocks executed" "$DIR/t6_out.log" "BYPASS"
+(cd "$DIR" && "$NAAB" --tree-walk test.naab) >"$DIR/t6_tw_out.log" 2>"$DIR/t6_tw_err.log" && T6_TW_EXIT=0 || T6_TW_EXIT=$?
+T6_TW_REFUSED=no; tw_refused "$T6_TW_EXIT" "$(cat "$DIR/t6_tw_err.log")" && T6_TW_REFUSED=yes
+check "T6c" "Tree-walker: refused under enforce (exit 4)" "yes" "$T6_TW_REFUSED"
 
 echo ""
 

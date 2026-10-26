@@ -41,7 +41,9 @@ fi
 
 W="$(mktemp -d)"
 trap 'rm -rf "$W"; teardown_isolated_trust' EXIT
-printf '%s\n' '{"mode":"enforce","security":{"sandbox_level":"elevated"}}' > "$W/govern.json"
+# Mode off: the warning is the tree-walker's own, not a governance check, and
+# under enforce the tree-walker is refused before anything runs (Bundle 2).
+printf '%s\n' '{"mode":"off"}' > "$W/govern.json"
 mkdir -p "$W/reg"
 printf 'use codegen\nmain {\n    for x in codegen.supported_languages() { print(x) }\n}\n' > "$W/reg/r.naab"
 REG=" $(cd "$W/reg" && "$NAAB" r.naab --no-governance 2>/dev/null | tr -d '\r' | tr '\n' ' ') "

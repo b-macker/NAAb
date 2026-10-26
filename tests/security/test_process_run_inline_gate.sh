@@ -70,7 +70,19 @@ run() {  # run FLAG NAME -> sets OUT, RC
     RC=$?
 }
 
-for eng in "" "--tree-walk"; do
+# The gate is in the process module (inlineInterpreterCode, process_impl.cpp),
+# which both engines share, so the VM measures it. Under this enforce config
+# --tree-walk is refused before it runs (PI-TW).
+source "$REPO/tests/helpers/tree_walk_refusal.sh"
+rm -f "$WORK"/m01; write_prog p01 python3 "[\"-c\", \"$BAD\"]" m01
+run --tree-walk p01
+if tw_refused "$RC" "$OUT" && [ ! -e "$WORK/m01" ]; then
+    pass "PI-TW" "under this enforce config --tree-walk is refused before the program runs"
+else
+    fail "PI-TW" "--tree-walk ran under an enforce config (rc=$RC)" "$(head -3 <<<"$OUT")"
+fi
+
+for eng in ""; do
     tag="${eng:-vm}"; tag="${tag#--}"
     echo "=== engine: $tag ==="
 

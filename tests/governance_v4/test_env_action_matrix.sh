@@ -44,6 +44,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 
@@ -91,7 +92,9 @@ verdict() {  # $1 = script, $2 = engine flag
 
 echo -e "${CYAN}=== Group EM: ENV_READ / ENV_WRITE in the action matrix ===${NC}"
 
-for eng in "VM:" "tree-walk:--tree-walk"; do
+# The arms ran on both engines. Under enforce the tree-walker is now refused
+# before anything runs (Bundle 2): EM-TW.
+for eng in "VM:"; do
     label="${eng%%:*}"; flag="${eng##*:}"
 
     cfg '[]'
@@ -127,6 +130,12 @@ for eng in "VM:" "tree-walk:--tree-walk"; do
       || bad "EM-06/$label" "env checks must still be live" \
              "got: $(verdict read.naab "$flag") — EM-01/02 may be passing vacuously"
 done
+
+cfg '["AGENT_SEND","ENV_READ"]'
+tw_o=$( cd "$W" && timeout 60 "$NAAB" --tree-walk --agent-id worker read.naab 2>&1 ); tw_rc=$?
+tw_refused "$tw_rc" "$tw_o" && [[ "$tw_o" != *READ_OK* ]] \
+  && ok  "EM-TW" "the tree-walker is refused under the enforce config; nothing ran" \
+  || bad "EM-TW" "the tree-walker should be refused under enforce" "rc=$tw_rc"
 
 echo
 if [ $FAIL -eq 0 ]; then

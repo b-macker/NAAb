@@ -21,7 +21,10 @@
 #   NA-04  CONTROL: the same TODO inside a real string literal is NOT refused
 #          -- strings are still stripped; without this arm a fix that stopped
 #          stripping strings altogether would pass NA-01..03
-# Every arm runs on the VM and on the tree-walker.
+#   NA-TW  under this enforce config --tree-walk is refused (exit 4) before the
+#          program runs. The stripper is engine-shared (checkNaabFunctionBody),
+#          so the VM arms measure it; the tree-walker ran them too until it was
+#          refused under enforce.
 # ============================================================
 set -uo pipefail
 
@@ -46,15 +49,12 @@ probe() {
     local id="$1" before="$2" mid="$3" after="$4" want="$5" eng rc out
     printf 'fn helper() {\n    %s\n    %s\n    %s\n    return 1\n}\nmain {\n    print(helper())\n}\n' \
         "$before" "$mid" "$after" > "$W/$id.naab"
-    for eng in vm tree-walk; do
-        local flag=""; [ "$eng" = "tree-walk" ] && flag="--tree-walk"
-        out="$(cd "$W" && "$NAAB" $flag "$id.naab" 2>&1)"; rc=$?
-        if [ "$rc" -eq "$want" ]; then
-            ok "$id/$eng" "exit $rc"
-        else
-            bad "$id/$eng" "exit $rc, expected $want" "$out"
-        fi
-    done
+    out="$(cd "$W" && "$NAAB" "$id.naab" 2>&1)"; rc=$?
+    if [ "$rc" -eq "$want" ]; then
+        ok "$id" "exit $rc"
+    else
+        bad "$id" "exit $rc, expected $want" "$out"
+    fi
 }
 
 echo "=== NAAb comment apostrophes cannot hide code ==="
@@ -63,6 +63,11 @@ probe NA-01 "# don't change this"   "// TODO implement this properly" "# it's fi
 probe NA-02 "// don't change this"  "// TODO implement this properly" "// it's fine"    3
 probe NA-03 "/* don't change */"    "// TODO implement this properly" "# it's fine"     3
 probe NA-04 "# do not change this"  'let s = "TODO implement this properly"' "# fine"   0
+
+. "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+out="$(cd "$W" && "$NAAB" --tree-walk NA-04.naab 2>&1)"; rc=$?
+if tw_refused "$rc" "$out"; then ok "NA-TW" "--tree-walk is refused under this enforce config (exit 4)"
+else bad "NA-TW" "--tree-walk ran under an enforce config (exit $rc)" "$out"; fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

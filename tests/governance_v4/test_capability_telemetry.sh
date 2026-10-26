@@ -31,6 +31,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 
 # The old form probed `[ -d <termux tmp> ]` first. That probe is unsound off
 # Android: the project's own runners created that directory on Linux, so the
@@ -96,7 +97,7 @@ run() {
     local cfg="$1"; shift
     mkcfg "$cfg" >/dev/null || { RC=99; return; }
     rm -f "$W/tel.jsonl" "$W/o.txt"
-    (cd "$W" && timeout 60s "$NAAB" "$@" t.naab >/dev/null 2>&1); RC=$?
+    OUT=$(cd "$W" && timeout 60s "$NAAB" "$@" t.naab 2>&1); RC=$?
 }
 
 # field NAME -> value of that field on the first CAPABILITY_VIOLATION, or ""
@@ -132,6 +133,16 @@ for eng in "" "--tree-walk"; do
     tag="${eng:-VM}"
     run "$RO" $eng
 
+    if [ -n "$eng" ]; then
+        # Under enforce the tree-walker is refused before anything runs
+        # (Bundle 2), so it can emit nothing.
+        if tw_refused "$RC" "$OUT" && [ "$(count)" -eq 0 ]; then
+            pass "FT-01b" "the tree-walker is refused under enforce; no event, nothing ran [$tag]"
+        else
+            fail "FT-01b" "the tree-walker should be refused under enforce [$tag]" "count=$(count) rc=$RC"
+        fi
+        continue
+    fi
     if [ "$(count)" -ge 1 ]; then
         [ -z "$eng" ] && pass "FT-01" "the event is emitted on a violation [$tag]" \
                       || pass "FT-01b" "the event is emitted on a violation [$tag]"

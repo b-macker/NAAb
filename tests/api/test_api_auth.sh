@@ -101,6 +101,12 @@ check() {
     PASS=$((PASS + 1))
 }
 
+# On Windows /execute answers 501 by design (no POSIX worker processes); an
+# accepted key still reaches that answer, so T6/T9/T15 expect it there and
+# still measure authentication (tests/helpers/rest_platform.sh).
+source "$LANG_DIR/tests/helpers/rest_platform.sh"
+EXEC_PAT=""; rest_execute_unavailable && EXEC_PAT="$REST_EXEC_UNAVAILABLE_MSG"
+
 echo "=== REST API Multi-Key Auth Tests ==="
 
 # ---- T1: /health always public (no auth required) ----
@@ -129,7 +135,7 @@ check "T5: wrong key → 401" "401" "Unauthorized" \
     -d '{"code":"main { print(1) }"}'
 
 # ---- T6-T8: Full-access key (empty scopes) can reach all endpoints ----
-check "T6: admin key → /execute 200" "200" "" \
+check "T6: admin key → /execute accepted" "$REST_EXEC_OK_STATUS" "$EXEC_PAT" \
     -X POST "http://127.0.0.1:$PORT/api/v1/execute" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer full-access-key-001" \
@@ -146,7 +152,7 @@ check "T8: admin key → /stats 200" "200" "" \
     "http://127.0.0.1:$PORT/api/v1/stats"
 
 # ---- T9-T11: CI key (execute+check scopes) ----
-check "T9: CI key → /execute 200" "200" "" \
+check "T9: CI key → /execute accepted" "$REST_EXEC_OK_STATUS" "$EXEC_PAT" \
     -X POST "http://127.0.0.1:$PORT/api/v1/execute" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer exec-check-key-002" \
@@ -180,7 +186,7 @@ check "T14: dashboard key → /check 403 (no check scope)" "403" "Forbidden" \
     -d '{"code":"main { print(1) }","language":"naab"}'
 
 # ---- T15: X-API-Key header works (alternate auth) ----
-check "T15: X-API-Key header → /execute 200" "200" "" \
+check "T15: X-API-Key header → /execute accepted" "$REST_EXEC_OK_STATUS" "$EXEC_PAT" \
     -X POST "http://127.0.0.1:$PORT/api/v1/execute" \
     -H "Content-Type: application/json" \
     -H "X-API-Key: full-access-key-001" \

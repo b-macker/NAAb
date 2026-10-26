@@ -24,7 +24,11 @@
 # engines, codegen.run(), and block-library method calls. Like every other
 # limits.* check it is HARD with no level key.
 #
-# ARMS (each on the VM and the tree-walker unless marked)
+# ARMS (on the VM, under enforce, unless marked). Under enforce --tree-walk is
+# refused before anything runs (OC-TW), so the tree-walker's routes are
+# measured under audit, where the cap is recorded and the run goes on: OC-01a
+# (javascript, the parallel group), OC-09a (python, the sequential path) and
+# OC-08a (a block-library call, which only the tree-walker can load).
 #   OC-P    CONTROL  a plain program runs under the capped config (FAILS, not
 #                    skips, when it does not: that is a broken interpreter)
 #   OC-00   CONTROL  no cap: the block returns 100 bytes and the script ends
@@ -42,14 +46,15 @@
 #   OC-06c  CONTROL  ... and runs under a cap it fits
 #   OC-07            codegen.run() is capped
 #   OC-07c  CONTROL  ... and runs under a cap it fits
-#   OC-08            a block-library method call is capped (tree-walker; the VM
-#                    compiler refuses `use BLOCK-...`, so its arm is UNMEASURABLE)
+#   OC-08            a block-library method call is capped (the VM compiler
+#                    refuses `use BLOCK-...`, so its arm is UNMEASURABLE, and
+#                    the tree-walker is refused under enforce: OC-08a, audit)
 #   OC-08c  CONTROL  ... and runs under a cap it fits
 #   OC-09            an embedded <<python>> block is capped (python only)
 #
 # On the tree-walker javascript runs through the parallel-group path
 # (executePolyglotGroupParallel) and python through the sequential one, so
-# OC-01..05/tw and OC-09/tw between them cover both. The parallel path had no
+# OC-01a/tw and OC-09a/tw between them cover both. The parallel path had no
 # cap at all: a javascript block escaped it on the tree-walker too, which the
 # python-only control of A18's first measurement could not show.
 #
@@ -81,7 +86,7 @@ run() {
     local name=$1 eng=$2 limits=$3 langs=$4 extra=$5 prog=$6; shift 6
     local d="$T/$name.$eng"; mkdir -p "$d/home"
     cat > "$d/govern.json" <<EOF
-{"version":"4.0","mode":"enforce","security":{"sandbox_level":"elevated"},
+{"version":"4.0","mode":"${MODE:-enforce}","security":{"sandbox_level":"elevated"},
  "limits":{"data":$limits},"languages":{"per_language":$langs}$extra}
 EOF
     if ! python3 -c 'import json,sys; json.load(sys.stdin)' < "$d/govern.json" 2>/dev/null; then
@@ -92,6 +97,8 @@ EOF
     OUT="$(cd "$d" && timeout 60 "${a[@]}" "$@" p.naab 2>&1)"; RC=$?
 }
 refused() { [ "$RC" = 3 ] && grep -qF "$CAP_MSG" <<<"$OUT" && ! grep -q '^END$' <<<"$OUT"; }
+# audit: the cap is recorded and the program goes on to the end
+recorded() { [ "$RC" = 0 ] && grep -q 'AUDIT limits.data.output_size' <<<"$OUT" && grep -qF "$CAP_MSG" <<<"$OUT" && grep -q '^END$' <<<"$OUT"; }
 ran() { [ "$RC" = 0 ] && grep -q '^END$' <<<"$OUT"; }
 
 JS_STR='main {
@@ -134,7 +141,16 @@ PY_STR='main {
   print("END")
 }'
 
-for eng in vm tw; do
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+run octw tw '{"output_size":20}' '{}' '' "$JS_STR"
+if tw_refused "$RC" "$OUT" && ! grep -q '^END$' <<<"$OUT"; then
+    ok "OC-TW" "under the enforce config --tree-walk is refused before anything runs"
+else bad "OC-TW" "--tree-walk ran under an enforce config" "rc=$RC $OUT"; fi
+MODE=audit run oc01a tw '{"output_size":20}' '{}' '' "$JS_STR"
+if recorded; then ok "OC-01a/tw" "audit: a javascript result past the cap is recorded on the tree-walker (parallel group)"
+else bad "OC-01a/tw" "audit: no cap recorded for a javascript block on the tree-walker" "rc=$RC $OUT"; fi
+
+for eng in vm; do
     echo "--- engine: $eng"
     # A plain program first: an engine that cannot run one is broken, not
     # missing an executor, so this FAILS instead of skipping the rest.
@@ -218,11 +234,12 @@ done
 echo "--- python"
 run py00 vm '{}' '{}' '' "$PY_STR"
 if ran && grep -q 'LEN=100' <<<"$OUT"; then
-    for eng in vm tw; do
-        run oc09 $eng '{"output_size":20}' '{}' '' "$PY_STR"
-        if refused; then ok "OC-09/$eng" "a <<python>> result is capped"
-        else bad "OC-09/$eng" "a <<python>> result escaped the cap" "rc=$RC $OUT"; fi
-    done
+    run oc09 vm '{"output_size":20}' '{}' '' "$PY_STR"
+    if refused; then ok "OC-09/vm" "a <<python>> result is capped"
+    else bad "OC-09/vm" "a <<python>> result escaped the cap" "rc=$RC $OUT"; fi
+    MODE=audit run oc09a tw '{"output_size":20}' '{}' '' "$PY_STR"
+    if recorded; then ok "OC-09a/tw" "audit: a <<python>> result past the cap is recorded on the tree-walker"
+    else bad "OC-09a/tw" "audit: no cap recorded for a <<python>> block on the tree-walker" "rc=$RC $OUT"; fi
 else
     skip "OC-09" "a <<python>> block does not return its value here (rc=$RC)"
 fi
@@ -243,22 +260,29 @@ blk_run() {  # NAME ENGINE CAP N
 {"id":"BLOCK-JS-OCCAP","name":"oc_cap","language":"javascript","code_file":"oc_cap_block.js",
  "code_hash":"$BLK_HASH","version":"1.0.0","is_active":true}
 EOF
-    printf '{"version":"4.0","mode":"enforce","security":{"sandbox_level":"elevated"},"limits":{"data":{"output_size":%s}}}\n' "$3" > "$d/govern.json"
+    printf '{"version":"4.0","mode":"%s","security":{"sandbox_level":"elevated"},"limits":{"data":{"output_size":%s}}}\n' "${MODE:-enforce}" "$3" > "$d/govern.json"
     printf 'use BLOCK-JS-OCCAP as b\nmain {\n  let s = b.big(%s)\n  print("LEN=" + string.length(s))\n  print("END")\n}\n' "$4" > "$d/p.naab"
     local a=("$NAAB" run); [ "$2" = tw ] && a+=(--tree-walk)
     OUT="$(cd "$d" && HOME="$d/home" timeout 60 "${a[@]}" p.naab 2>&1)"; RC=$?
 }
-for eng in tw vm; do
-    blk_run oc08c $eng 200 100
-    if ran && grep -q 'LEN=100' <<<"$OUT"; then
-        ok "OC-08c/$eng" "CONTROL: a block-library call runs under a cap it fits"
-        blk_run oc08 $eng 20 100
-        if refused; then ok "OC-08/$eng" "a block-library method result is capped"
-        else bad "OC-08/$eng" "a block-library method result escaped the cap" "rc=$RC $OUT"; fi
-    else
-        skip "OC-08/$eng" "a block-library call does not run on this engine here (rc=$RC: ${OUT:0:120})"
-    fi
-done
+blk_run oc08c vm 200 100
+if ran && grep -q 'LEN=100' <<<"$OUT"; then
+    ok "OC-08c/vm" "CONTROL: a block-library call runs under a cap it fits"
+    blk_run oc08 vm 20 100
+    if refused; then ok "OC-08/vm" "a block-library method result is capped"
+    else bad "OC-08/vm" "a block-library method result escaped the cap" "rc=$RC $OUT"; fi
+else
+    skip "OC-08/vm" "a block-library call does not run on this engine here (rc=$RC: ${OUT:0:120})"
+fi
+MODE=audit blk_run oc08ac tw 200 100
+if ran && grep -q 'LEN=100' <<<"$OUT"; then
+    ok "OC-08ac/tw" "CONTROL (audit): a block-library call runs on the tree-walker under a cap it fits"
+    MODE=audit blk_run oc08a tw 20 100
+    if recorded; then ok "OC-08a/tw" "audit: a block-library method result past the cap is recorded"
+    else bad "OC-08a/tw" "audit: no cap recorded for a block-library result" "rc=$RC $OUT"; fi
+else
+    skip "OC-08a/tw" "a block-library call does not run on the tree-walker here (rc=$RC: ${OUT:0:120})"
+fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"

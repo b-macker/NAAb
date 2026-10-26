@@ -21,7 +21,7 @@
 #   RN-01  file.write of a bare new name under allowed_paths ["."] passes
 #   RN-02  same for a <<python>> open(..., "w") (the hook asks the same function)
 #   RN-03  a bare govern.json.sig in an unsigned project is blocked (VM)
-#   RN-04  same on the tree-walker
+#   RN-04  the tree-walker is refused under enforce (Bundle 2)
 #   RN-05  same for a <<python>> write
 #   RN-06  CONTROL: a path OUTSIDE allowed_paths is still refused -- RN-01
 #          cannot pass by the allowlist going quiet
@@ -31,6 +31,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 
@@ -97,9 +98,11 @@ if [ $rc -eq 3 ] && [ ! -e "$P/govern.json.sig" ]; then ok "RN-03" "a bare gover
 else bad "RN-03" "planted a signature file (rc=$rc exists=$([ -e "$P/govern.json.sig" ] && echo y || echo n))"; fi
 rm -f "$P/govern.json.sig"
 
+# RN-04 ran this on the tree-walker; under enforce it is now refused before
+# anything runs (Bundle 2).
 out=$(run w.naab --tree-walk); rc=$?
-if [ $rc -eq 3 ] && [ ! -e "$P/govern.json.sig" ]; then ok "RN-04" "same on the tree-walker"
-else bad "RN-04" "planted a signature file on the tree-walker (rc=$rc)"; fi
+if tw_refused "$rc" "$out" && [ ! -e "$P/govern.json.sig" ]; then ok "RN-04" "the tree-walker is refused under enforce; nothing was written"
+else bad "RN-04" "the tree-walker should be refused under enforce (rc=$rc)"; fi
 rm -f "$P/govern.json.sig"
 
 if [ "$PY" = 1 ]; then

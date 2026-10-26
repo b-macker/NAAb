@@ -27,7 +27,7 @@
 # Startup (each program puts a marker in its source or a polyglot block):
 #   ML-00  CONTROL: with no no_pii key the PII program runs (fixture is live)
 #   ML-01  no_pii advisory blocks (exit 3)                      [VM]
-#   ML-01t the same on the tree-walker
+#   ML-01t the tree-walker is refused under enforce (Bundle 2), so it cannot run it
 #   ML-02  no_pii {} (default level) blocks
 #   ML-03  PRECISION: no_pii advisory is raised to SOFT, not HARD
 #          (--governance-override lets it through)
@@ -87,6 +87,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NAAB="${NAAB:-$REPO/build/naab-lang}"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 PASS=0; FAIL=0; SKIP=0
 ok()   { echo "  PASS [$1] $2"; PASS=$((PASS+1)); }
 bad()  { echo "  FAIL [$1] $2"; FAIL=$((FAIL+1)); [ -n "${3:-}" ] && printf '%s\n' "$3" | tail -8 | sed 's/^/       | /'; }
@@ -158,8 +159,11 @@ passed ML-00 "control: with no no_pii key the PII program runs"
 
 startup ML01 '{ "no_pii": { "level": "advisory" } }' "$P_PII_SRC"
 blocked ML-01 "no_pii advisory is raised to a block" 3
+# ML-01t ran this on the tree-walker. Under enforce the tree-walker is now
+# refused before anything runs (Bundle 2): the program cannot run there.
 startup ML01t '{ "no_pii": { "level": "advisory" } }' "$P_PII_SRC" --tree-walk
-blocked ML-01t "no_pii advisory is raised to a block (tree-walker)" 3
+if tw_refused "$RC" "$OUT" && ! ran; then ok ML-01t "the tree-walker is refused under enforce; the PII program did not run"
+else bad ML-01t "the tree-walker should be refused under enforce (rc=$RC)" "$OUT"; fi
 startup ML02 '{ "no_pii": { } }' "$P_PII_SRC"
 blocked ML-02 "no_pii {} (default level) blocks" 3
 startup ML03 '{ "no_pii": { "level": "advisory" } }' "$P_PII_SRC" --governance-override

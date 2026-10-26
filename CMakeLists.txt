@@ -781,6 +781,7 @@ message(STATUS "  ✓ Standard library")
 add_library(naab_rest_api
     src/api/rest_api.cpp
     src/api/mcp_server.cpp
+    src/api/worker.cpp
 )
 target_include_directories(naab_rest_api PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include

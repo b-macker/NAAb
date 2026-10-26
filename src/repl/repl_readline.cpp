@@ -2,6 +2,7 @@
 // Arrow keys, Ctrl+R search, auto-completion, and full history support
 
 #include "naab/config.h"
+#include "naab/repl_gate.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/interpreter.h"
@@ -491,6 +492,7 @@ void run_repl_readline() {
 } // namespace naab
 
 int main() {
+    if (int rc = naab::repl::refuseBesideGovernance()) return rc;
     naab::repl::run_repl_readline();
     return 0;
 }

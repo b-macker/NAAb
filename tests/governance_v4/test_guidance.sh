@@ -16,7 +16,8 @@
 #   no self-instruction   G-09 the program cannot write a source: file, io,
 #                         a hard link, embedded Python (controls: another file,
 #                         guidance off), both engines
-#   terminal              G-10 a HARD block carries the section, both engines
+#   terminal              G-10 a HARD block carries the section (the VM; the
+#                              tree-walker is refused under enforce)
 #                         (control: a non-matching rule), G-11 advisory
 #   pull                  G-12 governance.guidance(), by keyword and anchor
 #   provenance            G-15 GUIDANCE_DELIVERED sha256 = the delivered text,
@@ -123,7 +124,9 @@ wp_cfg() {  # $1 dir, $2 "on"|"off"
 EOF
 }
 
-for eng in vm tw; do
+# Under enforce --tree-walk is refused before it runs (G-09a/tw below), so the
+# write protection is measured on the VM.
+for eng in vm; do
     d="$TEST_TMP/wp_$eng"; mkdir -p "$d"; wp_cfg "$d" on
     before="$(cat "$d/docs/playbook.md")"
     r="$(run "$d" "$eng" 'use file
@@ -147,6 +150,22 @@ main {
         fail "G-09a/$eng" "expected exit 3 naming the guidance file" "$r / $(head -3 "$d/err.txt")"
     fi
 done
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+d="$TEST_TMP/wp_tw"; mkdir -p "$d"; wp_cfg "$d" on
+before="$(cat "$d/docs/playbook.md")"
+r="$(run "$d" tw 'use file
+main {
+    file.write("docs/playbook.md", "OVERWRITTEN by the program")
+    print("WROTE")
+}')"
+rr="${r%%|*}"
+if tw_refused "${rr#rc=}" "$(cat "$d/err.txt")"; then
+    if [[ "$r" != *WROTE* ]] && [ "$before" = "$(cat "$d/docs/playbook.md")" ]; then
+        pass "G-09a/tw" "under the enforce config --tree-walk is refused before the program runs; the source is unchanged"
+    else fail "G-09a/tw" "refused, but the source changed" "$r"; fi
+else
+    fail "G-09a/tw" "--tree-walk ran under an enforce config" "$r / $(head -3 "$d/err.txt")"
+fi
 
 d="$TEST_TMP/wp_io"; mkdir -p "$d"; wp_cfg "$d" on
 r="$(run "$d" vm 'use io
@@ -219,10 +238,10 @@ r
 fi
 
 # --- terminal channel ---
-term_cfg() {  # $1 dir, $2 rule-on, $3 level
+term_cfg() {  # $1 dir, $2 rule-on, $3 level  (mode: $mode, default enforce)
     write_playbook "$1"
     cat > "$1/govern.json" <<EOF
-{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"},
+{"version": "5.0", "mode": "${mode:-enforce}", "security": {"sandbox_level": "elevated"},
  "code_quality": {"no_placeholders": {"enabled": true, "level": "$3"}},
  $(guidance_json "[{\"on\": \"$2\", \"from\": \"playbook#stubs\", \"to\": [\"terminal\"]}]")}
 EOF
@@ -235,7 +254,12 @@ main {
     print(work())
     print("RAN_ON")
 }'
-for eng in vm tw; do
+# The terminal channel attaches to the message enforce() shows when it blocks;
+# under audit it attaches nothing (the AUDIT line carries no section, on either
+# engine), and the tree-walker is refused under enforce -- so the VM measures
+# this and G-10/tw pins the refusal.
+for eng in vm; do
+    mode=enforce; want=rc=3
     d="$TEST_TMP/term_$eng"; mkdir -p "$d"
     term_cfg "$d" "violation:code_quality.no_placeholders" hard
     # NAAb prints the Error: block on STDOUT; the message is read from both.
@@ -245,17 +269,24 @@ for eng in vm tw; do
     term_cfg "$dc" "violation:code_quality.no_secrets" hard
     rc_="$(run "$dc" "$eng" "$PLACEHOLDER_PROG")"
     ec="$rc_$(cat "$dc/err.txt")"
-    if [[ "$rc_" != rc=3* ]] || [[ "$ec" != *Placeholder* ]]; then
-        fail "G-10/$eng" "control: the placeholder must be blocked under both configs" "$rc_"
+    if [[ "$rc_" != $want* ]] || [[ "$ec" != *Placeholder* ]]; then
+        fail "G-10/$eng" "control: the placeholder must be reported under both configs ($want)" "$rc_"
     elif [[ "$ec" == *GUIDE_STUBS_q7* ]]; then
         fail "G-10/$eng" "a rule for a different check attached guidance to this block"
-    elif [[ "$r" == rc=3* ]] && [[ "$e" == *"Project guidance (docs/playbook.md > Stubs):"* ]] \
+    elif [[ "$r" == $want* ]] && [[ "$e" == *"Project guidance (docs/playbook.md > Stubs):"* ]] \
          && [[ "$e" == *GUIDE_STUBS_q7* ]] && [[ "$e" != *GUIDE_DB_q7* ]]; then
-        pass "G-10/$eng" "the HARD block carries the Stubs section (exit 3 unchanged); a non-matching rule adds nothing"
+        pass "G-10/$eng" "the $mode report carries the Stubs section ($want unchanged); a non-matching rule adds nothing"
     else
         fail "G-10/$eng" "the block message lacks the guidance section" "$r / $(echo "$e" | tail -5)"
     fi
 done
+unset mode want
+d="$TEST_TMP/term_tw"; mkdir -p "$d"
+term_cfg "$d" "violation:code_quality.no_placeholders" hard
+r="$(run "$d" tw "$PLACEHOLDER_PROG")"; rr="${r%%|*}"
+if tw_refused "${rr#rc=}" "$(cat "$d/err.txt")" && [[ "$r" != *RAN_ON* ]]; then
+    pass "G-10/tw" "under the enforce config --tree-walk is refused before the program runs"
+else fail "G-10/tw" "--tree-walk ran under an enforce config" "$r / $(head -3 "$d/err.txt")"; fi
 
 # G-10b: a prefix rule (violation:code_quality.*) matches the check by prefix.
 d="$TEST_TMP/term_prefix"; mkdir -p "$d"
@@ -845,12 +876,14 @@ else
 fi
 
 # G-28: the agent channel on the tree-walker (the agent module is shared, but
-# that was an assumption until run).
+# that was an assumption until run). Under audit: the tree-walker is refused
+# under enforce.
 d="$TEST_TMP/a_tw"; mkdir -p "$d"; write_playbook "$d"
 if start_stub "$FIXTURE" "$d" >/dev/null 2>&1; then
     STUB_STARTED=1
+    # mode audit: --tree-walk is refused under enforce
     cat > "$d/govern.json" <<EOF2
-{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"},
+{"version": "5.0", "mode": "audit", "security": {"sandbox_level": "elevated"},
  $(guidance_json '[{"on": "start", "from": "playbook#onboarding", "to": ["agent"]}]'),
  "agents": {"worker": {"provider": "gemini", "model": "stub-model", "api_base": "http://127.0.0.1:$STUB_PORT",
    "api_key_env": "FAKE_KEY_GUIDE", "max_tokens": 200, "max_turns": 40, "system_prompt": "You maintain the billing service."}}}

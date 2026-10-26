@@ -159,16 +159,21 @@ else
     printf '{"version":"4.0","mode":"enforce","security":{"sandbox_level":"elevated"}}\n' > "$W/govern.json"
     printf 'use agent\nmain {\n    agent.sned("x")\n}\n' > "$W/unknown.naab"
     printf 'use agent\nuse io\nmain {\n    io.write("got=" + agent.extract_code("```py\\nx=1\\n```", "py") + "\\n")\n}\n' > "$W/known.naab"
+    # The tree-walker is refused under enforce (exit 4); these arms are about
+    # its help text, so it runs beside a mode-off copy of the config.
+    . "$REPO/tests/helpers/tree_walk_refusal.sh"
+    mkdir -p "$W/off"; cp "$W/govern.json" "$W/unknown.naab" "$W/known.naab" "$W/off/"
+    tw_off_config "$W/off/govern.json" || bad "FL-05/tree-walk" "could not write the mode-off config"
     for eng in vm tree-walk; do
-        flag=""; [ "$eng" = "tree-walk" ] && flag="--tree-walk"
-        OUT="$(cd "$W" && "$NAAB" run $flag unknown.naab 2>&1)"; RC=$?
+        flag=""; D="$W"; [ "$eng" = "tree-walk" ] && { flag="--tree-walk"; D="$W/off"; }
+        OUT="$(cd "$D" && "$NAAB" run $flag unknown.naab 2>&1)"; RC=$?
         if [ "$RC" -eq 1 ] && grep -q "Unknown function 'agent.sned'" <<<"$OUT" \
            && grep -q 'returns {valid, error}' <<<"$OUT" && ! grep -q 'argument not found' <<<"$OUT"; then
             ok "FL-05/$eng" "agent.sned() prints its help (rc=1), braces rendered"
         else
             bad "FL-05/$eng" "agent.sned() did not print its help (rc=$RC)" "$(head -3 <<<"$OUT")"
         fi
-        OUT="$(cd "$W" && "$NAAB" run $flag known.naab 2>&1)"; RC=$?
+        OUT="$(cd "$D" && "$NAAB" run $flag known.naab 2>&1)"; RC=$?
         if [ "$RC" -eq 0 ] && grep -q '^got=x=1$' <<<"$OUT"; then
             ok "FL-07/$eng" "control: agent.extract_code() runs"
         else

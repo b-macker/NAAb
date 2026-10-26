@@ -161,7 +161,9 @@ else
     skip "S-12" "python's SQLite could not build the FTS5 fixture"
 fi
 
-# Terminal block from the database, both engines; control: a non-matching rule.
+# Terminal block from the database; control: a non-matching rule. Under
+# enforce --tree-walk is refused before it runs (S-TW below), so the VM
+# measures the block and the write protection.
 PLACEHOLDER_PROG='fn work() {
     // TODO: finish this later
     return 1
@@ -169,7 +171,7 @@ PLACEHOLDER_PROG='fn work() {
 main {
     print(work())
 }'
-for eng in vm tw; do
+for eng in vm; do
     d="$TEST_TMP/s02_$eng"; mkdir -p "$d"; make_db "$d"
     cfg "$d" "SELECT heading, body FROM guidance WHERE topic = :arg" \
         '[{"on": "violation:code_quality.no_placeholders", "from": "kb", "to": ["terminal"]}]' \
@@ -265,7 +267,7 @@ else
 fi
 
 # Write protection: the database and its -wal; control: another file.
-for eng in vm tw; do
+for eng in vm; do
     d="$TEST_TMP/s04_$eng"; mkdir -p "$d"; make_db "$d"; cfg "$d" "$Q_TOPIC" "$NOOP_RULE"
     rdb="$(run "$d" "$eng" 'use file
 main {
@@ -291,6 +293,19 @@ main {
         fail "S-04/$eng" "the database or its sidecar was writable" "${rdb:0:150} / ${rwal:0:150}"
     fi
 done
+
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+d="$TEST_TMP/s04_tw"; mkdir -p "$d"; make_db "$d"; cfg "$d" "$Q_TOPIC" "$NOOP_RULE"
+r="$(run "$d" tw 'use file
+main {
+    file.write("data/kb.db", "OVERWRITTEN")
+    print("WROTE")
+}')"; rr="${r%%|*}"
+if tw_refused "${rr#rc=}" "$r$(cat "$d/err.txt" 2>/dev/null)" && [[ "$r" != *WROTE* ]] && [ "$(row_count "$d")" = 5 ]; then
+    pass "S-TW" "under the enforce config --tree-walk is refused before the program runs; the database is unchanged"
+else
+    fail "S-TW" "--tree-walk ran under an enforce config" "${r:0:300}"
+fi
 
 # Live: a row changed by an operator mid-run is what the next lookup returns.
 source "$SCRIPT_DIR/../helpers/config_swap.sh"

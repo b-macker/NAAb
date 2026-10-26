@@ -83,8 +83,11 @@ mkdir -p "$TEST_TMP"
 W="$TEST_TMP/w"; mkdir -p "$W"
 
 printf 'SECRET-DATA\n' > "$W/input.txt"
+# Mode audit: under enforce the tree-walker, which is this suite's positive
+# control, is refused before anything runs (Bundle 2). Nothing here should
+# block (the taint level is advisory), so audit measures the same answers.
 cat > "$W/govern.json" <<'JSON_EOF'
-{ "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "elevated" },
+{ "version": "5.0", "mode": "audit", "security": { "sandbox_level": "elevated" },
   "taint_tracking": { "enabled": true, "level": "advisory",
     "sources": ["file.read"], "sinks": [], "sanitizers": ["sanitize_"] } }
 JSON_EOF

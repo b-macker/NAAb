@@ -31,7 +31,8 @@
 #   FG-02  PERMIT CONTROL: the same call SUCCEEDS with no restriction, and the
 #          file appears on disk. Without this, FG-01 passes on a build that
 #          blocks csv unconditionally
-#   FG-03  both directions hold under --tree-walk too (the gap was on both
+#   FG-03  both directions hold under --tree-walk too -- refused under enforce,
+#          and under audit the gate records the denied write (the gap was on both
 #          engines; fixing one would leave the other open)
 #   FG-04  csv.read is blocked under "none" and permitted under "read" — the
 #          read/write split is real, not a blanket deny
@@ -105,12 +106,22 @@ else
     fail "FG-02" "csv.write blocked when it should be permitted" "got rc=${R_OPEN%%|*} ${R_OPEN#*|}; FG-01 would pass on a blanket deny"
 fi
 
-R_DENY_TW="$(run "$DENY" "$P_WRITE" "--tree-walk")"
-R_OPEN_TW="$(run "$OPEN" "$P_WRITE" "--tree-walk")"
-if [ "${R_DENY_TW#*|}" = "blocked" ] && [ "${R_OPEN_TW#*|}" = "ran" ]; then
-    pass "FG-03" "--tree-walk enforces and permits identically to the VM"
+# The tree-walker is refused under enforce, so FG-03 has two halves: under the
+# enforce config it is refused before anything runs, and under audit copies of
+# the same configs its csv path reaches the gate (recorded) or passes it.
+. "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+printf '%s\n' "$DENY" > "$W/govern.json"; printf '%s\n' "$P_WRITE" > "$W/t.naab"; rm -f "$W/out.csv"
+o_tw=$(cd "$W" && timeout 60s "$NAAB" --tree-walk t.naab 2>&1); rc_tw=$?
+twd=no; tw_refused "$rc_tw" "$o_tw" && [ ! -f "$W/out.csv" ] && twd=yes
+printf '%s\n' "${DENY/'"enforce"'/'"audit"'}" > "$W/govern.json"
+o_da=$(cd "$W" && timeout 60s "$NAAB" --tree-walk t.naab 2>&1)
+printf '%s\n' "${OPEN/'"enforce"'/'"audit"'}" > "$W/govern.json"; rm -f "$W/out.csv"
+o_oa=$(cd "$W" && timeout 60s "$NAAB" --tree-walk t.naab 2>&1)
+if [ "$twd" = yes ] && grep -q 'AUDIT capabilities.filesystem' <<<"$o_da" \
+   && grep -q MARKER <<<"$o_oa" && ! grep -q 'AUDIT capabilities.filesystem' <<<"$o_oa" && [ -f "$W/out.csv" ]; then
+    pass "FG-03" "--tree-walk: refused under enforce; under audit the csv write reaches the gate when denied and passes it when open"
 else
-    fail "FG-03" "engine parity broken" "deny=${R_DENY_TW} open=${R_OPEN_TW}"
+    fail "FG-03" "engine parity broken" "refused=$twd deny-audit-recorded=$(grep -c 'AUDIT capabilities.filesystem' <<<"$o_da") open-audit=$(grep -c MARKER <<<"$o_oa")"
 fi
 
 echo -e "${CYAN}--- FG-04: the read/write split is real ---${NC}"

@@ -5,6 +5,7 @@
 
 set -euo pipefail
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 PASS=0; FAIL=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
@@ -197,12 +198,12 @@ echo ""
 # ---------------------------------------------------------------------------
 # T6: Tree-walker path — polyglot rate limit
 # ---------------------------------------------------------------------------
-echo "[T6] Tree-walker polyglot rate limit"
-out=$("$NAAB" --tree-walk "$WORKDIR/test_polyglot_rate.naab" 2>&1) || true
-if grep <<<"$out" -qi "rate limit\|rate.*exceeded"; then
-    ok "tree-walker polyglot rate limit fires"
+echo "[T6] Tree-walker: refused under enforce (Bundle 2)"
+rc=0; out=$("$NAAB" --tree-walk "$WORKDIR/test_polyglot_rate.naab" 2>&1) || rc=$?
+if tw_refused "$rc" "$out"; then
+    ok "the tree-walker is refused under enforce, so no polyglot block runs there"
 else
-    fail "tree-walker polyglot rate limit should fire: ${out:0:200}"
+    fail "the tree-walker should be refused under enforce (rc=$rc): ${out:0:200}"
 fi
 echo ""
 

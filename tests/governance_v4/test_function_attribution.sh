@@ -15,7 +15,10 @@
 # 1. ENGINE DIVERGENCE. The tree-walker has TWO paths into a user function --
 #    callFunction() and visit(CallExpr) -- as call_dispatch.cpp's own header
 #    warns. Wiring one left attribution empty under --tree-walk while the VM
-#    reported correctly. Every arm runs on BOTH engines for that reason.
+#    reported correctly. Every arm runs on BOTH engines for that reason: the VM
+#    under enforce, the tree-walker under an audit copy of the config (it is
+#    refused under enforce, FA-TW), where the refusal is recorded with the same
+#    text and the run goes on.
 #
 # 2. STACK LEAK. The VM decrements frame_count_ at six sites plus the exception
 #    unwind. A mirrored push/pop stack leaks at whichever one someone forgets --
@@ -58,7 +61,11 @@ json.dump({'version':'1.0','mode':'enforce','security':{'sandbox_level':'elevate
 " > "$W/govern.json"
 
 # attributed function name for a run, or "" when none was reported
-attrib() { ( cd "$W" && timeout 60 "$NAAB" ${2:-} "$1" 2>&1 ) \
+# Read from the output and from a fresh JSON report: under audit the AUDIT line
+# carries only the message's first line, and the report keeps all of it.
+attrib() { rm -f "$D/fa_rep.json"
+    { ( cd "$D" && timeout 60 "$NAAB" run ${2:-} --governance-report fa_rep.json "$1" 2>&1 )
+      cat "$D/fa_rep.json" 2>/dev/null; } \
     | grep -oE "in function '[^']*'" | head -1 \
     | sed "s/in function '//;s/'//"; }
 # NOTE: the character class must accept ANY name. It was
@@ -66,7 +73,7 @@ attrib() { ( cd "$W" && timeout 60 "$NAAB" ${2:-} "$1" 2>&1 ) \
 # "<script>" frame, so a printed name read as "no name" and FA-03 passed for
 # the wrong reason. Top level is now absent on both engines, but the pattern
 # stays permissive so a future synthetic name is visible rather than silent.
-blocked() { local o; o=$( cd "$W" && timeout 60 "$NAAB" ${2:-} "$1" 2>&1 ); \
+blocked() { local o; o=$( cd "$D" && timeout 60 "$NAAB" ${2:-} "$1" 2>&1 ); \
     case "$o" in *"File path blocked"*) echo yes ;; *) echo no ;; esac; }
 
 cat > "$W/simple.naab" <<'EOF'
@@ -123,8 +130,17 @@ EOF
 
 echo -e "${CYAN}=== Group FA: function attribution, both engines ===${NC}"
 
+# The tree-walker's copy: the same programs beside a mode-audit config.
+mkdir -p "$W/aud/vault" "$W/aud/data"; cp "$W"/*.naab "$W/aud/"
+sed "s/\"mode\": \"enforce\"/\"mode\": \"audit\"/" "$W/govern.json" > "$W/aud/govern.json"
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+out=$( cd "$W" && timeout 60 "$NAAB" --tree-walk allowed.naab 2>&1 ); rc=$?
+if tw_refused "$rc" "$out" && [[ "$out" != *WROTE_OK* ]]; then ok "FA-TW" "under the enforce config --tree-walk is refused before it runs"
+else bad "FA-TW" "--tree-walk ran under an enforce config" "exit $rc"; fi
+
 for eng in "VM:" "tree-walk:--tree-walk"; do
     label="${eng%%:*}"; flag="${eng##*:}"
+    D="$W"; [ "$label" = tree-walk ] && D="$W/aud"
 
     got=$(attrib simple.naab "$flag")
     [ "$got" = "save_report" ] \
@@ -163,7 +179,7 @@ for eng in "VM:" "tree-walk:--tree-walk"; do
         bad "FA-05/$label" "a frame leaked through return-out-of-try" "attributed to '$got'"
     fi
 
-    out=$( cd "$W" && timeout 60 "$NAAB" $flag allowed.naab 2>&1 )
+    out=$( cd "$D" && timeout 60 "$NAAB" $flag allowed.naab 2>&1 )
     case "$out" in
       *WROTE_OK*) ok "FA-06/$label" "POSITIVE CONTROL: permitted path still succeeds" ;;
       *) bad "FA-06/$label" "a permitted write must still work" "got: $(echo "$out" | head -2 | tr '\n' ' ')" ;;

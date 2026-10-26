@@ -33,6 +33,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 
 # The old form probed `[ -d <termux tmp> ]` first. That probe is unsound off
 # Android: the project's own runners created that directory on Linux, so the
@@ -199,12 +200,14 @@ else
     fail "FL-09" "unknown level was silent or still enforcing" "rc=$RC"
 fi
 
-# --- FL-10: both engines ------------------------------------------------------
+# --- FL-10: the tree-walker does not run it ---------------------------------
+# It asserted the tree-walker enforces the level identically. Under enforce the
+# tree-walker is now refused before anything runs (Bundle 2).
 run three.naab '{"level": "hard", "default": {"allowed_actions": ["FS_READ"]}}' --tree-walk
-if [ "$RC" -eq 3 ] && [[ "$OUT" == *"Undeclared action in 'alpha'"* ]]; then
-    pass "FL-10" "the tree-walker enforces the level identically"
+if tw_refused "$RC" "$OUT" && [[ "$OUT" != *"Undeclared action"* ]]; then
+    pass "FL-10" "the tree-walker is refused under enforce, so the level cannot depend on the engine"
 else
-    fail "FL-10" "engines disagree on the function-capability level" "tree-walk rc=$RC"
+    fail "FL-10" "the tree-walker should be refused under enforce" "tree-walk rc=$RC"
 fi
 
 echo ""

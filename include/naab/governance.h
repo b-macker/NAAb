@@ -3844,6 +3844,10 @@ public:
 
     // Feature 5: Environment selector
     void applyEnvironment(const std::string& env_name);
+    // The mode this config runs in once the named environment is laid over it
+    // (the loaded mode for an empty or unknown name). Decide-only: rules are
+    // not changed. The CLI uses it to refuse the tree-walker under enforce.
+    GovernanceMode modeUnderEnvironment(const std::string& env_name) const;
 
     // Phase 8.4: Runtime version pinning. Called from checkPolyglotBlock()
     // for every block about to run, on both engines and every entry point;

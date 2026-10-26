@@ -85,11 +85,13 @@ SHM=""
 cleanup() { teardown_isolated_trust; rm -rf "$W"; [ -n "$SHM" ] && rm -rf "$SHM"; }
 trap cleanup EXIT
 
-# Loading a block library needs an unrestricted sandbox.
+# Loading a block library needs an unrestricted sandbox, and the tree-walker
+# (CR-01's `use BLOCK-...`), which is refused under enforce (Bundle 2). The
+# subject is the compile cache, not governance: mode off.
 cat > "$W/govern.json" <<'EOF'
 {
   "version": "4.0",
-  "mode": "enforce",
+  "mode": "off",
   "security": { "sandbox_level": "unrestricted" }
 }
 EOF

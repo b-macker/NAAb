@@ -1134,7 +1134,7 @@ void Compiler::visit(ast::UseStatement& node) {
         "Compiler error: 'use BLOCK-...' block-loading syntax is not supported in VM mode.\n\n"
         "  For stdlib modules use:   use math\n"
         "  For file modules use:     use mymodule\n"
-        "  For block-loading syntax: run with --tree-walk\n"
+        "  For block-loading syntax: run with --tree-walk (not under an enforce govern.json)\n"
     );
 }
 

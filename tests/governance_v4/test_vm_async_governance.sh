@@ -26,13 +26,13 @@
 # The async VM gets the caller's engine again (setGovernance), and the engine
 # state those checks change from several threads at once is made safe for it.
 #
-#   AG-00  CALIBRATION: an async fn that makes no governed call runs on both
-#          engines -- without it every refusal below could be the async call
-#          itself failing
+#   AG-00  CALIBRATION: an async fn that makes no governed call runs on the
+#          VM -- without it every refusal below could be the async call
+#          itself failing. The tree-walker is refused under enforce (Bundle 2)
 #   AG-01..03  blocked_paths, code_injection, polyglot_blocks: refused inside an
 #          async fn on the VM (the defect), with the same call refused in main
-#          on the VM (the config works), refused in the async fn on the
-#          tree-walker (the other engine), and RUN under the permit config (the
+#          on the VM (the config works), the tree-walker refused under enforce
+#          (Bundle 2), and RUN under the permit config (the
 #          refusal is the gate's, not the program's)
 #   AG-04  env.get of a blocked_read variable inside an async fn: refused on
 #          both before and after the fix -- it reaches the thread-local engine,
@@ -68,6 +68,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 
 # Every govern.json below is unsigned; with a key in the ambient trust store an
 # unsigned config is an INTEGRITY BLOCK at exit 3, the code this suite reads as
@@ -125,14 +126,18 @@ PERMIT="{ $BASE, \"capabilities\": { \"filesystem\": { \"mode\": \"write\" } } }
 assert_async_gate() {
     local id="$1" label="$2" cfg="$3" prog="$4" mainprog="$5"
     local a t m p
+    local t_refused=n
     m=$(run "$cfg" "$mainprog" "")
     a=$(run "$cfg" "$prog" "")
+    # The tree-walker used to be a control here (the other engine refuses the
+    # async call). Under enforce it is refused before anything runs (Bundle 2).
     t=$(run "$cfg" "$prog" "--tree-walk")
+    grep -qF -- "$TW_REFUSAL_MARK" "$TEST_TMP/last.out" && t_refused=y
     p=$(run "$PERMIT" "$prog" "")
     if [ "$m" != "3|blocked|n" ]; then
         fail "$id" "$label" "CONTROL: the call in main{} on the VM was not refused ($m) -- the config does not exercise the gate"
-    elif [ "$t" != "3|blocked|n" ]; then
-        fail "$id" "$label" "CONTROL: the tree-walker did not refuse the async fn ($t)"
+    elif [ "$t" != "4|blocked|n" ] || [ "$t_refused" != y ]; then
+        fail "$id" "$label" "the tree-walker should be refused under enforce ($t)"
     elif [ "$(cut -d'|' -f1,2 <<<"$p")" != "0|ran" ]; then
         fail "$id" "$label" "PERMIT CONTROL: the async fn did not run without the restriction ($p)"
     elif [ "$a" != "3|blocked|n" ]; then
@@ -153,8 +158,9 @@ main {
 }'
 c_vm=$(run "{ $BASE }" "$CAL" "")
 c_tw=$(run "{ $BASE }" "$CAL" "--tree-walk")
-if [ "$c_vm" = "0|ran|n" ] && [ "$c_tw" = "0|ran|n" ]; then
-    pass "AG-00" "an async fn with no governed call runs on both engines"
+grep -qF -- "$TW_REFUSAL_MARK" "$TEST_TMP/last.out" || c_tw="$c_tw|not-the-refusal"
+if [ "$c_vm" = "0|ran|n" ] && [ "$c_tw" = "4|blocked|n" ]; then
+    pass "AG-00" "an async fn with no governed call runs on the VM (the tree-walker is refused under enforce)"
 else
     fail "AG-00" "calibration failed (vm=$c_vm tree-walk=$c_tw) -- nothing below can be read"
     echo "Result: $PASS_COUNT passed, $FAIL_COUNT failed, $SKIP_COUNT skipped"; exit 1

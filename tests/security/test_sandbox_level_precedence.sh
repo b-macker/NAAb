@@ -97,7 +97,7 @@ TARGET=$(native_path "$OUTSIDE/secret.txt")
 # $1 = security block  $2 = integrity block
 cfg() {
     cat > "$W/govern.json" <<JSON
-{ "version":"5.0","mode":"enforce",
+{ "version":"5.0","mode":"${MODE:-enforce}",
   "security": $1,
   "integrity": $2,
   "capabilities":{"filesystem":{"mode":"readwrite"}} }
@@ -188,15 +188,22 @@ r=$(run --sandbox-level standard)
 # SP-06/07 -- ENGINE PARITY. The fix changed TWO sites, applyGovernanceSandbox()
 # and the VM inline block, and the comment above the former warns they must
 # agree. Arms SP-01..SP-05 only exercise the default VM path, so a fix applied to
-# one site and not the other would pass all of them.
+# one site and not the other would pass all of them. The tree-walker is refused
+# under enforce (SP-TW), so its two arms run under audit: the level is chosen
+# the same way there, and the sandbox, not governance, refuses the read.
 cfg '{"sandbox_level":"standard"}' '{}'
+. "$(dirname "$0")/../helpers/tree_walk_refusal.sh"
+tw_out=$( cd "$W" && timeout 60 "$NAAB" --tree-walk "$W/t.naab" 2>&1 ); tw_rc=$?
+if tw_refused "$tw_rc" "$tw_out"; then ok "SP-TW" "under an enforce config --tree-walk is refused before it runs"
+else bad "SP-TW" "under an enforce config --tree-walk is refused before it runs" "rc=$tw_rc"; fi
+MODE=audit cfg '{"sandbox_level":"standard"}' '{}'
 r=$(run --tree-walk --sandbox-level elevated)
 [ "$r" = refused ] \
   && ok "SP-06" "the escalation is blocked on the TREE-WALKER too" \
   || bad "SP-06" "the escalation is blocked on the TREE-WALKER too" \
          "got '$r' — the two sandbox-level sites have drifted"
 
-cfg '{"sandbox_level":"elevated"}' '{}'
+MODE=audit cfg '{"sandbox_level":"elevated"}' '{}'
 r=$(run --tree-walk)
 [ "$r" = read ] \
   && ok "SP-07" "NEGATIVE CONTROL: tree-walker still honours a permissive config" \

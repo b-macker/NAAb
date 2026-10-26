@@ -193,8 +193,8 @@ cfg() {
     if [[ "$top" == *'"filesystem"'* ]]; then :
     elif [[ "$top" == *'"capabilities": {'* ]]; then top="${top/'"capabilities": {'/'"capabilities": {'"$prot, "}"
     else top="\"capabilities\": {$prot}, $top"; fi
-    printf '{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"},\n "telemetry": {"enabled": true, "output_file": "tele.jsonl"},\n %s\n "guidance": {"sources": %s %s}}\n' \
-        "$top" "$2" "${4:-}" > "$1/govern.json"
+    printf '{"version": "5.0", "mode": "%s", "security": {"sandbox_level": "elevated"},\n "telemetry": {"enabled": true, "output_file": "tele.jsonl"},\n %s\n "guidance": {"sources": %s %s}}\n' \
+        "${CFG_MODE:-enforce}" "$top" "$2" "${4:-}" > "$1/govern.json"
 }
 run() {  # $1 dir, $2 engine, $3 program -> sets OUT, RC
     printf '%s\n' "$3" > "$1/p.naab"
@@ -572,7 +572,18 @@ else fail "C-19" "size cap not applied" "rc=$RC ${OUT:0:300}"; fi
 # ---------------------------------------------------------------------------
 echo ""
 echo "== engines"
-d="$TEST_TMP/c22"; cfg "$d" "[\"$BASE/g.json\"]"
+# Under enforce --tree-walk is refused before it runs (C-TW); the tree-walker's
+# arms run under audit, where guidance is fetched and delivered as under
+# enforce. Its several engines per run (CLI, interpreter, one per async call)
+# are what C-23 and C-24 are about, and they exist under audit too.
+mode_for() { [ "$1" = tw ] && echo audit || echo enforce; }
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+d="$TEST_TMP/ctw"; cfg "$d" "[\"$BASE/g.json\"]"
+run "$d" tw "$PULL"
+if tw_refused "$RC" "$OUT" && [[ "$OUT" != *"CONN_HTTPS_m1"* ]]; then
+    pass "C-TW" "under an enforce config --tree-walk is refused before anything runs"
+else fail "C-TW" "--tree-walk ran under an enforce config" "rc=$RC ${OUT:0:300}"; fi
+d="$TEST_TMP/c22"; CFG_MODE=audit cfg "$d" "[\"$BASE/g.json\"]"
 run "$d" tw "$PULL"
 if [[ "$OUT" == *"CONN_HTTPS_m1: roll back"* ]]; then
     pass "C-22" "the tree-walker delivers the same fetched guidance"
@@ -603,7 +614,7 @@ main {
 once_detail=""; once_ok=1
 for eng in vm tw; do
     d="$TEST_TMP/c23-$eng"; mkdir -p "$d"
-    cfg "$d" "[{\"command\": [\"$TEST_TMP/bin/count.sh\", \"$d/calls.log\"]}]"
+    CFG_MODE=$(mode_for $eng) cfg "$d" "[{\"command\": [\"$TEST_TMP/bin/count.sh\", \"$d/calls.log\"]}]"
     run "$d" "$eng" "$ONCE_PROG"
     calls="$(grep -c x "$d/calls.log" 2>/dev/null || echo 0)"
     if ! { [[ "$OUT" == *"N=1"* ]] && [[ "$OUT" == *"ASYNC=11,21"* ]] && [ "$calls" = 1 ]; }; then
@@ -652,12 +663,14 @@ reload_ok=1; reload_detail=""; ctl_ok=1; ctl_detail=""
 for eng in vm tw; do
     for kind in tight neutral; do
         d="$TEST_TMP/c24-$eng-$kind"; mkdir -p "$d"
+        export CFG_MODE=$(mode_for $eng)
         cfg "$d" "[{\"url\": \"$BASE/reload.json\", \"refresh_seconds\": 5}]"
         if [ "$kind" = tight ]; then
             cfg "$TEST_TMP/c24-new-$eng-$kind" "[{\"url\": \"$BASE/reload.json\", \"refresh_seconds\": 5}]" '"capabilities": {"network": {"enabled": false}},'
         else
             cfg "$TEST_TMP/c24-new-$eng-$kind" "[{\"url\": \"$BASE/reload.json\", \"refresh_seconds\": 5}]" "" ', "cooldown_turns": 4'
         fi
+        unset CFG_MODE
         touch -d '2 minutes ago' "$d/govern.json" 2>/dev/null || true
         start_swap_operator "$d"
         prog="$(reload_prog "$TEST_TMP/c24-new-$eng-$kind/govern.json")"

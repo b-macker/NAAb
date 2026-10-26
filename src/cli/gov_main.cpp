@@ -175,6 +175,10 @@ static int cmdLint(const std::vector<std::string>& args) {
             ? fs::path(fs::absolute(source_path)).parent_path().string()
             : fs::current_path().string();
         loaded = engine.discoverAndLoad(dir);
+        if (!loaded && engine.getLastError() != "not_found") {
+            std::cerr << "naab-gov lint: govern.json was found but could not be loaded\n";
+            return 4;
+        }
         if (!loaded) {
             std::cerr << "naab-gov lint: no governance config found (govern.json or --config required)\n"
                          "  Searched from: " << dir << "\n";
@@ -423,7 +427,13 @@ static int cmdCheck(const std::vector<std::string>& args) {
         }
     } else {
         loaded = engine.discoverAndLoad(fs::current_path().string());
-        // No config is fine — pattern checks still run
+        // No config is fine — pattern checks still run. A config that was
+        // FOUND and did not load is not: a verdict reached without the
+        // project's policy would read as the project's (A84).
+        if (!loaded && engine.getLastError() != "not_found") {
+            std::cerr << "naab-gov check: govern.json was found but could not be loaded\n";
+            return 4;
+        }
     }
 
     if (!env_name.empty() && loaded) {

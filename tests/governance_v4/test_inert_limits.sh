@@ -17,7 +17,7 @@
 # "no check reads it" immediately above the HARD block that check raised. LD-02
 # kept passing because it checked that the string was PRINTED, which is the
 # failure LD-08 exists to catch. dict_size now joins the controls (LD-02), and
-# LD-09 is its truth gate in the LD-08 mould: the limit blocks on both engines.
+# LD-09 is its truth gate in the LD-08 mould: the limit blocks on the VM (the tree-walker is refused under enforce, Bundle 2).
 #
 # Found by sweeping every enforce()/recordPass() rule name back to its
 # enclosing method and asking which methods nothing calls -- the same shape as
@@ -78,6 +78,7 @@ source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 if [ ! -x "$NAAB" ]; then
     echo "  test_inert_limits.sh: SKIPPED — build/naab-lang not found"
     exit 0
@@ -104,7 +105,7 @@ gate_def LD-05 CONTROL "array_size stays silent — mirrored to a live field"
 gate_def LD-06 CONTROL "max_json_depth stays silent — json_impl.cpp enforces it"
 gate_def LD-07 CONTROL "no warning when limits.data is absent"
 gate_def LD-08 TRUTH   "the warning is true — inert key does not block, live key does"
-gate_def LD-09 TRUTH   "dict_size's silence is true — it blocks an oversized dict on both engines"
+gate_def LD-09 TRUTH   "dict_size's silence is true — it blocks an oversized dict (VM; the tree-walker is refused under enforce)"
 
 run_limits() {  # $1 = JSON object for limits.data, $2 = script
     cat > "$W/govern.json" << EOF
@@ -212,15 +213,19 @@ main {
 EOF
 ld9=""
 run_limits '{"dict_size": 2}' t.naab >/dev/null   # writes the config
-for flag in "" "--tree-walk"; do
+for flag in ""; do
     big="$(cd "$W" && "$NAAB" big.naab $flag 2>&1)"
     small="$(cd "$W" && "$NAAB" small.naab $flag 2>&1)"
     case "$big" in *BIG_RAN*) ld9="$ld9 ${flag:-vm}:oversized-dict-ran" ;; esac
     case "$big" in *"limits.data.dict_size"*) ;; *) ld9="$ld9 ${flag:-vm}:no-dict_size-refusal" ;; esac
     case "$small" in *SMALL_RAN*) ;; *) ld9="$ld9 ${flag:-vm}:within-limit-dict-refused" ;; esac
 done
+# The tree-walker used to be the second engine here. Under enforce it is now
+# refused before anything runs (Bundle 2), so it cannot run the oversized dict.
+tw_big="$(cd "$W" && "$NAAB" big.naab --tree-walk 2>&1)"; tw_rc=$?
+tw_refused "$tw_rc" "$tw_big" && [[ "$tw_big" != *BIG_RAN* ]] || ld9="$ld9 tree-walk:not-refused-under-enforce"
 if [ -z "$ld9" ]; then
-    pass LD-09 "dict_size blocks an oversized dict and admits one within the limit, both engines"
+    pass LD-09 "dict_size blocks an oversized dict and admits one within the limit (VM; the tree-walker is refused)"
 else
     fail LD-09 "dict_size is not enforced as LD-02's silence claims" "$ld9"
 fi

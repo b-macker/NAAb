@@ -199,16 +199,19 @@ else
             fail "V-API-001: /execute without key returned $UNAUTH_STATUS (expected 401)"
         fi
 
+        # T3: /api/v1/execute with valid X-API-Key → 200 (501 on Windows, where
+        # /execute runs no program by design; the key was still accepted).
+        source "$SCRIPT_DIR/../helpers/rest_platform.sh"
         # T3: /api/v1/execute with valid X-API-Key → 200
         AUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST "http://localhost:$API_PORT/api/v1/execute" \
             -H "Content-Type: application/json" \
             -H "X-API-Key: $API_KEY" \
             -d '{"code":"main { }"}')
-        if [ "$AUTH_STATUS" = "200" ]; then
-            pass "V-API-001: /execute with valid X-API-Key returns 200"
+        if [ "$AUTH_STATUS" = "$REST_EXEC_OK_STATUS" ]; then
+            pass "V-API-001: /execute with valid X-API-Key is accepted ($AUTH_STATUS)"
         else
-            fail "V-API-001: /execute with valid X-API-Key returned $AUTH_STATUS (expected 200)"
+            fail "V-API-001: /execute with valid X-API-Key returned $AUTH_STATUS (expected $REST_EXEC_OK_STATUS)"
         fi
 
         # T4: /api/v1/execute with valid Authorization: Bearer → 200
@@ -217,10 +220,10 @@ else
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $API_KEY" \
             -d '{"code":"main { }"}')
-        if [ "$BEARER_STATUS" = "200" ]; then
-            pass "V-API-001: /execute with Authorization: Bearer returns 200"
+        if [ "$BEARER_STATUS" = "$REST_EXEC_OK_STATUS" ]; then
+            pass "V-API-001: /execute with Authorization: Bearer is accepted ($BEARER_STATUS)"
         else
-            fail "V-API-001: /execute with Authorization: Bearer returned $BEARER_STATUS (expected 200)"
+            fail "V-API-001: /execute with Authorization: Bearer returned $BEARER_STATUS (expected $REST_EXEC_OK_STATUS)"
         fi
 
         # T5: oversized body → 413

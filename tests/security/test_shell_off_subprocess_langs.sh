@@ -266,7 +266,10 @@ fi
 # verification really runs (a shell-on project prints the agreement line).
 vcfg() {  # $1 = dir, $2 = shell enabled
     mkdir -p "$1"
-    printf '{"version":"4.0","mode":"enforce","security":{"sandbox_level":"elevated"},"capabilities":{"shell":{"enabled":%s}},"polyglot_optimization":{"enabled":true,"verification":{"enabled":true,"consensus_languages":["python","%s"]}}}\n' "$2" "$VLANG" > "$1/govern.json"
+    # mode audit: the verification runs on the tree-walker only, and the
+    # tree-walker is refused under enforce (Bundle 2). The shell-off gate is
+    # applied from the capabilities whatever the mode.
+    printf '{"version":"4.0","mode":"audit","security":{"sandbox_level":"elevated"},"capabilities":{"shell":{"enabled":%s}},"polyglot_optimization":{"enabled":true,"verification":{"enabled":true,"consensus_languages":["python","%s"]}}}\n' "$2" "$VLANG" > "$1/govern.json"
     printf 'main {\n    let x = <<python\nsum([1, 2, 3])\n>>\n    print("SUM=" + x)\n}\n' > "$1/v.naab"
 }
 # The verifier must be a language with a verification template (rust and go

@@ -22,7 +22,8 @@
 # nothing testing that the two paths agreed.
 #
 # Every case asserts BOTH engines agree AND that the expected verdict is the one
-# they agree on — two engines that both fail to enforce agree perfectly.
+# they agree on — two engines that both fail to enforce agree perfectly. The VM
+# runs under enforce; the tree-walker, refused under enforce, under audit.
 # ============================================================
 set -uo pipefail
 
@@ -117,15 +118,26 @@ main {
 }
 EOF
 
+# The tree-walker is refused under enforce (SBX-TW), so its half of each arm
+# runs in $TEST_TMP/tw beside the same config in mode audit, unsigned, against
+# an EMPTY trust store: with a key trusted every config must be signed, and a
+# signed audit config is raised to enforce (F3). The sandbox settings are
+# applied there as under enforce; the enforce-only upgrade (SBX-06) is not.
+EMPTY_STORE="$TEST_TMP/empty-store"; mkdir -p "$EMPTY_STORE" "$TEST_TMP/tw"
+cp "$TEST_TMP"/*.naab "$TEST_TMP/tw/"
 write_govern() { printf '%s\n' "$2" > "$TEST_TMP/govern.json"
-    (cd "$TEST_TMP" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true; }
+    (cd "$TEST_TMP" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
+    printf '%s\n' "${2/'"mode": "enforce"'/'"mode": "audit"'}" > "$TEST_TMP/tw/govern.json"; }
 
 # The read probe prints READ_BLOCKED (underscore) and the shell probe
 # shell=BLOCKED (equals). A pattern covering only one silently reports <none>
 # for the other and makes a working engine look untested.
 verdict() {  # $1=script $2=engine-flag
-    (cd "$TEST_TMP" && timeout 30s "$NAAB" ${2:-} "$1.naab" 2>&1) \
-        | grep -oE "READ_(ALLOWED|BLOCKED)|shell=(ALLOWED|BLOCKED)" | head -1
+    if [ -n "${2:-}" ]; then
+        (cd "$TEST_TMP/tw" && NAAB_TRUST_STORE_DIR="$EMPTY_STORE" timeout 30s "$NAAB" $2 "$1.naab" 2>&1)
+    else
+        (cd "$TEST_TMP" && timeout 30s "$NAAB" "$1.naab" 2>&1)
+    fi | grep -oE "READ_(ALLOWED|BLOCKED)|shell=(ALLOWED|BLOCKED)" | head -1
 }
 
 check() {  # $1=id $2=script $3=expected $4=description
@@ -162,8 +174,17 @@ check "SBX-04" shell shell=BLOCKED "capabilities.shell.enabled=false removes SYS
 write_govern x '{ "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "elevated" } }'
 check "SBX-05" shell shell=ALLOWED "control: without the capability restriction exec is permitted"
 
+# SBX-06 is about enforce itself, and the tree-walker no longer runs under it:
+# the VM upgrades, and the tree-walker is refused (SBX-TW).
 write_govern x '{ "version": "5.0", "mode": "enforce" }'
-check "SBX-06" read_sync READ_BLOCKED "enforce mode with no level set upgrades to standard (fail-closed)"
+vm=$(verdict read_sync "")
+if [ "$vm" = READ_BLOCKED ]; then pass "SBX-06" "enforce mode with no level set upgrades to standard (fail-closed) (VM $vm)"
+else fail "SBX-06" "enforce mode with no level set upgrades to standard (fail-closed)" "VM=${vm:-<none>}"; fi
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+tw_out=$(cd "$TEST_TMP" && timeout 30s "$NAAB" --tree-walk read_sync.naab 2>&1); tw_rc=$?
+if tw_refused "$tw_rc" "$tw_out" && ! grep -qE 'READ_(ALLOWED|BLOCKED)' <<<"$tw_out"; then
+    pass "SBX-TW" "under an enforce config --tree-walk is refused before it runs"
+else fail "SBX-TW" "--tree-walk ran under an enforce config" "rc=$tw_rc"; fi
 
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"

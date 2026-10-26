@@ -19,6 +19,9 @@
 # The language list comes from the binary (codegen.supported_languages()), so
 # an executor registered tomorrow is held to the same contract.
 #
+# The VM runs under enforce; the tree-walker, refused under enforce, beside a
+# mode-audit copy of the config.
+#
 #   BF-00  CONTROL: valid sql, javascript and php blocks run (exit 0) on both
 #          engines -- without it every arm below passes for an engine that
 #          fails everything
@@ -66,10 +69,15 @@ trap 'rm -rf "$W"; teardown_isolated_trust' EXIT
 # elevated: under the enforce default (standard) subprocess languages are
 # refused by the sandbox, which would fail every block for the wrong reason.
 printf '%s\n' '{"mode":"enforce","security":{"sandbox_level":"elevated"}}' > "$W/govern.json"
+# --tree-walk is refused under enforce, so the tree-walker's runs are beside a
+# mode-audit copy: these arms are about what a failed block does, not policy.
+mkdir -p "$W/aud"
+printf '%s\n' '{"mode":"audit","security":{"sandbox_level":"elevated"}}' > "$W/aud/govern.json"
 
-run() {  # $1 = engine flag or "", $2 = program text; sets OUT, RC
-    printf '%s\n' "$2" > "$W/p.naab"
-    OUT="$(cd "$W" && "$NAAB" ${1:+$1} p.naab --timeout 60 2>&1)"; RC=$?
+run() {  # $1 = engine flag or "", $2 = program text; sets OUT, RC, RD (the run's dir)
+    RD="$W"; [ -n "$1" ] && RD="$W/aud"
+    printf '%s\n' "$2" > "$RD/p.naab"
+    OUT="$(cd "$RD" && "$NAAB" ${1:+$1} p.naab --timeout 60 2>&1)"; RC=$?
 }
 
 langs="$(mkdir -p "$W/reg" && printf 'use codegen\nmain {\n    for x in codegen.supported_languages() { print(x) }\n}\n' > "$W/reg/r.naab" \
@@ -131,9 +139,9 @@ else
     f3=""; f3c=""
     for eng in "" --tree-walk; do
         e=${eng:-vm}; e=${e#--}
-        rm -f "$W/php_ran.txt"
+        rm -f "$W/php_ran.txt" "$W/aud/php_ran.txt"
         run "$eng" $'main {\n    let r = <<php\necho 1 + 1;\n>>\n    print("PHP=" + r)\n    <<php\nfile_put_contents("php_ran.txt", "x");\n>>\n}'
-        { [ $RC -eq 0 ] && [[ "$OUT" == *"PHP=2"* ]] && [ -f "$W/php_ran.txt" ]; } || f3+=" $e(rc=$RC)"
+        { [ $RC -eq 0 ] && [[ "$OUT" == *"PHP=2"* ]] && [ -f "$RD/php_ran.txt" ]; } || f3+=" $e(rc=$RC)"
         run "$eng" $'main {\n    let t = <<php\nHello <?php echo "T"; ?>\n>>\n    print("TPL=" + t)\n}'
         { [ $RC -eq 0 ] && [[ "$OUT" == *"TPL=Hello T"* ]]; } || f3c+=" $e(rc=$RC)"
     done

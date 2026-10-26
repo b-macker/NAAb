@@ -78,9 +78,22 @@ echo ""
 # expression path emits "Taint tracking violation: ...". Matching only the first
 # made a working engine look broken and produced a bogus finding — the detector
 # has to cover both.
+#
+# The config's "monitor" is not a mode the loader knows; it resolves to enforce,
+# where --tree-walk is refused before anything runs. So the tree-walker counts
+# in $TEST_TMP/tw beside the same config in mode audit, unsigned, against an
+# EMPTY trust store (with a key trusted, every config must be signed, and a
+# signed audit config is raised to enforce). Its violations are then recorded
+# as AUDIT lines, matched by the same pattern.
+EMPTY_STORE="$TEST_TMP/empty-store"; mkdir -p "$EMPTY_STORE" "$TEST_TMP/tw"
+sed 's/"mode": "monitor"/"mode": "audit"/' "$TEST_TMP/govern.json" > "$TEST_TMP/tw/govern.json"
 count_violations() {  # $1=file $2=extra flags
-    (cd "$TEST_TMP" && timeout 30s "$NAAB" ${2:-} "$1.naab" 2>&1) \
-        | grep -ciE "sink_violation|Taint tracking violation" || true
+    if [ -n "${2:-}" ]; then
+        cp "$TEST_TMP/$1.naab" "$TEST_TMP/tw/"
+        (cd "$TEST_TMP/tw" && NAAB_TRUST_STORE_DIR="$EMPTY_STORE" timeout 30s "$NAAB" $2 "$1.naab" 2>&1)
+    else
+        (cd "$TEST_TMP" && timeout 30s "$NAAB" "$1.naab" 2>&1)
+    fi | grep -ciE "sink_violation|Taint tracking violation" || true
 }
 
 # scenario|expectation  (tainted = must flag, clean = must not)
@@ -246,6 +259,14 @@ if [ "$TAINTED_SEEN" -ge 5 ]; then
 else
     fail "PARITY-control" "taint never fired — the clean cases pass vacuously" \
          "only $TAINTED_SEEN positive detections; expected >= 5"
+fi
+
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+tw_out=$(cd "$TEST_TMP" && timeout 30s "$NAAB" --tree-walk direct.naab 2>&1); tw_rc=$?
+if tw_refused "$tw_rc" "$tw_out" && ! grep -qiE "sink_violation|Taint tracking violation" <<<"$tw_out"; then
+    pass "PARITY-TW" "under the suite's config (\"monitor\" resolves to enforce) --tree-walk is refused before it runs"
+else
+    fail "PARITY-TW" "--tree-walk ran under an enforce config" "rc=$tw_rc"
 fi
 
 echo ""

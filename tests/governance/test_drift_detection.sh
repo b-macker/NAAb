@@ -4,6 +4,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB="$(cd "$(dirname "$SCRIPT_DIR/../../build/naab-lang")" && pwd)/naab-lang"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 PASSED=0
 FAILED=0
 TOTAL=0
@@ -131,17 +132,19 @@ else
   echo "    Output: $(echo "$OUTPUT" | head -3)"
 fi
 
-# --- T9: Tree-walker path also blocks ---
+# --- T9: the tree-walker does not run it ---
+# T9 asserted the tree-walker path also blocks the gutted file. Under enforce
+# the tree-walker is now refused before anything runs (Bundle 2).
 cat > "$WORK_DIR/test.naab" << 'NAAB_EOF'
 main { print("hello") }
 NAAB_EOF
 
 OUTPUT=$("$NAAB" --tree-walk "$WORK_DIR/test.naab" 2>&1)
 RC=$?
-if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -q "functions dropped"; then
-  pass "T9: tree-walker path also blocks gutted file"
+if tw_refused "$RC" "$OUTPUT" && ! grep -qx hello <<<"$OUTPUT"; then
+  pass "T9: the tree-walker is refused under enforce; the gutted file did not run"
 else
-  fail "T9: tree-walker should block (rc=$RC)"
+  fail "T9: the tree-walker should be refused under enforce (rc=$RC)"
   echo "    Output: $(echo "$OUTPUT" | head -5)"
 fi
 

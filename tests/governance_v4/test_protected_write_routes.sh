@@ -44,7 +44,7 @@
 #          measures nothing.
 #   PW-02  file.copy(src, DIR) onto a user blocked_paths file is blocked; the
 #          file is unchanged. vm.
-#   PW-03  same under --tree-walk (two independent gate call sites).
+#   PW-03  (PW-02/tw) the tree-walker is refused under enforce (Bundle 2).
 #   PW-04  file.copy(src, ".") onto the auto-protected govern.json is blocked;
 #          govern.json is unchanged (the self-protection case).
 #   PW-05  file.copy(src, DIR) onto a live-guidance SOURCE is blocked.
@@ -72,6 +72,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NAAB="${NAAB:-$REPO/build/naab-lang}"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 TEST_TMP="$(mktemp -d)"
 
 PASS_COUNT=0; FAIL_COUNT=0; SKIP_COUNT=0
@@ -143,6 +144,13 @@ for eng in vm tw; do
     echo "GOOD_COPY" > "$d/staging/secret.txt"
     run "$d" $eng 'use file
 main { file.copy("staging/secret.txt", "vault") }'
+    if [ "$eng" = tw ]; then
+        # Under enforce the tree-walker is refused before anything runs (Bundle 2).
+        if tw_refused "$RC" "$OUT" && [ "$(content "$d/vault/secret.txt")" = "ORIGINAL_SECRET" ]; then
+            pass "PW-02/tw" "the tree-walker is refused under enforce; file unchanged"
+        else fail "PW-02/tw" "the tree-walker should be refused under enforce" "rc=$RC out=${OUT:0:100}"; fi
+        continue
+    fi
     if [ "$RC" = 3 ] && [ "$(content "$d/vault/secret.txt")" = "ORIGINAL_SECRET" ]; then
         pass "PW-02${eng:+/$eng}" "copy into vault/ onto a blocked file is blocked; file unchanged ($eng)"
     else fail "PW-02/$eng" "copy into a blocked file was not blocked" "rc=$RC out=${OUT:0:100}"; fi

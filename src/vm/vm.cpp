@@ -2023,11 +2023,25 @@ interpreter::NaabVal VM::run() {
                                         return frames_[i].function->name;
                                     }, frame_count_);
                             }
+                            // One code element per instruction, so ip - 1 is this
+                            // call. It read ip - 4, three instructions back: the
+                            // previous statement for js.exec("..."), as the audit
+                            // entry showed against the tree-walker's line.
                             int gov_line = CURRENT_CHUNK().getLine(
-                                static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                                static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
                             std::string gov_err = governance_->checkPolyglotBlock(
                                 rt.language, code, current_file_, gov_line, 0);
                             if (!gov_err.empty()) runtimeError("%s", gov_err.c_str());
+                            // limits.execution.polyglot_blocks and the audit entry, as
+                            // the tree-walker's .exec() route has always done. The VM
+                            // counted inline blocks only, so .exec() walked past the
+                            // limit on the default engine.
+                            std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
+                            if (!count_err.empty()) runtimeError("%s", count_err.c_str());
+                            governance_->logPolyglotExecution(rt.language, {}, 0, current_file_,
+                                                              gov_line,
+                                                              rt.executor ? rt.executor->getRuntimeVersion()
+                                                                          : std::string());
                         }
 
                         // For subprocess-based languages, accumulate code
@@ -3292,6 +3306,12 @@ interpreter::NaabVal VM::run() {
                         rec.contract_verified = json_parsed;
                         rec.exit_code = executor->getLastExitCode();
                         governance_->addPolyglotExecution(rec);
+                        // The audit trail's entry (audit.log_events.polyglot_executed
+                        // / polyglot_timing). Only the tree-walker wrote it, so an
+                        // enforce run -- VM only -- recorded no polyglot execution.
+                        governance_->logPolyglotExecution(language, bound_var_names, duration_us,
+                                                          current_file_, polyglot_gov_line,
+                                                          rec.runtime_version);
                     }
                 } catch (const governance::GovernanceHardError&) {
                     throw;  // uncatchable — propagate to main

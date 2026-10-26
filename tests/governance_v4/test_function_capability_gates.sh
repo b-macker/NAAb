@@ -95,9 +95,13 @@ PY
 }
 
 # run PROG CFG [args...] -> RC, OUT
+# The tree-walker is refused under enforce (FG-TW), so a --tree-walk run writes
+# the config in mode audit: the tier's findings are reported the same way (the
+# grouped summary), and a hard level is recorded instead of blocking.
 run() {
     local prog="$1"; shift; local cfg="$1"; shift
-    mkcfg "$cfg" >/dev/null || { RC=99; OUT="FIXTURE BROKEN"; return; }
+    local mode=enforce; [[ " $* " == *" --tree-walk "* ]] && mode=audit
+    mkcfg "$cfg" "$mode" >/dev/null || { RC=99; OUT="FIXTURE BROKEN"; return; }
     OUT="$(cd "$W" && FK=x timeout 60s "$NAAB" "$@" "$prog" 2>&1)"; RC=$?
 }
 
@@ -143,6 +147,16 @@ mkcfg '{"default": {"allowed_actions": ["FS_READ", "SHELL_EXEC"]}}' >/dev/null &
     probe_out="$(cd "$W" && timeout 60s "$NAAB" shell.naab 2>&1)"
     case "$probe_out" in *DONE*) SHELL_OK=1 ;; esac
 }
+
+# --- FG-TW: under enforce --tree-walk is refused -----------------------------
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+mkcfg "$RO" >/dev/null
+tw_out="$(cd "$W" && FK=x timeout 60s "$NAAB" --tree-walk all.naab 2>&1)"; tw_rc=$?
+if tw_refused "$tw_rc" "$tw_out" && [[ "$tw_out" != *DONE* ]]; then
+    pass "FG-TW" "under an enforce config --tree-walk is refused before it runs"
+else
+    fail "FG-TW" "--tree-walk ran under an enforce config" "rc=$tw_rc"
+fi
 
 # --- FG-01..FG-06: every gate, both engines ---------------------------------
 declare -a IDS=(FG-01 FG-02 FG-04 FG-05 FG-06)
@@ -259,7 +273,11 @@ fi
 bad=""
 for eng in "" "--tree-walk"; do
     run all.naab '{"level": "hard", "default": {"allowed_actions": ["FS_READ", "FS_WRITE"]}}' $eng
-    [ "$RC" -eq 3 ] || bad="$bad ${eng:-VM}(rc=$RC)"
+    if [ -n "$eng" ]; then   # audit: recorded at hard, the run goes on
+        { [ "$RC" -eq 0 ] && grep -q 'AUDIT capabilities.functions' <<<"$OUT"; } || bad="$bad tw(rc=$RC, not recorded)"
+    else
+        [ "$RC" -eq 3 ] || bad="$bad VM(rc=$RC)"
+    fi
     case "$OUT" in *"NET_CONNECT"*) ;; *) bad="$bad ${eng:-VM}(not-net)" ;; esac
 done
 if [ -z "$bad" ]; then
@@ -284,11 +302,16 @@ for eng in "" "--tree-walk"; do
     case "$out" in *"Undeclared"*) bad="$bad ${eng:-VM}(still-gating)" ;; esac
     case "$out" in *DONE*) ;; *) bad="$bad ${eng:-VM}(no-DONE)" ;; esac
 done
-# Positive control: the SAME declaration under enforce must block, or FG-12
-# would pass for a build where the tier never worked at all.
+# Positive control: the SAME declaration under enforce must block (the VM), and
+# under audit be recorded (the tree-walker), or FG-12 would pass for a build
+# where the tier never worked at all.
 for eng in "" "--tree-walk"; do
     run all.naab '{"level": "hard", "default": {"allowed_actions": []}}' $eng
-    [ "$RC" -eq 3 ] || bad="$bad ${eng:-VM}(enforce-rc=$RC)"
+    if [ -n "$eng" ]; then
+        grep -q 'AUDIT capabilities.functions' <<<"$OUT" || bad="$bad tw(audit-not-recorded)"
+    else
+        [ "$RC" -eq 3 ] || bad="$bad VM(enforce-rc=$RC)"
+    fi
 done
 if [ -z "$bad" ]; then
     pass "FG-12" "mode \"off\" silences the tier on both engines, and enforce still blocks"

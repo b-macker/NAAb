@@ -33,7 +33,8 @@
 #          the operator must relax
 #   FC-06  THE REMEDY WORKS: applying the suggested declaration to the entry the
 #          message names silences it
-#   Every arm runs on BOTH engines.
+#   Every arm runs on BOTH engines: the VM under enforce, the tree-walker under
+#   audit (FC-TW: under enforce --tree-walk is refused before it runs).
 # ============================================================
 set -uo pipefail
 
@@ -68,15 +69,23 @@ main { outer("x") print("DONE") }
 EOF
 
 # python writes to stdout, the shell redirects (see test_shell_path_handoff.sh)
+# The tree-walker is refused under enforce (FC-TW), so it runs in $W/aud beside
+# the same config in mode audit. Under audit the AUDIT line carries only a
+# message's first line; the JSON report keeps all of it, so run() prints both.
+mkdir -p "$W/aud"
 cfg() {
-    python3 -c "
+    local m
+    for m in enforce audit; do
+        python3 -c "
 import json,sys
-json.dump({'version':'1.0','mode':'enforce','security':{'sandbox_level':'elevated'},
+json.dump({'version':'1.0','mode':sys.argv[2],'security':{'sandbox_level':'elevated'},
  'capabilities':{'filesystem':{'mode':'write'},
    'functions':json.loads(sys.argv[1])}}, sys.stdout)
-" "$1" > "$W/govern.json"
+" "$1" "$m" > "$( [ $m = enforce ] && echo "$W" || echo "$W/aud" )/govern.json"
+    done
 }
-run() { ( cd "$W" && timeout 60 "$NAAB" ${2:-} "$1" 2>&1 ); }
+run() { local d="$W"; [ -n "${2:-}" ] && d="$W/aud"; cp "$W/$1" "$d/$1" 2>/dev/null; rm -f "$d/fc_rep.json"
+        ( cd "$d" && timeout 60 "$NAAB" run ${2:-} --governance-report fc_rep.json "$1" 2>&1; cat fc_rep.json 2>/dev/null ); }
 warns() { run "$1" "$2" | grep -c "Undeclared action" || true; }
 
 BOTH='{"default":{"allowed_actions":["FS_READ","FS_WRITE"]},"restricted_caller":{"allowed_actions":["FS_READ"]},"write_helper":{"allowed_actions":["FS_READ","FS_WRITE"]}}'
@@ -84,6 +93,11 @@ OPEN='{"default":{"allowed_actions":["FS_READ","FS_WRITE"]}}'
 NODEF='{"write_helper":{"allowed_actions":["FS_READ","FS_WRITE"]}}'
 
 echo -e "${CYAN}=== Group FC: capability composition across the call stack ===${NC}"
+
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+cfg "$BOTH"; out="$( cd "$W" && timeout 60 "$NAAB" --tree-walk t.naab 2>&1 )"; rc=$?
+if tw_refused "$rc" "$out"; then ok "FC-TW" "under the enforce config --tree-walk is refused before it runs"
+else bad "FC-TW" "--tree-walk ran under an enforce config" "exit $rc"; fi
 
 for eng in "VM:" "tree-walk:--tree-walk"; do
     label="${eng%%:*}"; flag="${eng##*:}"

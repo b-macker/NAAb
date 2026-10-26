@@ -421,13 +421,14 @@ case "$O" in
         esac ;;
 esac
 # Enabling site: the shorthand value is also the on/off switch, so the check
-# really is DISABLED — and the program it should have blocked runs. Run on the
-# tree-walker: the VM's main-block check was itself inert before this change
-# (MB below), and this pair is about the WARNING, so it must not depend on it.
+# really is DISABLED — and the program it should have blocked runs. This pair
+# ran on the tree-walker while the VM's main-block check was inert (MB below);
+# it runs on the VM now, which MB-01 shows blocks, and the tree-walker is
+# refused under enforce.
 mkdir -p lv && cd lv
 printf 'fn helper() { return 1 }\n' > nomain.naab
 lv_run() { printf '{"mode":"enforce","requirements":{"main_block":%s}}\n' "$1" > govern.json; sign
-           timeout 30 "$NAAB" --tree-walk nomain.naab 2>&1; echo "RC=$?"; }
+           timeout 30 "$NAAB" nomain.naab 2>&1; echo "RC=$?"; }
 O_UP="$(lv_run '"strict"')"
 O_CASE="$(lv_run '"HARD"')"
 O_LO="$(lv_run '"hard"')"
@@ -515,9 +516,13 @@ case "$O_VM" in
     *"requires a main"*"RC=3"*) pass "MB-01" "VM: a program with no main block is blocked at exit 3" ;;
     *) fail "MB-01" "VM: requirement did not block" "$(printf '%s' "$O_VM" | tail -2)" ;;
 esac
+# The tree-walker is refused under enforce, and every config here is signed
+# (a key is trusted), so a signed audit config is raised to enforce (F3): its
+# own main-block check cannot be reached in this suite. MB-02 pins the refusal.
 case "$O_TW" in
-    *"{{"*) fail "MB-02" "tree-walker: message prints a literal {{ }}" ;;
-    *"requires a main"*"RC=3"*) pass "MB-02" "tree-walker: blocked at exit 3 (was 1)" ;;
+    *"tree-walk cannot run under this project's governance"*"RC=4"*)
+        if [[ "$O_TW" == *"requires a main"* ]]; then fail "MB-02" "tree-walker: refused, but the program was checked first" "$(printf '%s' "$O_TW" | tail -2)"
+        else pass "MB-02" "tree-walker: refused under enforce (exit 4) before anything runs"; fi ;;
     *) fail "MB-02" "tree-walker: wrong outcome" "$(printf '%s' "$O_TW" | tail -2)" ;;
 esac
 case "$O_OK" in

@@ -2,6 +2,7 @@
 // Read-Eval-Print Loop with history and multi-line support
 
 #include "naab/config.h"
+#include "naab/repl_gate.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/interpreter.h"
@@ -345,6 +346,7 @@ void run_repl() {
 } // namespace naab
 
 int main() {
+    if (int rc = naab::repl::refuseBesideGovernance()) return rc;
     // Phase 7c: Initialize language executors
     auto& registry = naab::runtime::LanguageRegistry::instance();
 
