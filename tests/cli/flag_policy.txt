@@ -18,11 +18,14 @@
 #                        named defense cannot silently disappear.
 #   run-policy           a run-time flag that selects, requires, or overrides a
 #                        govern.json setting. govern.json is primary; a CLI
-#                        override is lockable via integrity.blocked_flags. Some
-#                        (--sandbox-level, --allow-network) CAN loosen and are
-#                        defended only by the operator opting to lock them --
-#                        the reason says so. SCREENED: this is the relationship,
-#                        not a proof of the enforcement direction.
+#                        override is lockable via integrity.blocked_flags. A flag
+#                        may tighten govern.json, never loosen it (#341):
+#                        --timeout, --memory-limit and --sandbox-level are
+#                        capped by govern.json. --allow-network raises only the
+#                        built-in CLI default; a govern.json network.enabled:
+#                        false still removes the network (traced,
+#                        syncGovernanceToSandbox). SCREENED: this is the
+#                        relationship, not a proof of the enforcement direction.
 #   governance-evidence  produces or annotates governance observation only
 #                        (reports, SARIF/JUnit, telemetry, dashboard, lint
 #                        verdict, override justification). Never loosens.
@@ -42,7 +45,7 @@
 # job is the CLASS: no new option reaches main.cpp without this decision.
 # ============================================================
 --agent-id	run-policy	selects the agent role enforced from govern.json agents; also sets telemetry identity
---allow-network	run-policy	enables network (loosens the default); lockable via integrity.blocked_flags
+--allow-network	run-policy	enables network over the built-in CLI default; govern.json network.enabled: false still applies; lockable via integrity.blocked_flags
 --api-key	run-policy	REST api server auth key; CLI overrides govern.json api.keys
 --api-rate-limit	run-policy	REST api server rate limit; CLI overrides govern.json api.*
 --api-timeout	run-policy	REST api server request timeout; CLI overrides govern.json api.*
@@ -93,9 +96,9 @@
 --lock-check	neutral	verify naab.lock; package integrity artifact, not govern.json
 --lock-path	neutral	path to naab.lock; package integrity artifact, not govern.json
 --max-body	run-policy	REST api server max request body; CLI overrides govern.json api.*
---memory-limit	run-policy	per-block memory cap; bounds a run, cannot relax govern.json limits
+--memory-limit	run-policy	memory limit; a govern.json runtime.memory_limit caps it, the flag can lower but not raise it (A79)
 --no-color	neutral	disable colored error messages; output utility
---no-governance	bypass-guarded:checkBlocked	waives the no-govern.json-found requirement; defended by checkBlocked and implicitBlock
+--no-governance	bypass-guarded:checkBlocked	waives the no-govern.json-found requirement only; a discovered govern.json applies in full (A78); defended by checkBlocked and implicitBlock
 --output	neutral	calibrate output path; no govern.json bearing
 --override-reason	governance-evidence	records the justification for --governance-override in the decision trail
 --package	neutral	init: package project layout; no run-time governance effect
@@ -107,7 +110,7 @@
 --require-governance	run-policy	reaffirms that a govern.json is required (tightening; cannot loosen)
 --revoke-approval	governance-admin	revoke a governance approval (approvals store)
 --revoke-key	governance-admin	revoke a trusted key (trust store)
---sandbox-level	run-policy	overrides security.sandbox_level; CAN loosen the sandbox, lockable via integrity.blocked_flags (A13)
+--sandbox-level	run-policy	sandbox level; govern.json's security.sandbox_level caps it (A13), and under enforce a level above standard needs govern.json to set it (A79)
 --scan	neutral	run the C++ code-quality scanner; not a governed run
 --sign-baseline	governance-admin	sign a drift baseline (trust store)
 --sign-governance	governance-admin	sign govern.json (produces govern.json.sig)
@@ -117,7 +120,7 @@
 --strict-types	neutral	strict type checking; no governance bearing
 --taint	governance-admin	init: turn on taint tracking and sequence detection in the generated govern.json
 --tasks	neutral	calibrate/benchmark task filter; no govern.json bearing
---timeout	run-policy	run time limit; raises but cannot lower govern.json's limit
+--timeout	run-policy	run time limit; a govern.json limit caps it, the flag can lower but not raise it (A79)
 --tree-walk	bypass-guarded:checkBlocked	selects the tree-walker engine; wired into the bypass-flag block (operator-lockable, defence in depth)
 --trust-key	governance-admin	install a public key into the trust store
 --verbose	neutral	enable verbose output; output utility
