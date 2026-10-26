@@ -749,7 +749,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
     // Runtime limits section
     if (j.contains("runtime") && j["runtime"].is_object()) {
         auto& rt = j["runtime"];
-        if (rt.contains("timeout") && rt["timeout"].is_number_integer()) rules_.runtime.timeout = rt["timeout"].get<int>();
+        if (rt.contains("timeout") && rt["timeout"].is_number_integer()) { rules_.runtime.timeout = rt["timeout"].get<int>(); rules_.runtime.timeout_configured = true; }
         if (rt.contains("memory_limit") && rt["memory_limit"].is_number_unsigned()) rules_.runtime.memory_limit = rt["memory_limit"].get<size_t>();
         if (rt.contains("gc_threshold") && rt["gc_threshold"].is_number_unsigned()) rules_.runtime.gc_threshold = rt["gc_threshold"].get<size_t>();
         if (rt.contains("gc_stats") && rt["gc_stats"].is_boolean()) rules_.runtime.gc_stats = rt["gc_stats"].get<bool>();
@@ -1359,7 +1359,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& lim = j["limits"];
         if (lim.contains("timeout") && lim["timeout"].is_object()) {
             auto& t = lim["timeout"];
-            if (t.contains("global") && t["global"].is_number_integer()) { rules_.limits.timeout.global = t["global"].get<int>(); rules_.timeout_seconds = rules_.limits.timeout.global; rules_.runtime.timeout = rules_.limits.timeout.global; rules_.explicitly_set.insert("limits.timeout.global"); rules_.explicitly_set.insert("timeout_seconds"); }
+            if (t.contains("global") && t["global"].is_number_integer()) { rules_.limits.timeout.global = t["global"].get<int>(); rules_.timeout_seconds = rules_.limits.timeout.global; rules_.runtime.timeout = rules_.limits.timeout.global; rules_.runtime.timeout_configured = true; rules_.explicitly_set.insert("limits.timeout.global"); rules_.explicitly_set.insert("timeout_seconds"); }
             if (t.contains("per_block") && t["per_block"].is_number_integer()) rules_.limits.timeout.per_block = t["per_block"].get<int>();
             if (t.contains("total_polyglot") && t["total_polyglot"].is_number_integer()) { rules_.limits.timeout.total_polyglot = t["total_polyglot"].get<int>(); rules_.explicitly_set.insert("limits.timeout.total_polyglot"); }
         }
@@ -1377,7 +1377,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (e.contains("total_executions") && e["total_executions"].is_number_integer()) rules_.limits.execution.total_executions = e["total_executions"].get<int>();
             // limits.execution.timeout_seconds is the canonical key for overall script timeout.
             // Wire it to runtime.timeout so main.cpp enforcement picks it up.
-            if (e.contains("timeout_seconds") && e["timeout_seconds"].is_number_integer()) { rules_.runtime.timeout = e["timeout_seconds"].get<int>(); }
+            if (e.contains("timeout_seconds") && e["timeout_seconds"].is_number_integer()) { rules_.runtime.timeout = e["timeout_seconds"].get<int>(); rules_.runtime.timeout_configured = true; }
         }
         if (lim.contains("data") && lim["data"].is_object()) {
             auto& d = lim["data"];
@@ -6658,14 +6658,14 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
     // together with limits.timeout.global; the merge above sets only the limits
     // copy, so an inherited limit never reached the run. That was hidden while
     // the CLI took max(30, configured): test_extends.sh T2's parent 30 equalled
-    // the floor (A74). Carry a merged limit over, capped at the built-in
-    // default, so no run gets longer than it did before; whether an inherited
-    // limit above it should apply is open (A74). Under child_wins a child that
-    // set its own runtime.timeout keeps it.
+    // the floor (A74). Carry a merged limit over as written, above 30 s too:
+    // govern.json is the policy, and the owner decided (2026-10-25) that an
+    // inherited limit applies like a configured one. Under child_wins a child
+    // that set its own limit keeps it.
     if (cl.timeout.global > 0 && cl.timeout.global != child_global_before) {
-        const int builtin = GovernanceRules::RuntimeConfig{}.timeout;
-        if (parent_wins || child.runtime.timeout == builtin) {
-            child.runtime.timeout = std::min(cl.timeout.global, builtin);
+        if (parent_wins || !child.runtime.timeout_configured) {
+            child.runtime.timeout = cl.timeout.global;
+            child.runtime.timeout_configured = true;
         }
     }
     // Memory limits

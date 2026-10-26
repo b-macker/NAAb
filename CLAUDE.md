@@ -462,7 +462,7 @@ Always run `bash tests/security/test_error_msg_leaks.sh` after changing any erro
 | `--governance-dashboard` | Print governance summary to stderr |
 | `--governance-report PATH` | Detailed governance report (requires a path) |
 | `--governance-sarif PATH` | SARIF format output (requires a path) |
-| `--no-governance` | Waive the "no govern.json found" requirement. It does NOT disable a discovered govern.json (#244) |
+| `--no-governance` | Waive the "no govern.json found" requirement. It does NOT disable any part of a discovered govern.json (#244, A78) |
 | `--gc-threshold N` | GC allocation threshold |
 | `--gc-stats` | Print GC statistics |
 | `--keygen PATH` | Generate Ed25519 signing keypair |
@@ -471,7 +471,7 @@ Always run `bash tests/security/test_error_msg_leaks.sh` after changing any erro
 | `--trust-key PATH` | Install a public key |
 | `--list-keys` | List trusted key fingerprints |
 | `--env NAME` | Select governance environment |
-| `--timeout N` | Execution timeout (seconds) |
+| `--timeout N` | Run time limit (seconds); a govern.json limit caps it (A79) |
 | `mcp` (subcommand) | Serve governed execution over MCP on stdio (`docs/plan-mcp-service.md`) |
 
 ## Gotchas
@@ -481,6 +481,7 @@ Always run `bash tests/security/test_error_msg_leaks.sh` after changing any erro
 - **nlohmann/json.hpp** — keep in .cpp only, never in headers
 - **A literal brace in a fmt format string is `{{` / `}}` — the compiler will not tell you.** fmt checks literal format strings at compile time only under C++20; NAAb is C++17, so `fmt::format("returns {valid, error}", x)` compiles and throws at run time ("argument not found", or an abort on "invalid format string"). Help and error messages are where stray braces live, so the failure replaces exactly the text meant to explain one (A42: `agent.<typo>()` printed "argument not found" instead of its help). `tests/self-audit/test_fmt_literals.sh` runs `tools/fmtcheck/fmt_literals.py` over every literal passed to `fmt::*`, `spdlog::*` and `LOG_*` (the last forward through a `std::string`, so not even C++20 checks them); `fmt_literals.py --cxx20` is the compiler's own check, slow.
 - **`result_`** is NaabVal — use `.isNull()` not `if (result_)`
+- **A flag may tighten govern.json, never loosen it -- in code, not by convention.** Run limits go through `applyConfiguredRunLimits()` (min of flag and configured; `RuntimeConfig::timeout_configured`, never the value 30, says what is configured); the sandbox level through `sandboxLevelRank()` (both copies: `applyGovernanceSandbox()` and the VM's inline block, which `test_sandbox_engine_parity.sh` keeps in step); `--no-governance` only where no config was found (A78); and the authority to use a locked flag is the trusted PRIVATE key that signed the file, `GovernanceEngine::signingKeySignedContent()` (A77). A new option that can change policy goes through one of these.
 - **CLI flags must be in BOTH** global pre-scan AND run command flag loop in main.cpp. Seven run options were in the run loop only, so written before the file name they were taken for the command (A70(a)); `tests/cli/test_flag_position.sh` FP-S now fails on any option the run loop accepts and the pre-scan does not
 - **VM taint** mirrors interpreter taint but uses `taint_stack_` — changes must be made in both paths
 - **`current_file_`** not `filename_` for the current source file

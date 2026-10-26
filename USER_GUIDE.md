@@ -415,7 +415,7 @@ Not Found
 - Parentheses around a condition are optional.
 - `0..4` counts 0, 1, 2, 3; `range(0, 4)` does the same.
 - `match` takes literals, guards (`n if n >= 500`), array patterns and `_`; the [tour](docs/language-tour.md#pattern-matching) shows them all.
-- A loop that runs more than `limits.execution.loop_iterations` times (1,000,000 in a new project) is stopped with exit code 3. The whole run is stopped after `limits.timeout.global` seconds (60 in a new project). `--timeout N` can raise that limit for one run, but not lower it.
+- A loop that runs more than `limits.execution.loop_iterations` times (1,000,000 in a new project) is stopped with exit code 3. The whole run is stopped after `limits.timeout.global` seconds (60 in a new project). `--timeout N` can lower that limit for one run, but not raise it.
 
 ---
 
@@ -879,7 +879,7 @@ Options may go before or after the file name.
 | `naab-lang parse FILE` | Parse and summarise (imports, functions, whether there is a `main`) |
 | `naab-gov lint FILE` | Run the policy checks without running the program (exit 3 on a refusal) |
 | `naab-lang init` | Create `naab.toml` and `govern.json` |
-| `naab-lang FILE --timeout N` | Allow this run N seconds, when N is above `limits.timeout.global` |
+| `naab-lang FILE --timeout N` | Stop this run after N seconds, when N is below `limits.timeout.global` |
 | `naab-lang --help` | Every command and option |
 
 ---

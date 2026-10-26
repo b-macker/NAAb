@@ -2885,6 +2885,11 @@ struct GovernanceRules {
     // --- Runtime limits (configurable via govern.json "runtime" section) ---
     struct RuntimeConfig {
         int timeout = 30;
+        // True when govern.json sets a run time limit (runtime.timeout,
+        // limits.timeout.global or limits.execution.timeout_seconds) or an
+        // extends parent's applies. The CLI reads it to tell "configured 30"
+        // from the built-in default: a flag may only lower a configured limit.
+        bool timeout_configured = false;
         size_t memory_limit = 0;     // 0 = unlimited
         size_t gc_threshold = 5000;
         bool gc_stats = false;
@@ -3829,6 +3834,13 @@ public:
 
     // Read private key PEM from NAAB_SIGNING_KEY env var (for CLI key-signing operations).
     static std::string readSigningKeyForCLI();
+
+    // Is NAAB_SIGNING_KEY the trusted private key whose signature stored_sig
+    // ("ed25519:..." as read from govern.json.sig) is over content? This is the
+    // authority to use a flag the owner locked: the private key, never the
+    // public one.
+    static bool signingKeySignedContent(const std::string& content,
+                                        const std::string& stored_sig);
 
     // Feature 5: Environment selector
     void applyEnvironment(const std::string& env_name);

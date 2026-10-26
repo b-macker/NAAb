@@ -142,6 +142,13 @@ public:
     // Remove a capability (used when governance tightens sandbox mid-run)
     void removeCapability(Capability cap) { config_.capabilities.erase(cap); }
 
+    // Run limits after govern.json's are merged in (the sandbox is built from
+    // the CLI values before governance loads)
+    void setResourceLimits(unsigned int cpu_seconds, size_t memory_mb) {
+        config_.max_cpu_seconds = cpu_seconds;
+        config_.max_memory_mb = memory_mb;
+    }
+
     // Update exec permission (used when governance disables shell mid-run)
     void setAllowExec(bool allowed) { config_.allow_exec = allowed; }
     void setAllowFork(bool allowed) { config_.allow_fork = allowed; }
@@ -190,6 +197,9 @@ public:
     void setNetworkEnabled(bool enabled) { if (sandbox_) sandbox_->setNetworkEnabled(enabled); }
     void setAllowExec(bool allowed) { if (sandbox_) sandbox_->setAllowExec(allowed); }
     void setAllowFork(bool allowed) { if (sandbox_) sandbox_->setAllowFork(allowed); }
+    void setResourceLimits(unsigned int cpu_seconds, size_t memory_mb) {
+        if (sandbox_) sandbox_->setResourceLimits(cpu_seconds, memory_mb);
+    }
     void markShellDisabledByPolicy() { if (sandbox_) sandbox_->markShellDisabledByPolicy(); }
     void replaceConfig(const SandboxConfig& config) { if (sandbox_) sandbox_->replaceConfig(config); }
 
