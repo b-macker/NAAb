@@ -17,7 +17,10 @@ trap cleanup EXIT
 echo "=== test_taint_array_transform.sh ==="
 echo ""
 
-# Governance config: taint tracking with file.write as sink
+# Governance config: taint tracking with file.write as sink.
+# The blocked arms match the taint violation itself (both report formats). They
+# used to match "taint|blocked|governance|sink|denied", which "[governance]
+# Loaded:" -- printed by every run -- also matches, so no arm could fail.
 cat > "$WORKDIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
@@ -49,7 +52,7 @@ main {
 EOF
 
 out=$("$NAAB" "$WORKDIR/test_map.naab" 2>&1) || true
-if grep <<<"$out" -qi "taint\|blocked\|governance\|sink\|denied"; then
+if grep <<<"$out" -qiE "Taint tracking violation|sink_violation"; then
     ok "file.write blocked — taint propagated through array.map_fn"
 else
     fail "file.write NOT blocked — taint lost through array.map_fn: ${out:0:200}"
@@ -75,7 +78,7 @@ main {
 EOF
 
 out=$("$NAAB" "$WORKDIR/test_filter.naab" 2>&1) || true
-if grep <<<"$out" -qi "taint\|blocked\|governance\|sink\|denied"; then
+if grep <<<"$out" -qiE "Taint tracking violation|sink_violation"; then
     ok "file.write blocked — taint propagated through array.filter_fn"
 else
     fail "file.write NOT blocked — taint lost through array.filter_fn: ${out:0:200}"
@@ -101,7 +104,7 @@ main {
 EOF
 
 out=$("$NAAB" "$WORKDIR/test_reduce.naab" 2>&1) || true
-if grep <<<"$out" -qi "taint\|blocked\|governance\|sink\|denied"; then
+if grep <<<"$out" -qiE "Taint tracking violation|sink_violation"; then
     ok "file.write blocked — taint propagated through array.reduce_fn"
 else
     fail "file.write NOT blocked — taint lost through array.reduce_fn: ${out:0:200}"
@@ -150,12 +153,26 @@ echo ""
 # ---------------------------------------------------------------------------
 # T5: array.map_fn with --tree-walk mode
 # ---------------------------------------------------------------------------
+# Under enforce --tree-walk is refused before it runs; the tree-walker's own
+# taint propagation is measured beside an audit copy of the config.
 echo "[T5] array.map_fn taint propagation works in tree-walk mode"
-out=$("$NAAB" --tree-walk "$WORKDIR/test_map.naab" 2>&1) || true
-if grep <<<"$out" -qi "taint\|blocked\|governance\|sink\|denied"; then
-    ok "file.write blocked in tree-walk — taint propagated through array.map_fn"
+. "$(dirname "$0")/../helpers/tree_walk_refusal.sh"
+rc=0; out=$("$NAAB" --tree-walk "$WORKDIR/test_map.naab" 2>&1) || rc=$?
+if tw_refused "$rc" "$out"; then
+    ok "under the enforce config --tree-walk is refused before it runs"
 else
-    fail "file.write NOT blocked in tree-walk — taint lost: ${out:0:200}"
+    fail "--tree-walk ran under an enforce config (rc=$rc): ${out:0:200}"
+fi
+mkdir -p "$WORKDIR/aud/data"; cp "$WORKDIR/test_map.naab" "$WORKDIR/aud/"
+sed 's/"mode": "enforce"/"mode": "audit"/' "$WORKDIR/govern.json" > "$WORKDIR/aud/govern.json"
+NAAB_ABS="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"   # NAAB may be relative
+out=$(cd "$WORKDIR/aud" && "$NAAB_ABS" --tree-walk test_map.naab 2>&1) || true
+# (the tree-walker's expression-path check ends the run even under audit,
+# docs/open-investigations.md A83(e): the violation, recorded or not, is the claim)
+if grep <<<"$out" -qiE "Taint tracking violation|sink_violation"; then
+    ok "tree-walk (audit): taint propagated through array.map_fn is recorded at the sink"
+else
+    fail "tree-walk (audit): taint lost through array.map_fn: ${out:0:200}"
 fi
 echo ""
 

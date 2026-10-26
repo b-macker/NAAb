@@ -8,8 +8,11 @@
 # Each route has a positive control under a config with NO env policy: the
 # route must return the marker there, or the arm is UNMEASURABLE (never a free
 # pass). The gate arm then runs the same route under blocked_read and requires
-# the value withheld. Both engines. A dead interpreter prints nothing, so every
-# control fails and the suite fails -- no dead-interpreter allowlist entry.
+# the value withheld. On the default engine: under these enforce configs
+# --tree-walk is refused before it runs (the "tw" arm), and the gate sits at the
+# shared decision point (checkPathAccessImpl, and the embedded-Python hook), so
+# the VM arms measure it. A dead interpreter prints nothing, so every control
+# fails and the suite fails -- no dead-interpreter allowlist entry.
 #
 # The subprocess <<sh>> route is the documented CONTRA-013 limit: path policy
 # does not reach a separate process, so that arm asserts the route is STILL
@@ -103,7 +106,7 @@ open("/proc/self/environ","rb").read().replace(b"\0", b"\n").decode("latin-1")
 }'
 
 echo "== file-reading routes: control reads environ file, blocked_read must withhold"
-for eng in vm tw; do
+for eng in vm; do
   file_route file     "$eng" "$P_FILE"
   file_route io       "$eng" "$P_IO"
   file_route dotenv   "$eng" "$P_DOTENV"
@@ -113,7 +116,7 @@ done
 # Over-block control: with NO env policy, the environ file is readable (the
 # gate must be scoped to env-restricted configs, not an unconditional block).
 echo "== scope control: no env policy leaves the environ file readable"
-for eng in vm tw; do
+for eng in vm; do
   d="$WORK/scope_$eng"; cfg "$d" control
   r="$(run "$eng" "$d" "$P_FILE")"
   if seen "$r"; then ok "scope/$eng" "no env policy -> environ file still readable (not over-blocked)"
@@ -124,7 +127,7 @@ done
 # gate withholds the environ FILE, not env reads in general.
 echo "== non-regression: a non-blocked env var is still readable under blocked_read"
 export NAAB_A32_OTHER="OTHER_ok"
-for eng in vm tw; do
+for eng in vm; do
   d="$WORK/other_$eng"; cfg "$d" blocked
   r="$(run "$eng" "$d" 'use env
 main {
@@ -139,7 +142,7 @@ done
 # Corroboration (positive control that the scrub is active and the engine ran):
 # os.environ of the blocked var returns NONE in the same program.
 echo "== embedded Python: scrub save dict is not readable from the block"
-for eng in vm tw; do
+for eng in vm; do
   d="$WORK/saved_$eng"; cfg "$d" blocked
   r="$(run "$eng" "$d" 'use string
 main {
@@ -174,7 +177,7 @@ done
 # a later block has nothing to scrub -- so it guards the new code's error path,
 # not the fix itself.
 echo "== embedded Python: a raising block, then the save dict is still not readable"
-for eng in vm tw; do
+for eng in vm; do
   d="$WORK/saved_err_$eng"; cfg "$d" blocked
   r="$(run "$eng" "$d" 'use string
 main {
@@ -196,6 +199,17 @@ str(globals().get("_naab_saved_env", "NO_NAME"))
   elif seen "$r"; then bad "saved_err/$eng" "_naab_saved_env handed the value back after an error path: $body"
   else ok "saved_err/$eng" "raising block caught; a later block still cannot read the save dict"; fi
 done
+
+# The tree-walker under these enforce configs: refused before the program runs.
+. "$(dirname "$0")/../helpers/tree_walk_refusal.sh"
+d="$WORK/tw"; cfg "$d" blocked
+printf '%s' "$P_FILE" > "$d/p.naab"
+tw_out="$(cd "$d" && "$NAAB" --tree-walk "$d/p.naab" 2>&1)"; tw_rc=$?
+if tw_refused "$tw_rc" "$tw_out" && ! case "$tw_out" in *"V=SEEN"*|*"V=NONE"*) true;; *) false;; esac; then
+  ok "tw" "--tree-walk is refused under the enforce config (exit 4) before the program runs"
+else
+  bad "tw" "--tree-walk ran under an enforce config (rc=$tw_rc)"
+fi
 
 # Documented CONTRA-013 limit: a <<sh>> child reads its parent's environ file;
 # path policy does not reach a separate process. This arm asserts the route is

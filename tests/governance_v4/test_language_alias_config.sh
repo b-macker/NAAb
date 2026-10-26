@@ -77,6 +77,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NAAB="$REPO/build/naab-lang"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 GOV="$REPO/build/naab-gov"
 
 # Writes unsigned govern.json files: keep the result independent of whatever
@@ -227,7 +228,7 @@ PROG_SQL=$'main {\n    let r = <<sql\nSELECT 41 + 1 AS v\n>>\n    print("RAN")\n
 mk b1 '{"mode":"enforce","languages":{"blocked":["sql"]}}' "$PROG_SQLITE"
 mk b2 '{"mode":"enforce","languages":{"blocked":["sqlite"]}}' "$PROG_SQL"
 mk b3 '{"mode":"enforce","languages":{"blocked":["ruby"]}}' "$PROG_SQLITE"
-for eng in "" --tree-walk; do
+for eng in ""; do  # the tree-walker is refused under enforce: AL-TW
     e=${eng:-vm}; e=${e#--}
     o="$(run "$W/b3" "$eng" p.naab)"; r=$?
     if [ $r -ne 0 ] || [[ "$o" != *RAN* ]]; then
@@ -262,7 +263,7 @@ else
 fi
 mk p1 '{"mode":"enforce","runtime_versions":[{"language":"sqlite","required":">=999","level":"hard"}]}' "$PROG_SQL"
 mk p2 '{"mode":"enforce"}' "$PROG_SQL"
-for eng in "" --tree-walk; do
+for eng in ""; do  # the tree-walker is refused under enforce: AL-TW
     e=${eng:-vm}; e=${e#--}
     op2="$(run "$W/p2" "$eng" p.naab)"; rp2=$?
     if [ $rp2 -ne 0 ] || [[ "$op2" != *RAN* ]]; then
@@ -317,7 +318,7 @@ fi
 PROG_PY=$'main {\n    let r = <<python\n1 + 1\n>>\n    print("RAN")\n}'
 mk r1 '{"mode":"enforce","languages":{"allowed":["sql"]},"agents":{"r":{"allowed_languages":["python"]}}}' "$PROG_PY"
 mk r2 '{"mode":"enforce","languages":{"allowed":["sql","python"]},"agents":{"r":{"allowed_languages":["python"]}}}' "$PROG_PY"
-for eng in "" --tree-walk; do
+for eng in ""; do  # the tree-walker is refused under enforce: AL-TW
     e=${eng:-vm}; e=${e#--}
     or2="$(cd "$W/r2" && "$NAAB" ${eng:+$eng} --agent-id r p.naab --timeout 20 2>&1)"; rr2=$?
     if [ $rr2 -ne 0 ] || [[ "$or2" != *RAN* ]]; then
@@ -332,6 +333,15 @@ for eng in "" --tree-walk; do
         bad "AL-13/$e" "an agent role widened languages.allowed (exit $rr1)" "$or1"
     fi
 done
+
+# --- AL-TW: these arms ran on both engines; under enforce the tree-walker is
+# now refused before anything runs (Bundle 2), so they are the VM's alone.
+o_tw="$(run "$W/b3" --tree-walk p.naab)"; r_tw=$?
+if tw_refused "$r_tw" "$o_tw" && [[ "$o_tw" != *RAN* ]]; then
+    ok AL-TW "the tree-walker is refused under these enforce configs; nothing ran"
+else
+    bad AL-TW "the tree-walker should be refused under enforce (exit $r_tw)" "$o_tw"
+fi
 
 # --- AL-14 / AL-14c / AL-15: unknown names are refused ---
 # One fixture per list; NAME is substituted. Each must LOAD with "python".

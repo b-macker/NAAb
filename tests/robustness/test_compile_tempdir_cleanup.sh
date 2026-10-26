@@ -256,6 +256,13 @@ for mode in fail hang; do
         set -- $(shape_info "$shape"); tool="$1"; prefix="$2"; engine="${3:-}"
         id="TD-$tag-$shape"
         arm="$(new_arm "$tag-$shape")"
+        # The tree-walker (cpp-block: only it loads `use BLOCK-...`) is refused
+        # under enforce, so its arm's config is in mode audit; this suite is
+        # about the compile directory, not the policy.
+        if [ "$engine" = --tree-walk ]; then
+            sed 's/"mode": "enforce"/"mode": "audit"/' "$arm/govern.json" > "$arm/govern.json.tmp" &&
+                mv "$arm/govern.json.tmp" "$arm/govern.json"
+        fi
         make_stub "$arm" "$tool" "$mode"
         prog "$shape" > "$arm/p.naab"
         if [ "$mode" = hang ]; then

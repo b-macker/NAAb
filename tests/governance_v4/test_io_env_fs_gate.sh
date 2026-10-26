@@ -43,7 +43,8 @@
 #   IE-02  io.read_file is blocked by blocked_paths, with its permit control
 #   IE-03  io.write_file is blocked by blocked_paths, with its permit control
 #   IE-04  io.exists and io.list_dir are classified READ and gated
-#   IE-05  both directions hold under --tree-walk (two independent gate
+#   IE-05  both directions hold under --tree-walk, under audit, where the gate
+#          records a denied access (IE-TW: refused under enforce; two independent gate
 #          implementations; fixing one would leave the other open)
 #   IE-06  NEGATIVE CONTROL, load-bearing: the CONSOLE surface is untouched.
 #          io.write / io.println / io.output still work under filesystem mode
@@ -101,14 +102,20 @@ reset_workspace() {
     printf 'SECRET_TOKEN=abc123\n' > "$W/vault/secret.env"
 }
 
-# $1=config json  $2=program  $3=extra CLI args -> "<rc>|<ran|blocked>"
+# $1=config json  $2=program  $3=extra CLI args -> "<rc>|<ran|blocked|recorded>"
+# The tree-walker is refused under enforce (IE-TW), so a --tree-walk run writes
+# the config in mode audit, where the gate RECORDS a denied access ("AUDIT
+# capabilities.filesystem") and the program goes on: "recorded" is its block.
+tw_audit() { [[ " ${1:-} " == *" --tree-walk "* ]]; }
 run() {
     reset_workspace
-    printf '%s\n' "$1" > "$W/govern.json"
+    if tw_audit "${3:-}"; then printf '%s\n' "${1/'"mode": "enforce"'/'"mode": "audit"'}" > "$W/govern.json"
+    else printf '%s\n' "$1" > "$W/govern.json"; fi
     printf '%s\n' "$2" > "$W/t.naab"
     local o rc
     o=$(cd "$W" && timeout 60s "$NAAB" ${3:-} t.naab 2>&1); rc=$?
-    if grep <<<"$o" -q "MARKER"; then echo "$rc|ran"; else echo "$rc|blocked"; fi
+    if tw_audit "${3:-}" && grep <<<"$o" -q "AUDIT capabilities.filesystem"; then echo "$rc|recorded"
+    elif grep <<<"$o" -q "MARKER"; then echo "$rc|ran"; else echo "$rc|blocked"; fi
 }
 
 # filesystem ENABLED, one directory explicitly blocked. This is the shape the
@@ -128,6 +135,12 @@ assert_gated() {
     local b p
     b=$(run "$BLOCK" "$prog" "$eng")
     p=$(run "$PERMIT" "$prog" "$eng")
+    if tw_audit "$eng"; then
+        if [ "${b#*|}" != "recorded" ]; then fail "$id" "$label" "audit: the gate recorded nothing, got $b"
+        elif [ "${p#*|}" != "ran" ]; then fail "$id" "$label" "PERMIT CONTROL failed under audit ($p)"
+        else pass "$id" "$label"; fi
+        return
+    fi
     if [ "${b#*|}" != "blocked" ]; then
         fail "$id" "$label" "expected a governance block, got $b"
     elif [ "${b%%|*}" != "3" ]; then
@@ -169,7 +182,12 @@ assert_gated "IE-04a" "io.exists is gated (VM)"    "$P_IO_EXISTS" ""
 assert_gated "IE-04b" "io.list_dir is gated (VM)"  "$P_IO_LIST"   ""
 
 echo ""
-echo "IE-05: engine parity — the same gate exists twice"
+echo "IE-05: engine parity — the same gate exists twice (the tree-walker under audit)"
+. "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+reset_workspace; printf '%s\n' "$BLOCK" > "$W/govern.json"; printf '%s\n' "$P_IO_READ" > "$W/t.naab"
+o=$(cd "$W" && timeout 60s "$NAAB" --tree-walk t.naab 2>&1); rc=$?
+if tw_refused "$rc" "$o" && ! grep -q MARKER <<<"$o"; then pass "IE-TW" "under an enforce config --tree-walk is refused before it runs"
+else fail "IE-TW" "under an enforce config --tree-walk is refused before it runs" "exit $rc"; fi
 assert_gated "IE-05a" "io.read_file is gated (--tree-walk)"  "$P_IO_READ"  "--tree-walk"
 assert_gated "IE-05b" "io.write_file is gated (--tree-walk)" "$P_IO_WRITE" "--tree-walk"
 assert_gated "IE-05c" "io.exists is gated (--tree-walk)"     "$P_IO_EXISTS" "--tree-walk"
@@ -222,19 +240,23 @@ DOTBLOCK='{ "version": "5.0", "mode": "enforce", "security": { "sandbox_level": 
 P_DOTENV_DEFAULT='use env
 main { let x = env.load_dotenv() print("MARKER") }'
 for eng in "" "--tree-walk"; do
+    mode=enforce; [ -n "$eng" ] && mode=audit
     reset_workspace
     printf 'K=v\n' > "$W/.env"
-    printf '%s\n' "$DOTBLOCK" > "$W/govern.json"
+    printf '%s\n' "${DOTBLOCK/'"mode": "enforce"'/"\"mode\": \"$mode\""}" > "$W/govern.json"
     printf '%s\n' "$P_DOTENV_DEFAULT" > "$W/t.naab"
     o=$(cd "$W" && timeout 60s "$NAAB" ${eng:-} t.naab 2>&1); rc=$?
     blocked=$(grep <<<"$o" -q MARKER && echo no || echo yes)
+    # audit records the denied read and goes on (the tree-walker's arm)
+    if [ -n "$eng" ] && grep -q "AUDIT capabilities.filesystem" <<<"$o"; then blocked=yes; rc=3; fi
 
     reset_workspace
     printf 'K=v\n' > "$W/.env"
-    printf '%s\n' "$PERMIT" > "$W/govern.json"
+    printf '%s\n' "${PERMIT/'"mode": "enforce"'/"\"mode\": \"$mode\""}" > "$W/govern.json"
     printf '%s\n' "$P_DOTENV_DEFAULT" > "$W/t.naab"
     po=$(cd "$W" && timeout 60s "$NAAB" ${eng:-} t.naab 2>&1); prc=$?
     permitted=$(grep <<<"$po" -q MARKER && echo yes || echo no)
+    [ -n "$eng" ] && grep -q "AUDIT capabilities.filesystem" <<<"$po" && permitted=no
 
     label="env.load_dotenv() gates the \".env\" default (${eng:-vm})"
     if [ "$blocked" != "yes" ]; then

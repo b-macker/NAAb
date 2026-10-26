@@ -496,6 +496,7 @@ sign_gov "$T10BASE"
 cat > "$T10CHILD/govern.json" << 'EOF'
 {
   "extends": "../base/govern.json",
+  "mode": "off",
   "limits": { "timeout": { "global": 10 } }
 }
 EOF
@@ -505,11 +506,24 @@ cat > "$T10CHILD/test.naab" << 'EOF'
 main { print("tree_walk_extends") }
 EOF
 
+# The child sets mode off, but the merge keeps the parent's enforce (a child
+# cannot lower its parent's mode), and --tree-walk is refused under enforce:
+# the refusal must read the MERGED mode, not the child's own key. (A child that
+# sets no mode at all is enforce by default, whatever its parent says.)
 OUTPUT=$(cd "$T10CHILD" && "$NAAB" run --tree-walk --governance-dashboard test.naab 2>&1)
 EXIT_CODE=$?
 
-check "T10a: tree-walk extends loads" "0" "$EXIT_CODE"
-check_contains "T10b: tree-walk output correct" "tree_walk_extends" "$OUTPUT"
+check "T10a: tree-walk is refused when the parent enforces and the child says off" "4" "$EXIT_CODE"
+check_contains "T10b: the refusal is the tree-walk refusal" "tree-walk cannot run under this project's governance" "$OUTPUT"
+
+# T10c: the tree-walker still loads an extends chain (both mode off).
+sed 's/"mode": "enforce"/"mode": "off"/' "$T10BASE/govern.json" > "$T10BASE/govern.json.tmp" &&
+    mv "$T10BASE/govern.json.tmp" "$T10BASE/govern.json"
+sign_gov "$T10BASE"
+OUTPUT=$(cd "$T10CHILD" && "$NAAB" run --tree-walk test.naab 2>&1)
+EXIT_CODE=$?
+check "T10c: tree-walk loads an extends chain (both mode off)" "0" "$EXIT_CODE"
+check_contains "T10d: tree-walk output correct" "tree_walk_extends" "$OUTPUT"
 
 
 # ============================================================

@@ -416,7 +416,7 @@ Source Code (.naab)
   └── Shell executor (subprocess)
 ```
 
-C++17, built with Abseil, fmt, spdlog, nlohmann/json, QuickJS and SQLite. The bytecode VM is the default engine; `--tree-walk` selects the tree-walking interpreter.
+C++17, built with Abseil, fmt, spdlog, nlohmann/json, QuickJS and SQLite. The bytecode VM is the default engine; `--tree-walk` selects the tree-walking interpreter, outside enforce mode only.
 
 ---
 

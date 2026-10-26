@@ -8,7 +8,8 @@
 # the stack: SIGSEGV (exit 139) on both engines under a plain enforce config,
 # so no verdict was rendered at all. The analyzers now bound each line they
 # scan (include/naab/analyzer/bounded_input.h); the program itself is not
-# touched, which LL-01..03 check by the length the block reports.
+# touched, which LL-01..03 check by the length the block reports. The VM runs
+# under enforce; the tree-walker, refused under enforce, beside an audit copy.
 #
 #   LL-00  CONTROL: a 100-character line runs on both engines (the fixture works)
 #   LL-01  a 40 KB line runs on both engines and the block sees all of it
@@ -41,6 +42,9 @@ source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust   # the unsigned govern.json below must not meet a populated trust store
 trap 'rm -rf "$W"; teardown_isolated_trust' EXIT
 echo '{ "mode": "enforce" }' > "$W/govern.json"   # analyzers at their defaults
+# --tree-walk is refused under enforce, so the tree-walker's half of each arm
+# runs beside a mode-audit copy (governance active, so the analyzers still run).
+mkdir -p "$W/aud"; echo '{ "mode": "audit" }' > "$W/aud/govern.json"
 
 # make <name> <unit> <repeat> -> a program whose python block holds one line of
 # <unit> * <repeat> characters inside a string and reports its length
@@ -56,12 +60,14 @@ make short "a" 100
 make l40k  "a" 40000
 make l200k "a" 200000
 make dense "ab.cd(" 20000
+cp "$W"/*.naab "$W/aud/"
 
 # check <id> <name> <expected len> <description>
 check() {
     local bad_engines="" out rc
     for flag in "" "--tree-walk"; do
-        out=$(cd "$W" && timeout 120 "$NAAB" "$2.naab" $flag 2>&1); rc=$?
+        local d="$W"; [ -n "$flag" ] && d="$W/aud"
+        out=$(cd "$d" && timeout 120 "$NAAB" "$2.naab" $flag 2>&1); rc=$?
         case "$out" in
             *"LEN=$3"*) [ "$rc" -eq 0 ] || bad_engines="$bad_engines ${flag:-vm}:rc=$rc" ;;
             *) bad_engines="$bad_engines ${flag:-vm}:rc=$rc" ;;

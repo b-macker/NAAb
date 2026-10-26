@@ -171,6 +171,7 @@ fi
 # broken python cannot hide behind this.
 PY_SHELLOFF_GATED=0
 source "$SCRIPT_DIR/../../helpers/python_shell_off.sh"
+source "$SCRIPT_DIR/../../helpers/tree_walk_refusal.sh"
 if python_refused_under_shell_off "$NAAB"; then
     PY_SHELLOFF_GATED=1
     echo ""
@@ -853,8 +854,14 @@ NAABEOF
         fail "F9" "not all 25 modules loaded" "exit=$f9_exit, $(echo "$f9_output" | head -3)"
     fi
 
-    # F10: Previously-missing modules work in --tree-walk
+    # F10: Previously-missing modules work in --tree-walk. This is about the
+    # tree-walker's module table, not enforcement, and under enforce the
+    # tree-walker is refused (Bundle 2): the same config at mode off.
     WORKDIR_F10=$(setup_workdir "cat6-unicode-stdlib")
+    tw_off_config "$WORKDIR_F10/govern.json" || fail "F10" "could not rewrite the config to mode off"
+    if [ -f "$NAAB_SIGNING_KEY" ]; then   # re-sign, as setup_workdir does
+        (cd "$WORKDIR_F10" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
+    fi
     cp "$SCRIPT_DIR/src/cat6_f10_treewalk.naab" "$WORKDIR_F10/"
     f10_output=$(cd "$WORKDIR_F10" && timeout 30 "$NAAB" --tree-walk cat6_f10_treewalk.naab 2>/dev/null) && f10_exit=0 || f10_exit=$?
     if [ "$f10_exit" -eq 0 ] && grep <<<"$f10_output" -q "tw_agent_ok"; then

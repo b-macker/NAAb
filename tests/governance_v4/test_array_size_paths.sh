@@ -40,14 +40,16 @@
 #   AS-01  POSITIVE CONTROL. A list LITERAL over the limit must block (exit 3).
 #          Without it, AS-02's block is equally satisfied by a config that
 #          blocks everything, or by the binary refusing to run at all.
-#   AS-02  THE FIX. Concatenation over the limit must block, in BOTH engines.
+#   AS-02  THE FIX. Concatenation over the limit must block.
+#   AS-TW  the tree-walker is refused under enforce (Bundle 2); every arm here
+#          ran on it too before that
 #   AS-03  CONTROL. Concatenation UNDER the limit must still work — a fix that
 #          blocks all concatenation would pass AS-02 and be useless.
 #   AS-04  CONTROL. With NO limit configured (default 0 = disabled), a large
 #          concatenation must be unaffected. This is the backward-compatibility
 #          assertion: the change must not start blocking runs that pass today.
 #   AS-05  every one-element growth path and range() over the limit blocks
-#          (exit 3, nothing after it runs), both engines
+#          (exit 3, nothing after it runs)
 #   AS-06  CONTROL, per path: growing to EXACTLY the limit still works -- a gate
 #          that blocks every push would pass AS-05
 #   AS-07  CONTROL, per path: with no limit configured, growth to 3000 is
@@ -58,6 +60,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; }
@@ -106,20 +109,29 @@ echo -e "${CYAN}|  limits.array_size: which paths does the gate actually reach? 
 echo -e "${CYAN}+==============================================================+${NC}"
 echo ""
 
-LIT_VM=$(run_ec "$W/limited" lit.naab); LIT_TW=$(run_ec "$W/limited" lit.naab --tree-walk)
-if [ "$LIT_VM" = "3" ] && [ "$LIT_TW" = "3" ]; then
-    ok "AS-01" "POSITIVE CONTROL: a list literal over the limit blocks (exit 3, both engines)"
+LIT_VM=$(run_ec "$W/limited" lit.naab)
+if [ "$LIT_VM" = "3" ]; then
+    ok "AS-01" "POSITIVE CONTROL: a list literal over the limit blocks (exit 3)"
 else
     bad "AS-01" "the configured limit does not block a list literal" \
-        "VM exit $LIT_VM, tree-walk exit $LIT_TW, expected 3 each. The gate is not live, so AS-02 proves nothing — fix this before reading any other result here."
+        "VM exit $LIT_VM, expected 3. The gate is not live, so AS-02 proves nothing — fix this before reading any other result here."
 fi
 
-CAT_VM=$(run_ec "$W/limited" concat.naab); CAT_TW=$(run_ec "$W/limited" concat.naab --tree-walk)
-if [ "$CAT_VM" = "3" ] && [ "$CAT_TW" = "3" ]; then
-    ok "AS-02" "concatenation over the limit blocks (exit 3, both engines)"
+CAT_VM=$(run_ec "$W/limited" concat.naab)
+if [ "$CAT_VM" = "3" ]; then
+    ok "AS-02" "concatenation over the limit blocks (exit 3)"
 else
     bad "AS-02" "concatenation escapes limits.array_size" \
-        "VM exit $CAT_VM, tree-walk exit $CAT_TW, expected 3 each. exit 1 means the run died on bad_alloc with no governance verdict — the pre-fix behaviour. A difference BETWEEN the two engines means the gate was added to one path only."
+        "VM exit $CAT_VM, expected 3. exit 1 means the run died on bad_alloc with no governance verdict — the pre-fix behaviour."
+fi
+
+# Every arm here used to run on the tree-walker too. Under enforce it is now
+# refused before anything runs (Bundle 2), so no growth path can reach it.
+TW_O=$(cd "$W/limited" && timeout 90 "$NAAB" --tree-walk concat.naab 2>&1); TW_RC=$?
+if tw_refused "$TW_RC" "$TW_O"; then
+    ok "AS-TW" "the tree-walker is refused under the enforce config; the arms below are the VM's"
+else
+    bad "AS-TW" "the tree-walker should be refused under enforce" "exit $TW_RC"
 fi
 
 SM=$(run_ec "$W/limited" small.naab)
@@ -168,8 +180,8 @@ mk() {
 out() { ( cd "$1" && ulimit -v 2000000 2>/dev/null; timeout 90 "$NAAB" ${3:-} "$2" 2>&1; echo "RC=$?" ); }
 
 for path in push append add unshift insert mod_push mod_unshift range; do
-    for eng in vm tw; do
-        flags=""; [ "$eng" = "tw" ] && flags="--tree-walk"
+    for eng in vm; do
+        flags=""
         f=$(mk "$path" 1500 "$W/limited")
         O=$(out "$W/limited" "$(basename "$f")" "$flags"); O="${O//$'\r'/}"
         rc="${O##*RC=}"
@@ -212,8 +224,8 @@ main {
     print("AFTER")
 }
 X
-for eng in vm tw; do
-    flags=""; [ "$eng" = "tw" ] && flags="--tree-walk"
+for eng in vm; do
+    flags=""
     O=$(out "$W/limited" catch.naab "$flags"); O="${O//$'\r'/}"
     rc="${O##*RC=}"
     if [ "$rc" = "3" ] && ! grep -q 'CAUGHT\|AFTER' <<<"$O"; then

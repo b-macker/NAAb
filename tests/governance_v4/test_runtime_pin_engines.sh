@@ -16,10 +16,14 @@
 # Python and QuickJS their linked library, subprocess runtimes their own
 # binary's version line (the same binary the executor runs).
 #
-#   RP-00  CONTROL: with no pin, <<sql>> and <<javascript>> run (both engines)
-#   RP-01  a hard pin SQL cannot meet blocks <<sql>> (exit 3, not run), both
-#          engines; RP-01c: a pin it meets lets the block run
-#   RP-02  a soft pin it cannot meet blocks too (exit 3), both engines
+# The VM runs every arm under enforce; under enforce --tree-walk is refused
+# before it runs (RP-TW), so the tree-walker's own arm runs under audit.
+#
+#   RP-00  CONTROL: with no pin, <<sql>> and <<javascript>> run
+#   RP-01  a hard pin SQL cannot meet blocks <<sql>> (exit 3, not run);
+#          RP-01c: a pin it meets lets the block run; RP-01/tree-walk: under
+#          audit the tree-walker's path records the mismatch
+#   RP-02  a soft pin it cannot meet blocks too (exit 3)
 #   RP-03  an advisory pin warns and the block runs
 #   RP-04  a pin whose version cannot be read blocks with "cannot be
 #          determined": node under the default enforce sandbox, where starting
@@ -112,7 +116,10 @@ mk q_18   "$(pin javascript '18' hard)" "$PROG_JS"
 mk h_lite "$(pin sql '>=999' hard)" "$PROG_SQLITE"
 
 JS_OK=1
-for eng in "" --tree-walk; do
+# The VM runs every arm under enforce. --tree-walk is refused under enforce, so
+# the tree-walker's arms are after the loop: the refusal, and an audit copy in
+# which its path still reaches the pin check (recorded, the block runs).
+for eng in ""; do
     e=${eng:-vm}; e=${e#--}
     run c_sql "$eng"
     if [ $RC -ne 0 ] || ! ran; then
@@ -165,6 +172,18 @@ for eng in "" --tree-walk; do
     if [ $RC -eq 3 ] && ! ran; then ok "RP-06/$e" "a pin under \"sql\" blocks <<sqlite>>"
     else bad "RP-06/$e" "a pin under sql did not hold for <<sqlite>> (exit $RC)" "$OUT"; fi
 done
+
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+run h_sql --tree-walk
+if tw_refused "$RC" "$OUT" && ! ran; then ok "RP-TW" "under an enforce config --tree-walk is refused before the block runs"
+else bad "RP-TW" "--tree-walk ran under an enforce config (exit $RC)" "$OUT"; fi
+mkdir -p "$W/h_sql_aud"
+sed 's/"mode":"enforce"/"mode":"audit"/' "$W/h_sql/govern.json" > "$W/h_sql_aud/govern.json"
+cp "$W/h_sql/p.naab" "$W/h_sql_aud/"
+run h_sql_aud --tree-walk
+if ran && [[ "$OUT" == *"AUDIT runtime_version.sql"*"Runtime version mismatch for sql"* ]]; then
+    ok "RP-01/tree-walk" "audit: the tree-walker's path reaches the pin check (mismatch recorded, block runs)"
+else bad "RP-01/tree-walk" "audit: no pin mismatch recorded on the tree-walker (exit $RC)" "$OUT"; fi
 
 # codegen: enforce upgrades the sandbox to standard, which refuses codegen
 # outright -- elevated lets the pin be the thing that decides.

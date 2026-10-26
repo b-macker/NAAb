@@ -62,13 +62,14 @@
 #          for and makes no 3rd call.
 #   RB-11  a challenge's time is charged: crossing the cap refuses the send's
 #          own call that follows it.
-#   RB-TW  RB-01 under --tree-walk (the budget code is in the shared agent
-#          module; this proves the arm reaches it from both engines).
+#   RB-TW  --tree-walk is refused under enforce (Bundle 2) and makes no
+#          provider call (it used to prove the tree-walker reaches the budget).
 # ============================================================
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NAAB="${NAAB:-$REPO/build/naab-lang}"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 source "$SCRIPT_DIR/../helpers/stub_platform.sh" 2>/dev/null
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"; setup_isolated_trust
 source "$SCRIPT_DIR/../helpers/stub_launch.sh"
@@ -343,12 +344,14 @@ else
 fi
 
 echo ""
-echo "== tree-walker reaches the same code"
+echo "== the tree-walker makes no call under enforce"
+# RB-TW ran RB-01 on the tree-walker. Under enforce it is now refused before
+# anything runs (Bundle 2), so it reaches no budget code and no provider.
 arm rbtw "$LOOP_FX" '{"max_tokens_per_run":1000}' "$TOOLS" "$NO_CB" "$LOOP_PROG" tw
-if [ "$CFG_OK" = 1 ] && [ "$REQS" = 2 ] && [ "$(val EXIT)" = hard_stop ]; then
-    ok "RB-TW" "--tree-walk: the tool loop stops at max_tokens_per_run"
+if [ "$CFG_OK" = 1 ] && tw_refused "$RC" "$OUT" && [ "$REQS" = 0 ]; then
+    ok "RB-TW" "--tree-walk is refused under enforce; the stub received no request"
 else
-    bad "RB-TW" "--tree-walk: the tool loop spent past max_tokens_per_run" "reqs=$REQS exit=$(val EXIT) rc=$RC"
+    bad "RB-TW" "--tree-walk should be refused under enforce" "reqs=$REQS rc=$RC"
 fi
 
 echo ""

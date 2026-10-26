@@ -85,14 +85,27 @@ echo ""
 # Helpers
 # ---------------------------------------------------------------------------
 
+# The tree-walker is refused under enforce (MOD-TW), so its half of each arm
+# runs in $TEST_TMP/tw: the same files beside the same config in mode audit,
+# unsigned, against an EMPTY trust store (with a key trusted every config must
+# be signed, and a signed audit config is raised to enforce). There a check
+# that blocks on the VM is recorded as an AUDIT line and the run goes on --
+# except the checks audit does not soften (secrets, PII), which still exit 3.
+EMPTY_STORE="$TEST_TMP/empty-store"; mkdir -p "$EMPTY_STORE" "$TEST_TMP/tw"
 write_govern() {
     printf '%s\n' "$1" > "$TEST_TMP/govern.json"
     (cd "$TEST_TMP" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
+    printf '%s\n' "$1" | sed 's/"mode": "enforce"/"mode": "audit"/' > "$TEST_TMP/tw/govern.json"
 }
+tw_sync() { find "$TEST_TMP" -maxdepth 1 -name '*.naab' -exec cp {} "$TEST_TMP/tw/" \; ; }
 
 # run_probe FILE ENGINE_FLAG -> captured combined stdout+stderr
 run_probe() {
-    (cd "$TEST_TMP" && timeout 30s "$NAAB" ${2:-} "$1" 2>&1) || true
+    if [ -n "${2:-}" ]; then tw_sync
+        (cd "$TEST_TMP/tw" && NAAB_TRUST_STORE_DIR="$EMPTY_STORE" timeout 30s "$NAAB" $2 "$1" 2>&1) || true
+    else
+        (cd "$TEST_TMP" && timeout 30s "$NAAB" "$1" 2>&1) || true
+    fi
 }
 
 # check_parity ID EXPECTED DESCRIPTION FILE [ENGINE_FLAG_EXTRA]
@@ -115,20 +128,11 @@ check_parity() {
     tw_match=$(echo "$tw_out" | grep -ciE "$expected" || true)
 
     if [ "$negate" = true ]; then
-        # Neither engine should match
-        local vm_ok=false tw_ok=false
-        [ "$vm_match" -eq 0 ] && vm_ok=true
-        [ "$tw_match" -eq 0 ] && tw_ok=true
-
-        if [ "$vm_ok" = true ] && [ "$tw_ok" = true ]; then
-            pass "$id" "$desc"
-        elif [ "$vm_ok" != "$tw_ok" ]; then
-            fail "$id" "engines disagree: $desc" \
-                "VM matches=$vm_match tree-walk matches=$tw_match"
-        else
-            fail "$id" "both engines gave wrong verdict: $desc" \
-                "expected no match, both matched ($vm_match/$tw_match)"
-        fi
+        # "Did not run past the block" is about enforcement: under audit a
+        # block does not stop the run, and under enforce the tree-walker is
+        # refused (MOD-TW), so the VM measures this alone.
+        if [ "$vm_match" -eq 0 ]; then pass "$id" "$desc (VM; the tree-walker is refused under enforce)"
+        else fail "$id" "wrong verdict on the VM: $desc" "expected no match, VM matched $vm_match"; fi
     else
         # Both engines should match
         local vm_ok=false tw_ok=false
@@ -153,7 +157,11 @@ check_exit_parity() {
     local vm_rc tw_rc
 
     (cd "$TEST_TMP" && timeout 30s "$NAAB" "$file" >/dev/null 2>&1) && vm_rc=$? || vm_rc=$?
-    (cd "$TEST_TMP" && timeout 30s "$NAAB" --tree-walk "$file" >/dev/null 2>&1) && tw_rc=$? || tw_rc=$?
+    tw_sync
+    local tw_out
+    tw_out=$(cd "$TEST_TMP/tw" && NAAB_TRUST_STORE_DIR="$EMPTY_STORE" timeout 30s "$NAAB" --tree-walk "$file" 2>&1) && tw_rc=$? || tw_rc=$?
+    # audit: a block is recorded and the run exits 0 -- the same verdict as 3
+    if [ "$expected_rc" = 3 ] && [ "$tw_rc" = 0 ] && grep -q '\[governance\] AUDIT ' <<<"$tw_out"; then tw_rc=3; fi
 
     if [ "$vm_rc" != "$tw_rc" ]; then
         fail "$id" "exit code divergence: $desc" "VM=$vm_rc tree-walk=$tw_rc"
@@ -433,6 +441,20 @@ fi
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+tw_out=$(cd "$TEST_TMP" && timeout 30s "$NAAB" --tree-walk test_e_nogov.naab 2>&1); tw_rc=$?
+if [ -f "$TEST_TMP/govern.json" ] && grep -q '"mode": "enforce"' "$TEST_TMP/govern.json"; then
+    if tw_refused "$tw_rc" "$tw_out" && ! grep -q NOGOV_OK <<<"$tw_out"; then
+        pass "MOD-TW" "under an enforce config --tree-walk is refused before it runs"
+    else fail "MOD-TW" "--tree-walk ran under an enforce config" "rc=$tw_rc"; fi
+else
+    write_govern '{ "version": "5.0", "mode": "enforce" }'
+    tw_out=$(cd "$TEST_TMP" && timeout 30s "$NAAB" --tree-walk test_e_nogov.naab 2>&1); tw_rc=$?
+    if tw_refused "$tw_rc" "$tw_out" && ! grep -q NOGOV_OK <<<"$tw_out"; then
+        pass "MOD-TW" "under an enforce config --tree-walk is refused before it runs"
+    else fail "MOD-TW" "--tree-walk ran under an enforce config" "rc=$tw_rc"; fi
+fi
+
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"
 TOTAL=$((PASS_COUNT + FAIL_COUNT + SKIP_COUNT))

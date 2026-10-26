@@ -17,7 +17,10 @@
 # the report and telemetry destinations the CLI lays over govern.json
 # (--governance-report/-telemetry, governance.report_* / governance.telemetry),
 # because a reload builds its rules from govern.json alone; under --tree-walk
-# governance.report_json and governance.telemetry did nothing at all; and a
+# governance.report_json and governance.telemetry did nothing at all (the
+# tree-walker is now refused under enforce, so OV-04t/OV-05t pin the refusal,
+# and the audit arms run on the VM, which writes polyglot entries since
+# test_vm_polyglot_audit.sh); and a
 # telemetry file named by --governance-telemetry was writable by the program
 # (#314 protected only the ones govern.json names).
 #
@@ -66,14 +69,16 @@
 #   AC-06  forward_retry_count raised; forward_buffer_max bounded -> unbounded
 #   AC-07  audit.level none -> basic: accepted AND the trail starts
 #   Startup outputs survive a reload (fail before the fix):
-#   OV-01  governance.report_json, VM;  OV-01t the same under --tree-walk
+#   OV-01  governance.report_json
 #   OV-02  --governance-report
 #   OV-03  --governance-telemetry: the reload is accepted and the file keeps
 #          recording (before: refused, the CLI's tamper_evidence looked lost)
-#   OV-04  governance.report_json / governance.telemetry work under --tree-walk
-#          with no reload at all (the tree-walker ignored both)
-#   OV-05  a --governance-telemetry file is refused to the program, both
-#          engines; OV-05c another file in the same directory is writable
+#   OV-04  governance.report_json / governance.telemetry are written with no
+#          reload at all (the tree-walker used to ignore both); OV-04t under
+#          this enforce config --tree-walk is refused before anything runs
+#   OV-05  a --governance-telemetry file is refused to the program; OV-05t
+#          --tree-walk is refused before it writes; OV-05c another file in the
+#          same directory is writable
 # ============================================================
 set -uo pipefail
 
@@ -97,6 +102,7 @@ fi
 source "$REPO/tests/helpers/trust_setup.sh"
 setup_isolated_trust
 source "$REPO/tests/helpers/config_swap.sh"
+source "$REPO/tests/helpers/tree_walk_refusal.sh"
 W="$(mktemp -d)"
 trap 'stop_swap_operators; teardown_isolated_trust; rm -rf "$W"' EXIT
 
@@ -206,7 +212,7 @@ REP='"output": { "file_output": { "report_json": "rep.json" } }'
 NOP='"limits": { "timeout": { "global": 600 } }'
 
 # ---- R-00 -------------------------------------------------------------------
-reload_run R00 "$TEL, $AUD, $REP" "$TEL, $AUD, $REP, $NOP" --tree-walk
+reload_run R00 "$TEL, $AUD, $REP" "$TEL, $AUD, $REP, $NOP"
 if [ "$OUT" = "__NOSIGN__" ]; then skip "R-00" "signing unavailable -- UNMEASURABLE"
 # A mid-run swap cannot be staged on Windows (0304af3a; test_capability_list_ratchet.sh
 # R-00 reports the same): every reload arm below is then UNMEASURABLE, not
@@ -233,15 +239,15 @@ refused "EV-03" "telemetry.deduplicate_checks false -> true is refused" \
     "telemetry.deduplicate_checks" 'runend "$(D EV03)/tele.jsonl"'
 
 echo ""
-echo "-- audit trail (tree-walker: only it records polyglot_executed, see A37)"
-reload_run EV04 "$AUD" '"audit": { "level": "none", "output_file": "audit.jsonl", "log_events": { "polyglot_executed": true } }' --tree-walk
+echo "-- audit trail"
+reload_run EV04 "$AUD" '"audit": { "level": "none", "output_file": "audit.jsonl", "log_events": { "polyglot_executed": true } }'
 refused "EV-04" "audit.level -> none is refused; entries after the reload are recorded" \
     "audit.level" '[ "$(pg_count "$(D EV04)/audit.jsonl")" -ge "$R00_PG" ]'
-reload_run EV05 "$AUD" '"audit": { "level": "basic", "output_file": "audit2.jsonl", "log_events": { "polyglot_executed": true } }' --tree-walk
+reload_run EV05 "$AUD" '"audit": { "level": "basic", "output_file": "audit2.jsonl", "log_events": { "polyglot_executed": true } }'
 refused "EV-05" "audit.output_file moved is refused" \
     "audit.output_file" '[ "$(pg_count "$(D EV05)/audit.jsonl")" -ge "$R00_PG" ] && absent "$(D EV05)/audit2.jsonl"' \
     "audit2.jsonl"
-reload_run EV06 "$AUD" '"audit": { "level": "basic", "output_file": "audit.jsonl", "log_events": { "polyglot_executed": false } }' --tree-walk
+reload_run EV06 "$AUD" '"audit": { "level": "basic", "output_file": "audit.jsonl", "log_events": { "polyglot_executed": false } }'
 refused "EV-06" "audit.log_events.polyglot_executed off is refused; polyglot entries continue" \
     "audit.log_events.polyglot_executed" '[ "$(pg_count "$(D EV06)/audit.jsonl")" -ge "$R00_PG" ]'
 LE() { printf '"audit": { "level": "basic", "output_file": "audit.jsonl", "log_events": { %s } }' "$1"; }
@@ -317,11 +323,11 @@ echo "-- accepted: same evidence, different spelling (an entry diff refuses each
 reload_run AC01 "$TEL" '"telemetry": { "enabled": true, "output_file": "./tele.jsonl" }'
 accepted "AC-01" "telemetry.output_file tele.jsonl -> ./tele.jsonl (the same file) is accepted" \
     'runend "$(D AC01)/tele.jsonl"'
-reload_run AC02 "$AUD" '"audit": { "level": "full", "output_file": "audit.jsonl", "log_events": { "polyglot_executed": true } }' --tree-walk
+reload_run AC02 "$AUD" '"audit": { "level": "full", "output_file": "audit.jsonl", "log_events": { "polyglot_executed": true } }'
 accepted "AC-02" "audit.level basic -> full is accepted (both record)" \
     '[ "$(pg_count "$(D AC02)/audit.jsonl")" -ge "$R00_PG" ]'
 reload_run AC03 "$(LE '"polyglot_executed": true, "polyglot_timing": true')" \
-    "$(LE '"polyglot_executed": false, "polyglot_timing": true')" --tree-walk
+    "$(LE '"polyglot_executed": false, "polyglot_timing": true')"
 accepted "AC-03" "polyglot_executed off while polyglot_timing stays on is accepted; every run still logged" \
     '[ "$(pg_count "$(D AC03)/audit.jsonl")" -ge "$R00_PG" ] && grep -q "duration=" "$(D AC03)/audit.jsonl"'
 reload_run AC04 "$(TR '"output_file": "tr.jsonl", "agents": ["worker"]')" "$(TR '"output_file": "tr.jsonl", "agents": []')"
@@ -331,18 +337,15 @@ reload_run AC05 '"telemetry": { "enabled": true, "output_file": "tele.jsonl", "d
 accepted "AC-05" "deduplicate_checks true -> false is accepted" 'runend "$(D AC05)/tele.jsonl"'
 reload_run AC06 "$(WH ', "forward_retry_count": 1, "forward_buffer_max": 50')" "$(WH ', "forward_retry_count": 4, "forward_buffer_max": 0')"
 accepted "AC-06" "forward_retry_count raised and forward_buffer_max bounded -> unbounded are accepted" true
-reload_run AC07 '"audit": { "level": "none", "output_file": "audit.jsonl", "log_events": { "polyglot_executed": true } }' "$AUD" --tree-walk
+reload_run AC07 '"audit": { "level": "none", "output_file": "audit.jsonl", "log_events": { "polyglot_executed": true } }' "$AUD"
 accepted "AC-07" "audit.level none -> basic is accepted and the trail starts after the reload" \
     '[ "$(pg_count "$(D AC07)/audit.jsonl")" -ge 2 ]'
 
 echo ""
 echo "-- startup outputs survive a reload"
 GREP='"governance": { "report_json": "grep.json" }'
-for eng in vm tw; do
-    id="OV-01"; a=(); [ "$eng" = tw ] && { id="OV-01t"; a=(--tree-walk); }
-    reload_run "OV01$eng" "$GREP" "$GREP, $NOP" "${a[@]}"
-    accepted "$id" "governance.report_json is still written after an accepted reload ($eng)" '[ -s "$(D OV01'"$eng"')/grep.json" ]'
-done
+reload_run OV01vm "$GREP" "$GREP, $NOP"
+accepted "OV-01" "governance.report_json is still written after an accepted reload" '[ -s "$(D OV01vm)/grep.json" ]'
 reload_run OV02 "$NOP" "$NOP" run --governance-report cli_rep.json   # only after `run`: not in the global pre-scan
 accepted "OV-02" "--governance-report is still written after a same-config reload" '[ -s "$(D OV02)/cli_rep.json" ]'
 reload_run OV03 "$NOP" "$NOP" --governance-telemetry cli_tel.jsonl
@@ -353,24 +356,31 @@ echo "-- startup outputs without a reload"
 d="$W/OV04"; mkdir -p "$d"
 printf '{ %s, "governance": { "report_json": "grep.json", "telemetry": "gtel.jsonl" } }\n' "$HDR" > "$d/govern.json"; sign_dir "$d"
 printf 'main {\n    let x = <<sql\nSELECT 1 AS x\n>>\n    print("RAN")\n}\n' > "$d/p.naab"
-out="$(cd "$d" && "$NAAB" --tree-walk p.naab 2>&1)"
-if [[ "$out" != *RAN* ]]; then bad "OV-04" "the program did not run under --tree-walk" "$out"
+out="$(cd "$d" && "$NAAB" p.naab 2>&1)"
+if [[ "$out" != *RAN* ]]; then bad "OV-04" "the program did not run" "$out"
 elif [ -s "$d/grep.json" ] && runend "$d/gtel.jsonl"; then
-    ok "OV-04" "governance.report_json and governance.telemetry work under --tree-walk"
-else bad "OV-04" "under --tree-walk: report=$([ -s "$d/grep.json" ] && echo y || echo n) telemetry=$([ -s "$d/gtel.jsonl" ] && echo y || echo n)" "$out"; fi
+    ok "OV-04" "governance.report_json and governance.telemetry are written with no reload"
+else bad "OV-04" "report=$([ -s "$d/grep.json" ] && echo y || echo n) telemetry=$([ -s "$d/gtel.jsonl" ] && echo y || echo n)" "$out"; fi
+rm -f "$d/grep.json" "$d/gtel.jsonl"
+out="$(cd "$d" && "$NAAB" --tree-walk p.naab 2>&1)"; rc=$?
+if tw_refused "$rc" "$out" && [[ "$out" != *RAN* ]]; then
+    ok "OV-04t" "under this enforce config --tree-walk is refused before the program runs"
+else bad "OV-04t" "--tree-walk ran under an enforce config (rc=$rc)" "$out"; fi
 
 d="$W/OV05"; mkdir -p "$d"
 printf '{ %s }\n' "$HDR" > "$d/govern.json"; sign_dir "$d"
-for eng in vm tw; do
-    id="OV-05"; a=(); [ "$eng" = tw ] && { id="OV-05t"; a=(--tree-walk); }
-    rm -f "$d/cli_tel.jsonl" "$d/other.txt"
-    printf 'use file\nmain {\n    file.write("cli_tel.jsonl", "FORGED\\n")\n    print("WROTE")\n}\n' > "$d/w.naab"
-    out="$(cd "$d" && "$NAAB" "${a[@]}" --governance-telemetry cli_tel.jsonl w.naab 2>&1)"; rc=$?
-    if [ "$rc" = 3 ] && [[ "$out" == *"evidence file is blocked"* ]] && [[ "$out" != *WROTE* ]] &&
-       ! grep -q FORGED "$d/cli_tel.jsonl" 2>/dev/null; then
-        ok "$id" "a --governance-telemetry file is refused to the program ($eng)"
-    else bad "$id" "the program wrote its CLI-named telemetry file ($eng, rc=$rc)" "$out"; fi
-done
+rm -f "$d/cli_tel.jsonl" "$d/other.txt"
+printf 'use file\nmain {\n    file.write("cli_tel.jsonl", "FORGED\\n")\n    print("WROTE")\n}\n' > "$d/w.naab"
+out="$(cd "$d" && "$NAAB" --governance-telemetry cli_tel.jsonl w.naab 2>&1)"; rc=$?
+if [ "$rc" = 3 ] && [[ "$out" == *"evidence file is blocked"* ]] && [[ "$out" != *WROTE* ]] &&
+   ! grep -q FORGED "$d/cli_tel.jsonl" 2>/dev/null; then
+    ok "OV-05" "a --governance-telemetry file is refused to the program"
+else bad "OV-05" "the program wrote its CLI-named telemetry file (rc=$rc)" "$out"; fi
+rm -f "$d/cli_tel.jsonl"
+out="$(cd "$d" && "$NAAB" --tree-walk --governance-telemetry cli_tel.jsonl w.naab 2>&1)"; rc=$?
+if tw_refused "$rc" "$out" && [[ "$out" != *WROTE* ]] && ! grep -q FORGED "$d/cli_tel.jsonl" 2>/dev/null; then
+    ok "OV-05t" "under --tree-walk the run is refused before the program writes"
+else bad "OV-05t" "--tree-walk ran under an enforce config (rc=$rc)" "$out"; fi
 printf 'use file\nmain {\n    file.write("other.txt", "fine\\n")\n    print("WROTE")\n}\n' > "$d/o.naab"
 out="$(cd "$d" && "$NAAB" --governance-telemetry cli_tel.jsonl o.naab 2>&1)"; rc=$?
 if [ "$rc" = 0 ] && [[ "$out" == *WROTE* ]] && [ -s "$d/other.txt" ]; then

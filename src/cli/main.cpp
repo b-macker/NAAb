@@ -253,6 +253,39 @@ static void applyConfiguredRunLimits(
     }
 }
 
+// This process's own executable, for the servers that start workers
+// (`naab-lang mcp`, `naab-lang api`): a worker is this same binary, not
+// whatever "naab-lang" resolves to on PATH. Empty when it cannot be found.
+static std::string selfExecutablePath(const char* argv0) {
+    std::string self;
+    std::error_code ec;
+#ifdef __linux__
+    self = std::filesystem::read_symlink("/proc/self/exe", ec).string();
+#endif
+    std::string a0 = argv0 ? argv0 : "";
+    if (self.empty() && a0.find('/') != std::string::npos) {
+        self = std::filesystem::absolute(a0, ec).string();
+    }
+    // Started by name: resolve it the way the shell did, through PATH.
+    // Resolving a bare name against the working directory would start
+    // whatever file of that name happens to sit there.
+#ifndef _WIN32
+    if (self.empty()) {
+        const char* path_env = std::getenv("PATH");
+        std::stringstream ps(path_env ? path_env : "");
+        std::string dir;
+        while (std::getline(ps, dir, ':')) {
+            if (dir.empty()) continue;
+            std::string cand = dir + "/" + a0;
+            if (access(cand.c_str(), X_OK) == 0) { self = cand; break; }
+        }
+    }
+#else
+    if (self.empty()) self = a0;  // workers are POSIX-only; the servers refuse on Windows
+#endif
+    return self;
+}
+
 static void applyGovernanceSandbox(
     const naab::governance::GovernanceRules& rules,
     naab::security::SandboxConfig& config,
@@ -461,6 +494,7 @@ void print_usage() {
     fmt::print("  --explain                           Explain execution step-by-step\n");
     fmt::print("  --debug, -d                         Enable interactive debugger\n");
     fmt::print("  --tree-walk                         Use tree-walk interpreter instead of VM\n");
+    fmt::print("                                      (refused under an enforce govern.json)\n");
     fmt::print("  --no-color                          Disable colored error messages\n");
     fmt::print("  --pipe                              Pipe mode: io.write() → stderr,\n");
     fmt::print("                                      io.output() → stdout (for JSON)\n");
@@ -1449,6 +1483,7 @@ int main(int argc, char** argv) {
                            "    --strict-types        Abort on type errors (pre-execution check)\n"
                            "    --vm                  Use bytecode VM (default)\n"
                            "    --tree-walk           Use tree-walk interpreter instead of VM\n"
+                           "                          (refused under an enforce govern.json)\n"
                            "    --gc-threshold <N>    GC collection threshold (default: 5000)\n"
                            "    --gc-stats            Print GC statistics after execution\n\n"
                            "  Note: There is no --path flag. NAAb resolves modules relative to\n"
@@ -1783,6 +1818,35 @@ int main(int argc, char** argv) {
             }
             // Reset for actual governance loading in VM/tree-walker path
             naab::governance::g_governance_hard_block = false;
+        }
+
+        // Under enforce the program runs on the VM (owner's decision
+        // 2026-10-25). The tree-walker is a second implementation of the same
+        // rules and has fallen behind more than once (B11, A55, A57, A43(a)),
+        // so a run's governance must not depend on which engine a command line
+        // picked. "Under enforce" is judged with --env laid over the config,
+        // and with governance.default_env too: the VM applies default_env and
+        // the tree-walker does not, so if either resolution is enforce, one
+        // engine would have enforced. Exit 4, before anything runs.
+        if (!use_vm && gov_loaded) {
+            using naab::governance::GovernanceMode;
+            const std::string& default_env = shared_governance.getRules().default_env;
+            const bool enforced =
+                shared_governance.modeUnderEnvironment(governance_env) == GovernanceMode::ENFORCE ||
+                shared_governance.modeUnderEnvironment(
+                    governance_env.empty() ? default_env : governance_env) == GovernanceMode::ENFORCE;
+            if (enforced) {
+                fprintf(stderr,
+                    "Error: --tree-walk cannot run under this project's governance\n\n"
+                    "  Got: --tree-walk, with govern.json in mode enforce\n"
+                    "  Expected: the default engine\n\n"
+                    "  Help:\n"
+                    "  - Under enforce, programs run on the default engine, which applies\n"
+                    "    the whole policy. Nothing was run.\n"
+                    "  - Remove --tree-walk from the command.\n");
+                fflush(nullptr);
+                _exit(4);
+            }
         }
 
         try {
@@ -4048,40 +4112,11 @@ int main(int argc, char** argv) {
 
     } else if (command == "mcp") {
         // Governed execution over MCP (stdio): docs/plan-mcp-service.md.
-        // Workers are this same binary, so the path must be this process's
-        // own executable, not whatever "naab-lang" resolves to on PATH.
-        std::string self;
-        {
-            std::error_code ec;
-#ifdef __linux__
-            self = std::filesystem::read_symlink("/proc/self/exe", ec).string();
-#endif
-            std::string a0 = argv[0];
-            if (self.empty() && a0.find('/') != std::string::npos) {
-                self = std::filesystem::absolute(a0, ec).string();
-            }
-            // Started by name: resolve it the way the shell did, through PATH.
-            // Resolving a bare name against the working directory would start
-            // whatever file of that name happens to sit there.
-#ifndef _WIN32
-            if (self.empty()) {
-                const char* path_env = std::getenv("PATH");
-                std::stringstream ps(path_env ? path_env : "");
-                std::string dir;
-                while (std::getline(ps, dir, ':')) {
-                    if (dir.empty()) continue;
-                    std::string cand = dir + "/" + a0;
-                    if (access(cand.c_str(), X_OK) == 0) { self = cand; break; }
-                }
-            }
-#else
-            if (self.empty()) self = a0;  // the server refuses to start on Windows anyway
-#endif
-            if (self.empty()) {
-                fprintf(stderr, "Error: naab-lang mcp could not locate its own executable\n");
-                fflush(nullptr);
-                _exit(1);
-            }
+        std::string self = selfExecutablePath(argv[0]);
+        if (self.empty()) {
+            fprintf(stderr, "Error: naab-lang mcp could not locate its own executable\n");
+            fflush(nullptr);
+            _exit(1);
         }
         int rc = naab::api::runMcpServer(self);
         fflush(nullptr);
@@ -4094,6 +4129,7 @@ int main(int argc, char** argv) {
         size_t max_body = 1048576; // 1 MiB default
         unsigned int api_timeout = 10; // V-API-004 (R24): default 10s
         unsigned int api_rate_limit = 0; // V-DOS-005 (R25): 0 = disabled
+        bool api_no_governance = global_no_governance;
 
         // Load govern.json API defaults from CWD
         std::vector<naab::governance::GovernanceRules::ApiKeyEntry> api_keys;
@@ -4130,8 +4166,10 @@ int main(int argc, char** argv) {
             }
         }
 
-        // Scan all argv for api flags — CLI overrides govern.json
-        for (int i = 2; i < argc; ++i) {
+        // Scan all argv for api flags — CLI overrides govern.json. They start
+        // after the command, which global flags may precede (`naab-lang
+        // --no-governance api 8080`): the port is the first argument there.
+        for (int i = command_arg_index + 1; i < argc; ++i) {
             std::string arg = argv[i];
             if (arg == "--api-key" && i + 1 < argc) {
                 api_key = argv[++i];
@@ -4141,10 +4179,12 @@ int main(int argc, char** argv) {
             } else if (arg == "--api-timeout" && i + 1 < argc) {
                 try { api_timeout = static_cast<unsigned int>(std::stoul(argv[++i])); }
                 catch (...) { fmt::print("Error: Invalid --api-timeout value\n"); return 1; }
+            } else if (arg == "--no-governance") {
+                api_no_governance = true;
             } else if (arg == "--api-rate-limit" && i + 1 < argc) {
                 try { api_rate_limit = static_cast<unsigned int>(std::stoul(argv[++i])); }
                 catch (...) { fmt::print("Error: Invalid --api-rate-limit value\n"); return 1; }
-            } else if (i == 2 && arg[0] != '-') {
+            } else if (i == command_arg_index + 1 && arg[0] != '-') {
                 try { port = std::stoi(arg); }
                 catch (...) { fmt::print("Error: Invalid port number\n"); return 1; }
             }
@@ -4169,9 +4209,10 @@ int main(int argc, char** argv) {
             auto loader = std::make_shared<naab::runtime::BlockLoader>(db_path);
             server.setBlockLoader(loader);
 
-            // Create and set up interpreter for code execution
-            auto interpreter = std::make_shared<naab::interpreter::Interpreter>();
-            server.setInterpreter(interpreter);
+            // Each /execute request runs in a `naab-lang run` worker started
+            // from this same binary (rest_api.h, setWorkerExecutable).
+            server.setWorkerExecutable(selfExecutablePath(argv[0]));
+            server.setWaiveMissingConfig(api_no_governance);
 
             // V-SC-005: apply lockfile verification before starting the server.
             // The run command has this gate; the api command was missing it.

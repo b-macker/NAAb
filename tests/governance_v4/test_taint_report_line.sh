@@ -7,16 +7,23 @@
 # named line 0 ("x.naab:0") while the VM named the real line. Calls now take
 # the location of their '('.
 #
-#   TL-00  CONTROL: both engines block both sinks (exit 3, taint message) --
-#          without a report there is no line to check
+# Under enforce the tree-walker is refused (exit 4, TL-TW), so its half of each
+# arm runs beside an audit copy of the config, where the violation is recorded
+# ("AUDIT taint_tracking.sink_violation ... at FILE:LINE") and the run goes on.
+#
+#   TL-00  CONTROL: the VM blocks both sinks (exit 3, taint message) and the
+#          tree-walker records both under audit -- without a report there is
+#          no line to check
 #   TL-01  the tree-walker names the call's own line, not 0
 #   TL-02  both engines name the same line
-#   TL-03  "print" listed as a sink is enforced on BOTH engines. The VM's print
-#          check passed an unmarked label to checkTaintedSink, which looks the
-#          name up in the taint set, so it could never fire: the secret was
-#          printed under Governance: PASS while the tree-walker blocked it
+#   TL-03  "print" listed as a sink is enforced on the VM and recorded on the
+#          tree-walker. The VM's print check passed an unmarked label to
+#          checkTaintedSink, which looks the name up in the taint set, so it
+#          could never fire: the secret was printed under Governance: PASS
+#          while the tree-walker blocked it
 #   TL-03c CONTROL: the same config prints a clean string on both engines, so
 #          TL-03 is not passing because print itself is broken
+#   TL-TW  under the enforce config --tree-walk is refused before it runs
 # ============================================================
 set -uo pipefail
 
@@ -51,29 +58,37 @@ EOF
 printf 'use env\nuse http\nmain {\n    let s = env.get("TL_SECRET")\n\n    http.post("http://127.0.0.1:9/", s)\n}\n' > "$W/http.naab"
 printf 'use env\nuse file\nmain {\n    let s = env.get("TL_SECRET")\n\n    file.write("out.txt", s)\n}\n' > "$W/file.naab"
 
-# line <prog> <engine flag> -> sets RC and LINE ("" when no taint report)
+. "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+# audit_copy DIR -> DIR/aud, the same programs beside a mode-audit config
+audit_copy() {
+    mkdir -p "$1/aud"; cp "$1"/*.naab "$1/aud/"
+    sed 's/"mode": "enforce"/"mode": "audit"/' "$1/govern.json" > "$1/aud/govern.json"
+}
+audit_copy "$W"
+
+# line <dir> <prog> <engine flag> -> sets RC, OUT and LINE ("" when no taint report)
 line_of() {
-    local out
-    out=$(cd "$W" && TL_SECRET=v timeout 20 "$NAAB" "$1" $2 2>&1); RC=$?
-    case "$out" in
+    OUT=$(cd "$1" && TL_SECRET=v timeout 20 "$NAAB" "$2" $3 2>&1); RC=$?
+    case "$OUT" in
         *"Taint tracking violation"*)
-            LINE=$(printf '%s\n' "$out" | grep -o "$1:[0-9]*" | head -1 | sed 's/.*://') ;;
+            LINE=$(printf '%s\n' "$OUT" | grep -o "$2:[0-9]*" | head -1 | sed 's/.*://') ;;
         *) LINE="" ;;
     esac
 }
 
 blocked=1
 for p in http file; do
-    for e in vm tw; do
-        flag=""; [ "$e" = tw ] && flag="--tree-walk"
-        line_of "$p.naab" "$flag"
-        eval "L_${p}_${e}=\"\$LINE\""
-        { [ "$RC" -eq 3 ] && [ -n "$LINE" ]; } || blocked=0
-    done
+    line_of "$W" "$p.naab" ""
+    L_vm="$LINE"; { [ "$RC" -eq 3 ] && [ -n "$LINE" ]; } || blocked=0
+    line_of "$W/aud" "$p.naab" "--tree-walk"
+    # audit records and goes on, so the call itself still runs (http.post to a
+    # loopback port then fails): the recorded violation is the measurement
+    L_tw="$LINE"; { [ -n "$LINE" ] && [[ "$OUT" == *"AUDIT taint_tracking.sink_violation"* ]]; } || blocked=0
+    eval "L_${p}_vm=\"\$L_vm\"; L_${p}_tw=\"\$L_tw\""
 done
 
 if [ "$blocked" -eq 1 ]; then
-    ok "TL-00" "CONTROL: both engines block both sinks with a taint report"
+    ok "TL-00" "CONTROL: the VM blocks both sinks, the tree-walker records both (audit), each with a taint report"
 else
     bad "TL-00" "a sink was not blocked with a taint report -- TL-01/TL-02 prove nothing" \
         "lines: http vm=${L_http_vm:-} tw=${L_http_tw:-} file vm=${L_file_vm:-} tw=${L_file_tw:-}"
@@ -101,21 +116,35 @@ cat > "$W/p/govern.json" <<'EOF'
 EOF
 printf 'use env\nmain {\n    let s = env.get("TL_SECRET")\n    print(s)\n}\n' > "$W/p/tainted.naab"
 printf 'use env\nmain {\n    let s = env.get("TL_SECRET")\n    print("CLEAN_OUTPUT")\n}\n' > "$W/p/clean.naab"
+audit_copy "$W/p"
 t3=""; c3=""
-for flag in "" "--tree-walk"; do
-    out=$(cd "$W/p" && TL_SECRET=LEAKED_SECRET timeout 20 "$NAAB" tainted.naab $flag 2>&1); rc=$?
-    case "$out" in
-        *LEAKED_SECRET*) t3="$t3 ${flag:-vm}:printed" ;;
-        *"reached sink 'print'"*) [ "$rc" -eq 3 ] || t3="$t3 ${flag:-vm}:rc=$rc" ;;
-        *) t3="$t3 ${flag:-vm}:no-report(rc=$rc)" ;;
-    esac
-    out=$(cd "$W/p" && TL_SECRET=x timeout 20 "$NAAB" clean.naab $flag 2>&1); rc=$?
+# VM under enforce: blocked, nothing printed
+out=$(cd "$W/p" && TL_SECRET=LEAKED_SECRET timeout 20 "$NAAB" tainted.naab 2>&1); rc=$?
+case "$out" in
+    *LEAKED_SECRET*) t3="$t3 vm:printed" ;;
+    *"reached sink 'print'"*) [ "$rc" -eq 3 ] || t3="$t3 vm:rc=$rc" ;;
+    *) t3="$t3 vm:no-report(rc=$rc)" ;;
+esac
+# tree-walker under audit: the violation is recorded (audit does not block)
+out=$(cd "$W/p/aud" && TL_SECRET=LEAKED_SECRET timeout 20 "$NAAB" tainted.naab --tree-walk 2>&1); rc=$?
+case "$out" in
+    *"AUDIT taint_tracking.sink_violation"*"reached sink 'print'"*) [ "$rc" -eq 0 ] || t3="$t3 tw:rc=$rc" ;;
+    *) t3="$t3 tw:no-report(rc=$rc)" ;;
+esac
+for d in "$W/p:" "$W/p/aud:--tree-walk"; do
+    flag="${d#*:}"
+    out=$(cd "${d%%:*}" && TL_SECRET=x timeout 20 "$NAAB" clean.naab $flag 2>&1); rc=$?
     case "$out" in *CLEAN_OUTPUT*) [ "$rc" -eq 0 ] || c3="$c3 ${flag:-vm}:rc=$rc" ;; *) c3="$c3 ${flag:-vm}:silent(rc=$rc)" ;; esac
 done
-if [ -z "$t3" ]; then ok "TL-03" "a tainted print is blocked on both engines (exit 3)"
-else bad "TL-03" "the print sink is not enforced on every engine" "$t3"; fi
+if [ -z "$t3" ]; then ok "TL-03" "a tainted print is blocked on the VM (exit 3) and recorded on the tree-walker"
+else bad "TL-03" "the print sink is not checked on every engine" "$t3"; fi
 if [ -z "$c3" ]; then ok "TL-03c" "CONTROL: a clean print still prints on both engines"
 else bad "TL-03c" "a clean print did not print -- TL-03 proves nothing" "$c3"; fi
+
+out=$(cd "$W/p" && TL_SECRET=x timeout 20 "$NAAB" tainted.naab --tree-walk 2>&1); rc=$?
+if tw_refused "$rc" "$out" && [[ "$out" != *"reached sink"* ]]; then
+    ok "TL-TW" "under the enforce config --tree-walk is refused before it runs"
+else bad "TL-TW" "--tree-walk ran under an enforce config (rc=$rc)" "$out"; fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"

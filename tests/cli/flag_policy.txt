@@ -98,7 +98,7 @@
 --max-body	run-policy	REST api server max request body; CLI overrides govern.json api.*
 --memory-limit	run-policy	memory limit; a govern.json runtime.memory_limit caps it, the flag can lower but not raise it (A79)
 --no-color	neutral	disable colored error messages; output utility
---no-governance	bypass-guarded:checkBlocked	waives the no-govern.json-found requirement only; a discovered govern.json applies in full (A78); defended by checkBlocked and implicitBlock
+--no-governance	bypass-guarded:checkBlocked	waives the no-govern.json-found requirement only; a discovered govern.json applies in full (A78); on `api` it waives it for the server's workers, which still apply any govern.json they find; defended by checkBlocked and implicitBlock
 --output	neutral	calibrate output path; no govern.json bearing
 --override-reason	governance-evidence	records the justification for --governance-override in the decision trail
 --package	neutral	init: package project layout; no run-time governance effect
@@ -106,7 +106,7 @@
 --profile	neutral	enable performance profiling; execution utility
 --quiet	neutral	suppress non-essential output; output utility
 --reason	governance-admin	justification for an approve/revoke action (approvals store)
---repl	neutral	start the REPL; execution mode
+--repl	neutral	start the REPL; refused beside a govern.json in mode enforce or audit, since the REPL loads none (A80)
 --require-governance	run-policy	reaffirms that a govern.json is required (tightening; cannot loosen)
 --revoke-approval	governance-admin	revoke a governance approval (approvals store)
 --revoke-key	governance-admin	revoke a trusted key (trust store)
@@ -121,7 +121,7 @@
 --taint	governance-admin	init: turn on taint tracking and sequence detection in the generated govern.json
 --tasks	neutral	calibrate/benchmark task filter; no govern.json bearing
 --timeout	run-policy	run time limit; a govern.json limit caps it, the flag can lower but not raise it (A79)
---tree-walk	bypass-guarded:checkBlocked	selects the tree-walker engine; wired into the bypass-flag block (operator-lockable, defence in depth)
+--tree-walk	bypass-guarded:checkBlocked	selects the tree-walker engine; refused (exit 4) under an enforce govern.json, and wired into the bypass-flag block (operator-lockable, defence in depth)
 --trust-key	governance-admin	install a public key into the trust store
 --verbose	neutral	enable verbose output; output utility
 --verify-telemetry-chain	governance-admin	verify the telemetry tamper-evident hash chain (governance evidence integrity)

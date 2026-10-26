@@ -18,7 +18,11 @@
 # polyglot path, so the VM never recorded or checked one, and neither did the
 # tree-walker's parallel path.
 #
-# ARMS (each on the VM and the tree-walker unless marked)
+# ARMS (on the VM, under enforce, unless marked). Under enforce --tree-walk is
+# refused before anything runs (P-TW), so the tree-walker's routes are measured
+# under audit, where a finding is recorded ("AUDIT ...") and the run goes on:
+# PO-01a (javascript, its parallel group), PO-01pa (python, its sequential
+# path), PO-06a (a block-library call, which only it can load), and BL-05.
 #   P-00   CONTROL  a plain program runs under the json config
 #   PO-00  CONTROL  no polyglot_output: a block returning "not json" runs
 #   PO-01           javascript "not json" under "json": refused, exit 3
@@ -32,8 +36,9 @@
 #   PO-04c CONTROL  ... a valid one runs
 #   PO-05           codegen.run()'s output is checked
 #   PO-05c CONTROL  ... a valid one runs
-#   PO-06           a block-library call's result is checked (tree-walker; the
-#                   VM compiler refuses `use BLOCK-...`)
+#   PO-06           a block-library call's result is checked (the VM compiler
+#                   refuses `use BLOCK-...`, so its arm is UNMEASURABLE; PO-06a
+#                   is the tree-walker under audit)
 #   PO-07           try/catch cannot swallow the refusal (HARD)
 #   PO-08           the object form {"format": "json"} refuses too
 #   BL-01           a baseline recorded on a CLI run is saved (.naab/baselines.json)
@@ -44,7 +49,8 @@
 #   BL-03  CONTROL  without the check flag a changed output runs
 #   BL-04           a baseline PLANTED in the file is checked (isolates the
 #                   check from the save)
-#   BL-05           recorded on one engine, checked on the other (one key)
+#   BL-05           recorded on one engine, checked on the other (one key):
+#                   VM under enforce, the tree-walker under audit
 # ============================================================
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -72,7 +78,7 @@ BL_MSG="Baseline mismatch"
 run() {
     local d="$T/$1" eng=$2 extra=$3 prog=$4; shift 4
     mkdir -p "$d"
-    printf '{"version":"4.0","mode":"enforce","security":{"sandbox_level":"elevated"}%s}\n' "$extra" > "$d/govern.json"
+    printf '{"version":"4.0","mode":"%s","security":{"sandbox_level":"elevated"}%s}\n' "${MODE:-enforce}" "$extra" > "$d/govern.json"
     if ! python3 -c 'import json,sys; json.load(sys.stdin)' < "$d/govern.json" 2>/dev/null; then
         OUT="__BADJSON__"; RC=99; return
     fi
@@ -82,6 +88,8 @@ run() {
 }
 refused_with() { [ "$RC" = 3 ] && grep -qF "$1" <<<"$OUT" && ! grep -q '^END$' <<<"$OUT"; }
 ran() { [ "$RC" = 0 ] && grep -q '^END$' <<<"$OUT"; }
+# audit: the finding is recorded and the program goes on to the end
+recorded_with() { [ "$RC" = 0 ] && grep -q 'AUDIT ' <<<"$OUT" && grep -qF "$1" <<<"$OUT" && grep -q '^END$' <<<"$OUT"; }
 
 JSON_ON=',"restrictions":{"polyglot_output":"json"}'
 JSON_OBJ=',"restrictions":{"polyglot_output":{"format":"json"}}'
@@ -109,7 +117,24 @@ rt_prog() { printf 'runtime js = javascript.start()\nmain {\n  let s = js.exec("
 cg_prog() { printf 'use codegen\nmain {\n  let r = codegen.run("javascript", "%s")\n  print("GOT=" + r["output"])\n  print("END")\n}\n' "$1"; }
 
 echo "-- polyglot_output: json (A52)"
-for eng in vm tw; do
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+run ptw tw "$JSON_ON" "$(js_prog '"not json"')"
+if tw_refused "$RC" "$OUT" && ! grep -q '^END$' <<<"$OUT"; then
+    ok "P-TW" "under the enforce config --tree-walk is refused before anything runs"
+else bad "P-TW" "--tree-walk ran under an enforce config" "rc=$RC $OUT"; fi
+MODE=audit run po01a tw "$JSON_ON" "$(js_prog '"not json"')"
+if recorded_with "$JSON_MSG"; then ok "PO-01a/tw" "audit: a javascript non-JSON result is recorded on the tree-walker (parallel group)"
+else bad "PO-01a/tw" "audit: no finding for a javascript non-JSON result on the tree-walker" "rc=$RC $OUT"; fi
+MODE=audit run po01pva tw "" "$PY_BAD"
+if ran && grep -q 'GOT=not json' <<<"$OUT"; then
+    MODE=audit run po01pa tw "$JSON_ON" "$PY_BAD"
+    if recorded_with "$JSON_MSG"; then ok "PO-01pa/tw" "audit: a python non-JSON result is recorded on the tree-walker (sequential path)"
+    else bad "PO-01pa/tw" "audit: no finding for a python non-JSON result on the tree-walker" "rc=$RC $OUT"; fi
+else
+    skip "PO-01pa/tw" "a <<python>> block does not return its value here (rc=$RC)"
+fi
+
+for eng in vm; do
     run p00.$eng $eng "$JSON_ON" 'main { print("END") }'
     if ran; then ok "P-00/$eng" "CONTROL: a plain program runs under the json config"
     else bad "P-00/$eng" "a plain program did not run" "rc=$RC $OUT"; continue; fi
@@ -180,21 +205,27 @@ blk_run() {  # NAME ENGINE OKFLAG
     mkdir -p "$L"
     printf '%s' "$BLK_SRC" > "$L/fr_block.js"
     printf '{"id":"BLOCK-JS-FRCHK","name":"fr_chk","language":"javascript","code_file":"fr_block.js","code_hash":"%s","version":"1.0.0","is_active":true}\n' "$BLK_HASH" > "$L/fr_block.json"
-    printf '{"version":"4.0","mode":"enforce","security":{"sandbox_level":"elevated"}%s}\n' "$JSON_ON" > "$d/govern.json"
+    printf '{"version":"4.0","mode":"%s","security":{"sandbox_level":"elevated"}%s}\n' "${MODE:-enforce}" "$JSON_ON" > "$d/govern.json"
     printf 'use BLOCK-JS-FRCHK as b\nmain {\n  let s = b.val(%s)\n  print("GOT=" + s)\n  print("END")\n}\n' "$3" > "$d/p.naab"
     local a=("$NAAB" run); [ "$2" = tw ] && a+=(--tree-walk)
     OUT="$(cd "$d" && HOME="$d/home" timeout 60 "${a[@]}" p.naab 2>&1)"; RC=$?
 }
-for eng in tw vm; do
-    blk_run po06c $eng true
-    if ran && grep -qF 'GOT=[3]' <<<"$OUT"; then
-        blk_run po06 $eng false
-        if refused_with "$JSON_MSG"; then ok "PO-06/$eng" "a block-library call's non-JSON result is refused"
-        else bad "PO-06/$eng" "a block-library call's non-JSON result ran" "rc=$RC $OUT"; fi
-    else
-        skip "PO-06/$eng" "a block-library call does not run on this engine here (rc=$RC: ${OUT:0:120})"
-    fi
-done
+blk_run po06c vm true
+if ran && grep -qF 'GOT=[3]' <<<"$OUT"; then
+    blk_run po06 vm false
+    if refused_with "$JSON_MSG"; then ok "PO-06/vm" "a block-library call's non-JSON result is refused"
+    else bad "PO-06/vm" "a block-library call's non-JSON result ran" "rc=$RC $OUT"; fi
+else
+    skip "PO-06/vm" "a block-library call does not run on this engine here (rc=$RC: ${OUT:0:120})"
+fi
+MODE=audit blk_run po06ac tw true
+if ran && grep -qF 'GOT=[3]' <<<"$OUT"; then
+    MODE=audit blk_run po06a tw false
+    if recorded_with "$JSON_MSG"; then ok "PO-06a/tw" "audit: a block-library call's non-JSON result is recorded"
+    else bad "PO-06a/tw" "audit: no finding for a block-library call's non-JSON result" "rc=$RC $OUT"; fi
+else
+    skip "PO-06a/tw" "a block-library call does not run on the tree-walker here (rc=$RC: ${OUT:0:120})"
+fi
 
 echo "-- output baselines (A56)"
 # The block's TEXT never changes (it is the baseline key, with its line); its
@@ -214,7 +245,7 @@ bl_entry() {  # DIR -> prints the recorded output values, one per line
 d=json.load(sys.stdin)
 for v in d.get("entries",{}).values(): print(v.get("output"))' < "$T/$1/.naab/baselines.json" 2>/dev/null
 }
-for eng in vm tw; do
+for eng in vm; do
     D=bl.$eng
     mkdir -p "$T/$D"; echo A > "$T/$D/val.txt"
     run $D $eng "" "$BL_PROG"
@@ -253,15 +284,18 @@ for eng in vm tw; do
     else bad "BL-04/$eng" "a planted baseline was not checked" "rc=$RC $OUT"; fi
 done
 
-# One key on both engines: record on one, check on the other.
+# One key on both engines: record on one, check on the other. The VM under
+# enforce (refused); the tree-walker under audit (recorded).
+mode_of() { [ "$1" = tw ] && echo audit || echo enforce; }
 for pair in "vm tw" "tw vm"; do
     set -- $pair
     D=blx.$1$2; mkdir -p "$T/$D"; echo A > "$T/$D/val.txt"
-    run $D $1 "$BL_REC" "$BL_PROG"
-    if [ "$(bl_entry $D)" != "A" ]; then skip "BL-05/$1-$2" "nothing was recorded on $1 (see BL-01/$1)"; continue; fi
+    MODE=$(mode_of $1) run $D $1 "$BL_REC" "$BL_PROG"
+    if [ "$(bl_entry $D)" != "A" ]; then skip "BL-05/$1-$2" "nothing was recorded on $1 (rc=$RC)"; continue; fi
     echo B > "$T/$D/val.txt"
-    run $D $2 "" "$BL_PROG" --governance-check-baselines
-    if refused_with "$BL_MSG"; then ok "BL-05/$1-$2" "recorded on $1, checked on $2"
+    MODE=$(mode_of $2) run $D $2 "" "$BL_PROG" --governance-check-baselines
+    if { [ "$2" = vm ] && refused_with "$BL_MSG"; } || { [ "$2" = tw ] && recorded_with "$BL_MSG"; }; then
+        ok "BL-05/$1-$2" "recorded on $1, checked on $2"
     else bad "BL-05/$1-$2" "a baseline recorded on $1 was not checked on $2" "rc=$RC $OUT"; fi
 done
 

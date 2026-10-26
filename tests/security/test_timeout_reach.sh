@@ -235,11 +235,16 @@ main {
     while true { i = i + 1 }
 }
 EOF
+# The tree-walker is refused under enforce; these arms are about the timer, not
+# the policy, so it runs beside a mode-audit copy of the config.
+mkdir -p "$WORK/n_tw"; cp "$WORK/n"/*.naab "$WORK/n_tw/"
+sed 's/"mode": "enforce"/"mode": "audit"/' "$WORK/n/govern.json" > "$WORK/n_tw/govern.json"
 for prog in js:JS:2 cg:CG:0; do
     f="${prog%%:*}"; marker="${prog#*:}"
     for eng in "" "--tree-walk"; do
         tag="${eng:-vm}"; tag="${tag#--}"
-        run "$WORK/n" "$f.naab" $eng --timeout 3
+        nd="$WORK/n"; [ -n "$eng" ] && nd="$WORK/n_tw"
+        run "$nd" "$f.naab" $eng --timeout 3
         # Slow is a failure whatever the output says: a run killed from outside
         # loses its buffered stdout, so the marker cannot be required first.
         if [ "$ELAPSED" -gt 8 ]; then

@@ -257,8 +257,22 @@ else
     fail R-00 "control: env.get() not refused (rc=$RC, value seen=$HAS_A, own config loaded=$LOADED)"; show
 fi
 
+# The scrub applies under enforce only (audit leaves children alone, like
+# env.get()), and under enforce --tree-walk is refused before it runs, so the
+# tree-walker's arms are gone: R-TW pins the refusal. The child environment is
+# built by one function both engines call (buildChildEnvironment()).
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+D="$(newdir)"; mkcfg "$D" enforce true read
+write_route "$D/p.naab" printenv
+OUT="$(cd "$D" && NAAB_ES_BR=tw-probe timeout 120 "$NAAB" --tree-walk p.naab 2>&1)"; RC=$?
+if tw_refused "$RC" "$OUT" && [[ "$OUT" != *tw-probe* ]]; then
+    pass R-TW "under an enforce config --tree-walk is refused before any child starts"
+else
+    fail R-TW "--tree-walk ran under an enforce config (rc=$RC)"; show
+fi
+
 for route in shell python ruby node php go printenv sh_c; do
-    for engine in vm tw; do
+    for engine in vm; do
         id="R-$route/$engine"
         if ! viable "$route" "$engine"; then unviable "$id" "$route"; continue; fi
         D="$(newdir)"; mkcfg "$D" enforce true read
@@ -435,7 +449,7 @@ done
 # not change, and a variable set by the first block must reach the second.
 echo ""
 echo "--- K: a persistent child keeps its state while the policy is unchanged ---"
-for engine in vm tw; do
+for engine in vm; do
     id="K-01/$engine"
     if ! viable shell "$engine"; then unviable "$id" shell; continue; fi
     D="$(newdir)"; mkcfg "$D" enforce true both

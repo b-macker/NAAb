@@ -26,6 +26,9 @@
 # silently carries the other's coverage, and a later revert ships green.
 #
 # THE CONTROLS ARE NOT DECORATION.
+#   Since Bundle 2 --tree-walk is refused under enforce (exit 4), so GA-01 and
+#   GC-02 assert that refusal, and GA-01a/GC-02a measure the tree-walker under
+#   audit, where its gate records the blocked read whatever the flag says.
 #   GC-01/GC-02  `mode: "enforce"` must still BLOCK on both engines. Without
 #                them, a build that enforces NOTHING passes GB-01 (which expects
 #                a successful read) and the suite would certify the hole.
@@ -101,11 +104,24 @@ run() {  # $1.. = flags ; echoes "allowed" or "blocked"
 # --- GA-01: a CLI flag must not override the file ------------------------
 # Fails if main.cpp's disableGovernance() call is restored. Touches no vm.cpp
 # behaviour: enforce mode, tree-walker, flag passed.
+# Under enforce --tree-walk is now refused before anything runs, so "blocked"
+# would pass on the refusal alone: GA-01 asserts the refusal itself, and GA-01a
+# makes the original claim under audit, where the tree-walker runs and the gate
+# records the read -- a flag that switched governance off would leave no record.
+source "$REPO/tests/helpers/tree_walk_refusal.sh"
 cfg enforce
-if [ "$(run --tree-walk --no-governance)" = "blocked" ]; then
-    ok "GA-01" "--tree-walk --no-governance cannot bypass an enforcing config"
+LAST=$( (cd "$W" && timeout 60s "$NAAB" --tree-walk --no-governance t.naab) 2>&1 ); rc=$?
+if tw_refused "$rc" "$LAST" && [[ "$LAST" != *READ_OK* ]]; then
+    ok "GA-01" "--tree-walk --no-governance under an enforcing config is refused before it runs"
 else
-    bad "GA-01" "the flag disabled governance on the tree-walker -- the file lost to a flag"
+    bad "GA-01" "the tree-walker ran under an enforcing config with the flag (rc=$rc)"
+fi
+cfg audit
+LAST=$( (cd "$W" && timeout 60s "$NAAB" --tree-walk --no-governance t.naab) 2>&1 )
+if [[ "$LAST" == *"AUDIT capabilities.filesystem"* ]]; then
+    ok "GA-01a" "audit: --tree-walk --no-governance still records the blocked read -- the flag does not switch governance off"
+else
+    bad "GA-01a" "the flag disabled governance on the tree-walker -- the file lost to a flag"
 fi
 
 # --- GB-01: the file's own off switch must work, on the DEFAULT engine ----
@@ -125,10 +141,18 @@ if [ "$(run)" = "blocked" ]; then
 else
     bad "GC-01" "enforce did not block on the VM -- GB-01's pass is meaningless"
 fi
-if [ "$(run --tree-walk)" = "blocked" ]; then
-    ok "GC-02" "CONTROL: mode:\"enforce\" still blocks on the tree-walker"
+LAST=$( (cd "$W" && timeout 60s "$NAAB" --tree-walk t.naab) 2>&1 ); rc=$?
+if tw_refused "$rc" "$LAST" && [[ "$LAST" != *READ_OK* ]]; then
+    ok "GC-02" "CONTROL: under mode:\"enforce\" the tree-walker is refused before it reads"
 else
-    bad "GC-02" "enforce did not block on the tree-walker"
+    bad "GC-02" "the tree-walker ran under mode:\"enforce\" (rc=$rc)"
+fi
+cfg audit
+LAST=$( (cd "$W" && timeout 60s "$NAAB" --tree-walk t.naab) 2>&1 )
+if [[ "$LAST" == *"AUDIT capabilities.filesystem"* ]]; then
+    ok "GC-02a" "CONTROL: under mode:\"audit\" the tree-walker's gate records the blocked read"
+else
+    bad "GC-02a" "the tree-walker's gate recorded nothing under audit -- GA-01a proves nothing"
 fi
 
 # --- GC-03: the property is AGREEMENT, not one engine's answer -----------

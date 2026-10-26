@@ -2,6 +2,7 @@
 // O(1) per statement instead of O(n) by only executing new statements
 
 #include "naab/config.h"
+#include "naab/repl_gate.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/interpreter.h"
@@ -325,6 +326,7 @@ void run_repl_optimized() {
 } // namespace naab
 
 int main() {
+    if (int rc = naab::repl::refuseBesideGovernance()) return rc;
     naab::repl::run_repl_optimized();
     return 0;
 }

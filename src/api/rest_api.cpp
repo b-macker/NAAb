@@ -8,6 +8,7 @@
 #include "naab/crypto_utils.h"
 #include "naab/stdlib.h"
 #include "naab/resource_limits.h"
+#include "worker.h"
 #include "naab/governance.h"
 #include <sstream>
 #include <filesystem>
@@ -30,7 +31,9 @@ namespace api {
 class RestApiServer::Impl {
 public:
     httplib::Server server;
-    std::shared_ptr<interpreter::Interpreter> interpreter;
+    std::string worker_exe;  // naab-lang, which runs each /execute request
+    std::string cwd;         // the server's directory, where workers run
+    bool waive_missing_config = false;  // server started with --no-governance
     std::shared_ptr<runtime::BlockLoader> block_loader;
     // V-API-004 (R24): per-request execution timeout in seconds. 0 disables.
     std::atomic<unsigned int> api_timeout_seconds{10};
@@ -78,6 +81,11 @@ public:
     }
 
     Impl() {
+        std::error_code ec;
+        cwd = std::filesystem::current_path(ec).string();
+#ifndef _WIN32
+        if (!cwd.empty()) removeStaleWorkerPrograms(cwd, ".naab-rest-");
+#endif
         setupRoutes();
     }
 
@@ -108,79 +116,117 @@ public:
                     return;
                 }
 
-                if (!interpreter) {
+#ifdef _WIN32
+                res.status = 501;
+                res.set_content(json{
+                    {"error", "Not available on this platform yet"},
+                    {"message", "Each request runs in a worker process, which needs POSIX "
+                                "process groups and pipes. Run the server on Linux or macOS."},
+                    {"status", "error"}
+                }.dump(2), "application/json");
+                return;
+#else
+                if (worker_exe.empty()) {
                     res.status = 503;
-                    res.set_content(json{{"error","Interpreter not available"},{"status","error"}}.dump(2),
+                    res.set_content(json{{"error","Executor not available"},{"status","error"}}.dump(2),
                                     "application/json");
                     return;
                 }
 
-                // V-DOS-002: use thread-local capture stream for per-request output
-                // isolation. Each httplib worker thread has its own ostringstream;
-                // no global mutex or rdbuf() redirect needed, so requests run in
-                // parallel without serialization.
-                std::ostringstream captured;
+                // The request runs in its own `naab-lang run` worker, on the
+                // default engine, under the govern.json the server's directory
+                // resolves to -- the MCP server's design (docs/plan-mcp-service.md).
+                // It used to run on a tree-walker inside this process, which is
+                // refused under enforce (Bundle 2) and shared the process with
+                // every other request: state leaked between requests and one
+                // request's crash took the server down. The program file sits
+                // in the server's directory so relative imports and discovery
+                // behave as for a script there.
+                std::string path = writeWorkerProgram(cwd, ".naab-rest-", code);
+                if (path.empty()) {
+                    res.status = 500;
+                    res.set_content(json{{"error","Could not write the program file"},{"status","error"}}.dump(2),
+                                    "application/json");
+                    return;
+                }
+                // V-API-004 (R24): api_timeout_seconds bounds the run. The
+                // worker gets it as --timeout (a govern.json limit still caps
+                // it) and runWorker() kills the worker 5 s after it, so an
+                // infinite loop cannot pin a cpp-httplib thread. 0 opts out
+                // (tests/debug only): no --timeout, and a one-day ceiling.
+                const unsigned int t = api_timeout_seconds.load();
+                std::vector<std::string> wargs;
+                if (t > 0) { wargs.push_back("--timeout"); wargs.push_back(std::to_string(t)); }
+                if (waive_missing_config) wargs.push_back("--no-governance");
+                wargs.push_back("--");
+                wargs.push_back(path);
+                auto fl = std::make_shared<InFlight>();
+                WorkerResult w = runWorker(worker_exe, cwd, wargs, t > 0 ? static_cast<int>(t) : 86400, fl,
+                                           [](const std::string&) { return false; });
+                unlink(path.c_str());
+
+                // The worker's governance banners and warnings go where the
+                // in-process run printed them: the server's own stderr.
+                if (!w.err.empty()) fprintf(stderr, "%s", w.err.c_str());
+
+                // The CLI prints a fatal error to stdout after the program's
+                // own output, as a block starting "Error: " on a new line; the
+                // last one is the error that ended the run. Split it off so
+                // "output" stays what the program printed.
+                std::string output = w.out;
                 std::string error_msg;
                 int exit_code = 0;
-                naab::stdlib::setIoCaptureStream(&captured);
-                try {
-                    naab::lexer::Lexer lexer(code);
-                    auto tokens = lexer.tokenize();
-                    naab::parser::Parser parser(tokens);
-                    auto program = parser.parseProgram();
-                    // Finding B fix: create a fresh interpreter per request to prevent state
-                    // leakage, governance override persistence, and race conditions
-                    auto req_interpreter = std::make_shared<interpreter::Interpreter>();
-                    auto cwd = std::filesystem::current_path().string();
-                    req_interpreter->setSourceCode(code, cwd + "/api-request.naab");
-
-                    // The source checks run inside execute(), on `code`:
-                    // setSourceCode() records it as the text of that name, so
-                    // visit(Program) runs the whole-source checks (secrets, PII,
-                    // incomplete logic -- this handler used to call the first two
-                    // itself) and every function and main{} gets the per-function
-                    // checks. They used to re-read "api-request.naab" from disk,
-                    // which does not exist, so they never ran here and a file
-                    // planted under that name decided the verdict. A45
-                    // V-API-004 (R24): bound execution to api_timeout_seconds
-                    // so that an infinite-loop script can't permanently pin a
-                    // cpp-httplib worker thread. ScopedTimeout installs a
-                    // SIGALRM/pthread_kill alarm and disarms on any exit path.
-                    // timeout=0 opts out (tests/debug only).
-                    unsigned int t = api_timeout_seconds.load();
-                    if (t > 0) {
-                        naab::security::ScopedTimeout _to(t);
-                        req_interpreter->execute(*program);
-                    } else {
-                        req_interpreter->execute(*program);
+                if (!w.started) {
+                    exit_code = 1;
+                    error_msg = "The program could not be started";
+                } else if (w.timed_out) {
+                    exit_code = 1;
+                    error_msg = "Execution timed out";
+                } else if (w.term_signal != 0) {
+                    exit_code = 1;
+                    error_msg = "The program stopped on signal " + std::to_string(w.term_signal);
+                } else {
+                    exit_code = w.exit_code;
+                    if (exit_code != 0) {
+                        size_t pos = std::string::npos;
+                        if (output.rfind("Error: ", 0) == 0) pos = 0;
+                        size_t nl = output.rfind("\nError: ");
+                        if (nl != std::string::npos) pos = nl + 1;
+                        if (pos != std::string::npos) {
+                            error_msg = output.substr(pos);
+                            output.erase(pos);
+                        } else {
+                            // Not on stdout: the worker's own stderr, without
+                            // the lines every run prints.
+                            std::istringstream es(w.err);
+                            std::string line;
+                            while (std::getline(es, line)) {
+                                if (line.empty() || line.rfind("[governance] Loaded:", 0) == 0 ||
+                                    line.rfind("-- Governance:", 0) == 0) continue;
+                                error_msg += line + "\n";
+                            }
+                            if (error_msg.empty())
+                                error_msg = "The program exited with code " + std::to_string(exit_code);
+                        }
+                        // V-ERR-002: sanitize error messages before returning to caller
+                        error_msg = naab::error::ErrorSanitizer::sanitize(error_msg);
                     }
-                } catch (const governance::GovernanceHardError& e) {
-                    // A HARD block is a verdict about THIS REQUEST, not about
-                    // the process. _exit(3) is right in the CLI -- one script,
-                    // one verdict, no recovery -- and was copied here, where it
-                    // means any client can terminate the daemon and every
-                    // concurrent request with it by submitting code that
-                    // trips governance. Fail the request instead.
-                    fprintf(stderr, "[governance] HARD block in REST /execute: %s\n", e.what());
-                    fflush(stderr);
-                    error_msg = naab::error::ErrorSanitizer::sanitize(e.what());
-                    exit_code = 3;
-                } catch (const std::exception& e) {
-                    // V-ERR-002: sanitize error messages before returning to caller
-                    error_msg = naab::error::ErrorSanitizer::sanitize(e.what());
-                    exit_code = 1;
-                } catch (...) {
-                    error_msg = "Unknown error during execution";
-                    exit_code = 1;
                 }
-                naab::stdlib::setIoCaptureStream(nullptr);  // Always restore
+                if (exit_code == 3) {
+                    // A HARD block is a verdict about THIS REQUEST, not about
+                    // the server: the worker exits 3, the server keeps serving.
+                    fprintf(stderr, "[governance] HARD block in REST /execute\n");
+                }
+                fflush(stderr);
 
                 json response = {
-                    {"status",    error_msg.empty() ? "success" : "error"},
-                    {"output",    captured.str()},
+                    {"status",    exit_code == 0 && error_msg.empty() ? "success" : "error"},
+                    {"output",    output},
                     {"error",     error_msg},
                     {"exit_code", exit_code}
                 };
+                if (w.out_truncated) response["output_truncated"] = true;
+#endif
                 res.set_content(response.dump(2), "application/json");
 
             } catch (const json::exception& e) {
@@ -755,9 +801,12 @@ bool RestApiServer::isRunning() const {
     return running_;
 }
 
-void RestApiServer::setInterpreter(std::shared_ptr<interpreter::Interpreter> interpreter) {
-    impl_->interpreter = interpreter;
-    spdlog::info("Interpreter set for REST API");
+void RestApiServer::setWorkerExecutable(const std::string& path) {
+    impl_->worker_exe = path;
+}
+
+void RestApiServer::setWaiveMissingConfig(bool waive) {
+    impl_->waive_missing_config = waive;
 }
 
 void RestApiServer::setBlockLoader(std::shared_ptr<runtime::BlockLoader> loader) {

@@ -7,6 +7,7 @@
 #include "naab/interpreter.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
+#include "naab/repl_gate.h"
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -67,6 +68,7 @@ static void saveHistory(const std::string& line) {
 }
 
 int run(bool /*no_governance*/) {
+    if (int rc = refuseBesideGovernance()) return rc;
     std::cout << "NAAb REPL v0.6.0 — Type .help for help, .exit to quit\n";
     std::cout << ">>> ";
     std::cout.flush();

@@ -34,7 +34,9 @@
 #   pass because env.set was refused.
 #
 # ARMS
-#   EO-01/EO-01t  agent call over http, program sets *_proxy (VM / tree-walker)
+#   EO-01/EO-01t  agent call over http, program sets *_proxy (VM / tree-walker;
+#                 the tree-walker's arms run under audit, EO-TW: refused under
+#                 enforce)
 #   EO-02         webhook over http, program sets *_proxy, event sent after it
 #   EO-03/EO-03t  agent call over https, program points SSL_CERT_FILE and
 #                 CURL_CA_BUNDLE at a missing file
@@ -162,7 +164,7 @@ cfg() {  # $1=dir $2=agent api_base $3=webhook url ("" = none)
     [ -n "$3" ] && hook=", \"webhook_url\": \"$3\", \"forward_batch_size\": 1"
     cat > "$1/govern.json" <<EOF
 {
-    "mode": "enforce",
+    "mode": "${MODE:-enforce}",
     "security": { "sandbox_level": "elevated" },
     "telemetry": { "enabled": true, "output_file": "tele.jsonl"$hook },
     "agents": {
@@ -238,7 +240,18 @@ else fail "EO-03c" "a CA set before start did not reach the agent call -- EO-03 
 # ------------------------------------------------------------------
 echo ""
 echo "== the program changes its environment; the operator's connections do not move"
+# The tree-walker is refused under enforce (EO-TW below), so its arms (the
+# ...t ids) run under audit: the environment snapshot is taken at load
+# whatever the mode, and these arms are about where a connection goes.
+mode_for() { [ "$1" = tw ] && echo audit || echo enforce; }
+source "$(dirname "$0")/../helpers/tree_walk_refusal.sh"
+d="$TEST_TMP/atw"; cfg "$d" "$HTTP_BASE" ""
+RUN_ENV="" run "$d" tw "$(agent_prog "$SET_PROXY")"
+if tw_refused "$RC" "$OUT" && [[ "$OUT" != *SEEN=* ]]; then
+    pass "EO-TW" "under an enforce config --tree-walk is refused before the program runs"
+else fail "EO-TW" "--tree-walk ran under an enforce config" "rc=$RC $OUT"; fi
 for eng in vm tw; do
+    export MODE=$(mode_for $eng)
     id="EO-01"; [ "$eng" = tw ] && id="EO-01t"
     d="$TEST_TMP/a1-$eng"; cfg "$d" "$HTTP_BASE" ""
     RUN_ENV="" run "$d" "$eng" "$(agent_prog "$SET_PROXY")"
@@ -253,6 +266,7 @@ for eng in vm tw; do
         pass "$id" "https agent call kept the operator's CA after the program pointed SSL_CERT_FILE elsewhere ($eng)"
     else fail "$id" "the program's CA setting reached the agent call ($eng)" "rc=$RC $OUT"; fi
 done
+unset MODE
 
 d="$TEST_TMP/a2"; cfg "$d" "$HTTP_BASE" "$HTTP_BASE/hook"
 : > "$TEST_TMP/plain.log"
@@ -276,9 +290,9 @@ echo "== the program's own http requests use the proxy the process started with"
 PROBE_PROXY="http://naab-proxy-probe.invalid:3128"
 hcfg() {
     mkdir -p "$1"
-    cat > "$1/govern.json" <<'EOF'
+    cat > "$1/govern.json" <<EOF
 {
-    "mode": "enforce",
+    "mode": "${MODE:-enforce}",
     "security": { "sandbox_level": "elevated" },
     "capabilities": { "network": { "enabled": true, "allowed_hosts": ["listed-host.test"] } }
 }
@@ -294,7 +308,7 @@ if [[ "$OUT" == *"resolve proxy"* ]]; then
 else fail "EO-05c" "the operator's proxy did not reach http.get, or the probe cannot tell proxy from host" "rc=$RC $OUT"; fi
 for eng in vm tw; do
     id="EO-05"; [ "$eng" = tw ] && id="EO-05t"
-    d="$TEST_TMP/a5-$eng"; hcfg "$d"
+    d="$TEST_TMP/a5-$eng"; MODE=$(mode_for $eng) hcfg "$d"
     RUN_ENV="" run "$d" "$eng" "$(http_prog '    env.set("http_proxy", "'"$PROBE_PROXY"'")
     env.set("all_proxy", "'"$PROBE_PROXY"'")
     print("SEEN=" + env.get("http_proxy"))')"
@@ -312,7 +326,7 @@ echo "== the program cannot switch the operator's proxy off (no_proxy)"
 # proxy breaks the call; EO-00 that the call works with no proxy at all.
 for eng in vm tw; do
     id="EO-06"; [ "$eng" = tw ] && id="EO-06t"
-    d="$TEST_TMP/a6-$eng"; cfg "$d" "$HTTP_BASE" ""
+    d="$TEST_TMP/a6-$eng"; MODE=$(mode_for $eng) cfg "$d" "$HTTP_BASE" ""
     RUN_ENV="http_proxy=$DEAD_PROXY" run "$d" "$eng" "$(agent_prog '    env.set("no_proxy", "*")
     env.set("NO_PROXY", "*")
     print("SEEN=" + env.get("no_proxy"))')"

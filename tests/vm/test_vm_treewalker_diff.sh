@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
 # test_vm_treewalker_diff.sh — VM / Tree-Walker Governance Differential
 #
-# Verifies governance decisions are identical regardless of execution engine.
-# Each test runs the same (config, code) pair through both VM and --tree-walk,
-# asserting identical exit codes.
+# Verified that governance decisions were identical regardless of execution
+# engine: each test ran the same (config, code) pair through the VM and
+# --tree-walk and asserted identical exit codes.
 #
-# 18 differential tests covering capability gates, taint, custom rules,
+# Under an enforce govern.json --tree-walk is now refused before anything runs
+# (exit 4, Bundle 2), so the tree-walker renders no enforce verdict of its own
+# and there is nothing left to compare. Each arm now pins the VM's verdict --
+# the exit code both engines agreed on, or the VM's where a divergence was
+# documented -- and asserts that the tree-walker is refused. The documented
+# divergences (D01, D02, D09, D17, D18) are unreachable under enforce; D16 is a
+# config that fails to load, which is decided before the refusal and still
+# diverges in its exit code.
+#
+# 18 tests covering capability gates, taint, custom rules,
 # GovernanceHardError, env vars, security checks, and clean baselines.
 
 set -euo pipefail
@@ -52,7 +61,11 @@ trap cleanup EXIT
 # D09: TW blocked_commands shell exits 1 not 3 on Windows (shell executor not available)
 # D16: TW bad config exits 1 not 4
 # D17: TW DETECT taint doesn't throw at all (exits 0)
-KNOWN_DIVERGENCES="D01 D02 D09 D16 D17 D18"
+KNOWN_DIVERGENCES="D16"
+# The VM's verdict per arm (what both engines returned before the refusal).
+EXPECT_VM="D01:3 D02:3 D03:0 D04:3 D05:0 D06:3 D07:0 D08:3 D09:3 D10:3 D11:3 D12:0 D13:1 D14:0 D15:2 D17:1 D18:3"
+expected_vm() { local e; for e in $EXPECT_VM; do [ "${e%%:*}" = "$1" ] && { echo "${e#*:}"; return; }; done; }
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
 
 is_known() {
     local id="$1"
@@ -77,7 +90,18 @@ run_diff() {
     VM_OUT=$(cd "$dir" && "$NAAB" test.naab 2>&1) && VM_RC=$? || VM_RC=$?
     TW_OUT=$(cd "$dir" && "$NAAB" --tree-walk test.naab 2>&1) && TW_RC=$? || TW_RC=$?
 
-    if [ "$VM_RC" = "$TW_RC" ]; then
+    local want; want="$(expected_vm "$id")"
+    if [ -n "$want" ]; then
+        if [ "$VM_RC" = "$want" ] && tw_refused "$TW_RC" "$TW_OUT"; then
+            echo "  PASS [$id] VM=$VM_RC (expected $want); --tree-walk refused under enforce (TW=$TW_RC)"
+            PASS=$((PASS + 1))
+        else
+            echo "  FAIL [$id] VM=$VM_RC (expected $want), TW=$TW_RC (expected the refusal, 4)"
+            FAIL=$((FAIL + 1))
+            echo "    VM output: ${VM_OUT:0:200}"
+            echo "    TW output: ${TW_OUT:0:200}"
+        fi
+    elif [ "$VM_RC" = "$TW_RC" ]; then
         echo "  PASS [$id] VM=$VM_RC TW=$TW_RC"
         PASS=$((PASS + 1))
     elif is_known "$id"; then

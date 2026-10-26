@@ -62,6 +62,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NAAB="${NAAB:-$REPO/build/naab-lang}"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 TEST_TMP="$(mktemp -d)"
 
 PASS_COUNT=0; FAIL_COUNT=0; SKIP_COUNT=0
@@ -137,6 +138,13 @@ for eng in vm tw; do
     d="$TEST_TMP/w-$eng-$f"; mk "$d"; seed "$d/$f"
     run "$d" $eng "use file
 main { file.write(\"$f\", \"FORGED\") }"
+    if [ "$eng" = tw ]; then
+        # Under enforce the tree-walker is refused before anything runs (Bundle 2).
+        if tw_refused "$RC" "$OUT" && intact "$d/$f"; then
+            pass "EV-02/tw/$f" "the tree-walker is refused under enforce; file unchanged"
+        else fail "EV-02/tw/$f" "the tree-walker should be refused under enforce" "rc=$RC out=${OUT:0:120}"; fi
+        continue
+    fi
     if [ "$RC" = 3 ] && intact "$d/$f"; then
         pass "EV-02/$eng/$f" "file.write blocked; file unchanged"
     else fail "EV-02/$eng/$f" "write not blocked" "rc=$RC out=${OUT:0:120}"; fi

@@ -18,13 +18,15 @@
 #   request "<cwd>/api-request.naab" so config discovery would run, a file that
 #   does not exist. None of them records a decision to skip any check.
 #
-#   DS-R*  REST /execute (the tree-walker, in the server process)
+#   DS-R*  REST /execute (a `naab-lang run` worker on the VM since Bundle 2;
+#          the tree-walker in the server process before)
 #     R-00     CONTROL: a clean program runs through REST
 #     R-01..05 a placeholder, an incomplete-logic sentinel, an oversimplified
 #              stub, a must_call breach and a placeholder in main{} are each
 #              refused (exit_code 3) -- each ran, exit 0, before
-#     R-01c..05c CONTROL: the same file is refused by `naab-lang run
-#              --tree-walk` with the rule name, so the fixture trips the check
+#     R-01c..05c CONTROL: the same file is refused by `naab-lang run` with
+#              the rule name, so the fixture trips the check (it used
+#              --tree-walk while REST ran the tree-walker)
 #     R-06     a secret is refused. REST used to call the secret and PII
 #              checks itself; that call is gone and visit(Program) runs them on
 #              the submitted text, so this arm pins the removal (it goes red
@@ -38,20 +40,26 @@
 #     V-01     `fn scale (x)` with a TODO, after another function, is refused
 #              on the VM (the checks read the previous function, exit 0)
 #     V-01c    CONTROL: `fn scale(x)` is refused on the VM
-#     V-01t    the tree-walker refuses it too (it always did, starting at the
-#              AST line; it now shares the VM's search)
+#     V-01t    the tree-walker reports it too, under audit (it always did,
+#              starting at the AST line; it now shares the VM's search).
+#              Every tree-walker arm runs PH_AUDIT: under enforce the
+#              tree-walker is refused before anything runs (Bundle 2, TW-01),
+#              and under audit its checks still run and are reported
 #     V-02     a must_call contract that `fn needs_sqrt (x)` SATISFIES runs on
 #              the VM -- the other direction of the same defect: the checks
 #              read a body that does not call math.sqrt and refused it
-#   DS-T*  tree-walker: braces inside strings and comments do not count
-#     T-01     `let s = "}"` before a TODO does not hide it (exit 0 before)
-#     T-02     `// }` before a TODO does not hide it (exit 0 before)
+#   DS-T*  tree-walker (audit): braces inside strings and comments do not count
+#     T-00c    CONTROL: a clean file draws no audit report, so the arms below
+#              cannot pass for a tree-walker that reports everything
+#     T-01     `let s = "}"` before a TODO does not hide it (no report before)
+#     T-02     `// }` before a TODO does not hide it (no report before)
 #     T-01c    the VM refuses it too (it always did; both engines share the counter now)
-#     T-01n    CONTROL: without the brace the tree-walker refuses it
+#     T-01n    CONTROL: without the brace the tree-walker reports it
 #   DS-M*  VM: the main block's body is checked
 #     M-01     a TODO in main{} is refused on the VM (exit 0 before; the
 #              tree-walker always checked main, 247e229d)
-#     M-01t    CONTROL: the tree-walker refuses it
+#     M-01t    CONTROL: the tree-walker (audit) reports it
+#     TW-01    under the enforce config the tree-walker is refused (Bundle 2)
 #     M-01c    CONTROL: a clean main{} runs on the VM
 #   DS-L*  the checks' location does not outlive them (VM; the tree-walker
 #          emits no BSD events for stdlib calls, open-investigations B11)
@@ -72,8 +80,8 @@
 #              per-function checks (which run while compiling) wrote none --
 #              already true for function bodies; checking main{} made it the
 #              case for tests/cli/test_report_formats.sh's fixture
-#     W-01t    CONTROL: the tree-walker, which runs these checks while
-#              executing, writes it for the same file
+#     (W-01t, its tree-walker control, went with Bundle 2: under enforce the
+#              tree-walker is refused before anything is compiled, TW-01)
 #
 # Against an interpreter that does nothing every refusal arm fails, and the
 # REST arms report UNMEASURABLE when the server cannot be started.
@@ -82,6 +90,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 
 PASS=0; FAIL=0; SKIP=0
 pass() { PASS=$((PASS+1)); echo "  PASS [$1] $2"; }
@@ -115,6 +124,7 @@ CONFIG='{ "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "e
   "contracts": { "level": "hard", "functions": { "needs_sqrt": { "must_call": ["math.sqrt"] } } } }'
 PH_CONFIG='{ "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "elevated" },
   "code_quality": { "no_placeholders": { "enabled": true, "level": "hard" } } }'
+PH_AUDIT="${PH_CONFIG/\"mode\": \"enforce\"/\"mode\": \"audit\"}"
 CT_CONFIG='{ "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "elevated" },
   "contracts": { "level": "hard", "functions": { "needs_sqrt": { "must_call": ["math.sqrt"] } } } }'
 
@@ -177,6 +187,10 @@ cli() {
     OUT="$(cd "$W/$1" && timeout 60 "$NAAB" run $3 main.naab 2>&1)"; RC=$?
 }
 refused_by() { [ "$RC" -eq 3 ] && ! ran && case "$OUT" in *"$1"*) true ;; *) false ;; esac; }
+# Under enforce the tree-walker is refused before anything runs (Bundle 2).
+# Its own checks still run under audit, which reports a violation and runs the
+# program: the tree-walker arms read that report, against PH_AUDIT.
+audited_by() { [ "$RC" -eq 0 ] && ran && case "$OUT" in *"AUDIT $1"*) true ;; *) false ;; esac; }
 newcase() { rm -rf "$W/$1"; mkdir -p "$W/$1"; printf '%s\n' "$2" > "$W/$1/govern.json"; }
 
 # ------------------------------------------------------------
@@ -221,9 +235,9 @@ sys.stdout.buffer.write(out.encode())' <<<"$resp")
 
 rest_pair() {  # <id> <rule> <program> <label>
     local id="$1" rule="$2" prog="$3" label="$4"
-    newcase "$id-cli" "$CONFIG"; cli "$id-cli" "$prog" --tree-walk
+    newcase "$id-cli" "$CONFIG"; cli "$id-cli" "$prog" ""
     if refused_by "$rule"; then
-        pass "${id}c" "CONTROL: run --tree-walk refuses $label with $rule"
+        pass "${id}c" "CONTROL: run refuses $label with $rule"
     else
         fail "${id}c" "CONTROL: the fixture does not trip $rule on the CLI" "exit=$RC"
     fi
@@ -315,11 +329,11 @@ if refused_by code_quality.no_placeholders; then
 else
     fail V-01c "CONTROL: VM ran the TODO in \`fn scale(x)\`" "exit=$RC"
 fi
-newcase V-01t "$PH_CONFIG"; cli V-01t "$P_SPACE" --tree-walk
-if refused_by code_quality.no_placeholders; then
-    pass V-01t "the tree-walker refuses V-01's file too"
+newcase V-01t "$PH_AUDIT"; cli V-01t "$P_SPACE" --tree-walk
+if audited_by code_quality.no_placeholders; then
+    pass V-01t "the tree-walker (audit) reports V-01's TODO too"
 else
-    fail V-01t "the tree-walker ran V-01's file" "exit=$RC"
+    fail V-01t "the tree-walker (audit) did not report V-01's TODO" "exit=$RC"
 fi
 
 P_SQRT_SPACE='use math
@@ -361,14 +375,20 @@ main {
 }'
 P_NOBRACE="${P_STRBRACE/let s = \"\}\"/let s = \"x\"}"
 
-newcase T-01 "$PH_CONFIG"; cli T-01 "$P_STRBRACE" --tree-walk
-if refused_by code_quality.no_placeholders; then
+newcase T-00c "$PH_AUDIT"; cli T-00c "$P_CLEAN" --tree-walk
+if [ "$RC" -eq 0 ] && ran && [[ "$OUT" != *"AUDIT code_quality.no_placeholders"* ]]; then
+    pass T-00c "CONTROL: the tree-walker (audit) reports nothing for a clean file"
+else
+    fail T-00c "CONTROL: the tree-walker (audit) reported a clean file, or did not run it" "exit=$RC"
+fi
+newcase T-01 "$PH_AUDIT"; cli T-01 "$P_STRBRACE" --tree-walk
+if audited_by code_quality.no_placeholders; then
     pass T-01 "tree-walker: a \"}\" string does not hide the TODO after it"
 else
     fail T-01 "tree-walker: a \"}\" string hid the TODO after it" "exit=$RC"
 fi
-newcase T-02 "$PH_CONFIG"; cli T-02 "$P_COMMENTBRACE" --tree-walk
-if refused_by code_quality.no_placeholders; then
+newcase T-02 "$PH_AUDIT"; cli T-02 "$P_COMMENTBRACE" --tree-walk
+if audited_by code_quality.no_placeholders; then
     pass T-02 "tree-walker: a } in a comment does not hide the TODO after it"
 else
     fail T-02 "tree-walker: a } in a comment hid the TODO after it" "exit=$RC"
@@ -379,9 +399,9 @@ if refused_by code_quality.no_placeholders; then
 else
     fail T-01c "the VM ran T-01's file" "exit=$RC"
 fi
-newcase T-01n "$PH_CONFIG"; cli T-01n "$P_NOBRACE" --tree-walk
-if refused_by code_quality.no_placeholders; then
-    pass T-01n "CONTROL: without the brace the tree-walker refuses it"
+newcase T-01n "$PH_AUDIT"; cli T-01n "$P_NOBRACE" --tree-walk
+if audited_by code_quality.no_placeholders; then
+    pass T-01n "CONTROL: without the brace the tree-walker reports it"
 else
     fail T-01n "CONTROL: the tree-walker ran the TODO without any brace" "exit=$RC"
 fi
@@ -395,11 +415,17 @@ if refused_by code_quality.no_placeholders; then
 else
     fail M-01 "VM ran a TODO in main{}" "exit=$RC"
 fi
-newcase M-01t "$PH_CONFIG"; cli M-01t "$P_MAINPH" --tree-walk
-if refused_by code_quality.no_placeholders; then
-    pass M-01t "CONTROL: the tree-walker refuses it"
+newcase M-01t "$PH_AUDIT"; cli M-01t "$P_MAINPH" --tree-walk
+if audited_by code_quality.no_placeholders; then
+    pass M-01t "CONTROL: the tree-walker (audit) reports it"
 else
-    fail M-01t "CONTROL: the tree-walker ran it" "exit=$RC"
+    fail M-01t "CONTROL: the tree-walker (audit) did not report it" "exit=$RC"
+fi
+newcase TW-01 "$PH_CONFIG"; cli TW-01 "$P_MAINPH" --tree-walk
+if tw_refused "$RC" "$OUT" && ! ran; then
+    pass TW-01 "under the enforce config the tree-walker is refused; nothing ran"
+else
+    fail TW-01 "under the enforce config the tree-walker should be refused" "exit=$RC"
 fi
 newcase M-01c "$PH_CONFIG"; cli M-01c "$P_CLEAN" ""
 if [ "$RC" -eq 0 ] && ran; then
@@ -460,8 +486,10 @@ fi
 # ------------------------------------------------------------
 echo ""
 echo "--- DS-W: a refusal during VM compilation writes the reports ---"
-for e in vm tw; do
-    id="W-01"; [ "$e" = tw ] && id="W-01t"
+# W-01t ran this on the tree-walker as a control; under enforce it is refused
+# before compiling anything (Bundle 2, TW-01).
+for e in vm; do
+    id="W-01"
     newcase "$id" "$PH_CONFIG"
     printf '%s\n' "$P_PLACEHOLDER" > "$W/$id/main.naab"
     flagarg=""; [ "$e" = tw ] && flagarg="--tree-walk"

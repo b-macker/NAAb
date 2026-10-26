@@ -1768,6 +1768,58 @@ else
     echo "  test_flag_authority.sh: not found, skipping"
 fi
 
+# --- under enforce, --tree-walk is refused (Bundle 2) ---
+TWENF_SCRIPT="tests/cli/test_tree_walk_enforce.sh"
+if [ -f "$TWENF_SCRIPT" ]; then
+    if run_shell_test "$TWENF_SCRIPT" 2>&1; then
+        echo "  test_tree_walk_enforce.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_tree_walk_enforce.sh")
+    fi
+else
+    echo "  test_tree_walk_enforce.sh: not found, skipping"
+fi
+
+# --- the REPL does not start beside a govern.json it would not apply ---
+REPLGOV_SCRIPT="tests/cli/test_repl_governance.sh"
+if [ -f "$REPLGOV_SCRIPT" ]; then
+    if run_shell_test "$REPLGOV_SCRIPT" 2>&1; then
+        echo "  test_repl_governance.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_repl_governance.sh")
+    fi
+else
+    echo "  test_repl_governance.sh: not found, skipping"
+fi
+
+# --- REST /execute runs each request in a worker process ---
+RESTWORKER_SCRIPT="tests/api/test_rest_worker.sh"
+if [ -f "$RESTWORKER_SCRIPT" ]; then
+    if run_shell_test "$RESTWORKER_SCRIPT" 2>&1; then
+        echo "  test_rest_worker.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_rest_worker.sh")
+    fi
+else
+    echo "  test_rest_worker.sh: not found, skipping"
+fi
+
+# --- the default engine writes polyglot audit entries and counts .exec() (A81) ---
+VMPA_SCRIPT="tests/governance_v4/test_vm_polyglot_audit.sh"
+if [ -f "$VMPA_SCRIPT" ]; then
+    if run_shell_test "$VMPA_SCRIPT" 2>&1; then
+        echo "  test_vm_polyglot_audit.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_vm_polyglot_audit.sh")
+    fi
+else
+    echo "  test_vm_polyglot_audit.sh: not found, skipping"
+fi
+
 # --- naab-gov check: one output shape for both verdicts ---
 # The JSON builder in cmdCheck was reachable only on a PASS; a HARD block threw
 # past it to main()'s plain-text handler. Exit codes were always right, so this

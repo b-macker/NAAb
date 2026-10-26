@@ -25,7 +25,8 @@
 #   CF-06  BACKWARD COMPAT: no capabilities.functions key -> no restriction
 #   CF-07  an unknown action name warns at load rather than silently removing a
 #          permission from an allowlist
-#   Every arm runs on BOTH engines.
+#   Every arm runs on BOTH engines: the VM under enforce, the tree-walker under
+#   audit (CF-TW: under enforce --tree-walk is refused before it runs).
 # ============================================================
 set -uo pipefail
 
@@ -55,11 +56,11 @@ EOF
 cfg() {  # $1 = JSON for capabilities.functions, or "" to omit the key
     python3 -c "
 import json,sys
-d={'version':'1.0','mode':'enforce','security':{'sandbox_level':'elevated'},
+d={'version':'1.0','mode':sys.argv[2],'security':{'sandbox_level':'elevated'},
    'capabilities':{'filesystem':{'mode':'write'}}}
 if sys.argv[1]: d['capabilities']['functions']=json.loads(sys.argv[1])
 json.dump(d, sys.stdout)
-" "$1" > "$W/govern.json"
+" "$1" "${MODE:-enforce}" > "$W/govern.json"
 }
 run() { ( cd "$W" && timeout 60 "$NAAB" ${1:-} t.naab 2>&1 ); }
 
@@ -67,8 +68,16 @@ BASE='{"default":{"allowed_actions":["FS_READ"]},"save_report":{"allowed_actions
 
 echo -e "${CYAN}=== Group CF: capabilities.functions ===${NC}"
 
+source "$SCRIPT_DIR/../helpers/tree_walk_refusal.sh"
+cfg "$BASE"; out="$( (cd "$W" && timeout 60 "$NAAB" --tree-walk t.naab 2>&1) )"; rc=$?
+if tw_refused "$rc" "$out" && [[ "$out" != *DONE* ]]; then ok "CF-TW" "under an enforce config --tree-walk is refused before it runs"
+else bad "CF-TW" "--tree-walk ran under an enforce config" "exit $rc"; fi
+
+# The tree-walker's arms run under audit: it is refused under enforce, and this
+# tier is advisory, so audit reports the same findings.
 for eng in "VM:" "tree-walk:--tree-walk"; do
     label="${eng%%:*}"; flag="${eng##*:}"
+    MODE=enforce; [ "$label" = tree-walk ] && MODE=audit
 
     cfg "$BASE"; out=$(run "$flag")
     case "$out" in
@@ -92,8 +101,9 @@ for eng in "VM:" "tree-walk:--tree-walk"; do
     fi
 
     # sneaky has no entry; it must be governed by "default"
+    # (under audit no Rule: line is printed; the grouped summary names the entry)
     case "$out" in
-      *"capabilities.functions.default.allowed_actions"*)
+      *"capabilities.functions.default.allowed_actions"*|*'sneaky needs FS_WRITE (declared on "default")'*)
           ok "CF-04/$label" "'default' covers a function with no entry" ;;
       *) bad "CF-04/$label" "default must apply to unlisted functions" \
              "rule line: $(echo "$out" | grep -oE 'capabilities\.functions[^ ]*' | head -1)" ;;

@@ -42,8 +42,8 @@
 #   hints               LIVE  AR-04   (read by the loader, absent from the
 #                       template)
 #
-# Both engines call the phase from separate sites in main.cpp; AR-16 runs the
-# tree-walker's.
+# Both engines call the phase from separate sites in main.cpp; under enforce
+# the tree-walker's is unreachable (Bundle 2), which AR-16 pins.
 #
 # ARMS THAT ARE PINNED, NOT ENDORSED
 #
@@ -150,6 +150,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 PASS_COUNT=0; FAIL_COUNT=0; SKIP_COUNT=0; FAILURES=""
@@ -788,26 +789,20 @@ if [ "$R_OK" = 1 ]; then
 else skip "AR-15e" "stub failed to start"; fi
 
 # ============================================================
-# AR-16 the tree-walker's call site
+# AR-16 the tree-walker
 # ============================================================
+# AR-16a/b exercised the tree-walker's own call site of the review phase.
+# Under enforce the tree-walker is now refused before anything runs (Bundle
+# 2): no review request is made and the program does not run.
 echo -e "${CYAN}--- AR-16 tree-walker ---${NC}"
 FLAGS="--tree-walk" run_review ar16a '{"enabled": true, "detection": ["det_a"], "enforcement": {"green": "hard"}}' "$FX_ONE"
 if [ "$R_OK" = 1 ]; then
-    if [ "$R_EXIT" -eq 3 ] && asked det_a && ! ran; then
-        pass "AR-16a" "--tree-walk: enabled + green=hard blocks (exit 3)"
+    if tw_refused "$R_EXIT" "$(cat "$R_ERR" 2>/dev/null)" && [ "$R_REQ" -eq 0 ] && ! ran; then
+        pass "AR-16" "--tree-walk is refused under enforce: no review request, program did not run"
     else
-        fail "AR-16a" "tree-walker did not run the review" "exit=$R_EXIT"
+        fail "AR-16" "--tree-walk should be refused under enforce" "exit=$R_EXIT requests=$R_REQ"
     fi
-else skip "AR-16a" "stub failed to start"; fi
-
-FLAGS="--tree-walk" run_review ar16b '{"enabled": false, "detection": ["det_a"], "enforcement": {"green": "hard"}}' "$FX_ONE"
-if [ "$R_OK" = 1 ]; then
-    if [ "$R_EXIT" -eq 0 ] && [ "$R_REQ" -eq 0 ] && ran; then
-        pass "AR-16b" "--tree-walk: enabled false — no review, program ran"
-    else
-        fail "AR-16b" "tree-walker reviewed although disabled" "exit=$R_EXIT requests=$R_REQ"
-    fi
-else skip "AR-16b" "stub failed to start"; fi
+else skip "AR-16" "stub failed to start"; fi
 
 echo ""
 echo -e "${CYAN}==============================================================${NC}"

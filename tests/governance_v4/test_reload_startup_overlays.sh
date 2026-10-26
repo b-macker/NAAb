@@ -26,7 +26,8 @@
 #   RL-c   no --agent-id: the javascript block runs (the role is what refuses)
 #   RL-01  the no-op reload is ACCEPTED (before: refused, "languages")
 #   RL-02  after it, javascript is still refused, by the same rule as with no
-#          reload; RL-02t the same under --tree-walk
+#          reload; RL-02t the same on the tree-walker, under audit (RL-TW:
+#          under enforce --tree-walk is refused before it runs)
 #   RL-03  signed config and signed reload: accepted, still refused
 #   RL-04  a reload that tightens (blocked_paths) is accepted and applied
 #   RL-05  a reload that widens the ROLE's languages is still refused
@@ -55,8 +56,8 @@
 #   PC-01  on, no-op reload: still refused (before: ran, nothing refused)
 #   PC-02  the program rewrites CLAUDE.md before the reload: the ban still
 #          holds -- a reload replays what startup read, it does not re-read
-#   Baselines flags (tree-walker; test_foreign_result_checks.sh covers both
-#   engines since A56):
+#   Baselines flags (the VM, which reads them since A56; the tree-walker, where
+#   the bug was, is refused under enforce, so BL-01t measures it under audit):
 #   BL-c   no flag: a changed output runs
 #   BL-c1  the flag, unchanged output: runs
 #   BL-c2  the flag WITH a report flag refuses a changed output (the planted
@@ -64,10 +65,13 @@
 #   BL-01  --governance-check-baselines with no report flag refuses a changed
 #          output (before: the flag did nothing without a report flag)
 #   BL-02  the same after a no-op reload
+#   BL-01t the tree-walker, audit: the flag alone records the mismatch
 #   Plugins (a plugin rule refuses eval):
 #   PL-c   no plugin: the eval block runs
-#   PL-c1  plugin, no reload: refused by the plugin rule; PL-c1v on the VM
-#   PL-01  plugin, no-op reload: still refused (before: ran); PL-01v the VM
+#   PL-c1  plugin, no reload: the plugin rule fires; PL-c1v on the VM (refused),
+#          PL-c1 on the tree-walker under audit (recorded)
+#   PL-01  plugin, no-op reload: the rule still fires (before: ran); PL-01v the
+#          VM, PL-01 the tree-walker under audit
 #   PL-02  a reload that ADDS a plugin file: its rule runs (the loaded files
 #          are remembered, and the new one is loaded on the next check)
 # ============================================================
@@ -171,6 +175,9 @@ rejected() { [[ "$OUT" == *"Reload rejected"* ]]; }
 ran()      { [[ "$OUT" == *"STEP1:step1"* ]]; }
 # The governance rule that refused the run (the first "Rule:" line), or "".
 rule_of()  { grep -m1 -o 'Rule: [^ ]*' <<<"$1" || true; }
+# audit_of RULE -- the run (under audit) recorded RULE and went on
+audit_of() { grep -q "AUDIT ${1#Rule: }" <<<"$OUT"; }
+source "$REPO/tests/helpers/tree_walk_refusal.sh"
 
 # expect_reload ID DESC -- the no-op reload must have been accepted
 expect_reload() {
@@ -247,14 +254,26 @@ if [ "$RC" -ne 3 ] || [[ "$OUT" == *JS_RAN* ]] || [ -z "$RULE_RL_STARTUP" ]; the
     RULE_RL_STARTUP="__none__"
 fi
 
+setup rl_twr "$ROLE_L" "" "$JS_TAIL"
+go rl_twr --tree-walk --agent-id worker
+if tw_refused "$RC" "$OUT" && ! ran; then ok "RL-TW" "under the enforce config --tree-walk is refused before the program runs"
+else bad "RL-TW" "--tree-walk ran under an enforce config (rc=$RC)" "$OUT"; fi
+ROLE_LA="${ROLE_L/'"mode": "enforce"'/'"mode": "audit"'}"
 for eng in vm tw; do
-    id="RL-02"; args=(--agent-id worker); [ "$eng" = tw ] && { id="RL-02t"; args=(--tree-walk --agent-id worker); }
-    setup "rl_$eng" "$ROLE_L" "=" "$JS_TAIL"
+    id="RL-02"; args=(--agent-id worker); cfg_l="$ROLE_L"
+    [ "$eng" = tw ] && { id="RL-02t"; args=(--tree-walk --agent-id worker); cfg_l="$ROLE_LA"; }
+    setup "rl_$eng" "$cfg_l" "=" "$JS_TAIL"
     go "rl_$eng" "${args[@]}"
     if [ "$eng" = vm ]; then
         if expect_reload "RL-01" "role languages: a no-op reload"; then ok "RL-01" "role languages: the no-op reload is accepted"; fi
     fi
-    if [ "$RC" -eq 3 ] && [[ "$OUT" != *JS_RAN* ]] && [ "$(rule_of "$OUT")" = "$RULE_RL_STARTUP" ] && reloaded; then
+    if [ "$eng" = tw ]; then
+        if [ "$RC" -eq 0 ] && reloaded && ! rejected && audit_of "$RULE_RL_STARTUP"; then
+            ok "$id" "audit: after the reload the startup rule ($RULE_RL_STARTUP) still fires for javascript"
+        else
+            bad "$id" "audit: after the reload: rc=$RC, startup rule '$RULE_RL_STARTUP' not recorded" "$OUT"
+        fi
+    elif [ "$RC" -eq 3 ] && [[ "$OUT" != *JS_RAN* ]] && [ "$(rule_of "$OUT")" = "$RULE_RL_STARTUP" ] && reloaded; then
         ok "$id" "after the reload javascript is refused by the startup rule ($RULE_RL_STARTUP)"
     else
         bad "$id" "after the reload: rc=$RC, rule '$(rule_of "$OUT")' (startup: '$RULE_RL_STARTUP')" "$OUT"
@@ -410,7 +429,7 @@ if expect_reload "PC-02" "CLAUDE.md rewritten"; then
     else bad "PC-02" "after the program rewrote CLAUDE.md the ban did not hold (rc=$RC)" "$OUT"; fi
 fi
 
-# ---- Baselines flags (tree-walker) -------------------------------------------
+# ---- Baselines flags ----------------------------------------------------------
 BL_TAIL='    let b = <<python
 open("val.txt").read().strip()
 >>
@@ -427,30 +446,41 @@ BL_LINE="$(grep -n 'let b = <<python' "$B/r.naab" | cut -d: -f1)"
 mkdir -p "$B/.naab"
 printf '{ "entries": { "python::%s": { "output": "A", "type": "string" } } }\n' "$BL_LINE" > "$B/.naab/baselines.json"
 echo B > "$B/val.txt"
-go bl --tree-walk
+go bl
 if [[ "$OUT" == *BL:B* ]]; then ok "BL-c" "no flag: a changed output runs"; else bad "BL-c" "no flag: refused" "$OUT"; fi
 echo A > "$B/val.txt"
-go bl --tree-walk --governance-check-baselines
+go bl --governance-check-baselines
 if [[ "$OUT" == *BL:A* ]] && [ "$RC" -eq 0 ]; then ok "BL-c1" "the flag, unchanged output: runs"
 else bad "BL-c1" "the flag refused an unchanged output (rc=$RC)" "$OUT"; fi
 echo B > "$B/val.txt"
-go bl --tree-walk --governance-check-baselines --governance-report chk0.json
+go bl --governance-check-baselines --governance-report chk0.json
 if [ "$RC" -eq 3 ] && [[ "$OUT" != *BL:B* ]] && [[ "$OUT" == *"Baseline mismatch"* ]]; then
     ok "BL-c2" "the flag with a report flag refuses a changed output (the planted baseline is read)"
     BL_LIVE=1
 else bad "BL-c2" "the flag with a report flag did not refuse -- BL-01/02 UNMEASURABLE (rc=$RC)" "$OUT"; BL_LIVE=0; fi
-go bl --tree-walk --governance-check-baselines
+go bl --governance-check-baselines
 if [ "$RC" -eq 3 ] && [[ "$OUT" == *"Baseline mismatch"* ]]; then ok "BL-01" "--governance-check-baselines alone refuses a changed output"
 else bad "BL-01" "--governance-check-baselines alone: rc=$RC" "$OUT"; fi
 # The same program, now swapping a no-op config in before the block.
 printf '{ %s,\n  %s,\n  "update_reason": "a37 reload" }\n' "$HDR" "$BL_CFG" > "$W/bl.next/govern.json"
 touch "$B/.do_swap"; cp "$B/govern.json" "$B/govern.json.orig"
-go bl --tree-walk --governance-check-baselines --governance-report chk.json
+go bl --governance-check-baselines --governance-report chk.json
 cp "$B/govern.json.orig" "$B/govern.json"; rm -f "$B/.do_swap"
 if [ "$BL_LIVE" = 1 ] && expect_reload "BL-02" "baselines"; then
     if [ "$RC" -eq 3 ] && [[ "$OUT" == *"Baseline mismatch"* ]]; then ok "BL-02" "after a reload the flag still refuses a changed output"
     else bad "BL-02" "after the reload the changed output ran (rc=$RC)" "$OUT"; fi
 fi
+# BL-01t: the tree-walker read the flag only beside a report flag (the bug
+# BL-01 was written for). It is refused under enforce, so: the same program and
+# planted baseline under audit, where the mismatch is recorded and the run goes on.
+BL_CFG_A="${BL_CFG/'"mode": "enforce"'/'"mode": "audit"'}"
+setup bl_t "$BL_CFG_A" "" "$BL_TAIL"
+mkdir -p "$W/bl_t/.naab"; cp "$B/.naab/baselines.json" "$W/bl_t/.naab/"
+echo B > "$W/bl_t/val.txt"
+go bl_t --tree-walk --governance-check-baselines
+if [ "$RC" -eq 0 ] && [[ "$OUT" == *BL:B* ]] && [[ "$OUT" == *"AUDIT "*"Baseline mismatch"* ]]; then
+    ok "BL-01t" "audit: on the tree-walker --governance-check-baselines alone records a changed output"
+else bad "BL-01t" "audit: the tree-walker recorded no baseline mismatch (rc=$RC)" "$OUT"; fi
 
 # ---- Plugins ----------------------------------------------------------------
 EVAL_TAIL='    let e = <<python
@@ -475,16 +505,22 @@ setup pl_c '"mode": "enforce"' "" "$EVAL_TAIL"
 go pl_c
 if [[ "$OUT" == *EVAL:2* ]]; then ok "PL-c" "no plugin: the eval block runs"
 else bad "PL-c" "no plugin: the eval block did not run -- PL-* UNMEASURABLE" "$OUT"; fi
+# The tree-walker under audit (refused under enforce): the rule is recorded.
+PLUG_A="${PLUG/'"mode": "enforce"'/'"mode": "audit"'}"
+fired() {  # the plugin rule fired: refused on the VM, recorded on the tree-walker
+    if [ "$1" = vm ]; then [ "$RC" -eq 3 ] && [[ "$OUT" == *A37-PLUG* ]]
+    else [ "$RC" -eq 0 ] && [[ "$OUT" == *"AUDIT "*A37-PLUG* ]]; fi
+}
 for eng in tw vm; do
-    sfx=""; args=(--tree-walk); [ "$eng" = vm ] && { sfx="v"; args=(); }
-    setup "pl_n$eng" "$PLUG" "" "$EVAL_TAIL"; mkplugin "$W/pl_n$eng"
+    sfx=""; args=(--tree-walk); cfg_p="$PLUG_A"; [ "$eng" = vm ] && { sfx="v"; args=(); cfg_p="$PLUG"; }
+    setup "pl_n$eng" "$cfg_p" "" "$EVAL_TAIL"; mkplugin "$W/pl_n$eng"
     go "pl_n$eng" "${args[@]}"
-    if [ "$RC" -eq 3 ] && [[ "$OUT" == *A37-PLUG* ]]; then ok "PL-c1$sfx" "plugin, no reload: refused by the plugin rule"
-    else bad "PL-c1$sfx" "plugin, no reload: not refused by it (rc=$RC)" "$OUT"; fi
-    setup "pl_1$eng" "$PLUG" "=" "$EVAL_TAIL"; mkplugin "$W/pl_1$eng"
+    if fired $eng; then ok "PL-c1$sfx" "plugin, no reload: the plugin rule fires ($eng)"
+    else bad "PL-c1$sfx" "plugin, no reload: the plugin rule did not fire (rc=$RC)" "$OUT"; fi
+    setup "pl_1$eng" "$cfg_p" "=" "$EVAL_TAIL"; mkplugin "$W/pl_1$eng"
     go "pl_1$eng" "${args[@]}"
     if expect_reload "PL-01$sfx" "plugins"; then
-        if [ "$RC" -eq 3 ] && [[ "$OUT" == *A37-PLUG* ]]; then ok "PL-01$sfx" "after the reload the plugin rule still refuses eval"
+        if fired $eng; then ok "PL-01$sfx" "after the reload the plugin rule still fires ($eng)"
         else bad "PL-01$sfx" "after the reload the plugin rule did not run (rc=$RC)" "$OUT"; fi
     fi
 done

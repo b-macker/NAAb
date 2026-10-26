@@ -49,7 +49,10 @@ fi
 
 # Pick a free-ish port
 PORT=18742
-"$NAAB" api "$PORT" --api-key r24test --api-timeout 2 \
+# No govern.json is found from here, and each request runs in a `naab-lang
+# run` worker that requires one, so the server is started with the operator's
+# waiver (it waives only that requirement).
+"$NAAB" --no-governance api "$PORT" --api-key r24test --api-timeout 2 \
     > "$WORK_DIR/api.log" 2>&1 &
 SERVER_PID=$!
 
@@ -78,7 +81,10 @@ else
     END=$(date +%s)
     ELAPSED=$((END - START))
 
-    if [[ "$HTTP_CODE" == "200" && $ELAPSED -le 6 ]]; then
+    # ELAPSED >= 1 is the control that the loop ran at all: a request refused
+    # before it ran (no govern.json, exit 4) returned in 0 s and read as a
+    # timeout enforced.
+    if [[ "$HTTP_CODE" == "200" && $ELAPSED -ge 1 && $ELAPSED -le 6 ]]; then
         # Body should be JSON with status:error (timeout caught)
         if grep -q '"status"' "$WORK_DIR/loop.json"; then
             pass "V-API-004-T1: infinite loop returned in ${ELAPSED}s (timeout enforced)"

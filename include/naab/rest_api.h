@@ -4,7 +4,6 @@
 #include <vector>
 #include <memory>
 #include <atomic>
-#include "naab/interpreter.h"
 #include "naab/block_loader.h"
 #include "naab/governance.h"
 
@@ -50,9 +49,21 @@ public:
     bool isRunning() const;
 
     /**
-     * Set interpreter for code execution
+     * Set the naab-lang executable that runs each /api/v1/execute request.
+     * A request runs in its own `naab-lang run` worker process on the default
+     * engine, under the govern.json the server's directory resolves to, so no
+     * user code runs in the server process (POSIX; on Windows /execute is not
+     * available yet). Without one, /execute answers 503.
      */
-    void setInterpreter(std::shared_ptr<interpreter::Interpreter> interpreter);
+    void setWorkerExecutable(const std::string& path);
+
+    /**
+     * The server was started with --no-governance: workers get it too, so a
+     * request may run where no govern.json is found (the CLI's waiver; a
+     * discovered govern.json still applies in full). Off by default: like a
+     * file run, a request with no config is refused (exit 4).
+     */
+    void setWaiveMissingConfig(bool waive);
 
     /**
      * Set block loader for registry queries
@@ -84,9 +95,10 @@ public:
 
     /**
      * Set per-request execution timeout in seconds (V-API-004).
-     * Wraps each /api/v1/execute call in a ScopedTimeout so that an infinite
-     * loop or runaway script cannot permanently pin a cpp-httplib worker.
-     * 0 disables the timeout (tests/debug only). Default: 10 seconds.
+     * /api/v1/execute passes it to the worker as --timeout (a govern.json
+     * limit still caps it) and kills the worker 5 s after it, so an infinite
+     * loop cannot pin a cpp-httplib thread; /api/v1/check wraps its checks in
+     * a ScopedTimeout. 0 disables the timeout (tests/debug only). Default: 10.
      */
     void setApiTimeout(unsigned int seconds);
 

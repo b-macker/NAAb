@@ -30,6 +30,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 
 # The old form probed `[ -d <termux tmp> ]` first. That probe is unsound off
 # Android: the project's own runners created that directory on Linux, so the
@@ -89,12 +90,16 @@ else
          "the key is accepted and does nothing — checkDictSize has no call site"
 fi
 
-# --- DS-02: the tree-walker agrees ---------------------------------------
-if [ "$(run "$CFG_LOW" "--tree-walk")" = "3" ]; then
-    pass "DS-02" "same limit blocks on the tree-walker (engine parity)"
+# --- DS-02: the tree-walker does not run it --------------------------------
+# It used to assert the tree-walker enforces the same limit (engine parity).
+# Under enforce the tree-walker is now refused before anything runs (Bundle
+# 2), so enforcement cannot depend on --tree-walk at all.
+printf '%s\n' "$CFG_LOW" > "$TEST_TMP/w/govern.json"
+TW_OUT=$(cd "$TEST_TMP/w" && NAAB_TRUST_STORE_DIR="$TEST_TMP/trust" timeout 60s "$NAAB" --tree-walk t.naab 2>&1); TW_RC=$?
+if tw_refused "$TW_RC" "$TW_OUT" && ! grep -q COMPLETED <<<"$TW_OUT"; then
+    pass "DS-02" "the tree-walker is refused under enforce, so the limit cannot depend on the engine"
 else
-    fail "DS-02" "dict_size enforces on one engine only" \
-         "enforcement would depend on --tree-walk, which no operator reasons about"
+    fail "DS-02" "the tree-walker should be refused under enforce" "rc=$TW_RC"
 fi
 
 # --- DS-03: unset does not block (control) -------------------------------

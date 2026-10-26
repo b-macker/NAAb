@@ -4,7 +4,11 @@ compare normalized stdout + exit codes. Python3 stdlib only.
 
 Per corpus entry:
   1. determinism pre-screen: run the VM twice; differing output -> NONDET skip
-  2. run VM and tree-walker (--no-governance, cwd = file's directory)
+  2. run VM and tree-walker (--no-governance, cwd = file's directory). An
+     entry whose directory resolves to a govern.json in mode enforce runs
+     from a scratch copy beside a mode-off config instead, on BOTH engines:
+     the tree-walker is refused under enforce (exit 4), and the differential
+     measures engine semantics, not governance
   3. normalize (ANSI strip, rstrip, error-block split) and compare;
      for error cases compare the error CATEGORY, not the wording (absorbs
      the terse-VM vs help-text-TW message fork)
@@ -17,8 +21,10 @@ Usage: diff_runner.py --naab <bin> --corpus corpus.list --root <repo-root>
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "tools"))
@@ -83,6 +89,34 @@ def run_engine(naab, path, tree_walk):
             "timeout": False}
 
 
+def governing_mode(path):
+    """The mode of the govern.json discovery finds for PATH, or None."""
+    d = os.path.dirname(os.path.abspath(path))
+    while True:
+        g = os.path.join(d, "govern.json")
+        if os.path.isfile(g):
+            try:
+                with open(g, encoding="utf-8", errors="replace") as f:
+                    return json.load(f).get("mode")
+            except (OSError, ValueError):
+                return "unreadable"
+        parent = os.path.dirname(d)
+        if parent == d:
+            return None
+        d = parent
+
+
+def staged_copy(path):
+    """A scratch directory holding a copy of PATH and a mode-off govern.json.
+    Returns (dir, copied path); the caller removes dir."""
+    d = tempfile.mkdtemp(prefix="naab-diff-")
+    with open(os.path.join(d, "govern.json"), "w", encoding="utf-8") as f:
+        f.write('{ "version": "4.0", "mode": "off" }\n')
+    dst = os.path.join(d, os.path.basename(path))
+    shutil.copyfile(path, dst)
+    return d, dst
+
+
 def compare(vm, tw):
     """Returns None if equal, else a short mismatch description."""
     if vm["timeout"] or tw["timeout"]:
@@ -120,7 +154,7 @@ def main():
     active = [(d, DETECTORS[d["detect"]]) for d in registry
               if d["detect"] in DETECTORS]
 
-    passed = failed = known = nondet = 0
+    passed = failed = known = nondet = staged = 0
     with open(args.corpus) as f:
         entries = [ln.split()[0] for ln in f
                    if ln.strip() and not ln.startswith("#")]
@@ -131,15 +165,23 @@ def main():
             print("MISSING %s" % rel)
             failed += 1
             continue
-        # determinism pre-screen
-        r1 = run_engine(naab, path, False)
-        r2 = run_engine(naab, path, False)
-        if r1 != r2:
+        stage_dir = None
+        if governing_mode(path) == "enforce":
+            stage_dir, path = staged_copy(path)
+            staged += 1
+        try:
+            # determinism pre-screen
+            r1 = run_engine(naab, path, False)
+            r2 = run_engine(naab, path, False)
+            tw = run_engine(naab, path, True) if r1 == r2 else None
+        finally:
+            if stage_dir:
+                shutil.rmtree(stage_dir, ignore_errors=True)
+        if tw is None:
             nondet += 1
             if args.verbose:
                 print("NONDET  %s" % rel)
             continue
-        tw = run_engine(naab, path, True)
         mismatch = compare(r1, tw)
         if mismatch is None:
             passed += 1
@@ -160,6 +202,9 @@ def main():
 
     print("=== Differential v2: %d passed, %d failed, %d known, "
           "%d nondet-skipped ===" % (passed, failed, known, nondet))
+    if staged:
+        print("    (%d entries ran from a scratch copy beside a mode-off config: "
+              "their own govern.json is in mode enforce)" % staged)
     return 1 if failed > 0 else 0
 
 

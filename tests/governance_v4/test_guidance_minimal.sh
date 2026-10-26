@@ -30,6 +30,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NAAB="${NAAB:-$REPO/build/naab-lang}"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 TEST_TMP="$(mktemp -d)"
 
 PASS_COUNT=0; FAIL_COUNT=0; SKIP_COUNT=0
@@ -124,6 +125,17 @@ for eng in vm tw; do
     d="$TEST_TMP/m01_$eng"; mkdir -p "$d"; playbook "$d" full; make_db "$d"
     cfg "$d" '["docs/playbook.md", "data/guidance.db"]' "$QC"
     r="$(run "$d" "$eng" "$PLACEHOLDER")"
+    if [ "$eng" = tw ]; then
+        # Under enforce the tree-walker is refused before anything runs
+        # (Bundle 2): no block, so no guidance either.
+        r_rc="${r%%|*}"
+        if tw_refused "${r_rc#rc=}" "$r" && [[ "$r" != *"Project guidance"* ]]; then
+            pass "M-01/$eng" "the tree-walker is refused under enforce; no block and no guidance"
+        else
+            fail "M-01/$eng" "the tree-walker should be refused under enforce" "${r: -300}"
+        fi
+        continue
+    fi
     named="$(grep '"GUIDANCE_DELIVERED"' "$d/tele.jsonl" 2>/dev/null | grep -c '"select":"name"')"
     if [[ "$r" == rc=3* ]] && [[ "$r" == *"Project guidance (docs/playbook.md > No placeholders):"*MIN_STUBS_m2* ]] \
        && [[ "$r" == *"Project guidance (data/guidance.db > code_quality.no_placeholders):"*MIN_DBROW_m2* ]] \
