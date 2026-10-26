@@ -5301,6 +5301,26 @@ static std::string detectSignatureType(const std::string& sig) {
     return "legacy";  // raw hex, assume HMAC (backward compat)
 }
 
+// Parse an ed25519 envelope: "ed25519:<base64-sig>" or
+// "ed25519:<base64-sig>:<unix-timestamp>". With a timestamp the signature covers
+// content + ":" + timestamp (signFile()); without one, the content alone.
+// signed_at is 0 when there is no timestamp or it does not parse.
+static void parseEd25519Envelope(const std::string& stored_sig,
+                                 std::string& b64_sig, int64_t& signed_at) {
+    std::string remainder = stored_sig.substr(strlen(SIG_PREFIX_ED25519));
+    b64_sig = remainder;
+    signed_at = 0;
+    auto colon_pos = remainder.find(':');
+    if (colon_pos != std::string::npos) {
+        b64_sig = remainder.substr(0, colon_pos);
+        try {
+            signed_at = std::stoll(remainder.substr(colon_pos + 1));
+        } catch (...) {
+            // Malformed timestamp — ignore, treat as no timestamp
+        }
+    }
+}
+
 // Trust store check. Re-validates each call to detect mid-run deletion.
 static bool hasTrustStoreKeys() {
     return security::TrustStore::hasKeys();
@@ -5363,6 +5383,36 @@ static std::string readSigningKey() {
 
 std::string GovernanceEngine::readSigningKeyForCLI() {
     return readSigningKey();
+}
+
+bool GovernanceEngine::signingKeySignedContent(const std::string& content,
+                                               const std::string& stored_sig) {
+    // A public key is not authority: anyone can read it. ed25519PublicFromPrivate()
+    // returns "" for anything but a private key PEM.
+    std::string pub_pem = security::CryptoUtils::ed25519PublicFromPrivate(readSigningKey());
+    if (pub_pem.empty()) return false;
+    if (detectSignatureType(stored_sig) != "ed25519") return false;
+
+    // The key must be one the project trusts (verifySignatureImpl() has already
+    // checked the file against the trust store; this keeps the answer about
+    // THIS key).
+    const std::string fp = security::CryptoUtils::ed25519Fingerprint(pub_pem);
+    bool trusted = false;
+    for (const auto& [store_fp, pem] : security::TrustStore::loadKeys()) {
+        (void)store_fp;
+        if (!fp.empty() && security::CryptoUtils::ed25519Fingerprint(pem) == fp) {
+            trusted = true;
+            break;
+        }
+    }
+    if (!trusted) return false;
+
+    std::string b64_sig;
+    int64_t signed_at = 0;
+    parseEd25519Envelope(stored_sig, b64_sig, signed_at);
+    const std::string payload = signed_at > 0
+        ? content + ":" + std::to_string(signed_at) : content;
+    return security::CryptoUtils::ed25519Verify(payload, b64_sig, pub_pem);
 }
 
 std::string GovernanceEngine::getKeyFingerprint() {
@@ -5530,20 +5580,9 @@ bool GovernanceEngine::verifySignatureImpl(
     std::string sig_type = detectSignatureType(stored_sig);
 
     if (sig_type == "ed25519") {
-        // Parse envelope: "ed25519:<base64-sig>" or "ed25519:<base64-sig>:<unix-timestamp>"
-        std::string remainder = stored_sig.substr(strlen(SIG_PREFIX_ED25519));
-        std::string b64_sig = remainder;
+        std::string b64_sig;
         int64_t signed_at = 0;
-
-        auto colon_pos = remainder.find(':');
-        if (colon_pos != std::string::npos) {
-            b64_sig = remainder.substr(0, colon_pos);
-            try {
-                signed_at = std::stoll(remainder.substr(colon_pos + 1));
-            } catch (...) {
-                // Malformed timestamp — ignore, treat as no timestamp
-            }
-        }
+        parseEd25519Envelope(stored_sig, b64_sig, signed_at);
 
         if (have_trust_keys) {
             // Verify against each trusted key

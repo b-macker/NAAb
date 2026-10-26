@@ -16,23 +16,30 @@
 # was given; that half was a regression, not the decision.
 #
 #   TC-01  limits.timeout.global 2, no flag: the run stops at ~2 s, not 30
-#   TC-02  --timeout 4 after the file still extends a 2 s limit (6c9426af)
-#   TC-03  --timeout 4 before the file extends it too
-#   TC-04  --timeout 1 does not shrink a 2 s limit (6c9426af's decision)
+#   TC-02  --timeout 6 after the file does NOT extend a 2 s limit
+#   TC-03  --timeout 6 before the file does not extend it either
+#   TC-04  --timeout 2 lowers a 6 s limit (a flag may tighten)
 #   TC-05  extends: a child with no limit gets its parent's 2 s
 #   TC-06  extends, parent_wins: the parent's 2 s beats the child's 10
 #   TC-C1  CONTROL: a program that finishes inside the limit runs to the end
 #
+# TC-02/03/04 flipped on 2026-10-25: 6c9426af had --timeout "extend but not
+# shrink the govern.json limit" (max of the two); the owner reversed that
+# ("govern.json is king"), so a flag may only lower a configured limit
+# (applyConfiguredRunLimits(), main.cpp).
 # TC-05/06: the merge set only limits.timeout.global, never runtime.timeout,
 # the copy the run reads, so an inherited limit never reached the run. That
 # was hidden by the 30 s floor (test_extends.sh T2's parent 30 equalled it).
-# The merge now carries the limit over, capped at the built-in 30 s, so no run
-# gets longer than before (an inherited limit above 30 s is open, A74; testing
-# the cap would mean a 30 s wait).
-# TC-02, TC-03 and TC-C1 also run on the tree-walker. TC-01 and TC-04 do not:
-# the tree-walker branch of main.cpp never reads govern.json's limit (the run
-# gets --timeout or 30), and making it read one would raise a tree-walker
-# run's limit above today's for configs over 30. Recorded in A74.
+# The merge now carries the limit over as written.
+# Every arm but TC-05/06 runs on both engines: the tree-walker read neither
+# govern.json limit before 2026-10-25.
+#
+# Kill table (each mutant rebuilt, this suite and its neighbours run):
+#   max(flag, configured) instead of min     TC-02/03/04 on both engines
+#   tree-walker does not merge the limits     TC-01/02/03 tree-walk
+# Not measured here, so those mutants survive: an explicit 30 s limit capping a
+# larger flag, an inherited limit above 30 s (both need a 30 s+ wait), the
+# memory limit, and the sandbox-level clamp (docs/open-investigations.md A79).
 # ============================================================
 set -uo pipefail
 
@@ -76,6 +83,9 @@ main {
 }
 EOF
 
+mkdir -p "$W/six"; cp "$W/spin.naab" "$W/six/"
+echo '{"version":"5.0","mode":"enforce","limits":{"timeout":{"global":6},"execution":{"loop_iterations":2000000000}}}' > "$W/six/govern.json"
+
 # timed ARGS... -> OUT, RC, SECS. The outer timeout is well past the old 30 s
 # failure, so an unfixed build reads as slow rather than being killed silently.
 timed() {
@@ -88,18 +98,35 @@ stopped_by_clock() { [ "$RC" != 0 ] && [ "$RC" != 124 ] && grep -qi 'timeout' <<
 for eng in "" "--tree-walk"; do
     tag="${eng:-vm}"; tag="${tag#--}"
 
-    timed spin.naab $eng --timeout 4
-    if stopped_by_clock && [ "$SECS" -ge 3 ] && [ "$SECS" -le 8 ]; then
-        ok "TC-02/$tag" "--timeout 4 after the file extends the limit (${SECS}s)"
+    timed spin.naab $eng --timeout 6
+    if stopped_by_clock && [ "$SECS" -ge 1 ] && [ "$SECS" -le 4 ]; then
+        ok "TC-02/$tag" "--timeout 6 after the file does not extend govern.json's 2 s (${SECS}s)"
     else
-        bad "TC-02/$tag" "--timeout 4 after the file should extend the limit to ~4 s" "rc=$RC ${SECS}s"
+        bad "TC-02/$tag" "--timeout 6 after the file should leave the 2 s limit" "rc=$RC ${SECS}s"
     fi
 
-    timed --timeout 4 spin.naab $eng
-    if stopped_by_clock && [ "$SECS" -ge 3 ] && [ "$SECS" -le 8 ]; then
-        ok "TC-03/$tag" "--timeout 4 before the file extends the limit (${SECS}s)"
+    timed --timeout 6 spin.naab $eng
+    if stopped_by_clock && [ "$SECS" -ge 1 ] && [ "$SECS" -le 4 ]; then
+        ok "TC-03/$tag" "--timeout 6 before the file does not extend it either (${SECS}s)"
     else
-        bad "TC-03/$tag" "--timeout 4 before the file should extend the limit to ~4 s" "rc=$RC ${SECS}s"
+        bad "TC-03/$tag" "--timeout 6 before the file should leave the 2 s limit" "rc=$RC ${SECS}s"
+    fi
+
+    timed spin.naab $eng
+    if stopped_by_clock && [ "$SECS" -ge 1 ] && [ "$SECS" -le 6 ]; then
+        ok "TC-01/$tag" "a 2 s limit in govern.json stops the run (${SECS}s)"
+    else
+        bad "TC-01/$tag" "a 2 s limit in govern.json should stop the run near 2 s" "rc=$RC ${SECS}s $(grep -m1 -i 'timeout\|error' <<<"$OUT")"
+    fi
+
+    # TC-04: a 6 s limit, lowered by the flag.
+    start=$SECONDS
+    OUT=$(cd "$W/six" && timeout 45 "$NAAB" spin.naab $eng --timeout 2 2>&1); RC=$?
+    SECS=$((SECONDS - start))
+    if stopped_by_clock && [ "$SECS" -ge 1 ] && [ "$SECS" -le 4 ]; then
+        ok "TC-04/$tag" "--timeout 2 lowers govern.json's 6 s limit (${SECS}s)"
+    else
+        bad "TC-04/$tag" "--timeout 2 should lower the 6 s limit" "rc=$RC ${SECS}s"
     fi
 
     timed quick.naab $eng
@@ -109,13 +136,6 @@ for eng in "" "--tree-walk"; do
         bad "TC-C1/$tag" "a quick program should finish" "rc=$RC $(grep -m1 -i 'error' <<<"$OUT")"
     fi
 done
-
-timed spin.naab
-if stopped_by_clock && [ "$SECS" -ge 1 ] && [ "$SECS" -le 6 ]; then
-    ok "TC-01/vm" "a 2 s limit in govern.json stops the run (${SECS}s)"
-else
-    bad "TC-01/vm" "a 2 s limit in govern.json should stop the run near 2 s" "rc=$RC ${SECS}s $(grep -m1 -i 'timeout\|error' <<<"$OUT")"
-fi
 
 # Extends: base/ holds the parent, kid/ and pw/ the children.
 mkdir -p "$W/base" "$W/kid" "$W/pw"
@@ -135,12 +155,6 @@ for spec in "TC-05 kid a child with no limit gets its parent's 2 s" "TC-06 pw pa
     fi
 done
 
-timed spin.naab --timeout 1
-if stopped_by_clock && [ "$SECS" -ge 2 ] && [ "$SECS" -le 6 ]; then
-    ok "TC-04/vm" "--timeout 1 does not shrink govern.json's 2 s limit (${SECS}s)"
-else
-    bad "TC-04/vm" "on the VM, --timeout 1 should leave the 2 s limit" "rc=$RC ${SECS}s"
-fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

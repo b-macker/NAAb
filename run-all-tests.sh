@@ -1755,6 +1755,19 @@ else
     echo "  test_sandbox_relative_path.sh: not found, skipping"
 fi
 
+# --- the authority to use a locked flag is the signing private key ---
+FLAGAUTH_SCRIPT="tests/security/test_flag_authority.sh"
+if [ -f "$FLAGAUTH_SCRIPT" ]; then
+    if run_shell_test "$FLAGAUTH_SCRIPT" 2>&1; then
+        echo "  test_flag_authority.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_flag_authority.sh")
+    fi
+else
+    echo "  test_flag_authority.sh: not found, skipping"
+fi
+
 # --- naab-gov check: one output shape for both verdicts ---
 # The JSON builder in cmdCheck was reachable only on a PASS; a HARD block threw
 # past it to main()'s plain-text handler. Exit codes were always right, so this
