@@ -519,6 +519,13 @@ AgentReviewResult runAgentReview(
             }
             return result;
         }
+        // A29(c): a failure the review continues past is reported. It used to
+        // be dropped whenever another agent returned findings, so the review
+        // read as complete while one agent had reviewed nothing (AR-15e).
+        for (const auto& e : all_errors) {
+            fprintf(stderr, "[governance] Warning: %s - the review continued without it "
+                            "(fail_strategy \"continue\").\n", e.c_str());
+        }
 
     } else {
         // ── Sequential detection (default) ──

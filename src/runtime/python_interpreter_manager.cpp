@@ -8,6 +8,7 @@
 
 // Defined in python_c_executor.cpp — the sandbox policy the audit hook calls.
 extern "C" int naabPythonAuditPolicy(const char* event, const char* target, int is_write);
+extern "C" int naabPythonNetPolicy(const char* event, int kind, int address, const char* host, int port);
 
 namespace naab {
 namespace runtime {
@@ -42,6 +43,7 @@ PythonInterpreterManager::PythonInterpreterManager()
     // afterwards, so executed block code cannot displace it the way it can
     // reassign builtins.__import__.
     python_c_set_audit_policy(&naabPythonAuditPolicy);
+    python_c_set_net_policy(&naabPythonNetPolicy);   // A35: host lists for sockets
 
     if (python_c_init() != 0) {
         throw std::runtime_error("Failed to initialize Python interpreter");
