@@ -126,6 +126,15 @@ GovernanceEngine::GovernanceEngine()
     : rules_ptr_(std::make_shared<GovernanceRules>()) {}
 
 GovernanceEngine::~GovernanceEngine() {
+    // Drop the process-wide audit-hook fallback if it still points at us, so a
+    // late Python thread's audit event never dereferences a destroyed engine
+    // (getProcessCurrent()). Teardown happens when no block is running, so the
+    // common path is a no-op; the compare_exchange makes it safe regardless.
+    {
+        GovernanceEngine* self = this;
+        s_process_current_.compare_exchange_strong(self, nullptr,
+                                                   std::memory_order_acq_rel);
+    }
     // Guidance connectors: stop and join the background fetcher first -- its
     // thread reports through this engine's telemetry.
     try { stopGuidanceSources(); } catch (...) {}

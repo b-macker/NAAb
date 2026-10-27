@@ -3175,6 +3175,17 @@ public:
     // --- Thread-local accessor (for stdlib modules that need governance config) ---
     static GovernanceEngine* getCurrent();
     static void setCurrent(GovernanceEngine* engine);
+    // Process-wide fallback to the most recently activated engine, read by the
+    // embedded-Python audit hook (python_c_executor.cpp). The hook is installed
+    // process-wide (PySys_AddAuditHook) and fires on EVERY thread that runs
+    // Python, but getCurrent() is thread-local -- a threading.Thread a
+    // <<python>> block spawns runs on an OS thread where it was never set, so
+    // the path policy (blocked_paths, protected files) read null and failed
+    // OPEN. One engine governs a run, so this is that engine. setCurrent(non-
+    // null) publishes it; ~GovernanceEngine clears it when the engine dies, so
+    // it never dangles. Never returns a stale engine for a new run (last writer
+    // wins; one engine per run in practice).
+    static GovernanceEngine* getProcessCurrent();
 
     // --- Worker plumbing for `naab-lang mcp` (docs/plan-mcp-service.md) ---
     // Process-wide and set once by the CLI, before any config loads, from
@@ -4219,6 +4230,9 @@ private:
     ContextDriftAnalyzer drift_analyzer_;
     std::atomic<int> current_agent_turn_{0};
     std::atomic<int> current_agent_handle_{0};
+    // Process-wide fallback engine for the embedded-Python audit hook on
+    // Python-spawned threads (see getProcessCurrent()).
+    static std::atomic<GovernanceEngine*> s_process_current_;
     std::string current_agent_config_;         // agent config name for BSD identity
     mutable std::mutex agent_config_mutex_;     // guards current_agent_config_
     std::atomic<bool> bsd_enabled_{false};
