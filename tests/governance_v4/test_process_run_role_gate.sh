@@ -45,6 +45,11 @@ if ! grep -qi naab <<<"$("$NAAB" --version 2>/dev/null)"; then
 fi
 TOUCH="$(command -v touch)"
 if [ -z "$TOUCH" ]; then echo "  UNMEASURABLE [PR] no touch binary"; exit 0; fi
+# The path goes INTO the program, so it must be in the binary's vocabulary: a
+# native Windows build cannot start the MSYS path /usr/bin/touch (CreateProcess
+# error 2, observed on build-windows), which failed every "it runs" control.
+source "$SCRIPT_DIR/../helpers/native_path.sh"
+TOUCH="$(native_path "$TOUCH")"
 
 # An unsigned govern.json with a key in the trust store is an INTEGRITY BLOCK:
 # isolate the store so the result does not depend on this machine's keys.

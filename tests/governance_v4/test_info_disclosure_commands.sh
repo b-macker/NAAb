@@ -49,6 +49,9 @@ PS_BIN="$(command -v ps)"; UNAME_BIN="$(command -v uname)"
 if [ -z "$PS_BIN" ] || [ -z "$UNAME_BIN" ]; then
     echo "  UNMEASURABLE [IL] ps or uname not installed"; exit 0
 fi
+# IL-04 writes this path into the program: hand the binary its own vocabulary.
+source "$SCRIPT_DIR/../helpers/native_path.sh"
+PS_BIN="$(native_path "$PS_BIN")"
 
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
@@ -102,8 +105,11 @@ run il4 "$ON" "$(prun "$PS_BIN" '["-e"]')"
 if refused; then ok "IL-04" "process.run(\"$PS_BIN\", [\"-e\"]) is refused"
 else bad "IL-04" "process.run with ps by path ran under the restriction" "rc=$RC $OUT"; fi
 
+# Not refused, whatever ps answers: process 1 need not exist (MSYS2 has none,
+# so ps exits 1 there -- observed on build-windows).
 run il5 "$ON" "$(prun ps '["-p", "1"]')"
-if ran; then ok "IL-05" 'control: process.run("ps", ["-p", "1"]) runs -- one process is not a listing'
+if [ "$RC" = 0 ] && [[ "$OUT" == *RAN=* ]] && [[ "$OUT" != *"Information disclosure"* ]]; then
+    ok "IL-05" 'control: process.run("ps", ["-p", "1"]) runs -- one process is not a listing'
 else bad "IL-05" "the listing rule refuses a single-process query" "rc=$RC $OUT"; fi
 
 run il6 '{ "enabled": false }' "$(prun ps '["aux"]')"
