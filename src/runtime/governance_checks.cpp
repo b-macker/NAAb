@@ -5940,6 +5940,12 @@ static std::string findProcessListing(const std::string& text) {
             std::tolower(static_cast<unsigned char>(text[i + 1])) != 's') continue;
         if (i > 0 && word(text[i - 1])) continue;
         size_t k = i + 2;
+        // ps.exe is the same program on Windows (process.run("ps.exe", ...)).
+        if (k + 4 <= n && text[k] == '.' &&
+            std::tolower(static_cast<unsigned char>(text[k + 1])) == 'e' &&
+            std::tolower(static_cast<unsigned char>(text[k + 2])) == 'x' &&
+            std::tolower(static_cast<unsigned char>(text[k + 3])) == 'e') k += 4;
+        if (k >= n) continue;
         if (!blank(text[k]) && !(text[k] == '\\' && k + 1 < n && text[k + 1] == '\n')) continue;
         bool first = true;
         while (k < n) {
@@ -5982,7 +5988,7 @@ static std::string findInfoDisclosureCommand(const InfoDisclosureRestriction& cf
         if (!found.empty()) return found;
     }
     if (cfg.block_system_info_leak) {
-        return searchPatterns(text, {"uname\\s+-a", "cat\\s+/etc/passwd"});
+        return searchPatterns(text, {"uname(?:\\.exe)?\\s+-a", "cat(?:\\.exe)?\\s+/etc/passwd"});
     }
     return "";
 }
