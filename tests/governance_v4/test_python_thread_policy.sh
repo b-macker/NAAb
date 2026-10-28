@@ -39,14 +39,20 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NAAB="$SCRIPT_DIR/../../build/naab-lang"
+NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
-PASS=0; FAIL=0; FAILURES=""
+PASS=0; FAIL=0; UNM=0; FAILURES=""
 ok()  { PASS=$((PASS+1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; }
 bad() { FAIL=$((FAIL+1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] && echo -e "       ${RED}-> $3${NC}"; FAILURES="${FAILURES}\n  [$1] $2"; }
+unm() { UNM=$((UNM+1)); echo -e "  UNMEASURABLE [$1] $2"; }
+# A spawned thread that never started tested nothing: under a fork-blocking
+# sandbox the executor sets RLIMIT_NPROC to 0 for the block, which binds a
+# non-root user's threads too (observed: build-linux and `nobody` here, while
+# root is unaffected). Such an arm is UNMEASURABLE, never a pass or a failure.
+nothread() { grep -q "can't start new thread" <<<"$out"; }
 
 W="${TMPDIR:-/tmp}/naab-pythread-$$"
 cleanup(){ teardown_isolated_trust; rm -rf "$W"; }
@@ -113,7 +119,10 @@ r
 EOF
 }
 
-FS_POLICY='{"version":"5.0","mode":"enforce","security":{"sandbox_level":"standard"},"languages":{"allowed":["python"]},"capabilities":{"filesystem":{"mode":"write","allowed_paths":["./data","./vault"],"blocked_paths":["./vault"]}}}'
+# elevated, not standard: standard blocks fork, and a non-root process's
+# Python block then cannot start a thread at all (see nothread()). The read
+# decision is still the path policy the fallback feeds.
+FS_POLICY='{"version":"5.0","mode":"enforce","security":{"sandbox_level":"elevated"},"languages":{"allowed":["python"]},"capabilities":{"filesystem":{"mode":"write","allowed_paths":["./data","./vault"],"blocked_paths":["./vault"]}}}'
 printf '%s\n' "$FS_POLICY" > "$W/govern.json"
 
 main_read '"vault/s.txt"' > "$W/m.naab"
@@ -123,12 +132,14 @@ else bad "TP-00" "main-thread read not denied -- fixture does not put the path i
 
 thread_read '"vault/s.txt"' > "$W/t.naab"
 out=$(run t.naab)
-if grep -q 'R=DENIED' <<<"$out" && ! grep -q 'VAULT_CONTENT' <<<"$out"; then ok "TP-01" "SUBJECT: a spawned thread is refused the blocked path (VM)"
+if nothread; then unm "TP-01" "the spawned thread never started"
+elif grep -q 'R=DENIED' <<<"$out" && ! grep -q 'VAULT_CONTENT' <<<"$out"; then ok "TP-01" "SUBJECT: a spawned thread is refused the blocked path (VM)"
 else bad "TP-01" "a spawned thread read the blocked path -- audit policy fails open off-thread" "$(grep -m2 -E 'R=|rror' <<<"$out")"; fi
 
 thread_read '"data/ok.txt"' > "$W/ta.naab"
 out=$(run ta.naab)
-if grep -q 'R=DATA_CONTENT' <<<"$out"; then ok "TP-02" "CONTROL: a spawned thread may still read an allowed path (no over-block)"
+if nothread; then unm "TP-02" "the spawned thread never started"
+elif grep -q 'R=DATA_CONTENT' <<<"$out"; then ok "TP-02" "CONTROL: a spawned thread may still read an allowed path (no over-block)"
 else bad "TP-02" "the fix over-blocks: an ALLOWED read on a spawned thread was denied" "$(grep -m2 -E 'R=|rror' <<<"$out")"; fi
 
 # ---- Group B: exec capability on a spawned thread (shell disabled) ---------
@@ -172,7 +183,8 @@ box.get("v", "?")
 EOF
 rm -f "$W/thread_marker"
 out=$(run et.naab)
-if ! [ -e "$W/thread_marker" ]; then ok "TP-03" "SUBJECT: a spawned thread is refused os.system; no marker made"
+if nothread; then unm "TP-03" "the spawned thread never started"
+elif ! [ -e "$W/thread_marker" ]; then ok "TP-03" "SUBJECT: a spawned thread is refused os.system; no marker made"
 else bad "TP-03" "a spawned thread ran os.system under shell.enabled:false -- exec gate fails open off-thread" "$(grep -m2 -E 'R=|rror' <<<"$out")"; fi
 
 # ---- Group C: the rename/remove audit branch on a spawned thread -----------
@@ -222,7 +234,8 @@ else bad "TP-04c" "main-thread os.remove not denied / file gone -- remove gate n
 echo "VAULT_CONTENT" > "$W/vault/s.txt"
 rm_block thread > "$W/rmt.naab"
 out=$(run rmt.naab)
-if grep -q 'R=DENIED' <<<"$out" && [ -e "$W/vault/s.txt" ]; then ok "TP-04" "SUBJECT: a spawned thread is refused os.remove; the file survives"
+if nothread; then unm "TP-04" "the spawned thread never started"
+elif grep -q 'R=DENIED' <<<"$out" && [ -e "$W/vault/s.txt" ]; then ok "TP-04" "SUBJECT: a spawned thread is refused os.remove; the file survives"
 else bad "TP-04" "a spawned thread removed a blocked path -- remove audit branch fails open off-thread" "$(grep -m2 -E 'R=|rror' <<<"$out")"; fi
 
 # ---- Group D: non-regression -- an ungoverned run still reads on a thread ---
@@ -259,10 +272,11 @@ box.get("v", "?")
 }
 EOF
 out=$(run gc.naab)
-if grep -q 'R=DENIED' <<<"$out" && ! grep -q 'VAULT_CONTENT' <<<"$out"; then ok "TP-06" "SUBJECT: a grandchild thread is also refused the blocked path"
+if nothread; then unm "TP-06" "the spawned thread never started"
+elif grep -q 'R=DENIED' <<<"$out" && ! grep -q 'VAULT_CONTENT' <<<"$out"; then ok "TP-06" "SUBJECT: a grandchild thread is also refused the blocked path"
 else bad "TP-06" "a grandchild thread read the blocked path" "$(grep -m2 -E 'R=|rror' <<<"$out")"; fi
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
+echo "Results: $PASS passed, $FAIL failed, $UNM unmeasurable"
 if [ $FAIL -gt 0 ]; then echo -e "${RED}FAILURES:${NC}$FAILURES"; exit 1; fi
 exit 0
