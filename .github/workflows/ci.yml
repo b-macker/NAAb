@@ -46,7 +46,9 @@ jobs:
           # feature -- the same failure register B10 records for unrun tests, one
           # layer down. tests/security/test_audit_hmac_required.sh needs this
           # binary and reports UNMEASURABLE rather than passing without it.
-          ninja -C build naab-lang libnaab naab-verify-audit naab-gov -j$(nproc)
+          # naab-lsp: every tests/lsp suite is registered only when it is built,
+          # and no job built it, so none ran in CI (A43(d) was found by hand).
+          ninja -C build naab-lang libnaab naab-verify-audit naab-gov naab-lsp -j$(nproc)
 
       # naab_unit_tests (GoogleTest) was the same kind of unbuilt target: five
       # of its nineteen files had stopped compiling before anyone ran it.
@@ -133,7 +135,7 @@ jobs:
       - name: Build the binaries suites may legitimately use
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
-          ninja -C build libnaab naab-verify-audit naab-gov -j$(nproc)
+          ninja -C build libnaab naab-verify-audit naab-gov naab-lsp -j$(nproc)
 
       - name: Run every suite against a dead interpreter
         run: python3 tools/testrunner/dead_gate.py run --out test-parallel/dead-gate
@@ -182,7 +184,7 @@ jobs:
       - name: Build
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
-          ninja -C build naab-lang libnaab naab-verify-audit naab-gov -j$(nproc)
+          ninja -C build naab-lang libnaab naab-verify-audit naab-gov naab-lsp -j$(nproc)
 
       - name: Assert the phantom Termux tree was not created by the build
         run: |

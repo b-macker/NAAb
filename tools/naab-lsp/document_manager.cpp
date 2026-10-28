@@ -1,4 +1,5 @@
 #include "document_manager.h"
+#include "naab/governance_message_format.h"  // the labels formatError() writes (A43(d))
 #include <sstream>
 #include <algorithm>
 #include <iostream>
@@ -207,27 +208,29 @@ static Diagnostic parseGovernanceBlock(const std::string& block) {
         diag.severity = DiagnosticSeverity::Warning;
     }
 
-    // Extract the "what" message from first line
-    // Format: "Governance error: <what> [TAG]"  or  "Governance warning: <what> [TAG]"
+    namespace gmsg = naab::governance::message;
+
+    // Extract the "what" message from the first line
+    // Format: "Governance error: <what> [TAG]"  or  "Governance warning: <what> [TAG]",
+    // possibly behind the CLI's "Error: " prefix
+    std::string first_line = block.substr(0, block.find('\n'));
     std::string message;
-    auto bracket_pos = block.find(" [");
-    if (bracket_pos != std::string::npos) {
-        auto colon_pos = block.find(": ");
-        if (colon_pos != std::string::npos && colon_pos < bracket_pos) {
-            message = block.substr(colon_pos + 2, bracket_pos - colon_pos - 2);
-        }
+    auto header = gmsg::headerStart(first_line);
+    if (header != std::string::npos) {
+        std::string_view rest = std::string_view(first_line).substr(header);
+        rest.remove_prefix(rest.substr(0, gmsg::kErrorHeader.size()) == gmsg::kErrorHeader
+                               ? gmsg::kErrorHeader.size() : gmsg::kWarningHeader.size());
+        auto bracket_pos = rest.rfind(" [");
+        message = std::string(bracket_pos != std::string_view::npos ? rest.substr(0, bracket_pos) : rest);
     }
-    if (message.empty()) {
-        auto nl = block.find('\n');
-        message = (nl != std::string::npos) ? block.substr(0, nl) : block;
-    }
+    if (message.empty()) message = first_line;
     diag.message = message;
 
     // Extract line number from "At: line N" or "At: <file>:N"
     int line = 0;
-    auto at_pos = block.find("  At: ");
+    auto at_pos = block.find(gmsg::kAtLabel);
     if (at_pos != std::string::npos) {
-        std::string at_str = block.substr(at_pos + 6);
+        std::string at_str = block.substr(at_pos + gmsg::kAtLabel.size());
         auto nl = at_str.find('\n');
         if (nl != std::string::npos) at_str = at_str.substr(0, nl);
 
@@ -245,12 +248,12 @@ static Diagnostic parseGovernanceBlock(const std::string& block) {
     }
 
     // Extract rule for diagnostic code
-    auto rule_pos = block.find("  Rule (govern.json): ");
+    auto rule_pos = block.find(gmsg::kRuleLabel);
     if (rule_pos != std::string::npos) {
-        std::string rule_str = block.substr(rule_pos + 22);
+        std::string rule_str = block.substr(rule_pos + gmsg::kRuleLabel.size());
         auto nl = rule_str.find('\n');
         if (nl != std::string::npos) rule_str = rule_str.substr(0, nl);
-        diag.code = rule_str;
+        diag.code = gmsg::ruleName(rule_str);
     } else {
         diag.code = "governance";
     }
@@ -376,8 +379,9 @@ void Document::runGovernanceChecks() {
     std::string line;
 
     while (std::getline(iss, line)) {
-        if ((line.find("Governance error:") == 0 ||
-             line.find("Governance warning:") == 0 ||
+        // A block starts at its header line; the "[governance] Loaded:" banner
+        // before the first one is a block of its own and is dropped below.
+        if ((naab::governance::message::headerStart(line) != std::string::npos ||
              line.find("Taint tracking violation:") == 0) &&
             !current_block.empty()) {
             blocks.push_back(current_block);

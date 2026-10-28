@@ -704,6 +704,19 @@ else
     echo "  Report format test script not found, skipping"
 fi
 
+# A static HARD block on the VM writes its reports too (A43(e))
+STATIC_REPORT_SCRIPT="tests/cli/test_static_block_reports.sh"
+if [ -f "$STATIC_REPORT_SCRIPT" ]; then
+    if run_shell_test "$STATIC_REPORT_SCRIPT" 2>&1; then
+        echo "  test_static_block_reports.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_static_block_reports.sh")
+    fi
+else
+    echo "  test_static_block_reports.sh: not found, skipping"
+fi
+
 # --- Rationale Report Tests ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -1038,6 +1051,19 @@ if [ -f "$LSP_NEW_SCRIPT" ] && [ -f "build/naab-lsp" ]; then
     fi
 else
     echo "  test_lsp_new_methods.sh: skipped (naab-lsp not built or script not found)"
+fi
+
+# A43(d): a governance diagnostic names the rule its block cites
+LSP_GOV_SCRIPT="tests/lsp/test_lsp_governance_diag.sh"
+if [ -f "$LSP_GOV_SCRIPT" ] && [ -x "build/naab-lsp" ]; then
+    if run_shell_test "$LSP_GOV_SCRIPT" 2>&1; then
+        echo "  test_lsp_governance_diag.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_lsp_governance_diag.sh")
+    fi
+else
+    echo "  test_lsp_governance_diag.sh: skipped (naab-lsp not built or script not found)"
 fi
 
 # --- Deterministic Build / Lockfile Tests (Phase 8.4) ---

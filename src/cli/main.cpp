@@ -2485,148 +2485,151 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                // VM path: whole-source checks on the entry file (secrets, PII,
-                // incomplete logic). The tree-walker runs the same helper from
-                // visit(Program), and both engines run it on every imported
-                // module -- the per-function checks never see a top-level
-                // `export let` (A31).
-                if (gov_loaded && vm_governance.isActive()) {
-                    std::string sec_err = vm_governance.checkNaabSourceText(source, filename);
-                    if (!sec_err.empty()) throw std::runtime_error(sec_err);
-                }
-
-                // Gap 15: Detect empty/comment-only main{} blocks
-                if (gov_loaded && vm_governance.isActive() && program->getMainBlock()) {
-                    std::string empty_err = vm_governance.checkEmptyMain(source);
-                    if (!empty_err.empty()) {
-                        fprintf(stderr, "%s\n", empty_err.c_str());
+                // Every static block on the VM -- the whole-source checks, the
+                // intent preflight and agent review here, the per-function
+                // checks inside compile() -- leaves through this one
+                // write-reports-then-rethrow. It used to wrap compile() only, so
+                // a whole-source block (a PII or secret literal anywhere in the
+                // file) wrote no SARIF or report: the CI code-scanning channel
+                // missed exactly the static blocks (A43(e)). execute() keeps its
+                // own wrapper below.
+                naab::vm::Compiler bc_compiler;
+                naab::vm::CompiledFunction* main_fn = nullptr;
+                try {
+                    // VM path: whole-source checks on the entry file (secrets, PII,
+                    // incomplete logic). The tree-walker runs the same helper from
+                    // visit(Program), and both engines run it on every imported
+                    // module -- the per-function checks never see a top-level
+                    // `export let` (A31).
+                    if (gov_loaded && vm_governance.isActive()) {
+                        std::string sec_err = vm_governance.checkNaabSourceText(source, filename);
+                        if (!sec_err.empty()) throw std::runtime_error(sec_err);
                     }
-                }
 
-                // Preflight intent gate — verify all functions match owner-defined intent
-                // before any compilation or execution. Pattern-based (fast, no API).
-                if (gov_loaded && vm_governance.isActive()) {
-                    std::string intent_err = vm_governance.preflightIntentCheck(*program, source);
-                    if (!intent_err.empty()) {
-                        throw std::runtime_error(intent_err);
+                    // Gap 15: Detect empty/comment-only main{} blocks
+                    if (gov_loaded && vm_governance.isActive() && program->getMainBlock()) {
+                        std::string empty_err = vm_governance.checkEmptyMain(source);
+                        if (!empty_err.empty()) {
+                            fprintf(stderr, "%s\n", empty_err.c_str());
+                        }
                     }
-                }
 
-                // Drift detection: check structural metrics against baseline
-                if (gov_loaded && vm_governance.getRules().code_quality.drift_detection.enabled) {
-                    auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
-                        *program, source, filename);
-                    std::string drift_err = vm_governance.checkDriftDetection(filename, drift_metrics);
-                    if (!drift_err.empty()) {
-                        fprintf(stderr, "%s", drift_err.c_str());
+                    // Preflight intent gate — verify all functions match owner-defined intent
+                    // before any compilation or execution. Pattern-based (fast, no API).
+                    if (gov_loaded && vm_governance.isActive()) {
+                        std::string intent_err = vm_governance.preflightIntentCheck(*program, source);
+                        if (!intent_err.empty()) {
+                            throw std::runtime_error(intent_err);
+                        }
                     }
-                    if (drift_baseline_save || vm_governance.getRules().code_quality.drift_detection.auto_save) {
+
+                    // Drift detection: check structural metrics against baseline
+                    if (gov_loaded && vm_governance.getRules().code_quality.drift_detection.enabled) {
+                        auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
+                            *program, source, filename);
+                        std::string drift_err = vm_governance.checkDriftDetection(filename, drift_metrics);
+                        if (!drift_err.empty()) {
+                            fprintf(stderr, "%s", drift_err.c_str());
+                        }
+                        if (drift_baseline_save || vm_governance.getRules().code_quality.drift_detection.auto_save) {
+                            vm_governance.saveDriftBaseline(filename, drift_metrics);
+                        }
+                    } else if (drift_baseline_save && gov_loaded) {
+                        // Save baseline even if drift_detection not enabled in config
+                        auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
+                            *program, source, filename);
                         vm_governance.saveDriftBaseline(filename, drift_metrics);
                     }
-                } else if (drift_baseline_save && gov_loaded) {
-                    // Save baseline even if drift_detection not enabled in config
-                    auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
-                        *program, source, filename);
-                    vm_governance.saveDriftBaseline(filename, drift_metrics);
-                }
 
-                // Preflight scanner: run before execution so advisories are visible
-                // even if governance blocks execution later (exit 3)
-                if (gov_loaded && vm_governance.isActive()) {
-                    naab::scanner::ScannerEngine preflight_scanner;
-                    preflight_scanner.loadConfigFromPath(vm_governance.getLoadedPath(), true);
-                    if (preflight_scanner.hasConfig()) {
-                        // Collect all files to scan: main file + imported modules
-                        std::vector<std::string> scan_files = {filename};
-                        std::filesystem::path main_dir = std::filesystem::path(filename).parent_path();
-                        for (const auto& imp : program->getModuleImports()) {
-                            const std::string& mp = imp->getModulePath();
-                            // Skip stdlib imports (bare names without .naab extension)
-                            if (mp.find('/') == std::string::npos &&
-                                mp.find('\\') == std::string::npos &&
-                                (mp.size() < 5 || mp.substr(mp.size() - 5) != ".naab")) {
-                                continue;
+                    // Preflight scanner: run before execution so advisories are visible
+                    // even if governance blocks execution later (exit 3)
+                    if (gov_loaded && vm_governance.isActive()) {
+                        naab::scanner::ScannerEngine preflight_scanner;
+                        preflight_scanner.loadConfigFromPath(vm_governance.getLoadedPath(), true);
+                        if (preflight_scanner.hasConfig()) {
+                            // Collect all files to scan: main file + imported modules
+                            std::vector<std::string> scan_files = {filename};
+                            std::filesystem::path main_dir = std::filesystem::path(filename).parent_path();
+                            for (const auto& imp : program->getModuleImports()) {
+                                const std::string& mp = imp->getModulePath();
+                                // Skip stdlib imports (bare names without .naab extension)
+                                if (mp.find('/') == std::string::npos &&
+                                    mp.find('\\') == std::string::npos &&
+                                    (mp.size() < 5 || mp.substr(mp.size() - 5) != ".naab")) {
+                                    continue;
+                                }
+                                auto resolved = main_dir / mp;
+                                if (std::filesystem::exists(resolved)) {
+                                    scan_files.push_back(resolved.string());
+                                }
                             }
-                            auto resolved = main_dir / mp;
-                            if (std::filesystem::exists(resolved)) {
-                                scan_files.push_back(resolved.string());
-                            }
-                        }
 
-                        int total_adv_count = 0;
-                        std::vector<std::string> adv_lines;
-                        for (const auto& scan_file : scan_files) {
-                            auto scan_result = preflight_scanner.scan(scan_file, "auto");
-                            for (const auto& issue : scan_result.issues) {
-                                if (issue.level == "advisory") {
-                                    total_adv_count++;
-                                    if (adv_lines.size() < 10) {
-                                        std::string line_str = fmt::format("  - Line {}: {}.{} — {}",
-                                            issue.line, issue.category, issue.rule, issue.message);
-                                        if (scan_file != filename) {
-                                            // Show relative path for imported files
-                                            line_str = fmt::format("  - {} Line {}: {}.{} — {}",
-                                                std::filesystem::path(scan_file).filename().string(),
+                            int total_adv_count = 0;
+                            std::vector<std::string> adv_lines;
+                            for (const auto& scan_file : scan_files) {
+                                auto scan_result = preflight_scanner.scan(scan_file, "auto");
+                                for (const auto& issue : scan_result.issues) {
+                                    if (issue.level == "advisory") {
+                                        total_adv_count++;
+                                        if (adv_lines.size() < 10) {
+                                            std::string line_str = fmt::format("  - Line {}: {}.{} — {}",
                                                 issue.line, issue.category, issue.rule, issue.message);
+                                            if (scan_file != filename) {
+                                                // Show relative path for imported files
+                                                line_str = fmt::format("  - {} Line {}: {}.{} — {}",
+                                                    std::filesystem::path(scan_file).filename().string(),
+                                                    issue.line, issue.category, issue.rule, issue.message);
+                                            }
+                                            if (!issue.fix.empty()) {
+                                                line_str += fmt::format("\n    Fix: {}", issue.fix);
+                                            }
+                                            adv_lines.push_back(line_str);
                                         }
-                                        if (!issue.fix.empty()) {
-                                            line_str += fmt::format("\n    Fix: {}", issue.fix);
-                                        }
-                                        adv_lines.push_back(line_str);
                                     }
                                 }
                             }
-                        }
-                        if (total_adv_count > 0) {
-                            fprintf(stderr, "\n[scanner] Pre-flight notes (%d advisory):\n", total_adv_count);
-                            for (const auto& line : adv_lines) {
-                                fprintf(stderr, "%s\n", line.c_str());
+                            if (total_adv_count > 0) {
+                                fprintf(stderr, "\n[scanner] Pre-flight notes (%d advisory):\n", total_adv_count);
+                                for (const auto& line : adv_lines) {
+                                    fprintf(stderr, "%s\n", line.c_str());
+                                }
+                                if (total_adv_count > 10) {
+                                    fprintf(stderr, "  ... and %d more\n", total_adv_count - 10);
+                                }
+                                fprintf(stderr, "\n");
                             }
-                            if (total_adv_count > 10) {
-                                fprintf(stderr, "  ... and %d more\n", total_adv_count - 10);
-                            }
-                            fprintf(stderr, "\n");
                         }
                     }
-                }
 
-                // Store source for governance voice synthesis
-                if (gov_loaded && vm_governance.isActive()) {
-                    vm_governance.setSource(source);
-                }
+                    // Store source for governance voice synthesis
+                    if (gov_loaded && vm_governance.isActive()) {
+                        vm_governance.setSource(source);
+                    }
 
-                // Agent review: LLM-based governance phase (if enabled in govern.json)
-                if (gov_loaded && vm_governance.isActive()) {
-                    vm_governance.runAgentReview(source);
-                    // Intent-specific agent findings block execution immediately
-                    if (vm_governance.hasIntentBlock()) {
-                        vm_governance.writeReports();
+                    // Agent review: LLM-based governance phase (if enabled in govern.json)
+                    if (gov_loaded && vm_governance.isActive()) {
+                        vm_governance.runAgentReview(source);
+                        // Intent-specific agent findings block execution immediately
+                        if (vm_governance.hasIntentBlock()) {
+                            vm_governance.writeReports();
+                            fflush(stdout); fflush(stderr);
+                            naab::exitProcess(2);  // quality gate failure
+                        }
+                    }
+
+                    // Drift detection / agent review hard block — skip execution
+                    if (naab::governance::g_governance_hard_block) {
+                        if (vm_governance.isActive()) {
+                            vm_governance.runGovernanceVoice();
+                            vm_governance.writeReports();
+                        }
                         fflush(stdout); fflush(stderr);
-                        naab::exitProcess(2);  // quality gate failure
+                        naab::exitProcess(3);
                     }
-                }
 
-                // Drift detection / agent review hard block — skip execution
-                if (naab::governance::g_governance_hard_block) {
-                    if (vm_governance.isActive()) {
-                        vm_governance.runGovernanceVoice();
-                        vm_governance.writeReports();
-                    }
-                    fflush(stdout); fflush(stderr);
-                    naab::exitProcess(3);
-                }
-
-                // Bytecode VM path — compiler gets governance for pre-flight taint analysis
-                naab::vm::Compiler bc_compiler;
-                if (gov_loaded) bc_compiler.setGovernance(&vm_governance);
-                bc_compiler.setSourceText(source);  // the checks read what was parsed (A45)
-                // The per-function checks run HERE, while compiling, and a
-                // block from one used to leave with no report written: the
-                // write-reports-then-rethrow below wraps only execute(), and
-                // the tree-walker's (which runs these checks while executing)
-                // covers them. Same shape. tests/cli/test_report_formats.sh
-                naab::vm::CompiledFunction* main_fn = nullptr;
-                try {
+                    // Bytecode VM path — compiler gets governance for pre-flight taint analysis
+                    if (gov_loaded) bc_compiler.setGovernance(&vm_governance);
+                    bc_compiler.setSourceText(source);  // the checks read what was parsed (A45)
                     main_fn = bc_compiler.compile(*program, filename);
                 } catch (...) {
                     if (vm_governance.isActive()) {

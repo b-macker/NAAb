@@ -19,6 +19,8 @@ tests/cli/test_naab_gov.sh	tool	tests the naab-gov CLI (the real binary is kept)
 tests/security/test_gov_output_shape.sh	tool	tests naab-gov's JSON output shape
 tests/security/test_code_injection_imports.sh	tool	tests naab-gov's import-injection verdicts
 tests/security/test_audit_hmac_required.sh	tool	tests naab-verify-audit, the audit-log verifier
+tests/lsp/test_lsp_basic.sh	tool	tests naab-lsp (initialize, completion, hover, definition, symbols); never runs naab-lang
+tests/lsp/test_lsp_new_methods.sh	tool	tests naab-lsp (codeAction, workspaceSymbol, rename); never runs naab-lang
 .github/scripts/merge_sarif.py --selftest	tool	self-test of the CI SARIF merger (Python)
 tests/governance_v4/test_gatelib.sh	tool	self-test of the shared gate library tests/helpers/gatelib.sh
 tests/governance_v4/test_stub_routing.sh	tool	tests the agent stub server's request routing (Python)
