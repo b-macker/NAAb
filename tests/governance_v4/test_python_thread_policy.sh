@@ -71,15 +71,19 @@ run() { ( cd "$W" && timeout 60 "$NAAB" ${2:-} "$1" 2>&1 ); }
 echo -e "${CYAN}=== Group TP: governance reaches Python-spawned threads ===${NC}"
 
 # A block whose thread reads $1 and reports R=DENIED on refusal, R=<content> otherwise.
+# $1 is a RELATIVE path written as a python literal ("vault/s.txt"), read from
+# the program's own directory, so no shell path crosses into python; it is bound
+# to a name first so test_shell_path_handoff.sh's open($...) rule stays exact.
 thread_read() {  # $1 = path expression (python)
     cat <<EOF
 main {
   let r = <<python
 import threading
 box = {}
+target = $1
 def go():
     try:
-        box["v"] = open($1).read().strip()
+        box["v"] = open(target).read().strip()
     except PermissionError:
         box["v"] = "DENIED"
     except Exception as e:
@@ -92,13 +96,14 @@ box.get("v", "?")
 EOF
 }
 
-# main-thread read of $1 (control that the gate is live for the path).
+# main-thread read of $1 (control that the gate is live for the path); $1 as above.
 main_read() {  # $1 = path expression
     cat <<EOF
 main {
   let r = <<python
+target = $1
 try:
-    r = open($1).read().strip()
+    r = open(target).read().strip()
 except PermissionError:
     r = "DENIED"
 r
