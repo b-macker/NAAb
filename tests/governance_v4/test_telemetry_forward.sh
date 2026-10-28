@@ -218,6 +218,17 @@ fi
 #   FW-04   a webhook that never answers: the exit waits forward_shutdown_drain_ms
 #           (1 s), not forward_timeout_ms (20 s), and says how many were lost
 #   FW-04c  CONTROL: the stalled sink really received nothing
+# Kill table (each mutant rebuilt, this suite re-run; observed 2026-10-28):
+#   drainAll() a no-op (the pre-fix exit)       -> FW-01, FW-04 red (FW-02 can
+#                                                  pass: a block run's worker may
+#                                                  send everything before _exit)
+#   RunStart not forwarded                      -> FW-01, FW-02, FW-03 red
+#   RunEnd not forwarded                        -> FW-01, FW-02, FW-03 red
+#   GovernanceCheckSummary not forwarded        -> FW-03 red
+#   end-of-run health warning not forwarded     -> FW-03 red
+# Red first: on master 6055ac3c FW-01/02/03/04 fail, FW-00 and FW-04c pass. The
+# per-POST deadline cap and the in-flight abort have no arm: they matter only
+# when the worker is idle with events buffered at the exit (traced).
 echo ""
 echo "--- F53: forwarded events reach the webhook on every exit path ---"
 SINK_HELPER="$PROJECT_DIR/tests/helpers/webhook_sink.py"

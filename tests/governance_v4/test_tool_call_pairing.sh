@@ -190,7 +190,7 @@ fi
 #           -- the scenario does deliver it, so TS-01's absence is the scan's
 KEYEXPR='"AK" + "IA" + "TEST" + "TEST" + "TEST" + "TEST"'
 KEYVAL="AK""IA""TESTTESTTESTTEST"
-sent_key() { cat "$WDIR"/req_*.json 2>/dev/null | grep -q "$KEYVAL"; }
+sent_key() { grep -q "$KEYVAL" "$WDIR"/req_*.json 2>/dev/null; }
 run_case ts01 '[{"tool_calls": [{"name": "get_data", "args": {"query": "q"}}]},
                 {"content": "FINAL-ts01"}]' '
     "code_quality": { "no_secrets": { "enabled": true, "level": "hard" } },' "$KEYEXPR"
