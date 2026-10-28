@@ -4321,6 +4321,7 @@ private:
     int agent_review_count_ = 0;  // confirmed findings from agent review phase
     bool agent_review_voiced_ = false;  // true when voice summary was printed (suppress per-rule list)
     bool governance_voiced_ = false;    // true when governance voice summary was printed
+    bool voice_ran_ = false;            // runGovernanceVoice() asked the voice (once per engine)
     std::string governance_voice_summary_;  // synthesized remediation guide
     std::string source_;                    // script source (for voice phase)
 

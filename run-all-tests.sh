@@ -3297,6 +3297,19 @@ else
     echo "  test_tool_call_pairing.sh: not found, skipping"
 fi
 
+# The governance voice prints its guide once, and a guide carrying a secret or PII is withheld (A40)
+VOICE_SCRIPT="tests/governance_v4/test_governance_voice.sh"
+if [ -f "$VOICE_SCRIPT" ]; then
+    if run_shell_test "$VOICE_SCRIPT" 2>&1; then
+        echo "  test_governance_voice.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_governance_voice.sh")
+    fi
+else
+    echo "  test_governance_voice.sh: not found, skipping"
+fi
+
 # naab-44 governance gap fixes (windowing, velocity, graduated corrections)
 NAAB44_SCRIPT="tests/governance_v4/test_naab44_fixes.sh"
 if [ -f "$NAAB44_SCRIPT" ]; then

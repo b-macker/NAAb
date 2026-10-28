@@ -115,15 +115,19 @@ sample).
 | Agent prompt/response/tool-result secret and PII scans | `enforce()` -- ends the run or lets it through | The `[REDACTED: ...]` branches are dead (A44) |
 | Live guidance | `secretFinding()`/`piiFinding()` on section text, withheld on a hit | Bypass instructions in a source are delivered (measured earlier, guidance bypass task) |
 | MCP `output` and `findings` | secret/PII scan, withheld on a hit, on `naab_run` and `naab_propose` alike (`withholdFindings()`); `findings` keeps the first 20 and last 60 lines and counts the gap | End-of-run groups print last; they were cut first while it kept the top 60 (A43(c), fixed 2026-10-28) |
-| Governance voice, agent review | none either way; "do not include bypass instructions" is a prompt line | A40 |
+| Governance voice, agent review | voice reply: `secretFinding()`/`piiFinding()`, withheld on a hit, not printed or cached (A40, 2026-10-28); voice prompt and agent review: none either way; "do not include bypass instructions" is a prompt line | A40 |
 | Compiled-in strings | `tests/security/test_error_msg_leaks.sh` | Covers text in the binary, not text from sources or models |
 | Report files (SARIF, JSON, JUnit) | none | Keep EVERY occurrence (the only channel naming the second TODO site); SARIF holds the first line, JSON the help; no guidance; written for a static block on the VM too since A43(e) (2026-10-28) |
 | Package manager | none | One-line `Error:` on stderr, no help |
 
 ## 6. Model calls the engine makes on its own
 
-- **Governance voice** (`runGovernanceVoice`, `governance_engine.cpp:3727`):
-  sends every non-passing check and the whole script; prints the reply. A40.
+- **Governance voice** (`runGovernanceVoice`, `governance_engine.cpp`):
+  sends every non-passing check and the whole script; prints the reply once,
+  where it is made, after the secret/PII scan (a cache hit included). It runs
+  at the end of a run with violations and on a compile-time or runtime block;
+  a whole-source block never reaches it (the source is handed over after those
+  checks, so the prompt does not carry a value they blocked). A40.
 - **Agent review** (`runAgentReview`, `agent_review.cpp`): detection,
   validation and voice agents receive the full source; findings go through
   `enforce()`. A40.
