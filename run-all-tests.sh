@@ -1833,6 +1833,97 @@ else
     echo "  test_malformed_config.sh: not found, skipping"
 fi
 
+# --- embedded Python sockets answer to the network host lists (A35) ---
+PYHOSTS_SCRIPT="tests/governance_v4/test_python_host_lists.sh"
+if [ -f "$PYHOSTS_SCRIPT" ]; then
+    if run_shell_test "$PYHOSTS_SCRIPT" 2>&1; then
+        echo "  test_python_host_lists.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_python_host_lists.sh")
+    fi
+else
+    echo "  test_python_host_lists.sh: not found, skipping"
+fi
+
+# --- process.run answers to a role's shell gate (A54) ---
+PRROLE_SCRIPT="tests/governance_v4/test_process_run_role_gate.sh"
+if [ -f "$PRROLE_SCRIPT" ]; then
+    if run_shell_test "$PRROLE_SCRIPT" 2>&1; then
+        echo "  test_process_run_role_gate.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_process_run_role_gate.sh")
+    fi
+else
+    echo "  test_process_run_role_gate.sh: not found, skipping"
+fi
+
+# --- process listing / system info on both doors (A17 F8a) ---
+INFODISC_SCRIPT="tests/governance_v4/test_info_disclosure_commands.sh"
+if [ -f "$INFODISC_SCRIPT" ]; then
+    if run_shell_test "$INFODISC_SCRIPT" 2>&1; then
+        echo "  test_info_disclosure_commands.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_info_disclosure_commands.sh")
+    fi
+else
+    echo "  test_info_disclosure_commands.sh: not found, skipping"
+fi
+
+# --- crypto encoders answer to data_exfiltration (F19) ---
+NATENC_SCRIPT="tests/governance_v4/test_native_encoding_exfil.sh"
+if [ -f "$NATENC_SCRIPT" ]; then
+    if run_shell_test "$NATENC_SCRIPT" 2>&1; then
+        echo "  test_native_encoding_exfil.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_native_encoding_exfil.sh")
+    fi
+else
+    echo "  test_native_encoding_exfil.sh: not found, skipping"
+fi
+
+# --- a risk budget overshooting zero is exhausted (A68) ---
+RISKBUDGET_SCRIPT="tests/governance_v4/test_risk_budget_overshoot.sh"
+if [ -f "$RISKBUDGET_SCRIPT" ]; then
+    if run_shell_test "$RISKBUDGET_SCRIPT" 2>&1; then
+        echo "  test_risk_budget_overshoot.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_risk_budget_overshoot.sh")
+    fi
+else
+    echo "  test_risk_budget_overshoot.sh: not found, skipping"
+fi
+
+# --- the variable.assign taint sink on the VM (A65) ---
+TAINTASSIGN_SCRIPT="tests/governance_v4/test_taint_assign_sink.sh"
+if [ -f "$TAINTASSIGN_SCRIPT" ]; then
+    if run_shell_test "$TAINTASSIGN_SCRIPT" 2>&1; then
+        echo "  test_taint_assign_sink.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_taint_assign_sink.sh")
+    fi
+else
+    echo "  test_taint_assign_sink.sh: not found, skipping"
+fi
+
+# --- naab.toml security keys that nothing applies are reported (A28) ---
+MANIFEST_SCRIPT="tests/cli/test_manifest_unapplied.sh"
+if [ -f "$MANIFEST_SCRIPT" ]; then
+    if run_shell_test "$MANIFEST_SCRIPT" 2>&1; then
+        echo "  test_manifest_unapplied.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_manifest_unapplied.sh")
+    fi
+else
+    echo "  test_manifest_unapplied.sh: not found, skipping"
+fi
+
 # --- naab-gov check: one output shape for both verdicts ---
 # The JSON builder in cmdCheck was reachable only on a PASS; a HARD block threw
 # past it to main()'s plain-text handler. Exit codes were always right, so this

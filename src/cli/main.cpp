@@ -1584,7 +1584,11 @@ int main(int argc, char** argv) {
         // Load manifest if available
         auto manifest = naab::manifest::ManifestLoader::findAndLoad(".");
         if (manifest.has_value()) {
-            // Manifest loaded - configuration will be applied by interpreter
+            // The manifest is package metadata; nothing in it reaches the
+            // interpreter, VM or governance (A28). Say so for each value that
+            // reads as a security setting.
+            for (const auto& w : naab::manifest::unappliedSecurityKeys(*manifest))
+                fprintf(stderr, "[manifest] Warning: %s\n", w.c_str());
             if (verbose) {
                 fmt::print("[Manifest] Using project: {} v{}\n",
                            manifest->package.name, manifest->package.version);
@@ -4525,6 +4529,8 @@ int main(int argc, char** argv) {
         if (subcommand == "check") {
             auto manifest = naab::manifest::ManifestLoader::load("naab.toml");
             if (manifest.has_value()) {
+                for (const auto& w : naab::manifest::unappliedSecurityKeys(*manifest))
+                    fmt::print("  Warning: {}\n", w);
                 fmt::print("✓ naab.toml is valid\n");
                 fmt::print("  Package: {} v{}\n", manifest->package.name, manifest->package.version);
                 if (!manifest->package.description.empty()) {

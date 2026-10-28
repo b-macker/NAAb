@@ -82,6 +82,12 @@ private:
 // Create default naab.toml file
 bool createDefaultManifest(const std::string& file_path);
 
+// A28: the naab.toml values that ask for a security effect NAAb does not
+// apply -- a [polyglot] language set false, [features] sandbox_mode = false.
+// One message per value, naming the govern.json key that does apply it. The
+// manifest is not a second policy source; this only stops it reading as one.
+std::vector<std::string> unappliedSecurityKeys(const Manifest& manifest);
+
 } // namespace manifest
 } // namespace naab
 

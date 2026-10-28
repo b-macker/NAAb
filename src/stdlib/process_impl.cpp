@@ -130,9 +130,23 @@ interpreter::NaabVal ProcessModule::call(
         // substring match the polyglot path uses -- one config key must not
         // have two matchers.
         if (auto* gov = governance::GovernanceEngine::getCurrent()) {
+            // A54: the shell gate a <<shell>> block answers to -- the role's
+            // shell_allowed, its action matrix (SHELL_EXEC) and the
+            // function-scope SHELL_EXEC tier. The sandbox above carries only the
+            // project's SYS_EXEC, so a role with shell_allowed: false ran any
+            // command through process.run while its <<shell>> block was refused
+            // (measured). HARD blocks throw from enforce().
+            if (gov->isActive()) {
+                std::string serr = gov->checkShellAllowed();
+                if (!serr.empty()) throw std::runtime_error(serr);
+            }
             std::string full_cmd = cmd;
             for (const auto& a : argv_vec) full_cmd += " " + a;
             std::string gerr = gov->checkShellCommandAllowed(full_cmd);
+            if (!gerr.empty()) throw std::runtime_error(gerr);
+            // A17 F8a: the process-listing / system-info commands the
+            // restriction refuses in a <<shell>> block, by the same patterns.
+            gerr = gov->checkInfoDisclosureCommand(full_cmd);
             if (!gerr.empty()) throw std::runtime_error(gerr);
 
             // Inline interpreter code (python3 -c, node -e, sh -c, ...) is a

@@ -176,6 +176,12 @@ void python_c_set_audit_policy(NaabPyAuditPolicyFn fn) {
     audit_policy = fn;
 }
 
+static NaabPyNetPolicyFn net_policy = NULL;
+
+void python_c_set_net_policy(NaabPyNetPolicyFn fn) {
+    net_policy = fn;
+}
+
 // Cached module-search roots, resolved lazily on the first audit event that
 // arrives after the interpreter is usable.
 //
@@ -256,6 +262,74 @@ static const char* audit_str(PyObject* args, Py_ssize_t idx) {
     return NULL;
 }
 
+// A35: the host of one address element, as the policy reads it. CPython's
+// idna converter takes str, bytes and bytearray for a host, so all three are
+// read; bytes are passed as they are. Returns NAAB_NET_HOST with `buf` filled,
+// NAAB_NET_BAD_HOST for host text the hook cannot hand on (longer than `n`,
+// or an embedded NUL), NAAB_NET_NONE for None, NAAB_NET_NOT_INET otherwise.
+static int audit_host(PyObject* o, char* buf, size_t n) {
+    const char* p = NULL;
+    Py_ssize_t len = 0;
+    if (!o || o == Py_None) return NAAB_NET_NONE;
+    if (PyUnicode_Check(o)) {
+        p = PyUnicode_AsUTF8AndSize(o, &len);
+        if (!p) { PyErr_Clear(); return NAAB_NET_BAD_HOST; }
+    } else if (PyBytes_Check(o)) {
+        p = PyBytes_AS_STRING(o); len = PyBytes_GET_SIZE(o);
+    } else if (PyByteArray_Check(o)) {
+        p = PyByteArray_AS_STRING(o); len = PyByteArray_GET_SIZE(o);
+    } else {
+        return NAAB_NET_NOT_INET;
+    }
+    if (len < 0 || (size_t)len >= n || memchr(p, 0, (size_t)len)) return NAAB_NET_BAD_HOST;
+    memcpy(buf, p, (size_t)len);
+    buf[len] = 0;
+    return NAAB_NET_HOST;
+}
+
+// A35: hand one socket event to the network policy. `addr` is the address
+// object -- a (host, port, ...) tuple, an AF_UNIX path, None -- or, for the
+// forward lookups, the host itself (`host_is_addr`). The policy decides on
+// the host lists; this side only decodes. A lookup releases the GIL around the
+// call, because the policy may resolve the name itself.
+static int naab_net_event(const char* event, int kind, PyObject* addr,
+                          PyObject* port_obj, int host_is_addr) {
+    char host[1024];
+    int address;
+    int port = -1;
+    host[0] = 0;
+    if (host_is_addr) {
+        address = audit_host(addr, host, sizeof host);
+    } else if (!addr || addr == Py_None) {
+        address = NAAB_NET_NONE;
+    } else if (PyTuple_Check(addr) && PyTuple_Size(addr) >= 1) {
+        address = audit_host(PyTuple_GetItem(addr, 0), host, sizeof host);
+        if (address == NAAB_NET_NONE) address = NAAB_NET_NOT_INET;
+        if (PyTuple_Size(addr) >= 2) port_obj = PyTuple_GetItem(addr, 1);
+    } else {
+        address = NAAB_NET_NOT_INET;   // AF_UNIX path, or an address the lists cannot read
+    }
+    if (port_obj && PyLong_Check(port_obj)) {
+        long v = PyLong_AsLong(port_obj);
+        if (v == -1 && PyErr_Occurred()) PyErr_Clear();
+        else if (v >= 0 && v <= 65535) port = (int)v;
+    }
+
+    int ok;
+    if (kind == NAAB_NET_LOOKUP) {
+        Py_BEGIN_ALLOW_THREADS
+        ok = net_policy(event, kind, address, address == NAAB_NET_HOST ? host : NULL, port);
+        Py_END_ALLOW_THREADS
+    } else {
+        ok = net_policy(event, kind, address, address == NAAB_NET_HOST ? host : NULL, port);
+    }
+    if (ok) return 0;
+    PyErr_Format(PyExc_PermissionError, "Governance: %s denied by network policy%s%s",
+                 event, address == NAAB_NET_HOST ? ": " : "",
+                 address == NAAB_NET_HOST ? host : "");
+    return -1;
+}
+
 static int naab_audit_hook(const char* event, PyObject* args, void* userData) {
     (void)userData;
     if (!audit_policy || !event) return 0;
@@ -311,8 +385,37 @@ static int naab_audit_hook(const char* event, PyObject* args, void* userData) {
                strcmp(event, "os.posix_spawn") == 0) {
         target = audit_str(args, 0);
         relevant = 1;
-    } else if (strcmp(event, "socket.connect") == 0) {
-        relevant = 1;   // address is a tuple; policy decides on capability
+    } else if (strncmp(event, "socket.", 7) == 0) {
+        // A35: the network capability AND the host lists, which this hook used
+        // to skip -- it judged socket.connect on NET_CONNECT alone, and never
+        // saw sendto/sendmsg (a UDP datagram left with network disabled,
+        // observed) or a lookup. Each event's arguments, per CPython's audit
+        // table: getaddrinfo (host, port, family, type, proto);
+        // gethostbyname[_ex] (hostname,); gethostbyaddr (ip_address,);
+        // getnameinfo (sockaddr, flags); connect, sendto, sendmsg (self, address).
+        if (!net_policy) {
+            // No network policy registered: the capability check alone, as
+            // before A35.
+            relevant = strcmp(event, "socket.connect") == 0;
+            if (!relevant) return 0;
+            if (audit_policy(event, NULL, 0)) return 0;
+            PyErr_Format(PyExc_PermissionError, "Governance: %s denied by sandbox policy", event);
+            return -1;
+        }
+        const char* e = event + 7;
+        PyObject* a0 = (args && PyTuple_Check(args) && PyTuple_Size(args) > 0) ? PyTuple_GetItem(args, 0) : NULL;
+        PyObject* a1 = (args && PyTuple_Check(args) && PyTuple_Size(args) > 1) ? PyTuple_GetItem(args, 1) : NULL;
+        if (strcmp(e, "getaddrinfo") == 0)
+            return naab_net_event(event, NAAB_NET_LOOKUP, a0, a1, 1);
+        if (strcmp(e, "gethostbyname") == 0 || strcmp(e, "gethostbyname_ex") == 0)
+            return naab_net_event(event, NAAB_NET_LOOKUP, a0, NULL, 1);
+        if (strcmp(e, "gethostbyaddr") == 0)
+            return naab_net_event(event, NAAB_NET_REVERSE, a0, NULL, 1);
+        if (strcmp(e, "getnameinfo") == 0)
+            return naab_net_event(event, NAAB_NET_REVERSE, a0, NULL, 0);
+        if (strcmp(e, "connect") == 0 || strcmp(e, "sendto") == 0 || strcmp(e, "sendmsg") == 0)
+            return naab_net_event(event, NAAB_NET_SEND, a1, NULL, 0);
+        return 0;
     } else if (strcmp(event, "os.rename") == 0) {
         // (src, dst, ...): os.rename and os.replace both audit here, and
         // same-filesystem shutil.move routes through os.rename too. The

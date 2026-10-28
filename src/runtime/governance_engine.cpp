@@ -1347,6 +1347,7 @@ std::string GovernanceEngine::enforce(
     if (rules().scoring_calibration.enabled) {
         loadScoringCalibration();
     }
+    uint64_t my_record = 0;   // this call's CheckResult, found again by the escalation branch
     {
         // V-CONC-007: mutex-guard concurrent access from async threads
         std::lock_guard<std::mutex> lock(results_mutex_);
@@ -1354,6 +1355,7 @@ std::string GovernanceEngine::enforce(
                                   checkLine(), checkFile(), cwes, owasps,
                                   preflight_mode_, rationale, std::move(t_current_decision_trace),
                                   explanation});
+        check_results_.back().record_id = my_record = ++check_record_seq_;
         t_current_decision_trace.clear();
         // V-GOV-024: cap telemetry — F8: skip preflight entries during eviction
         capCheckResultsLocked();
@@ -1607,7 +1609,15 @@ std::string GovernanceEngine::enforce(
             const auto& esc = rules().advisory_escalation;
             if (esc.enabled && occurrence >= esc.soft_after) {
                 g_governance_hard_block = true;
-                check_results_.back().escalated = true;
+                // A65: this call's own record. results_mutex_ was released after
+                // the push above, so back() can be another thread's result by
+                // now, and marking it escalated misattributed the block (traced).
+                // Searched from the back; an evicted record is simply not marked.
+                CheckResult* mine = nullptr;
+                for (auto it = check_results_.rbegin(); it != check_results_.rend(); ++it) {
+                    if (it->record_id == my_record) { mine = &*it; break; }
+                }
+                if (mine) mine->escalated = true;
                 // violation_message was formatted at ADVISORY and so ends
                 // "execution will continue" -- the opposite of what the throw
                 // below does. Say so plainly, as the level-promotion path above
@@ -1635,7 +1645,7 @@ std::string GovernanceEngine::enforce(
                     "  It is now enforced as a block. Execution stops here.\n";
                 if (!counted.empty()) {
                     escalation_msg += "  Occurrences counted: " + counted + "\n";
-                    check_results_.back().decision_trace.push_back(
+                    if (mine) mine->decision_trace.push_back(
                         "escalation: occurrences counted: " + counted);
                 }
                 int occ_copy = occurrence;
@@ -2232,6 +2242,39 @@ std::string GovernanceEngine::checkWeakHashAllowed(const std::string& algorithm)
     }
     recordPass("restrictions.crypto", cfg.level);
     return "";
+}
+
+// F19: restrictions.data_exfiltration's encoding flags were enforced ONLY by
+// regex over polyglot source: block_base64_encode_secrets refuses any
+// base64.b64encode( / b64decode( in a block, block_hex_encode_secrets any
+// binascii.hexlify( / unhexlify(. crypto.base64_encode() and its siblings do the
+// same encoding and never pass through that scan. Measured: the polyglot
+// spelling refused at exit 3 while crypto.base64_encode("password123") printed
+// its encoding at exit 0, same config.
+//
+// Applied exactly where the source rule's BUILT-IN patterns apply: operator
+// patterns replace those defaults for source (checkDataExfiltration), and they
+// are regexes over source a native call has none of, so they gate nothing
+// here. cfg.level, as F18: the source door and the native door agree.
+std::string GovernanceEngine::checkNativeEncodingAllowed(const std::string& function) {
+    clearTrace();
+    if (!isActive()) return "";
+    const auto& cfg = rules().restrictions.data_exfiltration;
+    if (!cfg.enabled || !cfg.patterns.empty()) return "";
+    const bool base64 = function == "base64_encode" || function == "base64_decode";
+    const bool hex = function == "hex_encode" || function == "hex_decode";
+    if ((base64 && !cfg.block_base64_encode_secrets) || (hex && !cfg.block_hex_encode_secrets) ||
+        (!base64 && !hex)) {
+        return "";
+    }
+    return enforce("restrictions.data_exfiltration", cfg.level,
+        formatError(cfg.level,
+            fmt::format("Data exfiltration: crypto.{}() is not allowed", function),
+            "", "restrictions.data_exfiltration",
+            "Encoding data is how secrets are staged for export, so this project refuses it.\n"
+            "Process data locally; do not encode, transmit, or stage secrets for export.",
+            fmt::format("crypto.{}(secret)", function),
+            "// Use the value in place, without encoding it"));
 }
 
 // F8: restrictions.information_disclosure.block_env_dump was enforced ONLY by
@@ -3755,9 +3798,13 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
     auto zone_it = config.enforcement.find(result.zone);
     if (zone_it != config.enforcement.end()) level_str = zone_it->second;
 
+    // A29(b): a zone level is advisory only when it says so (or is unset). The
+    // review runs before the program, where nothing can catch a block, so
+    // detect and approval_required block as hard; the loader turns an unknown
+    // string into "hard" with a warning. The banner prints what is enforced.
     EnforcementLevel level = EnforcementLevel::ADVISORY;
-    if (level_str == "hard") level = EnforcementLevel::HARD;
-    else if (level_str == "soft") level = EnforcementLevel::SOFT;
+    if (level_str == "soft") level = EnforcementLevel::SOFT;
+    else if (level_str != "advisory") { level = EnforcementLevel::HARD; level_str = "hard"; }
 
     // Feed deduplicated findings through enforce() (for violation counting + quality gate)
     for (const auto& f : result.findings) {
@@ -4250,7 +4297,7 @@ void GovernanceEngine::printDashboard() const {
                     for (const auto& a : rules().agents) {
                         if (a.name == name) { ac = &a; break; }
                     }
-                    int remaining = (ac && ac->risk_budget > 0) ? ac->risk_budget - consumed : -1;
+                    int remaining = (ac && ac->risk_budget > 0) ? std::max(0, ac->risk_budget - consumed) : -1;
                     if (remaining >= 0) {
                         fprintf(stderr, "Budget:     %s: %d remaining (consumed %d)\n",
                                 name.c_str(), remaining, consumed);
@@ -8172,7 +8219,7 @@ int GovernanceEngine::consumeRiskBudget(const std::string& config, int cost) {
 
     std::lock_guard<std::mutex> lock(risk_budget_mutex_);
     agent_risk_consumed_[config] += cost;
-    return ac->risk_budget - agent_risk_consumed_[config];
+    return std::max(0, ac->risk_budget - agent_risk_consumed_[config]);   // A68: never the -1 sentinel
 }
 
 int GovernanceEngine::getRemainingBudget(const std::string& config) const {
@@ -8185,7 +8232,11 @@ int GovernanceEngine::getRemainingBudget(const std::string& config) const {
     std::lock_guard<std::mutex> lock(risk_budget_mutex_);
     auto it = agent_risk_consumed_.find(config);
     int consumed = (it != agent_risk_consumed_.end()) ? it->second : 0;
-    return ac->risk_budget - consumed;
+    // A68: floored at 0. Two charges can land between admission checks (a BSD
+    // match and a coherence loss on one turn), and -1 is the "no budget"
+    // sentinel: an overshoot to -1 read as unlimited at the next admission and
+    // in agent.environment(), and the agent ran on (observed).
+    return std::max(0, ac->risk_budget - consumed);
 }
 
 // F7: pipeline separation of duties.

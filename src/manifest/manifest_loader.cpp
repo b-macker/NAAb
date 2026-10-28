@@ -187,6 +187,27 @@ std::string Manifest::getError() const {
     return "Unknown validation error";
 }
 
+std::vector<std::string> unappliedSecurityKeys(const Manifest& manifest) {
+    std::vector<std::string> out;
+    const std::pair<const char*, bool> langs[] = {
+        {"python", manifest.polyglot.python_enabled}, {"javascript", manifest.polyglot.javascript_enabled},
+        {"rust", manifest.polyglot.rust_enabled},     {"cpp", manifest.polyglot.cpp_enabled},
+        {"csharp", manifest.polyglot.csharp_enabled}, {"shell", manifest.polyglot.shell_enabled},
+        {"ruby", manifest.polyglot.ruby_enabled},     {"go", manifest.polyglot.go_enabled},
+    };
+    for (const auto& [name, enabled] : langs) {
+        if (enabled) continue;
+        out.push_back(std::string("naab.toml [polyglot] ") + name + " = false is not applied: "
+                      "the language still runs. To refuse it, list \"" + name +
+                      "\" in languages.blocked in govern.json.");
+    }
+    if (!manifest.features.sandbox_mode) {
+        out.push_back("naab.toml [features] sandbox_mode = false is not applied: the sandbox "
+                      "level comes from security.sandbox_level in govern.json.");
+    }
+    return out;
+}
+
 bool createDefaultManifest(const std::string& file_path) {
     std::ofstream file(file_path);
     if (!file.is_open()) {
@@ -211,7 +232,8 @@ target = "debug"  # or "release"
 optimize = false
 
 [polyglot]
-# Which language runtimes to enable
+# Informational: NAAb does not read these at run time (a value set false is
+# reported). To refuse a language, list it in languages.blocked in govern.json.
 python = true
 javascript = true
 rust = true

@@ -72,6 +72,30 @@ typedef int (*NaabPyAuditPolicyFn)(const char* event, const char* target, int is
 void python_c_set_audit_policy(NaabPyAuditPolicyFn fn);
 
 /**
+ * Network policy for the socket audit events (A35): a lookup
+ * (socket.getaddrinfo, gethostbyname, gethostbyname_ex), a reverse lookup
+ * (gethostbyaddr, getnameinfo), or a send to an address (socket.connect --
+ * connect_ex audits as connect -- sendto, sendmsg).
+ *
+ * `address` says what the event carried: NAAB_NET_HOST with `host` the host
+ * text exactly as the program wrote it (str, bytes or bytearray, decoded as
+ * bytes); NAAB_NET_BAD_HOST for host text the hook could not take (too long,
+ * an embedded NUL); NAAB_NET_NOT_INET for an address with no host text (an
+ * AF_UNIX path, an AF_NETLINK pair); NAAB_NET_NONE for no address at all
+ * (sendmsg on a connected socket, getaddrinfo(None, ...)). `port` is -1 when
+ * the address carries no integer port. Returns 1 to allow, 0 to deny.
+ *
+ * A lookup is called with the GIL RELEASED: when the policy admits a name it
+ * resolves it itself (python_c_executor.cpp), and a DNS wait must not stall
+ * every other Python thread.
+ */
+enum { NAAB_NET_LOOKUP = 0, NAAB_NET_REVERSE = 1, NAAB_NET_SEND = 2 };
+enum { NAAB_NET_NONE = -1, NAAB_NET_NOT_INET = 0, NAAB_NET_HOST = 1, NAAB_NET_BAD_HOST = 2 };
+typedef int (*NaabPyNetPolicyFn)(const char* event, int kind, int address,
+                                 const char* host, int port);
+void python_c_set_net_policy(NaabPyNetPolicyFn fn);
+
+/**
  * The version of the EMBEDDED interpreter (Py_GetVersion()), e.g.
  * "3.11.2 (main, ...) [GCC ...]". Valid before python_c_init().
  */

@@ -3758,7 +3758,22 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.agent_review.hints = ar.value("hints", false);
         // Default: "open" (warn-only). agent_review itself defaults to disabled.
         // Set to "closed" for fail-safe behavior when agent_review is enabled.
-        rules_.agent_review.fail_policy = ar.value("fail_policy", "open");
+        // A29(a): compared without case, and an unknown value is closed, with a
+        // warning. Only the exact string "closed" used to block, so "CLOSED"
+        // and every other value failed OPEN in silence (AR-12d); for a switch
+        // whose purpose is to fail closed, the unknown value takes that reading.
+        {
+            std::string fp = ar.value("fail_policy", "open");
+            for (auto& c : fp) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (fp != "open" && fp != "closed") {
+                fprintf(stderr,
+                        "[governance] Warning: unknown agent_review fail_policy \"%s\" - a review that "
+                        "fails blocks the run (closed). Valid values: open, closed.\n",
+                        ar.value("fail_policy", "").c_str());
+                fp = "closed";
+            }
+            rules_.agent_review.fail_policy = fp;
+        }
         rules_.agent_review.dispatch_mode = ar.value("dispatch_mode", "sequential");
         rules_.agent_review.fail_strategy = ar.value("fail_strategy", "fail_fast");
         if (ar.contains("max_parallel") && ar["max_parallel"].is_number_integer()) {
@@ -3772,7 +3787,19 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (ar.contains("enforcement") && ar["enforcement"].is_object()) {
             for (auto& [zone, level] : ar["enforcement"].items()) {
-                if (level.is_string()) rules_.agent_review.enforcement[zone] = normalizeLevelName(level.get<std::string>());
+                if (!level.is_string()) continue;
+                // A29(b): an unknown zone level is hard, with the warning every
+                // level-only key prints. Any value but "hard"/"soft" used to
+                // enforce ADVISORY under a banner printing the configured
+                // string (`green/block`, exit 0; AR-10d).
+                std::string s = level.get<std::string>();
+                EnforcementLevel lv;
+                if (!matchEnforcementLevel(s, lv)) {
+                    warnUnknownEnforcementLevel(s, kUnknownLevelAppliesHard);
+                    rules_.agent_review.enforcement[zone] = "hard";
+                } else {
+                    rules_.agent_review.enforcement[zone] = normalizeLevelName(s);
+                }
             }
         }
     }
