@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cctype>   // std::toupper (blocked_read is matched case-insensitively)
 #include <cstdlib>
+#include <optional>  // audit-hook fallback sandbox for Python-spawned threads
 #if defined(_WIN32)
 #  define NAAB_PY_ENVIRON _environ
 #elif defined(__APPLE__)
@@ -64,8 +65,35 @@ namespace runtime {
 // i.e. no active sandbox means no policy to enforce. This adds no new
 // restriction and no new config key; it only lets policy the operator already
 // declared reach the one path that evaded it.
-extern "C" int naabPythonAuditPolicy(const char* event, const char* target, int is_write) {
+namespace {
+// The hook is installed process-wide (PySys_AddAuditHook) and fires on every
+// thread that runs Python, but ScopedSandbox and GovernanceEngine are both
+// thread-local. A threading.Thread a <<python>> block spawns runs on a fresh
+// OS thread where neither was installed, so the policies saw sandbox==nullptr
+// / gov==nullptr and failed OPEN -- a spawned thread read blocked_paths files
+// and ran os.system under shell.enabled:false while the block's own thread
+// was correctly refused (measured, A85). Fall back to the RUN-level policy,
+// which outlives any one block and is the same objects the owning thread
+// holds: the sandbox config the run established (SandboxManager default --
+// exactly what vm.cpp builds every polyglot ScopedSandbox from, so the
+// fallback can only match, never over-restrict), and the process-wide engine.
+// When NO policy was established (an ungoverned run: SandboxManager
+// unconfigured, no engine ever current) both stay absent and behaviour is
+// unchanged. Both naabPythonAuditPolicy and naabPythonNetPolicy take their
+// sandbox from here, so the two cannot disagree about which thread is governed.
+security::Sandbox* auditSandbox(std::optional<security::Sandbox>& fallback) {
     auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (!sandbox && security::SandboxManager::instance().isConfigured()) {
+        fallback.emplace(security::SandboxManager::instance().getDefaultConfig());
+        sandbox = &*fallback;
+    }
+    return sandbox;
+}
+}  // namespace
+
+extern "C" int naabPythonAuditPolicy(const char* event, const char* target, int is_write) {
+    std::optional<security::Sandbox> fallback_sandbox;
+    auto* sandbox = auditSandbox(fallback_sandbox);
     const std::string ev = event ? event : "";
     const std::string tgt = target ? target : "";
 
@@ -85,6 +113,7 @@ extern "C" int naabPythonAuditPolicy(const char* event, const char* target, int 
         // Interpreter self-loads never get here (runtime-path carve-out in the
         // C hook), so allowed_paths does not break imports.
         auto* gov = governance::GovernanceEngine::getCurrent();
+        if (!gov) gov = governance::GovernanceEngine::getProcessCurrent();
         if (gov && gov->isActive() && !gov->pathPolicyDenial(tgt, is_write != 0).empty()) return 0;
         return 1;
     }
@@ -108,6 +137,7 @@ extern "C" int naabPythonAuditPolicy(const char* event, const char* target, int 
         if (tgt.empty()) return 1;            // no path to adjudicate
         if (sandbox && !sandbox->canWrite(tgt)) return 0;
         auto* gov = governance::GovernanceEngine::getCurrent();
+        if (!gov) gov = governance::GovernanceEngine::getProcessCurrent();
         if (gov && gov->isActive() && !gov->pathPolicyDenial(tgt, /*write=*/true).empty()) return 0;
         return 1;
     }
@@ -249,7 +279,10 @@ void admitResolvedAddresses(const std::string& name) {
 extern "C" int naabPythonNetPolicy(const char* event, int kind, int address,
                                    const char* host_c, int port) {
     (void)event;
-    auto* sandbox = security::ScopedSandbox::getCurrent();
+    // A thread the block spawned has no ScopedSandbox; it takes the run-level
+    // policy, as naabPythonAuditPolicy does (auditSandbox(), A85).
+    std::optional<security::Sandbox> fallback_sandbox;
+    auto* sandbox = auditSandbox(fallback_sandbox);
     if (!sandbox) return 1;   // no policy active -- as naabPythonAuditPolicy
     const auto& cfg = sandbox->getConfig();
     // The network switch is the one this hook always used, the NET_CONNECT

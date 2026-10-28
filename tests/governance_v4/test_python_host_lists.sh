@@ -52,12 +52,21 @@
 #   HL-13  allowed_hosts naming another host: gethostbyaddr("127.0.0.1") is refused
 #   HL-14  CONTROL: a run with no govern.json connects (no policy, no change)
 #
+# A thread the block spawns (threading.Thread) has no ScopedSandbox of its own;
+# the policy takes the run-level one there (auditSandbox(), A85):
+#   HL-15c CONTROL: no host lists -- a spawned thread's TCP connect lands
+#   HL-15  allowed_hosts naming another host: a spawned thread's connect is refused
+#   HL-16  network.enabled false: a spawned thread's UDP sendto is refused
+#   HL-17  CONTROL: an IP entry admits a spawned thread's connect (no over-block)
+#   HL-18  CONTROL: a run with no govern.json: a spawned thread connects
+#
 # Kill table (each mutant rebuilt, this suite run):
 #   the socket.* branch back to the capability check alone   HL-01/03/03b/03c/05/06/06b/07/08/09/09b/10/13
 #   the lookup admits nothing (admitResolvedAddresses gone)  HL-04, HL-05b
 #   ipLiteralForms() without the legacy IPv4 parse           HL-03b
 #   ipLiteralForms() without the IPv4-mapped form            HL-03c
 #   sendto/sendmsg not routed to the policy                  HL-08, HL-09, HL-10
+#   the net policy without the run-level fallback (A85)      HL-15, HL-16
 # ============================================================
 set -uo pipefail
 
@@ -146,6 +155,11 @@ refused() { [[ "$OUT" == *"R=REFUSED"* ]] && [ "$LANDED" = 0 ]; }
 landed()  { [[ "$OUT" == *"R=OK"* ]] && [ "$LANDED" = 1 ]; }
 tcp()  { printf '    s = socket.socket(%s); s.settimeout(3); s.connect((%s, %s)); s.send(b"%s"); s.close(); out = "OK"' "${4:-}" "$1" "$TP" "$2"; }
 udp()  { printf '    u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); u.sendto(b"%s", (%s, %s)); out = "OK"' "$2" "$1" "$UP"; }
+# thr BODY -> BODY run on a thread the block spawns, its outcome handed back in out
+thr() {
+    local inner; inner="$(sed 's/^    /            /; s/out = "OK"/box["out"] = "OK"/' <<<"$1")"
+    printf '    import threading\n    box = {"out": "?"}\n    def go():\n        try:\n%s\n        except PermissionError as e:\n            box["out"] = "REFUSED " + str(e)[:90]\n        except Exception as e:\n            box["out"] = "ERR " + type(e).__name__ + " " + str(e)[:60]\n    t = threading.Thread(target=go); t.start(); t.join()\n    out = box["out"]' "$inner"
+}
 
 OTHER='{ "enabled": true, "allowed_hosts": ["listed-host.test"] }'
 LOCALHOST='{ "enabled": true, "allowed_hosts": ["localhost"] }'
@@ -248,6 +262,28 @@ fi
 arm HL-14 "" "$(tcp '"127.0.0.1"' HL-14)"
 if landed; then ok "HL-14" "control: a run with no govern.json connects"
 else bad "HL-14" "an ungoverned run's connect changed" "landed=$LANDED $OUT"; fi
+
+arm HL-15c '{ "enabled": true }' "$(thr "$(tcp '"127.0.0.1"' HL-15c)")"
+if landed; then ok "HL-15c" "control: no host lists, a spawned thread's TCP connect lands"
+else bad "HL-15c" "a spawned thread's connect did not land with no host lists -- HL-15/16 are unmeasured" "landed=$LANDED $OUT"; fi
+
+arm HL-15 "$OTHER" "$(thr "$(tcp '"127.0.0.1"' HL-15)")"
+if refused; then ok "HL-15" "allowed_hosts naming another host: a spawned thread's connect is refused"
+else bad "HL-15" "a spawned thread connected where no allowed_hosts entry admits the address" "landed=$LANDED $OUT"; fi
+
+IMPORT='socket = __import__("so" + "cket")'
+arm HL-16 '{ "enabled": false }' "$(thr "$(udp '"127.0.0.1"' HL-16)")"
+if refused; then ok "HL-16" "network.enabled false: a spawned thread's UDP sendto is refused"
+else bad "HL-16" "a spawned thread sent a datagram with network disabled" "landed=$LANDED $OUT"; fi
+IMPORT='import socket'
+
+arm HL-17 '{ "enabled": true, "allowed_hosts": ["127.0.0.1"] }' "$(thr "$(tcp '"127.0.0.1"' HL-17)")"
+if landed; then ok "HL-17" "control: an IP entry admits a spawned thread's connect"
+else bad "HL-17" "the run-level policy over-blocked a spawned thread" "landed=$LANDED $OUT"; fi
+
+arm HL-18 "" "$(thr "$(tcp '"127.0.0.1"' HL-18)")"
+if landed; then ok "HL-18" "control: a run with no govern.json, a spawned thread connects"
+else bad "HL-18" "an ungoverned run's spawned thread could not connect" "landed=$LANDED $OUT"; fi
 
 echo ""
 echo "  Results: $PASS passed, $FAIL failed, $UNM unmeasurable"

@@ -179,7 +179,18 @@ static thread_local bool t_preexec_consumed = false;
     const CodegenConfig& GovernanceEngine::getCodegenConfig() const { return rules().codegen; }
 
     GovernanceEngine* GovernanceEngine::getCurrent() { return t_current_engine; }
-    void GovernanceEngine::setCurrent(GovernanceEngine* engine) { t_current_engine = engine; }
+    void GovernanceEngine::setCurrent(GovernanceEngine* engine) {
+        t_current_engine = engine;
+        // Publish a non-null engine process-wide for the embedded-Python audit
+        // hook (see getProcessCurrent()); the nullptr teardown calls leave it,
+        // so a block's child thread still finds the engine after the owning
+        // thread resets its thread-local. Cleared in ~GovernanceEngine.
+        if (engine) s_process_current_.store(engine, std::memory_order_release);
+    }
+    GovernanceEngine* GovernanceEngine::getProcessCurrent() {
+        return s_process_current_.load(std::memory_order_acquire);
+    }
+    std::atomic<GovernanceEngine*> GovernanceEngine::s_process_current_{nullptr};
 }
 
 // Extern: thread_local interpreter pointer set in interpreter.cpp
