@@ -4141,6 +4141,18 @@ else
     echo "  test_mcp_stdio.sh: not found, skipping"
 fi
 
+MCP_FINDINGS_SCRIPT="tests/mcp/test_mcp_findings.sh"
+if [ -f "$MCP_FINDINGS_SCRIPT" ]; then
+    if run_shell_test "$MCP_FINDINGS_SCRIPT" 2>&1; then
+        echo "  test_mcp_findings.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_mcp_findings.sh")
+    fi
+else
+    echo "  test_mcp_findings.sh: not found, skipping"
+fi
+
 SEC_TIMEOUT_REACH_SCRIPT="tests/security/test_timeout_reach.sh"
 if [ -f "$SEC_TIMEOUT_REACH_SCRIPT" ]; then
     if run_shell_test "$SEC_TIMEOUT_REACH_SCRIPT" 2>&1; then
