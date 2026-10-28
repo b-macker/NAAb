@@ -3258,6 +3258,19 @@ else
     echo "  test_tool_admissibility_gate.sh: not found, skipping"
 fi
 
+# A refused tool call is answered beside its call; a tool-result secret ends the run (A44)
+TOOL_PAIR_SCRIPT="tests/governance_v4/test_tool_call_pairing.sh"
+if [ -f "$TOOL_PAIR_SCRIPT" ]; then
+    if run_shell_test "$TOOL_PAIR_SCRIPT" 2>&1; then
+        echo "  test_tool_call_pairing.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_tool_call_pairing.sh")
+    fi
+else
+    echo "  test_tool_call_pairing.sh: not found, skipping"
+fi
+
 # naab-44 governance gap fixes (windowing, velocity, graduated corrections)
 NAAB44_SCRIPT="tests/governance_v4/test_naab44_fixes.sh"
 if [ -f "$NAAB44_SCRIPT" ]; then

@@ -63,6 +63,14 @@ the log. Give a response "hold_ms" to keep its slot open long enough for
 that overlap to be observable -- a stub that answers instantly makes every
 arm look sequential no matter what the engine did.
 
+Tool-call pairing is validated as Gemini validates it: a turn of
+functionResponse parts must follow a model turn holding the same number of
+functionCall parts, with the same names. A request that breaks it is answered
+400 with Gemini's own message and logged to <state_dir>/pairing.log, so an
+engine that answers a call it never showed (A44(b)) fails here as it would
+against the provider, instead of passing a stub that accepts anything.
+"validate_tool_pairing": false in the fixture turns the check off.
+
 The server is threaded, so concurrent dispatch is served concurrently.
 StubState is mutated only under its lock, so response-queue semantics are
 unchanged from the single-threaded version.
@@ -84,6 +92,7 @@ class StubState:
         self.routes = fixture.get("routes", {}) or {}
         self.route_count = dict((k, 0) for k in self.routes)
         self.state_dir = state_dir
+        self.validate_pairing = fixture.get("validate_tool_pairing", True)
         self.count = 0        # every request, for req_N.json numbering
         self.global_idx = 0   # advances only on UNROUTED requests
         self.lock = threading.Lock()
@@ -144,6 +153,30 @@ class StubState:
 STATE = None
 START_MONO = time.monotonic()
 
+PAIRING_ERROR = ("Please ensure that the number of function response parts is "
+                 "equal to the number of function call parts of the function call turn.")
+
+
+def pairing_violation(request_body):
+    """None when every functionResponse turn answers the model turn before it,
+    else a one-line description of the first that does not."""
+    try:
+        contents = json.loads(request_body).get("contents") or []
+    except (ValueError, AttributeError):
+        return None   # not a generateContent body: nothing to check
+    for i, turn in enumerate(contents):
+        parts = turn.get("parts") or []
+        responses = [p["functionResponse"].get("name", "") for p in parts
+                     if isinstance(p, dict) and "functionResponse" in p]
+        if not responses:
+            continue
+        prev = contents[i - 1] if i > 0 else {}
+        calls = [p["functionCall"].get("name", "") for p in (prev.get("parts") or [])
+                 if isinstance(p, dict) and "functionCall" in p]
+        if prev.get("role") != "model" or sorted(calls) != sorted(responses):
+            return "turn %d: responses %s answer calls %s" % (i, sorted(responses), sorted(calls))
+    return None
+
 
 def gemini_body(spec, request_body=""):
     parts = []
@@ -194,7 +227,18 @@ class Handler(BaseHTTPRequestHandler):
         spec, req_n = STATE.next_response(body, api_key)
 
         status = spec.get("status", 200)
-        if status != 200:
+        bad_pairing = STATE.validate_pairing and pairing_violation(body)
+        if bad_pairing:
+            if STATE.state_dir:
+                try:
+                    with open("%s/pairing.log" % STATE.state_dir, "a") as f:
+                        f.write("%d %s\n" % (req_n, bad_pairing))
+                except OSError:
+                    pass
+            status = 400
+            payload = {"error": {"code": 400, "message": PAIRING_ERROR,
+                                 "status": "INVALID_ARGUMENT"}}
+        elif status != 200:
             payload = {"error": {"message": spec.get("error", "stub error"),
                                  "status": str(status)}}
         else:
