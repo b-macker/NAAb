@@ -36,8 +36,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LSP="${1:-$SCRIPT_DIR/../../build/naab-lsp}"
 LSP="$(cd "$(dirname "$LSP")" && pwd)/$(basename "$LSP")"
 PROBE="$SCRIPT_DIR/../helpers/lsp_diag_probe.py"
+# Unsigned configs: an isolated trust store (the LSP's naab-lang inherits it),
+# or a key installed elsewhere turns every probe into an integrity block.
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
 W=$(mktemp -d "${TMPDIR:-/tmp}/naab_lspgd_XXXXXX")
-trap 'rm -rf "$W"' EXIT
+trap 'teardown_isolated_trust; rm -rf "$W"' EXIT
 
 PASS=0; FAIL=0; UNM=0
 pass() { PASS=$((PASS+1)); echo "  PASS [$1] $2"; }

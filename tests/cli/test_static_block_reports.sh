@@ -29,8 +29,12 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="${1:-$SCRIPT_DIR/../../build/naab-lang}"
 NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
+# Unsigned configs: an isolated trust store, or a key installed elsewhere on
+# the machine turns every run into an integrity block (exit 3).
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
 W=$(mktemp -d "${TMPDIR:-/tmp}/naab_sbr_XXXXXX")
-trap 'rm -rf "$W"' EXIT
+trap 'teardown_isolated_trust; rm -rf "$W"' EXIT
 
 PASS=0; FAIL=0
 pass() { PASS=$((PASS+1)); echo "  PASS [$1] $2"; }

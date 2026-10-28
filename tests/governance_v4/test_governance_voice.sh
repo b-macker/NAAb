@@ -53,9 +53,11 @@ pass() { PASS=$((PASS+1)); echo "  PASS [$1] $2"; }
 fail() { FAIL=$((FAIL+1)); echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && echo "       -> $3"; }
 unm()  { UNM=$((UNM+1));  echo "  UNMEASURABLE [$1] $2"; }
 
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust          # unsigned configs
 STUB_PORT=""
 source "$SCRIPT_DIR/../helpers/stub_launch.sh"
-cleanup() { stop_stub 2>/dev/null; rm -rf "$TEST_TMP"; }
+cleanup() { stop_stub 2>/dev/null; teardown_isolated_trust; rm -rf "$TEST_TMP"; }
 trap cleanup EXIT
 export FAKE_KEY_VOICE="fake-key-voice"
 
