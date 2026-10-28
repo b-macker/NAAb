@@ -249,6 +249,19 @@ static std::string readLastChainedHash(const std::string& path) {
     return "";
 }
 
+// One way to the webhook for every telemetry line. Lock order: callers may
+// hold telemetry_hash_mutex_ (the anchors are forwarded from inside the chain
+// step); this takes telemetry_fwd_mutex_ and then the forwarder's own lock,
+// and nothing takes them in the other order.
+void GovernanceEngine::forwardTelemetry(const std::string& json_line) const {
+    std::shared_ptr<TelemetryForwarder> fwd;
+    {
+        std::lock_guard<std::mutex> lock(telemetry_fwd_mutex_);
+        fwd = telemetry_forwarder_;
+    }
+    if (fwd) fwd->enqueue(json_line);
+}
+
 // File-anchored chain: prev_hash for the next event comes from the output
 // file's tail (authoritative — links across runs and flock-serialized
 // concurrent writers), falling back to the in-memory hash, then genesis.
@@ -291,6 +304,9 @@ std::string GovernanceEngine::chainPrevLocked(FILE* fp) const {
         rs["hash"] = last_telemetry_hash_;
         if (checkedWrite(fp, rs.dump() + "\n", telemetry_write_failures_))
             agent_events_written_.fetch_add(1, std::memory_order_relaxed);
+        // Forwarded before the event that triggered it, as in the file; a
+        // SIEM that never saw RunStart cannot anchor the chain it receives.
+        forwardTelemetry(rs.dump());
         chained_events_this_run_++;
         prev = last_telemetry_hash_;
     }
@@ -327,6 +343,8 @@ void GovernanceEngine::emitRunEnd(FILE* fp, const std::string& timestamp) const 
     re["hash"] = last_telemetry_hash_;
     if (checkedWrite(fp, re.dump() + "\n", telemetry_write_failures_))
         agent_events_written_.fetch_add(1, std::memory_order_relaxed);
+    // The forwarded stream settles a run the same way the file does (F53).
+    forwardTelemetry(re.dump());
     chained_events_this_run_++;
     run_end_declared_ = chained_events_this_run_;
 }
@@ -621,15 +639,7 @@ void GovernanceEngine::emitRefusalAttestation(
     if (checkedWrite(fp.get(), line, telemetry_write_failures_))
         agent_events_written_.fetch_add(1, std::memory_order_relaxed);
 
-    // Forward to SIEM/webhook if configured
-    {
-        std::shared_ptr<TelemetryForwarder> fwd;
-        {
-            std::lock_guard<std::mutex> lock(telemetry_fwd_mutex_);
-            fwd = telemetry_forwarder_;
-        }
-        if (fwd) fwd->enqueue(ev.dump());
-    }
+    forwardTelemetry(ev.dump());
 }
 
 void GovernanceEngine::emitOutputAdmissibilityAttestation(
@@ -713,15 +723,7 @@ void GovernanceEngine::emitOutputAdmissibilityAttestation(
     if (checkedWrite(fp.get(), line, telemetry_write_failures_))
         agent_events_written_.fetch_add(1, std::memory_order_relaxed);
 
-    // Forward to SIEM/webhook if configured
-    {
-        std::shared_ptr<TelemetryForwarder> fwd;
-        {
-            std::lock_guard<std::mutex> lock(telemetry_fwd_mutex_);
-            fwd = telemetry_forwarder_;
-        }
-        if (fwd) fwd->enqueue(ev.dump());
-    }
+    forwardTelemetry(ev.dump());
 }
 
 // --- Hooks ---
@@ -1617,15 +1619,7 @@ void GovernanceEngine::writeTelemetry() const {
         if (checkedWrite(fp.get(), line, telemetry_write_failures_))
             events_written++;
 
-        // C2: local shared_ptr copy prevents use-after-free during reload/destruction
-        {
-            std::shared_ptr<TelemetryForwarder> fwd;
-            {
-                std::lock_guard<std::mutex> lock(telemetry_fwd_mutex_);
-                fwd = telemetry_forwarder_;
-            }
-            if (fwd) fwd->enqueue(ev.dump());
-        }
+        forwardTelemetry(ev.dump());
     }
 
     // Fix 4B: emit summary event recording dedup stats
@@ -1653,6 +1647,7 @@ void GovernanceEngine::writeTelemetry() const {
         std::string sline = summary.dump() + "\n";
         if (checkedWrite(fp.get(), sline, telemetry_write_failures_))
             events_written++;
+        forwardTelemetry(summary.dump());
     }
 
     // Everything above this point has now been committed to the file.
@@ -1692,11 +1687,7 @@ void GovernanceEngine::writeTelemetry() const {
         std::string sline = snap.dump() + "\n";
         if (checkedWrite(fp.get(), sline, telemetry_write_failures_))
             events_written++;
-        {
-            std::shared_ptr<TelemetryForwarder> fwd;
-            { std::lock_guard<std::mutex> lock(telemetry_fwd_mutex_); fwd = telemetry_forwarder_; }
-            if (fwd) fwd->enqueue(snap.dump());
-        }
+        forwardTelemetry(snap.dump());
     }
 
     // RunEnd anchor: declares this run's chained event count so the verifier
@@ -1796,15 +1787,7 @@ void GovernanceEngine::writeAgentTelemetry(
     if (checkedWrite(fp.get(), line, telemetry_write_failures_))
         agent_events_written_.fetch_add(1, std::memory_order_relaxed);
 
-    // C2: local shared_ptr copy prevents use-after-free during reload/destruction
-    {
-        std::shared_ptr<TelemetryForwarder> fwd;
-        {
-            std::lock_guard<std::mutex> lock(telemetry_fwd_mutex_);
-            fwd = telemetry_forwarder_;
-        }
-        if (fwd) fwd->enqueue(ev.dump());
-    }
+    forwardTelemetry(ev.dump());
 }
 
 // --- Agent Interaction Transcript ---

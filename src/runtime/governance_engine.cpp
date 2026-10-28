@@ -8761,6 +8761,7 @@ void GovernanceEngine::emitEndOfRunHealthWarnings(FILE* fp, const std::string& t
         } else {
             agent_events_written_.fetch_add(1, std::memory_order_relaxed);
         }
+        forwardTelemetry(ev.dump());
     };
 
     // Check 1: CDD enabled but never analyzed any turns

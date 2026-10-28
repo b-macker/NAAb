@@ -4407,6 +4407,10 @@ private:
     // genesis) and lazily writes the RunStart anchor on this process's first
     // chained event. Requires telemetry_hash_mutex_ held and fp open+locked.
     std::string chainPrevLocked(FILE* fp) const;
+    // Hands one telemetry line to the webhook forwarder, if one is configured.
+    // Every writer of a telemetry-file line calls it, so the forwarded stream
+    // carries every chained event and its prev_hash links can be verified (F53).
+    void forwardTelemetry(const std::string& json_line) const;
     // Writes the chained RunEnd anchor declaring this run's chained event
     // count. Re-emitted if further chained events followed the previous one —
     // the verifier reads the last RunEnd per run_id, so the newest declaration
