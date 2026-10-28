@@ -84,7 +84,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 class StubState:
     def __init__(self, fixture_path, state_dir):
-        with open(fixture_path) as f:
+        with open(fixture_path, encoding="utf-8", errors="replace") as f:
             fixture = json.load(f)
         self.responses = fixture.get("responses", [])
         # Insertion-ordered: first matching key wins, and the fixture author
@@ -109,7 +109,7 @@ class StubState:
         if not self.state_dir:
             return
         try:
-            with open("%s/keys.log" % self.state_dir, "a") as f:
+            with open("%s/keys.log" % self.state_dir, "a", encoding="utf-8", errors="replace") as f:
                 f.write("%d %s %d %d\n" % (n, api_key or "-", t0, t1))
         except OSError:
             pass
@@ -138,12 +138,12 @@ class StubState:
                 responses = self.routes[key].get("responses", [])
         if self.state_dir:
             try:
-                with open("%s/req_%d.json" % (self.state_dir, n), "w") as f:
+                with open("%s/req_%d.json" % (self.state_dir, n), "w", encoding="utf-8", errors="replace") as f:
                     f.write(body)
             except OSError:
                 pass
             try:
-                with open("%s/routes.log" % self.state_dir, "a") as f:
+                with open("%s/routes.log" % self.state_dir, "a", encoding="utf-8", errors="replace") as f:
                     f.write("%d %s\n" % (n, key if key is not None else "-"))
             except OSError:
                 pass
@@ -231,7 +231,7 @@ class Handler(BaseHTTPRequestHandler):
         if bad_pairing:
             if STATE.state_dir:
                 try:
-                    with open("%s/pairing.log" % STATE.state_dir, "a") as f:
+                    with open("%s/pairing.log" % STATE.state_dir, "a", encoding="utf-8", errors="replace") as f:
                         f.write("%d %s\n" % (req_n, bad_pairing))
                 except OSError:
                     pass
