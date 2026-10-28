@@ -117,6 +117,12 @@ public:
 
     // Network access validation
     bool canConnect(const std::string& host, int port) const;
+    // canConnect()'s host and port decision without its network switch
+    // (network_enabled, NET_CONNECT): blocked_hosts first, then allowed_hosts,
+    // then allowed_ports. The embedded-Python socket policy (A35) asks this so
+    // a <<python>> connect meets the host lists http.* meets, while keeping
+    // its own switch.
+    bool hostPolicyAllows(const std::string& host, int port) const;
     bool canListen(int port) const;
 
     // System operation validation

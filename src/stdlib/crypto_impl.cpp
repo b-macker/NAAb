@@ -70,6 +70,15 @@ static void checkHashGovernance(const std::string& algorithm) {
     if (!err.empty()) throw std::runtime_error(err);
 }
 
+// F19: the encoders answer to restrictions.data_exfiltration's encoding flags,
+// as base64.b64encode( and binascii.hexlify( in a polyglot block already do.
+static void checkEncodingGovernance(const std::string& function) {
+    auto* gov = governance::GovernanceEngine::getCurrent();
+    if (!gov) return;
+    std::string err = gov->checkNativeEncodingAllowed(function);
+    if (!err.empty()) throw std::runtime_error(err);
+}
+
 interpreter::NaabVal CryptoModule::call(
     const std::string& function_name,
     std::vector<interpreter::NaabVal>& args) {
@@ -119,6 +128,7 @@ interpreter::NaabVal CryptoModule::call(
         if (args.size() != 1) {
             throw std::runtime_error("base64_encode() takes exactly 1 argument");
         }
+        checkEncodingGovernance("base64_encode");
         std::string text = getString(args[0]);
         return makeString(base64_encode(text));
     }
@@ -128,6 +138,7 @@ interpreter::NaabVal CryptoModule::call(
         if (args.size() != 1) {
             throw std::runtime_error("base64_decode() takes exactly 1 argument");
         }
+        checkEncodingGovernance("base64_decode");
         std::string text = getString(args[0]);
         return makeString(base64_decode(text));
     }
@@ -137,6 +148,7 @@ interpreter::NaabVal CryptoModule::call(
         if (args.size() != 1) {
             throw std::runtime_error("hex_encode() takes exactly 1 argument");
         }
+        checkEncodingGovernance("hex_encode");
         std::string text = getString(args[0]);
         return makeString(hex_encode(text));
     }
@@ -146,6 +158,7 @@ interpreter::NaabVal CryptoModule::call(
         if (args.size() != 1) {
             throw std::runtime_error("hex_decode() takes exactly 1 argument");
         }
+        checkEncodingGovernance("hex_decode");
         std::string text = getString(args[0]);
         return makeString(hex_decode(text));
     }

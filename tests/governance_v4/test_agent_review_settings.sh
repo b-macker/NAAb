@@ -56,20 +56,16 @@
 #   AR-06c  a `scorer` naming no `scorers` entry falls back silently. The
 #           template ships exactly that: `"scorer": "security"` against a
 #           scorer keyed `security_review`.
-#   AR-10d  only "hard"/"soft" are levels; any other string (AR-10d probes
-#           "block") enforces ADVISORY while the banner prints it. ("error"
-#           and the documented tier "detect" were probed and behave the same.)
-#           This arm used "HARD" until level names became case-insensitive
-#           (2026-10-09, the project owner's decision); AR-10e now pins that
-#           "HARD" blocks exactly like "hard".
-#   AR-12d  fail_policy blocks only on the exact string "closed"; "CLOSED"
-#           fails OPEN, silently.
 #   AR-15d  see fail_strategy above.
-#   AR-15e  under continue, one agent's success hides another's failure
-#           entirely, so fail_policy "closed" never sees it.
+#   AR-15e  (the fail_policy half) under continue, fail_policy "closed" does
+#           not fire on a partial failure; the failure is now reported.
 #
-# All are recorded in docs/open-investigations.md (A29), not fixed here: every
-# one is a behaviour change to a gate, and none was asked for.
+# All are recorded in docs/open-investigations.md (A29).
+#
+# FIXED IN BUNDLE 3 (were pinned): AR-10d (an unknown zone level, "block", is
+# now hard with a warning; AR-10f "detect" blocks as hard, AR-10g is the
+# advisory control), AR-12d ("CLOSED" blocks; AR-12e an unknown value is
+# closed with a warning), AR-15e (a failure continue drops is reported).
 #
 # EVERY ARM HAS A DEMONSTRATED FAILURE CASE
 #
@@ -95,6 +91,13 @@
 #   M13 max_parallel ignored                         AR-14a AR-14b
 #   M14 fail_strategy always fail_fast               AR-15a
 #   M15 LOADER drops max_parallel                    AR-14a AR-14b
+#
+# Bundle 3 (2026-10-27), each rebuilt and this suite re-run:
+#   Z1  loader keeps an unknown zone level, no warning  AR-10d
+#   Z2  consumer maps only "hard"/"soft"                AR-10f
+#   F1  fail_policy compared with case                  AR-12d
+#   F2  an unknown fail_policy is open                  AR-12e
+#   C1  continue drops a failed agent silently          AR-15e
 #
 # M8 is why AR-08u exists: with the zone lookup broken, the wrong-zone control
 # is the arm that notices. M15 shows a loader regression is caught, not only a
@@ -175,7 +178,7 @@ fi
 _SYSTMP="${TMPDIR:-/tmp}"
 TEST_TMP="${_SYSTMP}/agent-review-settings-$$"
 setup_isolated_trust
-cleanup() { stop_stub; teardown_isolated_trust; rm -rf "$TEST_TMP"; }
+cleanup() { stop_stub; teardown_isolated_trust; [ -n "${KEEP_TMP:-}" ] || rm -rf "$TEST_TMP"; }
 trap cleanup EXIT
 mkdir -p "$TEST_TMP"
 
@@ -545,17 +548,38 @@ if [ "$R_OK" = 1 ]; then
     fi
 else skip "AR-10c" "stub failed to start"; fi
 
-# PINNED, not endorsed: only "hard"/"soft" are levels. Any other value enforces
-# ADVISORY while the banner prints what was configured. AR-07a is the pair:
-# the same config with "hard" blocks.
+# A29(b), Bundle 3: a string that is not a level is hard, with the warning
+# every level-only key prints. It used to run as advisory under a banner
+# printing the configured string (`green/block`, exit 0).
 run_review ar10d '{"enabled": true, "detection": ["det_a"], "enforcement": {"green": "block"}}' "$FX_ONE"
 if [ "$R_OK" = 1 ]; then
-    if [ "$R_EXIT" -eq 0 ] && ran && in_err "green/block"; then
-        pass "AR-10d" "green: \"block\" (not a level) — runs as advisory under a block banner (PINNED, not endorsed)"
+    if [ "$R_EXIT" -eq 3 ] && ! ran && in_err 'unknown enforcement level "block"' && grep -q "alpha issue" "$R_OUT"; then
+        pass "AR-10d" "green: \"block\" (not a level) — warned, enforced as hard (exit 3)"
     else
-        fail "AR-10d" "unrecognised level string changed behaviour — confirm and update this arm" "exit=$R_EXIT"
+        fail "AR-10d" "an unknown zone level did not enforce as hard with a warning" "exit=$R_EXIT"
     fi
 else skip "AR-10d" "stub failed to start"; fi
+
+# "detect" is a level, but the review runs before the program, where nothing
+# can catch a block: it blocks as hard.
+run_review ar10f '{"enabled": true, "detection": ["det_a"], "enforcement": {"green": "detect"}}' "$FX_ONE"
+if [ "$R_OK" = 1 ]; then
+    if [ "$R_EXIT" -eq 3 ] && ! ran && grep -q "alpha issue" "$R_OUT"; then
+        pass "AR-10f" "green: \"detect\" — blocks as hard (exit 3)"
+    else
+        fail "AR-10f" "detect did not block the review's findings" "exit=$R_EXIT"
+    fi
+else skip "AR-10f" "stub failed to start"; fi
+
+# CONTROL: "advisory" still means advisory -- the change is not "every zone is hard".
+run_review ar10g '{"enabled": true, "detection": ["det_a"], "enforcement": {"green": "advisory"}}' "$FX_ONE"
+if [ "$R_OK" = 1 ]; then
+    if [ "$R_EXIT" -eq 0 ] && ran && in_err "green/advisory" && ! in_err "unknown enforcement level"; then
+        pass "AR-10g" "CONTROL: green: \"advisory\" — advisory, program ran, no warning"
+    else
+        fail "AR-10g" "an explicit advisory zone was not advisory" "exit=$R_EXIT"
+    fi
+else skip "AR-10g" "stub failed to start"; fi
 
 # Level names are case-insensitive (2026-10-09): "HARD" is "hard". This arm
 # was AR-10d's subject, pinned as advisory; it is the decided behaviour now.
@@ -646,16 +670,26 @@ if [ "$R_OK" = 1 ]; then
     fi
 else skip "AR-12x" "stub failed to start"; fi
 
-# PINNED, not endorsed: fail_policy blocks only on the exact string "closed".
-# AR-12a is the pair.
+# A29(a), Bundle 3: fail_policy is compared without case, so "CLOSED" blocks
+# like "closed" (it used to fail OPEN, silently). AR-12a is the pair.
 run_review ar12d '{"enabled": true, "detection": ["det_a"], "fail_policy": "CLOSED"}' "$FX_DOWN"
 if [ "$R_OK" = 1 ]; then
-    if [ "$R_EXIT" -eq 0 ] && ran && in_err "Agent review error"; then
-        pass "AR-12d" "fail_policy: \"CLOSED\" (uppercase) — fails OPEN, program ran (PINNED, not endorsed)"
+    if [ "$R_EXIT" -eq 3 ] && ! ran && in_err "Agent review error" && ! in_err "unknown agent_review fail_policy"; then
+        pass "AR-12d" "fail_policy: \"CLOSED\" (uppercase) — blocks like closed, no warning"
     else
-        fail "AR-12d" "unrecognised fail_policy changed behaviour — confirm and update this arm" "exit=$R_EXIT"
+        fail "AR-12d" "\"CLOSED\" did not block the failed review" "exit=$R_EXIT"
     fi
 else skip "AR-12d" "stub failed to start"; fi
+
+# An unknown value is closed, with a warning naming it.
+run_review ar12e '{"enabled": true, "detection": ["det_a"], "fail_policy": "shut"}' "$FX_DOWN"
+if [ "$R_OK" = 1 ]; then
+    if [ "$R_EXIT" -eq 3 ] && ! ran && in_err 'unknown agent_review fail_policy "shut"'; then
+        pass "AR-12e" "fail_policy: \"shut\" (unknown) — warned, treated as closed, blocks"
+    else
+        fail "AR-12e" "an unknown fail_policy failed open or said nothing" "exit=$R_EXIT"
+    fi
+else skip "AR-12e" "stub failed to start"; fi
 
 # ============================================================
 # AR-13 dispatch_mode / AR-14 max_parallel
@@ -776,15 +810,16 @@ if [ "$R_OK" = 1 ]; then
     fi
 else skip "AR-15d" "stub failed to start"; fi
 
-# PINNED, not endorsed: under continue, one agent's success hides another's
-# failure entirely, so fail_policy "closed" never sees it. AR-12a is the pair
-# (closed blocks a review whose only agent failed).
+# A29(c), Bundle 3: under continue, a failed agent the review continues past
+# is reported (it used to be dropped silently whenever another agent returned
+# findings). PINNED, not endorsed: fail_policy "closed" still does not fire on
+# a partial failure -- whether it should is a decision (docs/open-investigations.md A29).
 run_review ar15e "{$TWO, \"dispatch_mode\": \"parallel\", \"fail_strategy\": \"continue\", \"fail_policy\": \"closed\"}" "$FX_HALF"
 if [ "$R_OK" = 1 ]; then
-    if asked det_a && [ "$R_EXIT" -eq 0 ] && ran && in_err "agent_review.cat_b" && ! in_err "det_a"; then
-        pass "AR-15e" "continue + fail_policy closed — det_a's failure is dropped silently, program ran (PINNED, not endorsed)"
+    if asked det_a && [ "$R_EXIT" -eq 0 ] && ran && in_err "agent_review.cat_b" && in_err "detection agent 'det_a' failed" && in_err "the review continued without it"; then
+        pass "AR-15e" "continue + fail_policy closed — det_a's failure is reported, the review and program ran (closed not firing PINNED, not endorsed)"
     else
-        fail "AR-15e" "partial failure under continue is now surfaced — confirm and update this arm" "exit=$R_EXIT"
+        fail "AR-15e" "a failure continue dropped was not reported, or the partial review changed" "exit=$R_EXIT"
     fi
 else skip "AR-15e" "stub failed to start"; fi
 

@@ -5917,6 +5917,101 @@ std::string GovernanceEngine::checkResourceAbuse(const std::string& code, int li
 }
 
 // --- Security: Info Disclosure ---
+// A `ps` command that lists every process: BSD a/x in the first argument
+// (`ps aux`, `ps ax`, `ps axo pid`), or a UNIX -e/-A/-a/-x option in any
+// argument (`ps -A`, `ps -ef`, `ps -o pid -e`). `ps -p PID`, `ps u` and
+// `ps -o args -p PID` are not listings. Returns the command text matched, or "".
+//
+// A scan, not a regex: libstdc++ runs std::regex recursively per character
+// (CLAUDE.md, "Scanner regexes must be bounded"): a candidate regex for these
+// forms crashed on a 200 KB argument (observed), and bounding its repetitions
+// instead would let `ps` plus enough spaces through.
+static std::string findProcessListing(const std::string& text) {
+    auto word = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; };
+    auto blank = [](char c) { return c == ' ' || c == '\t'; };
+    auto ends = [](char c) {   // the end of one shell command
+        return c == '\n' || c == '\r' || c == '|' || c == ';' || c == '&' || c == ')' ||
+               c == '`' || c == '\'' || c == '"' || c == '<' || c == '>';
+    };
+    static const std::string kBsdLetters = "auxwfejlsvrcmhno";
+    const size_t n = text.size();
+    for (size_t i = 0; i + 2 < n; ++i) {
+        if (std::tolower(static_cast<unsigned char>(text[i])) != 'p' ||
+            std::tolower(static_cast<unsigned char>(text[i + 1])) != 's') continue;
+        if (i > 0 && word(text[i - 1])) continue;
+        size_t k = i + 2;
+        // ps.exe is the same program on Windows (process.run("ps.exe", ...)).
+        if (k + 4 <= n && text[k] == '.' &&
+            std::tolower(static_cast<unsigned char>(text[k + 1])) == 'e' &&
+            std::tolower(static_cast<unsigned char>(text[k + 2])) == 'x' &&
+            std::tolower(static_cast<unsigned char>(text[k + 3])) == 'e') k += 4;
+        if (k >= n) continue;
+        if (!blank(text[k]) && !(text[k] == '\\' && k + 1 < n && text[k + 1] == '\n')) continue;
+        bool first = true;
+        while (k < n) {
+            // whitespace, and a shell line continuation (backslash-newline)
+            while (k < n && (blank(text[k]) || (text[k] == '\\' && k + 1 < n && text[k + 1] == '\n')))
+                k += blank(text[k]) ? 1 : 2;
+            if (k >= n || ends(text[k])) break;
+            size_t s = k;
+            while (k < n && !blank(text[k]) && !ends(text[k])) ++k;
+            std::string tok = text.substr(s, k - s);
+            for (auto& c : tok) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (tok.size() >= 2 && tok[0] == '-' && tok[1] != '-') {
+                for (size_t q = 1; q < tok.size() && std::isalpha(static_cast<unsigned char>(tok[q])); ++q)
+                    if (tok[q] == 'e' || tok[q] == 'a' || tok[q] == 'x') return text.substr(i, k - i);
+            } else if (first && !tok.empty()) {
+                bool bsd = true, all = false;
+                for (char c : tok) {
+                    if (kBsdLetters.find(c) == std::string::npos) { bsd = false; break; }
+                    if (c == 'a' || c == 'x') all = true;
+                }
+                if (bsd && all) return text.substr(i, k - i);
+            }
+            first = false;
+        }
+        // A later "ps" before k is an argument of this command; resuming at k
+        // keeps the scan linear (each character is tokenized once).
+        i = k - 1;
+    }
+    return "";
+}
+
+// The process-listing and system-information commands, one test for both doors
+// (A17 F8a): the source scan below and process.run's command line
+// (checkInfoDisclosureCommand). block_process_listing used to hold the regexes
+// `ps aux` and `ps -ef` only, so `ps -A`, `ps -e` and `ps ax` passed.
+static std::string findInfoDisclosureCommand(const InfoDisclosureRestriction& cfg,
+                                             const std::string& text) {
+    if (cfg.block_process_listing) {
+        std::string found = findProcessListing(text);
+        if (!found.empty()) return found;
+    }
+    if (cfg.block_system_info_leak) {
+        return searchPatterns(text, {"uname(?:\\.exe)?\\s+-a", "cat(?:\\.exe)?\\s+/etc/passwd"});
+    }
+    return "";
+}
+
+// A17 F8a: process.run("ps", ["aux"]) is the same listing a <<shell>> block's
+// `ps aux` is, and it never passed through the source scan. The command line
+// (command and arguments joined) gets the same test, at the restriction's level.
+std::string GovernanceEngine::checkInfoDisclosureCommand(const std::string& command_line) {
+    clearTrace();
+    if (!isActive()) return "";
+    const auto& cfg = rules().restrictions.information_disclosure;
+    if (!cfg.enabled) return "";
+    std::string found = findInfoDisclosureCommand(cfg, command_line);
+    if (found.empty()) return "";
+    return enforce("restrictions.information_disclosure", cfg.level,
+        formatError(cfg.level, fmt::format("Information disclosure command: \"{}\"", found),
+            "", "restrictions.information_disclosure",
+            "Listing every process or dumping system information is blocked.\n"
+            "Query the specific process or value the program needs instead.",
+            "process.run(\"ps\", [\"aux\"])",
+            "process.run(\"ps\", [\"-p\", pid])"));
+}
+
 std::string GovernanceEngine::checkInfoDisclosure(const std::string& language,
                                                    const std::string& code, int line) {
     auto& cfg = rules().restrictions.information_disclosure;
@@ -5932,9 +6027,8 @@ std::string GovernanceEngine::checkInfoDisclosure(const std::string& language,
             pats.push_back("\\benv\\b(?!\\.)");
         }
     }
-    if (cfg.block_process_listing) { pats.push_back("ps\\s+aux"); pats.push_back("ps\\s+-ef"); }
-    if (cfg.block_system_info_leak) { pats.push_back("uname\\s+-a"); pats.push_back("cat\\s+/etc/passwd"); }
     std::string found = searchPatterns(code, pats);
+    if (found.empty()) found = findInfoDisclosureCommand(cfg, code);
     if (!found.empty()) {
         return enforce("restrictions.information_disclosure", cfg.level,
             formatError(cfg.level, fmt::format("Information disclosure pattern: \"{}\"", found),

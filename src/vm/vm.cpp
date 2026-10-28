@@ -3592,8 +3592,23 @@ interpreter::NaabVal VM::run() {
                     std::string var_name = READ_CONSTANT(arg).toString();
                     int gov_line = CURRENT_CHUNK().getLine(
                         static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
-                    std::string terr = governance_->checkTaintedSink(
-                        var_name, "variable.assign", current_file_, gov_line);
+                    // A65: the value is tainted (peekTaint above), so decide on that.
+                    // checkTaintedSink() looked the TARGET name up in the engine's
+                    // shared taint set, which the VM writes only for a global and
+                    // only after this check: a local's first tainted assignment
+                    // passed the sink (observed), and another thread's clear of
+                    // the same name could land between mark and lookup.
+                    std::string origin_func = governance_->lastTaintSource(), origin_arg;
+                    if (!taint_lineage_map_.empty()) {
+                        size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                        auto lit = taint_lineage_map_.find(tos);
+                        if (lit != taint_lineage_map_.end()) {
+                            origin_func = lit->second.source_func;
+                            origin_arg = lit->second.source_arg;
+                        }
+                    }
+                    std::string terr = governance_->checkTaintedValueAtSink(
+                        var_name, "variable.assign", current_file_, gov_line, origin_func, origin_arg);
                     if (!terr.empty()) runtimeError("%s", terr.c_str());
                 }
             }

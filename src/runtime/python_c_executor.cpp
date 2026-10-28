@@ -31,6 +31,20 @@ extern char **environ;
 #ifndef _WIN32
 #  include <sys/resource.h>  // For setrlimit/getrlimit (RLIMIT_NPROC containment)
 #endif
+#include <cstring>
+#include <mutex>
+#include <unordered_map>
+#include <vector>
+#include "naab/host_match.h"   // A35: the sandbox's host matcher, for the socket policy
+#ifdef _WIN32
+#  include <winsock2.h>
+#  include <ws2tcpip.h>
+#else
+#  include <arpa/inet.h>
+#  include <netdb.h>
+#  include <netinet/in.h>
+#  include <sys/socket.h>
+#endif
 
 namespace naab {
 namespace runtime {
@@ -133,6 +147,186 @@ extern "C" int naabPythonAuditPolicy(const char* event, const char* target, int 
     }
 
     return 1;
+}
+
+// --- Network policy for the socket audit events (A35) ----------------------
+// The hook answered socket.connect from NET_CONNECT alone, so
+// capabilities.network.allowed_hosts / blocked_hosts -- which http.* meets
+// through Sandbox::canConnect -- did not reach a <<python>> block, and
+// sendto/sendmsg (UDP) were not judged at all: measured, a datagram left with
+// network.enabled false through an import the text check cannot see, and a
+// TCP connect to an address no allowed_hosts entry admits was made.
+//
+// The lists hold names; a connect carries an ADDRESS. The owner's decision
+// (2026-10-26, "admit allowed lookups"): judge the NAME where the program
+// gives one -- at the lookup (getaddrinfo, gethostbyname[_ex]) and at a
+// connect given a name -- by the sandbox's own canConnect(). When an allowed
+// name is looked up under an allowed_hosts list, resolve it HERE too and admit
+// those addresses; a connect to an address no IP entry admits and no allowed
+// lookup produced is refused. A resolver that answers the program differently
+// from the engine (round-robin DNS) is refused too: fail closed.
+namespace {
+
+std::mutex g_admitted_mutex;
+// canonical address -> the allowed name whose lookup admitted it
+std::unordered_map<std::string, std::string> g_admitted;
+constexpr size_t kMaxAdmitted = 4096;   // past this, nothing more is admitted
+
+// One part of an IPv4 address as inet_aton reads it: decimal, 0-prefixed
+// octal, or 0x hex. False on anything else.
+bool parseInetAtonPart(const std::string& p, unsigned long long& v) {
+    if (p.empty()) return false;
+    int base = 10;
+    size_t i = 0;
+    if (p.size() > 1 && p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) { base = 16; i = 2; if (i == p.size()) return false; }
+    else if (p.size() > 1 && p[0] == '0') { base = 8; i = 1; }
+    v = 0;
+    for (; i < p.size(); ++i) {
+        int d;
+        char c = p[i];
+        if (c >= '0' && c <= '9') d = c - '0';
+        else if (base == 16 && c >= 'a' && c <= 'f') d = c - 'a' + 10;
+        else if (base == 16 && c >= 'A' && c <= 'F') d = c - 'A' + 10;
+        else return false;
+        if (d >= base) return false;
+        v = v * static_cast<unsigned long long>(base) + static_cast<unsigned long long>(d);
+        if (v > 0xFFFFFFFFull) return false;
+    }
+    return true;
+}
+
+// The forms an IP literal is judged by: its canonical text, and for an
+// IPv4-mapped IPv6 address the IPv4 address too. Empty for a name. CPython
+// hands a host inet_pton rejects to getaddrinfo, which reads inet_aton's
+// legacy IPv4 forms (2130706434, 0x7f000002 and 127.2 all connect to
+// 127.0.0.2, observed), so those are read the same way here; "" is
+// INADDR_ANY and "<broadcast>" the broadcast address, as CPython reads them.
+std::vector<std::string> ipLiteralForms(const std::string& host) {
+    if (host.empty()) return {"0.0.0.0"};
+    if (host == "<broadcast>") return {"255.255.255.255"};
+    std::vector<std::string> parts;
+    size_t start = 0;
+    while (true) {
+        size_t dot = host.find('.', start);
+        parts.push_back(host.substr(start, dot == std::string::npos ? std::string::npos : dot - start));
+        if (dot == std::string::npos) break;
+        start = dot + 1;
+    }
+    if (parts.size() <= 4) {
+        unsigned long long v[4] = {0, 0, 0, 0};
+        bool ok = true;
+        for (size_t i = 0; i < parts.size() && ok; ++i) ok = parseInetAtonPart(parts[i], v[i]);
+        if (ok) {
+            const size_t n = parts.size();
+            unsigned long long last_max = n == 1 ? 0xFFFFFFFFull : n == 2 ? 0xFFFFFFull : n == 3 ? 0xFFFFull : 0xFFull;
+            for (size_t i = 0; i + 1 < n && ok; ++i) ok = v[i] <= 0xFF;
+            if (ok && v[n - 1] <= last_max) {
+                unsigned long long a = v[n - 1];
+                for (size_t i = 0; i + 1 < n; ++i) a |= v[i] << (8 * (3 - i));
+                return {std::to_string((a >> 24) & 0xFF) + "." + std::to_string((a >> 16) & 0xFF) + "." +
+                        std::to_string((a >> 8) & 0xFF) + "." + std::to_string(a & 0xFF)};
+            }
+        }
+    }
+    in6_addr a6;
+    if (inet_pton(AF_INET6, host.c_str(), &a6) == 1) {
+        char buf[INET6_ADDRSTRLEN] = {0};
+        std::vector<std::string> forms;
+        if (inet_ntop(AF_INET6, &a6, buf, sizeof buf)) forms.push_back(buf);
+        static const unsigned char kMapped[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF};
+        const unsigned char* b = reinterpret_cast<const unsigned char*>(&a6);
+        if (std::memcmp(b, kMapped, 12) == 0)
+            forms.push_back(std::to_string(b[12]) + "." + std::to_string(b[13]) + "." +
+                            std::to_string(b[14]) + "." + std::to_string(b[15]));
+        if (!forms.empty()) return forms;
+    }
+    return {};
+}
+
+// Resolve an allowed name the way the program's lookup is about to, and admit
+// each address it gives.
+void admitResolvedAddresses(const std::string& name) {
+    addrinfo hints{};
+    hints.ai_family = AF_UNSPEC;
+    addrinfo* res = nullptr;
+    if (getaddrinfo(name.c_str(), nullptr, &hints, &res) != 0 || !res) return;
+    std::lock_guard<std::mutex> lock(g_admitted_mutex);
+    for (addrinfo* r = res; r; r = r->ai_next) {
+        char buf[INET6_ADDRSTRLEN] = {0};
+        const void* src = nullptr;
+        if (r->ai_family == AF_INET) src = &reinterpret_cast<sockaddr_in*>(r->ai_addr)->sin_addr;
+        else if (r->ai_family == AF_INET6) src = &reinterpret_cast<sockaddr_in6*>(r->ai_addr)->sin6_addr;
+        if (!src || !inet_ntop(r->ai_family, src, buf, sizeof buf)) continue;
+        for (const auto& f : ipLiteralForms(buf)) {
+            if (g_admitted.size() >= kMaxAdmitted && !g_admitted.count(f)) continue;
+            g_admitted[f] = name;
+        }
+    }
+    freeaddrinfo(res);
+}
+
+}  // namespace
+
+extern "C" int naabPythonNetPolicy(const char* event, int kind, int address,
+                                   const char* host_c, int port) {
+    (void)event;
+    auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (!sandbox) return 1;   // no policy active -- as naabPythonAuditPolicy
+    const auto& cfg = sandbox->getConfig();
+    // The network switch is the one this hook always used, the NET_CONNECT
+    // capability; governance's network.enabled false removes it. The CLI's own
+    // network default (network_enabled, --allow-network) is not consulted, as
+    // before, so a run with no govern.json behaves as it did.
+    const bool net_on = cfg.hasCapability(security::Capability::NET_CONNECT);
+    const bool allowlist = !cfg.allowed_hosts.empty();
+    const std::string host = host_c ? host_c : "";
+    const std::vector<std::string> ip_forms =
+        address == NAAB_NET_HOST ? ipLiteralForms(host) : std::vector<std::string>{};
+    const bool is_ip = !ip_forms.empty();
+    auto blocked = [&]() {
+        if (naab::net::hostMatchesAny(host, cfg.blocked_hosts)) return true;
+        for (const auto& f : ip_forms) if (naab::net::hostMatchesAny(f, cfg.blocked_hosts)) return true;
+        return false;
+    };
+    // An address an IP entry admits, or one an allowed lookup produced and whose
+    // name the lists still allow at this port.
+    auto admitted_ip = [&]() {
+        for (const auto& f : ip_forms) if (sandbox->hostPolicyAllows(f, port)) return true;
+        std::lock_guard<std::mutex> lock(g_admitted_mutex);
+        for (const auto& f : ip_forms) {
+            auto it = g_admitted.find(f);
+            if (it != g_admitted.end() && sandbox->hostPolicyAllows(it->second, port)) return true;
+        }
+        return false;
+    };
+
+    if (kind == NAAB_NET_LOOKUP) {
+        if (address == NAAB_NET_NONE) return 1;          // getaddrinfo(None, ...): local, no query
+        if (address == NAAB_NET_HOST && is_ip) return 1; // a literal: no query, the connect is judged
+        if (!net_on) return 0;                           // a name lookup is a network query
+        if (address != NAAB_NET_HOST) return allowlist ? 0 : 1;
+        if (blocked()) return 0;
+        if (!allowlist) return 1;
+        if (!naab::net::hostMatchesAny(host, cfg.allowed_hosts)) return 0;
+        admitResolvedAddresses(host);
+        return 1;
+    }
+    if (kind == NAAB_NET_REVERSE) {
+        if (address == NAAB_NET_NONE) return 1;
+        if (!net_on) return 0;
+        if (address != NAAB_NET_HOST) return allowlist ? 0 : 1;
+        if (blocked()) return 0;
+        if (!allowlist) return 1;
+        if (naab::net::hostMatchesAny(host, cfg.allowed_hosts)) return 1;
+        return is_ip && admitted_ip() ? 1 : 0;
+    }
+    // A send: connect, sendto, sendmsg.
+    if (!net_on) return 0;
+    if (address == NAAB_NET_NONE || address == NAAB_NET_NOT_INET) return 1;  // connected socket / AF_UNIX
+    if (address == NAAB_NET_BAD_HOST) return allowlist ? 0 : 1;
+    if (!is_ip) return sandbox->hostPolicyAllows(host, port) ? 1 : 0;   // a name, as http.* judges it
+    if (blocked()) return 0;
+    return admitted_ip() ? 1 : 0;
 }
 
 /**

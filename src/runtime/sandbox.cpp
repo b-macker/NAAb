@@ -265,6 +265,10 @@ bool Sandbox::canConnect(const std::string& host, int port) const {
         return false;
     }
 
+    return hostPolicyAllows(host, port);
+}
+
+bool Sandbox::hostPolicyAllows(const std::string& host, int port) const {
     // F10: host policy. ONE matcher for both lists -- an operator must not have
     // to know which list a name is on to predict how it is matched.
     // Case-insensitive per RFC 1035, with subdomain matching on a dot boundary

@@ -3037,6 +3037,9 @@ struct CheckResult {
     // Human-readable explanation: plain-English sentence for end users
     std::string explanation;
     bool escalated = false;   // advisory escalated to effective block
+    // A65: which enforce() call recorded this result, so a later step of the
+    // same call finds its own record after another thread has appended one.
+    uint64_t record_id = 0;
 };
 
 // ============================================================================
@@ -3470,6 +3473,10 @@ public:
     // F18/F8: the native twins of two source-text-only scanners. Both use the
     // level the polyglot path uses, so neither door is stricter than the other.
     std::string checkWeakHashAllowed(const std::string& algorithm);
+    // F19: crypto.base64_* / hex_* under restrictions.data_exfiltration's encoding flags
+    std::string checkNativeEncodingAllowed(const std::string& function);
+    // A17 F8a: process.run's command line against the process-listing / system-info patterns
+    std::string checkInfoDisclosureCommand(const std::string& command_line);
     std::string checkEnvDumpAllowed();
     static std::string filesystemAccessMode(const std::string& module,
                                             const std::string& method);
@@ -4188,6 +4195,7 @@ private:
     std::shared_ptr<const GovernanceRules> rules_ptr_;
     std::vector<CheckResult> check_results_;
     mutable std::mutex results_mutex_;  // V-CONC-007: Thread-safe check_results_ access
+    uint64_t check_record_seq_ = 0;     // A65: CheckResult::record_id source, under results_mutex_
     static constexpr size_t MAX_CHECK_RESULTS = 10000;  // V-GOV-024: Cap telemetry entries
     GovernancePulse pulse_;  // Governance self-health assessment (writes under results_mutex_)
     std::string agent_id_ = "anonymous";
