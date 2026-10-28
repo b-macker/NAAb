@@ -6,6 +6,8 @@
 #include <chrono>
 #include <vector>
 #include <string>
+#include <set>
+#include <algorithm>
 
 namespace naab {
 
@@ -14,14 +16,32 @@ static size_t discardCallback(char*, size_t size, size_t nmemb, void*) {
     return size * nmemb;
 }
 
+// Every forwarder with a running worker, so drainAll() can reach them before
+// _exit(). A forwarder leaves the registry only after its own shutdown, and
+// drainAll() holds the registry lock while it drains, so neither can outlive
+// the other's use of it.
+static std::mutex& registryMutex() { static std::mutex m; return m; }
+static std::set<TelemetryForwarder*>& registry() { static std::set<TelemetryForwarder*> r; return r; }
+
+static long long ticksOf(std::chrono::steady_clock::time_point t) {
+    return static_cast<long long>(t.time_since_epoch().count());
+}
+static std::chrono::steady_clock::time_point timeOf(long long ticks) {
+    return std::chrono::steady_clock::time_point(std::chrono::steady_clock::duration(ticks));
+}
+
 TelemetryForwarder::TelemetryForwarder(const TelemetryForwarderConfig& config)
     : config_(config) {
     if (config_.webhook_url.empty()) return;
     worker_ = std::thread(&TelemetryForwarder::workerLoop, this);
+    std::lock_guard<std::mutex> rlock(registryMutex());
+    registry().insert(this);
 }
 
 TelemetryForwarder::~TelemetryForwarder() {
     shutdown();
+    std::lock_guard<std::mutex> rlock(registryMutex());
+    registry().erase(this);
 }
 
 void TelemetryForwarder::enqueue(const std::string& json_line) {
@@ -39,23 +59,51 @@ void TelemetryForwarder::enqueue(const std::string& json_line) {
 }
 
 void TelemetryForwarder::shutdown() {
-    if (!running_.exchange(false)) return;  // already shut down
+    shutdownBy(std::chrono::steady_clock::now() +
+               std::chrono::milliseconds(config_.shutdown_drain_ms), /*join=*/true);
+}
+
+void TelemetryForwarder::drainAll() {
+    std::lock_guard<std::mutex> rlock(registryMutex());
+    int drain_ms = 0;
+    for (auto* f : registry()) drain_ms = std::max(drain_ms, f->config_.shutdown_drain_ms);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(drain_ms);
+    for (auto* f : registry()) f->shutdownBy(deadline, /*join=*/false);
+}
+
+void TelemetryForwarder::shutdownBy(std::chrono::steady_clock::time_point deadline, bool join) {
+    // A second caller (the destructor after drainAll, or drainAll during a
+    // reload's teardown) waits for the first instead of returning while it is
+    // still draining.
+    std::lock_guard<std::mutex> slock(shutdown_mutex_);
+    if (shut_down_) {
+        if (join && worker_.joinable()) worker_.join();
+        return;
+    }
+    shut_down_ = true;
+    deadline_ticks_.store(ticksOf(deadline));
+    running_.store(false);
     cv_.notify_all();
-    if (worker_.joinable()) {
-        worker_.join();
+
+    // The worker may be posting a batch it already took off the buffer: give
+    // it until the deadline (its POST is capped by the same deadline).
+    size_t abandoned = 0;
+    {
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (!idle_cv_.wait_until(lock, deadline, [this] { return !worker_busy_; }))
+            abandoned = in_flight_;   // still posting at the deadline: lost with the exit
     }
 
-    // M2: Final drain — flush remaining events (bounded by deadline)
+    // M2: Final drain -- post what is still buffered, by the deadline. The
+    // deadline is checked before each batch and caps each POST's timeout, so
+    // one slow webhook cannot hold the exit past it.
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        auto deadline = std::chrono::steady_clock::now() +
-            std::chrono::milliseconds(config_.shutdown_drain_ms);
         while (!buffer_.empty()) {
             if (std::chrono::steady_clock::now() >= deadline) {
-                size_t dropped = buffer_.size();
-                events_dropped_ += dropped;
+                abandoned += buffer_.size();
+                events_dropped_ += buffer_.size();
                 buffer_.clear();
-                fprintf(stderr, "[telemetry] Shutdown drain timeout: %zu events dropped\n", dropped);
                 break;
             }
             std::string payload = "[";
@@ -67,10 +115,23 @@ void TelemetryForwarder::shutdown() {
                 count++;
             }
             payload += "]";
-            if (!postBatch(payload)) {
+            if (postBatch(payload)) {
+                events_forwarded_ += static_cast<size_t>(count);
+            } else {
                 events_dropped_ += static_cast<size_t>(count);
             }
         }
+    }
+
+    if (abandoned > 0) {
+        fprintf(stderr, "[telemetry] Shutdown drain timeout: %zu events not forwarded\n", abandoned);
+    }
+
+    if (worker_.joinable()) {
+        // A destructor must join (the worker uses this object); the exit path
+        // must not wait past its deadline for a request still in flight.
+        if (join) worker_.join();
+        else worker_.detach();
     }
 }
 
@@ -85,7 +146,9 @@ void TelemetryForwarder::workerLoop() {
                 return !buffer_.empty() || !running_.load();
             });
 
-            if (buffer_.empty()) continue;
+            // Once shutdown has begun, what is buffered is the final drain's:
+            // a batch taken here would race it past the deadline.
+            if (!running_.load() || buffer_.empty()) continue;
 
             // Drain up to batch_size events
             int count = 0;
@@ -94,9 +157,9 @@ void TelemetryForwarder::workerLoop() {
                 buffer_.pop_front();
                 count++;
             }
+            worker_busy_ = true;
+            in_flight_ = batch.size();
         }
-
-        if (batch.empty()) continue;
 
         // Build JSON array payload
         std::string payload = "[";
@@ -128,7 +191,22 @@ void TelemetryForwarder::workerLoop() {
             // to avoid infinite loops
             events_dropped_ += batch.size();
         }
+
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            worker_busy_ = false;
+            in_flight_ = 0;
+        }
+        idle_cv_.notify_all();
     }
+}
+
+// Aborts a transfer once the shutdown deadline has passed: a POST that began
+// before shutdown has a timeout that knew nothing of it.
+static int deadlineProgress(void* clientp, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
+    auto* ticks = static_cast<std::atomic<long long>*>(clientp);
+    long long t = ticks->load();
+    return (t != 0 && std::chrono::steady_clock::now() >= timeOf(t)) ? 1 : 0;
 }
 
 bool TelemetryForwarder::postBatch(const std::string& payload) {
@@ -142,8 +220,17 @@ bool TelemetryForwarder::postBatch(const std::string& payload) {
                      static_cast<long>(payload.size()));
 
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discardCallback);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS,
-                     static_cast<long>(config_.timeout_ms));
+    long timeout_ms = static_cast<long>(config_.timeout_ms);
+    if (long long t = deadline_ticks_.load()) {
+        auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
+            timeOf(t) - std::chrono::steady_clock::now()).count();
+        if (left <= 0) { curl_easy_cleanup(curl); return false; }
+        timeout_ms = std::min<long>(timeout_ms, static_cast<long>(left));
+    }
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeout_ms);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, deadlineProgress);
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &deadline_ticks_);
 
     // HTTPS verification
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);

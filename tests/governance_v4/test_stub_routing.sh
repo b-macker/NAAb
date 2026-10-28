@@ -22,6 +22,7 @@
 #   D3  a routes key shifts the global queue      -> SR-02 SR-03 SR-04
 #   D4  last matching key wins, not first         -> SR-05
 #   D5  wrap-around instead of last-repeats       -> SR-01 SR-02 SR-04
+#   D6  req_N.json opened without encoding=utf-8 -> SR-07 (SR-07c stays green)
 #
 # Each gate is isolated by at least one row (SR-01/SR-02 by D5, SR-04 by D3,
 # SR-05 by D4), so none of them is riding on a neighbour.
@@ -67,6 +68,8 @@ gate_def SR-03 ROUTING  "routed requests do not advance the global index"
 gate_def SR-04 CONTROL  "a route table matching nothing is byte-identical to no route table"
 gate_def SR-05 ROUTING  "first matching key in fixture order wins"
 gate_def SR-06 EVIDENCE "routes.log records one decision per request"
+gate_def SR-07 COMPAT   "a non-ASCII body is answered and logged intact under a non-UTF-8 locale"
+gate_def SR-07c CONTROL "an ASCII body is answered under the same locale"
 
 # ------------------------------------------------------------------
 # A minimal client: POST a body, print the model's text on one line.
@@ -241,6 +244,46 @@ else
         fail SR-06 "routes.log does not account for every request" \
              "lines=$LINES alpha=$NALPHA bravo=$NBRAVO unrouted=$NNONE (want 7/3/3/1)"
     fi
+fi
+
+# ------------------------------------------------------------------
+# SR-07 / SR-07c -- the stub under a locale whose encoding is not UTF-8
+# ------------------------------------------------------------------
+# Python opens a file in the LOCALE's encoding unless told otherwise: cp1252
+# under MSYS2, ASCII under a bare C locale (with PEP 538/540 coercion off).
+# The stub wrote each request body that way, so a body carrying a character
+# the locale cannot encode -- the governance voice's prompt quotes violation
+# messages with their check marks -- raised UnicodeEncodeError, which the
+# handler's `except OSError` does not catch: the request file was left empty
+# and the connection closed with no reply. Observed on build-windows (#345:
+# the voice suite's stub got one request per arm and answered none) and
+# reproduced here. Every open() in agent_stub.py now names UTF-8.
+NONASCII='{"contents":[{"parts":[{"text":"Example: \u2717 Blocked \u2713 Allowed"}]}]}'
+NONASCII_CHAR=$(printf '\xe2\x9c\x97')
+loc_seq() {  # $1=state subdir, then bodies; echoes the response line
+    local dir="$TEST_TMP/$1"; shift
+    mkdir -p "$dir"
+    PYTHONUTF8=0 PYTHONCOERCECLOCALE=0 LC_ALL=C LANG=C start_stub "$TEST_TMP/flat.json" "$dir" || return 1
+    python3 "$TEST_TMP/post.py" "$STUB_PORT" "$@" 2>"$dir/client.err"
+    local rc=$?
+    stop_stub
+    return $rc
+}
+ASCII_OUT="$(loc_seq loc_ascii "$BODY_N")"; ASCII_RC=$?
+if [ $ASCII_RC -eq 0 ] && [ "$ASCII_OUT" = "G1" ]; then
+    pass SR-07c "an ASCII body is answered under a non-UTF-8 locale"
+else
+    fail SR-07c "the stub did not answer an ASCII body under a non-UTF-8 locale" \
+         "rc=$ASCII_RC out='$ASCII_OUT' $(head -c 300 "$TEST_TMP/loc_ascii/client.err" 2>/dev/null)"
+fi
+# The JSON escape keeps this file ASCII; the stub decodes it to the real
+# characters, which is what it must then write.
+NA_OUT="$(loc_seq loc_nonascii "$(printf '%s' "$NONASCII" | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin), ensure_ascii=False))')")"; NA_RC=$?
+if [ $NA_RC -eq 0 ] && [ "$NA_OUT" = "G1" ] && grep -qF "$NONASCII_CHAR" "$TEST_TMP/loc_nonascii/req_1.json" 2>/dev/null; then
+    pass SR-07 "a non-ASCII body is answered and its request file holds it, under a non-UTF-8 locale"
+else
+    fail SR-07 "a non-ASCII body broke the stub under a non-UTF-8 locale" \
+         "rc=$NA_RC out='$NA_OUT' req_1=$(wc -c < "$TEST_TMP/loc_nonascii/req_1.json" 2>/dev/null) bytes; $(grep -a -m1 'Error' "$TEST_TMP/loc_nonascii/stub.log" 2>/dev/null)"
 fi
 
 gate_print_summary

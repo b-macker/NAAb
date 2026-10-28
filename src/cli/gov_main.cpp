@@ -21,6 +21,7 @@
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/scanner.h"
+#include "naab/process_exit.h"
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
@@ -653,7 +654,7 @@ int main(int argc, char* argv[]) {
         }
     } catch (const naab::governance::GovernanceHardError& e) {
         std::cerr << e.what() << "\n";
-        _exit(3);
+        naab::exitProcess(3);
     }
 
     std::cerr << "naab-gov: unknown command: " << cmd << "\n"

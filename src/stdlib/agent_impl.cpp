@@ -2101,26 +2101,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
     // ── Prompt-side governance: scan outbound message before API call ──
     if (gov_engine && gov_engine->isActive() && !message.empty()) {
-        std::string secret_err = gov_engine->checkSecrets(message, 0);
-        if (!secret_err.empty()) {
-            throw std::runtime_error(fmt::format(
-                "Agent error: Prompt for '{}' contains a potential secret\n\n"
-                "  Help:\n"
-                "  - The outbound message was blocked because it contains a pattern\n"
-                "    matching a known secret format (API key, token, etc.)\n"
-                "  - Sanitize sensitive data before sending to external LLM APIs\n",
-                config_name));
-        }
-        std::string pii_err = gov_engine->checkPii(message, 0);
-        if (!pii_err.empty()) {
-            throw std::runtime_error(fmt::format(
-                "Agent error: Prompt for '{}' contains potential PII\n\n"
-                "  Help:\n"
-                "  - The outbound message was blocked because it contains a pattern\n"
-                "    matching personally identifiable information\n"
-                "  - Remove or mask PII before sending to external LLM APIs\n",
-                config_name));
-        }
+        // checkSecrets()/checkPii() ENFORCE: a hit ends the run (or passes under
+        // --governance-override at SOFT); they never return a message to act on,
+        // since enforce() returns "" or throws (A44(a)).
+        gov_engine->checkSecrets(message, 0);
+        gov_engine->checkPii(message, 0);
         std::string info_err = gov_engine->checkInfoDisclosure("naab", message, 0);
         if (!info_err.empty()) {
             throw std::runtime_error(fmt::format(
@@ -3522,6 +3507,28 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
             json tool_result_blocks = json::array();
 
+            // A refused call is answered with an error result, and that result
+            // needs its call beside it in the assistant turn: a result naming no
+            // call is a request the providers reject (Anthropic: a tool_result
+            // with no matching tool_use; Gemini: more function responses than
+            // calls). The refusals used to push only the result (A44(b)).
+            auto refuseCall = [&](const auto& call, const char* reason) {
+                json input = json::object();
+                try {
+                    json parsed = json::parse(call.arguments);
+                    if (parsed.is_object()) input = std::move(parsed);
+                } catch (const governance::GovernanceHardError&) {
+                    throw;
+                } catch (const std::exception&) {
+                    // unparseable arguments: the call is shown with no input
+                }
+                assistant_content.push_back({{"type", "tool_use"}, {"id", call.id},
+                                             {"name", call.name}, {"input", input}});
+                tool_result_blocks.push_back({{"type", "tool_result"}, {"tool_use_id", call.id},
+                                              {"name", call.name}, {"content", reason},
+                                              {"is_error", true}});
+            };
+
             for (const auto& tc : agent_resp.tool_calls) {
                 // Budget check: max_tool_calls_per_turn
                 if (tool_calls_this_send >= config->max_tool_calls_per_turn) {
@@ -3535,12 +3542,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         gov_engine->emitEvent(governance::RuntimeEventType::TOOL_BLOCKED,
                             "tool_name_invalid", "", 0);
                     }
-                    json error_result;
-                    error_result["type"] = "tool_result";
-                    error_result["tool_use_id"] = tc.id;
-                    error_result["content"] = "Error: invalid tool name";
-                    error_result["is_error"] = true;
-                    tool_result_blocks.push_back(error_result);
+                    refuseCall(tc, "Error: invalid tool name");
                     tool_calls_this_send++;
                     tool_blocked_this_send++;
                     continue;
@@ -3559,12 +3561,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                             {"handle_id", std::to_string(handle_id)}
                         });
                     }
-                    json error_result;
-                    error_result["type"] = "tool_result";
-                    error_result["tool_use_id"] = tc.id;
-                    error_result["content"] = "Error: tool not available";
-                    error_result["is_error"] = true;
-                    tool_result_blocks.push_back(error_result);
+                    refuseCall(tc, "Error: tool not available");
                     tool_calls_this_send++;
                     tool_blocked_this_send++;
 
@@ -3588,33 +3585,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         gov_engine->emitEvent(governance::RuntimeEventType::TOOL_ERROR,
                             "tool_args_parse_failed(" + tc.name + ")", "", 0);
                     }
-                    json error_result;
-                    error_result["type"] = "tool_result";
-                    error_result["tool_use_id"] = tc.id;
-                    error_result["content"] = "Error: invalid arguments";
-                    error_result["is_error"] = true;
-                    tool_result_blocks.push_back(error_result);
+                    refuseCall(tc, "Error: invalid arguments");
                     tool_calls_this_send++;
                     tool_blocked_this_send++;
                     continue;
                 }
 
-                // Step 3: Scan arguments for secrets/PII (Gap B)
+                // Step 3: Scan arguments for secrets (Gap B). A hit ends the run
+                // (A44(a)): the scan enforces, it does not report.
                 if (gov_engine && gov_engine->isActive()) {
-                    std::string secret_err = gov_engine->checkSecrets(tc.arguments, 0);
-                    if (!secret_err.empty()) {
-                        gov_engine->emitEvent(governance::RuntimeEventType::TOOL_BLOCKED,
-                            "tool_args_secrets(" + tc.name + ")", "", 0);
-                        json error_result;
-                        error_result["type"] = "tool_result";
-                        error_result["tool_use_id"] = tc.id;
-                        error_result["content"] = "Error: arguments contain potential secrets";
-                        error_result["is_error"] = true;
-                        tool_result_blocks.push_back(error_result);
-                        tool_calls_this_send++;
-                        tool_blocked_this_send++;
-                        continue;
-                    }
+                    gov_engine->checkSecrets(tc.arguments, 0);
                 }
 
                 // Per-tool-call admissibility gate: tool execution is the most
@@ -3652,13 +3632,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                     gate_state ? gate_state->coherence_score : 0.0);
                             }
                             // quarantine/attest: deny just this tool call
-                            json error_result;
-                            error_result["type"] = "tool_result";
-                            error_result["tool_use_id"] = tc.id;
-                            error_result["content"] =
-                                "Error: tool execution not admissible";
-                            error_result["is_error"] = true;
-                            tool_result_blocks.push_back(error_result);
+                            refuseCall(tc, "Error: tool execution not admissible");
                             tool_calls_this_send++;
                             tool_blocked_this_send++;
 
@@ -3821,25 +3795,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     truncated = true;
                 }
 
-                // Step 8: Result content scanning (Gap B)
-                bool redacted = false;
+                // Step 8: Result content scanning (Gap B). A hit ends the run
+                // before the result reaches the model. It is not redacted: the
+                // redact-and-continue branches written here went dead when HARD
+                // became uncatchable (fd97d0ae) and were removed (A44(a)).
                 if (gov_engine && gov_engine->isActive() && tool_success) {
-                    std::string secret_err = gov_engine->checkSecrets(tool_result_str, 0);
-                    if (!secret_err.empty()) {
-                        tool_result_str = "[REDACTED: tool result contained potential secrets]";
-                        redacted = true;
-                        gov_engine->writeAgentTelemetry("AGENT_TOOL_SCAN_HIT", {
-                            {"tool_name", tc.name},
-                            {"scan_type", "secrets"},
-                            {"direction", "result"},
-                            {"action", "redact"}
-                        });
-                    }
-                    std::string pii_err = gov_engine->checkPii(tool_result_str, 0);
-                    if (!pii_err.empty()) {
-                        tool_result_str = "[REDACTED: tool result contained potential PII]";
-                        redacted = true;
-                    }
+                    gov_engine->checkSecrets(tool_result_str, 0);
+                    gov_engine->checkPii(tool_result_str, 0);
                 }
 
                 // Step 10: Taint marking (Gap E)
@@ -3858,8 +3820,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         {"success", tool_success ? "true" : "false"},
                         {"latency_ms", std::to_string(tool_latency_ms)},
                         {"result_chars", std::to_string(tool_result_str.size())},
-                        {"truncated", truncated ? "true" : "false"},
-                        {"redacted", redacted ? "true" : "false"}
+                        {"truncated", truncated ? "true" : "false"}
                     });
                 }
 
@@ -4224,28 +4185,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // ── Gap 2: Output content filtering (secrets + PII) ──
     // (gov_engine already obtained above for reload check)
     if (gov_engine && gov_engine->isActive() && !content.empty()) {
-        // Check for secrets in LLM response (reuses existing 18-pattern scanner)
-        std::string secret_err = gov_engine->checkSecrets(content, 0);
-        if (!secret_err.empty()) {
-            throw std::runtime_error(fmt::format(
-                "Agent error: Response from '{}' contains a potential secret\n\n"
-                "  Help:\n"
-                "  - The LLM response was blocked because it contains a pattern\n"
-                "    matching a known secret format (API key, token, etc.)\n"
-                "  - This is enforced by governance code_quality.no_secrets\n",
-                config_name));
-        }
-        // Check for PII in LLM response (reuses existing SSN/CC/email/phone/IP scanner)
-        std::string pii_err = gov_engine->checkPii(content, 0);
-        if (!pii_err.empty()) {
-            throw std::runtime_error(fmt::format(
-                "Agent error: Response from '{}' contains potential PII\n\n"
-                "  Help:\n"
-                "  - The LLM response was blocked because it contains a pattern\n"
-                "    matching personally identifiable information\n"
-                "  - This is enforced by governance code_quality.no_pii\n",
-                config_name));
-        }
+        // Secrets and PII in the LLM response: each scan enforces (A44(a)).
+        gov_engine->checkSecrets(content, 0);
+        gov_engine->checkPii(content, 0);
     }
 
     // ── Gap 3: Per-agent path/shell restriction enforcement ──
@@ -5836,22 +5778,9 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
         if (!bsd_block.empty()) throw std::runtime_error(bsd_block);
     }
     if (gov_engine && gov_engine->isActive() && !message.empty()) {
-        std::string secret_err = gov_engine->checkSecrets(message, 0);
-        if (!secret_err.empty()) {
-            throw std::runtime_error(fmt::format(
-                "Agent error: Prompt for '{}' contains a potential secret\n\n"
-                "  Help:\n"
-                "  - Sanitize sensitive data before sending to external LLM APIs\n",
-                config_name));
-        }
-        std::string pii_err = gov_engine->checkPii(message, 0);
-        if (!pii_err.empty()) {
-            throw std::runtime_error(fmt::format(
-                "Agent error: Prompt for '{}' contains potential PII\n\n"
-                "  Help:\n"
-                "  - Remove or mask PII before sending to external LLM APIs\n",
-                config_name));
-        }
+        // Each scan enforces; a hit ends the run (A44(a)).
+        gov_engine->checkSecrets(message, 0);
+        gov_engine->checkPii(message, 0);
     }
     if (gov_engine && gov_engine->isActive()) {
         std::string admission = gov_engine->checkAdmission(config_name);
@@ -6015,16 +5944,15 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
         std::string content = stripMarkdownFences(resp.content);
 
         // Stateless per-candidate governance: response scan + contract format.
-        // Failures mark the candidate inadmissible instead of throwing —
-        // candidates are for inspection; only commit executes consequences.
+        // A contract failure marks the candidate inadmissible. A secret or PII
+        // in a candidate ends the run, as it would at send: the scans enforce
+        // (A44(a)). Marking it instead would hand the secret to the program in
+        // the candidate list -- a loosening, so the check stays as it is.
         bool scan_ok = true;
         std::string inadmissible_reason;
         if (gov_engine && gov_engine->isActive() && !content.empty()) {
-            if (!gov_engine->checkSecrets(content, 0).empty() ||
-                !gov_engine->checkPii(content, 0).empty()) {
-                scan_ok = false;
-                inadmissible_reason = "response_scan";
-            }
+            gov_engine->checkSecrets(content, 0);
+            gov_engine->checkPii(content, 0);
         }
         if (scan_ok && config->response_format == "json" && !content.empty()) {
             try { (void)json::parse(content); }

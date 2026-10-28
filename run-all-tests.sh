@@ -704,6 +704,19 @@ else
     echo "  Report format test script not found, skipping"
 fi
 
+# A static HARD block on the VM writes its reports too (A43(e))
+STATIC_REPORT_SCRIPT="tests/cli/test_static_block_reports.sh"
+if [ -f "$STATIC_REPORT_SCRIPT" ]; then
+    if run_shell_test "$STATIC_REPORT_SCRIPT" 2>&1; then
+        echo "  test_static_block_reports.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_static_block_reports.sh")
+    fi
+else
+    echo "  test_static_block_reports.sh: not found, skipping"
+fi
+
 # --- Rationale Report Tests ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -1038,6 +1051,19 @@ if [ -f "$LSP_NEW_SCRIPT" ] && [ -f "build/naab-lsp" ]; then
     fi
 else
     echo "  test_lsp_new_methods.sh: skipped (naab-lsp not built or script not found)"
+fi
+
+# A43(d): a governance diagnostic names the rule its block cites
+LSP_GOV_SCRIPT="tests/lsp/test_lsp_governance_diag.sh"
+if [ -f "$LSP_GOV_SCRIPT" ] && [ -x "build/naab-lsp" ]; then
+    if run_shell_test "$LSP_GOV_SCRIPT" 2>&1; then
+        echo "  test_lsp_governance_diag.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_lsp_governance_diag.sh")
+    fi
+else
+    echo "  test_lsp_governance_diag.sh: skipped (naab-lsp not built or script not found)"
 fi
 
 # --- Deterministic Build / Lockfile Tests (Phase 8.4) ---
@@ -3258,6 +3284,32 @@ else
     echo "  test_tool_admissibility_gate.sh: not found, skipping"
 fi
 
+# A refused tool call is answered beside its call; a tool-result secret ends the run (A44)
+TOOL_PAIR_SCRIPT="tests/governance_v4/test_tool_call_pairing.sh"
+if [ -f "$TOOL_PAIR_SCRIPT" ]; then
+    if run_shell_test "$TOOL_PAIR_SCRIPT" 2>&1; then
+        echo "  test_tool_call_pairing.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_tool_call_pairing.sh")
+    fi
+else
+    echo "  test_tool_call_pairing.sh: not found, skipping"
+fi
+
+# The governance voice prints its guide once, and a guide carrying a secret or PII is withheld (A40)
+VOICE_SCRIPT="tests/governance_v4/test_governance_voice.sh"
+if [ -f "$VOICE_SCRIPT" ]; then
+    if run_shell_test "$VOICE_SCRIPT" 2>&1; then
+        echo "  test_governance_voice.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_governance_voice.sh")
+    fi
+else
+    echo "  test_governance_voice.sh: not found, skipping"
+fi
+
 # naab-44 governance gap fixes (windowing, velocity, graduated corrections)
 NAAB44_SCRIPT="tests/governance_v4/test_naab44_fixes.sh"
 if [ -f "$NAAB44_SCRIPT" ]; then
@@ -4100,6 +4152,18 @@ if [ -f "$MCP_STDIO_SCRIPT" ]; then
     fi
 else
     echo "  test_mcp_stdio.sh: not found, skipping"
+fi
+
+MCP_FINDINGS_SCRIPT="tests/mcp/test_mcp_findings.sh"
+if [ -f "$MCP_FINDINGS_SCRIPT" ]; then
+    if run_shell_test "$MCP_FINDINGS_SCRIPT" 2>&1; then
+        echo "  test_mcp_findings.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_mcp_findings.sh")
+    fi
+else
+    echo "  test_mcp_findings.sh: not found, skipping"
 fi
 
 SEC_TIMEOUT_REACH_SCRIPT="tests/security/test_timeout_reach.sh"

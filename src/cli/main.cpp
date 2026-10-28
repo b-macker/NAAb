@@ -83,6 +83,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <set>
+#include "naab/process_exit.h"
 #ifndef _WIN32
 #  include <unistd.h>  // _exit()
 #  include <fcntl.h>   // --event-stream-fd (MCP worker)
@@ -1236,14 +1237,14 @@ int main(int argc, char** argv) {
     if (command == "--help" || command == "-h") {
         print_usage();
         fflush(stdout);
-        _exit(0);
+        naab::exitProcess(0);
     }
 
     // Handle --version and -V flags
     if (command == "--version" || command == "-V") {
         fmt::print("naab-lang {}\n", NAAB_VERSION_STRING);
         fflush(stdout);
-        _exit(0);
+        naab::exitProcess(0);
     }
 
     // Handle --scan command
@@ -1633,7 +1634,7 @@ int main(int argc, char** argv) {
                 if (!kLeaseActions.count(a)) {
                     fprintf(stderr, "Error: unknown lease action '%s'\n", a.c_str());
                     fflush(nullptr);
-                    _exit(4);
+                    naab::exitProcess(4);
                 }
                 actions.push_back(a);
             }
@@ -1645,7 +1646,7 @@ int main(int argc, char** argv) {
             if (fl < 0) {
                 fprintf(stderr, "Error: event stream descriptor is not open\n");
                 fflush(nullptr);
-                _exit(4);
+                naab::exitProcess(4);
             }
             // Polyglot children must not inherit the stream.
             fcntl(event_stream_fd, F_SETFD, fl | FD_CLOEXEC);
@@ -1653,7 +1654,7 @@ int main(int argc, char** argv) {
 #else
             fprintf(stderr, "Error: the event stream is not supported on this platform\n");
             fflush(nullptr);
-            _exit(4);
+            naab::exitProcess(4);
 #endif
         }
 
@@ -1685,7 +1686,7 @@ int main(int argc, char** argv) {
                 "  Help:\n"
                 "  - Fix the configuration error above. Nothing was run.\n");
             fflush(nullptr);
-            _exit(4);
+            naab::exitProcess(4);
         }
 
         // Replay the caller's earlier events before anything runs. Unreadable
@@ -1694,7 +1695,7 @@ int main(int argc, char** argv) {
             !shared_governance.seedSequenceEvents(event_seed)) {
             fprintf(stderr, "Error: event history could not be read\n");
             fflush(nullptr);
-            _exit(4);
+            naab::exitProcess(4);
         }
 
         // Pre-flight authority — persists to VM-path check below
@@ -1709,7 +1710,7 @@ int main(int argc, char** argv) {
                     "[governance] INTEGRITY BLOCK: Governance configuration is tamper-protected.\n"
                     "  Execution is blocked. Only the project owner can authorize changes.\n");
                 fflush(stderr);
-                _exit(3);
+                naab::exitProcess(3);
             }
 
             if (gov_loaded && shared_governance.isActive()) {
@@ -1835,7 +1836,7 @@ int main(int argc, char** argv) {
                     }
                     if (naab::governance::g_governance_hard_block) {
                         fflush(stdout); fflush(stderr);
-                        _exit(3);
+                        naab::exitProcess(3);
                     }
                 }
             }
@@ -1868,7 +1869,7 @@ int main(int argc, char** argv) {
                     "    the whole policy. Nothing was run.\n"
                     "  - Remove --tree-walk from the command.\n");
                 fflush(nullptr);
-                _exit(4);
+                naab::exitProcess(4);
             }
         }
 
@@ -2072,7 +2073,7 @@ int main(int argc, char** argv) {
                             fmt::print(stderr, "  {}\n", err.toString());
                         }
                         fflush(stderr);
-                        _exit(1);
+                        naab::exitProcess(1);
                     } else if (verbose) {
                         fmt::print(stderr, "[typecheck] {} warning{}:\n",
                             type_errors.size(), type_errors.size() == 1 ? "" : "s");
@@ -2143,7 +2144,7 @@ int main(int argc, char** argv) {
                                     "  Re-run with --lock to regenerate: naab-lang --lock %s\n",
                                     filename.c_str());
                     fflush(stderr);
-                    _exit(1);
+                    naab::exitProcess(1);
                 }
                 // Only the runtimes the lockfile records: checkDrift() ignores
                 // the rest, and a subprocess runtime answers by running its
@@ -2166,7 +2167,7 @@ int main(int argc, char** argv) {
                                     "  Run with --lock to update: naab-lang --lock %s\n",
                                     filename.c_str());
                     fflush(stdout); fflush(stderr);
-                    _exit(1);
+                    naab::exitProcess(1);
                 } else if (verbose) {
                     fprintf(stderr, "[lock] All runtime versions match lockfile.\n");
                 }
@@ -2185,7 +2186,7 @@ int main(int argc, char** argv) {
                         "  This is by design — do not attempt to modify, delete, or recreate govern.json\n"
                         "  or its .sig file. Only the project owner can authorize changes.\n");
                     fflush(stderr);
-                    _exit(3);
+                    naab::exitProcess(3);
                 }
                 // --no-governance waives the "no govern.json found" requirement
                 // below; it does not waive this check. Governance artifacts mean
@@ -2216,7 +2217,7 @@ int main(int argc, char** argv) {
                                 "indicate tampering.\n"
                                 "  Restore govern.json or remove governance artifacts to proceed.\n");
                             fflush(stderr);
-                            _exit(3);
+                            naab::exitProcess(3);
                         }
                     }
                     if (require_governance && !no_governance) {  // the flag's waiver
@@ -2480,152 +2481,155 @@ int main(int argc, char** argv) {
                     if (naab::governance::g_governance_hard_block) {
                         if (vm_governance.isActive()) vm_governance.writeReports();
                         fflush(stdout); fflush(stderr);
-                        _exit(3);
+                        naab::exitProcess(3);
                     }
                 }
 
-                // VM path: whole-source checks on the entry file (secrets, PII,
-                // incomplete logic). The tree-walker runs the same helper from
-                // visit(Program), and both engines run it on every imported
-                // module -- the per-function checks never see a top-level
-                // `export let` (A31).
-                if (gov_loaded && vm_governance.isActive()) {
-                    std::string sec_err = vm_governance.checkNaabSourceText(source, filename);
-                    if (!sec_err.empty()) throw std::runtime_error(sec_err);
-                }
-
-                // Gap 15: Detect empty/comment-only main{} blocks
-                if (gov_loaded && vm_governance.isActive() && program->getMainBlock()) {
-                    std::string empty_err = vm_governance.checkEmptyMain(source);
-                    if (!empty_err.empty()) {
-                        fprintf(stderr, "%s\n", empty_err.c_str());
+                // Every static block on the VM -- the whole-source checks, the
+                // intent preflight and agent review here, the per-function
+                // checks inside compile() -- leaves through this one
+                // write-reports-then-rethrow. It used to wrap compile() only, so
+                // a whole-source block (a PII or secret literal anywhere in the
+                // file) wrote no SARIF or report: the CI code-scanning channel
+                // missed exactly the static blocks (A43(e)). execute() keeps its
+                // own wrapper below.
+                naab::vm::Compiler bc_compiler;
+                naab::vm::CompiledFunction* main_fn = nullptr;
+                try {
+                    // VM path: whole-source checks on the entry file (secrets, PII,
+                    // incomplete logic). The tree-walker runs the same helper from
+                    // visit(Program), and both engines run it on every imported
+                    // module -- the per-function checks never see a top-level
+                    // `export let` (A31).
+                    if (gov_loaded && vm_governance.isActive()) {
+                        std::string sec_err = vm_governance.checkNaabSourceText(source, filename);
+                        if (!sec_err.empty()) throw std::runtime_error(sec_err);
                     }
-                }
 
-                // Preflight intent gate — verify all functions match owner-defined intent
-                // before any compilation or execution. Pattern-based (fast, no API).
-                if (gov_loaded && vm_governance.isActive()) {
-                    std::string intent_err = vm_governance.preflightIntentCheck(*program, source);
-                    if (!intent_err.empty()) {
-                        throw std::runtime_error(intent_err);
+                    // Gap 15: Detect empty/comment-only main{} blocks
+                    if (gov_loaded && vm_governance.isActive() && program->getMainBlock()) {
+                        std::string empty_err = vm_governance.checkEmptyMain(source);
+                        if (!empty_err.empty()) {
+                            fprintf(stderr, "%s\n", empty_err.c_str());
+                        }
                     }
-                }
 
-                // Drift detection: check structural metrics against baseline
-                if (gov_loaded && vm_governance.getRules().code_quality.drift_detection.enabled) {
-                    auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
-                        *program, source, filename);
-                    std::string drift_err = vm_governance.checkDriftDetection(filename, drift_metrics);
-                    if (!drift_err.empty()) {
-                        fprintf(stderr, "%s", drift_err.c_str());
+                    // Preflight intent gate — verify all functions match owner-defined intent
+                    // before any compilation or execution. Pattern-based (fast, no API).
+                    if (gov_loaded && vm_governance.isActive()) {
+                        std::string intent_err = vm_governance.preflightIntentCheck(*program, source);
+                        if (!intent_err.empty()) {
+                            throw std::runtime_error(intent_err);
+                        }
                     }
-                    if (drift_baseline_save || vm_governance.getRules().code_quality.drift_detection.auto_save) {
+
+                    // Drift detection: check structural metrics against baseline
+                    if (gov_loaded && vm_governance.getRules().code_quality.drift_detection.enabled) {
+                        auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
+                            *program, source, filename);
+                        std::string drift_err = vm_governance.checkDriftDetection(filename, drift_metrics);
+                        if (!drift_err.empty()) {
+                            fprintf(stderr, "%s", drift_err.c_str());
+                        }
+                        if (drift_baseline_save || vm_governance.getRules().code_quality.drift_detection.auto_save) {
+                            vm_governance.saveDriftBaseline(filename, drift_metrics);
+                        }
+                    } else if (drift_baseline_save && gov_loaded) {
+                        // Save baseline even if drift_detection not enabled in config
+                        auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
+                            *program, source, filename);
                         vm_governance.saveDriftBaseline(filename, drift_metrics);
                     }
-                } else if (drift_baseline_save && gov_loaded) {
-                    // Save baseline even if drift_detection not enabled in config
-                    auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
-                        *program, source, filename);
-                    vm_governance.saveDriftBaseline(filename, drift_metrics);
-                }
 
-                // Preflight scanner: run before execution so advisories are visible
-                // even if governance blocks execution later (exit 3)
-                if (gov_loaded && vm_governance.isActive()) {
-                    naab::scanner::ScannerEngine preflight_scanner;
-                    preflight_scanner.loadConfigFromPath(vm_governance.getLoadedPath(), true);
-                    if (preflight_scanner.hasConfig()) {
-                        // Collect all files to scan: main file + imported modules
-                        std::vector<std::string> scan_files = {filename};
-                        std::filesystem::path main_dir = std::filesystem::path(filename).parent_path();
-                        for (const auto& imp : program->getModuleImports()) {
-                            const std::string& mp = imp->getModulePath();
-                            // Skip stdlib imports (bare names without .naab extension)
-                            if (mp.find('/') == std::string::npos &&
-                                mp.find('\\') == std::string::npos &&
-                                (mp.size() < 5 || mp.substr(mp.size() - 5) != ".naab")) {
-                                continue;
+                    // Preflight scanner: run before execution so advisories are visible
+                    // even if governance blocks execution later (exit 3)
+                    if (gov_loaded && vm_governance.isActive()) {
+                        naab::scanner::ScannerEngine preflight_scanner;
+                        preflight_scanner.loadConfigFromPath(vm_governance.getLoadedPath(), true);
+                        if (preflight_scanner.hasConfig()) {
+                            // Collect all files to scan: main file + imported modules
+                            std::vector<std::string> scan_files = {filename};
+                            std::filesystem::path main_dir = std::filesystem::path(filename).parent_path();
+                            for (const auto& imp : program->getModuleImports()) {
+                                const std::string& mp = imp->getModulePath();
+                                // Skip stdlib imports (bare names without .naab extension)
+                                if (mp.find('/') == std::string::npos &&
+                                    mp.find('\\') == std::string::npos &&
+                                    (mp.size() < 5 || mp.substr(mp.size() - 5) != ".naab")) {
+                                    continue;
+                                }
+                                auto resolved = main_dir / mp;
+                                if (std::filesystem::exists(resolved)) {
+                                    scan_files.push_back(resolved.string());
+                                }
                             }
-                            auto resolved = main_dir / mp;
-                            if (std::filesystem::exists(resolved)) {
-                                scan_files.push_back(resolved.string());
-                            }
-                        }
 
-                        int total_adv_count = 0;
-                        std::vector<std::string> adv_lines;
-                        for (const auto& scan_file : scan_files) {
-                            auto scan_result = preflight_scanner.scan(scan_file, "auto");
-                            for (const auto& issue : scan_result.issues) {
-                                if (issue.level == "advisory") {
-                                    total_adv_count++;
-                                    if (adv_lines.size() < 10) {
-                                        std::string line_str = fmt::format("  - Line {}: {}.{} — {}",
-                                            issue.line, issue.category, issue.rule, issue.message);
-                                        if (scan_file != filename) {
-                                            // Show relative path for imported files
-                                            line_str = fmt::format("  - {} Line {}: {}.{} — {}",
-                                                std::filesystem::path(scan_file).filename().string(),
+                            int total_adv_count = 0;
+                            std::vector<std::string> adv_lines;
+                            for (const auto& scan_file : scan_files) {
+                                auto scan_result = preflight_scanner.scan(scan_file, "auto");
+                                for (const auto& issue : scan_result.issues) {
+                                    if (issue.level == "advisory") {
+                                        total_adv_count++;
+                                        if (adv_lines.size() < 10) {
+                                            std::string line_str = fmt::format("  - Line {}: {}.{} — {}",
                                                 issue.line, issue.category, issue.rule, issue.message);
+                                            if (scan_file != filename) {
+                                                // Show relative path for imported files
+                                                line_str = fmt::format("  - {} Line {}: {}.{} — {}",
+                                                    std::filesystem::path(scan_file).filename().string(),
+                                                    issue.line, issue.category, issue.rule, issue.message);
+                                            }
+                                            if (!issue.fix.empty()) {
+                                                line_str += fmt::format("\n    Fix: {}", issue.fix);
+                                            }
+                                            adv_lines.push_back(line_str);
                                         }
-                                        if (!issue.fix.empty()) {
-                                            line_str += fmt::format("\n    Fix: {}", issue.fix);
-                                        }
-                                        adv_lines.push_back(line_str);
                                     }
                                 }
                             }
-                        }
-                        if (total_adv_count > 0) {
-                            fprintf(stderr, "\n[scanner] Pre-flight notes (%d advisory):\n", total_adv_count);
-                            for (const auto& line : adv_lines) {
-                                fprintf(stderr, "%s\n", line.c_str());
+                            if (total_adv_count > 0) {
+                                fprintf(stderr, "\n[scanner] Pre-flight notes (%d advisory):\n", total_adv_count);
+                                for (const auto& line : adv_lines) {
+                                    fprintf(stderr, "%s\n", line.c_str());
+                                }
+                                if (total_adv_count > 10) {
+                                    fprintf(stderr, "  ... and %d more\n", total_adv_count - 10);
+                                }
+                                fprintf(stderr, "\n");
                             }
-                            if (total_adv_count > 10) {
-                                fprintf(stderr, "  ... and %d more\n", total_adv_count - 10);
-                            }
-                            fprintf(stderr, "\n");
                         }
                     }
-                }
 
-                // Store source for governance voice synthesis
-                if (gov_loaded && vm_governance.isActive()) {
-                    vm_governance.setSource(source);
-                }
+                    // Store source for governance voice synthesis
+                    if (gov_loaded && vm_governance.isActive()) {
+                        vm_governance.setSource(source);
+                    }
 
-                // Agent review: LLM-based governance phase (if enabled in govern.json)
-                if (gov_loaded && vm_governance.isActive()) {
-                    vm_governance.runAgentReview(source);
-                    // Intent-specific agent findings block execution immediately
-                    if (vm_governance.hasIntentBlock()) {
-                        vm_governance.writeReports();
+                    // Agent review: LLM-based governance phase (if enabled in govern.json)
+                    if (gov_loaded && vm_governance.isActive()) {
+                        vm_governance.runAgentReview(source);
+                        // Intent-specific agent findings block execution immediately
+                        if (vm_governance.hasIntentBlock()) {
+                            vm_governance.writeReports();
+                            fflush(stdout); fflush(stderr);
+                            naab::exitProcess(2);  // quality gate failure
+                        }
+                    }
+
+                    // Drift detection / agent review hard block — skip execution
+                    if (naab::governance::g_governance_hard_block) {
+                        if (vm_governance.isActive()) {
+                            vm_governance.runGovernanceVoice();
+                            vm_governance.writeReports();
+                        }
                         fflush(stdout); fflush(stderr);
-                        _exit(2);  // quality gate failure
+                        naab::exitProcess(3);
                     }
-                }
 
-                // Drift detection / agent review hard block — skip execution
-                if (naab::governance::g_governance_hard_block) {
-                    if (vm_governance.isActive()) {
-                        vm_governance.runGovernanceVoice();
-                        vm_governance.writeReports();
-                    }
-                    fflush(stdout); fflush(stderr);
-                    _exit(3);
-                }
-
-                // Bytecode VM path — compiler gets governance for pre-flight taint analysis
-                naab::vm::Compiler bc_compiler;
-                if (gov_loaded) bc_compiler.setGovernance(&vm_governance);
-                bc_compiler.setSourceText(source);  // the checks read what was parsed (A45)
-                // The per-function checks run HERE, while compiling, and a
-                // block from one used to leave with no report written: the
-                // write-reports-then-rethrow below wraps only execute(), and
-                // the tree-walker's (which runs these checks while executing)
-                // covers them. Same shape. tests/cli/test_report_formats.sh
-                naab::vm::CompiledFunction* main_fn = nullptr;
-                try {
+                    // Bytecode VM path — compiler gets governance for pre-flight taint analysis
+                    if (gov_loaded) bc_compiler.setGovernance(&vm_governance);
+                    bc_compiler.setSourceText(source);  // the checks read what was parsed (A45)
                     main_fn = bc_compiler.compile(*program, filename);
                 } catch (...) {
                     if (vm_governance.isActive()) {
@@ -2856,11 +2860,11 @@ int main(int argc, char** argv) {
                         if (!gate.empty()) {
                             fprintf(stderr, "%s", gate.c_str());
                             fflush(stdout); fflush(stderr);
-                            _exit(2);
+                            naab::exitProcess(2);
                         }
                     }
                     fflush(stdout); fflush(stderr);
-                    _exit(naab::governance::g_governance_hard_block ? 3 : 0);
+                    naab::exitProcess(naab::governance::g_governance_hard_block ? 3 : 0);
                 }
 
                 // Finding A fix: arm SIGALRM for NAAb VM execution itself.
@@ -2920,7 +2924,7 @@ int main(int argc, char** argv) {
                         fprintf(stderr, "Error: %s\n", contract_err.c_str());
                         vm_governance.writeReports();
                         fflush(stdout); fflush(stderr);
-                        _exit(3);
+                        naab::exitProcess(3);
                     }
                 }
 
@@ -2936,7 +2940,7 @@ int main(int argc, char** argv) {
                         fprintf(stderr, "%s", gate.c_str());
                         vm_governance.writeReports();
                         fflush(stdout); fflush(stderr);
-                        _exit(2);
+                        naab::exitProcess(2);
                     }
                 }
 
@@ -2948,7 +2952,7 @@ int main(int argc, char** argv) {
                         if (vm_governance.getRules().governance_baseline.fail_on_regression) {
                             vm_governance.writeReports();
                             fflush(stdout); fflush(stderr);
-                            _exit(2);
+                            naab::exitProcess(2);
                         }
                     }
                     if (governance_baseline_save) {
@@ -2982,11 +2986,11 @@ int main(int argc, char** argv) {
                         if (!gate.empty()) {
                             fprintf(stderr, "%s", gate.c_str());
                             fflush(stdout); fflush(stderr);
-                            _exit(2);
+                            naab::exitProcess(2);
                         }
                     }
                     fflush(stdout); fflush(stderr);
-                    _exit(naab::governance::g_governance_hard_block ? 3 : 0);
+                    naab::exitProcess(naab::governance::g_governance_hard_block ? 3 : 0);
                 }
 
                 // Preflight intent gate (tree-walker path)
@@ -3034,7 +3038,7 @@ int main(int argc, char** argv) {
                     if (shared_governance.hasIntentBlock()) {
                         shared_governance.writeReports();
                         fflush(stdout); fflush(stderr);
-                        _exit(2);
+                        naab::exitProcess(2);
                     }
                 }
 
@@ -3046,7 +3050,7 @@ int main(int argc, char** argv) {
                         gov->writeReports();
                     }
                     fflush(stdout); fflush(stderr);
-                    _exit(3);
+                    naab::exitProcess(3);
                 }
 
                 // Inner try-catch: write governance reports before re-throwing.
@@ -3094,7 +3098,7 @@ int main(int argc, char** argv) {
                             fprintf(stderr, "Error: %s\n", contract_err.c_str());
                             gov->writeReports();
                             fflush(stdout); fflush(stderr);
-                            _exit(3);
+                            naab::exitProcess(3);
                         }
                     }
                 }
@@ -3114,7 +3118,7 @@ int main(int argc, char** argv) {
                             fprintf(stderr, "%s", gate.c_str());
                             gov->writeReports();
                             fflush(stdout); fflush(stderr);
-                            _exit(2);
+                            naab::exitProcess(2);
                         }
                     }
                 }
@@ -3129,7 +3133,7 @@ int main(int argc, char** argv) {
                             if (gov->getRules().governance_baseline.fail_on_regression) {
                                 gov->writeReports();
                                 fflush(stdout); fflush(stderr);
-                                _exit(2);
+                                naab::exitProcess(2);
                             }
                         }
                         if (governance_baseline_save) {
@@ -3196,7 +3200,7 @@ int main(int argc, char** argv) {
             // process resources, and we've already flushed all output.
             fflush(stdout);
             fflush(stderr);
-            _exit(0);
+            naab::exitProcess(0);
 
         } catch (const naab::governance::GovernanceHardError& e) {
             // Uncatchable governance violation — NAAb try/catch cannot swallow this
@@ -3214,7 +3218,7 @@ int main(int argc, char** argv) {
             fmt::print("Error: {}\n", msg);
             fflush(stdout);
             fflush(stderr);
-            _exit(3);
+            naab::exitProcess(3);
         } catch (const naab::limits::ExitException& e) {
             // V-DOS-014: process.exit() throws ExitException instead of std::exit()
             // The accumulated advisory summary lives in the engine until
@@ -3230,8 +3234,8 @@ int main(int argc, char** argv) {
             fflush(stdout);
             fflush(stderr);
             // naab-29 L-02: governance hard block overrides process.exit()
-            if (naab::governance::g_governance_hard_block) _exit(3);
-            _exit(e.exit_code);
+            if (naab::governance::g_governance_hard_block) naab::exitProcess(3);
+            naab::exitProcess(e.exit_code);
         } catch (const naab::interpreter::NaabError& e) {
             // NaabError has full stack trace - print it
             // The accumulated advisory summary lives in the engine until
@@ -3248,8 +3252,8 @@ int main(int argc, char** argv) {
             fmt::print("{}\n", naab::error::ErrorSanitizer::sanitize(e.formatError()));
             fflush(stdout);
             fflush(stderr);
-            if (naab::governance::g_governance_hard_block) _exit(3);
-            _exit(1);
+            if (naab::governance::g_governance_hard_block) naab::exitProcess(3);
+            naab::exitProcess(1);
         } catch (const std::exception& e) {
             // V-ERR-002: keep raw_msg for exit-code detection; display sanitized version
             // The accumulated advisory summary lives in the engine until
@@ -3267,9 +3271,9 @@ int main(int argc, char** argv) {
             fmt::print("Error: {}\n", msg);
             fflush(stdout);
             fflush(stderr);
-            if (naab::governance::g_governance_hard_block) _exit(3);
-            if (raw_msg.find("Governance config error:") == 0) _exit(4);
-            _exit(1);
+            if (naab::governance::g_governance_hard_block) naab::exitProcess(3);
+            if (raw_msg.find("Governance config error:") == 0) naab::exitProcess(4);
+            naab::exitProcess(1);
         }
 
     } else if (command == "parse") {
@@ -4139,11 +4143,11 @@ int main(int argc, char** argv) {
         if (self.empty()) {
             fprintf(stderr, "Error: naab-lang mcp could not locate its own executable\n");
             fflush(nullptr);
-            _exit(1);
+            naab::exitProcess(1);
         }
         int rc = naab::api::runMcpServer(self);
         fflush(nullptr);
-        _exit(rc);
+        naab::exitProcess(rc);
 
     } else if (command == "api") {
         // Start REST API server (Phase 4.7)
@@ -4253,7 +4257,7 @@ int main(int argc, char** argv) {
                                     "  The lockfile may have been modified by an attacker.\n"
                                     "  Re-run with --lock to regenerate.\n");
                     fflush(stderr);
-                    _exit(1);
+                    naab::exitProcess(1);
                 }
                 // Only the runtimes the lockfile records (see the run-path check).
                 auto& lang_registry_api = naab::runtime::LanguageRegistry::instance();
@@ -4270,7 +4274,7 @@ int main(int argc, char** argv) {
                     for (const auto& d : drift_api) fprintf(stderr, "  %s\n", d.c_str());
                     fprintf(stderr, "  Re-run with --lock to update: naab-lang --lock api\n");
                     fflush(stderr);
-                    _exit(1);
+                    naab::exitProcess(1);
                 }
             }
 
@@ -4592,7 +4596,7 @@ int main(int argc, char** argv) {
         if (!fs::exists(bench_dir)) {
             fmt::print(stderr, "Error: Benchmark directory not found: {}\n", bench_dir);
             fmt::print(stderr, "  Expected at: {}\n", bench_dir);
-            _exit(1);
+            naab::exitProcess(1);
         }
 
         // Detect installed languages
@@ -4658,7 +4662,7 @@ int main(int argc, char** argv) {
 
         if (available.empty()) {
             fmt::print("No supported languages found. Install python3, node, go, rustc, nim, or ruby.\n");
-            _exit(1);
+            naab::exitProcess(1);
         }
 
         fmt::print("NAAb Calibration\n");
@@ -4846,7 +4850,7 @@ int main(int argc, char** argv) {
         std::ofstream out(output_path);
         if (!out.is_open()) {
             fmt::print(stderr, "Error: Could not write to {}\n", output_path);
-            _exit(1);
+            naab::exitProcess(1);
         }
 
         out << "{\n";
@@ -4936,7 +4940,7 @@ int main(int argc, char** argv) {
             fmt::print("    --languages L    Comma-separated list of languages to race\n\n");
             fmt::print("  Example:\n");
             fmt::print("    naab-lang race my_script.naab --block 0 --languages python,go,nim\n");
-            _exit(0);
+            naab::exitProcess(0);
         }
 
         // Load calibration data using GovernanceEngine's loader
@@ -4953,7 +4957,7 @@ int main(int argc, char** argv) {
             fmt::print("Run 'naab-lang calibrate' first to benchmark your machine.\n\n");
             fmt::print("This will measure actual performance of installed languages\n");
             fmt::print("so race results are based on your hardware, not estimates.\n");
-            _exit(1);
+            naab::exitProcess(1);
         }
 
         // Parse the .naab file to find polyglot blocks
@@ -5000,7 +5004,7 @@ int main(int argc, char** argv) {
 
             if (blocks.empty()) {
                 fmt::print("No polyglot blocks found in {}\n", race_file);
-                _exit(1);
+                naab::exitProcess(1);
             }
 
             if (block_index < 0) {
@@ -5013,13 +5017,13 @@ int main(int argc, char** argv) {
                         i, blocks[i].language, blocks[i].line, preview);
                 }
                 fmt::print("\nUse --block N to race a specific block.\n");
-                _exit(0);
+                naab::exitProcess(0);
             }
 
             if (block_index >= (int)blocks.size()) {
                 fmt::print("Block index {} out of range (0-{})\n",
                     block_index, blocks.size() - 1);
-                _exit(1);
+                naab::exitProcess(1);
             }
 
             auto& block = blocks[(size_t)block_index];
@@ -5173,7 +5177,7 @@ int main(int argc, char** argv) {
 
         } catch (const std::exception& e) {
             fmt::print("Error: {}\n", e.what());
-            _exit(1);
+            naab::exitProcess(1);
         }
 
     } else if (command == "install") {
@@ -5203,7 +5207,7 @@ int main(int argc, char** argv) {
             } else {
                 fmt::print(stderr, "Error: {}\n", pm.getLastError());
                 fflush(nullptr);  // stdout too: _exit skips the flush
-                _exit(1);
+                naab::exitProcess(1);
             }
         } else {
             for (const auto& spec : specs) {
@@ -5212,7 +5216,7 @@ int main(int argc, char** argv) {
                 } else {
                     fmt::print(stderr, "Error: {}\n", pm.getLastError());
                     fflush(nullptr);  // stdout too: _exit skips the flush
-                    _exit(1);
+                    naab::exitProcess(1);
                 }
             }
         }
@@ -5225,7 +5229,7 @@ int main(int argc, char** argv) {
             fmt::print(stderr, "Error: Missing package name\n");
             fmt::print(stderr, "Usage: naab-lang remove <package-name>\n");
             fflush(nullptr);  // stdout too: _exit skips the flush
-            _exit(1);
+            naab::exitProcess(1);
         }
         naab::packages::PackageManager pm(".");
         std::string name = argv[2];
@@ -5234,7 +5238,7 @@ int main(int argc, char** argv) {
         } else {
             fmt::print(stderr, "Error: {}\n", pm.getLastError());
             fflush(nullptr);  // stdout too: _exit skips the flush
-            _exit(1);
+            naab::exitProcess(1);
         }
 
     } else if (command == "update") {
@@ -5248,7 +5252,7 @@ int main(int argc, char** argv) {
         } else {
             fmt::print(stderr, "Error: {}\n", pm.getLastError());
             fflush(nullptr);  // stdout too: _exit skips the flush
-            _exit(1);
+            naab::exitProcess(1);
         }
 
     } else if (command == "list") {
@@ -5283,7 +5287,7 @@ int main(int argc, char** argv) {
             fmt::print(stderr, "Error: Missing package spec\n");
             fmt::print(stderr, "Usage: naab-lang info <user/repo>\n");
             fflush(nullptr);  // stdout too: _exit skips the flush
-            _exit(1);
+            naab::exitProcess(1);
         }
         naab::packages::PackageManager pm(".");
         std::string spec = argv[2];
@@ -5291,7 +5295,7 @@ int main(int argc, char** argv) {
         if (pkg.name.empty()) {
             fmt::print(stderr, "Error: {}\n", pm.getLastError());
             fflush(nullptr);  // stdout too: _exit skips the flush
-            _exit(1);
+            naab::exitProcess(1);
         }
         fmt::print("{} v{}\n", pkg.name, pkg.version);
         if (!pkg.description.empty()) fmt::print("  {}\n", pkg.description);
@@ -5324,7 +5328,7 @@ int main(int argc, char** argv) {
             fmt::print(stderr, "Error: Missing search query\n");
             fmt::print(stderr, "Usage: naab-lang search <query>\n");
             fflush(nullptr);  // stdout too: _exit skips the flush
-            _exit(1);
+            naab::exitProcess(1);
         }
         naab::packages::PackageManager pm(".");
         // Join all remaining args as query
@@ -5357,7 +5361,7 @@ int main(int argc, char** argv) {
         if (!pm.publish()) {
             // publish() prints its own errors
             fflush(nullptr);  // stdout too: _exit skips the flush
-            _exit(1);
+            naab::exitProcess(1);
         }
 
     } else if (command == "help") {
@@ -5376,13 +5380,13 @@ int main(int argc, char** argv) {
                 "    naab-lang <(echo 'main {{ io.write(\"hello\") }}')\n",
                 command);
             fflush(nullptr);  // stdout too: _exit skips the flush
-            _exit(1);
+            naab::exitProcess(1);
         }
         fmt::print("Unknown command: {}\n\n", command);
         print_usage();
         fflush(stdout);
         fflush(nullptr);  // stdout too: _exit skips the flush
-        _exit(1);
+        naab::exitProcess(1);
     }
 
     // Use _exit() to skip static destructors on Android.
@@ -5397,5 +5401,5 @@ int main(int argc, char** argv) {
     // including the notice that a package had modified govern.json. Flush
     // every stream first -- the comment above already claimed this was done.
     fflush(nullptr);
-    _exit(0);
+    naab::exitProcess(0);
 }

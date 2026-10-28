@@ -6,6 +6,7 @@
 #include "naab/language_descriptors.h"
 #include "naab/env_policy.h"
 #include "naab/path_policy.h"
+#include "naab/governance_message_format.h"  // labels the LSP reads back (A43(d))
 #include <algorithm>
 #include <cctype>
 #include <vector>
@@ -192,17 +193,18 @@ std::string GovernanceEngine::formatError(
     const std::string& bad_example,
     const std::string& good_example) {
 
+    namespace msg = naab::governance::message;
     std::ostringstream oss;
     if (level == EnforcementLevel::ADVISORY) {
-        oss << "Governance warning: " << what << " [" << levelToTag(level) << "]\n\n";
+        oss << msg::kWarningHeader << what << " [" << levelToTag(level) << "]\n\n";
     } else {
-        oss << "Governance error: " << what << " [" << levelToTag(level) << "]\n\n";
+        oss << msg::kErrorHeader << what << " [" << levelToTag(level) << "]\n\n";
     }
 
     if (!location.empty()) {
-        oss << "  At: " << location << "\n";
+        oss << msg::kAtLabel << location << "\n";
     }
-    oss << "  Rule: " << rule << "\n\n";
+    oss << msg::kRuleLabel << rule << "\n\n";
 
     if (!help.empty()) {
         oss << "  Help:\n";

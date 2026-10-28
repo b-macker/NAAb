@@ -31,8 +31,8 @@ A46 in `docs/open-investigations.md`.
 | B. Agent model inside `agent.send()` | the request the engine assembles, and tool results |
 | C. The governed script | the `agent.*` response dicts, `governance.*` functions, catchable errors |
 | D. Operator after the run | reports, telemetry, transcript, the opt-in dashboard |
-| E. MCP caller (`naab-lang mcp`) | `output` (worker stdout) and `findings` (worker stderr) |
-| F. Editor via the LSP (`tools/naab-lsp`) | diagnostics parsed from `naab-lang --lint-only` output: code `governance`, line 0, first line only (A43) |
+| E. MCP caller (`naab-lang mcp`) | `output` (worker stdout) and `findings` (worker stderr; for `naab_propose` its stdout too, where the CLI prints a HARD block -- A43(b), fixed 2026-10-28) |
+| F. Editor via the LSP (`tools/naab-lsp`) | diagnostics parsed from `naab-lang --lint-only` output: code = the rule name, message = the block's first line (A43(d), fixed 2026-10-28: the labels are shared with the formatter, `include/naab/governance_message_format.h`); line is the `At:` line, a function's start line for a placeholder |
 | G. REST client (`naab-lang api`) | `output` (the io capture stream) and `error` (sanitized exception text); governance stderr stays on the server; per-function checks never ran (A45, fixed 2026-10-19: they read the submitted text now) |
 | H. `naab-gov lint` / `check` | lint: everything on stderr, unsanitized, guidance appended; check: JSON with `hard_block` (with guidance) and `violations[].message` (without) |
 | I. REPL (`naab-lang` with no arguments) | no governance, by decision (`docs/GOVERNANCE-LIMITS.md` §5.2); errors as `Error:` on stderr |
@@ -114,16 +114,20 @@ sample).
 | Agent tool results | path regex + 256-character cap | The agent receives helper examples intact (verified) |
 | Agent prompt/response/tool-result secret and PII scans | `enforce()` -- ends the run or lets it through | The `[REDACTED: ...]` branches are dead (A44) |
 | Live guidance | `secretFinding()`/`piiFinding()` on section text, withheld on a hit | Bypass instructions in a source are delivered (measured earlier, guidance bypass task) |
-| MCP `output` and `findings` | secret/PII scan, withheld on a hit; `findings` keeps 60 lines from the TOP | End-of-run groups print last, so they are cut first (traced) |
-| Governance voice, agent review | none either way; "do not include bypass instructions" is a prompt line | A40 |
+| MCP `output` and `findings` | secret/PII scan, withheld on a hit, on `naab_run` and `naab_propose` alike (`withholdFindings()`); `findings` keeps the first 20 and last 60 lines and counts the gap | End-of-run groups print last; they were cut first while it kept the top 60 (A43(c), fixed 2026-10-28) |
+| Governance voice, agent review | voice reply: `secretFinding()`/`piiFinding()`, withheld on a hit, not printed or cached (A40, 2026-10-28); voice prompt and agent review: none either way; "do not include bypass instructions" is a prompt line | A40 |
 | Compiled-in strings | `tests/security/test_error_msg_leaks.sh` | Covers text in the binary, not text from sources or models |
-| Report files (SARIF, JSON, JUnit) | none | Keep EVERY occurrence (the only channel naming the second TODO site); SARIF holds the first line, JSON the help; no guidance; the VM writes none for a compile-time block (A43(e)) |
+| Report files (SARIF, JSON, JUnit) | none | Keep EVERY occurrence (the only channel naming the second TODO site); SARIF holds the first line, JSON the help; no guidance; written for a static block on the VM too since A43(e) (2026-10-28) |
 | Package manager | none | One-line `Error:` on stderr, no help |
 
 ## 6. Model calls the engine makes on its own
 
-- **Governance voice** (`runGovernanceVoice`, `governance_engine.cpp:3727`):
-  sends every non-passing check and the whole script; prints the reply. A40.
+- **Governance voice** (`runGovernanceVoice`, `governance_engine.cpp`):
+  sends every non-passing check and the whole script; prints the reply once,
+  where it is made, after the secret/PII scan (a cache hit included). It runs
+  at the end of a run with violations and on a compile-time or runtime block;
+  a whole-source block never reaches it (the source is handed over after those
+  checks, so the prompt does not carry a value they blocked). A40.
 - **Agent review** (`runAgentReview`, `agent_review.cpp`): detection,
   validation and voice agents receive the full source; findings go through
   `enforce()`. A40.

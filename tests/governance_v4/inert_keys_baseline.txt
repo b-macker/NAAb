@@ -9,14 +9,21 @@
 #
 # The scan excludes the loader from the consumer search, which produces FALSE
 # POSITIVES whenever the loader is itself a legitimate consumer -- when it copies
-# a key into a subsystem's config struct rather than merely parsing it. Six
+# a key into a subsystem's config struct rather than merely parsing it. Five
 # entries here are exactly that and ARE live: the telemetry forwarding keys
 # (forward_batch_size, forward_buffer_max, forward_retry_count,
-# forward_timeout_ms, forward_shutdown_drain_ms, webhook_auth_header) are read at
-# governance_config.cpp and handed to TelemetryForwarder, which uses them under
-# shorter names (batch_size, buffer_max, ...). They are kept in the baseline
-# because this file's job is CHANGE DETECTION, and removing known false positives
-# would make the set drift from what the scan computes.
+# forward_timeout_ms, webhook_auth_header) are read at governance_config.cpp
+# and handed to TelemetryForwarder, which uses them under shorter names
+# (batch_size, buffer_max, ...). They are kept in the baseline because this
+# file's job is CHANGE DETECTION, and removing known false positives would make
+# the set drift from what the scan computes.
+#
+# A sixth, telemetry_output.forward_shutdown_drain_ms, left the scan on
+# 2026-10-28 for neither reason IK-02 names: no enforcement changed, a COMMENT in
+# include/naab/process_exit.h names it, and the scan matches the leaf word
+# anywhere, comments included. The key was live before and is verified at its
+# effect now (test_telemetry_forward.sh FW-04: a 1000 ms drain bounds an exit
+# whose webhook never answers, and the loss is reported).
 #
 # The opposite correction is also live: tightening the rule to count any loader
 # read as consumption drops the set from 77 to 2, because ratchet comparisons and
@@ -152,7 +159,6 @@ restrictions.polyglot_output.validate_json
 telemetry_output.forward_batch_size
 telemetry_output.forward_buffer_max
 telemetry_output.forward_retry_count
-telemetry_output.forward_shutdown_drain_ms
 telemetry_output.forward_timeout_ms
 telemetry_output.webhook_auth_header
 trust_policy.check_key_expiry

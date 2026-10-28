@@ -206,17 +206,32 @@ std::string verdictFor(const WorkerResult& w) {
     }
 }
 
-// The lines of the worker's stderr a caller needs: what governance said.
-json findingsFrom(const std::string& err) {
-    json f = json::array();
-    std::istringstream ss(err);
+// The lines of a worker's output a caller needs: what governance said.
+// Bounded to its first kFindingsHead and last kFindingsTail lines, with the
+// gap counted between them: it kept the FIRST 60, so a program that wrote to
+// stderr pushed out everything governance printed after it, the end-of-run
+// groups (printed last) first of all (A43(c)).
+constexpr size_t kFindingsHead = 20;
+constexpr size_t kFindingsTail = 60;
+json findingsFrom(const std::string& text) {
+    std::vector<std::string> lines;
+    std::istringstream ss(text);
     std::string line;
-    while (std::getline(ss, line) && f.size() < 60) {
+    while (std::getline(ss, line)) {
         if (line.empty()) continue;
         if (line.rfind("[governance] Loaded:", 0) == 0) continue;
         if (line.rfind("-- Governance:", 0) == 0) continue;
-        f.push_back(line);
+        lines.push_back(line);
     }
+    json f = json::array();
+    if (lines.size() <= kFindingsHead + kFindingsTail) {
+        for (auto& l : lines) f.push_back(l);
+        return f;
+    }
+    for (size_t i = 0; i < kFindingsHead; ++i) f.push_back(lines[i]);
+    f.push_back("[" + std::to_string(lines.size() - kFindingsHead - kFindingsTail) +
+                " lines omitted]");
+    for (size_t i = lines.size() - kFindingsTail; i < lines.size(); ++i) f.push_back(lines[i]);
     return f;
 }
 
@@ -333,6 +348,7 @@ private:
                          int exit_code, const std::string& output, int events,
                          const std::string& started, const std::string& finished);
     bool scanOutput(const Policy& policy, const std::string& output, std::string& why);
+    void withholdFindings(const Policy& policy, json& findings, std::string& verdict);
     json toolResult(const json& structured, bool is_error);
 
     // ordering of one caller's commits (see the file comment)
@@ -603,8 +619,14 @@ json Server::toolPropose(const json& args) {
     unlink(path.c_str());
 
     std::string verdict = verdictFor(w);
+    // The CLI prints a HARD block on STDOUT, and findings came from stderr
+    // alone: a blocked propose answered findings [] (A43(b)). No program runs
+    // under --lint-only, so stdout carries only what the CLI says; it goes
+    // through the same secret/PII scan as naab_run's stderr.
+    json findings = findingsFrom(w.out + "\n" + w.err);
+    withholdFindings(policy, findings, verdict);
     json out{{"verdict", verdict}, {"exit_code", w.exit_code},
-             {"findings", findingsFrom(w.err)},
+             {"findings", findings},
              {"program_sha256", sha256(code)}, {"policy_sha256", policy.sha}};
     if (verdict == "pass") {
         Pending pending{code, sha256(code), policy.sha, lease_id,
@@ -774,26 +796,7 @@ json Server::execute(const std::string& tool, const std::string& program, const 
         output.clear();
         findings.push_back("output withheld: " + why);
     }
-    // stderr is an egress too. `findings` carries the worker's stderr back to
-    // the caller (an AI agent whose context reaches a model provider), and the
-    // scan above only covered stdout -- so a secret written to stderr
-    // (io.write_error, a polyglot exception) reached the caller verbatim while
-    // the same value on stdout was withheld. Scan the joined findings under the
-    // same keys; on a hit, withhold them and block, as stdout does. Governance
-    // "why blocked" lines already mask secrets (`<redacted>`), so a normal
-    // block keeps its findings; only genuine secret/PII text trips this.
-    if (!findings.empty()) {
-        std::string joined;
-        for (const auto& f : findings) {
-            if (f.is_string()) { joined += f.get<std::string>(); joined += "\n"; }
-        }
-        std::string why_err;
-        if (!joined.empty() && scanOutput(policy, joined, why_err)) {
-            verdict = "blocked";
-            findings = json::array();
-            findings.push_back("diagnostics withheld: " + why_err + " (in stderr)");
-        }
-    }
+    withholdFindings(policy, findings, verdict);
     const std::string finished = isoUtc(std::chrono::system_clock::now());
     json att = makeAttestation(tool, program_sha, policy, lease, verdict, w.exit_code,
                                output, w.events, started, finished);
@@ -808,6 +811,28 @@ json Server::execute(const std::string& tool, const std::string& program, const 
 // The program's output goes to an AI agent whose context reaches a model
 // provider: the same scan agent.send() applies to model output, under the same
 // keys. The server's own engine runs no user code; it only scans text.
+// stderr is an egress too. `findings` carries the worker's stderr (and, for
+// naab_propose, its stdout) back to the caller (an AI agent whose context
+// reaches a model provider), and the output scan covers stdout only -- so a
+// secret written to stderr (io.write_error, a polyglot exception) reached the
+// caller verbatim while the same value on stdout was withheld. Scan the joined
+// findings under the same keys; on a hit, withhold them and block, as stdout
+// does. Governance "why blocked" lines already mask secrets (`<redacted>`), so
+// a normal block keeps its findings; only genuine secret/PII text trips this.
+void Server::withholdFindings(const Policy& policy, json& findings, std::string& verdict) {
+    if (findings.empty()) return;
+    std::string joined;
+    for (const auto& f : findings) {
+        if (f.is_string()) { joined += f.get<std::string>(); joined += "\n"; }
+    }
+    std::string why;
+    if (!joined.empty() && scanOutput(policy, joined, why)) {
+        verdict = "blocked";
+        findings = json::array();
+        findings.push_back("diagnostics withheld: " + why + " (in the worker's messages)");
+    }
+}
+
 bool Server::scanOutput(const Policy& policy, const std::string& output, std::string& why) {
     auto& eng = *policy.engine;
     auto check = [&](const std::function<std::string()>& fn, const char* label) -> bool {

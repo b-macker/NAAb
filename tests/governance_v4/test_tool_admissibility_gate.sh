@@ -9,7 +9,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NAAB="$SCRIPT_DIR/../../build/naab-lang"
+NAAB="${1:-$SCRIPT_DIR/../../build/naab-lang}"
+NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
 
 source "$SCRIPT_DIR/../helpers/stub_platform.sh"
 skip_if_no_stub_support "test_tool_admissibility_gate.sh"
@@ -227,6 +228,7 @@ main {
     }
     // Now the tool turn — the gate should deny execution
     let r = agent.send(h, "use the tool to fetch revenue data")
+    print("CONTENT=" + string(r.get("content")))
     let results = r.get("tool_results")
     if results != null {
         if results.length() > 0 {
@@ -258,6 +260,16 @@ if [ ! -f "$WDIR/tool_side_effect.txt" ]; then
     pass "B-03" "tool function never executed (no side effect)"
 else
     fail "B-03" "tool side effect file exists — tool ran despite gate"
+fi
+# B-04 (A44(b)): the denied call is answered BESIDE its call. The refusal used
+# to push only the error result, so the follow-up request carried a result
+# naming no call -- a request the providers reject. agent_stub.py now validates
+# the pairing (400 + pairing.log); the follow-up must come back as the text.
+if grep <<<"$OUTPUT" -q "CONTENT=final text after denied tool" && [ ! -s "$WDIR/pairing.log" ]; then
+    pass "B-04" "the follow-up request after the denied call is accepted (the call is answered beside it)"
+else
+    fail "B-04" "the follow-up after the denied call should be accepted" \
+        "$(grep CONTENT= <<<"$OUTPUT" | head -1) pairing.log: $(head -1 "$WDIR/pairing.log" 2>/dev/null)"
 fi
 
 # ============================================================
