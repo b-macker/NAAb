@@ -4,7 +4,7 @@
 # (a) The scanner empties every line of a polyglot block for its NAAb-level
 #     checks (stripPolyglotBlocks), and style.multiple_blank_lines counted
 #     those as blank: a 10-line file with no blank line drew "8 consecutive
-#     blank lines" at its block (observed on master 6055ac3c). Block lines now
+#     blank lines" at its block (observed on master 1c2a8765). Block lines now
 #     end a run, the block's own blank lines included -- they are its
 #     language's, not NAAb's.
 # (b) A per-function refusal's At: named the line the function starts on with

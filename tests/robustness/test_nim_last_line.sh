@@ -4,7 +4,7 @@
 # A <<nim>> block's value is what its last line prints, so nim_executor wrapped
 # that line as `echo <line>`. A last line that returns nothing -- a call like
 # writeFile(...) -- then failed to compile ("type mismatch", the executor's
-# "Nim type error" hint), one-line or multi-line (observed on master 6055ac3c).
+# "Nim type error" hint), one-line or multi-line (observed on master 1c2a8765).
 # The multi-line wrapper also wrote the echo at column 0, so an indented last
 # line left its block. The executor now asks Nim at compile time whether the
 # line can be printed (when compiles(echo(...))) and runs it as it is when it

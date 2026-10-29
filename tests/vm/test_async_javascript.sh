@@ -8,7 +8,7 @@
 # thread. A QuickJS runtime records its creating thread's stack as its limit,
 # so on any other thread every evaluation fails its stack check -- before even
 # the error can be turned into text, which is why each such block printed
-# "JavaScript evaluation failed: Unknown error" (observed on master 6055ac3c,
+# "JavaScript evaluation failed: Unknown error" (observed on master 1c2a8765,
 # and in a standalone QuickJS program: the same runtime evaluates on its own
 # thread, fails on another, and works there after JS_UpdateStackTop or when
 # made on that thread). A runtime is not safe to share between threads either.

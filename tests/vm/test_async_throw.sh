@@ -8,7 +8,7 @@
 # OP_AWAIT turned every exception into "Await error: ... Cause: ..." through
 # runtimeError -- so a catch around the await got a message dict, never the
 # thrown value, where the tree-walker hands over the value itself (observed on
-# master 6055ac3c: `throw "async-boom"` caught as {"message": "Await error: ...
+# master 1c2a8765: `throw "async-boom"` caught as {"message": "Await error: ...
 # async-boom ..."}). The worker now copies the thrown value while its VM still
 # exists (as it does a returned value), and OP_AWAIT rethrows it with its taint,
 # copied into the awaiting thread, for run() to deliver to the catch.

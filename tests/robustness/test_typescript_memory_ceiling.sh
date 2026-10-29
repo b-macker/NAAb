@@ -7,7 +7,7 @@
 # reserves an ~8 GB guard region, and tsx instantiates a WebAssembly lexer
 # while it transpiles, so every <<typescript>> block failed at `elevated` with
 # "WebAssembly.instantiate(): Out of memory: Cannot allocate Wasm memory"
-# (observed on master 6055ac3c). Measured with prlimit on an uncached tsx run:
+# (observed on master 1c2a8765). Measured with prlimit on an uncached tsx run:
 # 32-48 GB of address space needed as is, 16 GB with --disable-wasm-trap-handler,
 # under 2 GB with --jitless. The executor now starts tsx with --jitless (and
 # --no-expose-wasm, which --jitless implies) whenever the child has a memory
