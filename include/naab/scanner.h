@@ -116,8 +116,12 @@ public:
                   const std::string& fix,
                   const std::string& level_override = "") const;
 
-    // NAAb polyglot stripping (shared utility)
-    static std::vector<std::string> stripPolyglotBlocks(const std::vector<std::string>& lines);
+    // NAAb polyglot stripping (shared utility). Each line of a block, its
+    // opening and closing lines included, is returned empty (the opening line
+    // keeps its binding list). in_block, when given, is set to which lines
+    // those were: an emptied line is not a blank line of the NAAb source.
+    static std::vector<std::string> stripPolyglotBlocks(const std::vector<std::string>& lines,
+                                                        std::vector<bool>* in_block = nullptr);
 
     // Shared utility: find function end
     static size_t findFuncEnd(const std::vector<std::string>& lines,

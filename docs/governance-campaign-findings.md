@@ -2061,6 +2061,11 @@ tracing each one rather than reporting the list:
   `allowed_languages`, `blocked_languages` and `max_code_size_bytes` all have
   live checks. `checkCodegenAllowed` is a dead duplicate: a maintenance hazard
   (someone fixing it would achieve nothing) rather than a hole.
+  *(2026-10-29, Bundle 5: corrected by measurement. The live checks refuse with
+  plain catchable throws that record no violation, the A3a shape this table
+  found for `output_size`, and `codegen.level` is read only by the dead method:
+  a refused `codegen.run()` caught by the program continues at exit 0 under
+  `codegen.level: "hard"`. Open as A88, an owner's decision.)*
 
 So the real finding is three keys: **`limits.data.string_length`,
 `nesting_depth` and `dict_size`** are parsed, recorded in `explicitly_set` so

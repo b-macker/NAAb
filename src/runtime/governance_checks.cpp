@@ -670,7 +670,8 @@ static RegexCacheResult cachedSearchRegex(const std::string& pat, bool case_inse
 }
 
 static std::string searchPatterns(const std::string& code,
-    const std::vector<std::string>& patterns, bool case_insensitive = true) {
+    const std::vector<std::string>& patterns, bool case_insensitive = true,
+    size_t* pos_out = nullptr) {
     for (const auto& pat : patterns) {
         try {
             const std::regex* re = nullptr;
@@ -685,6 +686,7 @@ static std::string searchPatterns(const std::string& code,
             }
             std::smatch match;
             if (std::regex_search(code, match, *re)) {
+                if (pos_out) *pos_out = static_cast<size_t>(match.position(0));
                 return match[0].str();
             }
         } catch (const std::regex_error& e) {
@@ -1113,7 +1115,8 @@ static const std::vector<std::regex>& compiledPiiPatterns() {
 // all-same-digit "credit cards" and allowlisted text. One copy of the
 // decision, shared by checkPii() and the decide-only piiFinding().
 static bool firstPiiMatch(const NoPiiConfig& cfg, const std::string& code,
-                          std::string& desc_out, std::string& found_out) {
+                          std::string& desc_out, std::string& found_out,
+                          size_t* pos_out = nullptr) {
     const auto& compiled_pii_patterns = compiledPiiPatterns();
     std::vector<size_t> pattern_indices;
     if (cfg.detect_ssn) pattern_indices.push_back(0);
@@ -1153,6 +1156,7 @@ static bool firstPiiMatch(const NoPiiConfig& cfg, const std::string& code,
 
                 desc_out = desc;
                 found_out = found;
+                if (pos_out) *pos_out = static_cast<size_t>(match.position(0));
                 return true;
             }
         } catch (const std::regex_error& re) {
@@ -1176,21 +1180,26 @@ std::string GovernanceEngine::piiFinding(const std::string& text) const {
     return firstPiiMatch(cfg, text, desc, found) ? desc : "";
 }
 
-std::string GovernanceEngine::checkPii(const std::string& code, int line) {
+std::string GovernanceEngine::checkPii(const std::string& code, int line,
+                                       bool code_starts_at_line) {
     auto& cfg = rules().code_quality.no_pii;
     if (!cfg.enabled) return "";
     clearTrace();
 
     std::string desc, found;
-    if (firstPiiMatch(cfg, code, desc, found)) {
+    size_t pos = 0;
+    if (firstPiiMatch(cfg, code, desc, found, &pos)) {
         std::string display = cfg.mask_in_errors
             ? (found.substr(0, 3) + std::string(found.size() - 3, '*'))
             : found;
-        addTrace(fmt::format("PII detected: {} at line {}", desc, line));
+        const int at = matchLine(line, code, pos, code_starts_at_line);
+        std::optional<ScopedCheckContext> at_ctx;  // recorded where printed (A76(b))
+        if (code_starts_at_line && line > 0) at_ctx.emplace(checkFile(), at);
+        addTrace(fmt::format("PII detected: {} at line {}", desc, at));
         return enforce("code_quality.no_pii", cfg.level,
             formatError(cfg.level,
                 fmt::format("PII detected: {} ({})", desc, display),
-                line > 0 ? fmt::format("line {}", line) : "",
+                at > 0 ? fmt::format("line {}", at) : "",
                 "code_quality.no_pii",
                 "Remove personally identifiable information from code.\n"
                 "Use environment variables or config files instead.",
@@ -2991,7 +3000,8 @@ std::string GovernanceEngine::checkIntentValidation(
     return "";
 }
 
-std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int line, const std::string& source_file) {
+std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int line, const std::string& source_file,
+                                                   bool code_starts_at_line) {
     auto& cfg = rules().code_quality.no_incomplete_logic;
     if (!cfg.enabled) return "";
     clearTrace();
@@ -3001,7 +3011,8 @@ std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int 
     for (const auto& p : pats) active_pats.push_back(p);
     for (const auto& p : cfg.custom_patterns) active_pats.push_back(p);
 
-    std::string found = searchPatterns(code, active_pats, !cfg.case_sensitive);
+    size_t pos = 0;
+    std::string found = searchPatterns(code, active_pats, !cfg.case_sensitive, &pos);
     if (!found.empty()) {
         // Check suppressions: format is "file_glob" or "category:file_glob"
         if (!cfg.suppressions.empty() && !source_file.empty()) {
@@ -3025,9 +3036,12 @@ std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int 
                 }
             }
         }
+        const int at = matchLine(line, code, pos, code_starts_at_line);
+        std::optional<ScopedCheckContext> at_ctx;  // recorded where printed (A76(b))
+        if (code_starts_at_line && line > 0) at_ctx.emplace(checkFile(), at);
         return enforce("code_quality.no_incomplete_logic", cfg.level,
             formatError(cfg.level, fmt::format("Incomplete logic detected: \"{}\"", found),
-                line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_incomplete_logic",
+                at > 0 ? fmt::format("line {}", at) : "", "code_quality.no_incomplete_logic",
                 "This code has logic gaps — shortcuts or lazy implementation.\n"
                 "Every function should DO something meaningful:\n"
                 "  - Error handlers must log or re-raise, never silently swallow\n"
@@ -4591,12 +4605,14 @@ std::string GovernanceEngine::checkNaabSourceText(const std::string& source,
     // Scoped: the VM entry path never set a location here, and leaving one
     // set makes later runtime rows look like located static ones, which
     // deduplicate_checks collapses (test_dedup_runtime.sh DC-01).
+    // The text starts on line 1, so each finding names the line it is on
+    // (A76(b); before, a whole-file finding named no line at all).
     ScopedCheckContext ctx(source_file, 0);
-    std::string err = checkSecrets(source, 0);
+    std::string err = checkSecrets(source, 1, /*code_starts_at_line=*/true);
     if (!err.empty()) return err;
-    err = checkPii(source, 0);
+    err = checkPii(source, 1, /*code_starts_at_line=*/true);
     if (!err.empty()) return err;
-    return checkIncompleteLogic(source, 0, source_file);
+    return checkIncompleteLogic(source, 1, source_file, /*code_starts_at_line=*/true);
 }
 
 std::string GovernanceEngine::checkNaabFunctionBody(
@@ -4653,7 +4669,7 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     std::string err;
 
     if (ph_cfg.enabled) {
-        err = checkPlaceholders(stripped(), line);
+        err = checkPlaceholders(stripped(), line, /*code_starts_at_line=*/true);
         if (!err.empty()) return err;
     }
 
@@ -4666,7 +4682,7 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     }
 
     if (il_cfg.enabled) {
-        err = checkIncompleteLogic(stripped(), line, source_file);
+        err = checkIncompleteLogic(stripped(), line, source_file, /*code_starts_at_line=*/true);
         if (!err.empty()) return err;
 
         // Cosmetic sanitizer check — uses inverted logic: checks for PRESENCE
@@ -4679,11 +4695,11 @@ std::string GovernanceEngine::checkNaabFunctionBody(
 
     // Secrets/PII checks — use RAW source (secrets CAN be in string literals)
     if (rules().code_quality.no_secrets.enabled) {
-        err = checkSecrets(source_code, line);
+        err = checkSecrets(source_code, line, /*code_starts_at_line=*/true);
         if (!err.empty()) return err;
     }
     if (rules().code_quality.no_pii.enabled) {
-        err = checkPii(source_code, line);
+        err = checkPii(source_code, line, /*code_starts_at_line=*/true);
         if (!err.empty()) return err;
     }
 
@@ -6667,34 +6683,6 @@ std::string GovernanceEngine::incrementAndCheckPolyglotBlockCount() {
     // could see another thread's increment and both would check the same count.
     const int count = ++polyglot_block_count_;
     return checkPolyglotBlockCount(static_cast<size_t>(count));
-}
-
-std::string GovernanceEngine::checkStringLength(size_t length) {
-    clearTrace();
-    int max = rules().limits.data.string_length;
-    if (max > 0 && static_cast<int>(length) > max) {
-        return enforce("limits.data.string_length", EnforcementLevel::HARD,
-            formatError(EnforcementLevel::HARD,
-                fmt::format("String length {} exceeds limit of {}", length, max),
-                "", fmt::format("limits.data.string_length = {}", max),
-                "String exceeds maximum length — truncate or stream large data.\n"
-                "Process large inputs in smaller segments.", "", ""));
-    }
-    return "";
-}
-
-std::string GovernanceEngine::checkNestingDepth(size_t depth) {
-    clearTrace();
-    int max = rules().limits.data.nesting_depth;
-    if (max > 0 && static_cast<int>(depth) > max) {
-        return enforce("limits.data.nesting_depth", EnforcementLevel::HARD,
-            formatError(EnforcementLevel::HARD,
-                fmt::format("Nesting depth {} exceeds limit of {}", depth, max),
-                "", fmt::format("limits.data.nesting_depth = {}", max),
-                "Data structure nesting is too deep — flatten nested objects.\n"
-                "Extract nested data into separate variables or use a flatter schema.", "", ""));
-    }
-    return "";
 }
 
 namespace {

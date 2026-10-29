@@ -1230,83 +1230,6 @@ target_include_directories(enrich_tool PRIVATE
 )
 message(STATUS "  ✓ Block enrichment tool (enrich_tool)")
 
-# C++ Executor Test
-add_executable(test_cpp_executor
-    tests/unit/test_cpp_executor.cpp
-)
-target_link_libraries(test_cpp_executor
-    naab_runtime
-    naab_interpreter
-    naab_parser
-    naab_semantic
-    naab_stdlib
-    fmt::fmt
-    spdlog::spdlog
-)
-if(Python3_FOUND)
-    target_link_libraries(test_cpp_executor ${Python3_LIBRARIES})
-    target_include_directories(test_cpp_executor PRIVATE ${Python3_INCLUDE_DIRS})
-endif()
-message(STATUS "  ✓ C++ executor test")
-
-# JavaScript Executor Test
-add_executable(test_js_executor
-    tests/unit/test_js_executor.cpp
-)
-target_link_libraries(test_js_executor
-    naab_runtime
-    naab_interpreter
-    naab_parser
-    naab_semantic
-    naab_stdlib
-    fmt::fmt
-    spdlog::spdlog
-)
-if(Python3_FOUND)
-    target_link_libraries(test_js_executor ${Python3_LIBRARIES})
-    target_include_directories(test_js_executor PRIVATE ${Python3_INCLUDE_DIRS})
-endif()
-message(STATUS "  ✓ JavaScript executor test")
-
-# Language Registry Test
-add_executable(test_language_registry
-    tests/unit/test_language_registry.cpp
-)
-target_link_libraries(test_language_registry
-    naab_runtime
-    naab_interpreter
-    naab_parser
-    naab_semantic
-    naab_stdlib
-    fmt::fmt
-    spdlog::spdlog
-)
-if(Python3_FOUND)
-    target_link_libraries(test_language_registry ${Python3_LIBRARIES})
-    target_include_directories(test_language_registry PRIVATE ${Python3_INCLUDE_DIRS})
-endif()
-message(STATUS "  ✓ Language registry test")
-
-# Block Tester Test
-add_executable(test_block_tester
-    tests/unit/test_block_tester.cpp
-)
-target_link_libraries(test_block_tester
-    naab_testing
-    naab_runtime
-    naab_interpreter
-    naab_parser
-    naab_semantic
-    naab_stdlib
-    fmt::fmt
-    spdlog::spdlog
-)
-if(Python3_FOUND)
-    target_link_libraries(test_block_tester ${Python3_LIBRARIES})
-    target_include_directories(test_block_tester PRIVATE ${Python3_INCLUDE_DIRS})
-endif()
-message(STATUS "  ✓ Block tester test")
-
 # Profiler Test
 add_executable(test_profiler
     tests/unit/test_profiler.cpp
@@ -1371,36 +1294,6 @@ target_link_libraries(test_examples
     fmt::fmt
 )
 message(STATUS "  ✓ Example programs test")
-
-# Stdlib Modules Test (Phase 4 - quirky-exploring-giraffe.md)
-add_executable(test_stdlib_modules
-    tests/unit/test_stdlib_modules.cpp
-)
-target_link_libraries(test_stdlib_modules
-    naab_runtime
-    naab_interpreter
-    naab_parser
-    naab_semantic
-    naab_stdlib
-    fmt::fmt
-    spdlog::spdlog
-)
-message(STATUS "  ✓ Stdlib modules test")
-
-# String Methods Test (Phase 2.1 - Comprehensive)
-add_executable(test_string_methods
-    tests/unit/test_string_methods.cpp
-)
-target_link_libraries(test_string_methods
-    naab_runtime
-    naab_interpreter
-    naab_parser
-    naab_semantic
-    naab_stdlib
-    fmt::fmt
-    spdlog::spdlog
-)
-message(STATUS "  ✓ String methods test (Phase 2.1)")
 
 # LSP Integration Test (Phase 4.1 - Week 1)
 # M1 fix: guard with GoogleTest availability check
@@ -1615,26 +1508,6 @@ target_include_directories(test_library_detection PRIVATE
 )
 message(STATUS "  ✓ Library detection test")
 
-# C++ Compilation Test Suite
-add_executable(test_cpp_compilation_suite
-    tests/unit/test_cpp_compilation_suite.cpp
-)
-target_link_libraries(test_cpp_compilation_suite
-    naab_runtime
-    naab_interpreter
-    naab_parser
-    naab_semantic
-    naab_stdlib
-    naab_block_enricher
-    fmt::fmt
-    spdlog::spdlog
-)
-if(Python3_FOUND)
-    target_link_libraries(test_cpp_compilation_suite ${Python3_LIBRARIES})
-    target_include_directories(test_cpp_compilation_suite PRIVATE ${Python3_INCLUDE_DIRS})
-endif()
-message(STATUS "  ✓ C++ compilation test suite")
-
 # Phase 4.1: Exception handling test
 add_executable(test_exception_handling
     tests/unit/test_exception_handling.cpp
@@ -1697,6 +1570,13 @@ if(HAVE_GOOGLETEST)
         tests/unit/net_proxy_snapshot_test.cpp  # agent/telemetry proxy+CA fixed at load, not live env
         tests/unit/declaration_source_test.cpp  # governance checks read the parsed text, both engines (A45)
         tests/unit/bsd_stdlib_events_test.cpp  # the BSD stdlib event table vs the compiled modules (A22)
+        # A58: seven standalone test programs in the default target stopped
+        # compiling at the NaabVal migration and nothing built or ran them;
+        # what they checked is here now, where CI runs it.
+        tests/unit/js_executor_test.cpp         # QuickJS executor; adapter across threads (A61)
+        tests/unit/cpp_executor_test.cpp        # C++ blocks, library detection, the registry
+        tests/unit/string_functions_test.cpp    # string module, about five cases per function
+        tests/unit/stdlib_modules_test.cpp      # one call into each of ten stdlib modules
     )
 
     # Link GoogleTest and NAAb libraries
@@ -1712,6 +1592,7 @@ if(HAVE_GOOGLETEST)
         naab_semantic
         naab_security  # For SafeRegex tests
         naab_manifest  # For manifest loader
+        naab_block_enricher  # BlockEnricher library detection: cpp_executor_test
         fmt::fmt
         spdlog::spdlog
     )

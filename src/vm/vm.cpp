@@ -2244,6 +2244,7 @@ interpreter::NaabVal VM::run() {
                 auto new_closure = std::make_shared<VMClosure>();
                 new_closure->function = fn;
                 new_closure->upvalues.resize(fn->upvalues.size());
+                if (frame->closure) new_closure->function_owner = frame->closure->function_owner;
 
                 // Read upvalue descriptors following the OP_CLOSURE instruction
                 for (size_t i = 0; i < fn->upvalues.size(); i++) {
@@ -3546,6 +3547,17 @@ interpreter::NaabVal VM::run() {
                         push(future_val->future.get().deepCopy());
                     } catch (const governance::GovernanceHardError&) {
                         throw;  // uncatchable — propagate to main
+                    } catch (const VMThrownValue& t) {
+                        // The async fn threw a value it did not catch. It used
+                        // to become an "Await error" message dict like any other
+                        // error; run() now delivers it to this frame's catch as
+                        // the value itself, copied to this thread, with its taint
+                        // -- as the tree-walker does (A59(a)). Uncaught, the
+                        // message keeps the await site.
+                        throw VMThrownValue(
+                            "Await error: " + future_val->description + " failed\n  Cause: " +
+                                t.what() + stackTraceText(),
+                            t.value.deepCopy(), t.tainted);
                     } catch (const std::exception& e) {
                         runtimeError("Await error: %s failed\n  Cause: %s",
                                      future_val->description.c_str(), e.what());
@@ -3856,12 +3868,17 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             // Deep-copy the CompiledFunction tree so async thread has its own
             // handles for all constants — prevents cross-thread handle sharing.
             std::unordered_map<CompiledFunction*, CompiledFunction*> fn_cache;
-            std::vector<std::unique_ptr<CompiledFunction>> async_owned_fns;
-            deepCopyFunctionTree(orig_closure->function, fn_cache, async_owned_fns);
+            auto async_owned_fns = std::make_shared<std::vector<std::unique_ptr<CompiledFunction>>>();
+            deepCopyFunctionTree(orig_closure->function, fn_cache, *async_owned_fns);
             CompiledFunction* fn_copy = fn_cache[orig_closure->function];
 
             auto closure_copy = std::make_shared<VMClosure>(
                 fn_copy, std::move(closed_upvalues));
+            // A closure the call returns or throws points into these copies;
+            // every closure made from closure_copy shares them (OP_CLOSURE).
+            // The lambda below used to own them alone, so they were freed with
+            // the future and a returned closure crashed when called.
+            closure_copy->function_owner = async_owned_fns;
             // V-CONC-007: Async VMs get their own StdLib instance to avoid
             // accessing the main thread's stack-local StdLib after scope exit.
             // Governance and module_resolver are also not shared (not thread-safe).
@@ -3904,7 +3921,7 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             auto shared_future = std::async(std::launch::async,
                 [closure_copy, args, async_stdlib, file, globals_copy, async_sandbox_config,
                  async_governance, async_vm_governance,
-                 owned_fns = std::move(async_owned_fns)]() mutable -> interpreter::NaabVal {
+                 owned_fns = async_owned_fns]() mutable -> interpreter::NaabVal {
                     security::ScopedSandbox async_sandbox(async_sandbox_config);
                     struct GovernanceScope {
                         explicit GovernanceScope(governance::GovernanceEngine* e) {

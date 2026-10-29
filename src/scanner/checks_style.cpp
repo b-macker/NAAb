@@ -2,6 +2,7 @@
 // Port from naab-q/src/checks/style.naab
 
 #include "naab/scanner.h"
+#include <sstream>
 #include <regex>
 #include <unordered_set>
 #include <unordered_map>
@@ -282,9 +283,22 @@ void ScannerEngine::checkStyle(const std::string& filepath,
     // 7. multiple_blank_lines
     if (isEnabled(CAT, "multiple_blank_lines")) {
         int max_blank = static_cast<int>(getNumOption(CAT, "multiple_blank_lines", "max_consecutive", 2));
+        // In NAAb, `lines` has every polyglot block line emptied, so a block
+        // read as a run of blank lines: a 10-line file with none drew "8
+        // consecutive blank lines" at its block (A76(a)). A block line is not
+        // a blank NAAb line, and the block's own blank lines are its
+        // language's, so every block line ends a run.
+        std::vector<bool> block_line;
+        if (language == "naab") {
+            std::vector<std::string> original;
+            std::istringstream in(content);
+            for (std::string l; std::getline(in, l);) original.push_back(l);
+            stripPolyglotBlocks(original, &block_line);
+        }
         int blank_run = 0;
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (st_trim(lines[i]).empty()) {
+            const bool in_block = i < block_line.size() && block_line[i];
+            if (!in_block && st_trim(lines[i]).empty()) {
                 blank_run++;
             } else {
                 if (blank_run > max_blank) {

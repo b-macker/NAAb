@@ -1395,10 +1395,12 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
 
             // limits.data.string_length / nesting_depth are parsed, recorded in
             // explicitly_set (so they take part in the ratchet and in inheritance)
-            // and clamped -- and then read by nothing. Their only readers are
-            // GovernanceEngine::checkStringLength / checkNestingDepth, which have
-            // zero call sites anywhere in src/. So an operator can set a HARD data
-            // limit, see it survive validation, and get no enforcement at all.
+            // and clamped -- and then read by nothing. Their only readers were
+            // GovernanceEngine::checkStringLength / checkNestingDepth, which no
+            // code ever called, deleted in A3b: wiring them in would start
+            // hard-blocking configs that pass today (test_inert_limits.sh). So an
+            // operator can set a HARD data limit, see it survive validation, and
+            // get no enforcement at all -- hence the warning below.
             //
             // NOT warned, because they are live and would be false alarms:
             //   * dict_size      -- wired by #160: both engines call

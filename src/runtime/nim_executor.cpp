@@ -38,6 +38,19 @@ static bool isNimSourceSafe(const std::string& code, std::string& reason) {
 
 NimExecutor::NimExecutor() {}
 
+// The last line is the block's value: printed when it can be, run as it is
+// when it cannot. Nim decides that at compile time with compiles(), so a call
+// that returns nothing -- writeFile(...) -- runs instead of failing to compile
+// as `echo writeFile(...)` (D12). The line sits on its own in a template, so
+// a trailing comment cannot swallow the parenthesis, and it is evaluated once:
+// only one branch of the `when` is compiled.
+static std::string printOrRunLastLine(const std::string& indent, const std::string& line) {
+    return indent + "template naabLastLine(): untyped =\n" +
+           indent + "  " + line + "\n" +
+           indent + "when compiles(echo(naabLastLine())): echo(naabLastLine())\n" +
+           indent + "else: naabLastLine()\n";
+}
+
 std::string NimExecutor::wrapNimCode(const std::string& code, bool for_return) {
     std::vector<std::string> lines;
     std::istringstream stream(code);
@@ -79,7 +92,7 @@ std::string NimExecutor::wrapNimCode(const std::string& code, bool for_return) {
         if (already_echoes) {
             return expr;
         }
-        return "echo " + expr;
+        return printOrRunLastLine("", expr);
     }
 
     // Multi-line: wrap last expression with echo if needed
@@ -100,8 +113,8 @@ std::string NimExecutor::wrapNimCode(const std::string& code, bool for_return) {
                         // It's a statement, don't wrap
                         wrapped += lines[i] + "\n";
                     } else {
-                        // It's an expression, wrap with echo
-                        wrapped += "echo " + trimmed + "\n";
+                        // Its value is printed, or it runs if it has none
+                        wrapped += printOrRunLastLine(lines[i].substr(0, s), trimmed);
                     }
                 } else {
                     wrapped += lines[i] + "\n";

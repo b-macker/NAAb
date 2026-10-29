@@ -29,6 +29,34 @@ namespace {
 // engines added the opener only when they injected bindings or naab_return.
 // "Already contains" (not "starts with") keeps PHP templates -- text before a
 // <?php tag -- working as written.
+// A tsx child under a memory budget runs node without its JIT (D13). The
+// budget sets an address-space ceiling (subprocess_helpers.cpp, L7: 4x the
+// budget, at least 2 GB), and V8 reserves far more address space than it
+// uses: each WebAssembly instance reserves an ~8 GB guard region, and tsx
+// instantiates a WebAssembly lexer while transpiling, so every TypeScript
+// block failed at `elevated` ("Cannot allocate Wasm memory"). Measured with
+// prlimit on an uncached tsx run: 32-48 GB of address space needed as is,
+// 16 GB with --disable-wasm-trap-handler, and under 2 GB with --jitless,
+// which removes WebAssembly and executable-code reservations; TypeScript
+// semantics are unchanged, it runs slower, and WebAssembly is unavailable to
+// the block. The ceiling is not raised -- it is the backstop for shared
+// memory RLIMIT_DATA does not count -- and the flag goes on the command line
+// (tsx hands node flags to node), not into NODE_OPTIONS, so nothing the
+// environment scrub withheld is put back. Windows bounds committed memory
+// with a job object, which counts no reservation, so it is left as it is.
+void fitToMemoryCeiling(const std::string& cmd, std::vector<std::string>& args,
+                        const SubprocessContainment& containment) {
+#ifndef _WIN32
+    if (containment.max_memory_bytes == 0) return;
+    // --no-expose-wasm states what --jitless implies; without it V8 prints a
+    // "disabling flag --expose_wasm" warning into every block's stderr.
+    if (std::filesystem::path(cmd).filename() == "tsx")
+        args.insert(args.begin(), {"--jitless", "--no-expose-wasm"});
+#else
+    (void)cmd; (void)args; (void)containment;
+#endif
+}
+
 std::string withPrelude(const std::string& language, const std::string& code) {
     const auto* d = naab::lang::findLanguage(language);
     if (!d || d->prelude.empty()) return code;
@@ -182,6 +210,7 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
         }
 
         auto containment = SubprocessContainment::fromCurrentSandbox(cmd);
+        fitToMemoryCeiling(cmd, args, containment);
         exit_code = execute_subprocess_with_pipes(
             cmd, args, stdout_output, stderr_output, nullptr, &containment);
 
@@ -347,6 +376,7 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
         }
 
         auto containment = SubprocessContainment::fromCurrentSandbox(cmd);
+        fitToMemoryCeiling(cmd, args, containment);
         exit_code = execute_subprocess_with_pipes(
             cmd, args, stdout_output, stderr_output, nullptr, &containment);
     }
@@ -473,6 +503,7 @@ bool naab::runtime::GenericSubprocessExecutor::runCommand(const std::string& com
     std::string stderr_buffer_local;
 
     auto containment = SubprocessContainment::fromCurrentSandbox(cmd_path);
+    fitToMemoryCeiling(cmd_path, args, containment);
     int exit_code = execute_subprocess_with_pipes(
         cmd_path, args, stdout_buffer_local, stderr_buffer_local, nullptr, &containment
     );

@@ -7,6 +7,7 @@
 #include "naab/js_executor.h"
 #include <memory>
 #include <string>
+#include <thread>
 
 namespace naab {
 namespace runtime {
@@ -49,9 +50,21 @@ public:
     int getLastExitCode() const override;
 
 private:
+    // A QuickJS runtime belongs to the thread that made it: it records that
+    // thread's stack as its limit, so on any other thread every evaluation
+    // fails its stack check -- before even the error can be formatted, which
+    // printed "Unknown error" for every <<javascript>> block in a VM async fn
+    // (A61) -- and it is not safe to share between threads anyway. A call
+    // from another thread runs on a fresh executor made on that thread for
+    // that call, as the tree-walker's parallel pool does
+    // (polyglot_async_executor.cpp). executor_ serves the owner thread only.
+    // The last call's exit code and error text are kept per thread
+    // (js_executor_adapter.cpp), so one thread's call never reports another's.
+    template <class F>
+    auto onThisThread(F&& f);
+
     JsExecutor executor_;
-    int last_exit_code_ = 0;
-    std::string last_stderr_;
+    std::thread::id owner_ = std::this_thread::get_id();
 };
 
 } // namespace runtime

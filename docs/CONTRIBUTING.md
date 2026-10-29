@@ -89,15 +89,18 @@ cmake --build . -j$(nproc)
 ### Run Tests
 
 ```bash
-# C++ compilation test suite
-./test_cpp_compilation_suite
+# from the repository root, after building naab-lang and naab-gov
+bash run-all-tests.sh
 
-# Library detection tests
-./test_library_detection
+# GoogleTest unit tests (exclusions: tests/unit/known_failures.txt)
+cmake --build build --target naab_unit_tests && bash tests/unit/run_unit_tests.sh
 
-# Integration tests (if available)
-./test_cross_language
+# LSP providers
+cmake --build build --target lsp_integration_test && ./build/lsp_integration_test
 ```
+
+These are what CI runs. A test program that nothing runs stops compiling
+unnoticed: seven did, and their checks now live in `naab_unit_tests`.
 
 ### Verify Installation
 
@@ -219,7 +222,7 @@ make test  # If CTest is configured
 2. **Run tests**
    ```bash
    cmake --build build
-   ./test_cpp_compilation_suite
+   bash run-all-tests.sh
    ```
 
 3. **Push changes**

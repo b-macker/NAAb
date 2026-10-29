@@ -60,6 +60,13 @@ jobs:
           ninja -C build naab_unit_tests -j$(nproc)
           bash tests/unit/run_unit_tests.sh
 
+      # lsp_integration_test (GoogleTest, the LSP's providers) sat in the
+      # default target unbuilt by any workflow and stopped compiling (A58).
+      - name: LSP integration test
+        run: |
+          ninja -C build lsp_integration_test -j$(nproc)
+          ./build/lsp_integration_test --gtest_brief=1
+
       # The C API (libnaab-governance, what the Go/Rust/Java/C#/Python bindings
       # call) had its own test program, registered only with ctest, which no
       # workflow runs. Its single-check test sat red while naab_gov_check() let

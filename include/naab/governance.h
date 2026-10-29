@@ -3506,17 +3506,25 @@ public:
 
     std::string checkDangerousCall(const std::string& language,
                                     const std::string& code, int line = 0);
-    std::string checkSecrets(const std::string& code, int line = 0);
+    // code_starts_at_line: `code` begins on `line` (a function's own text, or a
+    // whole file from line 1), so the finding is printed AND recorded at the
+    // line the match is on rather than at `line` (A76(b)) -- checkSecrets,
+    // checkPlaceholders, checkPii, checkIncompleteLogic. Callers whose `line`
+    // is a block's opening line leave it false.
+    std::string checkSecrets(const std::string& code, int line = 0, bool code_starts_at_line = false);
+    // The line a match at `offset` in `code` is on: `line` itself unless
+    // `code_starts_at_line` (the four checks above share it).
+    static int matchLine(int line, const std::string& code, size_t offset, bool code_starts_at_line);
     // Decide-only twins of checkSecrets()/checkPii(): the first finding's
     // description, or "". Same switches and patterns; never enforce, never
     // record -- for content that is WITHHELD rather than blocked (guidance).
     std::string secretFinding(const std::string& text) const;
     std::string piiFinding(const std::string& text) const;
-    std::string checkPlaceholders(const std::string& code, int line = 0);
+    std::string checkPlaceholders(const std::string& code, int line = 0, bool code_starts_at_line = false);
     std::string checkHardcodedResults(const std::string& code, int line = 0);
 
     // --- New v3.0 checks ---
-    std::string checkPii(const std::string& code, int line = 0);
+    std::string checkPii(const std::string& code, int line = 0, bool code_starts_at_line = false);
     std::string checkTemporaryCode(const std::string& code, int line = 0);
     std::string checkSimulationMarkers(const std::string& code, int line = 0);
     std::string checkMockData(const std::string& code, int line = 0);
@@ -3534,7 +3542,8 @@ public:
 
     // LLM anti-drift checks
     std::string checkOversimplification(const std::string& code, int line = 0);
-    std::string checkIncompleteLogic(const std::string& code, int line = 0, const std::string& source_file = "");
+    std::string checkIncompleteLogic(const std::string& code, int line = 0, const std::string& source_file = "",
+                                     bool code_starts_at_line = false);
     std::string checkCosmeticSanitizer(const std::string& function_name,
                                         const std::string& body, int line = 0);
     std::string checkEmptyMain(const std::string& source);
@@ -3599,8 +3608,6 @@ public:
     std::string checkLoopIterations(size_t count);
     std::string checkPolyglotBlockCount(size_t count);
     std::string incrementAndCheckPolyglotBlockCount();
-    std::string checkStringLength(size_t length);
-    std::string checkNestingDepth(size_t depth);
     // limits.data.output_size and languages.per_language.<lang>.max_output_size:
     // what foreign code hands back to the program -- an inline block's value, a
     // persistent runtime's .exec(), a block-library call, codegen.run()'s
