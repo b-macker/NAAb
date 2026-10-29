@@ -4599,6 +4599,19 @@ else
     echo "  test_nim_last_line.sh: not found, skipping"
 fi
 
+# TypeScript runs under the child memory budget without raising its address-space ceiling (D13).
+TSMEM_SCRIPT="tests/robustness/test_typescript_memory_ceiling.sh"
+if [ -f "$TSMEM_SCRIPT" ]; then
+    if run_shell_test "$TSMEM_SCRIPT" 2>&1; then
+        echo "  test_typescript_memory_ceiling.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_typescript_memory_ceiling.sh")
+    fi
+else
+    echo "  test_typescript_memory_ceiling.sh: not found, skipping"
+fi
+
 BWU_SCRIPT="tests/robustness/test_binding_use_warning.sh"
 if [ -f "$BWU_SCRIPT" ]; then
     # "Bound variable is never used" must not fire for a binding read inside
