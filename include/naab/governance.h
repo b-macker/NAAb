@@ -3506,13 +3506,16 @@ public:
 
     std::string checkDangerousCall(const std::string& language,
                                     const std::string& code, int line = 0);
-    std::string checkSecrets(const std::string& code, int line = 0);
+    // code_starts_at_line: `code` begins on `line` (a function's own text), so
+    // the location names the line the match is on rather than `line` (A76(b)).
+    // Callers whose `line` is a block's opening line leave it false.
+    std::string checkSecrets(const std::string& code, int line = 0, bool code_starts_at_line = false);
     // Decide-only twins of checkSecrets()/checkPii(): the first finding's
     // description, or "". Same switches and patterns; never enforce, never
     // record -- for content that is WITHHELD rather than blocked (guidance).
     std::string secretFinding(const std::string& text) const;
     std::string piiFinding(const std::string& text) const;
-    std::string checkPlaceholders(const std::string& code, int line = 0);
+    std::string checkPlaceholders(const std::string& code, int line = 0, bool code_starts_at_line = false);
     std::string checkHardcodedResults(const std::string& code, int line = 0);
 
     // --- New v3.0 checks ---

@@ -705,6 +705,19 @@ else
 fi
 
 # A static HARD block on the VM writes its reports too (A43(e))
+# The scanner's blank-line note ignores polyglot blocks; a per-function refusal names its own line (A76).
+REPLINES_SCRIPT="tests/cli/test_reported_lines.sh"
+if [ -f "$REPLINES_SCRIPT" ]; then
+    if run_shell_test "$REPLINES_SCRIPT" 2>&1; then
+        echo "  test_reported_lines.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_reported_lines.sh")
+    fi
+else
+    echo "  test_reported_lines.sh: not found, skipping"
+fi
+
 STATIC_REPORT_SCRIPT="tests/cli/test_static_block_reports.sh"
 if [ -f "$STATIC_REPORT_SCRIPT" ]; then
     if run_shell_test "$STATIC_REPORT_SCRIPT" 2>&1; then

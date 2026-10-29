@@ -39,8 +39,9 @@ static std::vector<std::string> splitLines(const std::string& content) {
 }
 
 std::vector<std::string> ScannerEngine::stripPolyglotBlocks(
-    const std::vector<std::string>& lines) {
+    const std::vector<std::string>& lines, std::vector<bool>* in_block) {
     std::vector<std::string> result = lines;
+    if (in_block) in_block->assign(lines.size(), false);
     static const std::regex poly_open(R"(<<\w+)");
     static const std::regex poly_close(R"(^>>)");
     bool in_poly = false;
@@ -54,6 +55,7 @@ std::vector<std::string> ScannerEngine::stripPolyglotBlocks(
         if (!in_poly && stripped.find("<<") != std::string::npos &&
             std::regex_search(stripped, poly_open)) {
             in_poly = true;
+            if (in_block) (*in_block)[i] = true;
             // Preserve variable binding list for assigned_never_read check
             // <<python[var1, var2, var3] → keep "var1, var2, var3" so refs are visible
             static const std::regex binding_pat(R"(<<\w+\[([^\]]+)\])");
@@ -66,8 +68,10 @@ std::vector<std::string> ScannerEngine::stripPolyglotBlocks(
         } else if (in_poly && std::regex_match(trimmed, poly_close)) {
             in_poly = false;
             result[i] = "";
+            if (in_block) (*in_block)[i] = true;
         } else if (in_poly) {
             result[i] = "";
+            if (in_block) (*in_block)[i] = true;
         }
     }
     return result;

@@ -3342,8 +3342,14 @@ std::string GovernanceEngine::secretFinding(const std::string& text) const {
     return "";
 }
 
+// The line a match at `offset` is on, when `code` begins on `first_line`.
+static int lineOfOffset(int first_line, const std::string& code, size_t offset) {
+    const size_t end = std::min(offset, code.size());
+    return first_line + static_cast<int>(std::count(code.begin(), code.begin() + end, '\n'));
+}
+
 std::string GovernanceEngine::checkSecrets(
-    const std::string& code, int line) {
+    const std::string& code, int line, bool code_starts_at_line) {
     clearTrace();
 
     if (!rules().no_secrets) return "";
@@ -3367,8 +3373,10 @@ std::string GovernanceEngine::checkSecrets(
                     masked = std::string(matched.size(), '*');
                 }
 
+                const int at = (line > 0 && code_starts_at_line)
+                    ? lineOfOffset(line, code, static_cast<size_t>(match.position())) : line;
                 std::string location = line > 0
-                    ? fmt::format("line {}: {}", line, masked)
+                    ? fmt::format("line {}: {}", at, masked)
                     : masked;
 
                 return enforce("code_quality.no_secrets",
@@ -3397,7 +3405,7 @@ std::string GovernanceEngine::checkSecrets(
 }
 
 std::string GovernanceEngine::checkPlaceholders(
-    const std::string& code, int line) {
+    const std::string& code, int line, bool code_starts_at_line) {
     clearTrace();
 
     if (!rules().no_placeholders) return "";
@@ -3447,8 +3455,10 @@ std::string GovernanceEngine::checkPlaceholders(
                     matched_line = matched_line.substr(0, 80) + "...";
                 }
 
+                const int at = (line > 0 && code_starts_at_line)
+                    ? lineOfOffset(line, code, static_cast<size_t>(offset)) : line;
                 std::string location = line > 0
-                    ? fmt::format("line {}: {}", line, matched_line)
+                    ? fmt::format("line {}: {}", at, matched_line)
                     : matched_line;
 
                 return enforce("code_quality.no_placeholders",

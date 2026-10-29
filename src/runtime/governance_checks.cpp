@@ -4653,7 +4653,7 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     std::string err;
 
     if (ph_cfg.enabled) {
-        err = checkPlaceholders(stripped(), line);
+        err = checkPlaceholders(stripped(), line, /*code_starts_at_line=*/true);
         if (!err.empty()) return err;
     }
 
@@ -4679,7 +4679,7 @@ std::string GovernanceEngine::checkNaabFunctionBody(
 
     // Secrets/PII checks — use RAW source (secrets CAN be in string literals)
     if (rules().code_quality.no_secrets.enabled) {
-        err = checkSecrets(source_code, line);
+        err = checkSecrets(source_code, line, /*code_starts_at_line=*/true);
         if (!err.empty()) return err;
     }
     if (rules().code_quality.no_pii.enabled) {
