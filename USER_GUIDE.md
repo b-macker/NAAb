@@ -788,7 +788,7 @@ main {
 ```text
 Error: Governance error: Placeholder "TODO" found in code [SOFT-MANDATORY]
 
-  At: line 2: // TODO: handle discounts
+  At: line 3: // TODO: handle discounts
   Rule: code_quality.no_placeholders = <redacted>
 
   Help:
@@ -799,7 +799,7 @@ Error: Governance error: Placeholder "TODO" found in code [SOFT-MANDATORY]
 ```
 
 - The first line says what was found and the level, here SOFT.
-- `At:` gives the line where the enclosing function starts, then the offending text.
+- `At:` gives the line the offending text is on, then the text.
 - `Rule:` names the `govern.json` key that decided it.
 - `Help:` and `Example:` say how to fix the code.
 

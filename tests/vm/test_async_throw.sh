@@ -9,9 +9,10 @@
 # runtimeError -- so a catch around the await got a message dict, never the
 # thrown value, where the tree-walker hands over the value itself (observed on
 # master 1c2a8765: `throw "async-boom"` caught as {"message": "Await error: ...
-# async-boom ..."}). The worker now copies the thrown value while its VM still
-# exists (as it does a returned value), and OP_AWAIT rethrows it with its taint,
-# copied into the awaiting thread, for run() to deliver to the catch.
+# async-boom ..."}). OP_AWAIT now rethrows the VMThrownValue the future
+# carries, its value deep-copied into the awaiting thread as a returned value
+# is (`future.get().deepCopy()`), with its taint, for run() to deliver to the
+# catch.
 #
 #   AT-00  CONTROL: an async fn that returns hands the await its value
 #   AT-01  a string thrown in an async fn is caught around the await as that

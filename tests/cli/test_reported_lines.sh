@@ -9,9 +9,13 @@
 #     language's, not NAAb's.
 # (b) A per-function refusal's At: named the line the function starts on with
 #     the offending text beside it: a TODO on line 9 of a function at line 7
-#     read "At: line 7: // TODO ...". The function-body path now reports the
-#     line the match is on (placeholders and secrets; a polyglot block's
-#     location, its opening line, is unchanged).
+#     read "At: line 7: // TODO ...". The same class, found fixing it: PII and
+#     incomplete logic named the function's line too, and the whole-file check
+#     (secrets, PII, incomplete logic over the entry file and each module --
+#     the one that fires first) named NO line; and the reports and SARIF read
+#     the check context, not the message, so they kept the old line. Each
+#     match-level finding is now printed and recorded at the line the match is
+#     on. A polyglot block's location, its opening line, is unchanged.
 #
 #   RL-00  CONTROL: four real blank lines in NAAb code are still reported
 #   RL-01  a file with a polyglot block and no blank line draws no note
@@ -24,13 +28,35 @@
 #   RL-06  a TODO inside a polyglot block in main{} is reported at its own
 #          line (5): main{}'s body check reads the block's text and fires
 #          first, and reported main's line (1) on master
+#   RL-07  a secret on line 9 of a function is reported At: line 9. The
+#          whole-file check fires first, and named NO line on master (`At:`
+#          gave only the masked value)
+#   RL-07s the same refusal's SARIF result has startLine 9 (master: none)
+#   RL-08  RL-04's TODO is recorded where it is printed: SARIF startLine 9,
+#          not the function's 7 (the report read the check context, which
+#          named the function's line, while At: named the TODO's)
+#   RL-09  PII on line 9 is reported At: line 9 (master: no line)
+#   RL-10  an empty catch on line 9 is reported At: line 9 (master: no line)
+#   RL-11  under SOFT with --governance-override both the whole-file and the
+#          per-function findings run: a secret, an SSN and an empty catch on
+#          lines 9, 10 and 11 are each recorded twice, at their own line
+#          (master: no line, and the function's 7)
+#
+# The secret and the SSN are built at run time from fragments; the repo holds
+# neither value.
 #
 # Kill table (each mutant rebuilt, suite re-run; observed 2026-10-29):
 #   multiple_blank_lines counts block lines again           -> RL-01, RL-02 red
 #   checkPlaceholders reports the base line (the pre-fix shape) -> RL-04, RL-05, RL-06 red
 #   the function-body path does not pass code_starts_at_line    -> RL-04, RL-05, RL-06 red
-# Red first: on master RL-01, RL-02, RL-04, RL-05 and RL-06 fail; the
-# controls pass.
+#   the whole-file check passes line 0 again       -> RL-07, RL-07s, RL-09, RL-10, RL-11 red
+#   findings printed at the match line but not recorded there
+#                                                   -> RL-07s, RL-08, RL-11 red
+#   the PII match offset is not reported (line 1)   -> RL-09, RL-11 red
+#   the pattern match offset is not reported        -> RL-10, RL-11 red
+#   the function-body PII/incomplete-logic calls drop the flag -> RL-11 red
+#   the function-body secrets call drops the flag   -> RL-11 red
+# Red first: on master RL-01, RL-02, RL-04..RL-11 fail; the controls pass.
 
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -111,6 +137,87 @@ if [ "$RC" -eq 3 ] && [ "$(at_line)" = "5" ]; then
     pass RL-06 "a TODO inside a block in main{} is reported at its own line (5)"
 else
     fail RL-06 "the TODO is on line 5" "rc=$RC at=$(at_line)"
+fi
+
+FAKE_KEY="AK""IA""ABCDEFGHIJ""KLMNOP"
+FAKE_SSN="123""-45-""6789"
+# fn_with LINE9 [LINE10 LINE11] -> a program whose f() starts on line 7
+fn_with() {
+    printf 'main {\n    print(f())\n}\n\n\n\nfn f() {\n    let a = 1\n'
+    printf '%s\n' "$@"
+    printf '    return a\n}\n'
+}
+# runcfg ID CONFIG PROGRAM [ARGS...] -> OUT, RC, DIR
+runcfg() {
+    DIR="$W/$1"; mkdir -p "$DIR"
+    printf '%s\n' "$2" > "$DIR/govern.json"
+    printf '%s' "$3" > "$DIR/p.naab"
+    shift 3
+    RC=0; OUT=$(cd "$DIR" && timeout 60s "$NAAB" run p.naab "$@" 2>&1) || RC=$?
+}
+# sarif_lines FILE RULE -> each RULE result's startLine ("-" when it has none)
+sarif_lines() {
+    python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+out = []
+for r in d["runs"][0]["results"]:
+    if r.get("ruleId") == sys.argv[1]:
+        for l in r.get("locations", [{}]):
+            out.append(str(l.get("physicalLocation", {}).get("region", {}).get("startLine", "-")))
+print(" ".join(sorted(out)))' "$2" < "$1" 2>/dev/null
+}
+cq() { printf '{"mode":"enforce","security":{"sandbox_level":"elevated"},"code_quality":{%s}}' "$1"; }
+
+runcfg rl07 "$(cq '"no_secrets":{"enabled":true,"level":"hard"}')" \
+    "$(fn_with "    let k = \"$FAKE_KEY\"")" --governance-sarif o.sarif
+if [ "$RC" -eq 3 ] && [ "$(at_line)" = "9" ]; then
+    pass RL-07 "a secret on line 9 is reported At: line 9"
+else
+    fail RL-07 "the secret is on line 9" "rc=$RC at=$(at_line) $(grep -m1 'At:' <<<"$OUT" | sed 's/[A-Z0-9]\{8,\}/<v>/')"
+fi
+L=$(sarif_lines "$DIR/o.sarif" code_quality.no_secrets)
+if [ "$L" = "9" ]; then
+    pass RL-07s "the refusal's SARIF result is at line 9"
+else
+    fail RL-07s "the SARIF result should be at line 9" "startLine(s)=${L:-<no result>}"
+fi
+
+runcfg rl08 '{"mode":"enforce","security":{"sandbox_level":"elevated"},"code_quality":{"no_placeholders":{"enabled":true,"level":"hard"}}}' \
+    $'main {\n    print(f())\n}\n\n\n\nfn f() {\n    let a = 1\n    // TODO: finish this\n    return a\n}\n' --governance-sarif o.sarif
+L=$(sarif_lines "$DIR/o.sarif" code_quality.no_placeholders)
+if [ "$RC" -eq 3 ] && [ "$(at_line)" = "9" ] && [ "$L" = "9" ]; then
+    pass RL-08 "the TODO is recorded where it is printed (At: 9, SARIF 9)"
+else
+    fail RL-08 "At: and SARIF should both name line 9" "rc=$RC at=$(at_line) sarif=${L:-<no result>}"
+fi
+
+runcfg rl09 "$(cq '"no_pii":{"enabled":true,"level":"hard"}')" \
+    "$(fn_with "    let s = \"$FAKE_SSN\"")"
+if [ "$RC" -eq 3 ] && [ "$(at_line)" = "9" ]; then
+    pass RL-09 "PII on line 9 is reported At: line 9"
+else
+    fail RL-09 "the PII is on line 9" "rc=$RC at=$(at_line)"
+fi
+
+runcfg rl10 "$(cq '"no_incomplete_logic":{"enabled":true,"level":"hard"}')" \
+    "$(fn_with '    try { a = a + 1 } catch (e) { }')"
+if [ "$RC" -eq 3 ] && [ "$(at_line)" = "9" ]; then
+    pass RL-10 "an empty catch on line 9 is reported At: line 9"
+else
+    fail RL-10 "the empty catch is on line 9" "rc=$RC at=$(at_line)"
+fi
+
+runcfg rl11 "$(cq '"no_secrets":{"enabled":true,"level":"soft"},"no_pii":{"enabled":true,"level":"soft"},"no_incomplete_logic":{"enabled":true,"level":"soft"}')" \
+    "$(fn_with "    let k = \"$FAKE_KEY\"" "    let s = \"$FAKE_SSN\"" '    try { a = a + 1 } catch (e) { }')" \
+    --governance-override --governance-sarif o.sarif
+LS=$(sarif_lines "$DIR/o.sarif" code_quality.no_secrets)
+LP=$(sarif_lines "$DIR/o.sarif" code_quality.no_pii)
+LI=$(sarif_lines "$DIR/o.sarif" code_quality.no_incomplete_logic)
+if [ "$RC" -eq 0 ] && [ "$LS" = "9 9" ] && [ "$LP" = "10 10" ] && [ "$LI" = "11 11" ]; then
+    pass RL-11 "whole-file and per-function findings each recorded at their own line (9, 10, 11)"
+else
+    fail RL-11 "each finding should be recorded twice at its own line" "rc=$RC secrets=[$LS] pii=[$LP] incomplete=[$LI]"
 fi
 
 echo ""
