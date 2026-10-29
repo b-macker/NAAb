@@ -108,7 +108,7 @@ TEST(DocumentTest, ParseValidCode) {
     ASSERT_NE(doc.getAST(), nullptr);
 
     // Check no parse or type errors
-    auto& diagnostics = doc.getDiagnostics();
+    auto diagnostics = doc.getDiagnostics();
     for (const auto& diag : diagnostics) {
         EXPECT_NE(diag.severity, DiagnosticSeverity::Error)
             << "Got error: " << diag.message;
@@ -122,7 +122,7 @@ TEST(DocumentTest, ParseWithTypeError) {
 
     // Should have type error (type checker may not be fully integrated yet)
     // This test documents expected behavior
-    auto& diagnostics = doc.getDiagnostics();
+    auto diagnostics = doc.getDiagnostics();
 
     // TODO: Type checker integration - currently type errors may not be reported
     // For now, just verify parsing succeeded
@@ -302,8 +302,9 @@ TEST(DefinitionProviderTest, GoToFunctionDefinition) {
 
     ASSERT_EQ(locations.size(), 1);
     EXPECT_EQ(locations[0].uri, "file:///test.naab");
-    // Definition should be on first line
-    EXPECT_EQ(locations[0].range.start.line, 1);  // Line reported by symbol table
+    // Definition should be on first line: LSP lines are 0-based, and the
+    // server converts the parser's 1-based lines (document_manager.cpp)
+    EXPECT_EQ(locations[0].range.start.line, 0);
 }
 
 TEST(DefinitionProviderTest, GoToVariableDefinition) {

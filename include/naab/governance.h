@@ -3599,8 +3599,6 @@ public:
     std::string checkLoopIterations(size_t count);
     std::string checkPolyglotBlockCount(size_t count);
     std::string incrementAndCheckPolyglotBlockCount();
-    std::string checkStringLength(size_t length);
-    std::string checkNestingDepth(size_t depth);
     // limits.data.output_size and languages.per_language.<lang>.max_output_size:
     // what foreign code hands back to the program -- an inline block's value, a
     // persistent runtime's .exec(), a block-library call, codegen.run()'s

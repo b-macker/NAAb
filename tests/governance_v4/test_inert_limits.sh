@@ -6,9 +6,10 @@
 #
 # limits.data.string_length and nesting_depth are parsed, recorded in
 # explicitly_set (so they take part in the ratchet and in inheritance) and
-# clamped -- then read by nothing. Their only readers are
-# GovernanceEngine::checkStringLength / checkNestingDepth, which have zero call
-# sites anywhere in src/. An operator can set a HARD data limit, watch it
+# clamped -- then read by nothing. Their only readers were
+# GovernanceEngine::checkStringLength / checkNestingDepth, which had zero call
+# sites anywhere in src/ and were deleted in A3b (the reasons not to wire them
+# are below). An operator can set a HARD data limit, watch it
 # survive validation, and get no enforcement whatsoever.
 #
 # dict_size WAS in that list when this suite was written (#137), and LD-02

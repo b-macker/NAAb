@@ -333,6 +333,13 @@ struct PolyglotBlockInfo {
 struct VMClosure {
     CompiledFunction* function = nullptr;
     std::vector<std::shared_ptr<ObjUpvalue>> upvalues;
+    // The copies of the function tree an async call runs (VM::callValue
+    // deep-copies it for the call's thread): a closure made there points
+    // into them, and one returned or thrown out of the async fn outlives the
+    // call, so it keeps them alive. Inherited by every closure made while it
+    // runs (OP_CLOSURE). Null for the main program's functions, which the VM
+    // owns. Constants never hold it, so it forms no cycle.
+    std::shared_ptr<void> function_owner;
 
     VMClosure() = default;
     VMClosure(CompiledFunction* fn, std::vector<std::shared_ptr<ObjUpvalue>> ups)

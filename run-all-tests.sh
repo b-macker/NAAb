@@ -2953,6 +2953,33 @@ else
     echo "  test_callback_throw.sh: not found, skipping"
 fi
 
+# VM: a <<javascript>> block inside an async fn runs on a QuickJS runtime of its own thread (A61).
+ASYNCJS_SCRIPT="tests/vm/test_async_javascript.sh"
+if [ -f "$ASYNCJS_SCRIPT" ]; then
+    if run_shell_test "$ASYNCJS_SCRIPT" 2>&1; then
+        echo "  test_async_javascript.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_async_javascript.sh")
+    fi
+else
+    echo "  test_async_javascript.sh: not found, skipping"
+fi
+
+# VM: a value thrown in an async fn reaches the await's catch as that value, with its taint;
+# a closure returned or thrown out of an async fn stays callable (A59(a)).
+ASYNCTHROW_SCRIPT="tests/vm/test_async_throw.sh"
+if [ -f "$ASYNCTHROW_SCRIPT" ]; then
+    if run_shell_test "$ASYNCTHROW_SCRIPT" 2>&1; then
+        echo "  test_async_throw.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_async_throw.sh")
+    fi
+else
+    echo "  test_async_throw.sh: not found, skipping"
+fi
+
 # async fn semantics per engine (ASYNC-001): results agree, VM concurrent, tree-walker pinned synchronous.
 ASYNCSEM_SCRIPT="tests/vm/test_async_engine_semantics.sh"
 if [ -f "$ASYNCSEM_SCRIPT" ]; then
@@ -4557,6 +4584,19 @@ if [ -f "$BFP_SCRIPT" ]; then
     fi
 else
     echo "  test_block_failure_parity.sh: not found, skipping"
+fi
+
+# A Nim block's last line is printed when it has a value and run when it has none (D12).
+NIMLAST_SCRIPT="tests/robustness/test_nim_last_line.sh"
+if [ -f "$NIMLAST_SCRIPT" ]; then
+    if run_shell_test "$NIMLAST_SCRIPT" 2>&1; then
+        echo "  test_nim_last_line.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_nim_last_line.sh")
+    fi
+else
+    echo "  test_nim_last_line.sh: not found, skipping"
 fi
 
 BWU_SCRIPT="tests/robustness/test_binding_use_warning.sh"

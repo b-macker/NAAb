@@ -6669,34 +6669,6 @@ std::string GovernanceEngine::incrementAndCheckPolyglotBlockCount() {
     return checkPolyglotBlockCount(static_cast<size_t>(count));
 }
 
-std::string GovernanceEngine::checkStringLength(size_t length) {
-    clearTrace();
-    int max = rules().limits.data.string_length;
-    if (max > 0 && static_cast<int>(length) > max) {
-        return enforce("limits.data.string_length", EnforcementLevel::HARD,
-            formatError(EnforcementLevel::HARD,
-                fmt::format("String length {} exceeds limit of {}", length, max),
-                "", fmt::format("limits.data.string_length = {}", max),
-                "String exceeds maximum length — truncate or stream large data.\n"
-                "Process large inputs in smaller segments.", "", ""));
-    }
-    return "";
-}
-
-std::string GovernanceEngine::checkNestingDepth(size_t depth) {
-    clearTrace();
-    int max = rules().limits.data.nesting_depth;
-    if (max > 0 && static_cast<int>(depth) > max) {
-        return enforce("limits.data.nesting_depth", EnforcementLevel::HARD,
-            formatError(EnforcementLevel::HARD,
-                fmt::format("Nesting depth {} exceeds limit of {}", depth, max),
-                "", fmt::format("limits.data.nesting_depth = {}", max),
-                "Data structure nesting is too deep — flatten nested objects.\n"
-                "Extract nested data into separate variables or use a flatter schema.", "", ""));
-    }
-    return "";
-}
-
 namespace {
 // The size of a foreign result as text, counted without building the text: a
 // string is its bytes; a list or dict is what it holds, plus two bytes for its

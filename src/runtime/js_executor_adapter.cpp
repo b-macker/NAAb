@@ -9,18 +9,38 @@
 namespace naab {
 namespace runtime {
 
+namespace {
+// The last executeWithReturn() on this thread: which adapter ran it, and how
+// it ended. Read back by getCapturedOutput()/getLastExitCode() on the same
+// thread, right after the call. Members would be shared by every thread
+// calling the one registered adapter.
+struct LastCall {
+    const JsExecutorAdapter* adapter = nullptr;
+    int exit_code = 0;
+    std::string error_text;
+};
+thread_local LastCall t_last_call;
+}  // namespace
+
 JsExecutorAdapter::JsExecutorAdapter() {
     // JavaScript executor adapter initialized (silent)
 }
 
+template <class F>
+auto JsExecutorAdapter::onThisThread(F&& f) {
+    if (std::this_thread::get_id() == owner_) return f(executor_);
+    JsExecutor fresh;
+    return f(fresh);
+}
+
 bool JsExecutorAdapter::execute(const std::string& code) {
     // Executing JavaScript code (silent)
-    return executor_.execute(code);
+    return onThisThread([&](JsExecutor& js) { return js.execute(code); });
 }
 
 bool JsExecutorAdapter::execute(const std::string& code, JsExecutionMode mode) {
     // Executing JavaScript code with mode (silent)
-    return executor_.execute(code, mode);
+    return onThisThread([&](JsExecutor& js) { return js.execute(code, mode); });
 }
 
 // Phase 2.3: Execute code and return result value
@@ -28,19 +48,17 @@ interpreter::NaabVal JsExecutorAdapter::executeWithReturn(
     const std::string& code) {
     // Executing JavaScript code with return (silent)
     // Reset exit code and stderr at start of each call
-    last_exit_code_ = 0;
-    last_stderr_ = "";
+    t_last_call = LastCall{this, 0, ""};
 
     try {
-        auto result = executor_.evaluate(code);
-        return result;
+        return onThisThread([&](JsExecutor& js) { return js.evaluate(code); });
     } catch (const std::exception& e) {
         std::string error_msg = e.what();
         fmt::print("[JS Error] {}\n", error_msg);
 
         // Set exit code to non-zero on error
-        last_exit_code_ = 1;
-        last_stderr_ = error_msg;
+        t_last_call.exit_code = 1;
+        t_last_call.error_text = error_msg;
 
         // Helper hints for common JS-in-polyglot errors
         if (error_msg.find("is not defined") != std::string::npos) {
@@ -69,7 +87,7 @@ interpreter::NaabVal JsExecutorAdapter::callFunction(
     const std::vector<interpreter::NaabVal>& args) {
 
     // Calling function (silent)
-    return executor_.callFunction(function_name, args);
+    return onThisThread([&](JsExecutor& js) { return js.callFunction(function_name, args); });
 }
 
 bool JsExecutorAdapter::isInitialized() const {
@@ -77,13 +95,13 @@ bool JsExecutorAdapter::isInitialized() const {
 }
 
 std::string JsExecutorAdapter::getCapturedOutput() {
-    // Return captured error output from last execution
-    return last_stderr_;
+    // Return captured error output from this thread's last execution
+    return t_last_call.adapter == this ? t_last_call.error_text : std::string();
 }
 
 int JsExecutorAdapter::getLastExitCode() const {
-    // Return the last exit code (0 for success, 1 for error)
-    return last_exit_code_;
+    // Return this thread's last exit code (0 for success, 1 for error)
+    return t_last_call.adapter == this ? t_last_call.exit_code : 0;
 }
 
 std::string JsExecutorAdapter::getRuntimeVersion() const {
