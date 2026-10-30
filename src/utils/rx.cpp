@@ -457,7 +457,31 @@ void compileFallback(regex::Impl& im, const std::string& pattern, regex::flag_ty
 
 }  // namespace
 
+namespace {
+// Compiled patterns, shared. Many call sites build a regex per call (a pattern
+// per block, per alias, per table entry), and an RE2 compile costs far more
+// than a match: in a two-block governed run on the unoptimised build, RE2
+// compiling was 53% of all instructions (callgrind). An Impl is immutable once
+// built (full_bc is built under call_once), so one may serve every regex of
+// the same pattern and flags, on any thread. Bounded: patterns can come from
+// config and programs, so past kMaxCached a pattern is compiled per
+// construction, as before.
+constexpr size_t kMaxCached = 2048;
+std::mutex g_impl_cache_mu;
+std::unordered_map<std::string, std::shared_ptr<const regex::Impl>>& implCache() {
+    static auto* cache = new std::unordered_map<std::string, std::shared_ptr<const regex::Impl>>();
+    return *cache;   // never destroyed: regexes held in statics may outlive it
+}
+}  // namespace
+
 regex::regex(const std::string& pattern, flag_type flags) : pattern_(pattern), flags_(flags) {
+    std::string key(1, static_cast<char>('0' + (flags & 0x7)));
+    key += pattern;
+    {
+        std::lock_guard<std::mutex> lock(g_impl_cache_mu);
+        auto it = implCache().find(key);
+        if (it != implCache().end()) { impl_ = it->second; return; }
+    }
     auto im = std::make_shared<Impl>();
     bool linear = false;
 #if defined(NAAB_RX_RE2)
@@ -487,6 +511,11 @@ regex::regex(const std::string& pattern, flag_type flags) : pattern_(pattern), f
         diffLog("COMPILE std-rejects pattern=" + escapeForLog(pattern, 300));
     }
 #endif
+    {
+        std::lock_guard<std::mutex> lock(g_impl_cache_mu);
+        auto& cache = implCache();
+        if (cache.size() < kMaxCached) cache.emplace(key, im);
+    }
     impl_ = std::move(im);
 }
 

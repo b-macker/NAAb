@@ -48,10 +48,16 @@ unm()  { UNM=$((UNM+1));   echo "  UNMEASURABLE [$1] $2"; }
 source "$SCRIPT_DIR/../helpers/stub_platform.sh"
 skip_if_no_stub_support "test_reply_secret_default.sh"
 source "$SCRIPT_DIR/../helpers/stub_launch.sh"
+# Unsigned configs until the reload arms sign their own: with any key in the
+# trust store each would be an integrity block, and every refusal arm would
+# pass for it.
+source "$REPO/tests/helpers/trust_setup.sh"
+setup_isolated_trust
 SWAP_LOADED=0
 cleanup() {
     stop_stub
-    if [ "$SWAP_LOADED" = 1 ]; then stop_swap_operators; teardown_isolated_trust; fi
+    [ "$SWAP_LOADED" = 1 ] && stop_swap_operators
+    teardown_isolated_trust
     rm -rf "$W"
 }
 trap cleanup EXIT
@@ -156,7 +162,6 @@ else fail RS-05 "a program holding a key literal was refused with no no_secrets 
 if ! command -v python3 >/dev/null 2>&1; then
     unm R-00 "python3 missing -- the reload arms are UNMEASURABLE"
 else
-    source "$REPO/tests/helpers/trust_setup.sh"; setup_isolated_trust
     source "$REPO/tests/helpers/config_swap.sh"; SWAP_LOADED=1
     "$NAAB" --keygen "$W/k.pem" >/dev/null 2>&1
     "$NAAB" --trust-key "$W/k.pem.pub" >/dev/null 2>&1

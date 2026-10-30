@@ -40,6 +40,24 @@
 # (it has recurred on commits that could not have caused it). n=25 stays
 # because finite abandoned work is right regardless; C-01 uses n=28 so its
 # workers outlive the six calls and actually reach the cap.
+#
+# A89 changed the matcher under SafeRegex (naab::rx), and with it two premises:
+#   - (a|a)+b is a pattern RE2 reads, so it is now LINEAR: on 25 a's it answers
+#     false at once instead of timing out. B-01r pins that. The timeout arms
+#     use (?=a)(a|a)+b instead -- the lookahead keeps it on the backtracking
+#     fallback, where it is still exponential (observed: 1.04 s, the 1 s
+#     budget, at n=25 and n=28 on the unoptimised build).
+#   - The fallback counts its steps and stops a search at its step budget, so a
+#     worker is no longer "abandoned, never interrupted": it ends at the budget.
+#     A stop may therefore read "timed out" (SafeRegex's clock first, as on the
+#     unoptimised build) or "step budget" (the step count first, as it can on
+#     an optimised one); both are stops. An abandoned worker now ends at its
+#     step budget -- silently, inside SafeRegex -- so four of them pile up to
+#     the cap only when 1e8 steps outlast four 1 s timeouts. Observed on the
+#     unoptimised build: six timeouts, no refusal, so C-02 (the cap) reports
+#     UNMEASURABLE wherever no call reached it. The cap remains the backstop for
+#     a fallback that counts no steps (a build without QuickJS); no test here
+#     reaches it on a build with one (A89, residual).
 
 set -uo pipefail
 PASS=0
@@ -116,15 +134,23 @@ case "$OUT" in
 esac
 
 echo "=== B: the budget holds ==="
-run_match b01 '(a|a)+b' "${A25}!"
+FALLBACK='(?=a)(a|a)+b'
+run_match b01 "$FALLBACK" "${A25}!"
 # 1s budget + process start/exit. The broken build needed the full ~12s here.
-if [ "$ELAPSED" -le 4 ] && [[ "$OUT" == *CAUGHT:*"timed out"* ]]; then
+if [ "$ELAPSED" -le 4 ] && { [[ "$OUT" == *CAUGHT:*"timed out"* ]] || [[ "$OUT" == *CAUGHT:*"step budget"* ]]; }; then
     pass B-01 "exponential pattern stopped at the budget (${ELAPSED}s)"
 else
     fail B-01 "not stopped within 4s (took ${ELAPSED}s)" "$(echo "$OUT" | head -2)"
 fi
 
-run_match b02 '(a|a)+b' "aaaab"
+run_match b01r '(a|a)+b' "${A25}!"
+if [ "$ELAPSED" -le 4 ] && [[ "$OUT" == *RESULT:false* ]]; then
+    pass B-01r "the same exponential shape, readable by RE2, answers in linear time (${ELAPSED}s)"
+else
+    fail B-01r "(a|a)+b should answer false within 4s (took ${ELAPSED}s)" "$(echo "$OUT" | head -2)"
+fi
+
+run_match b02 "$FALLBACK" "aaaab"
 case "$OUT" in
     *RESULT:true*) pass B-02 "control: the same pattern on a short input completes" ;;
     *) fail B-02 "control failed -- B-01 may be refusing everything" "$(echo "$OUT" | head -2)" ;;
@@ -137,12 +163,14 @@ main {
     let i = 0
     while i < 6 {
         try {
-            regex.matches("${A28}!", "(a|a)+b")
+            regex.matches("${A28}!", "(?=a)(a|a)+b")
             print("RUN:done")
         } catch (e) {
             let m = e["message"]
             if m.contains("too many") {
                 print("RUN:refused")
+            } else if m.contains("step budget") {
+                print("RUN:budget")
             } else {
                 print("RUN:timeout")
             }
@@ -156,10 +184,17 @@ OUT="$(cd "$WORK" && timeout 120 "$NAAB" "$WORK/c01.naab" 2>&1)"
 ELAPSED=$((SECONDS - start))
 timeouts=$(grep -c '^RUN:timeout' <<<"$OUT")
 refused=$(grep -c '^RUN:refused' <<<"$OUT")
-if [ "$timeouts" -ge 1 ] && [ "$refused" -ge 1 ] && [ "$ELAPSED" -le 30 ]; then
-    pass C-01 "$timeouts timed out, then $refused refused at the cap (${ELAPSED}s)"
+budget=$(grep -c '^RUN:budget' <<<"$OUT")
+done_=$(grep -c '^RUN:done' <<<"$OUT")
+if [ $((timeouts + refused + budget)) -eq 6 ] && [ "$done_" -eq 0 ] && [ "$ELAPSED" -le 30 ]; then
+    pass C-01 "six catastrophic calls all stopped within 30s (timeouts=$timeouts refused=$refused budget=$budget, ${ELAPSED}s)"
 else
-    fail C-01 "expected timeouts then refusals within 30s (timeouts=$timeouts refused=$refused ${ELAPSED}s)" "$(echo "$OUT" | head -3)"
+    fail C-01 "expected six stops within 30s (timeouts=$timeouts refused=$refused budget=$budget done=$done_ ${ELAPSED}s)" "$(echo "$OUT" | head -3)"
+fi
+if [ "$refused" -ge 1 ]; then
+    pass C-02 "abandoned workers reached the cap: $refused call(s) refused"
+else
+    echo "  UNMEASURABLE [C-02] no call reached the cap: on this build the step budget ends an abandoned worker first (timeouts=$timeouts budget=$budget)"
 fi
 
 echo ""

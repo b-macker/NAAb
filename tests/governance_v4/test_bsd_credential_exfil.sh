@@ -58,7 +58,11 @@ unm()  { UNM=$((UNM+1));   echo "  UNMEASURABLE [$1] $2"; }
 source "$SCRIPT_DIR/../helpers/stub_platform.sh"
 skip_if_no_stub_support "test_bsd_credential_exfil.sh"
 source "$SCRIPT_DIR/../helpers/stub_launch.sh"
-cleanup() { stop_stub; rm -rf "$TEST_TMP"; }
+# Unsigned configs: with any key in the trust store each would be an integrity
+# block, and every refusal arm would pass for it.
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
+cleanup() { stop_stub; teardown_isolated_trust; rm -rf "$TEST_TMP"; }
 trap cleanup EXIT
 
 echo "=== built-in credential_exfiltration; built-ins enforce by default ==="
