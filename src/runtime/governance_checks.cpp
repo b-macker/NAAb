@@ -1191,8 +1191,14 @@ std::string GovernanceEngine::piiFinding(const std::string& text) const {
 
 std::string GovernanceEngine::checkPii(const std::string& code, int line,
                                        bool code_starts_at_line) {
+    if (!rules().code_quality.no_pii.enabled) return "";
+    // Bounded: it also reads model replies, outside the static entry points.
+    return boundedScan(checkFile(), line, [&] { return scanPii(code, line, code_starts_at_line); });
+}
+
+std::string GovernanceEngine::scanPii(const std::string& code, int line,
+                                      bool code_starts_at_line) {
     auto& cfg = rules().code_quality.no_pii;
-    if (!cfg.enabled) return "";
     clearTrace();
 
     std::string desc, found;
@@ -4655,11 +4661,11 @@ std::string GovernanceEngine::boundedScan(const std::string& file, int line,
         ScopedCheckContext at(file, line);
         return enforce("governance.scan_budget", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
-                "Scan limit reached: a check could not finish reading this code",
+                "Scan limit reached: a check could not finish reading this text",
                 line > 0 ? fmt::format("line {}", line) : "",
                 "governance.scan_budget",
                 "A pattern check ran past its work limit before it could decide,\n"
-                "so the code is refused rather than run unchecked.\n"
+                "so the text is refused rather than passed unchecked.\n"
                 "The usual cause is one very long line (tens of thousands of\n"
                 "characters): split it, or move the data into a file the\n"
                 "program reads.",

@@ -234,8 +234,9 @@ only.
   patterns.
 - **Inherits the project's settings.** BSD is off unless
   `behavioral_sequences.enabled` is true, and the built-in patterns run at
-  ADVISORY unless `default_pattern_enforcement` is `"declared"` (traced,
-  `governance.h`). Cross-call detection is exactly as strong as in-process
+  their declared levels unless `default_pattern_enforcement` is `"observe"`
+  (traced, `governance.h`; `"declared"` became the default in Bundle 6 -- it
+  was `"observe"` when this was written). Cross-call detection is exactly as strong as in-process
   detection under the same config. With BSD off, the server says so once at
   startup on stderr.
 - **Commits from one caller run one at a time while BSD is enabled.** Each

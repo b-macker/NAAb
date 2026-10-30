@@ -3595,7 +3595,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 // Step 3: Scan arguments for secrets (Gap B). A hit ends the run
                 // (A44(a)): the scan enforces, it does not report.
                 if (gov_engine && gov_engine->isActive()) {
-                    gov_engine->checkSecrets(tc.arguments, 0);
+                    gov_engine->checkModelOutputSecrets(tc.arguments);
                 }
 
                 // Per-tool-call admissibility gate: tool execution is the most
@@ -4187,7 +4187,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // (gov_engine already obtained above for reload check)
     if (gov_engine && gov_engine->isActive() && !content.empty()) {
         // Secrets and PII in the LLM response: each scan enforces (A44(a)).
-        gov_engine->checkSecrets(content, 0);
+        // The secret scan runs unless the config turned it off (Bundle 6).
+        gov_engine->checkModelOutputSecrets(content);
         gov_engine->checkPii(content, 0);
     }
 
@@ -4553,6 +4554,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                             }
                         } catch (const std::regex_error& e) {
                             contract_error = fmt::format("invalid regex in contract: {}", e.what());
+                            break;
+                        } catch (const naab::rx::resource_error&) {
+                            // Not matched is not the same as not checked, but
+                            // both fail the contract: a field the pattern could
+                            // not finish reading is refused, not passed (A89).
+                            contract_error = fmt::format(
+                                "field '{}' could not be checked against its pattern "
+                                "within the matcher's work limit", field);
                             break;
                         }
                     }
@@ -5952,7 +5961,7 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
         bool scan_ok = true;
         std::string inadmissible_reason;
         if (gov_engine && gov_engine->isActive() && !content.empty()) {
-            gov_engine->checkSecrets(content, 0);
+            gov_engine->checkModelOutputSecrets(content);
             gov_engine->checkPii(content, 0);
         }
         if (scan_ok && config->response_format == "json" && !content.empty()) {

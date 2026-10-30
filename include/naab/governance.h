@@ -1423,8 +1423,8 @@ struct BehavioralSequenceConfig {
     std::string rationale;
     size_t window_size = 200;             // max events in ring buffer
     // Enforcement level applied to the BUILT-IN patterns.
-    //   "observe"  (default) every default pattern runs at ADVISORY
-    //   "declared"           each pattern uses the level it declares
+    //   "declared" (default) each pattern uses the level it declares
+    //   "observe"            every default pattern runs at ADVISORY
     // The built-in patterns shipped with enum-style step names ("TOOL_CALL")
     // that never matched anything -- eventTypeToString returns "tool_call", and
     // normalizeEventTypeName turns the enum form into "tool.call". Ten of the
@@ -1434,10 +1434,13 @@ struct BehavioralSequenceConfig {
     // an upgrade is not something to do silently. credential_harvesting is the
     // clearest case: env var matching *key*|*token*|*secret* followed by a
     // network call inside 5 events is the intended detection AND what every
-    // legitimate API client does. Observe first, promote deliberately.
+    // legitimate API client does. Observe first, promote deliberately -- and
+    // it was promoted: "declared" is the default since Bundle 6 (the owner's
+    // plan), with "observe" the one-line opt-out a project that reads its own
+    // key and calls out writes (CHANGELOG, migration note).
     // Ratchet: "observe" -> "declared" tightens and is allowed; the reverse is
     // a loosening violation.
-    std::string default_pattern_enforcement = "observe";
+    std::string default_pattern_enforcement = "declared";
     std::vector<SequencePattern> patterns;
 };
 
@@ -2822,6 +2825,18 @@ struct GovernanceRules {
     // Used by mergeRules() to distinguish "user set field to default" from "never set".
     std::unordered_set<std::string> explicitly_set;
 
+    // What a model writes -- an agent reply, a propose candidate, the arguments
+    // of a tool call the model makes -- is scanned for secrets unless the
+    // config itself sets no_secrets (Bundle 6): on when it says nothing,
+    // off only when it says false. The program's own text, its prompts and
+    // tool results stay opt-in (no_secrets). Read only from this config's own
+    // keys: an extends parent's `false` is not inherited, because absent here
+    // means the default. The reload ratchet compares it (on -> off loosens).
+    bool scansModelOutputForSecrets() const {
+        return no_secrets || !(explicitly_set.count("no_secrets") ||
+                               explicitly_set.count("code_quality.no_secrets"));
+    }
+
     LanguagesConfig languages;
     CapabilitiesConfig capabilities;
     LimitsConfig limits;
@@ -3513,6 +3528,9 @@ public:
     // checkPlaceholders, checkPii, checkIncompleteLogic. Callers whose `line`
     // is a block's opening line leave it false.
     std::string checkSecrets(const std::string& code, int line = 0, bool code_starts_at_line = false);
+    // checkSecrets() for what a model wrote: runs unless the config turned
+    // no_secrets off (GovernanceRules::scansModelOutputForSecrets).
+    std::string checkModelOutputSecrets(const std::string& text);
     // The line a match at `offset` in `code` is on: `line` itself unless
     // `code_starts_at_line` (the four checks above share it).
     static int matchLine(int line, const std::string& code, size_t offset, bool code_starts_at_line);
@@ -4552,6 +4570,8 @@ private:
     void capCheckResultsLocked();
 
     // --- Formatting ---
+    std::string scanSecrets(const std::string& code, int line, bool code_starts_at_line);
+    std::string scanPii(const std::string& code, int line, bool code_starts_at_line);
     std::string boundedScan(const std::string& file, int line,
                             const std::function<std::string()>& scan);
     std::string checkPolyglotBlockScan(const std::string& language,

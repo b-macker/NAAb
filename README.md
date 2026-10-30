@@ -107,7 +107,7 @@ The policy beside it, `examples/quickstart/govern.json`:
 }
 ```
 
-Each step of a pattern names an event (`env.get`, `file.read`, `agent.send`, `http.post`, ...) and can match its detail with a glob after `:`; `|` separates alternatives. The engine tracks events across the whole run, with a configurable gap between steps, and refuses the step that would complete a pattern. Sequence detection is off until `behavioral_sequences.enabled` is true. Listing `patterns` replaces the 16 built-in ones, which are advisory unless you set `"default_pattern_enforcement": "declared"`; none of the built-in ones covers this chain. `sandbox_level: "elevated"` lets the program read the environment at all: at `standard`, the default under `enforce`, the sandbox refuses `env.get` before any pattern is reached.
+Each step of a pattern names an event (`env.get`, `file.read`, `agent.send`, `http.post`, ...) and can match its detail with a glob after `:`; `|` separates alternatives. The engine tracks events across the whole run, with a configurable gap between steps, and refuses the step that would complete a pattern. Sequence detection is off until `behavioral_sequences.enabled` is true. Listing `patterns` replaces the 17 built-in ones, which enforce at their own levels unless you set `"default_pattern_enforcement": "observe"`; the built-in `credential_exfiltration` covers the first chain above. `sandbox_level: "elevated"` lets the program read the environment at all: at `standard`, the default under `enforce`, the sandbox refuses `env.get` before any pattern is reached.
 
 ### Start your own project
 
@@ -163,7 +163,7 @@ naab-lang --signing-key ./keys/governance --sign-governance   # writes govern.js
 
 | Threat | Example | Stopped by |
 |---|---|---|
-| Credential exfiltration | `env.get` of a secret → encode → `agent.send` | A sequence pattern; the send is refused before it is made |
+| Credential exfiltration | `env.get` of a secret → encode → `agent.send` | A sequence pattern (built in as `credential_exfiltration`); the send is refused before it is made |
 | Config harvesting | `file.read("app_config.json")` → `agent.send` | A sequence pattern (`config_harvest` above) |
 | Rewriting the policy | `file.read("govern.json")`, `file.write("govern.json", ...)` | Protected paths: a HARD block |
 | Hallucinated APIs | `.push()` in a Python block, `import fake_ai_toolkit` | Pre-run checks |
@@ -171,7 +171,7 @@ naab-lang --signing-key ./keys/governance --sign-governance   # writes govern.js
 | Hardcoded secrets | an `sk-proj-...` key in a block | `code_quality.no_secrets` |
 | Tainted data reaching a shell | `env.get(...)` passed into a `<<shell>>` block | Taint tracking |
 | Capability abuse | a shell command, a socket, a file write | `capabilities.*`; `shell.enabled: false` refuses every language that runs as a separate process |
-| Secrets in agent traffic | a key in a prompt, a reply, a tool argument or result | `code_quality.no_secrets` (off by default; when on, a hit ends the run) |
+| Secrets in agent traffic | a key in a reply, a propose candidate or a tool call's arguments; in a prompt or a tool result | What the model writes is scanned unless `govern.json` says `"no_secrets": false`; prompts and tool results with `code_quality.no_secrets` on. A hit ends the run |
 | Agent drift | repetition, circular actions, mandate drift, failed validations | Context drift detection, 23 signals; output admissibility can quarantine or block the reply |
 
 The demo runs six of these mistakes, each blocked for its own reason, and one clean program:

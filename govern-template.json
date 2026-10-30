@@ -421,6 +421,7 @@
   },
 
   "code_quality": {
+    "_comment_no_secrets": "Secret scanning of the program's text, its prompts and tool results. What a MODEL writes -- an agent reply, a propose candidate, a tool call's arguments -- is scanned even with no_secrets absent; only \"no_secrets\": false turns that off, and a reload that writes it mid-run is refused.",
     "no_secrets": {
       "enabled": true,
       "level": "hard",
@@ -1832,13 +1833,13 @@
   "_comment_governance_plugins_entry": "Entry shape: {\"file\": \"checks.naab\" (required; an entry without it is skipped), \"rules\": [{\"id\", \"function\" (required), \"trigger\" (required), \"description\", \"level\", \"languages\": [], \"message\", \"help\", \"good_example\", \"bad_example\", \"enabled\": true}]}. A rule missing function or trigger is skipped with a warning.",
   "governance_plugins": [],
 
-  "_comment_behavioral_sequences": "Behavioral Sequence Detection (BSD) — FSM-based multi-step attack pattern matching. Records runtime events (env reads, file I/O, network, shell exec, encoding, tool calls) into a ring buffer and advances per-pattern state machines. When all steps of a pattern match within the window, enforcement fires. wouldMatch() enables pre-execution blocking. Event types: ENV_READ, ENV_WRITE, FILE_READ, FILE_WRITE, NET_CONNECT, SHELL_EXEC, AGENT_SEND, AGENT_RESPONSE, TAINT_VIOLATION, TAINT_SANITIZED, ENCODE, DECODE, PROCESS_EXEC, CONFIG_RELOAD, CHECK_FAILED, TOOL_CALL, TOOL_RESULT, TOOL_ERROR, TOOL_BLOCKED. Default patterns (credential harvesting, sandbox probe, config tampering, progressive escalation, data staging, taint bypass, tool data exfil, tool env harvest, tool shell escape, tool rapid fire) activate when no user patterns are defined.",
+  "_comment_behavioral_sequences": "Behavioral Sequence Detection (BSD) — FSM-based multi-step attack pattern matching. Records runtime events (env reads, file I/O, network, shell exec, encoding, tool calls) into a ring buffer and advances per-pattern state machines. When all steps of a pattern match within the window, enforcement fires. wouldMatch() enables pre-execution blocking. Event types: ENV_READ, ENV_WRITE, FILE_READ, FILE_WRITE, NET_CONNECT, SHELL_EXEC, AGENT_SEND, AGENT_RESPONSE, TAINT_VIOLATION, TAINT_SANITIZED, ENCODE, DECODE, PROCESS_EXEC, CONFIG_RELOAD, CHECK_FAILED, TOOL_CALL, TOOL_RESULT, TOOL_ERROR, TOOL_BLOCKED. Default patterns (credential harvesting, credential exfiltration, sandbox probe, config tampering, progressive escalation, data staging, taint bypass, tool data exfil, tool env harvest, tool shell escape, tool rapid fire) activate when no user patterns are defined.",
   "behavioral_sequences": {
     "enabled": false,
     "rationale": "Detect multi-step attack patterns that span individual governance checks.",
     "window_size": 100,
-    "_comment_default_pattern_enforcement": "\"observe\" (default): the BUILT-IN patterns enforce at ADVISORY; \"declared\": they enforce at their declared levels. Built-ins apply only when no patterns are configured here.",
-    "default_pattern_enforcement": "observe",
+    "_comment_default_pattern_enforcement": "\"declared\" (default): the BUILT-IN patterns enforce at their declared levels (most SOFT); \"observe\": they all run at ADVISORY. Built-ins apply only when no patterns are configured here. A program that reads its own API key and then calls out matches credential_harvesting: write \"observe\" for it, or list your own patterns.",
+    "default_pattern_enforcement": "declared",
     "_comment_pattern_fields": "Per pattern: cross_agent (match only when the events span 2+ agents; default false), decay_seconds (events older than this do not count; default 300), decay_turns (events more than N turns old do not count; default 20).",
     "patterns": [
       {

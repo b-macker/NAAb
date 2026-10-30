@@ -3350,11 +3350,22 @@ int GovernanceEngine::matchLine(int line, const std::string& code, size_t offset
     return line + static_cast<int>(std::count(code.begin(), code.begin() + end, '\n'));
 }
 
+std::string GovernanceEngine::checkModelOutputSecrets(const std::string& text) {
+    if (!rules().scansModelOutputForSecrets()) return "";
+    // Bounded like the static entry points: a model reply is chosen by the
+    // governed side too (A89).
+    return boundedScan(checkFile(), checkLine(), [&] { return scanSecrets(text, 0, false); });
+}
+
 std::string GovernanceEngine::checkSecrets(
     const std::string& code, int line, bool code_starts_at_line) {
-    clearTrace();
+    if (!rules().no_secrets) { clearTrace(); return ""; }
+    return scanSecrets(code, line, code_starts_at_line);
+}
 
-    if (!rules().no_secrets) return "";
+std::string GovernanceEngine::scanSecrets(
+    const std::string& code, int line, bool code_starts_at_line) {
+    clearTrace();
 
     const auto& compiled_secret_patterns = compiledSecretPatterns();
 

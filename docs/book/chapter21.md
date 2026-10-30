@@ -1192,7 +1192,7 @@ Beyond static checks, NAAb can detect dangerous multi-step behavior patterns at 
 
 ### 21.16.1 Configuration
 
-Patterns are defined in govern.json. Listing `patterns` replaces the 16 built-in ones, which are advisory unless `default_pattern_enforcement` is `"declared"`:
+Patterns are defined in govern.json. Listing `patterns` replaces the 17 built-in ones, which enforce at their own levels unless `default_pattern_enforcement` is `"observe"`:
 
 ```json
 {

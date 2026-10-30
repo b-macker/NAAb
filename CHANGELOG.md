@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > features from that period, not a complete record; `git log` is the complete
 > record.
 
+### Changed -- defaults (Bundle 6; migration note)
+Two defaults now block where they used to report or stay silent. Each has a one-line opt-out, and each opt-out is the old behaviour exactly.
+- **Built-in sequence patterns enforce at their own level by default.** With `behavioral_sequences.enabled: true` and no `patterns` list, `default_pattern_enforcement` now defaults to `"declared"`: each built-in pattern blocks at the level it declares (most are SOFT: exit 3, `--governance-override` lets it through; `config_tampering` is HARD). It shipped `"observe"` (every built-in at advisory) in #182, because correcting the built-ins' step names switched them on for the first time. What changes for you:
+  - `credential_harvesting` (an `env.get` of a name holding key/token/secret/password, then a network call within 5 events) now refuses the network call. A program that reads its own API key and calls out is that shape. Write `"default_pattern_enforcement": "observe"` to keep the old behaviour, or list your own `patterns`, which replace the built-ins.
+  - A config that lists `patterns` is unaffected: listed patterns replace the built-ins and carry their own levels.
+  - A reload from `"declared"` to `"observe"` is a ratchet violation, as before; so a running program cannot opt out mid-run.
+- **New built-in pattern `credential_exfiltration`**: `env.get` of a credential-named variable, then `crypto.base64_encode`/`hex_encode`, then `agent.send` or an `http` call, at most 5 events apart, SOFT. No built-in covered a credential sent to a MODEL (`credential_harvesting` ends at a network call, and `agent.send` is not one). The README's example config wrote it as a user pattern.
+- **What a model writes is scanned for secrets unless the config says not to.** An agent reply, each `agent.propose()` candidate and the arguments of a tool call the model makes are checked against the secret patterns when `govern.json` does not set `no_secrets` at all; a hit ends the run (HARD, exit 3), and the reply never reaches the program. `"code_quality": {"no_secrets": false}` (or `"restrictions": {"no_secrets": false}`) turns it off. The program's own source, its prompts and tool results stay opt-in, as before. A reload that writes `false` over the default is a ratchet violation. An `extends` child that wants it off must say so itself: a parent's `false` is not inherited, because absent in the child means the new default.
+
 ### Changed
 - **Under an enforce `govern.json`, programs run on the default engine only.**
   - `--tree-walk` is refused (exit 4) before anything runs. That holds when the config's mode is `enforce`, and also when `--env` or `governance.default_env` would make it `enforce`. Audit and off still run the tree-walker.
@@ -79,7 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Policy: `"pass"` (default, no behaviour change), `"quarantine"`, `"block"`. Ratchet-enforced (`pass` < `quarantine` < `block`).
   - Undetermined holds never advance the quarantine streak: `adaptive_baseline_window` and `max_quarantine_streak` both default to 5, so counting them would terminate every agent on its last calibrating turn regardless of behaviour.
 - **Behavioral Sequence Detection (BSD)** — FSM-based multi-step attack pattern matching
-  - Configurable via `behavioral_sequences` in govern.json. Your patterns replace the built-in set (16 patterns today, advisory unless `default_pattern_enforcement` is `"declared"`)
+  - Configurable via `behavioral_sequences` in govern.json. Your patterns replace the built-in set (17 patterns today, enforcing at their own levels unless `default_pattern_enforcement` is `"observe"`; advisory until Bundle 6)
   - Detail globs for per-argument matching (e.g., `env.get:*SECRET*|*TOKEN*`)
   - Decay/expiry — events older than N turns or N seconds don't match
   - Pre-execution blocking — dangerous sequences blocked before the final step runs
