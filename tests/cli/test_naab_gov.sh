@@ -41,7 +41,9 @@ echo ""
 VERSION_OUT=$("${GOV}" --version 2>&1)
 VERSION_EXIT=$?
 check "--version exits 0" "$VERSION_EXIT"
-check "--version prints 0.10.0" "$(echo "${VERSION_OUT}" | grep -q "0.10.0" && echo 0 || echo 1)"
+# The version CMakeLists.txt declares, not a copy of it here (scripts/bump-version.sh).
+EXPECT_VERSION=$(sed -n '/project(naab_lang/,/)/ s/^[[:space:]]*VERSION \([^[:space:])]*\).*/\1/p' "$SCRIPT_DIR/../../CMakeLists.txt")
+check "--version prints $EXPECT_VERSION" "$([ -n "$EXPECT_VERSION" ] && grep -qF "$EXPECT_VERSION" <<<"${VERSION_OUT}" && echo 0 || echo 1)"
 
 # Test 2: --help exits non-zero (usage) OR zero (acceptable either way)
 HELP_OUT=$("${GOV}" --help 2>&1)

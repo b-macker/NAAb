@@ -39,7 +39,9 @@
 #include <unistd.h>
 #endif
 
-#define NAAB_GOV_VERSION "0.10.0"
+// One version for the whole tree: include/naab/config.h (scripts/bump-version.sh).
+#include "naab/config.h"
+#define NAAB_GOV_VERSION NAAB_VERSION_STRING
 
 namespace fs = std::filesystem;
 

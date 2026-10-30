@@ -7,10 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> This section was not kept up to date between #165 and the README review of
-> 2026-10-24. "Highlights since #165" below is a short list of user-visible
-> features from that period, not a complete record; `git log` is the complete
+## [2.0.0] - 2026-10-30
+
+> Covers `v1.8.0..v2.0.0`: 387 commits on master, 256 of them merged pull
+> requests. This section was not kept up to date between #165 and the README
+> review of 2026-10-24. "Highlights since #165" below is a short list of
+> user-visible features from that period, not a complete record;
+> `git log v1.8.0..v2.0.0` is the complete record. 1.5.0 through 1.8.0 have no
+> section in this file; their tags remain, and `git log` between them is their
 > record.
+
+### Upgrading from 1.x
+A major version because these change what an existing project sees. Each is described in full below, with its remedy.
+- **Two defaults now block** (Bundle 6, migration note below): built-in sequence patterns enforce at their own levels, and what a model writes is scanned for secrets. Each has a one-line opt-out that restores the old behaviour exactly.
+- **Under an enforce `govern.json` every program runs on the default engine, in a CLI or worker process.** `--tree-walk` and the REPL are refused (exit 4), and REST `/execute` runs each request in a worker process.
+- **`--no-governance` waives only the "no govern.json found" error.** It no longer switches off parts of a config that is found (A78), and a config that is found but does not load refuses the run (A84). A flag may tighten `govern.json`'s run limits and sandbox level, never loosen them (A79).
+- **Every regular expression is matched by `naab::rx`** (A89): RE2 for patterns it reads exactly as before, QuickJS's libregexp for lookaround and back-references. Patterns are translated to keep the old dialect; a run of the whole test suite that also matched every input of 4 KB or less with the old matcher found no difference. A governance scan that runs past its step budget refuses the block (exit 3) instead of passing it.
 
 ### Changed -- defaults (Bundle 6; migration note)
 Two defaults now block where they used to report or stay silent. Each has a one-line opt-out, and each opt-out is the old behaviour exactly.
@@ -46,6 +58,15 @@ Two defaults now block where they used to report or stay silent. Each has a one-
 - **The no-govern.json error names the real requirement.** It said `--require-governance set`, a flag nobody had passed, because requiring a govern.json is the default. It now says so and points at `naab-lang init`. The `--no-governance` help line no longer claims to disable the engine (it has not since #244).
 
 ### Fixed
+- **A long input can no longer crash or stall the governor** (A89). libstdc++'s `std::regex` recurses once per character, so a long enough model reply, program literal or contract pattern ended the process with a segfault (exit 139), leaving no verdict and no report; some patterns also took minutes on a long line. Every regular expression now goes through `naab::rx` (see Upgrading). The vendored QuickJS carries a backport of QuickJS 2024's regexp step limit (`external/patches/`), and the checks over polyglot blocks, function bodies, whole files, PII and model output run under one step budget. The dangerous-alias and comment co-occurrence patterns were rewritten to run in linear time without changing what they match. `--timeout` now also stops a `<<javascript>>` block stuck in a catastrophic regular expression.
+- **`restrictions.dangerous_calls` no longer refuses an anonymous JavaScript function** (A91). Its patterns are matched without case, so `\bFunction\s*\(`, meant for the `Function()` constructor, also matched every `function (`. A match spelled exactly as the reserved word `function` is now skipped. Every other spelling, including an alias such as `FUNCTION(...)`, is still refused, and the rest of the table still ignores case (PHP's `SYSTEM(...)` is refused).
+- **The telemetry webhook receives the whole run** (F53). Every CLI exit drains the forwarder, and `RunStart`, `RunEnd` and `GovernanceCheckSummary` are forwarded, so the forwarded chain can be verified.
+- **A refused tool call is answered beside its call** (A44). A refusal used to send only a result, a request both providers reject.
+- **The reasons reach MCP callers, editors and reports** (A43). A blocked `naab_propose` reports its findings, passed through the secret and PII scan; `findings` keeps the start and the end of long output; naab-lsp diagnostics name their rule again; a static HARD block on the default engine writes its reports.
+- **The governance voice prints its guide once**, and a guide matching the secret or PII patterns is withheld (A40).
+- **JavaScript and thrown values in VM `async fn`s** (A61, A59(a)). A `<<javascript>>` block inside an `async fn` runs; a value thrown in one reaches the `await`'s `catch` as that value, with its taint; a closure returned from one stays valid.
+- **Nim and TypeScript blocks** (D12, D13). A Nim block's last line is printed when it has a value. TypeScript blocks run at `elevated`, where they ran out of memory.
+- **Reported lines** (A76). Every match-level finding (secrets, placeholders, PII, incomplete logic) is printed and recorded at the line of the match.
 - **Embedded Python's sockets answer to `capabilities.network`'s host lists** (A35). A `<<python>>` block's `socket.connect` was judged on the network capability alone, so `allowed_hosts`/`blocked_hosts` did not reach it, and `sendto`/`sendmsg` were not judged at all: with `network.enabled: false`, a UDP datagram left through an import the source check cannot see. Names are now judged at the lookup (`getaddrinfo`, `gethostbyname`) and at a connect given a name; when an allowed name is looked up under an `allowed_hosts` list, the engine resolves it too and admits those addresses, and a connect or send to any other address is refused unless an IP entry admits it. Alternate IPv4 spellings (`2130706433`, `127.1`) and the IPv4-mapped IPv6 form are judged as the address they reach. AF_UNIX sockets and runs with no `govern.json` are unchanged. Test: `tests/governance_v4/test_python_host_lists.sh`.
 - **Threads a `<<python>>` block spawns are governed like the block** (A85). The embedded-Python audit policy read the block's sandbox and engine from thread-local state, so a `threading.Thread` the block started ran with neither: it read and deleted a `blocked_paths` file and ran `os.system` with shell disabled while the block's own thread was refused, and -- once the host lists reached Python sockets -- connected where `allowed_hosts` refused the block and sent UDP with network disabled. On such a thread the policy now uses the run's sandbox and engine, the same ones the block runs under. Tests: `tests/governance_v4/test_python_thread_policy.sh`, `tests/governance_v4/test_python_host_lists.sh` HL-15..HL-18.
 - **`process.run` answers to a role's shell gate** (A54). A role with `shell_allowed: false` (or no `SHELL_EXEC` in its action matrix, or a function without `SHELL_EXEC`) ran any command through `process.run` while its `<<shell>>` blocks were refused. Test: `tests/governance_v4/test_process_run_role_gate.sh`.

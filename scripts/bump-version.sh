@@ -1,276 +1,152 @@
 #!/bin/bash
-# bump-version.sh - Semantic version bumping with validation
-# Usage: ./bump-version.sh <major|minor|patch> [--prerelease <label>]
+# bump-version.sh - set the NAAb version in every file that declares it
+#
+# Usage: scripts/bump-version.sh <major|minor|patch|X.Y.Z> [--prerelease <label>] [--yes]
+#
+# CMakeLists.txt's project VERSION is the source the others follow. Every
+# declaration is rewritten whatever value it holds now: the earlier version of
+# this script replaced only text equal to the CMake version, so a file that had
+# drifted was skipped while the script printed "updated" -- naab.toml sat at
+# 0.8.1, SECURITY_GUIDE.md at 0.9.0 and the bug template at v0.8.1 while CMake
+# said 0.10.0. A declaration that is not found is an error, not a skip.
+# tests/self-audit/test_version_consistency.sh checks that every declaration
+# agrees, and that this script reaches each one.
+#
+# It does not commit or tag. NAAb merges by squash, so a tag made on the
+# branch would never point at master: commit, open the release PR, and tag the
+# merged commit (`git tag -a vX.Y.Z <merged sha>`), which release.yml publishes.
 
 set -e
 
-# Configuration
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_ROOT="${NAAB_VERSION_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 CMAKE_FILE="$PROJECT_ROOT/CMakeLists.txt"
 CHANGELOG="$PROJECT_ROOT/CHANGELOG.md"
-CONFIG_H="$PROJECT_ROOT/include/naab/config.h"
-NAAB_TOML="$PROJECT_ROOT/naab.toml"
-GOV_MAIN="$PROJECT_ROOT/src/cli/gov_main.cpp"
-VSCODE_PKG="$PROJECT_ROOT/vscode-naab/package.json"
-VSCODE_LOCK="$PROJECT_ROOT/vscode-naab/package-lock.json"
-DEPS_LOCK="$PROJECT_ROOT/DEPENDENCIES.lock"
-USER_GUIDE="$PROJECT_ROOT/USER_GUIDE.md"
-SECURITY_MD="$PROJECT_ROOT/SECURITY.md"
-BUG_TEMPLATE="$PROJECT_ROOT/.github/ISSUE_TEMPLATE/bug_report.yml"
-TEST_CLI_FLAGS="$PROJECT_ROOT/tests/cli/test_cli_flags.sh"
-TEST_NAAB_GOV="$PROJECT_ROOT/tests/cli/test_naab_gov.sh"
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Extract current version from CMakeLists.txt
 get_current_version() {
     grep "project(naab_lang" "$CMAKE_FILE" -A 5 | grep "VERSION" | sed 's/.*VERSION //' | sed 's/).*//' | tr -d ' '
 }
 
-CURRENT_VERSION=$(get_current_version)
+usage() {
+    echo "Usage: $0 <major|minor|patch|X.Y.Z> [--prerelease <label>] [--yes]"
+    echo ""
+    echo "  major|minor|patch   bump the CMakeLists.txt version"
+    echo "  X.Y.Z               set this version"
+    echo "  --prerelease LABEL  append -LABEL (alpha, beta.1, rc.1)"
+    echo "  --yes               do not ask for confirmation"
+    echo ""
+    echo "Current version: ${CURRENT_VERSION:-unknown}"
+    exit 1
+}
 
+CURRENT_VERSION=$(get_current_version)
 if [ -z "$CURRENT_VERSION" ]; then
     echo -e "${RED}Error: Could not extract current version from CMakeLists.txt${NC}"
     exit 1
 fi
 
-usage() {
-    echo "Usage: $0 <major|minor|patch> [--prerelease <label>]"
-    echo ""
-    echo "Bump semantic version:"
-    echo "  major:      1.0.0 -> 2.0.0 (breaking changes)"
-    echo "  minor:      1.0.0 -> 1.1.0 (new features, backward compatible)"
-    echo "  patch:      1.0.0 -> 1.0.1 (bug fixes)"
-    echo ""
-    echo "Options:"
-    echo "  --prerelease <label>   Add prerelease label (e.g., alpha, beta, rc.1)"
-    echo ""
-    echo "Current version: $CURRENT_VERSION"
-    echo ""
-    echo "Examples:"
-    echo "  $0 patch                    # 0.1.0 -> 0.1.1"
-    echo "  $0 minor                    # 0.1.0 -> 0.2.0"
-    echo "  $0 major                    # 0.1.0 -> 1.0.0"
-    echo "  $0 minor --prerelease beta.1 # 0.1.0 -> 0.2.0-beta.1"
-    exit 1
-}
-
-if [ $# -eq 0 ]; then
-    usage
-fi
-
-BUMP_TYPE=$1
+[ $# -eq 0 ] && usage
+BUMP_TYPE=$1; shift
 PRERELEASE=""
+ASSUME_YES=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --prerelease) [ -z "${2:-}" ] && usage; PRERELEASE="-$2"; shift 2 ;;
+        --yes) ASSUME_YES=1; shift ;;
+        *) usage ;;
+    esac
+done
 
-# Parse prerelease flag
-if [ "$2" == "--prerelease" ]; then
-    if [ -z "$3" ]; then
-        echo -e "${RED}Error: --prerelease requires a label${NC}"
-        usage
-    fi
-    PRERELEASE="-$3"
-fi
-
-# Parse current version
-IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
-MAJOR=${VERSION_PARTS[0]}
-MINOR=${VERSION_PARTS[1]}
-PATCH=${VERSION_PARTS[2]}
-
-# Remove any prerelease suffix from patch
-PATCH=$(echo "$PATCH" | sed 's/-.*//')
-
-# Bump version based on type
+IFS='.' read -ra VERSION_PARTS <<< "${CURRENT_VERSION%%-*}"
+MAJOR=${VERSION_PARTS[0]}; MINOR=${VERSION_PARTS[1]}; PATCH=${VERSION_PARTS[2]}
 case $BUMP_TYPE in
-    major)
-        MAJOR=$((MAJOR + 1))
-        MINOR=0
-        PATCH=0
-        echo -e "${YELLOW}Major version bump (breaking changes)${NC}"
-        ;;
-    minor)
-        MINOR=$((MINOR + 1))
-        PATCH=0
-        echo -e "${GREEN}Minor version bump (new features)${NC}"
-        ;;
-    patch)
-        PATCH=$((PATCH + 1))
-        echo -e "${GREEN}Patch version bump (bug fixes)${NC}"
-        ;;
-    *)
-        echo -e "${RED}Error: Invalid bump type '$BUMP_TYPE'${NC}"
-        usage
-        ;;
+    major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+    minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+    patch) PATCH=$((PATCH + 1)) ;;
+    [0-9]*.[0-9]*.[0-9]*)
+        [[ "$BUMP_TYPE" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || usage
+        IFS='.' read -r MAJOR MINOR PATCH <<< "$BUMP_TYPE" ;;
+    *) echo -e "${RED}Error: Invalid bump type '$BUMP_TYPE'${NC}"; usage ;;
 esac
-
 NEW_VERSION="$MAJOR.$MINOR.$PATCH$PRERELEASE"
+NEW_MINOR="$MAJOR.$MINOR"
 
-echo ""
-echo -e "Bumping version: ${YELLOW}$CURRENT_VERSION${NC} -> ${GREEN}$NEW_VERSION${NC}"
-echo ""
-
-# Confirmation prompt
-read -p "Continue? [y/N] " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Aborted."
-    exit 1
+echo -e "Setting version: ${YELLOW}$CURRENT_VERSION${NC} -> ${GREEN}$NEW_VERSION${NC}"
+if [ "$ASSUME_YES" -ne 1 ]; then
+    read -p "Continue? [y/N] " -n 1 -r
+    echo
+    [[ $REPLY =~ ^[Yy]$ ]] || { echo "Aborted."; exit 1; }
 fi
 
-_sed() {
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "$@"
+MISSING=0
+# set_line FILE SED-EXPRESSION CHECK-REGEX: rewrite, then require CHECK-REGEX
+# to match afterwards (it names the new value, so an expression that matched
+# nothing cannot pass for an update).
+set_line() {
+    local file="$1" expr="$2" check="$3" rel="${1#"$PROJECT_ROOT"/}"
+    if [ ! -f "$file" ]; then
+        echo -e "${RED}✗${NC} $rel: file not found"; MISSING=1; return
+    fi
+    sed -E -i.bak "$expr" "$file" && rm -f "$file.bak"
+    if grep -Eq "$check" "$file"; then
+        echo -e "${GREEN}✓${NC} $rel"
     else
-        sed -i "$@"
+        echo -e "${RED}✗${NC} $rel: no version declaration found"; MISSING=1
     fi
 }
 
-# Update CMakeLists.txt
-echo "Updating CMakeLists.txt..."
-_sed "s/VERSION $CURRENT_VERSION/VERSION $NEW_VERSION/" "$CMAKE_FILE"
-echo -e "${GREEN}✓${NC} CMakeLists.txt updated"
+V="${NEW_VERSION//./\\.}"
+set_line "$CMAKE_FILE" \
+    "/project\\(naab_lang/,/\\)/ s/^([[:space:]]*VERSION )[^[:space:])]+/\\1$NEW_VERSION/" \
+    "^[[:space:]]*VERSION $V\$"
+set_line "$PROJECT_ROOT/include/naab/config.h" \
+    "s/^(#define NAAB_VERSION_STRING )\"[^\"]*\"/\\1\"$NEW_VERSION\"/; s/^(#define NAAB_BUILD_TIMESTAMP )\"[^\"]*\"/\\1\"$(date +%Y-%m-%d)\"/" \
+    "^#define NAAB_VERSION_STRING \"$V\"\$"
+set_line "$PROJECT_ROOT/naab.toml" \
+    "0,/^version = / s/^version = \"[^\"]*\"/version = \"$NEW_VERSION\"/" \
+    "^version = \"$V\"\$"
+set_line "$PROJECT_ROOT/pyproject.toml" \
+    "0,/^version = / s/^version = \"[^\"]*\"/version = \"$NEW_VERSION\"/" \
+    "^version = \"$V\"\$"
+set_line "$PROJECT_ROOT/bindings/rust/Cargo.toml" \
+    "0,/^version = / s/^version = \"[^\"]*\"/version = \"$NEW_VERSION\"/" \
+    "^version = \"$V\"\$"
+set_line "$PROJECT_ROOT/DEPENDENCIES.lock" \
+    "s/^naab_version: .*/naab_version: $NEW_VERSION/" \
+    "^naab_version: $V\$"
+set_line "$PROJECT_ROOT/vscode-naab/package.json" \
+    "0,/\"version\": / s/(\"version\": )\"[^\"]*\"/\\1\"$NEW_VERSION\"/" \
+    "\"version\": \"$V\""
+# The lockfile's own version appears twice (the root and packages[""]), on
+# lines 3 and 9; every other "version" there is a dependency's.
+set_line "$PROJECT_ROOT/vscode-naab/package-lock.json" \
+    "1,12 s/^(  \"version\": |      \"version\": )\"[^\"]*\"/\\1\"$NEW_VERSION\"/" \
+    "^  \"version\": \"$V\""
+set_line "$PROJECT_ROOT/docs/SECURITY_GUIDE.md" \
+    "s/^\\*\\*Version:\\*\\* [^ ]+/**Version:** $NEW_VERSION/" \
+    "^\\*\\*Version:\\*\\* $V"
+set_line "$PROJECT_ROOT/.github/ISSUE_TEMPLATE/bug_report.yml" \
+    "s/placeholder: \"v[0-9][^\"]*\"/placeholder: \"v$NEW_VERSION\"/" \
+    "placeholder: \"v$V\""
+set_line "$PROJECT_ROOT/SECURITY.md" \
+    "s/^\\| [0-9]+\\.[0-9]+\\.x( *)\\| :white_check_mark: \\| Yes \\(current\\)/| $NEW_MINOR.x\\1| :white_check_mark: | Yes (current)/" \
+    "^\\| ${NEW_MINOR//./\\.}\\.x +\\| :white_check_mark: \\| Yes \\(current\\)"
 
-# Update include/naab/config.h
-if [ -f "$CONFIG_H" ]; then
-    echo "Updating config.h..."
-    _sed "s/NAAB_VERSION_STRING \"$CURRENT_VERSION\"/NAAB_VERSION_STRING \"$NEW_VERSION\"/" "$CONFIG_H"
-    _sed "s/NAAB_BUILD_TIMESTAMP \"[0-9-]*\"/NAAB_BUILD_TIMESTAMP \"$(date +%Y-%m-%d)\"/" "$CONFIG_H"
-    echo -e "${GREEN}✓${NC} config.h updated"
-fi
-
-# Update naab.toml
-if [ -f "$NAAB_TOML" ]; then
-    echo "Updating naab.toml..."
-    _sed "s/^version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" "$NAAB_TOML"
-    echo -e "${GREEN}✓${NC} naab.toml updated"
-fi
-
-# Update src/cli/gov_main.cpp
-if [ -f "$GOV_MAIN" ]; then
-    echo "Updating gov_main.cpp..."
-    _sed "s/NAAB_GOV_VERSION \"$CURRENT_VERSION\"/NAAB_GOV_VERSION \"$NEW_VERSION\"/" "$GOV_MAIN"
-    echo -e "${GREEN}✓${NC} gov_main.cpp updated"
-fi
-
-# Update vscode-naab/package.json
-if [ -f "$VSCODE_PKG" ]; then
-    echo "Updating vscode-naab/package.json..."
-    _sed "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" "$VSCODE_PKG"
-    echo -e "${GREEN}✓${NC} vscode-naab/package.json updated"
-fi
-
-# Update vscode-naab/package-lock.json
-if [ -f "$VSCODE_LOCK" ]; then
-    echo "Updating vscode-naab/package-lock.json..."
-    _sed "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/g" "$VSCODE_LOCK"
-    echo -e "${GREEN}✓${NC} vscode-naab/package-lock.json updated"
-fi
-
-# Update DEPENDENCIES.lock
-if [ -f "$DEPS_LOCK" ]; then
-    echo "Updating DEPENDENCIES.lock..."
-    # Match any current value: anchoring on $CURRENT_VERSION silently no-ops
-    # forever once the field drifts (it sat at a stale value through multiple
-    # bumps while this script printed "updated").
-    _sed "s/^naab_version: .*/naab_version: $NEW_VERSION/" "$DEPS_LOCK"
-    echo -e "${GREEN}✓${NC} DEPENDENCIES.lock updated"
-fi
-
-# Update USER_GUIDE.md
-if [ -f "$USER_GUIDE" ]; then
-    echo "Updating USER_GUIDE.md..."
-    _sed "s/\*\*Version\*\*: $CURRENT_VERSION/\*\*Version\*\*: $NEW_VERSION/" "$USER_GUIDE"
-    echo -e "${GREEN}✓${NC} USER_GUIDE.md updated"
-fi
-
-# Update docs/API_REFERENCE.md
-API_REF="$PROJECT_ROOT/docs/API_REFERENCE.md"
-if [ -f "$API_REF" ]; then
-    echo "Updating docs/API_REFERENCE.md..."
-    _sed "s/Version: $CURRENT_VERSION/Version: $NEW_VERSION/" "$API_REF"
-    echo -e "${GREEN}✓${NC} docs/API_REFERENCE.md updated"
-fi
-
-# Update docs/SECURITY_GUIDE.md
-SEC_GUIDE="$PROJECT_ROOT/docs/SECURITY_GUIDE.md"
-if [ -f "$SEC_GUIDE" ]; then
-    echo "Updating docs/SECURITY_GUIDE.md..."
-    _sed "s/\*\*Version:\*\* $CURRENT_VERSION/\*\*Version:\*\* $NEW_VERSION/" "$SEC_GUIDE"
-    echo -e "${GREEN}✓${NC} docs/SECURITY_GUIDE.md updated"
-fi
-
-# Update SECURITY.md supported versions table
-if [ -f "$SECURITY_MD" ]; then
-    echo "Updating SECURITY.md..."
-    CURRENT_MINOR="${CURRENT_VERSION%.*}"
-    NEW_MINOR="${NEW_VERSION%.*}"
-    _sed "s/| ${CURRENT_MINOR}.x/| ${NEW_MINOR}.x/g" "$SECURITY_MD"
-    echo -e "${GREEN}✓${NC} SECURITY.md updated"
-fi
-
-# Update bug report template placeholder
-if [ -f "$BUG_TEMPLATE" ]; then
-    echo "Updating bug_report.yml..."
-    _sed "s/placeholder: \"v$CURRENT_VERSION\"/placeholder: \"v$NEW_VERSION\"/" "$BUG_TEMPLATE"
-    echo -e "${GREEN}✓${NC} bug_report.yml updated"
-fi
-
-# Update version checks in CLI tests
-if [ -f "$TEST_CLI_FLAGS" ]; then
-    echo "Updating test_cli_flags.sh..."
-    _sed "s/$CURRENT_VERSION/$NEW_VERSION/g" "$TEST_CLI_FLAGS"
-    echo -e "${GREEN}✓${NC} test_cli_flags.sh updated"
-fi
-
-if [ -f "$TEST_NAAB_GOV" ]; then
-    echo "Updating test_naab_gov.sh..."
-    _sed "s/$CURRENT_VERSION/$NEW_VERSION/g" "$TEST_NAAB_GOV"
-    echo -e "${GREEN}✓${NC} test_naab_gov.sh updated"
-fi
-
-# Update CHANGELOG.md
-if [ -f "$CHANGELOG" ]; then
-    echo "Updating CHANGELOG.md..."
-    DATE=$(date +%Y-%m-%d)
-    _sed "s/## \[Unreleased\]/## [Unreleased]\n\n## [$NEW_VERSION] - $DATE/" "$CHANGELOG"
-    echo -e "${GREEN}✓${NC} CHANGELOG.md updated"
+if [ -f "$CHANGELOG" ] && ! grep -q "^## \\[$V\\]" "$CHANGELOG"; then
+    sed -i.bak "s/^## \\[Unreleased\\]/## [Unreleased]\\n\\n## [$NEW_VERSION] - $(date +%Y-%m-%d)/" "$CHANGELOG" && rm -f "$CHANGELOG.bak"
+    echo -e "${GREEN}✓${NC} CHANGELOG.md: section added under [Unreleased]"
 else
-    echo -e "${YELLOW}Warning: CHANGELOG.md not found${NC}"
+    echo -e "${GREEN}✓${NC} CHANGELOG.md: section for $NEW_VERSION already present"
 fi
 
-# Git operations
-if git rev-parse --git-dir > /dev/null 2>&1; then
-    echo "Creating git commit and tag..."
-
-    git add "$CMAKE_FILE" "$CHANGELOG" "$CONFIG_H" "$NAAB_TOML" "$GOV_MAIN" \
-        "$VSCODE_PKG" "$VSCODE_LOCK" "$DEPS_LOCK" "$USER_GUIDE" "$SECURITY_MD" \
-        "$BUG_TEMPLATE" "$TEST_CLI_FLAGS" "$TEST_NAAB_GOV" \
-        "$PROJECT_ROOT/docs/API_REFERENCE.md" "$PROJECT_ROOT/docs/SECURITY_GUIDE.md" 2>/dev/null || true
-    git commit -m "chore: bump version to $NEW_VERSION" || {
-        echo -e "${YELLOW}Warning: No changes to commit${NC}"
-    }
-
-    # Create annotated tag
-    git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION" || {
-        echo -e "${YELLOW}Warning: Tag v$NEW_VERSION already exists${NC}"
-    }
-
-    echo -e "${GREEN}✓${NC} Git commit and tag created"
-    echo ""
-    echo -e "${GREEN}Success!${NC} Version bumped to ${GREEN}$NEW_VERSION${NC}"
-    echo ""
-    echo "Next steps:"
-    echo "  1. Review the changes: git show HEAD"
-    echo "  2. Push to remote:     git push && git push --tags"
-    echo "  3. Create release:     gh release create v$NEW_VERSION"
-else
-    echo -e "${YELLOW}Warning: Not a git repository${NC}"
-    echo -e "${GREEN}Success!${NC} Version bumped to ${GREEN}$NEW_VERSION${NC} in CMakeLists.txt"
+if [ "$MISSING" -ne 0 ]; then
+    echo -e "${RED}Some declarations were not updated (above).${NC}"
+    exit 1
 fi
-
 echo ""
-echo -e "${GREEN}Version bump complete!${NC}"
+echo -e "${GREEN}Version set to $NEW_VERSION.${NC} Next: review the diff, commit, open the release PR,"
+echo "and tag the merged commit: git tag -a v$NEW_VERSION <merged sha> -m \"Release v$NEW_VERSION\""

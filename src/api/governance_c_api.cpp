@@ -8,6 +8,7 @@
 
 #include "naab/public/naab_governance.h"
 #include "naab/governance.h"
+#include "naab/config.h"
 
 #include <nlohmann/json.hpp>
 #include <string>
@@ -23,7 +24,8 @@ struct naab_gov_engine_s {
 };
 
 /* --- Version --- */
-static const char* const NAAB_GOV_VERSION = "0.10.0";
+// One version for the whole tree: include/naab/config.h (scripts/bump-version.sh).
+static const char* const NAAB_GOV_VERSION = NAAB_VERSION_STRING;
 
 /* --- RAII guard: set/restore thread-local current engine --- */
 struct CurrentEngineGuard {

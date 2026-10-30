@@ -22,7 +22,7 @@ Language support for NAAb (NAAb Assembles Anything in Blocks) programming langua
 ### From VSIX
 
 ```bash
-code --install-extension naab-0.8.1.vsix
+code --install-extension naab-2.0.0.vsix
 ```
 
 ### From Source
@@ -119,6 +119,9 @@ npx vsce package
 - No rename refactoring yet
 
 ## Release Notes
+
+### 2.0.0
+- Sync version with NAAb language runtime 2.0.0 (no extension changes)
 
 ### 0.8.1
 - Sync version with NAAb language runtime 0.8.1
