@@ -198,8 +198,9 @@ set(RE2_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 add_subdirectory(external/re2 EXCLUDE_FROM_ALL)
 # The default build sets no build type, so RE2 would compile at -O0, and its
 # pattern compiler then dominates a governed run: every process compiles the
-# engine's pattern tables once, and test_langconform.sh, which starts hundreds
-# of processes, went from 423-478 s to 616 s locally (A89). Optimise this one
+# engine's pattern tables once, and test_langconform.sh, which starts thousands
+# of processes, took 616 s against master's 366 s locally; with this, 161 s
+# (A89). Optimise this one
 # vendored library in that build; NAAb's own code keeps its flags, and a build
 # that names a type (Release, Debug) is left as it asked.
 if(NOT CMAKE_BUILD_TYPE AND NOT MSVC)
