@@ -37,7 +37,11 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
 TEST_TMP=$(mktemp -d "${TMPDIR:-/tmp}/naab_dk_XXXXXX")
-trap 'rm -rf "$TEST_TMP"' EXIT
+# The config is unsigned: with any key in the trust store it would be an
+# integrity block, and every refusal arm would pass for it.
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
+trap 'teardown_isolated_trust; rm -rf "$TEST_TMP"' EXIT
 
 PASS=0; FAIL=0; UNM=0
 pass() { PASS=$((PASS+1)); echo "  PASS [$1] $2"; }
