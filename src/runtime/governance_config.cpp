@@ -28,6 +28,7 @@
 #include <iostream>
 #include <sstream>
 #include <regex>
+#include "naab/rx.h"
 #include <chrono>
 #include <functional>
 #include <set>
@@ -2218,9 +2219,9 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     continue;
                 }
                 try {
-                    auto flags = std::regex::ECMAScript;
-                    if (!rule.case_sensitive) flags |= std::regex::icase;
-                    rule.compiled_pattern = std::regex(rule.pattern, flags);
+                    auto flags = naab::rx::regex::ECMAScript;
+                    if (!rule.case_sensitive) flags |= naab::rx::regex::icase;
+                    rule.compiled_pattern = naab::rx::regex(rule.pattern, flags);
                     rule.pattern_valid = true;
                 } catch (const std::regex_error&) {
                     fprintf(stderr, "[governance] Warning: Invalid regex in custom rule '%s': %s\n",

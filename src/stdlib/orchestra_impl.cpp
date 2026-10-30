@@ -7,6 +7,7 @@
 #include "naab/governance.h"
 #include <fmt/core.h>
 #include <regex>
+#include "naab/rx.h"
 #include <nlohmann/json.hpp>
 
 namespace naab {
@@ -205,8 +206,8 @@ interpreter::NaabVal orchestraEnforceConvergence(std::vector<interpreter::NaabVa
     if (spec.find("pattern") != spec.end() && spec.at("pattern").isString()) {
         std::string pattern_str = spec.at("pattern").asString();
         try {
-            std::regex pattern(pattern_str);
-            if (std::regex_search(response, pattern)) {
+            naab::rx::regex pattern(pattern_str);
+            if (naab::rx::regex_search(response, pattern)) {
                 is_valid = true;
             } else {
                 validation_error = fmt::format(

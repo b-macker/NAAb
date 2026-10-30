@@ -17,6 +17,7 @@
 #include <iostream>
 #include <sstream>
 #include <regex>
+#include "naab/rx.h"
 #include <chrono>
 #include <functional>
 #include <unordered_map>
@@ -641,9 +642,9 @@ std::string normalizeLanguage(const std::string& language) {
 // failed to compile (warned once, skipped thereafter).
 enum class RegexCacheResult { HIT, BAD, FULL };
 static RegexCacheResult cachedSearchRegex(const std::string& pat, bool case_insensitive,
-                                          const std::regex** out) {
+                                          const naab::rx::regex** out) {
     static std::mutex cache_mutex;
-    static std::unordered_map<std::string, std::unique_ptr<std::regex>> cache;
+    static std::unordered_map<std::string, std::unique_ptr<naab::rx::regex>> cache;
     constexpr size_t kMaxEntries = 1024;
 
     std::string key = (case_insensitive ? "i:" : "s:") + pat;
@@ -655,10 +656,10 @@ static RegexCacheResult cachedSearchRegex(const std::string& pat, bool case_inse
         return RegexCacheResult::HIT;
     }
     if (cache.size() >= kMaxEntries) return RegexCacheResult::FULL;
-    auto flags = std::regex::ECMAScript;
-    if (case_insensitive) flags |= std::regex::icase;
+    auto flags = naab::rx::regex::ECMAScript;
+    if (case_insensitive) flags |= naab::rx::regex::icase;
     try {
-        auto re = std::make_unique<std::regex>(pat, flags);
+        auto re = std::make_unique<naab::rx::regex>(pat, flags);
         *out = re.get();
         cache.emplace(std::move(key), std::move(re));
         return RegexCacheResult::HIT;
@@ -674,18 +675,18 @@ static std::string searchPatterns(const std::string& code,
     size_t* pos_out = nullptr) {
     for (const auto& pat : patterns) {
         try {
-            const std::regex* re = nullptr;
+            const naab::rx::regex* re = nullptr;
             RegexCacheResult cr = cachedSearchRegex(pat, case_insensitive, &re);
             if (cr == RegexCacheResult::BAD) continue;  // warned once at compile
-            std::regex local_re;
+            naab::rx::regex local_re;
             if (cr == RegexCacheResult::FULL) {
-                auto flags = std::regex::ECMAScript;
-                if (case_insensitive) flags |= std::regex::icase;
-                local_re = std::regex(pat, flags);
+                auto flags = naab::rx::regex::ECMAScript;
+                if (case_insensitive) flags |= naab::rx::regex::icase;
+                local_re = naab::rx::regex(pat, flags);
                 re = &local_re;
             }
-            std::smatch match;
-            if (std::regex_search(code, match, *re)) {
+            naab::rx::smatch match;
+            if (naab::rx::regex_search(code, match, *re)) {
                 if (pos_out) *pos_out = static_cast<size_t>(match.position(0));
                 return match[0].str();
             }
@@ -805,10 +806,10 @@ static std::string expandDangerousAliases(const std::string& language,
     if (language == "python") {
         std::unordered_map<std::string, std::string> module_aliases;
         try {
-            std::regex re("\\bimport\\s+(\\w+(?:\\.\\w+)*)\\s+as\\s+(\\w+)",
-                          std::regex::ECMAScript);
-            auto begin = std::sregex_iterator(code.begin(), code.end(), re);
-            auto end_it = std::sregex_iterator();
+            naab::rx::regex re("\\bimport\\s+(\\w+(?:\\.\\w+)*)\\s+as\\s+(\\w+)",
+                          naab::rx::regex::ECMAScript);
+            auto begin = naab::rx::sregex_iterator(code.begin(), code.end(), re);
+            auto end_it = naab::rx::sregex_iterator();
             for (auto m = begin; m != end_it; ++m) {
                 std::string mod = (*m)[1].str();
                 std::string alias = (*m)[2].str();
@@ -827,8 +828,8 @@ static std::string expandDangerousAliases(const std::string& language,
             for (const auto& func : mod_it->second) {
                 try {
                     std::string pat = "\\b" + kv.first + "\\." + func + "\\b";
-                    std::regex re(pat, std::regex::ECMAScript);
-                    working = std::regex_replace(working, re, kv.second + "." + func);
+                    naab::rx::regex re(pat, naab::rx::regex::ECMAScript);
+                    working = naab::rx::regex_replace(working, re, kv.second + "." + func);
                 } catch (const std::regex_error& re) {
             fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
         }
@@ -843,9 +844,9 @@ static std::string expandDangerousAliases(const std::string& language,
         std::string pat = "(\\w+)\\s*" + assign_op + "\\s*\\b(" +
                           ref.pattern + ")\\b(?!\\s*\\()";
         try {
-            std::regex re(pat, std::regex::ECMAScript);
-            auto begin = std::sregex_iterator(working.begin(), working.end(), re);
-            auto end_it = std::sregex_iterator();
+            naab::rx::regex re(pat, naab::rx::regex::ECMAScript);
+            auto begin = naab::rx::sregex_iterator(working.begin(), working.end(), re);
+            auto end_it = naab::rx::sregex_iterator();
             for (auto m = begin; m != end_it; ++m) {
                 auto lhs_pos = static_cast<size_t>((*m).position(1));
                 if (lhs_pos > 0 && working[lhs_pos - 1] == '.') continue;
@@ -877,9 +878,9 @@ static std::string expandDangerousAliases(const std::string& language,
         std::string sub_pat = "(\\w+)\\s*\\[[^\\]]*\\]\\s*" + assign_op + "\\s*\\b(" +
                               ref.pattern + ")\\b(?!\\s*\\()";
         try {
-            std::regex re(sub_pat, std::regex::ECMAScript);
-            auto begin = std::sregex_iterator(working.begin(), working.end(), re);
-            auto end_it = std::sregex_iterator();
+            naab::rx::regex re(sub_pat, naab::rx::regex::ECMAScript);
+            auto begin = naab::rx::sregex_iterator(working.begin(), working.end(), re);
+            auto end_it = naab::rx::sregex_iterator();
             for (auto m = begin; m != end_it; ++m) {
                 auto lhs_pos = static_cast<size_t>((*m).position(1));
                 if (lhs_pos > 0 && working[lhs_pos - 1] == '.') continue;
@@ -899,9 +900,9 @@ static std::string expandDangerousAliases(const std::string& language,
         std::string list_pat = "(\\w+)\\s*" + assign_op + "\\s*\\[[^\\]]*\\b(" +
                                ref.pattern + ")\\b(?!\\s*\\()[^\\]]*\\]";
         try {
-            std::regex re(list_pat, std::regex::ECMAScript);
-            auto begin = std::sregex_iterator(working.begin(), working.end(), re);
-            auto end_it = std::sregex_iterator();
+            naab::rx::regex re(list_pat, naab::rx::regex::ECMAScript);
+            auto begin = naab::rx::sregex_iterator(working.begin(), working.end(), re);
+            auto end_it = naab::rx::sregex_iterator();
             for (auto m = begin; m != end_it; ++m) {
                 auto lhs_pos = static_cast<size_t>((*m).position(1));
                 if (lhs_pos > 0 && working[lhs_pos - 1] == '.') continue;
@@ -938,11 +939,11 @@ static std::string expandDangerousAliases(const std::string& language,
 
         // 2a: "from module import func as alias"
         try {
-            std::regex re(
+            naab::rx::regex re(
                 "\\bfrom\\s+(\\w+(?:\\.\\w+)*)\\s+import\\s+(\\w+)\\s+as\\s+(\\w+)",
-                std::regex::ECMAScript);
-            auto begin = std::sregex_iterator(code.begin(), code.end(), re);
-            auto end_it = std::sregex_iterator();
+                naab::rx::regex::ECMAScript);
+            auto begin = naab::rx::sregex_iterator(code.begin(), code.end(), re);
+            auto end_it = naab::rx::sregex_iterator();
             for (auto m = begin; m != end_it; ++m) {
                 std::string full = (*m)[1].str() + "." + (*m)[2].str();
                 auto it = IMPORT_MAP.find(full);
@@ -956,11 +957,11 @@ static std::string expandDangerousAliases(const std::string& language,
 
         // 2b: "from module import name1, name2, ..." (multi-import with optional "as")
         try {
-            std::regex from_re(
+            naab::rx::regex from_re(
                 "\\bfrom\\s+(\\w+(?:\\.\\w+)*)\\s+import\\s+(.+)",
-                std::regex::ECMAScript);
-            auto begin = std::sregex_iterator(code.begin(), code.end(), from_re);
-            auto end_it = std::sregex_iterator();
+                naab::rx::regex::ECMAScript);
+            auto begin = naab::rx::sregex_iterator(code.begin(), code.end(), from_re);
+            auto end_it = naab::rx::sregex_iterator();
             for (auto m = begin; m != end_it; ++m) {
                 std::string mod = (*m)[1].str();
                 std::string imports_str = (*m)[2].str();
@@ -1010,10 +1011,10 @@ static std::string expandDangerousAliases(const std::string& language,
 
         // 2c: "from module import *" — expand known dangerous functions from module
         try {
-            std::regex star_re("\\bfrom\\s+(\\w+(?:\\.\\w+)*)\\s+import\\s+\\*",
-                               std::regex::ECMAScript);
-            auto begin = std::sregex_iterator(code.begin(), code.end(), star_re);
-            auto end_it = std::sregex_iterator();
+            naab::rx::regex star_re("\\bfrom\\s+(\\w+(?:\\.\\w+)*)\\s+import\\s+\\*",
+                               naab::rx::regex::ECMAScript);
+            auto begin = naab::rx::sregex_iterator(code.begin(), code.end(), star_re);
+            auto end_it = naab::rx::sregex_iterator();
             for (auto m = begin; m != end_it; ++m) {
                 std::string mod = (*m)[1].str();
                 auto mod_it = DANGEROUS_MODULE_FUNCS.find(mod);
@@ -1036,9 +1037,9 @@ static std::string expandDangerousAliases(const std::string& language,
             std::string pat = "(\\w+)\\s*" + assign_op + "\\s*\\b" +
                               kv.first + "\\b(?!\\s*\\()";
             try {
-                std::regex re(pat, std::regex::ECMAScript);
-                auto begin = std::sregex_iterator(working.begin(), working.end(), re);
-                auto end_it = std::sregex_iterator();
+                naab::rx::regex re(pat, naab::rx::regex::ECMAScript);
+                auto begin = naab::rx::sregex_iterator(working.begin(), working.end(), re);
+                auto end_it = naab::rx::sregex_iterator();
                 for (auto m = begin; m != end_it; ++m) {
                     auto pos = static_cast<size_t>((*m).position(1));
                     if (pos > 0 && working[pos - 1] == '.') continue;
@@ -1067,8 +1068,8 @@ static std::string expandDangerousAliases(const std::string& language,
     for (const auto& kv : aliases) {
         try {
             std::string call_pat = "\\b" + kv.first + "(\\s*\\()";
-            std::regex call_re(call_pat, std::regex::ECMAScript);
-            working = std::regex_replace(working, call_re, kv.second + "$1");
+            naab::rx::regex call_re(call_pat, naab::rx::regex::ECMAScript);
+            working = naab::rx::regex_replace(working, call_re, kv.second + "$1");
         } catch (const std::regex_error& re) {
             fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
         }
@@ -1078,8 +1079,8 @@ static std::string expandDangerousAliases(const std::string& language,
     for (const auto& kv : dict_aliases) {
         try {
             std::string pat = "\\b" + kv.first + "\\s*\\[[^\\]]*\\](\\s*\\()";
-            std::regex re(pat, std::regex::ECMAScript);
-            working = std::regex_replace(working, re, kv.second + "$1");
+            naab::rx::regex re(pat, naab::rx::regex::ECMAScript);
+            working = naab::rx::regex_replace(working, re, kv.second + "$1");
         } catch (const std::regex_error& re) {
             fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
         }
@@ -1099,9 +1100,9 @@ static const std::vector<std::pair<std::string, std::string>> DEFAULT_PII_PATTER
 
 // DEFAULT_PII_PATTERNS is constant — compile once (runs on every agent
 // prompt/response/tool argument, so per-call compilation is hot).
-static const std::vector<std::regex>& compiledPiiPatterns() {
-    static const std::vector<std::regex> compiled = [] {
-        std::vector<std::regex> out;
+static const std::vector<naab::rx::regex>& compiledPiiPatterns() {
+    static const std::vector<naab::rx::regex> compiled = [] {
+        std::vector<naab::rx::regex> out;
         for (const auto& [pat, desc] : DEFAULT_PII_PATTERNS) {
             (void)desc;
             out.emplace_back(pat);
@@ -1128,9 +1129,9 @@ static bool firstPiiMatch(const NoPiiConfig& cfg, const std::string& code,
     for (size_t pi : pattern_indices) {
         const auto& desc = DEFAULT_PII_PATTERNS[pi].second;
         try {
-            const std::regex& re = compiled_pii_patterns[pi];
-            std::smatch match;
-            if (std::regex_search(code, match, re)) {
+            const naab::rx::regex& re = compiled_pii_patterns[pi];
+            naab::rx::smatch match;
+            if (naab::rx::regex_search(code, match, re)) {
                 std::string found = match[0].str();
 
                 // Skip all-same-digit sequences (not real credit cards)
@@ -1288,9 +1289,9 @@ std::string GovernanceEngine::checkMockData(const std::string& code, int line) {
 
     for (const auto& prefix : prefixes) {
         try {
-            std::regex re("\\b" + prefix + "\\w+", std::regex::icase);
-            std::smatch match;
-            if (std::regex_search(code, match, re)) {
+            naab::rx::regex re("\\b" + prefix + "\\w+", naab::rx::regex::icase);
+            naab::rx::smatch match;
+            if (naab::rx::regex_search(code, match, re)) {
                 return enforce("code_quality.no_mock_data", cfg.level,
                     formatError(cfg.level, fmt::format("Mock data variable: \"{}\"", match[0].str()),
                         line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_mock_data",
@@ -1404,9 +1405,9 @@ std::string GovernanceEngine::checkDebugArtifacts(const std::string& language,
     auto& pats = cfg.patterns.empty() ? DEFAULT_DEBUG_PATTERNS : cfg.patterns;
     for (const auto& pat : pats) {
         try {
-            std::regex re(pat, std::regex::icase);
-            std::smatch match;
-            if (std::regex_search(code, match, re)) {
+            naab::rx::regex re(pat, naab::rx::regex::icase);
+            naab::rx::smatch match;
+            if (naab::rx::regex_search(code, match, re)) {
                 std::string found = match[0].str();
                 // Check allowlist
                 bool allowed = false;
@@ -1521,9 +1522,9 @@ std::string GovernanceEngine::checkHardcodedUrls(const std::string& code, int li
     if (!cfg.enabled) return "";
     clearTrace();
     try {
-        std::regex re("https?://(?!example\\.com|localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)[a-zA-Z0-9.-]+");
-        std::smatch match;
-        if (std::regex_search(code, match, re)) {
+        naab::rx::regex re("https?://(?!example\\.com|localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)[a-zA-Z0-9.-]+");
+        naab::rx::smatch match;
+        if (naab::rx::regex_search(code, match, re)) {
             std::string url = match[0].str();
             for (const auto& a : cfg.allowlist) {
                 if (url.find(a) != std::string::npos) { recordPass("code_quality.no_hardcoded_urls", cfg.level); return ""; }
@@ -1549,9 +1550,9 @@ std::string GovernanceEngine::checkHardcodedIps(const std::string& code, int lin
     if (!cfg.enabled) return "";
     clearTrace();
     try {
-        std::regex re("\\b(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\b");
-        std::smatch match;
-        if (std::regex_search(code, match, re)) {
+        naab::rx::regex re("\\b(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\b");
+        naab::rx::smatch match;
+        if (naab::rx::regex_search(code, match, re)) {
             std::string ip = match[0].str();
             static const std::vector<std::string> default_allow = {"127.0.0.1", "0.0.0.0", "255.255.255.0", "255.255.255.255"};
             auto& allowlist = cfg.allowlist.empty() ? default_allow : cfg.allowlist;
@@ -3235,8 +3236,8 @@ std::string GovernanceEngine::checkFunctionContract(
     // return_matches (regex validation for string returns)
     if (!contract.return_matches.empty() && result_type == "string") {
         try {
-            std::regex re(contract.return_matches);
-            if (!std::regex_match(result_str, re)) {
+            naab::rx::regex re(contract.return_matches);
+            if (!naab::rx::regex_match(result_str, re)) {
                 return make_err(fmt::format(
                     "return value \"{}\" does not match pattern /{}/",
                     result_str, contract.return_matches));
@@ -3402,9 +3403,9 @@ std::string GovernanceEngine::checkCosmeticSanitizer(
     clearTrace();
 
     // Only check functions named sanitize_*/validate_*/check_*/verify_*
-    static const std::regex sanitizer_prefix(
-        "^(?:sanitize|validate|check|verify)_", std::regex::icase);
-    if (!std::regex_search(function_name, sanitizer_prefix)) return "";
+    static const naab::rx::regex sanitizer_prefix(
+        "^(?:sanitize|validate|check|verify)_", naab::rx::regex::icase);
+    if (!naab::rx::regex_search(function_name, sanitizer_prefix)) return "";
     addTrace(fmt::format("'{}' identified as sanitizer/validator (prefix match)", function_name));
 
     // Skip short functions (< 3 lines can't meaningfully sanitize)
@@ -3433,10 +3434,10 @@ std::string GovernanceEngine::checkCosmeticSanitizer(
 
     // 2. Rejection path: if condition → return false/null/0/throw
     if (!has_real_sanitization) {
-        static const std::regex rejection(
+        static const naab::rx::regex rejection(
             "if\\s+[^{]*\\{[^}]*(?:return\\s+(?:false|null|0|\"\"|\\[\\]|\\{\\})|throw\\s)",
-            std::regex::icase);
-        if (std::regex_search(body_clean, rejection)) has_real_sanitization = true;
+            naab::rx::regex::icase);
+        if (naab::rx::regex_search(body_clean, rejection)) has_real_sanitization = true;
     }
 
     // 3. Type checking with rejection (type() + != or ==)
@@ -3458,10 +3459,10 @@ std::string GovernanceEngine::checkCosmeticSanitizer(
 
     // 5. Bounds/range checking
     if (!has_real_sanitization) {
-        static const std::regex bounds_check(
+        static const naab::rx::regex bounds_check(
             "(?:>=?|<=?|>|<)\\s*(?:\\d+|len\\(|length\\(|size\\()",
-            std::regex::icase);
-        if (std::regex_search(body_clean, bounds_check) &&
+            naab::rx::regex::icase);
+        if (naab::rx::regex_search(body_clean, bounds_check) &&
             (body_clean.find("return") != std::string::npos || body_clean.find("throw") != std::string::npos)) {
             has_real_sanitization = true;
         }
@@ -3765,8 +3766,8 @@ std::string GovernanceEngine::checkFunctionBehavioralContract(
         } else {
             // Function call pattern — word boundary + paren
             try {
-                std::regex call_pat("\\b" + required + "\\s*\\(");
-                found = std::regex_search(func_body, call_pat);
+                naab::rx::regex call_pat("\\b" + required + "\\s*\\(");
+                found = naab::rx::regex_search(func_body, call_pat);
             } catch (...) {
                 // Invalid regex — fall back to literal search
                 found = func_body.find(required) != std::string::npos;
@@ -3824,8 +3825,8 @@ std::string GovernanceEngine::checkFunctionBehavioralContract(
         bool param_found = false;
         for (const auto& param : spec.params) {
             try {
-                std::regex param_pat("\\b" + param + "\\b");
-                if (std::regex_search(inner_body, param_pat)) {
+                naab::rx::regex param_pat("\\b" + param + "\\b");
+                if (naab::rx::regex_search(inner_body, param_pat)) {
                     param_found = true;
                     break;
                 }
@@ -4473,11 +4474,11 @@ std::string GovernanceEngine::checkMustSatisfy(
 
     // Evaluate each invariant expression: "result.key op value"
     // Regex: result\.(\w+(?:\.\w+)*)\s*(>=|<=|>|<|==|!=)\s*(.+)
-    std::regex expr_pat(R"(result\.(\w+(?:\.\w+)*)\s*(>=|<=|>|<|==|!=)\s*(.+))");
+    naab::rx::regex expr_pat(R"(result\.(\w+(?:\.\w+)*)\s*(>=|<=|>|<|==|!=)\s*(.+))");
 
     for (const auto& expr : contract.must_satisfy) {
-        std::smatch m;
-        if (!std::regex_match(expr, m, expr_pat)) {
+        naab::rx::smatch m;
+        if (!naab::rx::regex_match(expr, m, expr_pat)) {
             addTrace(fmt::format("must_satisfy: unparseable expression: '{}'", expr));
             continue;  // Skip unparseable expressions
         }
@@ -4991,10 +4992,10 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
     if (lang_patterns) {
         for (const auto& [pattern, suggestion] : *lang_patterns) {
             try {
-                auto flags = cfg.case_sensitive ? std::regex::ECMAScript : (std::regex::ECMAScript | std::regex::icase);
-                std::regex re(pattern, flags);
-                std::smatch match;
-                if (std::regex_search(code_clean, match, re)) {
+                auto flags = cfg.case_sensitive ? naab::rx::regex::ECMAScript : (naab::rx::regex::ECMAScript | naab::rx::regex::icase);
+                naab::rx::regex re(pattern, flags);
+                naab::rx::smatch match;
+                if (naab::rx::regex_search(code_clean, match, re)) {
                     // C1: Prepend language context + C2: Add NAAb equivalent hint
                     std::string full_suggestion =
                         fmt::format("Inside <<{}>> polyglot block:\n  {}\n\n"
@@ -5022,9 +5023,9 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
         if (language == "python") {
             // Check for JS comment style in Python (// not stripped by Python comment rules)
             try {
-                std::regex re("(^|\\n)\\s*//\\s+");
-                std::smatch match;
-                if (std::regex_search(code_clean, match, re)) {
+                naab::rx::regex re("(^|\\n)\\s*//\\s+");
+                naab::rx::smatch match;
+                if (naab::rx::regex_search(code_clean, match, re)) {
                     return enforce("code_quality.no_hallucinated_apis", cfg.level,
                         formatError(cfg.level,
                             fmt::format("Cross-language confusion in {} block: \"{}\"", language, match[0].str()),
@@ -5040,9 +5041,9 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
         } else if (language == "javascript" || language == "js") {
             // Check for Python comment style in JS (# not stripped by JS comment rules)
             try {
-                std::regex re("(^|\\n)\\s*#\\s+");
-                std::smatch match;
-                if (std::regex_search(code_clean, match, re)) {
+                naab::rx::regex re("(^|\\n)\\s*#\\s+");
+                naab::rx::smatch match;
+                if (naab::rx::regex_search(code_clean, match, re)) {
                     return enforce("code_quality.no_hallucinated_apis", cfg.level,
                         formatError(cfg.level,
                             fmt::format("Cross-language confusion in {} block: \"{}\"", language, match[0].str()),
@@ -5352,9 +5353,9 @@ std::string GovernanceEngine::checkSemanticIssues(
                            const std::string& target) -> std::string {
         for (const auto& check : checks) {
             try {
-                std::regex re(check.pattern, std::regex::ECMAScript);
-                std::smatch match;
-                if (std::regex_search(target, match, re)) {
+                naab::rx::regex re(check.pattern, naab::rx::regex::ECMAScript);
+                naab::rx::smatch match;
+                if (naab::rx::regex_search(target, match, re)) {
                     return enforce("code_quality.semantic_checks", cfg.level,
                         formatError(cfg.level,
                             fmt::format("Semantic issue in {} block: {}", language, check.message),
@@ -5382,10 +5383,10 @@ std::string GovernanceEngine::checkSemanticIssues(
         // 1. Import validation
         if (cfg.check_imports) {
             try {
-                std::regex import_re("(?:^|\\n)\\s*(?:import\\s+(\\w+)|from\\s+(\\w+)\\s+import)",
-                                     std::regex::ECMAScript);
-                auto begin = std::sregex_iterator(clean.begin(), clean.end(), import_re);
-                auto end_it = std::sregex_iterator();
+                naab::rx::regex import_re("(?:^|\\n)\\s*(?:import\\s+(\\w+)|from\\s+(\\w+)\\s+import)",
+                                     naab::rx::regex::ECMAScript);
+                auto begin = naab::rx::sregex_iterator(clean.begin(), clean.end(), import_re);
+                auto end_it = naab::rx::sregex_iterator();
                 for (auto it = begin; it != end_it; ++it) {
                     std::string mod = (*it)[1].matched ? (*it)[1].str() : (*it)[2].str();
                     if (PYTHON_KNOWN_MODULES.find(mod) == PYTHON_KNOWN_MODULES.end()) {
@@ -5431,10 +5432,10 @@ std::string GovernanceEngine::checkSemanticIssues(
         if (cfg.check_imports) {
             try {
                 // Check require() calls on RAW code (module name is in string)
-                std::regex require_re("require\\s*\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)",
-                                      std::regex::ECMAScript);
-                auto begin = std::sregex_iterator(code.begin(), code.end(), require_re);
-                auto end_it = std::sregex_iterator();
+                naab::rx::regex require_re("require\\s*\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)",
+                                      naab::rx::regex::ECMAScript);
+                auto begin = naab::rx::sregex_iterator(code.begin(), code.end(), require_re);
+                auto end_it = naab::rx::sregex_iterator();
                 for (auto it = begin; it != end_it; ++it) {
                     std::string mod = (*it)[1].str();
                     // Strip node: prefix
@@ -5464,9 +5465,9 @@ std::string GovernanceEngine::checkSemanticIssues(
                 }
 
                 // Check ES import ... from '...' statements on RAW code
-                std::regex import_re("from\\s+['\"]([^'\"]+)['\"]",
-                                     std::regex::ECMAScript);
-                begin = std::sregex_iterator(code.begin(), code.end(), import_re);
+                naab::rx::regex import_re("from\\s+['\"]([^'\"]+)['\"]",
+                                     naab::rx::regex::ECMAScript);
+                begin = naab::rx::sregex_iterator(code.begin(), code.end(), import_re);
                 for (auto it = begin; it != end_it; ++it) {
                     std::string mod = (*it)[1].str();
                     if (mod.size() > 5 && mod.substr(0, 5) == "node:") mod = mod.substr(5);
@@ -5938,7 +5939,7 @@ std::string GovernanceEngine::checkResourceAbuse(const std::string& code, int li
 // argument (`ps -A`, `ps -ef`, `ps -o pid -e`). `ps -p PID`, `ps u` and
 // `ps -o args -p PID` are not listings. Returns the command text matched, or "".
 //
-// A scan, not a regex: libstdc++ runs std::regex recursively per character
+// A scan, not a regex: libstdc++ runs naab::rx::regex recursively per character
 // (CLAUDE.md, "Scanner regexes must be bounded"): a candidate regex for these
 // forms crashed on a 200 KB argument (observed), and bounding its repetitions
 // instead would let `ps` plus enough spaces through.
@@ -6123,7 +6124,7 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
     };
     for (const auto& pat : vcs_signals) {
         try {
-            if (std::regex_search(lower, std::regex(pat))) { has_vcs = true; break; }
+            if (naab::rx::regex_search(lower, naab::rx::regex(pat))) { has_vcs = true; break; }
         } catch (...) {
             if (lower.find(pat) != std::string::npos) { has_vcs = true; break; }
         }
@@ -6138,7 +6139,7 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
     };
     for (const auto& pat : history_signals) {
         try {
-            if (std::regex_search(lower, std::regex(pat))) { has_history = true; break; }
+            if (naab::rx::regex_search(lower, naab::rx::regex(pat))) { has_history = true; break; }
         } catch (...) {
             if (lower.find(pat) != std::string::npos) { has_history = true; break; }
         }
@@ -6155,7 +6156,7 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
     };
     for (const auto& pat : search_signals) {
         try {
-            if (std::regex_search(lower, std::regex(pat))) { has_search = true; break; }
+            if (naab::rx::regex_search(lower, naab::rx::regex(pat))) { has_search = true; break; }
         } catch (...) {
             if (lower.find(pat) != std::string::npos) { has_search = true; break; }
         }
@@ -6172,7 +6173,7 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
     };
     for (const auto& pat : secret_signals) {
         try {
-            if (std::regex_search(lower, std::regex(pat))) { has_secret = true; break; }
+            if (naab::rx::regex_search(lower, naab::rx::regex(pat))) { has_secret = true; break; }
         } catch (...) {
             if (lower.find(pat) != std::string::npos) { has_secret = true; break; }
         }
@@ -6236,7 +6237,7 @@ std::string GovernanceEngine::checkObfuscationSignals(
     auto has_signal = [](const std::string& code, const std::vector<std::string>& patterns) -> bool {
         for (const auto& pat : patterns) {
             try {
-                if (std::regex_search(code, std::regex(pat))) return true;
+                if (naab::rx::regex_search(code, naab::rx::regex(pat))) return true;
             } catch (...) {
                 if (code.find(pat) != std::string::npos) return true;
             }
@@ -6466,8 +6467,8 @@ std::string GovernanceEngine::checkImports(const std::string& language,
         else pat = imp;
 
         try {
-            std::regex re(pat, std::regex::icase);
-            if (std::regex_search(code, re)) {
+            naab::rx::regex re(pat, naab::rx::regex::icase);
+            if (naab::rx::regex_search(code, re)) {
                 auto level = cfg.enabled ? cfg.level : EnforcementLevel::HARD;
                 // Suggest NAAb stdlib alternatives for commonly-blocked imports
                 static const std::unordered_map<std::string, std::string> import_alternatives = {
@@ -6525,8 +6526,8 @@ std::string GovernanceEngine::checkBannedFunctions(const std::string& language,
             if (func.find(' ') != std::string::npos) {
                 escaped += "(?:\\s|$)";
             }
-            std::regex re(escaped, std::regex::icase);
-            if (std::regex_search(code, re)) {
+            naab::rx::regex re(escaped, naab::rx::regex::icase);
+            if (naab::rx::regex_search(code, re)) {
                 // Per-function alternatives so LLMs know what to use instead
                 static const std::unordered_map<std::string, std::string> alternatives = {
                     {"eval(",     "Use a lookup table or if/else chain instead of dynamic evaluation"},
@@ -6578,8 +6579,8 @@ std::string GovernanceEngine::checkLanguageStyle(const std::string& language,
     // JS: no var
     if (language == "javascript" && lc.no_var) {
         try {
-            std::regex re("\\bvar\\s+\\w");
-            if (std::regex_search(code, re)) {
+            naab::rx::regex re("\\bvar\\s+\\w");
+            if (naab::rx::regex_search(code, re)) {
                 return enforce("languages.per_language.javascript.no_var", lc.no_var_level,
                     formatError(lc.no_var_level, "Use 'let' or 'const' instead of 'var'",
                         line > 0 ? fmt::format("line {}", line) : "",
@@ -6630,7 +6631,7 @@ std::string GovernanceEngine::checkCustomRules(const std::string& language,
             if (!matches) continue;
         }
         try {
-            if (std::regex_search(code, rule.compiled_pattern)) {
+            if (naab::rx::regex_search(code, rule.compiled_pattern)) {
                 std::string msg = rule.message.empty()
                     ? fmt::format("Custom rule '{}' violated", rule.name)
                     : rule.message;
@@ -7433,16 +7434,16 @@ double GovernanceEngine::calculateEntropy(const std::string& str) {
 bool GovernanceEngine::looksLikeBase64(const std::string& str) {
     if (str.size() < 20) return false;
     try {
-        std::regex re("^[A-Za-z0-9+/]+=*$");
-        return std::regex_match(str, re);
+        naab::rx::regex re("^[A-Za-z0-9+/]+=*$");
+        return naab::rx::regex_match(str, re);
     } catch (...) { return false; }
 }
 
 bool GovernanceEngine::looksLikeHex(const std::string& str) {
     if (str.size() < 20 || str.size() % 2 != 0) return false;
     try {
-        std::regex re("^[0-9a-fA-F]+$");
-        return std::regex_match(str, re);
+        naab::rx::regex re("^[0-9a-fA-F]+$");
+        return naab::rx::regex_match(str, re);
     } catch (...) { return false; }
 }
 
@@ -7760,8 +7761,8 @@ std::string GovernanceEngine::checkDeterminism(const std::string& language,
 
     for (const auto& [pat, desc] : patterns) {
         try {
-            std::regex re(pat, std::regex::ECMAScript);
-            if (std::regex_search(code, re)) {
+            naab::rx::regex re(pat, naab::rx::regex::ECMAScript);
+            if (naab::rx::regex_search(code, re)) {
                 return "uses " + desc + " (non-deterministic)";
             }
         } catch (const std::regex_error& e) {
@@ -7802,8 +7803,8 @@ std::string GovernanceEngine::checkErrorDumps(const std::string& output, int lin
 
     for (const auto& [pat, desc] : patterns) {
         try {
-            std::regex re(pat, std::regex::ECMAScript);
-            if (std::regex_search(output, re)) {
+            naab::rx::regex re(pat, naab::rx::regex::ECMAScript);
+            if (naab::rx::regex_search(output, re)) {
                 return "error dump detected: " + desc;
             }
         } catch (const std::regex_error& e) {

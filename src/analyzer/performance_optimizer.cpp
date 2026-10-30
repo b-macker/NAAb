@@ -3,6 +3,7 @@
 
 #include <optional>
 #include <regex>
+#include "naab/rx.h"
 #include <unordered_map>
 #include <mutex>
 #include <shared_mutex>
@@ -27,7 +28,7 @@ public:
     }
 
     // Get or compile regex pattern
-    std::regex& getRegex(const std::string& pattern) {
+    naab::rx::regex& getRegex(const std::string& pattern) {
         // Fast path: Check if already cached (shared lock)
         {
             std::shared_lock<std::shared_mutex> lock(mutex_);
@@ -48,7 +49,7 @@ public:
             }
 
             miss_count_++;
-            auto result = cache_.emplace(pattern, std::regex(pattern));
+            auto result = cache_.emplace(pattern, naab::rx::regex(pattern));
             return result.first->second;
         }
     }
@@ -70,7 +71,7 @@ public:
 
 private:
     RegexCache() = default;
-    std::unordered_map<std::string, std::regex> cache_;
+    std::unordered_map<std::string, naab::rx::regex> cache_;
     mutable std::shared_mutex mutex_;
     std::atomic<size_t> hit_count_{0};
     std::atomic<size_t> miss_count_{0};
@@ -208,7 +209,7 @@ private:
         for (const auto& pattern : patterns) {
             try {
                 auto& regex = RegexCache::instance().getRegex(pattern);
-                if (std::regex_search(code, regex)) {
+                if (naab::rx::regex_search(code, regex)) {
                     matches.push_back(pattern);
                 }
             } catch (const std::regex_error&) {

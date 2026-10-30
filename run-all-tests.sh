@@ -1566,6 +1566,20 @@ else
     echo "  test_secret_scan_redos.sh: not found, skipping"
 fi
 
+# --- Long input through every regex (A89: a verdict, never SIGSEGV) ---
+echo ""
+LONGRX_SCRIPT="tests/security/test_long_input_regex.sh"
+if [ -f "$LONGRX_SCRIPT" ]; then
+    if run_shell_test "$LONGRX_SCRIPT" 2>&1; then
+        echo "  test_long_input_regex.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_long_input_regex.sh")
+    fi
+else
+    echo "  test_long_input_regex.sh: not found, skipping"
+fi
+
 # --- Secret scan: unquoted .env lines (Gemini dogfood F-03) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

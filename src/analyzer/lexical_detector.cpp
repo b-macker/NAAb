@@ -1,6 +1,7 @@
 #include "naab/analyzer/lexical_detector.h"
 #include <algorithm>
 #include <regex>
+#include "naab/rx.h"
 
 namespace naab {
 namespace analyzer {
@@ -107,10 +108,10 @@ int LexicalDetector::countTokens(const std::string& code, const std::vector<std:
     for (const auto& token : tokens) {
         // Build regex pattern: word boundary + token + word boundary or specific punctuation
         std::string pattern = "\\b" + token + "\\b|" + token + "\\(|\\." + token;
-        std::regex re(pattern, std::regex::icase);
+        naab::rx::regex re(pattern, naab::rx::regex::icase);
 
-        auto matches_begin = std::sregex_iterator(code.begin(), code.end(), re);
-        auto matches_end = std::sregex_iterator();
+        auto matches_begin = naab::rx::sregex_iterator(code.begin(), code.end(), re);
+        auto matches_end = naab::rx::sregex_iterator();
 
         count += std::distance(matches_begin, matches_end);
     }

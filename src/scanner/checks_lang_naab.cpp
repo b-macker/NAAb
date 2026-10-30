@@ -4,6 +4,7 @@
 #include "naab/scanner.h"
 #include "naab/error_helpers.h"
 #include <regex>
+#include "naab/rx.h"
 #include <algorithm>
 #include <fstream>
 #include <unordered_set>
@@ -31,15 +32,15 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 1. value_semantics_bug
     if (isEnabled(CAT, "value_semantics_bug")) {
-        static const std::regex get_pat(R"(^let\s+(\w+)\s*=\s*(\w+)\.get\s*\()");
+        static const naab::rx::regex get_pat(R"(^let\s+(\w+)\s*=\s*(\w+)\.get\s*\()");
         // Fix D: Also detect bracket access copies: let x = dict["key"]
-        static const std::regex bracket_copy_pat(R"(^let\s+(\w+)\s*=\s*(\w+)\[")");
+        static const naab::rx::regex bracket_copy_pat(R"(^let\s+(\w+)\s*=\s*(\w+)\[")");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = nb_trim(lines[i]);
-            std::smatch m;
-            bool is_copy = std::regex_search(s, m, get_pat);
+            naab::rx::smatch m;
+            bool is_copy = naab::rx::regex_search(s, m, get_pat);
             if (!is_copy) {
-                is_copy = std::regex_search(s, m, bracket_copy_pat);
+                is_copy = naab::rx::regex_search(s, m, bracket_copy_pat);
             }
             if (is_copy) {
                 std::string var_name = m[1].str();
@@ -67,17 +68,17 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
                 }
 
                 // Mutation patterns: dot-method calls OR bracket assignment
-                std::regex dot_mutate_pat("\\b" + var_name + "\\.(push|set|pop|remove|insert)\\s*\\(");
-                std::regex bracket_mutate_pat("\\b" + var_name + "\\[[^\\]]*\\]\\s*=");
+                naab::rx::regex dot_mutate_pat("\\b" + var_name + "\\.(push|set|pop|remove|insert)\\s*\\(");
+                naab::rx::regex bracket_mutate_pat("\\b" + var_name + "\\[[^\\]]*\\]\\s*=");
 
                 // Set-back patterns: parent dict updated via .set() or bracket assignment
-                std::regex setback_dot_pat(dict_name + "\\.set\\s*\\(");
-                std::regex setback_bracket_pat(dict_name + "\\[");
+                naab::rx::regex setback_dot_pat(dict_name + "\\.set\\s*\\(");
+                naab::rx::regex setback_bracket_pat(dict_name + "\\[");
 
-                bool has_mutation = std::regex_search(remaining, dot_mutate_pat) ||
-                                    std::regex_search(remaining, bracket_mutate_pat);
-                bool has_setback = std::regex_search(remaining, setback_dot_pat) ||
-                                   std::regex_search(remaining, setback_bracket_pat);
+                bool has_mutation = naab::rx::regex_search(remaining, dot_mutate_pat) ||
+                                    naab::rx::regex_search(remaining, bracket_mutate_pat);
+                bool has_setback = naab::rx::regex_search(remaining, setback_dot_pat) ||
+                                   naab::rx::regex_search(remaining, setback_bracket_pat);
 
                 if (has_mutation && !has_setback) {
                     addIssue(issues, filepath, i + 1, "value_semantics_bug", CAT,
@@ -90,10 +91,10 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 2. missing_null_check
     if (isEnabled(CAT, "missing_null_check")) {
-        static const std::regex get_pat(R"(^let\s+\w+\s*=\s*\w+\.get\s*\([^)]+\)\s*$)");
+        static const naab::rx::regex get_pat(R"(^let\s+\w+\s*=\s*\w+\.get\s*\([^)]+\)\s*$)");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = nb_trim(lines[i]);
-            if (std::regex_match(s, get_pat) && s.find("??") == std::string::npos) {
+            if (naab::rx::regex_match(s, get_pat) && s.find("??") == std::string::npos) {
                 // Check context for null handling
                 std::string ctx;
                 size_t start = (i >= 2) ? i - 2 : 0;
@@ -108,10 +109,10 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
         }
 
         // Fix E: Check for chained .get() calls — dangerous null chain
-        static const std::regex chained_get(R"(\.get\s*\([^)]+\)\s*\.\s*(?:get|keys|values|push|pop|length|size)\s*\()");
+        static const naab::rx::regex chained_get(R"(\.get\s*\([^)]+\)\s*\.\s*(?:get|keys|values|push|pop|length|size)\s*\()");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = nb_trim(lines[i]);
-            if (std::regex_search(s, chained_get) && s.find("??") == std::string::npos) {
+            if (naab::rx::regex_search(s, chained_get) && s.find("??") == std::string::npos) {
                 std::string ctx;
                 size_t start = (i >= 2) ? i - 2 : 0;
                 for (size_t j = start; j < std::min(i + 3, lines.size()); ++j) {
@@ -128,10 +129,10 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 3. polyglot_no_binding
     if (isEnabled(CAT, "polyglot_no_binding")) {
-        static const std::regex pat(R"(^<<\w+\s*$)");
+        static const naab::rx::regex pat(R"(^<<\w+\s*$)");
         for (size_t i = 0; i < orig_lines.size(); ++i) {
             std::string s = nb_trim(orig_lines[i]);
-            if (std::regex_match(s, pat) && s.find('[') == std::string::npos) {
+            if (naab::rx::regex_match(s, pat) && s.find('[') == std::string::npos) {
                 addIssue(issues, filepath, i + 1, "polyglot_no_binding", CAT,
                          "Polyglot block without variable binding", s,
                          "Add: <<python[var1, var2]");
@@ -141,10 +142,10 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 4. throw_raw_string
     if (isEnabled(CAT, "throw_raw_string")) {
-        static const std::regex pat(R"(^throw\s+['"])");
+        static const naab::rx::regex pat(R"(^throw\s+['"])");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = nb_trim(lines[i]);
-            if (std::regex_search(s, pat)) {
+            if (naab::rx::regex_search(s, pat)) {
                 addIssue(issues, filepath, i + 1, "throw_raw_string", CAT,
                          "Throwing raw string", s,
                          "Use structured error: throw { \"code\": ..., \"message\": ... }");
@@ -155,17 +156,17 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
     // 5. oversized_polyglot
     if (isEnabled(CAT, "oversized_polyglot")) {
         int max_poly = static_cast<int>(getNumOption(CAT, "oversized_polyglot", "max_lines", 100));
-        static const std::regex poly_open(R"(<<\w+)");
-        static const std::regex poly_close(R"(^>>)");
+        static const naab::rx::regex poly_open(R"(<<\w+)");
+        static const naab::rx::regex poly_close(R"(^>>)");
         bool in_block = false;
         size_t block_start = 0;
 
         for (size_t i = 0; i < orig_lines.size(); ++i) {
             std::string s = nb_trim(orig_lines[i]);
-            if (!in_block && s.find("<<") != std::string::npos && std::regex_search(s, poly_open)) {
+            if (!in_block && s.find("<<") != std::string::npos && naab::rx::regex_search(s, poly_open)) {
                 in_block = true;
                 block_start = i;
-            } else if (in_block && std::regex_match(orig_lines[i], poly_close)) {
+            } else if (in_block && naab::rx::regex_match(orig_lines[i], poly_close)) {
                 int block_len = static_cast<int>(i - block_start);
                 if (block_len > max_poly) {
                     addIssue(issues, filepath, block_start + 1, "oversized_polyglot", CAT,
@@ -180,9 +181,9 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 6. top_level_let
     if (isEnabled(CAT, "top_level_let")) {
-        static const std::regex pat(R"(^let\s+\w+)");
+        static const naab::rx::regex pat(R"(^let\s+\w+)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "top_level_let", CAT,
                          "top-level let", nb_trim(lines[i]),
                          "Move inside main {} or function");
@@ -192,10 +193,10 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 7. arrow_lambda
     if (isEnabled(CAT, "arrow_lambda")) {
-        static const std::regex pat1(R"(\(\w+\)\s*=>)");
-        static const std::regex pat2(R"(=>\s*\{)");
+        static const naab::rx::regex pat1(R"(\(\w+\)\s*=>)");
+        static const naab::rx::regex pat2(R"(=>\s*\{)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat1) || std::regex_search(lines[i], pat2)) {
+            if (naab::rx::regex_search(lines[i], pat1) || naab::rx::regex_search(lines[i], pat2)) {
                 addIssue(issues, filepath, i + 1, "arrow_lambda", CAT,
                          "Arrow function syntax not supported", nb_trim(lines[i]),
                          "Use: fn(x) { return x * 2 }");
@@ -205,10 +206,10 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 8. missing_export
     if (isEnabled(CAT, "missing_export") && is_module) {
-        static const std::regex fn_pat(R"(^fn\s+\w+)");
-        static const std::regex export_pat(R"(^export\s+)");
+        static const naab::rx::regex fn_pat(R"(^fn\s+\w+)");
+        static const naab::rx::regex export_pat(R"(^export\s+)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], fn_pat) && !std::regex_search(lines[i], export_pat)) {
+            if (naab::rx::regex_search(lines[i], fn_pat) && !naab::rx::regex_search(lines[i], export_pat)) {
                 addIssue(issues, filepath, i + 1, "missing_export", CAT,
                          "Function without export", nb_trim(lines[i]),
                          "Add export: export fn name()");
@@ -218,18 +219,18 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 9. dict_bracket_access
     if (isEnabled(CAT, "dict_bracket_access")) {
-        static const std::regex pat1(R"(\w+\["[^"]+"\])");           // dict["key"]
-        static const std::regex pat2(R"(\w+\['[^']+'\])");           // dict['key']
+        static const naab::rx::regex pat1(R"(\w+\["[^"]+"\])");           // dict["key"]
+        static const naab::rx::regex pat2(R"(\w+\['[^']+'\])");           // dict['key']
         // Variable-key access: container[var_name] where var_name is 3+ chars
         // Excludes common loop indices (i, j, k, idx, index) to avoid array false positives
-        static const std::regex pat3(
+        static const naab::rx::regex pat3(
             R"(\b[a-z_]\w+\[\s*(?!idx\b|index\b|i\b|j\b|k\b|n\b)[a-z_]\w+\s*\])");
-        static const std::regex assign_pat(R"(\w+\[[^\]]+\]\s*=\s)");  // any bracket assign
+        static const naab::rx::regex assign_pat(R"(\w+\[[^\]]+\]\s*=\s)");  // any bracket assign
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = nb_trim(lines[i]);
-            if (std::regex_search(s, pat1) || std::regex_search(s, pat2) || std::regex_search(s, pat3)) {
-                if (std::regex_search(s, assign_pat)) continue;
+            if (naab::rx::regex_search(s, pat1) || naab::rx::regex_search(s, pat2) || naab::rx::regex_search(s, pat3)) {
+                if (naab::rx::regex_search(s, assign_pat)) continue;
                 addIssue(issues, filepath, i + 1, "dict_bracket_access", CAT,
                          "Dict bracket access throws on missing key", s,
                          "Use .get(key) with ?? fallback");
@@ -239,21 +240,21 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 10. python_return_in_block
     if (isEnabled(CAT, "python_return_in_block")) {
-        static const std::regex py_open(R"(<<python)");
-        static const std::regex py_close(R"(^>>)");
-        static const std::regex return_pat(R"(^return\s+)");
-        static const std::regex def_pat(R"(^(def|class)\s+\w+)");
+        static const naab::rx::regex py_open(R"(<<python)");
+        static const naab::rx::regex py_close(R"(^>>)");
+        static const naab::rx::regex return_pat(R"(^return\s+)");
+        static const naab::rx::regex def_pat(R"(^(def|class)\s+\w+)");
         bool in_python = false;
         int py_func_depth = 0;
         int py_func_indent = -1;
 
         for (size_t i = 0; i < orig_lines.size(); ++i) {
             std::string s = nb_trim(orig_lines[i]);
-            if (!in_python && std::regex_search(s, py_open)) {
+            if (!in_python && naab::rx::regex_search(s, py_open)) {
                 in_python = true;
                 py_func_depth = 0;
                 py_func_indent = -1;
-            } else if (in_python && std::regex_match(orig_lines[i], py_close)) {
+            } else if (in_python && naab::rx::regex_match(orig_lines[i], py_close)) {
                 in_python = false;
                 py_func_depth = 0;
             } else if (in_python) {
@@ -272,13 +273,13 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
                 }
 
                 // Entering a new def/class?
-                if (std::regex_search(s, def_pat)) {
+                if (naab::rx::regex_search(s, def_pat)) {
                     py_func_depth++;
                     py_func_indent = indent;
                 }
 
                 // Only flag return at TOP LEVEL of the polyglot block
-                if (py_func_depth == 0 && std::regex_search(s, return_pat)) {
+                if (py_func_depth == 0 && naab::rx::regex_search(s, return_pat)) {
                     addIssue(issues, filepath, i + 1, "python_return_in_block", CAT,
                              "return in Python polyglot (SyntaxError)", s,
                              "Use print() or assign to bound variable");
@@ -290,14 +291,14 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
     // 11. dict_key_schema_check — pre-flight verification of dict.get() keys against actual JSON files
     if (isEnabled(CAT, "dict_key_schema_check")) {
         // Phase 1: Find json.parse(file.read("path")) patterns and map var → JSON keys
-        static const std::regex parse_read_pat(
+        static const naab::rx::regex parse_read_pat(
             R"!!(let\s+(\w+)\s*=\s*json\.parse\s*\(\s*file\.read\s*\(\s*"([^"]+)"\s*\))!!");
         std::map<std::string, std::vector<std::string>> var_keys; // var name -> available keys
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = nb_trim(lines[i]);
-            std::smatch m;
-            if (std::regex_search(s, m, parse_read_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(s, m, parse_read_pat)) {
                 std::string var_name = m[1].str();
                 std::string json_path = m[2].str();
 
@@ -326,12 +327,12 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
         // Phase 2: Find var.get("key") calls and cross-reference against known keys
         if (!var_keys.empty()) {
-            static const std::regex get_key_pat(R"!!((\w+)\.get\s*\(\s*"([^"]+)"\s*\))!!");
+            static const naab::rx::regex get_key_pat(R"!!((\w+)\.get\s*\(\s*"([^"]+)"\s*\))!!");
             for (size_t i = 0; i < lines.size(); ++i) {
                 std::string s = nb_trim(lines[i]);
-                std::smatch m;
+                naab::rx::smatch m;
                 std::string::const_iterator search_start = s.cbegin();
-                while (std::regex_search(search_start, s.cend(), m, get_key_pat)) {
+                while (naab::rx::regex_search(search_start, s.cend(), m, get_key_pat)) {
                     std::string var_name = m[1].str();
                     std::string req_key = m[2].str();
                     auto it = var_keys.find(var_name);
@@ -360,11 +361,11 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 11. unsafe_args_access — args[N] without length guard or null-coalesce
     if (isEnabled(CAT, "unsafe_args_access")) {
-        static const std::regex args_access_pat(R"(args\[(\d+)\])");
+        static const naab::rx::regex args_access_pat(R"(args\[(\d+)\])");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = nb_trim(lines[i]);
-            std::smatch m;
-            if (std::regex_search(s, m, args_access_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(s, m, args_access_pat)) {
                 // Safe if line contains ?? (null-coalesce)
                 if (s.find("??") != std::string::npos) continue;
 
@@ -391,20 +392,20 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 12. json_double_encode — json.dumps()/JSON.stringify() inside -> JSON blocks
     if (isEnabled(CAT, "json_double_encode")) {
-        static const std::regex json_pipe_open(R"(<<\w+.*->\s*JSON)");
-        static const std::regex py_close(R"(^>>)");
-        static const std::regex py_dumps(R"(json\.dumps\s*\()");
-        static const std::regex js_stringify(R"(JSON\.stringify\s*\()");
+        static const naab::rx::regex json_pipe_open(R"(<<\w+.*->\s*JSON)");
+        static const naab::rx::regex py_close(R"(^>>)");
+        static const naab::rx::regex py_dumps(R"(json\.dumps\s*\()");
+        static const naab::rx::regex js_stringify(R"(JSON\.stringify\s*\()");
         bool in_json_block = false;
 
         for (size_t i = 0; i < orig_lines.size(); ++i) {
             std::string s = nb_trim(orig_lines[i]);
-            if (!in_json_block && std::regex_search(s, json_pipe_open)) {
+            if (!in_json_block && naab::rx::regex_search(s, json_pipe_open)) {
                 in_json_block = true;
-            } else if (in_json_block && std::regex_match(orig_lines[i], py_close)) {
+            } else if (in_json_block && naab::rx::regex_match(orig_lines[i], py_close)) {
                 in_json_block = false;
             } else if (in_json_block) {
-                if (std::regex_search(s, py_dumps)) {
+                if (naab::rx::regex_search(s, py_dumps)) {
                     addIssue(issues, filepath, i + 1, "json_double_encode", CAT,
                              "json.dumps() inside '-> JSON' block causes double-encoding",
                              s,
@@ -412,7 +413,7 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
                              "Use the bare dict/list as the last expression.",
                              "advisory");
                 }
-                if (std::regex_search(s, js_stringify)) {
+                if (naab::rx::regex_search(s, js_stringify)) {
                     addIssue(issues, filepath, i + 1, "json_double_encode", CAT,
                              "JSON.stringify() inside '-> JSON' block causes double-encoding",
                              s,
@@ -426,21 +427,21 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 13. hardcoded_return_value — return dict with literal 0 or "" for named keys
     if (isEnabled(CAT, "hardcoded_return_value")) {
-        static const std::regex return_dict_pat(R"(return\s*\{)");
+        static const naab::rx::regex return_dict_pat(R"(return\s*\{)");
         // Match "key": <literal> where literal is 0, "", [], {}, true, false, null
-        static const std::regex hardcoded_key_pat(
+        static const naab::rx::regex hardcoded_key_pat(
             "\"(\\w+)\"\\s*:\\s*(?:0|\"\"|true|false|null|\\[\\]|\\{\\})\\s*[,}]");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = nb_trim(lines[i]);
-            if (!std::regex_search(s, return_dict_pat)) continue;
+            if (!naab::rx::regex_search(s, return_dict_pat)) continue;
 
             // Find enclosing function name — walk backward to fn declaration
             std::string func_name;
-            static const std::regex fn_name_pat(R"((?:fn|function|def|func)\s+(\w+))");
+            static const naab::rx::regex fn_name_pat(R"((?:fn|function|def|func)\s+(\w+))");
             for (int k = static_cast<int>(i); k >= 0; --k) {
-                std::smatch fnm;
+                naab::rx::smatch fnm;
                 std::string ln = lines[k];
-                if (std::regex_search(ln, fnm, fn_name_pat)) {
+                if (naab::rx::regex_search(ln, fnm, fn_name_pat)) {
                     func_name = fnm[1].str();
                     break;
                 }
@@ -470,8 +471,8 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
             }
 
             // Find hardcoded keys
-            auto begin = std::sregex_iterator(return_block.begin(), return_block.end(), hardcoded_key_pat);
-            auto end = std::sregex_iterator();
+            auto begin = naab::rx::sregex_iterator(return_block.begin(), return_block.end(), hardcoded_key_pat);
+            auto end = naab::rx::sregex_iterator();
             for (auto it = begin; it != end; ++it) {
                 std::string key = (*it)[1].str();
                 // Skip common legitimately-hardcoded keys
@@ -499,24 +500,24 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
             for (double v : cfg_allowed) allowed.insert(v);
         }
 
-        static const std::regex poly_open_pat(R"(<<(\w+))");
-        static const std::regex poly_close_pat(R"(^\s*>>)");
-        static const std::regex num_pat(R"((-?\d+\.?\d*))");
-        static const std::regex py_const_def(R"(^\s*[A-Z][A-Z0-9_]*\s*=)");
+        static const naab::rx::regex poly_open_pat(R"(<<(\w+))");
+        static const naab::rx::regex poly_close_pat(R"(^\s*>>)");
+        static const naab::rx::regex num_pat(R"((-?\d+\.?\d*))");
+        static const naab::rx::regex py_const_def(R"(^\s*[A-Z][A-Z0-9_]*\s*=)");
 
         bool in_poly = false;
         std::string poly_lang;
 
         for (size_t i = 0; i < orig_lines.size(); ++i) {
             std::string trimmed = nb_trim(orig_lines[i]);
-            std::smatch lang_match;
+            naab::rx::smatch lang_match;
 
-            if (!in_poly && std::regex_search(trimmed, lang_match, poly_open_pat)) {
+            if (!in_poly && naab::rx::regex_search(trimmed, lang_match, poly_open_pat)) {
                 in_poly = true;
                 poly_lang = lang_match[1].str();
                 continue;
             }
-            if (in_poly && std::regex_match(trimmed, poly_close_pat)) {
+            if (in_poly && naab::rx::regex_match(trimmed, poly_close_pat)) {
                 in_poly = false;
                 continue;
             }
@@ -524,10 +525,10 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
             if (trimmed.empty() || trimmed[0] == '#' || trimmed.rfind("//", 0) == 0) continue;
             if (trimmed.rfind("import ", 0) == 0 || trimmed.rfind("from ", 0) == 0) continue;
-            if (std::regex_search(orig_lines[i], py_const_def)) continue;
+            if (naab::rx::regex_search(orig_lines[i], py_const_def)) continue;
 
-            std::sregex_iterator it(orig_lines[i].begin(), orig_lines[i].end(), num_pat);
-            std::sregex_iterator end;
+            naab::rx::sregex_iterator it(orig_lines[i].begin(), orig_lines[i].end(), num_pat);
+            naab::rx::sregex_iterator end;
             for (; it != end; ++it) {
                 auto pos = (*it).position();
                 if (pos > 0) {
@@ -557,10 +558,10 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 15. agent_unchecked_send — agent.send() result not checked for success or try/catch
     if (isEnabled(CAT, "agent_unchecked_send")) {
-        static const std::regex send_pat(R"(=\s*agent\.send\s*\()");
+        static const naab::rx::regex send_pat(R"(=\s*agent\.send\s*\()");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = nb_trim(lines[i]);
-            if (!std::regex_search(s, send_pat)) continue;
+            if (!naab::rx::regex_search(s, send_pat)) continue;
 
             // Check if inside try block (scan backwards for unmatched try {)
             bool in_try = false;
@@ -601,17 +602,17 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 16. agent_prompt_from_file — file.read() data sent to agent.send() without sanitization
     if (isEnabled(CAT, "agent_prompt_from_file")) {
-        static const std::regex file_read_pat(R"(let\s+(\w+)\s*=\s*file\.read\s*\()");
-        static const std::regex agent_send_pat(R"(agent\.send\s*\(\s*\w+\s*,\s*(\w+))");
-        static const std::regex sanitize_pat(R"(sanitize_|validate_)");
+        static const naab::rx::regex file_read_pat(R"(let\s+(\w+)\s*=\s*file\.read\s*\()");
+        static const naab::rx::regex agent_send_pat(R"(agent\.send\s*\(\s*\w+\s*,\s*(\w+))");
+        static const naab::rx::regex sanitize_pat(R"(sanitize_|validate_)");
         std::unordered_set<std::string> file_read_vars;
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = nb_trim(lines[i]);
-            std::smatch m;
-            if (std::regex_search(s, m, file_read_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(s, m, file_read_pat)) {
                 file_read_vars.insert(m[1].str());
             }
-            if (std::regex_search(s, m, agent_send_pat)) {
+            if (naab::rx::regex_search(s, m, agent_send_pat)) {
                 std::string prompt_var = m[1].str();
                 if (file_read_vars.count(prompt_var)) {
                     // Check if sanitized between file.read and agent.send
@@ -619,7 +620,7 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
                     for (size_t k = 0; k < i; ++k) {
                         std::string ln = nb_trim(lines[k]);
                         if (ln.find(prompt_var) != std::string::npos &&
-                            std::regex_search(ln, sanitize_pat)) {
+                            naab::rx::regex_search(ln, sanitize_pat)) {
                             sanitized = true;
                             break;
                         }

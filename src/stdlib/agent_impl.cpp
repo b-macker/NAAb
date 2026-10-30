@@ -20,6 +20,7 @@
 #include <mutex>
 #include <future>
 #include <regex>
+#include "naab/rx.h"
 #include <atomic>
 #include <chrono>
 #include <thread>
@@ -3760,8 +3761,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         // Step 9: Exception sanitization (Gap M)
                         std::string err_msg = e.what();
                         // Sanitize: strip file paths
-                        std::regex path_re("/[^ \\n]+\\.(cpp|h|naab)");
-                        err_msg = std::regex_replace(err_msg, path_re, "[internal]");
+                        naab::rx::regex path_re("/[^ \\n]+\\.(cpp|h|naab)");
+                        err_msg = naab::rx::regex_replace(err_msg, path_re, "[internal]");
                         // Truncate
                         if (err_msg.size() > 256) err_msg = err_msg.substr(0, 256) + "...";
                         tool_result_str = "Error: " + err_msg;
@@ -4208,8 +4209,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             };
             for (const auto& pat : shell_patterns) {
                 try {
-                    std::regex re(pat, std::regex::ECMAScript | std::regex::icase);
-                    if (std::regex_search(content, re)) {
+                    naab::rx::regex re(pat, naab::rx::regex::ECMAScript | naab::rx::regex::icase);
+                    if (naab::rx::regex_search(content, re)) {
                         gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                             "agent_restriction:shell_blocked(" + config_name + ")", "", 0);
                         // A5: this turn throws on the next line and never reaches recordTurn,
@@ -4262,8 +4263,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         else re_str += c;
                     }
                     try {
-                        std::regex re(re_str, std::regex::ECMAScript);
-                        if (std::regex_search(content, re)) {
+                        naab::rx::regex re(re_str, naab::rx::regex::ECMAScript);
+                        if (naab::rx::regex_search(content, re)) {
                             gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                                 "agent_restriction:blocked_path(" + config_name + ":" + blocked + ")", "", 0);
                             // A5: this turn throws on the next line and never reaches recordTurn,
@@ -4316,10 +4317,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         // an allowed pattern triggers a violation
         if (!config->allowed_paths.empty()) {
             // Extract path-like strings from response (starts with / or ./)
-            static const std::regex path_re("(?:^|\\s|[\"'`])(/[a-zA-Z0-9_./-]+|\\./[a-zA-Z0-9_./-]+)",
-                                            std::regex::ECMAScript);
-            std::sregex_iterator it(content.begin(), content.end(), path_re);
-            std::sregex_iterator end;
+            static const naab::rx::regex path_re("(?:^|\\s|[\"'`])(/[a-zA-Z0-9_./-]+|\\./[a-zA-Z0-9_./-]+)",
+                                            naab::rx::regex::ECMAScript);
+            naab::rx::sregex_iterator it(content.begin(), content.end(), path_re);
+            naab::rx::sregex_iterator end;
             for (; it != end; ++it) {
                 std::string path = (*it)[1].str();
                 bool allowed = false;
@@ -4544,8 +4545,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
                         std::string field_str = parsed[field].get<std::string>();
                         try {
-                            std::regex pattern(pattern_str);
-                            if (!std::regex_search(field_str, pattern)) {
+                            naab::rx::regex pattern(pattern_str);
+                            if (!naab::rx::regex_search(field_str, pattern)) {
                                 contract_error = fmt::format(
                                     "field '{}' does not match pattern: {}", field, pattern_str);
                                 break;

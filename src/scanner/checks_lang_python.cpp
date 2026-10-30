@@ -3,6 +3,7 @@
 
 #include "naab/scanner.h"
 #include <regex>
+#include "naab/rx.h"
 #include <functional>
 #include <algorithm>
 #include <unordered_map>
@@ -35,9 +36,9 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
 
     // 1. bare_except
     if (isEnabled(CAT, "bare_except")) {
-        static const std::regex pat(R"(^\s*except\s*:)");
+        static const naab::rx::regex pat(R"(^\s*except\s*:)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "bare_except", CAT,
                          "Bare except catches everything", py_trim(lines[i]),
                          "Specify exception type");
@@ -47,9 +48,9 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
 
     // 2. mutable_default_args
     if (isEnabled(CAT, "mutable_default_args")) {
-        static const std::regex pat(R"(def\s+\w+\([^)]*=\s*[\[\{])");
+        static const naab::rx::regex pat(R"(def\s+\w+\([^)]*=\s*[\[\{])");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "mutable_default_args", CAT,
                          "Mutable default argument", py_trim(lines[i]),
                          "Use None, create inside body");
@@ -59,9 +60,9 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
 
     // 3. star_imports
     if (isEnabled(CAT, "star_imports")) {
-        static const std::regex pat(R"(^\s*from\s+\w+\s+import\s+\*)");
+        static const naab::rx::regex pat(R"(^\s*from\s+\w+\s+import\s+\*)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "star_imports", CAT,
                          "Wildcard import pollutes namespace", py_trim(lines[i]),
                          "Import specific names");
@@ -75,11 +76,11 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
         std::transform(lower_path.begin(), lower_path.end(), lower_path.begin(), ::tolower);
         bool is_test = lower_path.find("test") != std::string::npos;
         if (!is_test) {
-            static const std::regex pat(R"(^\s*assert\s+)");
+            static const naab::rx::regex pat(R"(^\s*assert\s+)");
             for (size_t i = 0; i < lines.size(); ++i) {
                 std::string lower_line = lines[i];
                 std::transform(lower_line.begin(), lower_line.end(), lower_line.begin(), ::tolower);
-                if (std::regex_search(lines[i], pat) && lower_line.find("test") == std::string::npos) {
+                if (naab::rx::regex_search(lines[i], pat) && lower_line.find("test") == std::string::npos) {
                     addIssue(issues, filepath, i + 1, "assert_for_validation", CAT,
                              "assert for validation (disabled with -O)", py_trim(lines[i]),
                              "Use if/raise");
@@ -95,8 +96,8 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
                           content.find("%r") != std::string::npos ||
                           content.find("%f") != std::string::npos;
         bool has_format = content.find(".format(") != std::string::npos;
-        static const std::regex fstring_pat(R"(f['"])");
-        bool has_fstring = std::regex_search(content, fstring_pat);
+        static const naab::rx::regex fstring_pat(R"(f['"])");
+        bool has_fstring = naab::rx::regex_search(content, fstring_pat);
         int styles = (has_percent ? 1 : 0) + (has_format ? 1 : 0) + (has_fstring ? 1 : 0);
         if (styles >= 2) {
             addIssue(issues, filepath, 1, "string_format_mix", CAT,
@@ -107,9 +108,9 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
 
     // 6. global_keyword
     if (isEnabled(CAT, "global_keyword")) {
-        static const std::regex pat(R"(^\s*global\s+\w+)");
+        static const naab::rx::regex pat(R"(^\s*global\s+\w+)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "global_keyword", CAT,
                          "global keyword usage", py_trim(lines[i]),
                          "Pass as parameter instead");
@@ -119,9 +120,9 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
 
     // 7. nested_comprehension
     if (isEnabled(CAT, "nested_comprehension")) {
-        static const std::regex pat(R"([\[\{].*for.*for.*for)");
+        static const naab::rx::regex pat(R"([\[\{].*for.*for.*for)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "nested_comprehension", CAT,
                          "Deeply nested comprehension", py_trim(lines[i]),
                          "Use explicit loops");
@@ -131,9 +132,9 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
 
     // 8. broad_exception_type
     if (isEnabled(CAT, "broad_exception_type")) {
-        static const std::regex pat(R"(^\s*except\s+(Exception|BaseException)\b)");
+        static const naab::rx::regex pat(R"(^\s*except\s+(Exception|BaseException)\b)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "broad_exception_type", CAT,
                          "Catching overly broad exception", py_trim(lines[i]),
                          "Catch specific types");
@@ -143,9 +144,9 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
 
     // 9. open_without_with
     if (isEnabled(CAT, "open_without_with")) {
-        static const std::regex pat(R"(\w+\s*=\s*open\s*\()");
+        static const naab::rx::regex pat(R"(\w+\s*=\s*open\s*\()");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 // Check previous line for "with"
                 std::string prev;
                 if (i > 0) prev = lines[i - 1];
@@ -161,9 +162,9 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
 
     // 10. type_check_isinstance
     if (isEnabled(CAT, "type_check_isinstance")) {
-        static const std::regex pat(R"(type\s*\(\s*\w+\s*\)\s*==)");
+        static const naab::rx::regex pat(R"(type\s*\(\s*\w+\s*\)\s*==)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "type_check_isinstance", CAT,
                          "type() comparison — use isinstance()", py_trim(lines[i]),
                          "Use isinstance(x, Type)");
@@ -173,13 +174,13 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
 
     // 11. import_inside_function
     if (isEnabled(CAT, "import_inside_function")) {
-        static const std::regex func_pat(R"(def\s+\w+)");
-        static const std::regex import_pat(R"(^\s+(import\s+\w+|from\s+\w+\s+import))");
+        static const naab::rx::regex func_pat(R"(def\s+\w+)");
+        static const naab::rx::regex import_pat(R"(^\s+(import\s+\w+|from\s+\w+\s+import))");
         bool in_func = false;
         int func_indent = 0;
 
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], func_pat)) {
+            if (naab::rx::regex_search(lines[i], func_pat)) {
                 in_func = true;
                 func_indent = py_indent(lines[i]);
             } else if (in_func && !py_trim(lines[i]).empty()) {
@@ -189,7 +190,7 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
                     in_func = false;
                 }
             }
-            if (in_func && std::regex_search(lines[i], import_pat)) {
+            if (in_func && naab::rx::regex_search(lines[i], import_pat)) {
                 addIssue(issues, filepath, i + 1, "import_inside_function", CAT,
                          "Import inside function body", py_trim(lines[i]),
                          "Move to top of file");
@@ -199,16 +200,16 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
 
     // 12. mutable_class_vars
     if (isEnabled(CAT, "mutable_class_vars")) {
-        static const std::regex cls_pat(R"(^(\s*)class\s+\w+)");
-        static const std::regex meth_pat(R"(\s+def\s+)");
-        static const std::regex mut_var_pat(R"(^\s+\w+\s*=\s*[\[\{])");
+        static const naab::rx::regex cls_pat(R"(^(\s*)class\s+\w+)");
+        static const naab::rx::regex meth_pat(R"(\s+def\s+)");
+        static const naab::rx::regex mut_var_pat(R"(^\s+\w+\s*=\s*[\[\{])");
         bool in_cls = false;
         int cls_ind = 0;
         bool in_method = false;
 
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, cls_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, cls_pat)) {
                 in_cls = true;
                 cls_ind = static_cast<int>(m[1].length());
                 in_method = false;
@@ -217,7 +218,7 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
                 if (cur <= cls_ind) {
                     in_cls = false;
                     in_method = false;
-                } else if (std::regex_search(lines[i], meth_pat)) {
+                } else if (naab::rx::regex_search(lines[i], meth_pat)) {
                     in_method = true;
                 } else if (in_method && cur <= cls_ind + 4) {
                     std::string trimmed = py_trim(lines[i]);
@@ -227,7 +228,7 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
                     }
                 }
             }
-            if (in_cls && !in_method && std::regex_search(lines[i], mut_var_pat)) {
+            if (in_cls && !in_method && naab::rx::regex_search(lines[i], mut_var_pat)) {
                 std::string s = py_trim(lines[i]);
                 if (!py_startsWith(s, "#") && !py_startsWith(s, "@") && !py_startsWith(s, "def ")) {
                     addIssue(issues, filepath, i + 1, "mutable_class_vars", CAT,
@@ -240,7 +241,7 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
 
     // 13. duplicate_dict_key
     if (isEnabled(CAT, "duplicate_dict_key")) {
-        static const std::regex dict_key_pat(R"((['"])(\w+)\1\s*:)");
+        static const naab::rx::regex dict_key_pat(R"((['"])(\w+)\1\s*:)");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = py_trim(lines[i]);
             if (s.find('{') != std::string::npos && s.find(':') != std::string::npos) {
@@ -256,8 +257,8 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
                 }
 
                 std::unordered_map<std::string, bool> keys_found;
-                std::sregex_iterator it(block.begin(), block.end(), dict_key_pat);
-                std::sregex_iterator end;
+                naab::rx::sregex_iterator it(block.begin(), block.end(), dict_key_pat);
+                naab::rx::sregex_iterator end;
                 for (; it != end; ++it) {
                     std::string key = (*it)[2].str();
                     if (keys_found.count(key)) {
@@ -275,16 +276,16 @@ void ScannerEngine::checkLangPython(const std::string& filepath,
     // 14. f_string_without_expression
     if (isEnabled(CAT, "f_string_without_expression")) {
         // Separate patterns for single and double quoted f-strings (no backreference in lookahead)
-        static const std::regex fstr_pat_sq(R"(f'([^']*)')");
-        static const std::regex fstr_pat_dq(R"RE(f"([^"]*)")RE");
+        static const naab::rx::regex fstr_pat_sq(R"(f'([^']*)')");
+        static const naab::rx::regex fstr_pat_dq(R"RE(f"([^"]*)")RE");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = py_trim(lines[i]);
             if (py_startsWith(s, "#") || py_startsWith(s, "//")) continue;
             bool found = false;
             for (const auto& fstr_pat : {std::cref(fstr_pat_sq), std::cref(fstr_pat_dq)}) {
                 if (found) break;
-                std::sregex_iterator it(lines[i].begin(), lines[i].end(), fstr_pat.get());
-                std::sregex_iterator end;
+                naab::rx::sregex_iterator it(lines[i].begin(), lines[i].end(), fstr_pat.get());
+                naab::rx::sregex_iterator end;
                 for (; it != end; ++it) {
                     std::string body = (*it)[1].str();
                     if (body.find('{') == std::string::npos) {

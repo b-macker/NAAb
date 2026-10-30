@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <algorithm>
 #include <regex>
+#include "naab/rx.h"
 #include <set>
 #include <map>
 #include <unordered_set>
@@ -42,8 +43,8 @@ std::vector<std::string> ScannerEngine::stripPolyglotBlocks(
     const std::vector<std::string>& lines, std::vector<bool>* in_block) {
     std::vector<std::string> result = lines;
     if (in_block) in_block->assign(lines.size(), false);
-    static const std::regex poly_open(R"(<<\w+)");
-    static const std::regex poly_close(R"(^>>)");
+    static const naab::rx::regex poly_open(R"(<<\w+)");
+    static const naab::rx::regex poly_close(R"(^>>)");
     bool in_poly = false;
     for (size_t i = 0; i < result.size(); ++i) {
         std::string stripped = result[i];
@@ -53,19 +54,19 @@ std::vector<std::string> ScannerEngine::stripPolyglotBlocks(
                               stripped.substr(first_nonspace) : "";
 
         if (!in_poly && stripped.find("<<") != std::string::npos &&
-            std::regex_search(stripped, poly_open)) {
+            naab::rx::regex_search(stripped, poly_open)) {
             in_poly = true;
             if (in_block) (*in_block)[i] = true;
             // Preserve variable binding list for assigned_never_read check
             // <<python[var1, var2, var3] → keep "var1, var2, var3" so refs are visible
-            static const std::regex binding_pat(R"(<<\w+\[([^\]]+)\])");
-            std::smatch bm;
-            if (std::regex_search(stripped, bm, binding_pat)) {
+            static const naab::rx::regex binding_pat(R"(<<\w+\[([^\]]+)\])");
+            naab::rx::smatch bm;
+            if (naab::rx::regex_search(stripped, bm, binding_pat)) {
                 result[i] = bm[1].str();
             } else {
                 result[i] = "";
             }
-        } else if (in_poly && std::regex_match(trimmed, poly_close)) {
+        } else if (in_poly && naab::rx::regex_match(trimmed, poly_close)) {
             in_poly = false;
             result[i] = "";
             if (in_block) (*in_block)[i] = true;
@@ -118,7 +119,7 @@ std::unordered_set<size_t> ScannerEngine::detectTestFuncLines(
     std::unordered_set<size_t> test_lines;
     if (language != "naab") return test_lines;
 
-    static const std::regex test_fn_pat(R"(^(?:export\s+)?fn\s+test_\w+)");
+    static const naab::rx::regex test_fn_pat(R"(^(?:export\s+)?fn\s+test_\w+)");
     bool in_test = false;
     int brace_depth = 0;
 
@@ -129,7 +130,7 @@ std::unordered_set<size_t> ScannerEngine::detectTestFuncLines(
         else sl = "";
 
         if (!in_test) {
-            if (std::regex_search(sl, test_fn_pat)) {
+            if (naab::rx::regex_search(sl, test_fn_pat)) {
                 in_test = true;
                 brace_depth = 0;
                 for (char c : sl) {

@@ -20,6 +20,7 @@
 #include <map>
 #include <chrono>
 #include <regex>
+#include "naab/rx.h"
 #include <mutex>
 #include <atomic>
 #include <memory>
@@ -968,7 +969,7 @@ struct CustomRule {
     bool enabled = true;
     bool case_sensitive = false;
     bool multiline = false;
-    std::regex compiled_pattern;
+    naab::rx::regex compiled_pattern;
     bool pattern_valid = false;
 };
 

@@ -6,6 +6,7 @@
 #pragma once
 
 #include <regex>
+#include "naab/rx.h"
 #include <string>
 #include <chrono>
 #include <future>
@@ -99,7 +100,7 @@ public:
     // Safe regex_search with match results and timeout
     bool safeSearch(const std::string& text,
                     const std::string& pattern,
-                    std::smatch& match,
+                    naab::rx::smatch& match,
                     std::chrono::milliseconds timeout = std::chrono::milliseconds(0));
 
     // Safe regex_replace with timeout

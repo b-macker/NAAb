@@ -1,5 +1,6 @@
 #include "naab/input_validator.h"
 #include <regex>
+#include "naab/rx.h"
 #include <algorithm>
 #include <climits>
 #include <cstdlib>
@@ -17,8 +18,8 @@ bool InputValidator::isValidBlockId(const std::string& block_id) {
     }
 
     // Check pattern: BLOCK-[A-Z]+-[0-9]+
-    std::regex pattern(BLOCK_ID_PATTERN);
-    return std::regex_match(block_id, pattern);
+    naab::rx::regex pattern(BLOCK_ID_PATTERN);
+    return naab::rx::regex_match(block_id, pattern);
 }
 
 std::string InputValidator::canonicalizePath(const std::string& path) {

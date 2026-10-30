@@ -13,6 +13,7 @@
 #include <optional>
 #include <thread>
 #include <regex>
+#include "naab/rx.h"
 #include <cstdlib>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -150,14 +151,14 @@ static bool isCppSourceSafe(const std::string& code, std::string& reason) {
     }
 
     // Reject absolute-path double-quote #include (e.g. #include "/etc/shadow")
-    std::regex abs_include_dq(R"(#\s*include\s*"/)");
-    if (std::regex_search(processed, abs_include_dq)) {
+    naab::rx::regex abs_include_dq(R"(#\s*include\s*"/)");
+    if (naab::rx::regex_search(processed, abs_include_dq)) {
         reason = "absolute-path #include (double-quote) is not permitted in polyglot C++ blocks";
         return false;
     }
     // V-RCE-006: also reject angle-bracket absolute #include (e.g. #include </etc/shadow>)
-    std::regex abs_include_ab(R"(#\s*include\s*</)");
-    if (std::regex_search(processed, abs_include_ab)) {
+    naab::rx::regex abs_include_ab(R"(#\s*include\s*</)");
+    if (naab::rx::regex_search(processed, abs_include_ab)) {
         reason = "absolute-path #include (angle-bracket) is not permitted in polyglot C++ blocks";
         return false;
     }
@@ -165,37 +166,37 @@ static bool isCppSourceSafe(const std::string& code, std::string& reason) {
     // Blocks ".." anywhere in double-quote or angle-bracket include paths.
     // g++ runs without containment, so traversal from mkdtemp dir leaks file contents
     // via compiler errors or successful compilation.
-    std::regex traversal_include_dq(R"(#\s*include\s*"[^"]*\.\.)");
-    if (std::regex_search(processed, traversal_include_dq)) {
+    naab::rx::regex traversal_include_dq(R"(#\s*include\s*"[^"]*\.\.)");
+    if (naab::rx::regex_search(processed, traversal_include_dq)) {
         reason = "path traversal in #include is not permitted in polyglot C++ blocks";
         return false;
     }
-    std::regex traversal_include_ab(R"(#\s*include\s*<[^>]*\.\.)");
-    if (std::regex_search(processed, traversal_include_ab)) {
+    naab::rx::regex traversal_include_ab(R"(#\s*include\s*<[^>]*\.\.)");
+    if (naab::rx::regex_search(processed, traversal_include_ab)) {
         reason = "path traversal in #include is not permitted in polyglot C++ blocks";
         return false;
     }
     // Reject #pragma GCC plugin — executes a native shared library at compile time
-    std::regex plugin_pragma(R"(#\s*pragma\s+GCC\s+plugin)");
-    if (std::regex_search(processed, plugin_pragma)) {
+    naab::rx::regex plugin_pragma(R"(#\s*pragma\s+GCC\s+plugin)");
+    if (naab::rx::regex_search(processed, plugin_pragma)) {
         reason = "#pragma GCC plugin is not permitted in polyglot C++ blocks";
         return false;
     }
     // V-RCE-013: Reject macro-based #include evasion.
     // Block #include with a macro identifier (not a string/angle literal).
-    std::regex macro_include(R"(#\s*include\s+[A-Za-z_][A-Za-z_0-9]*)");
-    if (std::regex_search(processed, macro_include)) {
+    naab::rx::regex macro_include(R"(#\s*include\s+[A-Za-z_][A-Za-z_0-9]*)");
+    if (naab::rx::regex_search(processed, macro_include)) {
         reason = "#include with macro expansion is not permitted in polyglot C++ blocks";
         return false;
     }
     // Block #define whose value contains a path-like include target (absolute or traversal)
-    std::regex define_path(R"(#\s*define\s+\w+\s+[<"]/)");
-    if (std::regex_search(processed, define_path)) {
+    naab::rx::regex define_path(R"(#\s*define\s+\w+\s+[<"]/)");
+    if (naab::rx::regex_search(processed, define_path)) {
         reason = "#define with absolute path value is not permitted in polyglot C++ blocks";
         return false;
     }
-    std::regex define_traversal(R"(#\s*define\s+\w+\s+[<"][^>"]*\.\.)");
-    if (std::regex_search(processed, define_traversal)) {
+    naab::rx::regex define_traversal(R"(#\s*define\s+\w+\s+[<"][^>"]*\.\.)");
+    if (naab::rx::regex_search(processed, define_traversal)) {
         reason = "#define with path traversal value is not permitted in polyglot C++ blocks";
         return false;
     }
