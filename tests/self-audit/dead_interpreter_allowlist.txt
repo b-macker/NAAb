@@ -45,6 +45,7 @@ tests/cli/test_flag_policy.sh	structural	static check: the "--name" options main
 tests/self-audit/test_pipefail_grep.sh	structural	scans shell scripts for `| grep -q` under pipefail; never runs naab-lang
 tests/self-audit/test_bsd_event_coverage.sh	structural	static check: stdlib modules' hasFunction() names vs the BSD event table; never runs naab-lang
 tests/self-audit/test_coverage_visibility.sh	structural	every test directory and suite is registered and tracked
+tests/self-audit/test_no_std_regex.sh	structural	greps the engine sources for std::regex outside naab::rx (A89); never runs naab-lang
 
 tests/self-audit/test_skip_tally.sh	tool	tests the skip-tally helper on planted suite output; never runs naab-lang
 tests/self-audit/test_codemap.sh	tool	tests tools/codemap (a libclang source index) on a C++ fixture; never runs naab-lang

@@ -4333,6 +4333,20 @@ else
     echo "  test_pipefail_grep.sh: not found, skipping"
 fi
 
+NO_STD_REGEX_SCRIPT="tests/self-audit/test_no_std_regex.sh"
+if [ -f "$NO_STD_REGEX_SCRIPT" ]; then
+    # Every regex goes through naab::rx (A89): std::regex recursed per
+    # character and a long input crashed the governor. Reads files only.
+    if run_shell_test "$NO_STD_REGEX_SCRIPT" 2>&1; then
+        echo "  test_no_std_regex.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_no_std_regex.sh")
+    fi
+else
+    echo "  test_no_std_regex.sh: not found, skipping"
+fi
+
 FMT_LITERALS_SCRIPT="tests/self-audit/test_fmt_literals.sh"
 if [ -f "$FMT_LITERALS_SCRIPT" ]; then
     # Gate on invalid literal fmt format strings (A42): C++17 does not check
