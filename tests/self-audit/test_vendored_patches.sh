@@ -26,6 +26,21 @@ fail() { FAIL=$((FAIL+1)); echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && printf '%s\
 unm()  { UNM=$((UNM+1));   echo "  UNMEASURABLE [$1] $2"; }
 
 echo "=== vendored QuickJS = archive + patch ==="
+# POSIX-only. The subject is the committed bytes, and a Windows checkout does
+# not hand them over: core.autocrlf converts the vendored sources to CRLF
+# (test_nested_unknown_keys.sh NK-00 records the same runner), so a byte
+# comparison with the archive would report every text file. The MSYS2 job also
+# has no `patch`. build-linux, Build & Test and the non-root run measure this;
+# a tool missing on any of them is still UNMEASURABLE and fails below.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+        echo "  test_vendored_patches.sh: SKIPPED (POSIX-only -- a Windows checkout converts line endings; the Linux jobs measure this)"
+        exit 0 ;;
+esac
+if [ -n "${WINDIR:-}" ]; then
+    echo "  test_vendored_patches.sh: SKIPPED (POSIX-only)"
+    exit 0
+fi
 for tool in tar xz patch sha256sum cmp; do
     command -v "$tool" >/dev/null 2>&1 || { unm VP-00 "$tool missing -- UNMEASURABLE, not a pass"; echo "=== Results: 0 passed, 0 failed, 1 unmeasurable ==="; exit 1; }
 done
