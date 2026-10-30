@@ -3,6 +3,7 @@
 #include "naab/rx.h"
 #include <gtest/gtest.h>
 #include <atomic>
+#include <chrono>
 #include <string>
 #include <thread>
 #include <type_traits>
@@ -153,4 +154,50 @@ TEST(RxTest, OneRegexServesManyThreads) {
     }
     for (auto& th : ts) th.join();
     EXPECT_EQ(ok.load(), 8 * 500);
+}
+
+// A89, the second half: a backtracking matcher rescans from every start
+// position, so this unanchored pattern over a run with no '@' was quadratic
+// (libregexp: 155 s for 80,000 bytes, observed). RE2 is linear.
+TEST(RxTest, UnanchoredRunIsLinear) {
+    rx::regex re("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}");
+    EXPECT_TRUE(re.linear_time());
+    std::string run(200000, 'a');
+    auto t0 = std::chrono::steady_clock::now();
+    EXPECT_FALSE(rx::regex_search(run, re));
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - t0).count();
+    EXPECT_LT(ms, 5000) << "a linear search of 200,000 bytes took " << ms << " ms";
+    run += "x@example.org";
+    EXPECT_TRUE(rx::regex_search(run, re));
+}
+
+// What RE2 cannot run still works, on the fallback, and says so.
+TEST(RxTest, LookaroundFallsBackAndStillMatches) {
+    rx::regex la("pickle\\.load(?!s)");
+    EXPECT_FALSE(la.linear_time());
+    rx::smatch m;
+    const std::string s = "pickle.loads pickle.load(";
+    ASSERT_TRUE(rx::regex_search(s, m, la));
+    EXPECT_EQ(m.position(0), 13);
+    EXPECT_FALSE(rx::regex("(a)\\1").linear_time());          // backreference
+    EXPECT_TRUE(rx::regex_search(std::string("xaay"), rx::regex("(a)\\1")));
+}
+
+// The RE2 path keeps std::regex's dialect where RE2's own differs.
+TEST(RxTest, Re2PathKeepsTheEcmaScriptDialect) {
+    rx::regex dot("a.b");
+    EXPECT_TRUE(dot.linear_time());
+    EXPECT_FALSE(rx::regex_search(std::string("a\rb"), dot));   // RE2's '.' would match \r
+    EXPECT_FALSE(rx::regex_search(std::string("a\nb"), dot));
+    EXPECT_TRUE(rx::regex_search(std::string("axb"), dot));
+    rx::regex sp("x\\sy");
+    EXPECT_TRUE(sp.linear_time());
+    EXPECT_TRUE(rx::regex_search(std::string("x\vy"), sp));     // RE2's \s lacks \v
+    // \A is the letter A in ECMAScript (Annex B); RE2 would read start-of-text.
+    rx::regex a("x\\Ay");
+    EXPECT_FALSE(a.linear_time());
+    EXPECT_TRUE(rx::regex_search(std::string("xAy"), a));
+    // [] matches nothing in ECMAScript; RE2 would read a literal ']'.
+    EXPECT_FALSE(rx::regex("[]a]").linear_time());
 }

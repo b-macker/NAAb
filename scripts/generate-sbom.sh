@@ -127,6 +127,16 @@ generate_spdx() {
       "licenseConcluded": "MIT",
       "licenseDeclared": "MIT",
       "copyrightText": "Copyright Fabrice Bellard"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-re2",
+      "name": "re2",
+      "versionInfo": "2025-11-05",
+      "downloadLocation": "https://github.com/google/re2",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Copyright The RE2 Authors"
     }
   ],
   "relationships": [
@@ -169,6 +179,11 @@ generate_spdx() {
       "spdxElementId": "SPDXRef-Package-naab",
       "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-quickjs"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-naab",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-re2"
     }
   ]
 }
@@ -306,6 +321,20 @@ generate_cyclonedx() {
         }
       ],
       "purl": "pkg:generic/quickjs@2021-03-27"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:github/google/re2@2025-11-05",
+      "name": "re2",
+      "version": "2025-11-05",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:github/google/re2@2025-11-05"
     }
   ],
   "dependencies": [
@@ -318,7 +347,8 @@ generate_cyclonedx() {
         "pkg:github/nlohmann/json@3.11.2",
         "pkg:github/google/googletest@1.14.0",
         "pkg:github/yhirose/cpp-httplib@0.14.0",
-        "pkg:generic/quickjs@2021-03-27"
+        "pkg:generic/quickjs@2021-03-27",
+        "pkg:github/google/re2@2025-11-05"
       ]
     }
   ]
@@ -389,6 +419,11 @@ Direct Dependencies (8)
    Source: https://github.com/antirez/linenoise
    Purpose: Readline replacement for REPL
 
+9. re2 (2025-11-05)
+   License: BSD-3-Clause
+   Source: https://github.com/google/re2
+   Purpose: Linear-time regular expressions (naab::rx, A89)
+
 ----------------------------------------
 System Dependencies (Optional)
 ----------------------------------------
@@ -410,8 +445,8 @@ MIT: 6 dependencies
 Apache-2.0: 1 dependency
   - abseil-cpp
 
-BSD-3-Clause: 1 dependency
-  - googletest
+BSD-3-Clause: 2 dependencies
+  - googletest, re2
 
 BSD-2-Clause: 1 dependency
   - linenoise

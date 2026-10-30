@@ -58,6 +58,7 @@ RUN test -d external/abseil-cpp && \
     test -d external/fmt && \
     test -d external/googletest && \
     test -d external/json && \
+    test -d external/re2 && \
     test -d external/spdlog && \
     test -d external/tomlplusplus && \
     echo "✓ All dependencies vendored"

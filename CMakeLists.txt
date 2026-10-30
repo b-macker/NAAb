@@ -190,6 +190,14 @@ message(STATUS "Adding external dependencies...")
 add_subdirectory(external/abseil-cpp EXCLUDE_FROM_ALL)
 message(STATUS "  ✓ Abseil C++ library")
 
+# RE2 (pinned submodule, BSD-3): linear-time matching for naab::rx (A89). It
+# finds the abseil above as targets, so no find_package; its install and test
+# targets are off -- it is linked statically into naab_rx only.
+set(RE2_INSTALL OFF CACHE BOOL "" FORCE)
+set(RE2_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+add_subdirectory(external/re2 EXCLUDE_FROM_ALL)
+message(STATUS "  ✓ RE2 regular expressions")
+
 # fmt (from blocks)
 add_subdirectory(external/fmt EXCLUDE_FROM_ALL)
 message(STATUS "  ✓ fmt formatting library")
@@ -839,9 +847,13 @@ message(STATUS "  ✓ Scanner engine (naab_scanner)")
 
 # naab::rx -- the engine's regular expressions (A89, include/naab/rx.h).
 # libstdc++'s std::regex recurses once per character, so a long enough input
-# crashed the governor; naab::rx matches with QuickJS's libregexp, which keeps
-# its backtracking state on the heap. Without QuickJS (MSVC) it wraps std::regex.
+# crashed the governor. naab::rx matches with RE2 (linear time); a pattern RE2
+# cannot run (lookaround, backreferences, ECMAScript-only escapes) falls back
+# to QuickJS's libregexp, which backtracks on the heap -- or, without QuickJS
+# (MSVC), to std::regex.
 add_library(naab_rx STATIC src/utils/rx.cpp)
+target_link_libraries(naab_rx PUBLIC re2::re2)
+target_compile_definitions(naab_rx PRIVATE NAAB_RX_RE2=1)
 if(HAVE_QUICKJS)
     target_link_libraries(naab_rx PUBLIC quickjs)
     target_compile_definitions(naab_rx PRIVATE NAAB_RX_LIBREGEXP=1)

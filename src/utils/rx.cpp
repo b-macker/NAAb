@@ -1,6 +1,7 @@
 // naab::rx -- see include/naab/rx.h for why this exists (A89).
 #include "naab/rx.h"
 
+#include <cctype>
 #include <climits>
 #include <cstdio>
 #include <cstdlib>
@@ -8,6 +9,10 @@
 #include <ostream>
 #include <utility>
 
+#include <unordered_set>
+#if defined(NAAB_RX_RE2)
+#include "re2/re2.h"
+#endif
 #if defined(NAAB_RX_LIBREGEXP)
 extern "C" {
 #include "quickjs.h"
@@ -33,6 +38,15 @@ private:
 
 // A group's span as byte offsets into the searched range; -1 when unmatched.
 struct Span { long begin = -1, end = -1; };
+
+// \xHH for one byte: both matchers read it as that byte (libregexp in 8-bit
+// mode, RE2 under Latin-1).
+void appendHexByte(std::string& out, unsigned char b) {
+    static const char* hex = "0123456789ABCDEF";
+    out += "\\x";
+    out += hex[b >> 4];
+    out += hex[b & 15];
+}
 
 #if defined(NAAB_RX_LIBREGEXP)
 
@@ -63,13 +77,6 @@ JSContext* lreContext() {
         if (!c.ctx) throw resource_error("regular expression: could not allocate a matcher");
     }
     return c.ctx;
-}
-
-void appendHexByte(std::string& out, unsigned char b) {
-    static const char* hex = "0123456789ABCDEF";
-    out += "\\x";
-    out += hex[b >> 4];
-    out += hex[b & 15];
 }
 
 // The pattern as libregexp should read it to match like std::regex<char>:
@@ -117,19 +124,94 @@ std::vector<uint8_t> compileLre(const std::string& translated, int flags, std::s
 
 #endif  // NAAB_RX_LIBREGEXP
 
+#if defined(NAAB_RX_RE2)
+// The pattern as RE2 should read it to match exactly as std::regex<char>
+// (ECMAScript) does, or false when it cannot be written so -- the pattern then
+// goes to the backtracking fallback, which reads ECMAScript itself. RE2 is
+// linear in the input; the fallback is not (A89), so this decides which
+// patterns keep that guarantee. Rewritten:
+//  - \s and \S as the C locale's six spaces (RE2's \s lacks \v);
+//  - '.' as [^\n\r] (RE2's '.' matches \r; ECMAScript's does not);
+//  - bytes >= 0x80 (and NUL) as \xHH, read under Latin-1 as that byte.
+// Sent to the fallback: any "(?" but "(?:" (lookaround, named groups, inline
+// flags -- RE2 has some with other meanings); a digit escape (backreference or
+// octal); a letter escape outside dDwWsSbBtnfrvx (ECMAScript reads \A, \z,
+// \p, \Q ... as the letter, RE2 as operators); \x without two hex digits;
+// "[]" and "[^]" (an empty class and "anything" in ECMAScript, a literal ']'
+// in RE2); \S and \b inside a class; an unterminated class.
+bool translateForRe2(const std::string& p, std::string& out) {
+    auto isHex = [](char ch) { return std::isxdigit(static_cast<unsigned char>(ch)) != 0; };
+    out.clear();
+    out.reserve(p.size() + 16);
+    bool in_class = false;
+    for (size_t i = 0; i < p.size(); ++i) {
+        unsigned char c = static_cast<unsigned char>(p[i]);
+        if (c == '\\') {
+            if (i + 1 >= p.size()) return false;
+            unsigned char n = static_cast<unsigned char>(p[++i]);
+            if (n == 's') { out += in_class ? "\\t\\n\\v\\f\\r " : "[\\t\\n\\v\\f\\r ]"; continue; }
+            if (n == 'S') { if (in_class) return false; out += "[^\\t\\n\\v\\f\\r ]"; continue; }
+            if (n == 'b' && in_class) return false;
+            if (n == 'x') {
+                if (i + 2 >= p.size() || !isHex(p[i + 1]) || !isHex(p[i + 2])) return false;
+                out += "\\x";
+                out += p[i + 1];
+                out += p[i + 2];
+                i += 2;
+                continue;
+            }
+            if (n >= '0' && n <= '9') return false;
+            if (std::isalpha(n)) {
+                if (std::string("dDwWbBtnfrv").find(static_cast<char>(n)) == std::string::npos) return false;
+                out += '\\';
+                out += static_cast<char>(n);
+                continue;
+            }
+            if (n >= 0x80 || n == 0) { appendHexByte(out, n); continue; }
+            out += '\\';
+            out += static_cast<char>(n);
+            continue;
+        }
+        if (c >= 0x80 || c == 0) { appendHexByte(out, c); continue; }
+        if (in_class) {
+            if (c == ']') in_class = false;
+            out += static_cast<char>(c);
+            continue;
+        }
+        if (c == '[') {
+            size_t j = i + 1;
+            if (j < p.size() && p[j] == '^') ++j;
+            if (j < p.size() && p[j] == ']') return false;
+            in_class = true;
+            out += '[';
+            continue;
+        }
+        if (c == '(' && i + 1 < p.size() && p[i + 1] == '?') {
+            if (i + 2 < p.size() && p[i + 2] == ':') { out += "(?:"; i += 2; continue; }
+            return false;
+        }
+        if (c == '.') { out += "[^\\n\\r]"; continue; }
+        out += static_cast<char>(c);
+    }
+    return !in_class;
+}
+#endif  // NAAB_RX_RE2
+
 }  // namespace
 
 struct regex::Impl {
+    unsigned groups = 1;                      // including group 0
+#if defined(NAAB_RX_RE2)
+    std::unique_ptr<re2::RE2> re2;           // set when RE2 reads the pattern as std::regex does
+#endif
 #if defined(NAAB_RX_LIBREGEXP)
     std::vector<uint8_t> search_bc;
-    unsigned groups = 1;              // including group 0
     std::string translated;
     int lre_flags = 0;
     mutable std::once_flag full_once;
     mutable std::vector<uint8_t> full_bc;   // ^(?:P)$, for regex_match
 #else
-    std::regex re;
-    unsigned groups = 1;
+    std::regex re;                           // the fallback without QuickJS (MSVC)
 #endif
 #if defined(NAAB_REGEX_DIFFERENTIAL)
     std::shared_ptr<std::regex> oracle;   // null when std::regex rejects the pattern
@@ -174,13 +256,9 @@ std::string spansText(bool matched, const std::vector<Span>& s) {
 }
 #endif
 
-// Search [base, base+len) from offset `start`; fill `out` with every group's
-// span. `full` asks for a match of the whole range (regex_match).
-bool execSpans(const regex& re, const char* base, size_t len, size_t start, bool full,
-               std::vector<Span>& out) {
-    const regex::Impl* im = re.impl();
-    if (!im) { out.clear(); return false; }   // as std::regex(): matches nothing
-    out.assign(im->groups, Span{});
+// The backtracking fallback: libregexp, or std::regex without QuickJS.
+bool execFallback(const regex::Impl* im, const char* base, size_t len, size_t start, bool full,
+                  std::vector<Span>& out) {
 #if defined(NAAB_RX_LIBREGEXP)
     if (len > static_cast<size_t>(INT_MAX))
         throw resource_error("regular expression: input too large to search");
@@ -210,6 +288,7 @@ bool execSpans(const regex& re, const char* base, size_t len, size_t start, bool
             }
         }
     }
+    return matched;
 #else
     const char* first = base + start;
     const char* last = base + len;
@@ -226,7 +305,47 @@ bool execSpans(const regex& re, const char* base, size_t len, size_t start, bool
             }
         }
     }
+    return matched;
 #endif
+}
+
+#if defined(NAAB_RX_RE2)
+// RE2: linear in the input. Match() reads the whole text as context, so '^'
+// holds only at offset 0 and '\\b' sees the byte before `start`, as
+// std::regex's match_prev_avail does for a continued search.
+bool execRe2(const regex::Impl* im, const char* base, size_t len, size_t start, bool full,
+             std::vector<Span>& out) {
+    std::vector<absl::string_view> sub(im->groups);
+    absl::string_view text(len ? base : "", len);
+    bool matched = im->re2->Match(text, full ? 0 : start, len,
+                                  full ? re2::RE2::ANCHOR_BOTH : re2::RE2::UNANCHORED,
+                                  sub.data(), static_cast<int>(im->groups));
+    if (matched) {
+        for (unsigned g = 0; g < im->groups; ++g) {
+            if (sub[g].data() != nullptr) {
+                out[g].begin = sub[g].data() - text.data();
+                out[g].end = out[g].begin + static_cast<long>(sub[g].size());
+            }
+        }
+    }
+    return matched;
+}
+#endif
+
+// Search [base, base+len) from offset `start`; fill `out` with every group's
+// span. `full` asks for a match of the whole range (regex_match).
+bool execSpans(const regex& re, const char* base, size_t len, size_t start, bool full,
+               std::vector<Span>& out) {
+    const regex::Impl* im = re.impl();
+    if (!im) { out.clear(); return false; }   // as std::regex(): matches nothing
+    out.assign(im->groups, Span{});
+    bool matched;
+#if defined(NAAB_RX_RE2)
+    if (im->re2)
+        matched = execRe2(im, base, len, start, full, out);
+    else
+#endif
+        matched = execFallback(im, base, len, start, full, out);
 #if defined(NAAB_REGEX_DIFFERENTIAL)
     if (im->oracle && len <= kOracleMaxInput) {
         std::cmatch m;
@@ -245,6 +364,11 @@ bool execSpans(const regex& re, const char* base, size_t len, size_t start, bool
                 if (ss[g].begin != out[g].begin || ss[g].end != out[g].end) { same = false; break; }
         if (!same)
             diffLog("MISMATCH " + std::string(full ? "match" : "search") +
+                    " engine=" + std::string(
+#if defined(NAAB_RX_RE2)
+                        im->re2 ? "re2" :
+#endif
+                        "fallback") +
                     " flags=" + std::to_string(re.flags()) + " start=" + std::to_string(start) +
                     " pattern=" + escapeForLog(re.pattern(), 300) +
                     " input=" + escapeForLog(std::string(base, len), 300) +
@@ -262,26 +386,69 @@ regex::regex() = default;
 
 regex::regex(const char* pattern, flag_type flags) : regex(std::string(pattern ? pattern : ""), flags) {}
 
-regex::regex(const std::string& pattern, flag_type flags) : pattern_(pattern), flags_(flags) {
-    auto im = std::make_shared<Impl>();
+namespace {
+
+#if defined(NAAB_RX_RE2)
+// True when RE2 took the pattern (see translateForRe2 for when it may).
+bool compileRe2(regex::Impl& im, const std::string& pattern, regex::flag_type flags) {
+    std::string translated;
+    if (!translateForRe2(pattern, translated)) return false;
+    re2::RE2::Options o;
+    o.set_encoding(re2::RE2::Options::EncodingLatin1);   // byte by byte, as std::regex<char>
+    o.set_case_sensitive((flags & regex::icase) == 0);
+    o.set_log_errors(false);                             // never echo a pattern to stderr
+    auto r = std::make_unique<re2::RE2>(translated, o);
+    if (!r->ok()) return false;
+    im.groups = static_cast<unsigned>(r->NumberOfCapturingGroups()) + 1;
+    im.re2 = std::move(r);
+    return true;
+}
+#endif
+
+void compileFallback(regex::Impl& im, const std::string& pattern, regex::flag_type flags) {
 #if defined(NAAB_RX_LIBREGEXP)
-    im->translated = translatePattern(pattern);
-    im->lre_flags = (flags & icase) ? LRE_FLAG_IGNORECASE : 0;
+    im.translated = translatePattern(pattern);
+    im.lre_flags = (flags & regex::icase) ? LRE_FLAG_IGNORECASE : 0;
     std::string err;
-    im->search_bc = compileLre(im->translated, im->lre_flags, err);
-    if (im->search_bc.empty()) {
+    im.search_bc = compileLre(im.translated, im.lre_flags, err);
+    if (im.search_bc.empty()) {
 #if defined(NAAB_REGEX_DIFFERENTIAL)
         diffLog("COMPILE rx-rejects pattern=" + escapeForLog(pattern, 300) + " error=" + err);
 #endif
         throw pattern_error("regular expression: " + err);
     }
-    im->groups = static_cast<unsigned>(lre_get_capture_count(im->search_bc.data()));
+    im.groups = static_cast<unsigned>(lre_get_capture_count(im.search_bc.data()));
 #else
     auto f = std::regex::ECMAScript;
-    if (flags & icase) f |= std::regex::icase;
-    im->re = std::regex(pattern, f);
-    im->groups = static_cast<unsigned>(im->re.mark_count()) + 1;
+    if (flags & regex::icase) f |= std::regex::icase;
+    im.re = std::regex(pattern, f);
+    im.groups = static_cast<unsigned>(im.re.mark_count()) + 1;
 #endif
+}
+
+}  // namespace
+
+regex::regex(const std::string& pattern, flag_type flags) : pattern_(pattern), flags_(flags) {
+    auto im = std::make_shared<Impl>();
+    bool linear = false;
+#if defined(NAAB_RX_RE2)
+    linear = compileRe2(*im, pattern, flags);
+#endif
+    if (!linear) {
+#if defined(NAAB_REGEX_DIFFERENTIAL)
+        // Once per pattern: the list of patterns left on the backtracking
+        // matcher is A89's residual, enumerated rather than guessed.
+        static std::mutex mu;
+        static std::unordered_set<std::string> seen;
+        {
+            std::lock_guard<std::mutex> lock(mu);
+            if (seen.insert(pattern).second)
+                diffLog("ENGINE fallback flags=" + std::to_string(flags) +
+                        " pattern=" + escapeForLog(pattern, 300));
+        }
+#endif
+        compileFallback(*im, pattern, flags);
+    }
 #if defined(NAAB_REGEX_DIFFERENTIAL)
     try {
         auto f = std::regex::ECMAScript;
@@ -295,6 +462,14 @@ regex::regex(const std::string& pattern, flag_type flags) : pattern_(pattern), f
 }
 
 unsigned regex::mark_count() const { return impl_ ? impl_->groups - 1 : 0; }
+
+bool regex::linear_time() const {
+#if defined(NAAB_RX_RE2)
+    return impl_ && impl_->re2 != nullptr;
+#else
+    return false;
+#endif
+}
 
 // ---- sub_match / smatch -----------------------------------------------------
 

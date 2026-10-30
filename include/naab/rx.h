@@ -7,10 +7,13 @@
 // output_contract regex, a long reply under the engine's own no_pii scan, a
 // program holding a long string literal (A89, docs/open-investigations.md).
 //
-// naab::rx is the subset of the std::regex API the engine uses, matched by
-// QuickJS's libregexp, which keeps its backtracking state on the heap: a 1 MB
-// input is an ordinary search. It is drop-in by design -- naab::rx::regex for
-// std::regex, naab::rx::smatch for std::smatch, and so on -- and it matches
+// naab::rx is the subset of the std::regex API the engine uses. A pattern RE2
+// can read exactly as std::regex does is matched by RE2, in time linear in the
+// input; the rest (lookaround, backreferences, ECMAScript-only escapes) by
+// QuickJS's libregexp, which keeps its backtracking state on the heap -- no
+// crash, but superlinear on hostile input. A 1 MB input is an ordinary search.
+// It is drop-in by design -- naab::rx::regex for std::regex, naab::rx::smatch
+// for std::smatch, and so on -- and it matches
 // std::regex's dialect where the engine depends on it: the pattern is matched
 // byte by byte (a non-ASCII byte in the pattern stands for that byte, as in
 // std::regex<char>), and \s / \S are the C locale's six space characters
@@ -18,8 +21,8 @@
 // Known differences, kept: lookbehind and named groups compile (std::regex
 // rejected them); after an EMPTY match an iterator resumes one byte later
 // (JavaScript's rule; std tries a non-empty match at the same position first);
-// under icase a byte >= 0x80 folds as Latin-1. A nested quantifier on hostile
-// input is still exponential, as it was under std::regex (no time hook in this
+// under icase a byte >= 0x80 folds as Latin-1. On the fallback matcher a
+// hostile input can still take superlinear time (no time hook in this
 // libregexp) -- recorded in A89.
 //
 // Errors: a pattern that does not compile throws std::regex_error, so every
@@ -29,8 +32,8 @@
 // a detection check that skipped its pattern would have passed text it never
 // scanned.
 //
-// Built without QuickJS (MSVC, where QuickJS does not compile), naab::rx is a
-// thin wrapper over std::regex and keeps its limits.
+// Built without QuickJS (MSVC, where QuickJS does not compile), the fallback
+// for what RE2 cannot read is std::regex, with its limits.
 #pragma once
 
 #include <cstddef>
@@ -62,6 +65,10 @@ public:
     explicit regex(const char* pattern, flag_type flags = ECMAScript);
 
     unsigned mark_count() const;   // capture groups, not counting group 0
+    // True when RE2 matches this pattern (linear in the input). False when it
+    // fell back to the backtracking matcher: lookaround, backreferences,
+    // ECMAScript-only escapes -- A89's recorded residual.
+    bool linear_time() const;
     flag_type flags() const { return flags_; }
     const std::string& pattern() const { return pattern_; }
 

@@ -28,16 +28,24 @@
 #   LR-05   regex.matches(text, "^[a-z ]+$") on 60,000 bytes: true (master:
 #           SIGSEGV)
 #   LR-05c  the same text ending in "!": false
+#   LR-06   time, not only the crash: an operator's UNANCHORED contract pattern
+#           [a-z]+@[a-z]+ over a 60,000-byte field with no '@' reaches its
+#           verdict (a contract violation) within 30 s. A backtracking matcher
+#           rescans from every start position -- quadratic: libregexp took
+#           155 s for 80,000 bytes (observed) -- RE2 is linear
+#   LR-06c  the same field ending in "@example" is delivered
 #
 # The SSN is built here from fragments; the repo holds none.
 #
-# Kill table (each mutant rebuilt, suite re-run; observed 2026-10-30):
-#   naab::rx built on std::regex (the pre-fix engine, NAAB_RX_LIBREGEXP off)
-#                          -> LR-01 LR-01c LR-02 LR-03 LR-04 LR-04c LR-05 LR-05c red
+# Kill table (each mutant rebuilt, suite re-run; observed 2026-10-30, RE2 build):
+#   std::regex only (RE2 and libregexp off: the pre-fix engine)
+#                 -> LR-01 LR-01c LR-02 LR-03 LR-04 LR-04c LR-05 LR-05c LR-06 LR-06c red
+#   RE2 never takes a pattern (everything on libregexp)
+#                 -> LR-06 red (the run took 75 s; with RE2, 1 s)
 #   naab::rx searches only the first 50,000 bytes
-#                          -> LR-01c LR-02c LR-03c LR-04c LR-05c red (the c arms
-#                             are the guard against fixing the crash by truncating)
-# Red first: on master the same eight arms as the first mutant fail (SIGSEGV).
+#                 -> LR-01c LR-02c LR-03c LR-04c LR-05c LR-06c red (the c arms are
+#                    the guard against fixing the crash by truncating)
+# Red first: on master the same ten arms as the first mutant fail (SIGSEGV).
 # LR-02c and LR-03c pass on master too: the SSN pattern is the first PII
 # pattern tried, finds the SSN and returns before the pattern that crashed runs.
 
@@ -184,6 +192,26 @@ if [ "$RC" -eq 0 ] && has "M=false"; then
     pass LR-05c "regex.matches is false when the last byte breaks the pattern"
 else
     fail LR-05c "regex.matches should be false" "rc=$RC $(brief)"
+fi
+
+if [ "$STUB_OK" = 1 ]; then
+    UNANCHORED=', "output_contract": {"format": "json", "regex_checks": {"a": "[a-z]+@[a-z]+"}}'
+    T0=$SECONDS
+    agent_case lr06 "{\\\"a\\\": \\\"$LONG\\\"}" '' "$UNANCHORED"
+    EL=$((SECONDS - T0))
+    if has "does not match pattern" && ! has "DELIVERED" && [ "$EL" -lt 30 ]; then
+        pass LR-06 "an unanchored pattern over 60,000 bytes reaches its verdict in ${EL}s"
+    else
+        fail LR-06 "the verdict must come within 30 s (took ${EL}s)" "rc=$RC $(brief)"
+    fi
+    agent_case lr06c "{\\\"a\\\": \\\"$LONG@example\\\"}" '' "$UNANCHORED"
+    if [ "$RC" -eq 0 ] && has "DELIVERED len=60017"; then
+        pass LR-06c "the same field with a match at its end is delivered"
+    else
+        fail LR-06c "a long field that matches at its end should be delivered" "rc=$RC $(brief)"
+    fi
+else
+    for a in LR-06 LR-06c; do unm "$a" "no stub"; done
 fi
 
 echo ""
