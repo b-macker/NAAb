@@ -2040,6 +2040,7 @@ typedef struct {
     BOOL ignore_case;
     BOOL is_utf16;
     void *opaque; /* used for stack overflow check */
+    int interrupt_counter; /* NAAb patch (A89): steps until lre_check_timeout() */
 
     size_t state_size;
     uint8_t *state_stack;
@@ -2101,6 +2102,13 @@ static intptr_t lre_exec_backtrack(REExecContext *s, uint8_t **capture,
 
     for(;;) {
         //        printf("top=%p: pc=%d\n", th_list.top, (int)(pc - (bc_buf + RE_HEADER_LEN)));
+        /* NAAb patch (A89): every step counts, forward or backtracking, so the
+           host can bound the work of any pattern on any input. */
+        if (unlikely(--s->interrupt_counter <= 0)) {
+            s->interrupt_counter = LRE_INTERRUPT_COUNTER_INIT;
+            if (lre_check_timeout(s->opaque))
+                return LRE_RET_TIMEOUT;
+        }
         opcode = *pc++;
         switch(opcode) {
         case REOP_match:
@@ -2465,7 +2473,7 @@ static intptr_t lre_exec_backtrack(REExecContext *s, uint8_t **capture,
                 for(;;) {
                     res = lre_exec_backtrack(s, capture, stack, stack_len,
                                              pc1, cptr, TRUE);
-                    if (res == -1)
+                    if (res == -1 || res == LRE_RET_TIMEOUT)
                         return res;
                     if (!res)
                         break;
@@ -2516,6 +2524,7 @@ int lre_exec(uint8_t **capture,
     if (s->cbuf_type == 1 && s->is_utf16)
         s->cbuf_type = 2;
     s->opaque = opaque;
+    s->interrupt_counter = LRE_INTERRUPT_COUNTER_INIT;
 
     s->state_size = sizeof(REExecState) +
         s->capture_count * sizeof(capture[0]) * 2 +
@@ -2565,6 +2574,11 @@ BOOL lre_check_stack_overflow(void *opaque, size_t alloca_size)
 void *lre_realloc(void *opaque, void *ptr, size_t size)
 {
     return realloc(ptr, size);
+}
+
+LRE_BOOL lre_check_timeout(void *opaque)
+{
+    return FALSE;
 }
 
 int main(int argc, char **argv)

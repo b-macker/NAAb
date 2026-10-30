@@ -27,9 +27,10 @@
 # not something to do silently. credential_harvesting is the clearest case: an
 # env var matching *key*|*token*|*secret* followed by a network call within 5
 # events is the intended detection AND what every legitimate API client does.
-# So behavioral_sequences.default_pattern_enforcement defaults to "observe",
-# which runs every built-in at ADVISORY; "declared" restores the levels each
-# pattern asks for. Ratcheted: declared -> observe is a loosening violation.
+# So behavioral_sequences.default_pattern_enforcement shipped "observe", which
+# runs every built-in at ADVISORY; "declared" restores the levels each pattern
+# asks for. Bundle 6 made "declared" the default (the owner's plan); "observe"
+# is the opt-out. Ratcheted: declared -> observe is a loosening violation.
 #
 #   DP-01  VACUITY GUARD: the fixture really does execute tools
 #   DP-02  a previously-dead built-in (tool_rapid_fire) now fires
@@ -39,6 +40,9 @@
 #   DP-05  declared mode: the same pattern BLOCKS. Without this pair, "observe"
 #          is indistinguishable from the patterns still being dead
 #   DP-06  an unrecognised enforcement value warns and keeps the default
+#   DP-10  no enforcement key written: the same SOFT built-in BLOCKS, as under
+#          "declared" (Bundle 6's default; DP-04 is its "observe" control).
+#          Observed 2026-10-30: with the default left "observe", DP-10 is red.
 #
 # SECOND DEFECT, INDEPENDENT OF THE NAMES
 #
@@ -202,6 +206,14 @@ if [ "$O_DEC" = "BLOCKED" ]; then
     pass "DP-05" "declared: the same pattern blocks"
 else
     fail "DP-05" "declared mode did not block" "outcome=$O_DEC fired=[${F_DEC:-none}] — observe would then be indistinguishable from dead patterns"
+fi
+
+R_ABS="$(run_arm "$PROCTOOL" "" 1)"
+O_ABS="${R_ABS%%|*}"; F_ABS="$(x="${R_ABS#*|}"; echo "${x%|*}")"
+if [ "$O_ABS" = "BLOCKED" ] && grep <<<"$F_ABS" -q "tool_shell_escape"; then
+    pass "DP-10" "no enforcement key: the SOFT built-in blocks (declared is the default)"
+else
+    fail "DP-10" "the default should be declared" "outcome=$O_ABS fired=[${F_ABS:-none}]"
 fi
 
 echo -e "${CYAN}--- DP-06: unrecognised enforcement value ---${NC}"

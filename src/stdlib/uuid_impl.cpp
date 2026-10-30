@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <random>
 #include <regex>
+#include "naab/rx.h"
 #include <sstream>
 #include <stdexcept>
 #include <unordered_set>
@@ -90,12 +91,12 @@ interpreter::NaabVal UuidModule::call(
         if (!args[0].isString()) {
             return interpreter::NaabVal::makeBool(false);
         }
-        static const std::regex uuid_pattern(
+        static const naab::rx::regex uuid_pattern(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}"
             "-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
         );
         return interpreter::NaabVal::makeBool(
-            std::regex_match(args[0].asString(), uuid_pattern));
+            naab::rx::regex_match(args[0].asString(), uuid_pattern));
     }
 
     if (function_name == "v5") {

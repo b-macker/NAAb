@@ -3,6 +3,7 @@
 
 #include "naab/scanner.h"
 #include <regex>
+#include "naab/rx.h"
 #include <unordered_set>
 #include <algorithm>
 #include <fmt/core.h>
@@ -55,17 +56,17 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
 
     // 1. hardcoded_credentials
     if (isEnabled(CAT, "hardcoded_credentials")) {
-        static const std::regex cred_pat(
+        static const naab::rx::regex cred_pat(
             R"((?:password|passwd|pwd|secret|api_key|apikey|token|auth_token|access_key)\s*[=:]\s*['"][^'"]{8,}['"])",
-            std::regex::icase);
-        static const std::regex redact_pat(R"([=:]\s*['"][^'"]+['"])");
+            naab::rx::regex::icase);
+        static const naab::rx::regex redact_pat(R"([=:]\s*['"][^'"]+['"])");
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = sec_trim(lines[i]);
             if (sec_startsWith(s, "#") || sec_startsWith(s, "//") ||
                 sec_startsWith(s, "/*") || sec_startsWith(s, "*")) continue;
-            if (std::regex_search(s, cred_pat)) {
-                std::string redacted = std::regex_replace(s, redact_pat, "= \"***REDACTED***\"");
+            if (naab::rx::regex_search(s, cred_pat)) {
+                std::string redacted = naab::rx::regex_replace(s, redact_pat, "= \"***REDACTED***\"");
                 addSecIssue(i + 1, "hardcoded_credentials",
                            "Hardcoded credential detected", redacted,
                            "Use environment variables or secrets manager");
@@ -75,14 +76,14 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
 
     // 2. sql_string_concat
     if (isEnabled(CAT, "sql_string_concat")) {
-        static const std::regex sql_pat(
+        static const naab::rx::regex sql_pat(
             R"((?:SELECT|INSERT|UPDATE|DELETE|DROP)\s+.*(?:\+\s*\w+|\.format\(|f['"]))",
-            std::regex::icase);
+            naab::rx::regex::icase);
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = sec_trim(lines[i]);
             if (sec_startsWith(s, "#") || sec_startsWith(s, "//") || sec_startsWith(s, "/*")) continue;
-            if (std::regex_search(s, sql_pat)) {
+            if (naab::rx::regex_search(s, sql_pat)) {
                 addSecIssue(i + 1, "sql_string_concat",
                            "SQL injection risk via string concatenation", s,
                            "Use parameterized queries");
@@ -92,17 +93,17 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
 
     // 3. shell_injection
     if (isEnabled(CAT, "shell_injection")) {
-        static const std::regex shell_pats[] = {
-            std::regex(R"(os\.system\s*\([^)]*\+)"),
-            std::regex(R"(subprocess\.\w+\(.*shell\s*=\s*True)"),
-            std::regex(R"(child_process\.exec\s*\([^)]*\+)")
+        static const naab::rx::regex shell_pats[] = {
+            naab::rx::regex(R"(os\.system\s*\([^)]*\+)"),
+            naab::rx::regex(R"(subprocess\.\w+\(.*shell\s*=\s*True)"),
+            naab::rx::regex(R"(child_process\.exec\s*\([^)]*\+)")
         };
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = sec_trim(lines[i]);
             if (sec_startsWith(s, "#") || sec_startsWith(s, "//") || sec_startsWith(s, "/*")) continue;
             for (const auto& pat : shell_pats) {
-                if (std::regex_search(s, pat)) {
+                if (naab::rx::regex_search(s, pat)) {
                     addSecIssue(i + 1, "shell_injection",
                                "Command injection risk", s,
                                "Use subprocess with list args, no shell=True");
@@ -114,22 +115,22 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
 
     // 4. insecure_random
     if (isEnabled(CAT, "insecure_random")) {
-        static const std::regex random_pat(
+        static const naab::rx::regex random_pat(
             R"((?:random\.(?:random|randint|choice|randrange)\(|Math\.random\(\)))",
-            std::regex::icase);
-        static const std::regex sec_context(
+            naab::rx::regex::icase);
+        static const naab::rx::regex sec_context(
             R"((?:password|token|key|secret|salt|nonce|otp|csrf|session))",
-            std::regex::icase);
+            naab::rx::regex::icase);
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = sec_trim(lines[i]);
-            bool has_random = std::regex_search(s, random_pat);
+            bool has_random = naab::rx::regex_search(s, random_pat);
             bool has_random_word = s.find("random") != std::string::npos;
 
-            if (has_random || (has_random_word && std::regex_search(s, sec_context))) {
-                bool in_sec = std::regex_search(s, sec_context);
+            if (has_random || (has_random_word && naab::rx::regex_search(s, sec_context))) {
+                bool in_sec = naab::rx::regex_search(s, sec_context);
                 if (!in_sec && i > 0) {
-                    in_sec = std::regex_search(lines[i - 1], sec_context);
+                    in_sec = naab::rx::regex_search(lines[i - 1], sec_context);
                 }
                 if (in_sec) {
                     addSecIssue(i + 1, "insecure_random",
@@ -142,14 +143,14 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
 
     // 5. weak_crypto
     if (isEnabled(CAT, "weak_crypto")) {
-        static const std::regex weak_pat(R"(\b(?:md5|sha1)\s*[(.])");
+        static const naab::rx::regex weak_pat(R"(\b(?:md5|sha1)\s*[(.])");
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = sec_trim(lines[i]);
             if (sec_startsWith(s, "#") || sec_startsWith(s, "//") || sec_startsWith(s, "/*")) continue;
             std::string lower_s = s;
             std::transform(lower_s.begin(), lower_s.end(), lower_s.begin(), ::tolower);
-            if (std::regex_search(lower_s, weak_pat) && lower_s.find("checksum") == std::string::npos) {
+            if (naab::rx::regex_search(lower_s, weak_pat) && lower_s.find("checksum") == std::string::npos) {
                 addSecIssue(i + 1, "weak_crypto",
                            "Weak hash algorithm (MD5/SHA1)", s,
                            "Use SHA-256 or stronger");
@@ -159,7 +160,7 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
 
     // 6. hardcoded_ip
     if (isEnabled(CAT, "hardcoded_ip")) {
-        static const std::regex ip_pat(R"(\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b)");
+        static const naab::rx::regex ip_pat(R"(\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b)");
         static const std::unordered_set<std::string> safe_ips = {
             "127.0.0.1", "0.0.0.0", "255.255.255.255", "255.255.255.0"
         };
@@ -167,8 +168,8 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = sec_trim(lines[i]);
             if (sec_startsWith(s, "#") || sec_startsWith(s, "//") || sec_startsWith(s, "/*")) continue;
-            std::sregex_iterator it(s.begin(), s.end(), ip_pat);
-            std::sregex_iterator end;
+            naab::rx::sregex_iterator it(s.begin(), s.end(), ip_pat);
+            naab::rx::sregex_iterator end;
             for (; it != end; ++it) {
                 std::string ip = (*it)[1].str();
                 if (!safe_ips.count(ip)) {
@@ -182,12 +183,12 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
 
     // 7. hardcoded_url
     if (isEnabled(CAT, "hardcoded_url")) {
-        static const std::regex url_pat(R"(https?://(?!example\.com|localhost|127\.0\.0\.1)[^\s'"]+)");
+        static const naab::rx::regex url_pat(R"(https?://(?!example\.com|localhost|127\.0\.0\.1)[^\s'"]+)");
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = sec_trim(lines[i]);
             if (sec_startsWith(s, "#") || sec_startsWith(s, "//") || sec_startsWith(s, "/*")) continue;
-            if (std::regex_search(s, url_pat)) {
+            if (naab::rx::regex_search(s, url_pat)) {
                 addSecIssue(i + 1, "hardcoded_url",
                            "Hardcoded URL", s, "Move to config");
             }
@@ -196,16 +197,16 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
 
     // 8. path_traversal
     if (isEnabled(CAT, "path_traversal")) {
-        static const std::regex path_pats[] = {
-            std::regex(R"(open\s*\([^)]*\+)"),
-            std::regex(R"(os\.path\.join\s*\([^)]*request)"),
-            std::regex(R"(fs\.readFile\s*\([^)]*req\.)")
+        static const naab::rx::regex path_pats[] = {
+            naab::rx::regex(R"(open\s*\([^)]*\+)"),
+            naab::rx::regex(R"(os\.path\.join\s*\([^)]*request)"),
+            naab::rx::regex(R"(fs\.readFile\s*\([^)]*req\.)")
         };
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = sec_trim(lines[i]);
             for (const auto& pat : path_pats) {
-                if (std::regex_search(s, pat)) {
+                if (naab::rx::regex_search(s, pat)) {
                     addSecIssue(i + 1, "path_traversal",
                                "Potential path traversal", s,
                                "Validate and sanitize file paths");
@@ -217,7 +218,7 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
 
     // 9. insecure_deserialization
     if (isEnabled(CAT, "insecure_deserialization")) {
-        struct DeserPat { std::regex pat; std::string desc; };
+        struct DeserPat { naab::rx::regex pat; std::string desc; };
         static const std::vector<std::pair<std::string, std::string>> deser_pats = {
             {R"(pickle\.loads?\s*\()", "Unsafe pickle"},
             {R"(yaml\.load\s*\((?!.*SafeLoader))", "yaml.load without SafeLoader"},
@@ -228,8 +229,8 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
             std::string s = sec_trim(lines[i]);
             if (sec_startsWith(s, "#") || sec_startsWith(s, "//") || sec_startsWith(s, "/*")) continue;
             for (const auto& [pat_str, desc] : deser_pats) {
-                std::regex pat(pat_str);
-                if (std::regex_search(s, pat)) {
+                naab::rx::regex pat(pat_str);
+                if (naab::rx::regex_search(s, pat)) {
                     addSecIssue(i + 1, "insecure_deserialization", desc, s,
                                "Use safe deserialization");
                     break;
@@ -240,10 +241,10 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
 
     // 10. exposed_stack_traces
     if (isEnabled(CAT, "exposed_stack_traces")) {
-        static const std::regex trace_pat(R"(traceback\.format_exc\s*\(\))");
+        static const naab::rx::regex trace_pat(R"(traceback\.format_exc\s*\(\))");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = sec_trim(lines[i]);
-            if (std::regex_search(s, trace_pat)) {
+            if (naab::rx::regex_search(s, trace_pat)) {
                 addSecIssue(i + 1, "exposed_stack_traces",
                            "Stack trace may be exposed", s,
                            "Log server-side, send generic error to client");
@@ -253,11 +254,11 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
 
     // 11. process_shell_guard: flag process.* calls when shell is disabled
     if (!config_.shell_allowed && isEnabled(CAT, "process_shell_guard")) {
-        static const std::regex proc_pat(R"(\bprocess\.(exit|run|kill|getpid)\s*\()");
+        static const naab::rx::regex proc_pat(R"(\bprocess\.(exit|run|kill|getpid)\s*\()");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = sec_trim(lines[i]);
-            std::smatch m;
-            if (std::regex_search(s, m, proc_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(s, m, proc_pat)) {
                 addSecIssue(static_cast<int>(i + 1), "process_shell_guard",
                     fmt::format("process.{}() called but shell is disabled in govern.json",
                                 m[1].str()),

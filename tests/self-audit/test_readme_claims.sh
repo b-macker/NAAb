@@ -55,8 +55,8 @@
 #   RC-19  Go and PHP blocks run without `package main` / `<?php`
 #   RC-20  live guidance: a violation shows the section named for its rule,
 #          and the program may not write a source
-#   RC-21  scanning agent replies for secrets is off by default and ends the
-#          run when on
+#   RC-21  what a model writes is scanned for secrets by default and a hit
+#          ends the run; "no_secrets": false turns it off (Bundle 6)
 #   RC-22  every program in USER_GUIDE.md, each in a fresh `naab-lang init`
 #          project with only the govern.json change its section shows: its
 #          exit code, the values its comments promise, and the output block
@@ -942,7 +942,7 @@ J
 fi
 
 # ---- RC-21: secrets in agent replies -----------------------------------------
-if readme_says "RC-21" '`code_quality.no_secrets` (off by default; when on, a hit ends the run)'; then
+if readme_says "RC-21" 'What the model writes is scanned unless `govern.json` says `"no_secrets": false`'; then
     if [ "$IS_WINDOWS" -eq 1 ]; then
         unm "RC-21" "the agent stub is not run on Windows"
     else
@@ -961,15 +961,16 @@ if readme_says "RC-21" '`code_quality.no_secrets` (off by default; when on, a hi
             stop_stub
             return 0
         }
-        if ! sec_run rc21_off ""; then unm "RC-21" "the agent stub did not start"
+        if ! sec_run rc21_default ""; then unm "RC-21" "the agent stub did not start"
         else
-            OFF=("$SEC_RC" "$(grep -c '^REPLY_RECEIVED' <<<"$(lines "$SEC_OUT")")")
-            if sec_run rc21_on ', "code_quality": {"no_secrets": {"level": "hard"}}'; then
-                if [ "${OFF[0]}" = 0 ] && [ "${OFF[1]}" = 1 ] && [ "$SEC_RC" -eq 3 ] \
-                   && grep -qF 'code_quality.no_secrets' <<<"$SEC_OUT" && ! grep -q '^REPLY_RECEIVED' <<<"$(lines "$SEC_OUT")"; then
-                    pass "RC-21" "a reply holding a key reaches the program by default; with no_secrets on, the run ends (exit 3)"
+            DEF=("$SEC_RC" "$(grep -c '^REPLY_RECEIVED' <<<"$(lines "$SEC_OUT")")" \
+                 "$(grep -cF 'code_quality.no_secrets' <<<"$SEC_OUT")")
+            if sec_run rc21_off ', "code_quality": {"no_secrets": false}'; then
+                if [ "${DEF[0]}" -eq 3 ] && [ "${DEF[1]}" = 0 ] && [ "${DEF[2]}" -gt 0 ] \
+                   && [ "$SEC_RC" -eq 0 ] && grep -q '^REPLY_RECEIVED' <<<"$(lines "$SEC_OUT")"; then
+                    pass "RC-21" "by default a reply holding a key ends the run (exit 3); with \"no_secrets\": false it reaches the program"
                 else
-                    fail "RC-21" "reply secret scanning should be off by default and end the run when on" "off rc=${OFF[0]} on rc=$SEC_RC"
+                    fail "RC-21" "reply secret scanning should be on by default and off when set false" "default rc=${DEF[0]} off rc=$SEC_RC"
                 fi
             else unm "RC-21" "the agent stub did not start"; fi
         fi

@@ -4,6 +4,7 @@
 //
 
 #include "naab/safe_regex.h"
+#include "naab/rx.h"
 #include <sstream>
 #include <algorithm>
 #include <cctype>
@@ -140,7 +141,7 @@ PatternComplexity SafeRegex::analyzePattern(const std::string& pattern) const {
 namespace {
 
 // Operations that timed out but whose worker thread is still running.
-// std::regex cannot be interrupted, so a timed-out match keeps its thread busy
+// naab::rx::regex cannot be interrupted, so a timed-out match keeps its thread busy
 // until the backtracking finishes -- possibly hours. Cap how many may pile up,
 // and refuse new work beyond that rather than spawn threads without limit.
 std::atomic<int> g_abandoned_workers{0};
@@ -222,8 +223,8 @@ bool SafeRegex::safeMatch(const std::string& text,
     auto effective_timeout = getEffectiveTimeout(timeout);
 
     auto operation = [text, pattern]() {
-        std::regex re(pattern);
-        return std::regex_match(text, re);
+        naab::rx::regex re(pattern);
+        return naab::rx::regex_match(text, re);
     };
 
     try {
@@ -242,8 +243,8 @@ bool SafeRegex::safeSearch(const std::string& text,
     auto effective_timeout = getEffectiveTimeout(timeout);
 
     auto operation = [text, pattern]() {
-        std::regex re(pattern);
-        return std::regex_search(text, re);
+        naab::rx::regex re(pattern);
+        return naab::rx::regex_search(text, re);
     };
 
     try {
@@ -255,30 +256,30 @@ bool SafeRegex::safeSearch(const std::string& text,
 
 bool SafeRegex::safeSearch(const std::string& text,
                            const std::string& pattern,
-                           std::smatch& match,
+                           naab::rx::smatch& match,
                            std::chrono::milliseconds timeout) {
     validateInputSize(text);
     validatePattern(pattern);
 
     auto effective_timeout = getEffectiveTimeout(timeout);
 
-    // The worker searches its own copy: std::smatch holds iterators into the
+    // The worker searches its own copy: naab::rx::smatch holds iterators into the
     // string it searched, so it cannot be filled across the thread boundary.
     // Only after the bounded run completes is the same deterministic search
     // repeated on the caller's text to fill `match` -- worst case about twice
     // the budget, never unbounded.
     auto operation = [text, pattern]() {
-        std::regex re(pattern);
-        return std::regex_search(text, re);
+        naab::rx::regex re(pattern);
+        return naab::rx::regex_search(text, re);
     };
 
     try {
         if (!executeWithTimeout(operation, effective_timeout, pattern)) {
-            match = std::smatch();
+            match = naab::rx::smatch();
             return false;
         }
-        std::regex re(pattern);
-        return std::regex_search(text, match, re);
+        naab::rx::regex re(pattern);
+        return naab::rx::regex_search(text, match, re);
     } catch (const std::regex_error& e) {
         throw std::runtime_error("Regex error: " + std::string(e.what()));
     }
@@ -295,11 +296,11 @@ std::string SafeRegex::safeReplace(const std::string& text,
     auto effective_timeout = getEffectiveTimeout(timeout);
 
     auto operation = [text, pattern, replacement, replace_all]() {
-        std::regex re(pattern);
+        naab::rx::regex re(pattern);
         if (replace_all) {
-            return std::regex_replace(text, re, replacement);
+            return naab::rx::regex_replace(text, re, replacement);
         } else {
-            return std::regex_replace(text, re, replacement,
+            return naab::rx::regex_replace(text, re, replacement,
                                      std::regex_constants::format_first_only);
         }
     };
@@ -320,11 +321,11 @@ std::vector<std::string> SafeRegex::safeFindAll(const std::string& text,
     auto effective_timeout = getEffectiveTimeout(timeout);
 
     auto operation = [text, pattern, max_matches = limits_.max_matches]() {
-        std::regex re(pattern);
+        naab::rx::regex re(pattern);
         std::vector<std::string> matches;
 
-        auto begin = std::sregex_iterator(text.begin(), text.end(), re);
-        auto end = std::sregex_iterator();
+        auto begin = naab::rx::sregex_iterator(text.begin(), text.end(), re);
+        auto end = naab::rx::sregex_iterator();
 
         size_t count = 0;
         for (auto i = begin; i != end; ++i) {
@@ -429,9 +430,9 @@ bool hasUnboundedRepetition(const std::string& pattern) {
     }
 
     // Check for [...]* or [...]+
-    std::regex unbounded_pattern(R"(\[[^\]]+\][*+])");
+    naab::rx::regex unbounded_pattern(R"(\[[^\]]+\][*+])");
     try {
-        return std::regex_search(pattern, unbounded_pattern);
+        return naab::rx::regex_search(pattern, unbounded_pattern);
     } catch (...) {
         return false;
     }

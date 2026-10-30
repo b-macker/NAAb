@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 #include <regex>
+#include "naab/rx.h"
 #include <optional>
 
 namespace naab {
@@ -132,13 +133,13 @@ private:
     static std::string project_root_;
 
     // Regex patterns for sensitive data
-    static const std::vector<std::regex> sensitive_patterns_;
+    static const std::vector<naab::rx::regex> sensitive_patterns_;
 
     // Helper: Convert absolute path to relative
     static std::string makePathRelative(const std::string& path);
 
     // Helper: Redact a matched sensitive pattern
-    static std::string redactPattern(const std::string& text, const std::regex& pattern);
+    static std::string redactPattern(const std::string& text, const naab::rx::regex& pattern);
 };
 
 // ============================================================================

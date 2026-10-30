@@ -28,6 +28,7 @@
 #include <iostream>
 #include <sstream>
 #include <regex>
+#include "naab/rx.h"
 #include <chrono>
 #include <functional>
 #include <set>
@@ -2218,9 +2219,9 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     continue;
                 }
                 try {
-                    auto flags = std::regex::ECMAScript;
-                    if (!rule.case_sensitive) flags |= std::regex::icase;
-                    rule.compiled_pattern = std::regex(rule.pattern, flags);
+                    auto flags = naab::rx::regex::ECMAScript;
+                    if (!rule.case_sensitive) flags |= naab::rx::regex::icase;
+                    rule.compiled_pattern = naab::rx::regex(rule.pattern, flags);
                     rule.pattern_valid = true;
                 } catch (const std::regex_error&) {
                     fprintf(stderr, "[governance] Warning: Invalid regex in custom rule '%s': %s\n",
@@ -5312,6 +5313,13 @@ static bool checkRatchetViolation(
     chkRestrict(old_r.restrictions.data_exfiltration.enabled, new_r.restrictions.data_exfiltration.enabled, "restrictions.data_exfiltration.enabled");
     chkRestrict(old_r.restrictions.resource_abuse.enabled, new_r.restrictions.resource_abuse.enabled, "restrictions.resource_abuse.enabled");
     chkRestrict(old_r.code_quality.no_secrets.enabled, new_r.code_quality.no_secrets.enabled, "code_quality.no_secrets.enabled");
+    // Model output is scanned unless the config says no_secrets: false (Bundle
+    // 6), so writing that false over an unset key loosens though both copies
+    // of the flag read false before and after.
+    if (old_r.scansModelOutputForSecrets() && !new_r.scansModelOutputForSecrets())
+        violations.push_back("code_quality.no_secrets: model output scanned -> not scanned (loosened)");
+    else if (!old_r.scansModelOutputForSecrets() && new_r.scansModelOutputForSecrets())
+        notices.push_back("code_quality.no_secrets: model output not scanned -> scanned (tightened)");
     chkRestrict(old_r.code_quality.no_placeholders.enabled, new_r.code_quality.no_placeholders.enabled, "code_quality.no_placeholders.enabled");
     chkRestrict(old_r.code_quality.no_pii.enabled, new_r.code_quality.no_pii.enabled, "code_quality.no_pii.enabled");
     chkRestrict(old_r.code_quality.no_hardcoded_results.enabled, new_r.code_quality.no_hardcoded_results.enabled, "code_quality.no_hardcoded_results.enabled");

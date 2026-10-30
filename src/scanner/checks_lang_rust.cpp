@@ -3,6 +3,7 @@
 
 #include "naab/scanner.h"
 #include <regex>
+#include "naab/rx.h"
 #include <algorithm>
 #include <fmt/core.h>
 
@@ -32,10 +33,10 @@ void ScannerEngine::checkLangRust(const std::string& filepath,
 
     // 1. unwrap_in_prod
     if (isEnabled(CAT, "unwrap_in_prod")) {
-        static const std::regex cfg_test(R"(#\[cfg\(test\)\])");
+        static const naab::rx::regex cfg_test(R"(#\[cfg\(test\)\])");
         bool in_test_mod = false;
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], cfg_test)) in_test_mod = true;
+            if (naab::rx::regex_search(lines[i], cfg_test)) in_test_mod = true;
             if (lines[i].find(".unwrap()") != std::string::npos && !in_test_mod && !is_test_file) {
                 addIssue(issues, filepath, i + 1, "unwrap_in_prod", CAT,
                          ".unwrap() in production code", rs_trim(lines[i]),
@@ -47,13 +48,13 @@ void ScannerEngine::checkLangRust(const std::string& filepath,
     // 2. clone_abuse
     if (isEnabled(CAT, "clone_abuse")) {
         int max_clones = static_cast<int>(getNumOption(CAT, "clone_abuse", "max_per_function", 5));
-        static const std::regex func_pat(R"(^\s*(?:pub\s+)?fn\s+(\w+))");
+        static const naab::rx::regex func_pat(R"(^\s*(?:pub\s+)?fn\s+(\w+))");
 
         struct FuncInfo { size_t line; std::string name; };
         std::vector<FuncInfo> funcs;
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, func_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, func_pat)) {
                 funcs.push_back({i, m[1].str()});
             }
         }
@@ -76,9 +77,9 @@ void ScannerEngine::checkLangRust(const std::string& filepath,
 
     // 3. unsafe_blocks
     if (isEnabled(CAT, "unsafe_blocks")) {
-        static const std::regex pat(R"(\bunsafe\s*\{)");
+        static const naab::rx::regex pat(R"(\bunsafe\s*\{)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "unsafe_blocks", CAT,
                          "unsafe block", rs_trim(lines[i]),
                          "Document safety invariants");
@@ -88,9 +89,9 @@ void ScannerEngine::checkLangRust(const std::string& filepath,
 
     // 4. todo_unimplemented
     if (isEnabled(CAT, "todo_unimplemented")) {
-        static const std::regex pat(R"(\b(todo|unimplemented)!\s*\()");
+        static const naab::rx::regex pat(R"(\b(todo|unimplemented)!\s*\()");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "todo_unimplemented", CAT,
                          "Placeholder macro", rs_trim(lines[i]),
                          "Implement the logic");
@@ -100,9 +101,9 @@ void ScannerEngine::checkLangRust(const std::string& filepath,
 
     // 5. expect_without_msg
     if (isEnabled(CAT, "expect_without_msg")) {
-        static const std::regex pat(R"(\.expect\(\s*""\s*\))");
+        static const naab::rx::regex pat(R"(\.expect\(\s*""\s*\))");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "expect_without_msg", CAT,
                          ".expect() without message", rs_trim(lines[i]),
                          "Add descriptive message");
@@ -112,13 +113,13 @@ void ScannerEngine::checkLangRust(const std::string& filepath,
 
     // 6. string_push
     if (isEnabled(CAT, "string_push")) {
-        static const std::regex loop_pat(R"(^(for|while|loop)\b)");
-        static const std::regex push_pat(R"(\.push_str\()");
+        static const naab::rx::regex loop_pat(R"(^(for|while|loop)\b)");
+        static const naab::rx::regex push_pat(R"(\.push_str\()");
         bool in_loop = false;
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = rs_trim(lines[i]);
-            if (std::regex_search(s, loop_pat)) in_loop = true;
-            if (in_loop && std::regex_search(s, push_pat)) {
+            if (naab::rx::regex_search(s, loop_pat)) in_loop = true;
+            if (in_loop && naab::rx::regex_search(s, push_pat)) {
                 addIssue(issues, filepath, i + 1, "string_push", CAT,
                          "push_str in loop", s, "Use write! or collect+join");
             }
@@ -142,9 +143,9 @@ void ScannerEngine::checkLangRust(const std::string& filepath,
 
     // 8. return_impl_trait
     if (isEnabled(CAT, "return_impl_trait")) {
-        static const std::regex pat(R"(pub\s+fn.*->\s*impl\s+)");
+        static const naab::rx::regex pat(R"(pub\s+fn.*->\s*impl\s+)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "return_impl_trait", CAT,
                          "impl Trait in public API return", rs_trim(lines[i]),
                          "Consider named type for stability");
@@ -154,9 +155,9 @@ void ScannerEngine::checkLangRust(const std::string& filepath,
 
     // 9. needless_lifetimes
     if (isEnabled(CAT, "needless_lifetimes")) {
-        static const std::regex pat(R"(fn\s+\w+<'\w+>\s*\(\s*\w+:\s*&'\w+\s+\w+\s*\)\s*->\s*&'\w+)");
+        static const naab::rx::regex pat(R"(fn\s+\w+<'\w+>\s*\(\s*\w+:\s*&'\w+\s+\w+\s*\)\s*->\s*&'\w+)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "needless_lifetimes", CAT,
                          "Lifetime could be elided", rs_trim(lines[i]),
                          "Remove explicit lifetime");
@@ -166,13 +167,13 @@ void ScannerEngine::checkLangRust(const std::string& filepath,
 
     // 10. manual_map
     if (isEnabled(CAT, "manual_map")) {
-        static const std::regex match_pat(R"(match\s+\w+\s*\{)");
-        static const std::regex some_pat(R"(^Some\(\w+\)\s*=>\s*Some\()");
+        static const naab::rx::regex match_pat(R"(match\s+\w+\s*\{)");
+        static const naab::rx::regex some_pat(R"(^Some\(\w+\)\s*=>\s*Some\()");
         for (size_t i = 0; i + 2 < lines.size(); ++i) {
-            if (std::regex_search(lines[i], match_pat)) {
+            if (naab::rx::regex_search(lines[i], match_pat)) {
                 std::string nxt = rs_trim(lines[i + 1]);
                 std::string nxt2 = rs_trim(lines[i + 2]);
-                if (std::regex_search(nxt, some_pat) && nxt2.find("None") == 0) {
+                if (naab::rx::regex_search(nxt, some_pat) && nxt2.find("None") == 0) {
                     addIssue(issues, filepath, i + 1, "manual_map", CAT,
                              "Manual match on Option — use .map()", rs_trim(lines[i]),
                              "Use .map(|x| transform(x))");

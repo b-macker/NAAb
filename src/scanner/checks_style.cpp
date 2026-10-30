@@ -4,6 +4,7 @@
 #include "naab/scanner.h"
 #include <sstream>
 #include <regex>
+#include "naab/rx.h"
 #include <unordered_set>
 #include <unordered_map>
 #include <algorithm>
@@ -40,11 +41,11 @@ void ScannerEngine::checkStyle(const std::string& filepath,
     if (language == "naab") {
         bool in_main = false;
         int main_depth = 0;
-        static const std::regex main_pat(R"(^main\s*\{)");
+        static const naab::rx::regex main_pat(R"(^main\s*\{)");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string sl = st_trim(lines[i]);
             if (!in_main) {
-                if (std::regex_search(sl, main_pat) ||
+                if (naab::rx::regex_search(sl, main_pat) ||
                     (sl == "main" && i + 1 < lines.size() && st_trim(lines[i + 1])[0] == '{')) {
                     in_main = true;
                     int opens = 0, closes = 0;
@@ -65,14 +66,14 @@ void ScannerEngine::checkStyle(const std::string& filepath,
 
     // 1. inconsistent_naming
     if (isEnabled(CAT, "inconsistent_naming")) {
-        static const std::regex func_name_pat(R"((?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
-        static const std::regex snake_pat(R"(^[a-z][a-z0-9_]*$)");
-        static const std::regex camel_pat(R"(^[a-z][a-zA-Z0-9]*$)");
+        static const naab::rx::regex func_name_pat(R"((?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
+        static const naab::rx::regex snake_pat(R"(^[a-z][a-z0-9_]*$)");
+        static const naab::rx::regex camel_pat(R"(^[a-z][a-zA-Z0-9]*$)");
 
         std::vector<std::pair<std::string, int>> func_names;
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, func_name_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, func_name_pat)) {
                 std::string name = m[1].str();
                 if (!st_startsWith(name, "__")) {
                     func_names.push_back({name, static_cast<int>(i + 1)});
@@ -85,8 +86,8 @@ void ScannerEngine::checkStyle(const std::string& filepath,
             for (const auto& [n, _] : func_names) {
                 bool has_upper = false;
                 for (char c : n) if (std::isupper(c)) { has_upper = true; break; }
-                if (std::regex_match(n, snake_pat) && n.find('_') != std::string::npos) snake++;
-                if (std::regex_match(n, camel_pat) && n.find('_') == std::string::npos && has_upper) camel++;
+                if (naab::rx::regex_match(n, snake_pat) && n.find('_') != std::string::npos) snake++;
+                if (naab::rx::regex_match(n, camel_pat) && n.find('_') == std::string::npos && has_upper) camel++;
             }
             if (snake > 0 && camel > 0) {
                 addIssue(issues, filepath, 1, "inconsistent_naming", CAT,
@@ -117,9 +118,9 @@ void ScannerEngine::checkStyle(const std::string& filepath,
                     if (lines[mi].find("__name__") != std::string::npos &&
                         lines[mi].find("__main__") != std::string::npos) {
                         for (size_t mk = mi; mk < std::min(mi + 5, lines.size()); ++mk) {
-                            static const std::regex mc_pat(R"(\s+(\w+)\s*\(\s*\))");
-                            std::smatch mc;
-                            if (std::regex_search(lines[mk], mc, mc_pat)) {
+                            static const naab::rx::regex mc_pat(R"(\s+(\w+)\s*\(\s*\))");
+                            naab::rx::smatch mc;
+                            if (naab::rx::regex_search(lines[mk], mc, mc_pat)) {
                                 name_main_func = mc[1].str();
                                 break;
                             }
@@ -130,9 +131,9 @@ void ScannerEngine::checkStyle(const std::string& filepath,
                 if (!name_main_func.empty()) {
                     bool in_mf = false;
                     int mf_indent = 0;
-                    std::regex mf_start("^def\\s+" + name_main_func + "\\s*\\(");
+                    naab::rx::regex mf_start("^def\\s+" + name_main_func + "\\s*\\(");
                     for (size_t mi = 0; mi < lines.size(); ++mi) {
-                        if (!in_mf && std::regex_search(lines[mi], mf_start)) {
+                        if (!in_mf && naab::rx::regex_search(lines[mi], mf_start)) {
                             in_mf = true;
                             mf_indent = st_indent(lines[mi]);
                         } else if (in_mf) {
@@ -155,8 +156,8 @@ void ScannerEngine::checkStyle(const std::string& filepath,
                 if (name_main_lines.count(i)) continue;
 
                 for (const auto& pat_str : it->second) {
-                    std::regex pat(pat_str);
-                    if (std::regex_search(s, pat)) {
+                    naab::rx::regex pat(pat_str);
+                    if (naab::rx::regex_search(s, pat)) {
                         // Python: skip if within __name__ == "__main__" context
                         if (language == "python" && i >= 5) {
                             std::string context;
@@ -175,13 +176,13 @@ void ScannerEngine::checkStyle(const std::string& filepath,
 
         // Fix K: Additional NAAb-specific debug checks for custom log functions
         if (language == "naab") {
-            static const std::regex naab_custom_debug(R"((?:^|[^.\w])(?:log|debug|trace)\s*\()");
+            static const naab::rx::regex naab_custom_debug(R"((?:^|[^.\w])(?:log|debug|trace)\s*\()");
             for (size_t i = 0; i < lines.size(); ++i) {
                 if (main_lines.count(i)) continue;
                 if (test_lines.count(i)) continue;
                 std::string s = st_trim(lines[i]);
                 if (st_startsWith(s, "#") || st_startsWith(s, "//") || st_startsWith(s, "/*")) continue;
-                if (std::regex_search(s, naab_custom_debug)) {
+                if (naab::rx::regex_search(s, naab_custom_debug)) {
                     addIssue(issues, filepath, i + 1, "debug_leftovers", CAT,
                              "Debug output in production code", s, "Remove debug statement");
                 }
@@ -192,8 +193,8 @@ void ScannerEngine::checkStyle(const std::string& filepath,
     // 3. commented_out_code
     if (isEnabled(CAT, "commented_out_code")) {
         int min_consec = static_cast<int>(getNumOption(CAT, "commented_out_code", "min_lines", 3));
-        static const std::regex code_chars(R"([(){};=\[\]<>]|\w+\.\w+|\w+\()");
-        static const std::regex cpp_preprocessor(R"(^#\s*(include|define|ifdef|ifndef|endif|pragma|if|else|elif|undef|error|warning)\b)");
+        static const naab::rx::regex code_chars(R"([(){};=\[\]<>]|\w+\.\w+|\w+\()");
+        static const naab::rx::regex cpp_preprocessor(R"(^#\s*(include|define|ifdef|ifndef|endif|pragma|if|else|elif|undef|error|warning)\b)");
 
         int run = 0;
         size_t run_start = 0;
@@ -203,7 +204,7 @@ void ScannerEngine::checkStyle(const std::string& filepath,
 
             if (st_startsWith(s, "#") && !st_startsWith(s, "#!") && s.find("# type:") == std::string::npos) {
                 if (language == "cpp" || language == "c") {
-                    if (!std::regex_search(s, cpp_preprocessor)) {
+                    if (!naab::rx::regex_search(s, cpp_preprocessor)) {
                         is_comment = true;
                     }
                 } else {
@@ -213,8 +214,8 @@ void ScannerEngine::checkStyle(const std::string& filepath,
 
             if (is_comment) {
                 // Strip comment prefix
-                std::string comment_body = std::regex_replace(s, std::regex(R"(^[#/]+\s*)"), "");
-                if (std::regex_search(comment_body, code_chars)) {
+                std::string comment_body = naab::rx::regex_replace(s, naab::rx::regex(R"(^[#/]+\s*)"), "");
+                if (naab::rx::regex_search(comment_body, code_chars)) {
                     if (run == 0) run_start = i;
                     run++;
                 } else {
@@ -315,15 +316,15 @@ void ScannerEngine::checkStyle(const std::string& filepath,
 
     // 8. inconsistent_quotes
     if (isEnabled(CAT, "inconsistent_quotes")) {
-        static const std::regex single_pat(R"('[^']*')");
-        static const std::regex double_pat(R"("[^"]*")");
+        static const naab::rx::regex single_pat(R"('[^']*')");
+        static const naab::rx::regex double_pat(R"("[^"]*")");
 
         int single_count = 0, double_count = 0;
-        std::sregex_iterator it1(content.begin(), content.end(), single_pat);
-        std::sregex_iterator end;
+        naab::rx::sregex_iterator it1(content.begin(), content.end(), single_pat);
+        naab::rx::sregex_iterator end;
         for (; it1 != end; ++it1) single_count++;
 
-        std::sregex_iterator it2(content.begin(), content.end(), double_pat);
+        naab::rx::sregex_iterator it2(content.begin(), content.end(), double_pat);
         for (; it2 != end; ++it2) double_count++;
 
         if (single_count > 5 && double_count > 5) {
@@ -339,15 +340,15 @@ void ScannerEngine::checkStyle(const std::string& filepath,
 
     // 9. import_ordering (Python only)
     if (isEnabled(CAT, "import_ordering") && language == "python") {
-        static const std::regex import_line(R"(^(import|from)\s+)");
-        static const std::regex import_name(R"(^(?:import|from)\s+(\S+))");
+        static const naab::rx::regex import_line(R"(^(import|from)\s+)");
+        static const naab::rx::regex import_name(R"(^(?:import|from)\s+(\S+))");
 
         std::vector<std::pair<int, std::string>> imports;
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = st_trim(lines[i]);
-            if (std::regex_search(s, import_line)) {
-                std::smatch m;
-                if (std::regex_search(s, m, import_name)) {
+            if (naab::rx::regex_search(s, import_line)) {
+                naab::rx::smatch m;
+                if (naab::rx::regex_search(s, m, import_name)) {
                     imports.push_back({static_cast<int>(i + 1), m[1].str()});
                 }
             }

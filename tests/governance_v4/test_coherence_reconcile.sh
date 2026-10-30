@@ -87,15 +87,22 @@ cat > "$WDIR/govern.json" <<EOF
 EOF
 # 10 failing validations drive coherence through the floor (S22 is flat and
 # never baseline-absorbed); the failing pipeline stage triggers recovery; a
-# final pass after failures earns validation_recovery.
+# final pass after failures earns validation_recovery. The 0.2 s pause after
+# the second turn is the decay's subject: decay is 0.5 per wall-clock minute
+# and CDD_TURN prints an adjustment only from 0.00005, so a gap under 6 ms
+# between analyzed turns decays below the printed precision. Without the pause
+# the only gaps were the engine's own turn times, and RC-02 passed or failed on
+# how fast the build ran (Release CI, Bundle 6).
 cat > "$WDIR/test.naab" <<'EOF'
 use agent
+use time
 main {
     let h = agent.create("developer")
     let i = 0
     while i < 10 {
         let r = agent.send(h, "implement the next calculator operation")
         let _ = agent.record_validation(h, false)
+        if i == 1 { time.sleep(0.2) }
         i = i + 1
     }
     try {

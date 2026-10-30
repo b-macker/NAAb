@@ -3,6 +3,7 @@
 
 #include "naab/scanner.h"
 #include <regex>
+#include "naab/rx.h"
 #include <unordered_set>
 #include <algorithm>
 #include <fmt/core.h>
@@ -30,31 +31,31 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 1. obvious_comments
     if (isEnabled(CAT, "obvious_comments")) {
-        static const std::regex pat_loop(R"(^[#/]{1,2}\s*(loop|iterate)\s*(through|over))", std::regex::icase);
-        static const std::regex pat_return(R"(^[#/]{1,2}\s*return\b)", std::regex::icase);
-        static const std::regex pat_assign(R"(^[#/]{1,2}\s*(set|assign|initialize)\s+\w+)", std::regex::icase);
-        static const std::regex pat_check(R"(^[#/]{1,2}\s*check\s+if)", std::regex::icase);
-        static const std::regex pat_import_c(R"(^[#/]{1,2}\s*import\b)", std::regex::icase);
-        static const std::regex pat_import_next(R"(^(import|from|#include|require|use)\b)");
-        static const std::regex pat_var_assign(R"(^\w+\s*=)");
+        static const naab::rx::regex pat_loop(R"(^[#/]{1,2}\s*(loop|iterate)\s*(through|over))", naab::rx::regex::icase);
+        static const naab::rx::regex pat_return(R"(^[#/]{1,2}\s*return\b)", naab::rx::regex::icase);
+        static const naab::rx::regex pat_assign(R"(^[#/]{1,2}\s*(set|assign|initialize)\s+\w+)", naab::rx::regex::icase);
+        static const naab::rx::regex pat_check(R"(^[#/]{1,2}\s*check\s+if)", naab::rx::regex::icase);
+        static const naab::rx::regex pat_import_c(R"(^[#/]{1,2}\s*import\b)", naab::rx::regex::icase);
+        static const naab::rx::regex pat_import_next(R"(^(import|from|#include|require|use)\b)");
+        static const naab::rx::regex pat_var_assign(R"(^\w+\s*=)");
 
         for (size_t i = 0; i + 1 < lines.size(); ++i) {
             std::string stripped = trim(lines[i]);
             std::string nxt = trim(lines[i + 1]);
 
-            if (std::regex_search(stripped, pat_loop) && startsWith(nxt, "for")) {
+            if (naab::rx::regex_search(stripped, pat_loop) && startsWith(nxt, "for")) {
                 addIssue(issues, filepath, i + 1, "obvious_comments", CAT,
                          "Comment restates the for loop below", stripped, "Remove obvious comment");
-            } else if (std::regex_search(stripped, pat_return) && startsWith(nxt, "return")) {
+            } else if (naab::rx::regex_search(stripped, pat_return) && startsWith(nxt, "return")) {
                 addIssue(issues, filepath, i + 1, "obvious_comments", CAT,
                          "Comment restates the return statement", stripped, "Remove obvious comment");
-            } else if (std::regex_search(stripped, pat_assign) && std::regex_search(nxt, pat_var_assign)) {
+            } else if (naab::rx::regex_search(stripped, pat_assign) && naab::rx::regex_search(nxt, pat_var_assign)) {
                 addIssue(issues, filepath, i + 1, "obvious_comments", CAT,
                          "Comment restates the assignment", stripped, "Remove obvious comment");
-            } else if (std::regex_search(stripped, pat_check) && startsWith(nxt, "if")) {
+            } else if (naab::rx::regex_search(stripped, pat_check) && startsWith(nxt, "if")) {
                 addIssue(issues, filepath, i + 1, "obvious_comments", CAT,
                          "Comment restates the if condition", stripped, "Remove obvious comment");
-            } else if (std::regex_search(stripped, pat_import_c) && std::regex_search(nxt, pat_import_next)) {
+            } else if (naab::rx::regex_search(stripped, pat_import_c) && naab::rx::regex_search(nxt, pat_import_next)) {
                 addIssue(issues, filepath, i + 1, "obvious_comments", CAT,
                          "Comment restates the import", stripped, "Remove obvious comment");
             }
@@ -63,12 +64,12 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 2. over_abstraction
     if (isEnabled(CAT, "over_abstraction")) {
-        static const std::regex func_pat(R"(^\s*(?:def|function|fn|func|export\s+fn)\s+(\w+)\s*\()");
-        static const std::regex return_call(R"(^return\s+\w+\()");
+        static const naab::rx::regex func_pat(R"(^\s*(?:def|function|fn|func|export\s+fn)\s+(\w+)\s*\()");
+        static const naab::rx::regex return_call(R"(^return\s+\w+\()");
 
         for (size_t i = 0; i + 3 < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, func_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, func_pat)) {
                 std::vector<std::string> body_lines;
                 for (size_t j = i + 1; j < std::min(i + 5, lines.size()); ++j) {
                     std::string s = trim(lines[j]);
@@ -80,18 +81,18 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                 for (const auto& b : body_lines) {
                     if (b != "{" && b != "}") non_brace.push_back(b);
                 }
-                if (non_brace.size() == 1 && std::regex_search(non_brace[0], return_call)) {
+                if (non_brace.size() == 1 && naab::rx::regex_search(non_brace[0], return_call)) {
                     addIssue(issues, filepath, i + 1, "over_abstraction", CAT,
                              "Function just wraps another function call", trim(lines[i]),
                              "Inline the wrapper or add meaningful logic");
                 }
                 // Fix F: Also catch 2-line wrappers: let x = call(...); return x
                 if (non_brace.size() == 2) {
-                    static const std::regex assign_call(R"(^(?:let|var|const)\s+(\w+)\s*=\s*.+$)");
-                    static const std::regex return_var(R"(^return\s+(\w+)\s*;?\s*$)");
-                    std::smatch am, rm;
-                    if (std::regex_match(non_brace[0], am, assign_call) &&
-                        std::regex_match(non_brace[1], rm, return_var) &&
+                    static const naab::rx::regex assign_call(R"(^(?:let|var|const)\s+(\w+)\s*=\s*.+$)");
+                    static const naab::rx::regex return_var(R"(^return\s+(\w+)\s*;?\s*$)");
+                    naab::rx::smatch am, rm;
+                    if (naab::rx::regex_match(non_brace[0], am, assign_call) &&
+                        naab::rx::regex_match(non_brace[1], rm, return_var) &&
                         am[1].str() == rm[1].str()) {
                         addIssue(issues, filepath, i + 1, "over_abstraction", CAT,
                                  "Function is a trivial assign-and-return wrapper", trim(lines[i]),
@@ -104,18 +105,18 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 3. redundant_try_catch
     if (isEnabled(CAT, "redundant_try_catch")) {
-        static const std::regex except_pat(R"(^except\s*.*:\s*$)");
-        static const std::regex catch_pat(R"(^catch\s*\([^)]*\)\s*\{)");
+        static const naab::rx::regex except_pat(R"(^except\s*.*:\s*$)");
+        static const naab::rx::regex catch_pat(R"(^catch\s*\([^)]*\)\s*\{)");
 
         for (size_t i = 0; i + 1 < lines.size(); ++i) {
             std::string stripped = trim(lines[i]);
             std::string nxt = trim(lines[i + 1]);
 
-            if (std::regex_match(stripped, except_pat) && nxt == "raise") {
+            if (naab::rx::regex_match(stripped, except_pat) && nxt == "raise") {
                 addIssue(issues, filepath, i + 1, "redundant_try_catch", CAT,
                          "try/catch that just re-raises", stripped, "Remove redundant try/except");
             }
-            if (std::regex_search(stripped, catch_pat) && (nxt == "throw;" || nxt == "throw")) {
+            if (naab::rx::regex_search(stripped, catch_pat) && (nxt == "throw;" || nxt == "throw")) {
                 addIssue(issues, filepath, i + 1, "redundant_try_catch", CAT,
                          "catch block that just re-throws", stripped, "Remove redundant try/catch");
             }
@@ -124,10 +125,10 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 3b. suspicious_try_catch — try around non-throwing code (NAAb)
     if (isEnabled(CAT, "suspicious_try_catch") && language == "naab") {
-        static const std::regex try_start(R"(^\s*try\s*\{)");
-        static const std::regex catch_line_pat(R"(^\s*\}\s*catch\s*\()");
+        static const naab::rx::regex try_start(R"(^\s*try\s*\{)");
+        static const naab::rx::regex catch_line_pat(R"(^\s*\}\s*catch\s*\()");
         // Patterns that CAN throw — if any appear in the try body, it's legit
-        static const std::regex throwable_pat(
+        static const naab::rx::regex throwable_pat(
             R"(\b(?:int|float|string|parse|open|read|write|fetch|json)\s*\(|)"
             R"(\w+\s*\.\s*\w+\s*\(|)"
             R"(\w+\s*\[|)"
@@ -135,7 +136,7 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
         for (size_t i = 0; i + 2 < lines.size(); ++i) {
             std::string s = trim(lines[i]);
-            if (!std::regex_search(s, try_start)) continue;
+            if (!naab::rx::regex_search(s, try_start)) continue;
 
             // Find the } catch line and check body for throwable ops
             bool found_catch = false;
@@ -145,7 +146,7 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                 std::string curr = trim(lines[j]);
 
                 // Is this the } catch line?
-                if (std::regex_search(curr, catch_line_pat)) {
+                if (naab::rx::regex_search(curr, catch_line_pat)) {
                     found_catch = true;
                     break;
                 }
@@ -153,7 +154,7 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                 // Check if this body line has throwable operations
                 // Skip braces-only lines and empty lines
                 if (!curr.empty() && curr != "{" && curr != "}") {
-                    if (std::regex_search(lines[j], throwable_pat)) {
+                    if (naab::rx::regex_search(lines[j], throwable_pat)) {
                         has_throwable = true;
                         break;
                     }
@@ -188,11 +189,11 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
             for (const auto& n : names_list) bad_names.insert(n);
         }
 
-        static const std::regex var_pat(R"((?:let|var|const|int|str|auto|val)\s+(\w+)\s*=)");
+        static const naab::rx::regex var_pat(R"((?:let|var|const|int|str|auto|val)\s+(\w+)\s*=)");
         for (size_t i = 0; i < lines.size(); ++i) {
             if (test_lines.count(i)) continue;
-            std::sregex_iterator it(lines[i].begin(), lines[i].end(), var_pat);
-            std::sregex_iterator end;
+            naab::rx::sregex_iterator it(lines[i].begin(), lines[i].end(), var_pat);
+            naab::rx::sregex_iterator end;
             for (; it != end; ++it) {
                 std::string name = (*it)[1].str();
                 std::string lower_name = name;
@@ -206,11 +207,11 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
         }
 
         // Fix A: Also check function parameter names
-        static const std::regex param_pat(R"((?:fn|function|func|def|export\s+fn)\s+\w+\s*\(([^)]*)\))");
+        static const naab::rx::regex param_pat(R"((?:fn|function|func|def|export\s+fn)\s+\w+\s*\(([^)]*)\))");
         for (size_t i = 0; i < lines.size(); ++i) {
             if (test_lines.count(i)) continue;
-            std::smatch pm;
-            if (std::regex_search(lines[i], pm, param_pat)) {
+            naab::rx::smatch pm;
+            if (naab::rx::regex_search(lines[i], pm, param_pat)) {
                 std::string params_str = pm[1].str();
                 size_t pstart = 0;
                 while (pstart < params_str.size()) {
@@ -269,7 +270,7 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 6. apologetic_comments
     if (isEnabled(CAT, "apologetic_comments")) {
-        static const std::regex apology_pat(
+        static const naab::rx::regex apology_pat(
             R"((?:)"
             R"(i apologize|sorry|unfortunately|as an ai|i cannot|i can't|i'm not sure|)"
             R"(might not work|this might|this should|i think this|i believe this|note:\s*this|)"
@@ -279,12 +280,12 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
             R"(good enough|for now|not ideal|not optimal|naive|simplistic|)"
             R"(room for (?:improvement|optimization)|)"
             R"(haven't handled|didn't account|works? for most))",
-            std::regex::icase);
+            naab::rx::regex::icase);
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string stripped = trim(lines[i]);
             if (startsWith(stripped, "#") || startsWith(stripped, "//") ||
                 startsWith(stripped, "/*") || startsWith(stripped, "*")) {
-                if (std::regex_search(stripped, apology_pat)) {
+                if (naab::rx::regex_search(stripped, apology_pat)) {
                     addIssue(issues, filepath, i + 1, "apologetic_comments", CAT,
                              "Apologetic language in comment", stripped,
                              "Remove apologetic language");
@@ -295,9 +296,9 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 7. placeholder_code
     if (isEnabled(CAT, "placeholder_code")) {
-        static const std::regex todo_pat(
+        static const naab::rx::regex todo_pat(
             R"(^[#/]{1,2}\s*(?:TODO|FIXME|HACK|XXX|REVISIT|PLACEHOLDER|LATER|DEFER):?\s*(?:implement|add|fix|complete|enhance|extend|refine|improve|rework|replace|redo))",
-            std::regex::icase);
+            naab::rx::regex::icase);
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string stripped = trim(lines[i]);
@@ -305,12 +306,12 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                 addIssue(issues, filepath, i + 1, "placeholder_code", CAT,
                          "Placeholder NotImplementedError", stripped, "Implement the function body");
             } else if (stripped == "pass" && i > 0) {
-                static const std::regex def_pat(R"(\s*def\s+)");
-                if (std::regex_search(lines[i - 1], def_pat)) {
+                static const naab::rx::regex def_pat(R"(\s*def\s+)");
+                if (naab::rx::regex_search(lines[i - 1], def_pat)) {
                     addIssue(issues, filepath, i + 1, "placeholder_code", CAT,
                              "Function body is just 'pass'", stripped, "Implement the function body");
                 }
-            } else if (std::regex_search(stripped, todo_pat)) {
+            } else if (naab::rx::regex_search(stripped, todo_pat)) {
                 addIssue(issues, filepath, i + 1, "placeholder_code", CAT,
                          "TODO placeholder left in code", stripped, "Implement the TODO item");
             } else if (stripped == "throw \"not implemented\"" || stripped == "throw 'not implemented'" ||
@@ -322,10 +323,10 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                 // Catch deferred-work comments that don't use TODO/FIXME prefix
                 // e.g., "// REVISIT: enhance with ML-based scoring later"
                 //        "// enhance this later when we have more data"
-                static const std::regex deferred_pat(
+                static const naab::rx::regex deferred_pat(
                     R"(^[#/]{1,2}\s*(?:enhance|improve|extend|refine|rework|revisit|defer|postpone)\s+(?:with|this|later|when|using|the|for)\b)",
-                    std::regex::icase);
-                if (std::regex_search(stripped, deferred_pat)) {
+                    naab::rx::regex::icase);
+                if (naab::rx::regex_search(stripped, deferred_pat)) {
                     addIssue(issues, filepath, i + 1, "placeholder_code", CAT,
                              "Deferred work comment", stripped,
                              "Implement or remove deferred item");
@@ -336,10 +337,10 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 8. restating_docstrings
     if (isEnabled(CAT, "restating_docstrings")) {
-        static const std::regex func_pat2(R"(^\s*def\s+(\w+)\s*\()");
+        static const naab::rx::regex func_pat2(R"(^\s*def\s+(\w+)\s*\()");
         for (size_t i = 0; i + 1 < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, func_pat2)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, func_pat2)) {
                 std::string fname = m[1].str();
                 // Split function name by underscores
                 std::unordered_set<std::string> name_words;
@@ -401,13 +402,13 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 9. unnecessary_else_after_return
     if (isEnabled(CAT, "unnecessary_else_after_return")) {
-        static const std::regex return_pat(R"(^return\b)");
-        static const std::regex else_brace(R"(^\}\s*else\s*\{)");
+        static const naab::rx::regex return_pat(R"(^return\b)");
+        static const naab::rx::regex else_brace(R"(^\}\s*else\s*\{)");
         for (size_t i = 0; i + 1 < lines.size(); ++i) {
             std::string stripped = trim(lines[i]);
-            if (std::regex_search(stripped, return_pat)) {
+            if (naab::rx::regex_search(stripped, return_pat)) {
                 std::string nxt = trim(lines[i + 1]);
-                if (std::regex_search(nxt, else_brace) || nxt == "else:") {
+                if (naab::rx::regex_search(nxt, else_brace) || nxt == "else:") {
                     addIssue(issues, filepath, i + 2, "unnecessary_else_after_return", CAT,
                              "Unnecessary else after return", nxt,
                              "Remove else, continue at same level");
@@ -418,10 +419,10 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 10. wrapper_classes
     if (isEnabled(CAT, "wrapper_classes")) {
-        static const std::regex class_pat(R"(^\s*class\s+(\w+))");
+        static const naab::rx::regex class_pat(R"(^\s*class\s+(\w+))");
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, class_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, class_pat)) {
                 std::string cls_name = m[1].str();
                 int class_indent = static_cast<int>(lines[i].size() - trim(lines[i]).size());
                 // Actually compute leading spaces
@@ -437,9 +438,9 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                     int cur_indent = (jfirst != std::string::npos) ? static_cast<int>(jfirst) : 0;
                     if (cur_indent <= class_indent && !jt.empty()) break;
 
-                    static const std::regex meth_pat(R"(\s+def\s+(\w+)\s*\()");
-                    std::smatch mm;
-                    if (std::regex_search(jl, mm, meth_pat)) {
+                    static const naab::rx::regex meth_pat(R"(\s+def\s+(\w+)\s*\()");
+                    naab::rx::smatch mm;
+                    if (naab::rx::regex_search(jl, mm, meth_pat)) {
                         methods.push_back(mm[1].str());
                     }
                 }
@@ -459,18 +460,18 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 11. unused_imports (Python only)
     if (isEnabled(CAT, "unused_imports") && language == "python") {
-        static const std::regex import_pat(R"(^\s*(?:import\s+(\w+)|from\s+(\w+)\s+import\s+(\w+)))");
+        static const naab::rx::regex import_pat(R"(^\s*(?:import\s+(\w+)|from\s+(\w+)\s+import\s+(\w+)))");
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, import_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, import_pat)) {
                 std::string name = m[3].matched ? m[3].str() : m[1].str();
                 if (name.empty()) continue;
 
                 bool found = false;
-                std::regex name_pat("\\b" + name + "\\b");
+                naab::rx::regex name_pat("\\b" + name + "\\b");
                 for (size_t j = 0; j < lines.size(); ++j) {
                     if (j == i) continue;
-                    if (std::regex_search(lines[j], name_pat)) {
+                    if (naab::rx::regex_search(lines[j], name_pat)) {
                         found = true;
                         break;
                     }
@@ -487,25 +488,25 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
     // 11b. unused_imports (NAAb)
     if (isEnabled(CAT, "unused_imports") && language == "naab") {
         // Pattern 1: use <module>
-        static const std::regex use_pat(R"(^\s*use\s+(\w+)\s*$)");
+        static const naab::rx::regex use_pat(R"(^\s*use\s+(\w+)\s*$)");
         // Pattern 2: import "<path>" as <alias>
-        static const std::regex import_as_pat(R"(^\s*import\s+"[^"]+"\s+as\s+(\w+)\s*$)");
+        static const naab::rx::regex import_as_pat(R"(^\s*import\s+"[^"]+"\s+as\s+(\w+)\s*$)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch m;
+            naab::rx::smatch m;
             std::string module_name;
-            if (std::regex_search(lines[i], m, use_pat)) {
+            if (naab::rx::regex_search(lines[i], m, use_pat)) {
                 module_name = m[1].str();
-            } else if (std::regex_search(lines[i], m, import_as_pat)) {
+            } else if (naab::rx::regex_search(lines[i], m, import_as_pat)) {
                 module_name = m[1].str();
             }
             if (module_name.empty()) continue;
             if (module_name == "debug") continue;
 
             bool found = false;
-            std::regex usage_pat("\\b" + module_name + "\\.");
+            naab::rx::regex usage_pat("\\b" + module_name + "\\.");
             for (size_t j = 0; j < lines.size(); ++j) {
                 if (j == i) continue;
-                if (std::regex_search(lines[j], usage_pat)) {
+                if (naab::rx::regex_search(lines[j], usage_pat)) {
                     found = true;
                     break;
                 }
@@ -528,10 +529,10 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
         };
         // Collect imported modules
         std::unordered_set<std::string> imported;
-        static const std::regex mi_use_pat(R"(^\s*use\s+(\w+))");
+        static const naab::rx::regex mi_use_pat(R"(^\s*use\s+(\w+))");
         for (const auto& line : lines) {
-            std::smatch m;
-            if (std::regex_search(line, m, mi_use_pat))
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(line, m, mi_use_pat))
                 imported.insert(m[1].str());
         }
         imported.insert("debug"); // auto-imported prelude
@@ -539,9 +540,9 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
         // Find usages of non-imported modules (lines are polyglot-stripped)
         for (const auto& mod : known_modules) {
             if (imported.count(mod)) continue;
-            std::regex usage_pat("\\b" + mod + "\\.");
+            naab::rx::regex usage_pat("\\b" + mod + "\\.");
             for (size_t i = 0; i < lines.size(); ++i) {
-                if (std::regex_search(lines[i], usage_pat)) {
+                if (naab::rx::regex_search(lines[i], usage_pat)) {
                     addIssue(issues, filepath, i + 1, "missing_imports", CAT,
                         fmt::format("'{}' is used but module '{}' is not imported",
                             mod, mod),
@@ -561,10 +562,10 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
             "bolo", "path", "dict", "log", "uuid", "validate", "process",
             "agent", "codegen", "governance", "orchestra"
         };
-        static const std::regex ph_use_pat(R"(^\s*use\s+(\w+)\s*$)");
+        static const naab::rx::regex ph_use_pat(R"(^\s*use\s+(\w+)\s*$)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, ph_use_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, ph_use_pat)) {
                 std::string mod = m[1].str();
                 if (!known_stdlib.count(mod)) {
                     addIssue(issues, filepath, i + 1, "phantom_imports", CAT,
@@ -578,19 +579,19 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 12. single_use_variable
     if (isEnabled(CAT, "single_use_variable")) {
-        static const std::regex var_assign(R"(^\s*(?:let|const|var|)\s*(\w+)\s*=\s*(.+)$)");
+        static const naab::rx::regex var_assign(R"(^\s*(?:let|const|var|)\s*(\w+)\s*=\s*(.+)$)");
         for (size_t i = 0; i + 1 < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, var_assign)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, var_assign)) {
                 std::string vname = m[1].str();
                 if (vname[0] == '_') continue;
 
-                std::regex vname_pat("\\b" + vname + "\\b");
-                if (!std::regex_search(lines[i + 1], vname_pat)) continue;
+                naab::rx::regex vname_pat("\\b" + vname + "\\b");
+                if (!naab::rx::regex_search(lines[i + 1], vname_pat)) continue;
 
                 int count = 0;
                 for (size_t j = i + 1; j < lines.size(); ++j) {
-                    if (std::regex_search(lines[j], vname_pat)) {
+                    if (naab::rx::regex_search(lines[j], vname_pat)) {
                         count++;
                         if (count > 1) break;
                     }
@@ -606,11 +607,11 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 13. copy_paste_signatures
     if (isEnabled(CAT, "copy_paste_signatures")) {
-        static const std::regex sig_pat(R"((?:def|function|fn|func)\s+\w+\s*\(([^)]*)\))");
+        static const naab::rx::regex sig_pat(R"((?:def|function|fn|func)\s+\w+\s*\(([^)]*)\))");
         std::unordered_map<std::string, std::vector<int>> sigs;
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, sig_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, sig_pat)) {
                 std::string params = m[1].str();
                 std::string trimmed_params = trim(params);
                 if (trimmed_params.empty()) continue;
@@ -626,10 +627,10 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
             if (locs.size() >= 3) {
                 // Check if all functions with this signature are test functions
                 bool all_test_fns = true;
-                static const std::regex test_sig_pat(R"((?:def|function|fn|func)\s+test_)");
+                static const naab::rx::regex test_sig_pat(R"((?:def|function|fn|func)\s+test_)");
                 for (int ln : locs) {
                     if (ln > 0 && static_cast<size_t>(ln - 1) < lines.size()) {
-                        if (!std::regex_search(lines[ln - 1], test_sig_pat)) {
+                        if (!naab::rx::regex_search(lines[ln - 1], test_sig_pat)) {
                             all_test_fns = false;
                             break;
                         }
@@ -651,9 +652,9 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 14. excessive_type_checks
     if (isEnabled(CAT, "excessive_type_checks")) {
-        static const std::regex overkill_pat(R"(if\s+\w+\s+is\s+not\s+None\s+and\s+isinstance\()");
+        static const naab::rx::regex overkill_pat(R"(if\s+\w+\s+is\s+not\s+None\s+and\s+isinstance\()");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], overkill_pat)) {
+            if (naab::rx::regex_search(lines[i], overkill_pat)) {
                 addIssue(issues, filepath, i + 1, "excessive_type_checks", CAT,
                          "Excessive defensive checking", trim(lines[i]), "Trust the type");
             }
@@ -662,9 +663,9 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 15. decorative_separators
     if (isEnabled(CAT, "decorative_separators")) {
-        static const std::regex sep_pat(R"(^\s*[#/\*=\-]{10,}\s*$)");
+        static const naab::rx::regex sep_pat(R"(^\s*[#/\*=\-]{10,}\s*$)");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_match(lines[i], sep_pat)) {
+            if (naab::rx::regex_match(lines[i], sep_pat)) {
                 addIssue(issues, filepath, i + 1, "decorative_separators", CAT,
                          "Decorative comment separator", trim(lines[i]),
                          "Remove or add descriptive text");
@@ -693,11 +694,11 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
             {"quad", "4"}, {"quarter", "4"},
             {"dozen", "12"}, {"score", "20"}, {"half", "50"}
         };
-        static const std::regex alias_pat(R"(^\s*(?:let|var|const)\s+(\w+)\s*=\s*(-?\d+)\s*$)");
+        static const naab::rx::regex alias_pat(R"(^\s*(?:let|var|const)\s+(\w+)\s*=\s*(-?\d+)\s*$)");
 
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, alias_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, alias_pat)) {
                 std::string name = m[1].str();
                 std::string value = m[2].str();
                 std::string lower_name = name;
@@ -716,7 +717,7 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 17. gaming_comments
     if (isEnabled(CAT, "gaming_comments")) {
-        static const std::regex gaming_pat(
+        static const naab::rx::regex gaming_pat(
             R"((?:complexity|score|floor|threshold|metric)\s*(?:>=|<=|==|>|<|\+|-|\*)|)"
             R"((?:\+\d+\s*(?:complexity|score))|)"
             R"((?:adds?\s+complexity)|(?:increase[sd]?\s+complexity)|(?:provides?\s+.*complexity)|)"
@@ -724,38 +725,38 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
             R"((?:to\s+(?:pass|ensure|meet|hit|reach)\s+.*(?:complexity|score|check|threshold))|)"
             R"((?:\(\+\d+\s*(?:score)?\))|)"
             R"((?:\+\s*(?:score|complexity)))",
-            std::regex::icase);
+            naab::rx::regex::icase);
 
         // Co-occurrence: governance concept (Group A) + gaming intent (Group B) in same comment
-        static const std::regex cooccur_pat(
+        static const naab::rx::regex cooccur_pat(
             R"((?=.*\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate|requirement)\b))"
             R"((?=.*\b(?:padding|gaming|hack|boost|inflate|trick|fool|filler|workaround|fake|dummy|artificial)\b))",
-            std::regex::icase);
+            naab::rx::regex::icase);
         // "satisfy" only with scanner-specific concepts
-        static const std::regex cooccur_satisfy_pat(
+        static const naab::rx::regex cooccur_satisfy_pat(
             R"((?=.*\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate)\b))"
             R"((?=.*\b(?:satisfy)\b))",
-            std::regex::icase);
+            naab::rx::regex::icase);
         // "just/only doing X to/for governance concept"
-        static const std::regex cooccur_just_pat(
+        static const naab::rx::regex cooccur_just_pat(
             R"((?=.*\b(?:just|only|merely|simply)\b)(?=.*\b(?:to|for)\b))"
             R"((?=.*\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate|requirement|pass|meet|reach|satisfy)\b))",
-            std::regex::icase);
+            naab::rx::regex::icase);
         // Purpose-admission: "mandatory complexity", "required padding", etc.
-        static const std::regex purpose_admission_pat(
+        static const naab::rx::regex purpose_admission_pat(
             R"(\b(?:mandatory|required|needed|necessary)\s+(?:complexity|padding|score|loop|iteration)\b|)"
             R"(\b(?:no-op|noop|dead code|unused|pointless|useless)\b.*\b(?:complexity|score|floor|gate|pass)\b)",
-            std::regex::icase);
+            naab::rx::regex::icase);
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string stripped = trim(lines[i]);
             if (startsWith(stripped, "//") || startsWith(stripped, "#") ||
                 startsWith(stripped, "/*") || startsWith(stripped, "*")) {
-                if (std::regex_search(stripped, gaming_pat) ||
-                    std::regex_search(stripped, cooccur_pat) ||
-                    std::regex_search(stripped, cooccur_satisfy_pat) ||
-                    std::regex_search(stripped, cooccur_just_pat) ||
-                    std::regex_search(stripped, purpose_admission_pat)) {
+                if (naab::rx::regex_search(stripped, gaming_pat) ||
+                    naab::rx::regex_search(stripped, cooccur_pat) ||
+                    naab::rx::regex_search(stripped, cooccur_satisfy_pat) ||
+                    naab::rx::regex_search(stripped, cooccur_just_pat) ||
+                    naab::rx::regex_search(stripped, purpose_admission_pat)) {
                     addIssue(issues, filepath, i + 1, "gaming_comments", CAT,
                              "Comment reveals metric gaming intent", stripped,
                              "Remove gaming comment — write natural code instead");

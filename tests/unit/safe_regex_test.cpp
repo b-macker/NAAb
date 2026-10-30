@@ -3,6 +3,7 @@
 //
 
 #include <gtest/gtest.h>
+#include "naab/rx.h"
 #include "naab/safe_regex.h"
 #include <chrono>
 #include <thread>
@@ -29,7 +30,7 @@ TEST(SafeRegexTest, BasicSearch) {
 
 TEST(SafeRegexTest, FindWithMatch) {
     SafeRegex sr;
-    std::smatch match;
+    naab::rx::smatch match;
 
     bool found = sr.safeSearch("hello world", "w(\\w+)", match);
     EXPECT_TRUE(found);

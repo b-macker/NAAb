@@ -190,6 +190,24 @@ message(STATUS "Adding external dependencies...")
 add_subdirectory(external/abseil-cpp EXCLUDE_FROM_ALL)
 message(STATUS "  ✓ Abseil C++ library")
 
+# RE2 (pinned submodule, BSD-3): linear-time matching for naab::rx (A89). It
+# finds the abseil above as targets, so no find_package; its install and test
+# targets are off -- it is linked statically into naab_rx only.
+set(RE2_INSTALL OFF CACHE BOOL "" FORCE)
+set(RE2_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+add_subdirectory(external/re2 EXCLUDE_FROM_ALL)
+# The default build sets no build type, so RE2 would compile at -O0, and its
+# pattern compiler then dominates a governed run: every process compiles the
+# engine's pattern tables once, and test_langconform.sh, which starts thousands
+# of processes, took 616 s against master's 366 s locally; with this, 161 s
+# (A89). Optimise this one
+# vendored library in that build; NAAb's own code keeps its flags, and a build
+# that names a type (Release, Debug) is left as it asked.
+if(NOT CMAKE_BUILD_TYPE AND NOT MSVC)
+    target_compile_options(re2 PRIVATE -O2)
+endif()
+message(STATUS "  ✓ RE2 regular expressions")
+
 # fmt (from blocks)
 add_subdirectory(external/fmt EXCLUDE_FROM_ALL)
 message(STATUS "  ✓ fmt formatting library")
@@ -837,6 +855,29 @@ target_include_directories(naab_scanner PRIVATE
 target_link_libraries(naab_scanner fmt::fmt)
 message(STATUS "  ✓ Scanner engine (naab_scanner)")
 
+# naab::rx -- the engine's regular expressions (A89, include/naab/rx.h).
+# libstdc++'s std::regex recurses once per character, so a long enough input
+# crashed the governor. naab::rx matches with RE2 (linear time); a pattern RE2
+# cannot run (lookaround, backreferences, ECMAScript-only escapes) falls back
+# to QuickJS's libregexp, which backtracks on the heap -- or, without QuickJS
+# (MSVC), to std::regex.
+add_library(naab_rx STATIC src/utils/rx.cpp)
+target_link_libraries(naab_rx PUBLIC re2::re2)
+target_compile_definitions(naab_rx PRIVATE NAAB_RX_RE2=1)
+if(HAVE_QUICKJS)
+    target_link_libraries(naab_rx PUBLIC quickjs)
+    target_compile_definitions(naab_rx PRIVATE NAAB_RX_LIBREGEXP=1)
+endif()
+# TEST builds only: every search also runs std::regex (inputs under 4 KB) and
+# any disagreement is appended to $NAAB_REGEX_DIFF_LOG.
+option(NAAB_REGEX_DIFFERENTIAL "Test builds only: compare naab::rx with std::regex" OFF)
+if(NAAB_REGEX_DIFFERENTIAL)
+    target_compile_definitions(naab_rx PRIVATE NAAB_REGEX_DIFFERENTIAL=1)
+endif()
+foreach(_rx_user naab_security naab_analyzer naab_runtime naab_stdlib naab_scanner)
+    target_link_libraries(${_rx_user} naab_rx)
+endforeach()
+
 # Main executable
 add_executable(naab-lang
     src/cli/main.cpp
@@ -1137,7 +1178,7 @@ install(DIRECTORY include/naab/
 set(_naab_export_targets
     naab_lexer naab_parser naab_semantic naab_analyzer
     naab_debugger naab_scanner naab_stdlib naab_security naab_interpreter
-    naab_runtime)
+    naab_runtime naab_rx)
 foreach(_tgt ${_naab_export_targets})
     get_target_property(_iface ${_tgt} INTERFACE_LINK_LIBRARIES)
     if(_iface)
@@ -1163,6 +1204,7 @@ unset(_item)
 install(TARGETS
     naab_interpreter naab_security naab_stdlib naab_parser naab_lexer
     naab_semantic naab_debugger naab_scanner naab_analyzer naab_runtime
+    naab_rx
     EXPORT NaabLangTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
@@ -1576,6 +1618,7 @@ if(HAVE_GOOGLETEST)
         tests/unit/js_executor_test.cpp         # QuickJS executor; adapter across threads (A61)
         tests/unit/cpp_executor_test.cpp        # C++ blocks, library detection, the registry
         tests/unit/string_functions_test.cpp    # string module, about five cases per function
+        tests/unit/rx_test.cpp                  # naab::rx, the engine's regular expressions (A89)
         tests/unit/stdlib_modules_test.cpp      # one call into each of ten stdlib modules
     )
 

@@ -11,6 +11,7 @@
 #include <fmt/core.h>
 #include <stdexcept>
 #include <regex>
+#include "naab/rx.h"
 #include <fstream>
 #include <sstream>
 #include <filesystem>
@@ -42,22 +43,22 @@ static bool isRustSourceSafe(const std::string& code, std::string& reason) {
     // V-RCE-009: Match include_str/include_bytes with optional spaces before !,
     // and any bracket type: (), {}, []. Also handles raw strings.
     // Double-quoted absolute path
-    std::regex abs_include_dq(R"(include_(?:str|bytes)\s*!\s*[\(\{\[]\s*"/)");
-    if (std::regex_search(code, abs_include_dq)) {
+    naab::rx::regex abs_include_dq(R"(include_(?:str|bytes)\s*!\s*[\(\{\[]\s*"/)");
+    if (naab::rx::regex_search(code, abs_include_dq)) {
         reason = "include_str!/include_bytes! with absolute paths not permitted in polyglot Rust blocks";
         return false;
     }
     // Raw-string absolute path: r#"/etc/..."# or r"/etc/..."
-    std::regex abs_include_raw(R"(include_(?:str|bytes)\s*!\s*[\(\{\[]\s*r#*"/)");
-    if (std::regex_search(code, abs_include_raw)) {
+    naab::rx::regex abs_include_raw(R"(include_(?:str|bytes)\s*!\s*[\(\{\[]\s*r#*"/)");
+    if (naab::rx::regex_search(code, abs_include_raw)) {
         reason = "include_str!/include_bytes! with absolute paths (raw string) not permitted in polyglot Rust blocks";
         return false;
     }
     // V-RCE-014: Reject include_str!/include_bytes! with nested macro composition.
     // If the first token after the bracket is not a string literal (" or r#"),
     // it's a macro like concat!() — reject it.
-    std::regex include_macro(R"(include_(?:str|bytes)\s*!\s*[\(\{\[]\s*[a-z_])");
-    if (std::regex_search(code, include_macro)) {
+    naab::rx::regex include_macro(R"(include_(?:str|bytes)\s*!\s*[\(\{\[]\s*[a-z_])");
+    if (naab::rx::regex_search(code, include_macro)) {
         reason = "include_str!/include_bytes! with macro composition not permitted in polyglot Rust blocks";
         return false;
     }
@@ -439,10 +440,10 @@ void RustExecutor::parseRustURI(const std::string& uri,
     // Expected format: rust://path/to/lib.so::function_name
     // Example: rust://./libs/custom.so::process_data
 
-    std::regex uri_regex(R"(^rust://([^:]+)::([^:]+)$)");
-    std::smatch matches;
+    naab::rx::regex uri_regex(R"(^rust://([^:]+)::([^:]+)$)");
+    naab::rx::smatch matches;
 
-    if (!std::regex_match(uri, matches, uri_regex)) {
+    if (!naab::rx::regex_match(uri, matches, uri_regex)) {
         throw std::runtime_error(
             "Invalid Rust block URI format. Expected: rust://path/to/lib.so::function_name. Got: " + uri
         );

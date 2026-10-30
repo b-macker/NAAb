@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 #include <fmt/core.h>
 #include <regex>
+#include "naab/rx.h"
 #include <algorithm>
 #include <string>
 #include <sstream>
@@ -108,7 +109,7 @@ interpreter::NaabVal JsonResultParser::parseSimple(const std::string& output) {
 
     // Try to parse as integer
     try {
-        if (std::regex_match(trimmed, std::regex("^-?\\d+$"))) {
+        if (naab::rx::regex_match(trimmed, naab::rx::regex("^-?\\d+$"))) {
             int64_t val = std::stoll(trimmed);
             return interpreter::NaabVal::makeInt(static_cast<int>(val));
         }
@@ -116,7 +117,7 @@ interpreter::NaabVal JsonResultParser::parseSimple(const std::string& output) {
 
     // Try to parse as double
     try {
-        if (std::regex_match(trimmed, std::regex("^-?\\d+\\.\\d+$"))) {
+        if (naab::rx::regex_match(trimmed, naab::rx::regex("^-?\\d+\\.\\d+$"))) {
             double val = std::stod(trimmed);
             return interpreter::NaabVal::makeDouble(val);
         }

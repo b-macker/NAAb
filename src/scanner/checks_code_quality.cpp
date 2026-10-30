@@ -3,6 +3,7 @@
 
 #include "naab/scanner.h"
 #include <regex>
+#include "naab/rx.h"
 #include <sstream>
 #include <functional>
 #include <unordered_set>
@@ -38,12 +39,12 @@ static std::unordered_set<size_t> detectMainLines(const std::vector<std::string>
 
     bool in_main = false;
     int main_depth = 0;
-    static const std::regex main_pat(R"(^main\s*\{)");
+    static const naab::rx::regex main_pat(R"(^main\s*\{)");
 
     for (size_t i = 0; i < lines.size(); ++i) {
         std::string sl = cq_trim(lines[i]);
         if (!in_main) {
-            if (std::regex_search(sl, main_pat) ||
+            if (naab::rx::regex_search(sl, main_pat) ||
                 (sl == "main" && i + 1 < lines.size() && cq_trim(lines[i + 1])[0] == '{')) {
                 in_main = true;
                 int opens = 0, closes = 0;
@@ -71,16 +72,16 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
     // 1. empty_catch
     if (isEnabled(CAT, "empty_catch")) {
-        static const std::regex except_pass(R"(^except\s*.*:\s*pass\s*$)");
-        static const std::regex except_bare(R"(^except\s*.*:\s*$)");
-        static const std::regex catch_empty(R"(^(?:\}\s*)?catch\s*\([^)]*\)\s*\{\s*\}\s*$)");
+        static const naab::rx::regex except_pass(R"(^except\s*.*:\s*pass\s*$)");
+        static const naab::rx::regex except_bare(R"(^except\s*.*:\s*$)");
+        static const naab::rx::regex catch_empty(R"(^(?:\}\s*)?catch\s*\([^)]*\)\s*\{\s*\}\s*$)");
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = cq_trim(lines[i]);
-            if (std::regex_match(s, except_pass)) {
+            if (naab::rx::regex_match(s, except_pass)) {
                 addIssue(issues, filepath, i + 1, "empty_catch", CAT,
                          "Empty except block swallows exception", s, "Handle the error or log it");
-            } else if (std::regex_match(s, except_bare) && i + 1 < lines.size()) {
+            } else if (naab::rx::regex_match(s, except_bare) && i + 1 < lines.size()) {
                 std::string nxt = cq_trim(lines[i + 1]);
                 if (nxt == "pass") {
                     bool has_more = false;
@@ -98,7 +99,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                     }
                 }
             }
-            if (std::regex_match(s, catch_empty)) {
+            if (naab::rx::regex_match(s, catch_empty)) {
                 addIssue(issues, filepath, i + 1, "empty_catch", CAT,
                          "Empty catch block swallows exception", s, "Handle the error or log it");
             }
@@ -106,12 +107,12 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
         // Fix B: Multi-line catch with trivial/no-op body
         {
-            static const std::regex catch_open(R"((?:^|\}\s*)catch\s*\([^)]*\)\s*\{)");
-            static const std::regex trivial_assign(R"(^let\s+\w+\s*=\s*\w+\s*;?\s*$)");
+            static const naab::rx::regex catch_open(R"((?:^|\}\s*)catch\s*\([^)]*\)\s*\{)");
+            static const naab::rx::regex trivial_assign(R"(^let\s+\w+\s*=\s*\w+\s*;?\s*$)");
 
             for (size_t i = 0; i + 1 < lines.size(); ++i) {
                 std::string s = cq_trim(lines[i]);
-                if (!std::regex_search(s, catch_open)) continue;
+                if (!naab::rx::regex_search(s, catch_open)) continue;
                 if (s.empty() || s.back() != '{') continue;  // Must end with { (multi-line body)
 
                 // Scan the catch body
@@ -123,7 +124,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                     if (body.empty()) continue;
                     if (cq_startsWith(body, "//") || cq_startsWith(body, "#") || cq_startsWith(body, "/*")) continue;
                     has_any_code = true;
-                    if (std::regex_match(body, trivial_assign) || body == "pass" || body == "pass;" || body == ";") {
+                    if (naab::rx::regex_match(body, trivial_assign) || body == "pass" || body == "pass;" || body == ";") {
                         continue;
                     }
                     only_trivial = false;
@@ -140,14 +141,14 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
     // 2. catch_and_ignore
     if (isEnabled(CAT, "catch_and_ignore")) {
-        static const std::regex except_typed(R"(^except\s+\w+.*:)");
-        static const std::regex log_pat(R"(^(print|log|logger\.\w+|logging\.\w+|console\.(log|warn|error))\()");
+        static const naab::rx::regex except_typed(R"(^except\s+\w+.*:)");
+        static const naab::rx::regex log_pat(R"(^(print|log|logger\.\w+|logging\.\w+|console\.(log|warn|error))\()");
 
         for (size_t i = 0; i + 1 < lines.size(); ++i) {
             std::string s = cq_trim(lines[i]);
-            if (std::regex_search(s, except_typed)) {
+            if (naab::rx::regex_search(s, except_typed)) {
                 std::string nxt = cq_trim(lines[i + 1]);
-                if (std::regex_search(nxt, log_pat)) {
+                if (naab::rx::regex_search(nxt, log_pat)) {
                     if (i + 2 < lines.size()) {
                         std::string nxt2 = cq_trim(lines[i + 2]);
                         if (!cq_startsWith(nxt2, "raise") && !cq_startsWith(nxt2, "return") &&
@@ -172,8 +173,8 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
         }
 
         // No lookbehind in ECMAScript — use simpler pattern + manual boundary check
-        static const std::regex num_pat(R"((-?\d+\.?\d*))");
-        static const std::regex const_line(R"(^\s*(const|#define|final|CONST|let\s+[A-Z_]+))");
+        static const naab::rx::regex num_pat(R"((-?\d+\.?\d*))");
+        static const naab::rx::regex const_line(R"(^\s*(const|#define|final|CONST|let\s+[A-Z_]+))");
 
         for (size_t i = 0; i < lines.size(); ++i) {
             bool skip_main = getNumOption(CAT, "magic_numbers", "skip_main", 1) > 0;
@@ -183,10 +184,10 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
             if (cq_startsWith(s, "#") || cq_startsWith(s, "//") || cq_startsWith(s, "/*") ||
                 cq_startsWith(s, "*") || s.find("import") != std::string::npos ||
                 s.find("include") != std::string::npos) continue;
-            if (std::regex_search(lines[i], const_line)) continue;
+            if (naab::rx::regex_search(lines[i], const_line)) continue;
 
-            std::sregex_iterator it(lines[i].begin(), lines[i].end(), num_pat);
-            std::sregex_iterator end;
+            naab::rx::sregex_iterator it(lines[i].begin(), lines[i].end(), num_pat);
+            naab::rx::sregex_iterator end;
             for (; it != end; ++it) {
                 // Manual boundary check: char before match must not be word/dot
                 auto pos = (*it).position();
@@ -218,16 +219,16 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
         int min_len = static_cast<int>(getNumOption(CAT, "magic_strings", "min_length", 5));
         int min_occ = static_cast<int>(getNumOption(CAT, "magic_strings", "min_occurrences", 3));
         // Separate patterns for single and double quotes (no backreference in lookahead)
-        static const std::regex str_pat_sq(R"('([^']+?)')");
-        static const std::regex str_pat_dq(R"RE("([^"]+?)")RE");
-        static const std::regex junk_pat(R"(^[\s\d:,{}\[\]()=<>+\-*/&|!.;]+$)");
+        static const naab::rx::regex str_pat_sq(R"('([^']+?)')");
+        static const naab::rx::regex str_pat_dq(R"RE("([^"]+?)")RE");
+        static const naab::rx::regex junk_pat(R"(^[\s\d:,{}\[\]()=<>+\-*/&|!.;]+$)");
 
         std::unordered_map<std::string, std::vector<int>> str_counts;
         for (size_t i = 0; i < lines.size(); ++i) {
             // Check both quote types
             for (const auto& pat : {std::cref(str_pat_sq), std::cref(str_pat_dq)}) {
-                std::sregex_iterator it(lines[i].begin(), lines[i].end(), pat.get());
-                std::sregex_iterator end_it;
+                naab::rx::sregex_iterator it(lines[i].begin(), lines[i].end(), pat.get());
+                naab::rx::sregex_iterator end_it;
                 for (; it != end_it; ++it) {
                     std::string sv = (*it)[1].str();
                     if (static_cast<int>(sv.size()) >= min_len) {
@@ -240,7 +241,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
             if (static_cast<int>(locs.size()) >= min_occ) {
                 std::string trimmed = cq_trim(sv);
                 if (static_cast<int>(trimmed.size()) < min_len) continue;
-                if (std::regex_match(sv, junk_pat)) continue;
+                if (naab::rx::regex_match(sv, junk_pat)) continue;
                 std::string locs_str;
                 for (size_t j = 0; j < std::min(locs.size(), size_t(5)); ++j) {
                     if (!locs_str.empty()) locs_str += ", ";
@@ -255,13 +256,13 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
     // 5. dead_code_after_return
     if (isEnabled(CAT, "dead_code_after_return")) {
-        static const std::regex term_pat(R"(^\s*(return\b|throw\b|break\b|continue\b|exit\(|sys\.exit|os\.exit|process\.exit))");
+        static const naab::rx::regex term_pat(R"(^\s*(return\b|throw\b|break\b|continue\b|exit\(|sys\.exit|os\.exit|process\.exit))");
         static const std::unordered_set<std::string> allowed_next = {
             "}", ")", "]", "else:", "else {", "elif", "except", "catch", "finally", "case"
         };
 
         for (size_t i = 0; i + 1 < lines.size(); ++i) {
-            if (std::regex_search(lines[i], term_pat)) {
+            if (naab::rx::regex_search(lines[i], term_pat)) {
                 std::string s_end = lines[i];
                 // Trim trailing whitespace
                 while (!s_end.empty() && (s_end.back() == ' ' || s_end.back() == '\t')) s_end.pop_back();
@@ -285,7 +286,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
     // 6. dead_conditional
     if (isEnabled(CAT, "dead_conditional")) {
-        struct DeadPat { std::regex pat; std::string desc; };
+        struct DeadPat { naab::rx::regex pat; std::string desc; };
         static const std::vector<std::pair<std::string, std::string>> dead_pats = {
             // Python-style
             {R"(^if\s+True\s*:)", "if True"}, {R"(^if\s+False\s*:)", "if False"},
@@ -308,8 +309,8 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
             std::string s = cq_trim(lines[i]);
             bool found = false;
             for (const auto& [pat_str, desc] : dead_pats) {
-                std::regex pat(pat_str);
-                if (std::regex_search(s, pat)) {
+                naab::rx::regex pat(pat_str);
+                if (naab::rx::regex_search(s, pat)) {
                     addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
                              fmt::format("Condition always {}", desc), s,
                              "Remove or fix the condition");
@@ -319,9 +320,9 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
             }
             // Manual string equality detection: if "a" == "a" {
             if (!found) {
-                static const std::regex string_cmp(R"RE(^if\s+"([^"]+)"\s*==\s*"([^"]+)"\s*[\{:])RE");
-                std::smatch sm;
-                if (std::regex_search(s, sm, string_cmp) && sm[1].str() == sm[2].str()) {
+                static const naab::rx::regex string_cmp(R"RE(^if\s+"([^"]+)"\s*==\s*"([^"]+)"\s*[\{:])RE");
+                naab::rx::smatch sm;
+                if (naab::rx::regex_search(s, sm, string_cmp) && sm[1].str() == sm[2].str()) {
                     addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
                              "Condition always true: identical string comparison", s,
                              "Remove or fix the condition");
@@ -332,9 +333,9 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
             // Enhanced: len(x) comparisons — len() never returns negative
             if (!found) {
                 // len(x) < 0 or len(x) <= -1 → always false
-                static const std::regex len_lt_zero(R"(len\s*\([^)]+\)\s*<\s*0\b)");
-                static const std::regex len_le_neg(R"(len\s*\([^)]+\)\s*<=\s*-\d+)");
-                if (std::regex_search(s, len_lt_zero) || std::regex_search(s, len_le_neg)) {
+                static const naab::rx::regex len_lt_zero(R"(len\s*\([^)]+\)\s*<\s*0\b)");
+                static const naab::rx::regex len_le_neg(R"(len\s*\([^)]+\)\s*<=\s*-\d+)");
+                if (naab::rx::regex_search(s, len_lt_zero) || naab::rx::regex_search(s, len_le_neg)) {
                     addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
                              "Condition always false: len() never returns negative", s,
                              "Remove or fix the condition");
@@ -343,8 +344,8 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
             }
             if (!found) {
                 // len(x) >= 0 → always true
-                static const std::regex len_ge_zero(R"(len\s*\([^)]+\)\s*>=\s*0\b)");
-                if (std::regex_search(s, len_ge_zero)) {
+                static const naab::rx::regex len_ge_zero(R"(len\s*\([^)]+\)\s*>=\s*0\b)");
+                if (naab::rx::regex_search(s, len_ge_zero)) {
                     addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
                              "Condition always true: len() is always >= 0", s,
                              "Remove or fix the condition");
@@ -354,9 +355,9 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
             // Enhanced: contradictory comparisons — x > N and x < N
             if (!found) {
-                static const std::regex contra_gt_lt(R"((\w+)\s*>\s*(\d+)\s+and\s+\1\s*<\s*(\d+))");
-                std::smatch cm;
-                if (std::regex_search(s, cm, contra_gt_lt)) {
+                static const naab::rx::regex contra_gt_lt(R"((\w+)\s*>\s*(\d+)\s+and\s+\1\s*<\s*(\d+))");
+                naab::rx::smatch cm;
+                if (naab::rx::regex_search(s, cm, contra_gt_lt)) {
                     int lo = std::stoi(cm[2].str());
                     int hi = std::stoi(cm[3].str());
                     if (lo >= hi) {
@@ -371,8 +372,8 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
             // Enhanced: null access — x == null and x.method()
             if (!found) {
-                static const std::regex null_and_access(R"((\w+)\s*==\s*null\s+and\s+\1\s*\.)");
-                if (std::regex_search(s, null_and_access)) {
+                static const naab::rx::regex null_and_access(R"((\w+)\s*==\s*null\s+and\s+\1\s*\.)");
+                if (naab::rx::regex_search(s, null_and_access)) {
                     addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
                              "Dead code: if x == null then x has no methods", s,
                              "Use x != null to guard method access");
@@ -382,10 +383,10 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
             // Enhanced: contradictory type checks — type(x) == "A" and type(x) == "B"
             if (!found) {
-                static const std::regex contra_type(
+                static const naab::rx::regex contra_type(
                     R"RE(type\s*\(\s*(\w+)\s*\)\s*==\s*"(\w+)"\s+and\s+type\s*\(\s*\1\s*\)\s*==\s*"(\w+)")RE");
-                std::smatch tm;
-                if (std::regex_search(s, tm, contra_type) && tm[2].str() != tm[3].str()) {
+                naab::rx::smatch tm;
+                if (naab::rx::regex_search(s, tm, contra_type) && tm[2].str() != tm[3].str()) {
                     addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
                              fmt::format("Condition always false: {} can't be both \"{}\" and \"{}\"",
                                          tm[1].str(), tm[2].str(), tm[3].str()), s,
@@ -399,23 +400,23 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
     // 6b. dead_conditional_dataflow — range tracking from clamp/max/min/for
     if (isEnabled(CAT, "dead_conditional_dataflow")) {
         // Track variable ranges within each function scope
-        static const std::regex func_start_df(R"(^(?:export\s+)?fn\s+\w+)");
-        static const std::regex main_start_df(R"(^main\s*\{)");
+        static const naab::rx::regex func_start_df(R"(^(?:export\s+)?fn\s+\w+)");
+        static const naab::rx::regex main_start_df(R"(^main\s*\{)");
 
         // Range extraction patterns
-        static const std::regex max_pat(R"(^let\s+(\w+)\s*=\s*math\.max\s*\(\s*(-?\d+(?:\.\d+)?)\s*,)");
-        static const std::regex min_pat(R"(^let\s+(\w+)\s*=\s*math\.min\s*\(\s*(-?\d+(?:\.\d+)?)\s*,)");
-        static const std::regex clamp_pat(R"(^let\s+(\w+)\s*=\s*(?:math\.)?clamp\s*\([^,]+,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\))");
+        static const naab::rx::regex max_pat(R"(^let\s+(\w+)\s*=\s*math\.max\s*\(\s*(-?\d+(?:\.\d+)?)\s*,)");
+        static const naab::rx::regex min_pat(R"(^let\s+(\w+)\s*=\s*math\.min\s*\(\s*(-?\d+(?:\.\d+)?)\s*,)");
+        static const naab::rx::regex clamp_pat(R"(^let\s+(\w+)\s*=\s*(?:math\.)?clamp\s*\([^,]+,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\))");
         // math.max(lo, math.min(hi, expr)) → range [lo, hi]
-        static const std::regex max_min_pat(R"(^let\s+(\w+)\s*=\s*math\.max\s*\(\s*(-?\d+(?:\.\d+)?)\s*,\s*math\.min\s*\(\s*(-?\d+(?:\.\d+)?)\s*,)");
+        static const naab::rx::regex max_min_pat(R"(^let\s+(\w+)\s*=\s*math\.max\s*\(\s*(-?\d+(?:\.\d+)?)\s*,\s*math\.min\s*\(\s*(-?\d+(?:\.\d+)?)\s*,)");
         // for i in lo..hi
-        static const std::regex for_range_pat(R"(^for\s+(\w+)\s+in\s+(-?\d+)\s*\.\.\s*(-?\d+))");
+        static const naab::rx::regex for_range_pat(R"(^for\s+(\w+)\s+in\s+(-?\d+)\s*\.\.\s*(-?\d+))");
 
         // Comparison patterns in if conditions
-        static const std::regex if_var_lt(R"(^if\s+(\w+)\s*<\s*(-?\d+(?:\.\d+)?))");
-        static const std::regex if_var_gt(R"(^if\s+(\w+)\s*>\s*(-?\d+(?:\.\d+)?))");
-        static const std::regex if_var_le(R"(^if\s+(\w+)\s*<=\s*(-?\d+(?:\.\d+)?))");
-        static const std::regex if_var_ge(R"(^if\s+(\w+)\s*>=\s*(-?\d+(?:\.\d+)?))");
+        static const naab::rx::regex if_var_lt(R"(^if\s+(\w+)\s*<\s*(-?\d+(?:\.\d+)?))");
+        static const naab::rx::regex if_var_gt(R"(^if\s+(\w+)\s*>\s*(-?\d+(?:\.\d+)?))");
+        static const naab::rx::regex if_var_le(R"(^if\s+(\w+)\s*<=\s*(-?\d+(?:\.\d+)?))");
+        static const naab::rx::regex if_var_ge(R"(^if\s+(\w+)\s*>=\s*(-?\d+(?:\.\d+)?))");
 
         struct Range { double lo; double hi; };
         std::unordered_map<std::string, Range> range_map;
@@ -423,33 +424,33 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = cq_trim(lines[i]);
-            std::smatch m;
+            naab::rx::smatch m;
 
             // Reset range map at function/main boundaries
-            if (std::regex_search(s, func_start_df) || std::regex_search(s, main_start_df)) {
+            if (naab::rx::regex_search(s, func_start_df) || naab::rx::regex_search(s, main_start_df)) {
                 range_map.clear();
             }
 
             // Extract ranges from assignments
-            if (std::regex_search(s, m, max_min_pat)) {
+            if (naab::rx::regex_search(s, m, max_min_pat)) {
                 // math.max(lo, math.min(hi, expr)) → [lo, hi]
                 range_map[m[1].str()] = {std::stod(m[2].str()), std::stod(m[3].str())};
-            } else if (std::regex_search(s, m, clamp_pat)) {
+            } else if (naab::rx::regex_search(s, m, clamp_pat)) {
                 // clamp(expr, lo, hi) → [lo, hi]
                 range_map[m[1].str()] = {std::stod(m[2].str()), std::stod(m[3].str())};
-            } else if (std::regex_search(s, m, max_pat)) {
+            } else if (naab::rx::regex_search(s, m, max_pat)) {
                 // math.max(N, expr) → [N, +inf]
                 range_map[m[1].str()] = {std::stod(m[2].str()), INF};
-            } else if (std::regex_search(s, m, min_pat)) {
+            } else if (naab::rx::regex_search(s, m, min_pat)) {
                 // math.min(N, expr) → [-inf, N]
                 range_map[m[1].str()] = {-INF, std::stod(m[2].str())};
-            } else if (std::regex_search(s, m, for_range_pat)) {
+            } else if (naab::rx::regex_search(s, m, for_range_pat)) {
                 // for i in lo..hi → [lo, hi-1]
                 range_map[m[1].str()] = {std::stod(m[2].str()), std::stod(m[3].str()) - 1};
             }
 
             // Check if conditions against known ranges
-            if (std::regex_search(s, m, if_var_lt)) {
+            if (naab::rx::regex_search(s, m, if_var_lt)) {
                 auto it = range_map.find(m[1].str());
                 if (it != range_map.end()) {
                     double cmp_val = std::stod(m[2].str());
@@ -460,7 +461,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                                  "Remove dead conditional or fix the range");
                     }
                 }
-            } else if (std::regex_search(s, m, if_var_gt)) {
+            } else if (naab::rx::regex_search(s, m, if_var_gt)) {
                 auto it = range_map.find(m[1].str());
                 if (it != range_map.end()) {
                     double cmp_val = std::stod(m[2].str());
@@ -471,7 +472,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                                  "Remove dead conditional or fix the range");
                     }
                 }
-            } else if (std::regex_search(s, m, if_var_le)) {
+            } else if (naab::rx::regex_search(s, m, if_var_le)) {
                 auto it = range_map.find(m[1].str());
                 if (it != range_map.end()) {
                     double cmp_val = std::stod(m[2].str());
@@ -482,7 +483,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                                  "Remove dead conditional or fix the range");
                     }
                 }
-            } else if (std::regex_search(s, m, if_var_ge)) {
+            } else if (naab::rx::regex_search(s, m, if_var_ge)) {
                 auto it = range_map.find(m[1].str());
                 if (it != range_map.end()) {
                     double cmp_val = std::stod(m[2].str());
@@ -507,13 +508,13 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
     // 7. god_functions
     if (isEnabled(CAT, "god_functions")) {
         int max_lines_f = static_cast<int>(getNumOption(CAT, "god_functions", "max_lines", 80));
-        static const std::regex func_start(R"(^(\s*)(?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
+        static const naab::rx::regex func_start(R"(^(\s*)(?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
 
         struct FuncInfo { size_t line; int indent; std::string name; };
         std::vector<FuncInfo> funcs;
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, func_start)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, func_start)) {
                 funcs.push_back({i, static_cast<int>(m[1].length()), m[2].str()});
             }
         }
@@ -533,12 +534,12 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
     if (isEnabled(CAT, "god_classes")) {
         int max_cls_lines = static_cast<int>(getNumOption(CAT, "god_classes", "max_lines", 300));
         int max_cls_methods = static_cast<int>(getNumOption(CAT, "god_classes", "max_methods", 20));
-        static const std::regex cls_pat(R"(^(\s*)class\s+(\w+))");
-        static const std::regex meth_pat(R"(\s+def\s+\w+)");
+        static const naab::rx::regex cls_pat(R"(^(\s*)class\s+(\w+))");
+        static const naab::rx::regex meth_pat(R"(\s+def\s+\w+)");
 
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch mc;
-            if (std::regex_search(lines[i], mc, cls_pat)) {
+            naab::rx::smatch mc;
+            if (naab::rx::regex_search(lines[i], mc, cls_pat)) {
                 std::string cls_name = mc[2].str();
                 int cls_indent = static_cast<int>(mc[1].length());
                 int cls_methods = 0;
@@ -547,7 +548,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                     std::string el = lines[cls_end];
                     if (cq_trim(el).empty()) { cls_end++; continue; }
                     if (cq_indent(el) <= cls_indent && !cq_trim(el).empty()) break;
-                    if (std::regex_search(el, meth_pat)) cls_methods++;
+                    if (naab::rx::regex_search(el, meth_pat)) cls_methods++;
                     cls_end++;
                 }
                 int cls_length = static_cast<int>(cls_end - i);
@@ -567,7 +568,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
     // 9. deep_nesting
     if (isEnabled(CAT, "deep_nesting")) {
         int max_depth = static_cast<int>(getNumOption(CAT, "deep_nesting", "max_depth", 4));
-        static const std::regex nest_pat(R"(^\s*(if|for|while|try|match|switch|with)\b)");
+        static const naab::rx::regex nest_pat(R"(^\s*(if|for|while|try|match|switch|with)\b)");
 
         // Auto-detect indent unit
         int indent_unit = 4;
@@ -579,7 +580,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
         }
 
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], nest_pat)) {
+            if (naab::rx::regex_search(lines[i], nest_pat)) {
                 int indent = cq_indent(lines[i]);
                 int depth = indent / indent_unit + 1;
                 if (depth > max_depth) {
@@ -594,11 +595,11 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
     // 10. long_parameter_list
     if (isEnabled(CAT, "long_parameter_list")) {
         int max_params = static_cast<int>(getNumOption(CAT, "long_parameter_list", "max_params", 5));
-        static const std::regex sig_pat(R"((?:def|function|fn|func)\s+\w+\s*\(([^)]*)\))");
+        static const naab::rx::regex sig_pat(R"((?:def|function|fn|func)\s+\w+\s*\(([^)]*)\))");
 
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, sig_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, sig_pat)) {
                 std::string params_str = m[1].str();
                 // Split by comma and count non-self/cls/this params
                 std::vector<std::string> params;
@@ -622,14 +623,14 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
     // 11. complex_boolean_expr
     if (isEnabled(CAT, "complex_boolean_expr")) {
         int max_cond = static_cast<int>(getNumOption(CAT, "complex_boolean_expr", "max_conditions", 3));
-        static const std::regex bool_op(R"(\b(and|or)\b|&&|\|\|)");
+        static const naab::rx::regex bool_op(R"(\b(and|or)\b|&&|\|\|)");
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = cq_trim(lines[i]);
             if (cq_startsWith(s, "if") || cq_startsWith(s, "while") || cq_startsWith(s, "elif")) {
                 int count = 0;
-                std::sregex_iterator it(s.begin(), s.end(), bool_op);
-                std::sregex_iterator end;
+                naab::rx::sregex_iterator it(s.begin(), s.end(), bool_op);
+                naab::rx::sregex_iterator end;
                 for (; it != end; ++it) count++;
                 if (count > max_cond) {
                     addIssue(issues, filepath, i + 1, "complex_boolean_expr", CAT,
@@ -642,19 +643,19 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
     // 12. mutable_global_state (Python only)
     if (isEnabled(CAT, "mutable_global_state") && language == "python") {
-        static const std::regex lowercase_assign(R"(^[a-z_]\w*\s*=\s*)");
-        static const std::regex uppercase_assign(R"(^[A-Z_]+\s*=)");
-        static const std::regex import_or_keyword(R"(^(import|from|class|def|if|for|while|try|with))");
-        static const std::regex logger_assign(R"(^[a-z_]\w*\s*=\s*logging\.getLogger)");
+        static const naab::rx::regex lowercase_assign(R"(^[a-z_]\w*\s*=\s*)");
+        static const naab::rx::regex uppercase_assign(R"(^[A-Z_]+\s*=)");
+        static const naab::rx::regex import_or_keyword(R"(^(import|from|class|def|if|for|while|try|with))");
+        static const naab::rx::regex logger_assign(R"(^[a-z_]\w*\s*=\s*logging\.getLogger)");
 
         for (size_t i = 0; i < lines.size(); ++i) {
             const auto& line = lines[i];
             if (line.empty()) continue;
             if (line[0] == ' ' || line[0] == '\t' || line[0] == '#') continue;
-            if (std::regex_search(line, lowercase_assign) && !std::regex_search(line, uppercase_assign)) {
+            if (naab::rx::regex_search(line, lowercase_assign) && !naab::rx::regex_search(line, uppercase_assign)) {
                 std::string s = cq_trim(line);
-                if (!std::regex_search(s, import_or_keyword)) {
-                    if (std::regex_search(line, logger_assign)) continue;
+                if (!naab::rx::regex_search(s, import_or_keyword)) {
+                    if (naab::rx::regex_search(line, logger_assign)) continue;
                     addIssue(issues, filepath, i + 1, "mutable_global_state", CAT,
                              "Mutable global state", s,
                              "Use UPPER_CASE for constants or move into function");
@@ -665,10 +666,10 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
     // 13. boolean_function_returns
     if (isEnabled(CAT, "boolean_function_returns")) {
-        static const std::regex if_cond(R"(^if\s+.+:)");
+        static const naab::rx::regex if_cond(R"(^if\s+.+:)");
         for (size_t i = 0; i + 3 < lines.size(); ++i) {
             std::string s = cq_trim(lines[i]);
-            if (std::regex_match(s, if_cond)) {
+            if (naab::rx::regex_match(s, if_cond)) {
                 if (cq_trim(lines[i + 1]) == "return True" &&
                     cq_trim(lines[i + 2]) == "else:" &&
                     cq_trim(lines[i + 3]) == "return False") {
@@ -682,20 +683,20 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
     // 14. string_concat_in_loop
     if (isEnabled(CAT, "string_concat_in_loop")) {
-        static const std::regex loop_pat(R"(^(for|while)\b)");
-        static const std::regex concat_pat(R"(\+=\s*['"])");
+        static const naab::rx::regex loop_pat(R"(^(for|while)\b)");
+        static const naab::rx::regex concat_pat(R"(\+=\s*['"])");
         int loop_indent = -1;
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = cq_trim(lines[i]);
             int cur_indent = s.empty() ? -1 : cq_indent(lines[i]);
 
-            if (std::regex_search(s, loop_pat)) {
+            if (naab::rx::regex_search(s, loop_pat)) {
                 loop_indent = cur_indent;
             } else if (loop_indent >= 0 && cur_indent >= 0 && cur_indent <= loop_indent && !s.empty()) {
                 loop_indent = -1;
             }
-            if (loop_indent >= 0 && std::regex_search(s, concat_pat)) {
+            if (loop_indent >= 0 && naab::rx::regex_search(s, concat_pat)) {
                 addIssue(issues, filepath, i + 1, "string_concat_in_loop", CAT,
                          "String concatenation in loop", s, "Use list+join()");
             }
@@ -706,10 +707,10 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
     if (isEnabled(CAT, "null_coalesce_non_nullable")) {
         // Pattern: comparison_op + simple_value + ?? (comparison result is bool, never null)
         // Uses [\w.]+ for RHS to avoid matching parens (which indicate the ?? is inside a subexpr)
-        static const std::regex cmp_then_nc(
+        static const naab::rx::regex cmp_then_nc(
             R"((?:>=|<=|!=|==|>(?!>)|<(?!<))\s*[\w.]+\s*\?\?)");
         // Pattern: true ?? or false ??
-        static const std::regex bool_then_nc(R"(\b(?:true|false)\s*\?\?)");
+        static const naab::rx::regex bool_then_nc(R"(\b(?:true|false)\s*\?\?)");
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = cq_trim(lines[i]);
@@ -718,10 +719,10 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
             bool flagged = false;
             std::string reason;
-            if (std::regex_search(s, cmp_then_nc)) {
+            if (naab::rx::regex_search(s, cmp_then_nc)) {
                 flagged = true;
                 reason = "Comparison returns bool, never null";
-            } else if (std::regex_search(s, bool_then_nc)) {
+            } else if (naab::rx::regex_search(s, bool_then_nc)) {
                 flagged = true;
                 reason = "Boolean literal is never null";
             }
@@ -736,12 +737,12 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
     // 15. recursive_no_base_case
     if (isEnabled(CAT, "recursive_no_base_case")) {
-        static const std::regex func_pat(R"(^(\s*)(?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
-        static const std::regex guard_pat(R"(\b(visited|seen|depth|max_depth|limit|memo|cache)\b)", std::regex::icase);
+        static const naab::rx::regex func_pat(R"(^(\s*)(?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
+        static const naab::rx::regex guard_pat(R"(\b(visited|seen|depth|max_depth|limit|memo|cache)\b)", naab::rx::regex::icase);
 
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch m;
-            if (std::regex_search(lines[i], m, func_pat)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(lines[i], m, func_pat)) {
                 std::string fname = m[2].str();
                 int base_ind = static_cast<int>(m[1].length());
                 size_t end = findFuncEnd(lines, i, base_ind, language);
@@ -753,24 +754,24 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                 }
 
                 // Check if self-calling
-                std::regex self_call("\\b" + fname + "\\s*\\(");
-                if (std::regex_search(body, self_call)) {
+                naab::rx::regex self_call("\\b" + fname + "\\s*\\(");
+                if (naab::rx::regex_search(body, self_call)) {
                     // Fix J: Validate guard variables are actually USED as guards
                     bool has_effective_guard = false;
-                    std::smatch gm;
+                    naab::rx::smatch gm;
                     std::string body_copy = body;
-                    while (std::regex_search(body_copy, gm, guard_pat)) {
+                    while (naab::rx::regex_search(body_copy, gm, guard_pat)) {
                         std::string guard_word = gm[1].str();
                         // Verify the guard word is used in a conditional or modified
-                        std::regex guard_in_cond("(?:if|while)\\s+[^{]*\\b" + guard_word + "\\b");
-                        std::regex guard_compared("\\b" + guard_word + "\\s*(?:==|!=|>=|<=|>|<)");
-                        std::regex guard_modified("\\b" + guard_word + "\\s*(?:[-+]=)");
-                        std::regex guard_len("(?:len|size|length)\\s*\\(\\s*" + guard_word + "\\s*\\)");
+                        naab::rx::regex guard_in_cond("(?:if|while)\\s+[^{]*\\b" + guard_word + "\\b");
+                        naab::rx::regex guard_compared("\\b" + guard_word + "\\s*(?:==|!=|>=|<=|>|<)");
+                        naab::rx::regex guard_modified("\\b" + guard_word + "\\s*(?:[-+]=)");
+                        naab::rx::regex guard_len("(?:len|size|length)\\s*\\(\\s*" + guard_word + "\\s*\\)");
 
-                        if (std::regex_search(body, guard_in_cond) ||
-                            std::regex_search(body, guard_compared) ||
-                            std::regex_search(body, guard_modified) ||
-                            std::regex_search(body, guard_len)) {
+                        if (naab::rx::regex_search(body, guard_in_cond) ||
+                            naab::rx::regex_search(body, guard_compared) ||
+                            naab::rx::regex_search(body, guard_modified) ||
+                            naab::rx::regex_search(body, guard_len)) {
                             has_effective_guard = true;
                             break;
                         }
@@ -789,13 +790,13 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
     // 17. assigned_never_read — variable assigned via let but never referenced
     if (isEnabled(CAT, "assigned_never_read")) {
-        static const std::regex func_pat(R"(^(\s*)(?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
-        static const std::regex let_pat(R"(^\s*let\s+(\w+)\s*=\s*(.*))");
-        static const std::regex for_pat(R"(^\s*for\s+(\w+)\s+in\b)");
+        static const naab::rx::regex func_pat(R"(^(\s*)(?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
+        static const naab::rx::regex let_pat(R"(^\s*let\s+(\w+)\s*=\s*(.*))");
+        static const naab::rx::regex for_pat(R"(^\s*for\s+(\w+)\s+in\b)");
 
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch fm;
-            if (!std::regex_search(lines[i], fm, func_pat)) continue;
+            naab::rx::smatch fm;
+            if (!naab::rx::regex_search(lines[i], fm, func_pat)) continue;
             int base_ind = static_cast<int>(fm[1].length());
             size_t func_end = findFuncEnd(lines, i, base_ind, language);
 
@@ -813,8 +814,8 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
             // Track nested function regions to skip their declarations
             std::vector<std::pair<size_t, size_t>> nested_funcs;
             for (size_t j = i + 1; j < func_end; ++j) {
-                std::smatch nfm;
-                if (std::regex_search(lines[j], nfm, func_pat)) {
+                naab::rx::smatch nfm;
+                if (naab::rx::regex_search(lines[j], nfm, func_pat)) {
                     int nind = static_cast<int>(nfm[1].length());
                     if (nind > base_ind) {
                         size_t nend = findFuncEnd(lines, j, nind, language);
@@ -834,12 +835,12 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                 std::string s = cq_trim(lines[j]);
                 if (s.empty() || cq_startsWith(s, "//") || cq_startsWith(s, "#")) continue;
 
-                std::smatch lm;
-                if (std::regex_search(lines[j], lm, let_pat)) {
+                naab::rx::smatch lm;
+                if (naab::rx::regex_search(lines[j], lm, let_pat)) {
                     decls.push_back({lm[1].str(), lm[2].str(), j});
                 }
-                std::smatch fvm;
-                if (std::regex_search(lines[j], fvm, for_pat)) {
+                naab::rx::smatch fvm;
+                if (naab::rx::regex_search(lines[j], fvm, for_pat)) {
                     loop_vars.insert(fvm[1].str());
                 }
             }
@@ -851,17 +852,17 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                 if (!d.name.empty() && d.name[0] == '_') continue;
 
                 bool read = false;
-                std::regex var_ref("\\b" + d.name + "\\b");
+                naab::rx::regex var_ref("\\b" + d.name + "\\b");
                 for (size_t j = d.line + 1; j < func_end; ++j) {
                     if (inNestedFunc(j)) continue;
                     std::string s = cq_trim(lines[j]);
                     if (s.empty() || cq_startsWith(s, "//") || cq_startsWith(s, "#")) continue;
 
                     // Skip lines that are just re-declaring the same variable
-                    std::smatch rm;
-                    if (std::regex_search(lines[j], rm, let_pat) && rm[1].str() == d.name) continue;
+                    naab::rx::smatch rm;
+                    if (naab::rx::regex_search(lines[j], rm, let_pat) && rm[1].str() == d.name) continue;
 
-                    if (std::regex_search(s, var_ref)) {
+                    if (naab::rx::regex_search(s, var_ref)) {
                         read = true;
                         break;
                     }
@@ -889,16 +890,16 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
     // 18. hash_sanitize_mismatch — crypto hash and sanitize on same variable
     if (isEnabled(CAT, "hash_sanitize_mismatch")) {
-        static const std::regex func_pat(R"(^(\s*)(?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
-        static const std::regex hash_call_pat(R"(\bcrypto\.(?:sha256|sha512|md5|sha1|hash)\s*\(\s*(\w+)\s*\))");
-        static const std::regex let_assign(R"(^\s*let\s+(\w+)\s*=\s*(.*))");
+        static const naab::rx::regex func_pat(R"(^(\s*)(?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
+        static const naab::rx::regex hash_call_pat(R"(\bcrypto\.(?:sha256|sha512|md5|sha1|hash)\s*\(\s*(\w+)\s*\))");
+        static const naab::rx::regex let_assign(R"(^\s*let\s+(\w+)\s*=\s*(.*))");
         // Match sanitize/validate calls with optional module prefix (e.g., val.sanitize_string)
-        static const std::regex sanitize_call(R"(\b(?:\w+\.)?(?:sanitize|validate)_\w+\s*\(\s*(\w+))");
-        static const std::regex word_pat(R"(\b([a-zA-Z_]\w*)\b)");
+        static const naab::rx::regex sanitize_call(R"(\b(?:\w+\.)?(?:sanitize|validate)_\w+\s*\(\s*(\w+))");
+        static const naab::rx::regex word_pat(R"(\b([a-zA-Z_]\w*)\b)");
 
         for (size_t i = 0; i < lines.size(); ++i) {
-            std::smatch fm;
-            if (!std::regex_search(lines[i], fm, func_pat)) continue;
+            naab::rx::smatch fm;
+            if (!naab::rx::regex_search(lines[i], fm, func_pat)) continue;
             int base_ind = static_cast<int>(fm[1].length());
             std::string fname = fm[2].str();
             size_t func_end = findFuncEnd(lines, i, base_ind, language);
@@ -913,14 +914,14 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                 if (s.empty() || cq_startsWith(s, "//") || cq_startsWith(s, "#")) continue;
 
                 // Collect let assignments for one-level tracing
-                std::smatch lm;
-                if (std::regex_search(lines[j], lm, let_assign)) {
+                naab::rx::smatch lm;
+                if (naab::rx::regex_search(lines[j], lm, let_assign)) {
                     let_rhs[lm[1].str()] = lm[2].str();
                 }
 
                 // Find crypto.sha256(var)
-                std::smatch hm;
-                if (std::regex_search(lines[j], hm, hash_call_pat)) {
+                naab::rx::smatch hm;
+                if (naab::rx::regex_search(lines[j], hm, hash_call_pat)) {
                     std::string hash_arg = hm[1].str();
                     hash_line = j;
                     hash_input_vars.insert(hash_arg);
@@ -928,8 +929,8 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                     auto rit = let_rhs.find(hash_arg);
                     if (rit != let_rhs.end()) {
                         std::string rhs_copy = rit->second;
-                        std::smatch wm;
-                        while (std::regex_search(rhs_copy, wm, word_pat)) {
+                        naab::rx::smatch wm;
+                        while (naab::rx::regex_search(rhs_copy, wm, word_pat)) {
                             std::string w = wm[1].str();
                             // Skip keywords and common builtins
                             if (w != "string" && w != "let" && w != "const" && w != "int" && w != "float") {
@@ -951,9 +952,9 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                 std::string s = cq_trim(lines[j]);
                 if (s.empty() || cq_startsWith(s, "//") || cq_startsWith(s, "#")) continue;
 
-                std::smatch sm;
+                naab::rx::smatch sm;
                 std::string line_copy = lines[j];
-                while (std::regex_search(line_copy, sm, sanitize_call)) {
+                while (naab::rx::regex_search(line_copy, sm, sanitize_call)) {
                     std::string sanitized_var = sm[1].str();
                     if (hash_input_vars.count(sanitized_var)) {
                         addIssue(issues, filepath, hash_line + 1, "hash_sanitize_mismatch", CAT,

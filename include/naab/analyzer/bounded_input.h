@@ -1,6 +1,6 @@
 // Bounds what the task analyzers' regexes are asked to scan.
 //
-// libstdc++ runs std::regex by recursion (_Executor::_M_dfs), roughly one stack
+// libstdc++ runs naab::rx::regex by recursion (_Executor::_M_dfs), roughly one stack
 // frame per character an unbounded repetition (\w+, .*, \s+) consumes. The
 // analyzers are full of those, so a single ~40 KB line in a polyglot block
 // exhausted the stack: SIGSEGV on both engines under a plain enforce config,
@@ -14,6 +14,7 @@
 #pragma once
 
 #include <string>
+#include "naab/rx.h"
 
 namespace naab {
 namespace analyzer {

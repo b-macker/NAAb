@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <chrono>
 #include <regex>
+#include "naab/rx.h"
 #include <unordered_map>
 
 namespace naab {
@@ -74,12 +75,12 @@ static std::string sanitizeStderr(const std::string& stderr_str, int max_chars) 
     std::string result = stderr_str;
 
     // Strip absolute paths (Unix)
-    result = std::regex_replace(result, std::regex("/[a-zA-Z0-9_./-]{5,}/"), "[path]/");
+    result = naab::rx::regex_replace(result, naab::rx::regex("/[a-zA-Z0-9_./-]{5,}/"), "[path]/");
     // Strip Python traceback file paths
-    result = std::regex_replace(result, std::regex("File \"[^\"]+\""), "File \"[internal]\"");
+    result = naab::rx::regex_replace(result, naab::rx::regex("File \"[^\"]+\""), "File \"[internal]\"");
     // Strip Go paths
-    result = std::regex_replace(result, std::regex("GOPATH=[^ \\n]+"), "GOPATH=[internal]");
-    result = std::regex_replace(result, std::regex("GOROOT=[^ \\n]+"), "GOROOT=[internal]");
+    result = naab::rx::regex_replace(result, naab::rx::regex("GOPATH=[^ \\n]+"), "GOPATH=[internal]");
+    result = naab::rx::regex_replace(result, naab::rx::regex("GOROOT=[^ \\n]+"), "GOROOT=[internal]");
 
     // Truncate
     if (max_chars > 0 && static_cast<int>(result.size()) > max_chars) {

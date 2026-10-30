@@ -6785,6 +6785,16 @@ static no_inline __exception int __js_poll_interrupts(JSContext *ctx)
     return 0;
 }
 
+/* NAAb patch (A89): libregexp's step hook. A regexp is interrupted exactly as
+   a script is, so --timeout reaches a <<javascript>> block stuck in a match. */
+BOOL lre_check_timeout(void *opaque)
+{
+    JSContext *ctx = opaque;
+    JSRuntime *rt = ctx->rt;
+    return (rt->interrupt_handler &&
+            rt->interrupt_handler(rt, rt->interrupt_opaque));
+}
+
 static inline __exception int js_poll_interrupts(JSContext *ctx)
 {
     if (unlikely(--ctx->interrupt_counter <= 0)) {
@@ -42569,6 +42579,11 @@ static JSValue js_regexp_exec(JSContext *ctx, JSValueConst this_val,
                                    JS_NewInt32(ctx, 0)) < 0)
                     goto fail;
             }
+        } else if (ret == LRE_RET_TIMEOUT) {
+            /* NAAb patch (A89) */
+            JS_ThrowInternalError(ctx, "interrupted");
+            JS_SetUncatchableError(ctx, ctx->rt->current_exception, TRUE);
+            goto fail;
         } else {
             JS_ThrowInternalError(ctx, "out of memory in regexp execution");
             goto fail;
@@ -42694,6 +42709,11 @@ static JSValue JS_RegExpDelete(JSContext *ctx, JSValueConst this_val, JSValueCon
                                        JS_NewInt32(ctx, 0)) < 0)
                         goto fail;
                 }
+            } else if (ret == LRE_RET_TIMEOUT) {
+                /* NAAb patch (A89) */
+                JS_ThrowInternalError(ctx, "interrupted");
+                JS_SetUncatchableError(ctx, ctx->rt->current_exception, TRUE);
+                goto fail;
             } else {
                 JS_ThrowInternalError(ctx, "out of memory in regexp execution");
                 goto fail;

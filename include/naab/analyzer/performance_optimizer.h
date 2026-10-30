@@ -4,6 +4,7 @@
 #pragma once
 
 #include <regex>
+#include "naab/rx.h"
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -24,7 +25,7 @@ public:
     static RegexCache& instance();
 
     // Get or compile regex pattern (thread-safe)
-    std::regex& getRegex(const std::string& pattern);
+    naab::rx::regex& getRegex(const std::string& pattern);
 
     // Statistics
     size_t getHitCount() const;
@@ -37,7 +38,7 @@ private:
     RegexCache(const RegexCache&) = delete;
     RegexCache& operator=(const RegexCache&) = delete;
 
-    std::unordered_map<std::string, std::regex> cache_;
+    std::unordered_map<std::string, naab::rx::regex> cache_;
     mutable std::shared_mutex mutex_;
     std::atomic<size_t> hit_count_{0};
     std::atomic<size_t> miss_count_{0};

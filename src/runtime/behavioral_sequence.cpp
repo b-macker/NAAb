@@ -419,9 +419,31 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
         default_patterns_.push_back(std::move(p));
     }
 
-    // Observe-first: unless the operator opts into declared levels, every
-    // built-in pattern runs ADVISORY. See governance.h for why correcting the
-    // step names is an enablement rather than a repair.
+    // 17. Credential exfiltration: ENV_READ(secret/key/token/password) ->
+    //     ENCODE -> AGENT_SEND | NET_CONNECT
+    //     gap=5 per step: read, encode and send belong together. Covers what
+    //     credential_harvesting cannot: a credential handed to a MODEL
+    //     (agent.send is AGENT_SEND, not a network call) and an http send pushed
+    //     past harvesting's single 5-event gap by the encode and the calls
+    //     around it. The README showed this chain as a user pattern (Bundle 6).
+    {
+        SequencePattern p;
+        p.name = "credential_exfiltration";
+        p.steps.push_back(makeStep(
+            {"env.get", "env.get", "env.get", "env.get", "env.get", "env.get", "env.get", "env.get"},
+            {"*secret*", "*key*", "*token*", "*password*", "*SECRET*", "*KEY*", "*TOKEN*", "*PASSWORD*"}));
+        p.steps.push_back(makeStep({"encode"}));
+        p.steps.push_back(makeStep({"agent.send", "net_connect"}));
+        p.max_gap = 5;
+        p.level = EnforcementLevel::SOFT;
+        p.rationale = "A credential read, encoded and sent to a model or a host is exfiltration";
+        default_patterns_.push_back(std::move(p));
+    }
+
+    // Built-ins enforce at the level each declares unless the operator writes
+    // "observe" (default "declared" since Bundle 6; it shipped "observe" in
+    // f804e74a because correcting the step names switched these patterns on
+    // for the first time -- governance.h, BehavioralSequenceConfig).
     if (!config_ || config_->default_pattern_enforcement != "declared") {
         for (auto& dp : default_patterns_) {
             dp.level = EnforcementLevel::ADVISORY;

@@ -4,6 +4,7 @@
 #include "naab/semver.h"
 #include <fmt/core.h>
 #include <regex>
+#include "naab/rx.h"
 #include <vector>
 #include <sstream>
 #include <algorithm>
@@ -25,12 +26,12 @@ SemanticVersion::SemanticVersion(int maj, int min, int pat,
 SemanticVersion SemanticVersion::parse(const std::string& version_str) {
     // Regex pattern for semver: MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]
     // Pattern: ^(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.-]+))?(?:\+([a-zA-Z0-9.-]+))?$
-    std::regex semver_pattern(
+    naab::rx::regex semver_pattern(
         R"(^(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.-]+))?(?:\+([a-zA-Z0-9.-]+))?$)"
     );
 
-    std::smatch matches;
-    if (!std::regex_match(version_str, matches, semver_pattern)) {
+    naab::rx::smatch matches;
+    if (!naab::rx::regex_match(version_str, matches, semver_pattern)) {
         throw VersionParseException(
             fmt::format("Invalid semantic version string: '{}'", version_str));
     }
@@ -201,14 +202,14 @@ bool SemanticVersion::satisfiesRange(const std::string& range) const {
         std::replace(normalized.begin(), normalized.end(), 'X', 'x');
 
         // Parse the x-range
-        std::regex x_pattern(R"(^(\d+)\.x$)");  // e.g., "1.x"
-        std::regex xx_pattern(R"(^(\d+)\.(\d+)\.x$)");  // e.g., "1.2.x"
+        naab::rx::regex x_pattern(R"(^(\d+)\.x$)");  // e.g., "1.x"
+        naab::rx::regex xx_pattern(R"(^(\d+)\.(\d+)\.x$)");  // e.g., "1.2.x"
 
-        std::smatch matches;
-        if (std::regex_match(normalized, matches, x_pattern)) {
+        naab::rx::smatch matches;
+        if (naab::rx::regex_match(normalized, matches, x_pattern)) {
             int base_major = std::stoi(matches[1].str());
             return major == base_major;
-        } else if (std::regex_match(normalized, matches, xx_pattern)) {
+        } else if (naab::rx::regex_match(normalized, matches, xx_pattern)) {
             int base_major = std::stoi(matches[1].str());
             int base_minor = std::stoi(matches[2].str());
             return major == base_major && minor == base_minor;

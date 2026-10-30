@@ -9,6 +9,7 @@
 #include "naab/utils/string_utils.h"
 #include "naab/safe_regex.h"
 #include <regex>
+#include "naab/rx.h"
 #include <string>
 #include <vector>
 #include <sstream>
@@ -76,7 +77,7 @@ interpreter::NaabVal RegexModule::call(
         std::string pattern = getString(args[1]);
 
         auto& safe_regex = regex_safety::getGlobalSafeRegex();
-        std::smatch match;
+        naab::rx::smatch match;
         bool found = safe_regex.safeSearch(text, pattern, match);
         if (found) {
             return makeString(match.str(0));
@@ -143,7 +144,7 @@ interpreter::NaabVal RegexModule::call(
             auto& safe_regex = regex_safety::getGlobalSafeRegex();
             std::vector<std::string> parts;
             std::string remaining = text;
-            std::smatch match;
+            naab::rx::smatch match;
             while (safe_regex.safeSearch(remaining, pattern, match)) {
                 parts.push_back(match.prefix().str());
                 remaining = match.suffix().str();
@@ -175,7 +176,7 @@ interpreter::NaabVal RegexModule::call(
         // V-DOS-012: Use SafeRegex for ReDoS protection
         try {
             auto& safe_regex = regex_safety::getGlobalSafeRegex();
-            std::smatch match;
+            naab::rx::smatch match;
             if (safe_regex.safeSearch(text, pattern, match)) {
                 std::vector<std::string> groups;
                 for (size_t i = 0; i < match.size(); ++i) {
@@ -202,7 +203,7 @@ interpreter::NaabVal RegexModule::call(
             auto& safe_regex = regex_safety::getGlobalSafeRegex();
             std::vector<interpreter::NaabVal> all_groups;
             std::string remaining = text;
-            std::smatch match;
+            naab::rx::smatch match;
             while (safe_regex.safeSearch(remaining, pattern, match)) {
                 std::vector<std::string> groups;
                 for (size_t j = 0; j < match.size(); ++j) {
@@ -252,9 +253,11 @@ interpreter::NaabVal RegexModule::call(
         try {
             auto& safe_regex = regex_safety::getGlobalSafeRegex();
             safe_regex.analyzePattern(pattern);
-            std::regex re(pattern);  // Validate syntax
+            naab::rx::regex re(pattern);  // Validate syntax
             (void)re;
             return makeBool(true);
+        } catch (const naab::rx::resource_error&) {
+            throw;  // a scan that did not finish decided nothing (A89)
         } catch (...) {
             return makeBool(false);
         }

@@ -16,6 +16,7 @@
 #include <sstream>
 #include <iterator>
 #include <regex>
+#include "naab/rx.h"
 #include <algorithm>
 #include <cctype>
 
@@ -164,16 +165,16 @@ std::string ProjectContextLoader::stripMarkdownFormatting(const std::string& lin
 
     // Strip bold/italic markers
     // **text** or __text__
-    static const std::regex bold_re(R"(\*\*([^*]+)\*\*)");
-    result = std::regex_replace(result, bold_re, "$1");
-    static const std::regex italic_re(R"(\*([^*]+)\*)");
-    result = std::regex_replace(result, italic_re, "$1");
+    static const naab::rx::regex bold_re(R"(\*\*([^*]+)\*\*)");
+    result = naab::rx::regex_replace(result, bold_re, "$1");
+    static const naab::rx::regex italic_re(R"(\*([^*]+)\*)");
+    result = naab::rx::regex_replace(result, italic_re, "$1");
 
     // Strip leading bullet markers: "- ", "* ", "1. ", "2. "
-    static const std::regex bullet_re(R"(^\s*[-*]\s+)");
-    result = std::regex_replace(result, bullet_re, "");
-    static const std::regex numbered_re(R"(^\s*\d+\.\s+)");
-    result = std::regex_replace(result, numbered_re, "");
+    static const naab::rx::regex bullet_re(R"(^\s*[-*]\s+)");
+    result = naab::rx::regex_replace(result, bullet_re, "");
+    static const naab::rx::regex numbered_re(R"(^\s*\d+\.\s+)");
+    result = naab::rx::regex_replace(result, numbered_re, "");
 
     return result;
 }
@@ -371,9 +372,9 @@ void ProjectContextLoader::extractFromLine(
 
     // "always use <lang>" / "only use <lang>" / "must use <lang>"
     {
-        std::regex re(R"((?:always|only|must)\s+use\s+(\w+))", std::regex::icase);
-        std::smatch m;
-        if (std::regex_search(line, m, re)) {
+        naab::rx::regex re(R"((?:always|only|must)\s+use\s+(\w+))", naab::rx::regex::icase);
+        naab::rx::smatch m;
+        if (naab::rx::regex_search(line, m, re)) {
             std::string lang = normalizeLanguage(m[1].str());
             if (!lang.empty() && LANG_ALIASES.count(lang)) {
                 ContextExtraction ext;
@@ -396,9 +397,9 @@ void ProjectContextLoader::extractFromLine(
 
     // "prefer <lang>" / "default to <lang>"
     {
-        std::regex re(R"((?:prefer|default\s+to)\s+(\w+?)(?:\s+for\s+(.+?))?(?:\.|,|$))", std::regex::icase);
-        std::smatch m;
-        if (std::regex_search(line, m, re)) {
+        naab::rx::regex re(R"((?:prefer|default\s+to)\s+(\w+?)(?:\s+for\s+(.+?))?(?:\.|,|$))", naab::rx::regex::icase);
+        naab::rx::smatch m;
+        if (naab::rx::regex_search(line, m, re)) {
             std::string lang = normalizeLanguage(m[1].str());
             std::string task_str = m[2].matched ? m[2].str() : "";
             if (!lang.empty() && LANG_ALIASES.count(lang)) {
@@ -439,9 +440,9 @@ void ProjectContextLoader::extractFromLine(
 
     // "use <lang> for <task>"
     {
-        std::regex re(R"(use\s+(\w+)\s+(?:for|when)\s+(.+?)(?:\.|,|$))", std::regex::icase);
-        std::smatch m;
-        if (std::regex_search(line, m, re)) {
+        naab::rx::regex re(R"(use\s+(\w+)\s+(?:for|when)\s+(.+?)(?:\.|,|$))", naab::rx::regex::icase);
+        naab::rx::smatch m;
+        if (naab::rx::regex_search(line, m, re)) {
             std::string lang = normalizeLanguage(m[1].str());
             std::string task_str = m[2].str();
             if (!lang.empty() && LANG_ALIASES.count(lang)) {
@@ -470,9 +471,9 @@ void ProjectContextLoader::extractFromLine(
 
     // "never use <lang>" / "avoid <lang>" / "don't use <lang>"
     {
-        std::regex re(R"((?:never|don'?t|do\s+not|avoid)\s+use\s+(\w+))", std::regex::icase);
-        std::smatch m;
-        if (std::regex_search(line, m, re)) {
+        naab::rx::regex re(R"((?:never|don'?t|do\s+not|avoid)\s+use\s+(\w+))", naab::rx::regex::icase);
+        naab::rx::smatch m;
+        if (naab::rx::regex_search(line, m, re)) {
             std::string lang = normalizeLanguage(m[1].str());
             if (!lang.empty() && LANG_ALIASES.count(lang)) {
                 ContextExtraction ext;
@@ -497,9 +498,9 @@ void ProjectContextLoader::extractFromLine(
 
     // "never use <func>()" / "don't use <func>" / "avoid <func>"
     {
-        std::regex re(R"((?:never|don'?t|do\s+not|avoid)\s+(?:use|call)\s+([\w.]+)\s*\(?)", std::regex::icase);
-        std::smatch m;
-        if (std::regex_search(line, m, re)) {
+        naab::rx::regex re(R"((?:never|don'?t|do\s+not|avoid)\s+(?:use|call)\s+([\w.]+)\s*\(?)", naab::rx::regex::icase);
+        naab::rx::smatch m;
+        if (naab::rx::regex_search(line, m, re)) {
             std::string func = m[1].str();
             // Don't re-match language avoidance patterns
             std::string func_lower = func;
@@ -528,9 +529,9 @@ void ProjectContextLoader::extractFromLine(
 
     // "no <module>" / "ban <module>" / "forbid <module>"
     {
-        std::regex re(R"((?:no|ban|forbid|prohibit)\s+([\w.]+))", std::regex::icase);
-        std::smatch m;
-        if (std::regex_search(line, m, re)) {
+        naab::rx::regex re(R"((?:no|ban|forbid|prohibit)\s+([\w.]+))", naab::rx::regex::icase);
+        naab::rx::smatch m;
+        if (naab::rx::regex_search(line, m, re)) {
             std::string mod = m[1].str();
             std::string mod_lower = mod;
             std::transform(mod_lower.begin(), mod_lower.end(), mod_lower.begin(),
@@ -560,9 +561,9 @@ void ProjectContextLoader::extractFromLine(
 
     // "never import <module>"
     {
-        std::regex re(R"((?:never|don'?t|do\s+not)\s+import\s+([\w.]+))", std::regex::icase);
-        std::smatch m;
-        if (std::regex_search(line, m, re)) {
+        naab::rx::regex re(R"((?:never|don'?t|do\s+not)\s+import\s+([\w.]+))", naab::rx::regex::icase);
+        naab::rx::smatch m;
+        if (naab::rx::regex_search(line, m, re)) {
             std::string mod = m[1].str();
             std::string mod_lower = mod;
             std::transform(mod_lower.begin(), mod_lower.end(), mod_lower.begin(),
@@ -590,9 +591,9 @@ void ProjectContextLoader::extractFromLine(
 
     // "use N spaces"
     {
-        std::regex re(R"(use\s+(\d+)\s+spaces?(?:\s+(?:for\s+)?indent)?)", std::regex::icase);
-        std::smatch m;
-        if (std::regex_search(line, m, re)) {
+        naab::rx::regex re(R"(use\s+(\d+)\s+spaces?(?:\s+(?:for\s+)?indent)?)", naab::rx::regex::icase);
+        naab::rx::smatch m;
+        if (naab::rx::regex_search(line, m, re)) {
             int n = std::stoi(m[1].str());
             ContextExtraction ext;
             ext.id = generateRuleId(ContextLayer::LLM, source_file, "style", fmt::format("indent-{}", n));
@@ -611,9 +612,9 @@ void ProjectContextLoader::extractFromLine(
 
     // "use tabs"
     {
-        std::regex re(R"((?:use|prefer)\s+tabs?\s*(?:for\s+indent)?)", std::regex::icase);
-        std::smatch m;
-        if (std::regex_search(line, m, re)) {
+        naab::rx::regex re(R"((?:use|prefer)\s+tabs?\s*(?:for\s+indent)?)", naab::rx::regex::icase);
+        naab::rx::smatch m;
+        if (naab::rx::regex_search(line, m, re)) {
             ContextExtraction ext;
             ext.id = generateRuleId(ContextLayer::LLM, source_file, "style", "tabs");
             ext.layer = ContextLayer::LLM;
@@ -652,9 +653,9 @@ void ProjectContextLoader::extractFromLine(
 
     // "use strict mode"
     {
-        std::regex re(R"((?:use|require|enable)\s+strict\s+mode)", std::regex::icase);
-        std::smatch m;
-        if (std::regex_search(line, m, re)) {
+        naab::rx::regex re(R"((?:use|require|enable)\s+strict\s+mode)", naab::rx::regex::icase);
+        naab::rx::smatch m;
+        if (naab::rx::regex_search(line, m, re)) {
             ContextExtraction ext;
             ext.id = generateRuleId(ContextLayer::LLM, source_file, "style", "strict-mode");
             ext.layer = ContextLayer::LLM;
@@ -673,9 +674,9 @@ void ProjectContextLoader::extractFromLine(
 
     // "max N lines per function"
     {
-        std::regex re(R"((?:max(?:imum)?|limit)\s+(\d+)\s+lines?\s+(?:per|in)\s+(?:function|method))", std::regex::icase);
-        std::smatch m;
-        if (std::regex_search(line, m, re)) {
+        naab::rx::regex re(R"((?:max(?:imum)?|limit)\s+(\d+)\s+lines?\s+(?:per|in)\s+(?:function|method))", naab::rx::regex::icase);
+        naab::rx::smatch m;
+        if (naab::rx::regex_search(line, m, re)) {
             int n = std::stoi(m[1].str());
             ContextExtraction ext;
             ext.id = generateRuleId(ContextLayer::LLM, source_file, "style", fmt::format("max-func-lines-{}", n));

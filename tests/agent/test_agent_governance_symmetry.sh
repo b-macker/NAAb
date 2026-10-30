@@ -100,7 +100,9 @@ fi
 
 # T10: Both inbound AND outbound scanning exist (symmetry check)
 OUTBOUND_COUNT=$(grep -c 'checkSecrets(message' "$SRC_AGENT" || true)
-INBOUND_COUNT=$(grep -c 'checkSecrets(content' "$SRC_AGENT" || true)
+# Model output goes through checkModelOutputSecrets() since Bundle 6 (on by
+# default); prompts still through checkSecrets().
+INBOUND_COUNT=$(grep -c 'checkModelOutputSecrets(content' "$SRC_AGENT" || true)
 if (( OUTBOUND_COUNT >= 1 && INBOUND_COUNT >= 1 )); then
     pass "T10: both outbound ($OUTBOUND_COUNT) and inbound ($INBOUND_COUNT) secrets checks present"
 else

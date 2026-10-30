@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cctype>
 #include <regex>
+#include "naab/rx.h"
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -57,11 +58,11 @@ interpreter::NaabVal ValidateModule::call(
         if (!args[0].isString()) {
             return interpreter::NaabVal::makeBool(false);
         }
-        static const std::regex email_re(
+        static const naab::rx::regex email_re(
             R"(^[a-zA-Z0-9_%+\-]+([.][a-zA-Z0-9_%+\-]+)*@[a-zA-Z0-9\-]+([.][a-zA-Z0-9\-]+)*\.[a-zA-Z]{2,}$)"
         );
         return interpreter::NaabVal::makeBool(
-            std::regex_match(args[0].asString(), email_re));
+            naab::rx::regex_match(args[0].asString(), email_re));
     }
 
     if (function_name == "url") {
@@ -71,11 +72,11 @@ interpreter::NaabVal ValidateModule::call(
         if (!args[0].isString()) {
             return interpreter::NaabVal::makeBool(false);
         }
-        static const std::regex url_re(
+        static const naab::rx::regex url_re(
             R"(^(https?|ftp)://[^\s/$.?#][^\s]*$)"
         );
         return interpreter::NaabVal::makeBool(
-            std::regex_match(args[0].asString(), url_re));
+            naab::rx::regex_match(args[0].asString(), url_re));
     }
 
     if (function_name == "ip") {
@@ -85,11 +86,11 @@ interpreter::NaabVal ValidateModule::call(
         if (!args[0].isString()) {
             return interpreter::NaabVal::makeBool(false);
         }
-        static const std::regex ipv4_re(
+        static const naab::rx::regex ipv4_re(
             R"(^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$)"
         );
         return interpreter::NaabVal::makeBool(
-            std::regex_match(args[0].asString(), ipv4_re));
+            naab::rx::regex_match(args[0].asString(), ipv4_re));
     }
 
     if (function_name == "ipv6") {
@@ -109,11 +110,11 @@ interpreter::NaabVal ValidateModule::call(
         };
         if (count_colons(ip) > 1) return interpreter::NaabVal::makeBool(false);
         // Full form: 8 groups; compressed: fewer groups with ::
-        static const std::regex ipv6_full(
+        static const naab::rx::regex ipv6_full(
             R"(^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$)");
-        static const std::regex ipv6_compressed(
+        static const naab::rx::regex ipv6_compressed(
             R"(^(([0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{0,4})?::([0-9a-fA-F]{1,4}(:([0-9a-fA-F]{1,4}))*)?$)");
-        bool valid = std::regex_match(ip, ipv6_full) || std::regex_match(ip, ipv6_compressed);
+        bool valid = naab::rx::regex_match(ip, ipv6_full) || naab::rx::regex_match(ip, ipv6_compressed);
         return interpreter::NaabVal::makeBool(valid);
     }
 
@@ -164,8 +165,8 @@ interpreter::NaabVal ValidateModule::call(
         std::string s       = getString(args[0]);
         std::string pattern = getString(args[1]);
         try {
-            std::regex re(pattern);
-            return interpreter::NaabVal::makeBool(std::regex_match(s, re));
+            naab::rx::regex re(pattern);
+            return interpreter::NaabVal::makeBool(naab::rx::regex_match(s, re));
         } catch (const std::regex_error& e) {
             throw std::runtime_error(
                 std::string("validate.matches(): invalid regex pattern: ") + e.what());

@@ -3,6 +3,7 @@
 
 #include "naab/scanner.h"
 #include <regex>
+#include "naab/rx.h"
 #include <algorithm>
 #include <fmt/core.h>
 
@@ -27,18 +28,18 @@ void ScannerEngine::checkLangGo(const std::string& filepath,
     const std::string CAT = "lang_go";
 
     // Check if package main
-    static const std::regex pkg_main(R"(^package\s+main)");
+    static const naab::rx::regex pkg_main(R"(^package\s+main)");
     bool is_main = false;
     for (size_t i = 0; i < std::min(lines.size(), size_t(5)); ++i) {
-        if (std::regex_search(lines[i], pkg_main)) { is_main = true; break; }
+        if (naab::rx::regex_search(lines[i], pkg_main)) { is_main = true; break; }
     }
 
     // 1. ignored_error
     if (isEnabled(CAT, "ignored_error")) {
-        static const std::regex pat(R"(\w+\s*,\s*_\s*:?=\s*\w+)");
+        static const naab::rx::regex pat(R"(\w+\s*,\s*_\s*:?=\s*\w+)");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = go_trim(lines[i]);
-            if (std::regex_search(s, pat)) {
+            if (naab::rx::regex_search(s, pat)) {
                 addIssue(issues, filepath, i + 1, "ignored_error", CAT,
                          "Error return value discarded with _", s,
                          "Handle the error");
@@ -48,9 +49,9 @@ void ScannerEngine::checkLangGo(const std::string& filepath,
 
     // 2. panic_in_library
     if (isEnabled(CAT, "panic_in_library") && !is_main) {
-        static const std::regex pat(R"(\bpanic\s*\()");
+        static const naab::rx::regex pat(R"(\bpanic\s*\()");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "panic_in_library", CAT,
                          "panic() in library code", go_trim(lines[i]),
                          "Return error instead");
@@ -60,10 +61,10 @@ void ScannerEngine::checkLangGo(const std::string& filepath,
 
     // 3. empty_interface_abuse
     if (isEnabled(CAT, "empty_interface_abuse")) {
-        static const std::regex pat(R"(interface\s*\{\s*\}|\bany\b)");
+        static const naab::rx::regex pat(R"(interface\s*\{\s*\}|\bany\b)");
         int count = 0;
         for (const auto& l : lines) {
-            if (std::regex_search(l, pat)) count++;
+            if (naab::rx::regex_search(l, pat)) count++;
         }
         if (count > 3) {
             addIssue(issues, filepath, 1, "empty_interface_abuse", CAT,
@@ -75,15 +76,15 @@ void ScannerEngine::checkLangGo(const std::string& filepath,
 
     // 4. shadow_err
     if (isEnabled(CAT, "shadow_err")) {
-        static const std::regex err_check(R"(^if\s+err\s*!=\s*nil)");
-        static const std::regex err_shadow(R"(err\s*:=)");
+        static const naab::rx::regex err_check(R"(^if\s+err\s*!=\s*nil)");
+        static const naab::rx::regex err_shadow(R"(err\s*:=)");
         bool in_err = false;
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = go_trim(lines[i]);
-            if (std::regex_search(s, err_check)) {
+            if (naab::rx::regex_search(s, err_check)) {
                 in_err = true;
             } else if (in_err) {
-                if (std::regex_search(s, err_shadow)) {
+                if (naab::rx::regex_search(s, err_shadow)) {
                     addIssue(issues, filepath, i + 1, "shadow_err", CAT,
                              "err shadowed with :=", s, "Use = instead of :=");
                 }
@@ -94,9 +95,9 @@ void ScannerEngine::checkLangGo(const std::string& filepath,
 
     // 5. init_function
     if (isEnabled(CAT, "init_function")) {
-        static const std::regex pat(R"(^\s*func\s+init\s*\(\s*\))");
+        static const naab::rx::regex pat(R"(^\s*func\s+init\s*\(\s*\))");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 addIssue(issues, filepath, i + 1, "init_function", CAT,
                          "init() function — hard to test", go_trim(lines[i]),
                          "Use explicit initialization");
@@ -106,10 +107,10 @@ void ScannerEngine::checkLangGo(const std::string& filepath,
 
     // 6. error_string_format
     if (isEnabled(CAT, "error_string_format")) {
-        static const std::regex pat1(R"(fmt\.Errorf\s*\(\s*"[A-Z])");
-        static const std::regex pat2(R"(errors\.New\s*\(\s*"[A-Z])");
+        static const naab::rx::regex pat1(R"(fmt\.Errorf\s*\(\s*"[A-Z])");
+        static const naab::rx::regex pat2(R"(errors\.New\s*\(\s*"[A-Z])");
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat1) || std::regex_search(lines[i], pat2)) {
+            if (naab::rx::regex_search(lines[i], pat1) || naab::rx::regex_search(lines[i], pat2)) {
                 addIssue(issues, filepath, i + 1, "error_string_format", CAT,
                          "Error string starts with capital", go_trim(lines[i]),
                          "Use lowercase per Go conventions");
@@ -119,15 +120,15 @@ void ScannerEngine::checkLangGo(const std::string& filepath,
 
     // 7. defer_in_loop
     if (isEnabled(CAT, "defer_in_loop")) {
-        static const std::regex loop_pat(R"(^for\s+)");
-        static const std::regex defer_pat(R"(\bdefer\s+)");
+        static const naab::rx::regex loop_pat(R"(^for\s+)");
+        static const naab::rx::regex defer_pat(R"(\bdefer\s+)");
         bool in_loop = false;
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = go_trim(lines[i]);
-            if (std::regex_search(s, loop_pat) || s == "for {") {
+            if (naab::rx::regex_search(s, loop_pat) || s == "for {") {
                 in_loop = true;
             }
-            if (in_loop && std::regex_search(s, defer_pat)) {
+            if (in_loop && naab::rx::regex_search(s, defer_pat)) {
                 addIssue(issues, filepath, i + 1, "defer_in_loop", CAT,
                          "defer inside loop", s, "Move cleanup into helper function");
             }
@@ -140,16 +141,16 @@ void ScannerEngine::checkLangGo(const std::string& filepath,
 
     // 8. goroutine_leak
     if (isEnabled(CAT, "goroutine_leak")) {
-        static const std::regex pat(R"(\bgo\s+(func\(|\w+\())");
-        static const std::regex sync_pat(R"(WaitGroup|context\.|chan\b|select\s*\{|sync\.)");
+        static const naab::rx::regex pat(R"(\bgo\s+(func\(|\w+\())");
+        static const naab::rx::regex sync_pat(R"(WaitGroup|context\.|chan\b|select\s*\{|sync\.)");
 
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], pat)) {
+            if (naab::rx::regex_search(lines[i], pat)) {
                 size_t start = (i >= 10) ? i - 10 : 0;
                 size_t end = std::min(i + 10, lines.size());
                 std::string context;
                 for (size_t j = start; j < end; ++j) context += lines[j] + "\n";
-                if (!std::regex_search(context, sync_pat)) {
+                if (!naab::rx::regex_search(context, sync_pat)) {
                     addIssue(issues, filepath, i + 1, "goroutine_leak", CAT,
                              "Goroutine without sync", go_trim(lines[i]),
                              "Use WaitGroup, context, or channel");
@@ -160,18 +161,18 @@ void ScannerEngine::checkLangGo(const std::string& filepath,
 
     // 9. naked_return
     if (isEnabled(CAT, "naked_return")) {
-        static const std::regex func_named_ret(R"(^\s*func\s+.*\)\s*\(.*\)\s*\{)");
-        static const std::regex func_start(R"(^func\s+)");
-        static const std::regex naked_ret(R"(^\s*return\s*$)");
+        static const naab::rx::regex func_named_ret(R"(^\s*func\s+.*\)\s*\(.*\)\s*\{)");
+        static const naab::rx::regex func_start(R"(^func\s+)");
+        static const naab::rx::regex naked_ret(R"(^\s*return\s*$)");
         bool in_named_ret = false;
 
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (std::regex_search(lines[i], func_named_ret)) {
+            if (naab::rx::regex_search(lines[i], func_named_ret)) {
                 in_named_ret = true;
-            } else if (std::regex_search(lines[i], func_start) || go_trim(lines[i]) == "}") {
+            } else if (naab::rx::regex_search(lines[i], func_start) || go_trim(lines[i]) == "}") {
                 in_named_ret = false;
             }
-            if (in_named_ret && std::regex_match(lines[i], naked_ret)) {
+            if (in_named_ret && naab::rx::regex_match(lines[i], naked_ret)) {
                 addIssue(issues, filepath, i + 1, "naked_return", CAT,
                          "Naked return in named-return function", go_trim(lines[i]),
                          "Return values explicitly for clarity");

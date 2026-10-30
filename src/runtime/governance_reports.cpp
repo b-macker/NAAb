@@ -16,6 +16,7 @@
 #include <iostream>
 #include <sstream>
 #include <regex>
+#include "naab/rx.h"
 #include <chrono>
 #include <functional>
 #include <unordered_set>
@@ -1936,11 +1937,11 @@ std::string GovernanceEngine::substituteEnvVars(const std::string& value) const 
     if (!rules().meta.environment.allow_env_var_substitution) return value;
     std::string result = value;
     try {
-        std::regex re("\\$\\{([^}:]+)(?::-([^}]*))?\\}");
-        std::smatch match;
+        naab::rx::regex re("\\$\\{([^}:]+)(?::-([^}]*))?\\}");
+        naab::rx::smatch match;
         std::string::const_iterator search_start = result.cbegin();
         std::string output;
-        while (std::regex_search(search_start, result.cend(), match, re)) {
+        while (naab::rx::regex_search(search_start, result.cend(), match, re)) {
             output.append(search_start, search_start + match.position());
             std::string var_name = match[1].str();
             std::string default_val = match.size() > 2 ? match[2].str() : "";

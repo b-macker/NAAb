@@ -45,6 +45,10 @@ uint8_t *lre_compile(int *plen, char *error_msg, int error_msg_size,
 int lre_get_capture_count(const uint8_t *bc_buf);
 int lre_get_flags(const uint8_t *bc_buf);
 const char *lre_get_groupnames(const uint8_t *bc_buf);
+/* NAAb patch (A89): a backport of QuickJS 2024's regexp timeout. lre_exec()
+   returns LRE_RET_TIMEOUT when lre_check_timeout() asks it to stop. */
+#define LRE_RET_TIMEOUT (-2)
+
 int lre_exec(uint8_t **capture,
              const uint8_t *bc_buf, const uint8_t *cbuf, int cindex, int clen,
              int cbuf_type, void *opaque);
@@ -55,6 +59,10 @@ LRE_BOOL lre_is_space(int c);
 /* must be provided by the user */
 LRE_BOOL lre_check_stack_overflow(void *opaque, size_t alloca_size); 
 void *lre_realloc(void *opaque, void *ptr, size_t size);
+/* NAAb patch (A89): called every LRE_INTERRUPT_COUNTER_INIT matcher steps;
+   non-zero stops the match with LRE_RET_TIMEOUT. */
+#define LRE_INTERRUPT_COUNTER_INIT 10000
+LRE_BOOL lre_check_timeout(void *opaque);
 
 /* JS identifier test */
 extern uint32_t const lre_id_start_table_ascii[4];

@@ -32,6 +32,7 @@
 #include <iostream>
 #include <sstream>
 #include <regex>
+#include "naab/rx.h"
 #include <chrono>
 #include <ctime>
 #include <algorithm>
@@ -2112,16 +2113,16 @@ std::string GovernanceEngine::checkNetworkImports(
     // the compiled=false flag, matching the previous per-call catch behavior.
     struct CompiledNetworkPattern {
         const DangerousPattern* pat;
-        std::regex re;
+        naab::rx::regex re;
         bool compiled;
     };
     static const std::vector<CompiledNetworkPattern> compiled_network_patterns = [] {
         std::vector<CompiledNetworkPattern> out;
         out.reserve(NETWORK_IMPORT_PATTERNS.size());
         for (const auto& p : NETWORK_IMPORT_PATTERNS) {
-            CompiledNetworkPattern cp{&p, std::regex(), false};
+            CompiledNetworkPattern cp{&p, naab::rx::regex(), false};
             try {
-                cp.re = std::regex(p.pattern);
+                cp.re = naab::rx::regex(p.pattern);
                 cp.compiled = true;
             } catch (const std::regex_error&) {
                 cp.compiled = false;
@@ -2137,8 +2138,8 @@ std::string GovernanceEngine::checkNetworkImports(
         if (pat.language != language && pat.language != "any") continue;
         if (!cpat.compiled) { any_pattern_failed = true; continue; }
         try {
-            const std::regex& re = cpat.re;
-            if (std::regex_search(code, re)) {
+            const naab::rx::regex& re = cpat.re;
+            if (naab::rx::regex_search(code, re)) {
                 return enforce("capabilities.network", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
                         fmt::format("Network access blocked: {} in {} block",
@@ -2179,8 +2180,8 @@ std::string GovernanceEngine::checkFilesystemImports(
     for (const auto& pat : FILESYSTEM_IMPORT_PATTERNS) {
         if (pat.language != language && pat.language != "any") continue;
         try {
-            std::regex re(pat.pattern, std::regex::icase);
-            if (std::regex_search(code, re)) {
+            naab::rx::regex re(pat.pattern, naab::rx::regex::icase);
+            if (naab::rx::regex_search(code, re)) {
                 return enforce("capabilities.filesystem", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
                         fmt::format("Filesystem access blocked: {} in {} block",
@@ -3275,9 +3276,9 @@ std::string GovernanceEngine::checkDangerousCall(
         if (pattern.language != "any" && pattern.language != language) continue;
 
         try {
-            std::regex re(pattern.pattern, std::regex::icase);
-            std::smatch match;
-            if (std::regex_search(code, match, re)) {
+            naab::rx::regex re(pattern.pattern, naab::rx::regex::icase);
+            naab::rx::smatch match;
+            if (naab::rx::regex_search(code, match, re)) {
                 std::string location = line > 0
                     ? fmt::format("line {}: {} block", line, language)
                     : fmt::format("{} block", language);
@@ -3312,12 +3313,12 @@ std::string GovernanceEngine::checkDangerousCall(
 // prompt, response, and tool argument, so per-call compilation is the
 // hottest regex cost on the agent path. Shared by checkSecrets() and the
 // decide-only secretFinding(), so both make the same decision.
-static const std::vector<std::pair<size_t, std::regex>>& compiledSecretPatterns() {
-    static const std::vector<std::pair<size_t, std::regex>> compiled = [] {
-        std::vector<std::pair<size_t, std::regex>> out;
+static const std::vector<std::pair<size_t, naab::rx::regex>>& compiledSecretPatterns() {
+    static const std::vector<std::pair<size_t, naab::rx::regex>> compiled = [] {
+        std::vector<std::pair<size_t, naab::rx::regex>> out;
         for (size_t i = 0; i < SECRET_PATTERNS.size(); ++i) {
             try {
-                out.emplace_back(i, std::regex(SECRET_PATTERNS[i].pattern, std::regex::icase));
+                out.emplace_back(i, naab::rx::regex(SECRET_PATTERNS[i].pattern, naab::rx::regex::icase));
             } catch (const std::regex_error& e) {
                 fprintf(stderr, "[governance] Warning: regex pattern failed in checkSecrets: %s\n",
                         e.what());
@@ -3335,7 +3336,7 @@ std::string GovernanceEngine::secretFinding(const std::string& text) const {
     if (!rules().no_secrets) return "";
     for (const auto& [pat_idx, compiled_re] : compiledSecretPatterns()) {
         try {
-            if (std::regex_search(text, compiled_re)) return SECRET_PATTERNS[pat_idx].description;
+            if (naab::rx::regex_search(text, compiled_re)) return SECRET_PATTERNS[pat_idx].description;
         } catch (const std::regex_error&) {
         }
     }
@@ -3349,20 +3350,31 @@ int GovernanceEngine::matchLine(int line, const std::string& code, size_t offset
     return line + static_cast<int>(std::count(code.begin(), code.begin() + end, '\n'));
 }
 
+std::string GovernanceEngine::checkModelOutputSecrets(const std::string& text) {
+    if (!rules().scansModelOutputForSecrets()) return "";
+    // Bounded like the static entry points: a model reply is chosen by the
+    // governed side too (A89).
+    return boundedScan(checkFile(), checkLine(), [&] { return scanSecrets(text, 0, false); });
+}
+
 std::string GovernanceEngine::checkSecrets(
     const std::string& code, int line, bool code_starts_at_line) {
-    clearTrace();
+    if (!rules().no_secrets) { clearTrace(); return ""; }
+    return scanSecrets(code, line, code_starts_at_line);
+}
 
-    if (!rules().no_secrets) return "";
+std::string GovernanceEngine::scanSecrets(
+    const std::string& code, int line, bool code_starts_at_line) {
+    clearTrace();
 
     const auto& compiled_secret_patterns = compiledSecretPatterns();
 
     for (const auto& [pat_idx, compiled_re] : compiled_secret_patterns) {
         const auto& pattern = SECRET_PATTERNS[pat_idx];
         try {
-            const std::regex& re = compiled_re;
-            std::smatch match;
-            if (std::regex_search(code, match, re)) {
+            const naab::rx::regex& re = compiled_re;
+            naab::rx::smatch match;
+            if (naab::rx::regex_search(code, match, re)) {
                 std::string matched = match[0].str();
                 // Mask the secret (show first 4, mask middle, show last 4)
                 std::string masked;
@@ -3418,9 +3430,9 @@ std::string GovernanceEngine::checkPlaceholders(
     for (const auto& placeholder : PLACEHOLDER_PATTERNS_DB) {
         // Case-insensitive word boundary search
         try {
-            std::regex re("\\b" + placeholder + "\\b", std::regex::icase);
-            std::smatch match;
-            if (std::regex_search(code, match, re)) {
+            naab::rx::regex re("\\b" + placeholder + "\\b", naab::rx::regex::icase);
+            naab::rx::smatch match;
+            if (naab::rx::regex_search(code, match, re)) {
                 // Find the line containing the match
                 std::string matched_line;
                 auto offset = static_cast<int>(match.position());
@@ -3447,12 +3459,12 @@ std::string GovernanceEngine::checkPlaceholders(
                 // Skip false positives: match arms (e.g. "Draft => ...") and
                 // enum declarations (e.g. "Draft,") — these are identifiers, not placeholders
                 {
-                    std::regex arm_pat("\\b" + placeholder + "\\s*=>",
-                                      std::regex::icase);
-                    std::regex enum_pat("^\\s*" + placeholder + "\\s*[,}]",
-                                        std::regex::icase);
-                    if (std::regex_search(matched_line, arm_pat) ||
-                        std::regex_search(matched_line, enum_pat)) {
+                    naab::rx::regex arm_pat("\\b" + placeholder + "\\s*=>",
+                                      naab::rx::regex::icase);
+                    naab::rx::regex enum_pat("^\\s*" + placeholder + "\\s*[,}]",
+                                        naab::rx::regex::icase);
+                    if (naab::rx::regex_search(matched_line, arm_pat) ||
+                        naab::rx::regex_search(matched_line, enum_pat)) {
                         continue;  // Not a real placeholder — skip
                     }
                 }
@@ -3498,9 +3510,9 @@ std::string GovernanceEngine::checkHardcodedResults(
 
     for (const auto& pattern : HARDCODED_RESULT_PATTERNS_DB) {
         try {
-            std::regex re(pattern.pattern, std::regex::icase);
-            std::smatch match;
-            if (std::regex_search(code, match, re)) {
+            naab::rx::regex re(pattern.pattern, naab::rx::regex::icase);
+            naab::rx::smatch match;
+            if (naab::rx::regex_search(code, match, re)) {
                 std::string matched = match[0].str();
                 if (matched.size() > 60) {
                     matched = matched.substr(0, 60) + "...";
@@ -7026,21 +7038,21 @@ static bool semverGe(const std::string& observed, const std::string& required) {
 // so ">=2021-01-01" and a "2021-03" prefix behave like any other version.
 static std::string dateToDotted(std::string v) {
     // A full date or a prefix of one ("2021-03"), as a pin may write it.
-    static const std::regex date_re(R"(^\d{4}(?:-\d{2}){1,2}$)");
-    if (std::regex_match(v, date_re)) std::replace(v.begin(), v.end(), '-', '.');
+    static const naab::rx::regex date_re(R"(^\d{4}(?:-\d{2}){1,2}$)");
+    if (naab::rx::regex_match(v, date_re)) std::replace(v.begin(), v.end(), '-', '.');
     return v;
 }
 
 static std::string extractVersionNumber(const std::string& version_str) {
-    static const std::regex version_re(R"((\d+\.\d+(?:\.\d+)*))");
-    static const std::regex date_re(R"((\d{4}-\d{2}-\d{2}))");
+    static const naab::rx::regex version_re(R"((\d+\.\d+(?:\.\d+)*))");
+    static const naab::rx::regex date_re(R"((\d{4}-\d{2}-\d{2}))");
     // Dotted first: ruby prints "ruby 3.1.2p20 (2022-04-12 revision ...)",
     // whose release DATE must not be read as its version.
-    std::smatch m;
-    if (std::regex_search(version_str, m, version_re)) {
+    naab::rx::smatch m;
+    if (naab::rx::regex_search(version_str, m, version_re)) {
         return m[1].str();
     }
-    if (std::regex_search(version_str, m, date_re)) {
+    if (naab::rx::regex_search(version_str, m, date_re)) {
         return dateToDotted(m[1].str());
     }
     return version_str;

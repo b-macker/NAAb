@@ -2,6 +2,7 @@
 // Week 5, Task 5.2: Error Message Scrubbing
 
 #include "naab/error_sanitizer.h"
+#include "naab/rx.h"
 #include <fmt/core.h>
 #include <algorithm>
 #include <filesystem>
@@ -13,13 +14,13 @@ namespace error {
 SanitizationMode ErrorSanitizer::mode_ = SanitizationMode::PRODUCTION;
 std::string ErrorSanitizer::project_root_ = "";
 
-const std::vector<std::regex> ErrorSanitizer::sensitive_patterns_ = {
-    std::regex(patterns::API_KEY, std::regex::icase),
-    std::regex(patterns::EMAIL),
-    std::regex(patterns::CREDIT_CARD),
-    std::regex(patterns::MEMORY_ADDRESS),
-    std::regex(patterns::QUOTED_VALUE, std::regex::icase),
-    std::regex(patterns::IP_ADDRESS),  // V-ERR-001: was defined in header but never added
+const std::vector<naab::rx::regex> ErrorSanitizer::sensitive_patterns_ = {
+    naab::rx::regex(patterns::API_KEY, naab::rx::regex::icase),
+    naab::rx::regex(patterns::EMAIL),
+    naab::rx::regex(patterns::CREDIT_CARD),
+    naab::rx::regex(patterns::MEMORY_ADDRESS),
+    naab::rx::regex(patterns::QUOTED_VALUE, naab::rx::regex::icase),
+    naab::rx::regex(patterns::IP_ADDRESS),  // V-ERR-001: was defined in header but never added
 };
 
 // ============================================================================
@@ -50,8 +51,8 @@ std::string ErrorSanitizer::sanitize(
 
         // In strict mode, also remove line numbers and column numbers
         // to prevent information leakage about code structure
-        std::regex line_col_pattern(R"(:(\d+):(\d+))");
-        sanitized = std::regex_replace(sanitized, line_col_pattern, ":<line>:<col>");
+        naab::rx::regex line_col_pattern(R"(:(\d+):(\d+))");
+        sanitized = naab::rx::regex_replace(sanitized, line_col_pattern, ":<line>:<col>");
     }
 
     return sanitized;
@@ -80,12 +81,12 @@ std::string ErrorSanitizer::sanitizeStackTrace(
     // Remove internal function names in strict mode
     if (mode == SanitizationMode::MINIMAL) {
         // Replace internal namespace prefixes
-        std::regex internal_ns(R"(naab::(?:interpreter|parser|lexer|internal)::)");
-        sanitized = std::regex_replace(sanitized, internal_ns, "");
+        naab::rx::regex internal_ns(R"(naab::(?:interpreter|parser|lexer|internal)::)");
+        sanitized = naab::rx::regex_replace(sanitized, internal_ns, "");
 
         // Remove template parameters
-        std::regex template_params(R"(<[^>]+>)");
-        sanitized = std::regex_replace(sanitized, template_params, "<...>");
+        naab::rx::regex template_params(R"(<[^>]+>)");
+        sanitized = naab::rx::regex_replace(sanitized, template_params, "<...>");
     }
 
     return sanitized;
@@ -112,14 +113,14 @@ std::string ErrorSanitizer::redactValues(
 
     // Redact values in quotes (e.g., "token: 'secret123'")
     // V-ERR-001: expanded keyword list to match sensitive key names; icase for Token/TOKEN/etc.
-    std::regex value_pattern(
+    naab::rx::regex value_pattern(
         R"((value|content|data|token|key|secret|pass|password|auth|authorization|bearer|apikey|api_key|credential|access_token|refresh_token)['"]?\s*[:=]\s*['"]([^'"]+)['"])",
-        std::regex::icase);
-    redacted = std::regex_replace(redacted, value_pattern, "$1: <redacted>");
+        naab::rx::regex::icase);
+    redacted = naab::rx::regex_replace(redacted, value_pattern, "$1: <redacted>");
 
     // Redact variable assignments (e.g., "password = 'secret'")
-    std::regex assignment_pattern(R"(([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*['"]([^'"]+)['"])");
-    redacted = std::regex_replace(redacted, assignment_pattern, "$1 = <redacted>");
+    naab::rx::regex assignment_pattern(R"(([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*['"]([^'"]+)['"])");
+    redacted = naab::rx::regex_replace(redacted, assignment_pattern, "$1 = <redacted>");
 
     return redacted;
 }
@@ -149,10 +150,10 @@ std::string ErrorSanitizer::sanitizeFilePaths(const std::string& msg) {
         "/data/data/",  // Android paths
     };
 
-    // libc++ (Termux/Android) does not support the lambda overload of std::regex_replace
+    // libc++ (Termux/Android) does not support the lambda overload of naab::rx::regex_replace
     // (that is a libstdc++ extension). Use a manual search-and-replace loop instead.
     // Also escape backslashes in the prefix literal before embedding it in a regex —
-    // "C:\Users\" fed raw to std::regex produces \U and \P which are invalid ECMAScript
+    // "C:\Users\" fed raw to naab::rx::regex produces \U and \P which are invalid ECMAScript
     // escapes and throw std::regex_error on libc++.
     auto escapeForRegex = [](const std::string& s) {
         std::string out;
@@ -169,12 +170,12 @@ std::string ErrorSanitizer::sanitizeFilePaths(const std::string& msg) {
     };
 
     for (const auto& prefix : prefixes) {
-        std::regex prefix_pattern(escapeForRegex(prefix) + R"([^\s:]+)");
+        naab::rx::regex prefix_pattern(escapeForRegex(prefix) + R"([^\s:]+)");
         std::string result;
         result.reserve(sanitized.size());
         auto it = sanitized.cbegin();
-        std::smatch m;
-        while (std::regex_search(it, sanitized.cend(), m, prefix_pattern)) {
+        naab::rx::smatch m;
+        while (naab::rx::regex_search(it, sanitized.cend(), m, prefix_pattern)) {
             result.append(it, m[0].first);  // text before the match
             // Keep only the last 2-3 path components of the matched path
             std::filesystem::path fs_path(m[0].str());
@@ -202,8 +203,8 @@ std::string ErrorSanitizer::sanitizeFilePaths(const std::string& msg) {
 
 std::string ErrorSanitizer::sanitizeAddresses(const std::string& msg) {
     // Replace memory addresses (0x...) with <address>
-    std::regex addr_pattern(R"(0x[0-9a-fA-F]{8,16})");
-    return std::regex_replace(msg, addr_pattern, "<address>");
+    naab::rx::regex addr_pattern(R"(0x[0-9a-fA-F]{8,16})");
+    return naab::rx::regex_replace(msg, addr_pattern, "<address>");
 }
 
 // ============================================================================
@@ -214,24 +215,24 @@ std::string ErrorSanitizer::sanitizeTypeNames(const std::string& msg) {
     std::string sanitized = msg;
 
     // Remove std:: prefix
-    std::regex std_prefix(R"(std::)");
-    sanitized = std::regex_replace(sanitized, std_prefix, "");
+    naab::rx::regex std_prefix(R"(std::)");
+    sanitized = naab::rx::regex_replace(sanitized, std_prefix, "");
 
     // Remove naab:: prefix
-    std::regex naab_prefix(R"(naab::(?:interpreter|parser|lexer|runtime)::)");
-    sanitized = std::regex_replace(sanitized, naab_prefix, "");
+    naab::rx::regex naab_prefix(R"(naab::(?:interpreter|parser|lexer|runtime)::)");
+    sanitized = naab::rx::regex_replace(sanitized, naab_prefix, "");
 
     // Simplify shared_ptr<T> to T
-    std::regex shared_ptr_pattern(R"(shared_ptr<([^>]+)>)");
-    sanitized = std::regex_replace(sanitized, shared_ptr_pattern, "$1");
+    naab::rx::regex shared_ptr_pattern(R"(shared_ptr<([^>]+)>)");
+    sanitized = naab::rx::regex_replace(sanitized, shared_ptr_pattern, "$1");
 
     // Simplify vector<T> to [T]
-    std::regex vector_pattern(R"(vector<([^>]+)>)");
-    sanitized = std::regex_replace(sanitized, vector_pattern, "[$1]");
+    naab::rx::regex vector_pattern(R"(vector<([^>]+)>)");
+    sanitized = naab::rx::regex_replace(sanitized, vector_pattern, "[$1]");
 
     // Remove template parameters for complex types
-    std::regex complex_template(R"(([a-zA-Z_][a-zA-Z0-9_]*)<[^>]*<[^>]*>[^>]*>)");
-    sanitized = std::regex_replace(sanitized, complex_template, "$1<...>");
+    naab::rx::regex complex_template(R"(([a-zA-Z_][a-zA-Z0-9_]*)<[^>]*<[^>]*>[^>]*>)");
+    sanitized = naab::rx::regex_replace(sanitized, complex_template, "$1<...>");
 
     return sanitized;
 }
@@ -244,38 +245,38 @@ std::vector<std::string> ErrorSanitizer::detectSensitiveInfo(const std::string& 
     std::vector<std::string> findings;
 
     // Check for API keys/tokens
-    std::regex api_key_pattern(patterns::API_KEY, std::regex::icase);
-    if (std::regex_search(msg, api_key_pattern)) {
+    naab::rx::regex api_key_pattern(patterns::API_KEY, naab::rx::regex::icase);
+    if (naab::rx::regex_search(msg, api_key_pattern)) {
         findings.push_back("Potential API key or token");
     }
 
     // Check for email addresses
-    std::regex email_pattern(patterns::EMAIL);
-    if (std::regex_search(msg, email_pattern)) {
+    naab::rx::regex email_pattern(patterns::EMAIL);
+    if (naab::rx::regex_search(msg, email_pattern)) {
         findings.push_back("Email address");
     }
 
     // Check for credit card numbers
-    std::regex cc_pattern(patterns::CREDIT_CARD);
-    if (std::regex_search(msg, cc_pattern)) {
+    naab::rx::regex cc_pattern(patterns::CREDIT_CARD);
+    if (naab::rx::regex_search(msg, cc_pattern)) {
         findings.push_back("Potential credit card number");
     }
 
     // Check for IP addresses
-    std::regex ip_pattern(patterns::IP_ADDRESS);
-    if (std::regex_search(msg, ip_pattern)) {
+    naab::rx::regex ip_pattern(patterns::IP_ADDRESS);
+    if (naab::rx::regex_search(msg, ip_pattern)) {
         findings.push_back("IP address");
     }
 
     // Check for absolute paths
-    std::regex path_pattern(patterns::ABSOLUTE_PATH);
-    if (std::regex_search(msg, path_pattern)) {
+    naab::rx::regex path_pattern(patterns::ABSOLUTE_PATH);
+    if (naab::rx::regex_search(msg, path_pattern)) {
         findings.push_back("Absolute file path");
     }
 
     // Check for memory addresses
-    std::regex addr_pattern(patterns::MEMORY_ADDRESS);
-    if (std::regex_search(msg, addr_pattern)) {
+    naab::rx::regex addr_pattern(patterns::MEMORY_ADDRESS);
+    if (naab::rx::regex_search(msg, addr_pattern)) {
         findings.push_back("Memory address");
     }
 
@@ -316,9 +317,9 @@ std::string ErrorSanitizer::makePathRelative(const std::string& path) {
 
 std::string ErrorSanitizer::redactPattern(
     const std::string& text,
-    const std::regex& pattern
+    const naab::rx::regex& pattern
 ) {
-    return std::regex_replace(text, pattern, "<redacted>");
+    return naab::rx::regex_replace(text, pattern, "<redacted>");
 }
 
 } // namespace error

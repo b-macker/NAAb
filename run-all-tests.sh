@@ -1566,6 +1566,20 @@ else
     echo "  test_secret_scan_redos.sh: not found, skipping"
 fi
 
+# --- Long input through every regex (A89: a verdict, never SIGSEGV) ---
+echo ""
+LONGRX_SCRIPT="tests/security/test_long_input_regex.sh"
+if [ -f "$LONGRX_SCRIPT" ]; then
+    if run_shell_test "$LONGRX_SCRIPT" 2>&1; then
+        echo "  test_long_input_regex.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_long_input_regex.sh")
+    fi
+else
+    echo "  test_long_input_regex.sh: not found, skipping"
+fi
+
 # --- Secret scan: unquoted .env lines (Gemini dogfood F-03) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -4317,6 +4331,34 @@ if [ -f "$PIPEFAIL_GREP_SCRIPT" ]; then
     fi
 else
     echo "  test_pipefail_grep.sh: not found, skipping"
+fi
+
+NO_STD_REGEX_SCRIPT="tests/self-audit/test_no_std_regex.sh"
+if [ -f "$NO_STD_REGEX_SCRIPT" ]; then
+    # Every regex goes through naab::rx (A89): std::regex recursed per
+    # character and a long input crashed the governor. Reads files only.
+    if run_shell_test "$NO_STD_REGEX_SCRIPT" 2>&1; then
+        echo "  test_no_std_regex.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_no_std_regex.sh")
+    fi
+else
+    echo "  test_no_std_regex.sh: not found, skipping"
+fi
+
+VENDORED_PATCHES_SCRIPT="tests/self-audit/test_vendored_patches.sh"
+if [ -f "$VENDORED_PATCHES_SCRIPT" ]; then
+    # The vendored QuickJS is its archive plus the A89 regexp-timeout patch,
+    # file for file, as DEPENDENCIES.lock says. Reads files only.
+    if run_shell_test "$VENDORED_PATCHES_SCRIPT" 2>&1; then
+        echo "  test_vendored_patches.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_vendored_patches.sh")
+    fi
+else
+    echo "  test_vendored_patches.sh: not found, skipping"
 fi
 
 FMT_LITERALS_SCRIPT="tests/self-audit/test_fmt_literals.sh"

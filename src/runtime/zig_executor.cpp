@@ -8,6 +8,7 @@
 #include <sstream>
 #include <thread>
 #include <regex>
+#include "naab/rx.h"
 #include <fmt/core.h>
 #include <unistd.h>
 
@@ -19,14 +20,14 @@ std::atomic<int> ZigExecutor::temp_file_counter_(0);
 // V-RCE-011: Zig compile-time escape scanner.
 // @embedFile reads files at compile time; @import can import system files.
 static bool isZigSourceSafe(const std::string& code, std::string& reason) {
-    std::regex embed_file(R"(@embedFile\s*\()");
-    if (std::regex_search(code, embed_file)) {
+    naab::rx::regex embed_file(R"(@embedFile\s*\()");
+    if (naab::rx::regex_search(code, embed_file)) {
         reason = "@embedFile not permitted in polyglot Zig blocks (compile-time file read)";
         return false;
     }
     // @cImport + @cInclude can pull in system headers
-    std::regex c_import(R"(@cImport\s*\()");
-    if (std::regex_search(code, c_import)) {
+    naab::rx::regex c_import(R"(@cImport\s*\()");
+    if (naab::rx::regex_search(code, c_import)) {
         reason = "@cImport not permitted in polyglot Zig blocks (compile-time C header inclusion)";
         return false;
     }

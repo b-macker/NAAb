@@ -1,0 +1,120 @@
+--- a/libregexp.h
++++ b/libregexp.h
+@@ -45,6 +45,10 @@
+ int lre_get_capture_count(const uint8_t *bc_buf);
+ int lre_get_flags(const uint8_t *bc_buf);
+ const char *lre_get_groupnames(const uint8_t *bc_buf);
++/* NAAb patch (A89): a backport of QuickJS 2024's regexp timeout. lre_exec()
++   returns LRE_RET_TIMEOUT when lre_check_timeout() asks it to stop. */
++#define LRE_RET_TIMEOUT (-2)
++
+ int lre_exec(uint8_t **capture,
+              const uint8_t *bc_buf, const uint8_t *cbuf, int cindex, int clen,
+              int cbuf_type, void *opaque);
+@@ -55,6 +59,10 @@
+ /* must be provided by the user */
+ LRE_BOOL lre_check_stack_overflow(void *opaque, size_t alloca_size); 
+ void *lre_realloc(void *opaque, void *ptr, size_t size);
++/* NAAb patch (A89): called every LRE_INTERRUPT_COUNTER_INIT matcher steps;
++   non-zero stops the match with LRE_RET_TIMEOUT. */
++#define LRE_INTERRUPT_COUNTER_INIT 10000
++LRE_BOOL lre_check_timeout(void *opaque);
+ 
+ /* JS identifier test */
+ extern uint32_t const lre_id_start_table_ascii[4];
+--- a/libregexp.c
++++ b/libregexp.c
+@@ -2040,6 +2040,7 @@
+     BOOL ignore_case;
+     BOOL is_utf16;
+     void *opaque; /* used for stack overflow check */
++    int interrupt_counter; /* NAAb patch (A89): steps until lre_check_timeout() */
+ 
+     size_t state_size;
+     uint8_t *state_stack;
+@@ -2101,6 +2102,13 @@
+ 
+     for(;;) {
+         //        printf("top=%p: pc=%d\n", th_list.top, (int)(pc - (bc_buf + RE_HEADER_LEN)));
++        /* NAAb patch (A89): every step counts, forward or backtracking, so the
++           host can bound the work of any pattern on any input. */
++        if (unlikely(--s->interrupt_counter <= 0)) {
++            s->interrupt_counter = LRE_INTERRUPT_COUNTER_INIT;
++            if (lre_check_timeout(s->opaque))
++                return LRE_RET_TIMEOUT;
++        }
+         opcode = *pc++;
+         switch(opcode) {
+         case REOP_match:
+@@ -2465,7 +2473,7 @@
+                 for(;;) {
+                     res = lre_exec_backtrack(s, capture, stack, stack_len,
+                                              pc1, cptr, TRUE);
+-                    if (res == -1)
++                    if (res == -1 || res == LRE_RET_TIMEOUT)
+                         return res;
+                     if (!res)
+                         break;
+@@ -2516,6 +2524,7 @@
+     if (s->cbuf_type == 1 && s->is_utf16)
+         s->cbuf_type = 2;
+     s->opaque = opaque;
++    s->interrupt_counter = LRE_INTERRUPT_COUNTER_INIT;
+ 
+     s->state_size = sizeof(REExecState) +
+         s->capture_count * sizeof(capture[0]) * 2 +
+@@ -2567,6 +2576,11 @@
+     return realloc(ptr, size);
+ }
+ 
++LRE_BOOL lre_check_timeout(void *opaque)
++{
++    return FALSE;
++}
++
+ int main(int argc, char **argv)
+ {
+     int len, ret, i;
+--- a/quickjs.c
++++ b/quickjs.c
+@@ -6785,6 +6785,16 @@
+     return 0;
+ }
+ 
++/* NAAb patch (A89): libregexp's step hook. A regexp is interrupted exactly as
++   a script is, so --timeout reaches a <<javascript>> block stuck in a match. */
++BOOL lre_check_timeout(void *opaque)
++{
++    JSContext *ctx = opaque;
++    JSRuntime *rt = ctx->rt;
++    return (rt->interrupt_handler &&
++            rt->interrupt_handler(rt, rt->interrupt_opaque));
++}
++
+ static inline __exception int js_poll_interrupts(JSContext *ctx)
+ {
+     if (unlikely(--ctx->interrupt_counter <= 0)) {
+@@ -42569,6 +42579,11 @@
+                                    JS_NewInt32(ctx, 0)) < 0)
+                     goto fail;
+             }
++        } else if (ret == LRE_RET_TIMEOUT) {
++            /* NAAb patch (A89) */
++            JS_ThrowInternalError(ctx, "interrupted");
++            JS_SetUncatchableError(ctx, ctx->rt->current_exception, TRUE);
++            goto fail;
+         } else {
+             JS_ThrowInternalError(ctx, "out of memory in regexp execution");
+             goto fail;
+@@ -42694,6 +42709,11 @@
+                                        JS_NewInt32(ctx, 0)) < 0)
+                         goto fail;
+                 }
++            } else if (ret == LRE_RET_TIMEOUT) {
++                /* NAAb patch (A89) */
++                JS_ThrowInternalError(ctx, "interrupted");
++                JS_SetUncatchableError(ctx, ctx->rt->current_exception, TRUE);
++                goto fail;
+             } else {
+                 JS_ThrowInternalError(ctx, "out of memory in regexp execution");
+                 goto fail;

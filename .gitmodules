@@ -16,3 +16,6 @@
 [submodule "external/tomlplusplus"]
 	path = external/tomlplusplus
 	url = https://github.com/marzer/tomlplusplus.git
+[submodule "external/re2"]
+	path = external/re2
+	url = https://github.com/google/re2.git
