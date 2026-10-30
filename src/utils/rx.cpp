@@ -461,7 +461,9 @@ namespace {
 // Compiled patterns, shared. Many call sites build a regex per call (a pattern
 // per block, per alias, per table entry), and an RE2 compile costs far more
 // than a match: in a two-block governed run on the unoptimised build, RE2
-// compiling was 53% of all instructions (callgrind). An Impl is immutable once
+// compiling was 53% of all instructions (callgrind). Observed, a 30-block
+// JavaScript program under a strict config, 8-run means: 0.45 s per run
+// without this cache, 0.12 s with it. An Impl is immutable once
 // built (full_bc is built under call_once), so one may serve every regex of
 // the same pattern and flags, on any thread. Bounded: patterns can come from
 // config and programs, so past kMaxCached a pattern is compiled per

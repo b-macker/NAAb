@@ -41,7 +41,8 @@
 #          is indistinguishable from the patterns still being dead
 #   DP-06  an unrecognised enforcement value warns and keeps the default
 #   DP-10  no enforcement key written: the same SOFT built-in BLOCKS, as under
-#          "declared" (Bundle 6's default; DP-04 is its "observe" control)
+#          "declared" (Bundle 6's default; DP-04 is its "observe" control).
+#          Observed 2026-10-30: with the default left "observe", DP-10 is red.
 #
 # SECOND DEFECT, INDEPENDENT OF THE NAMES
 #

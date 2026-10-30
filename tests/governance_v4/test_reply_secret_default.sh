@@ -28,8 +28,8 @@
 #          reloads and an unrelated tightening is accepted
 #
 # Kill table (observed 2026-10-30, each mutant built and run alone):
-#   reply site back to checkSecrets()             -> RS-01 red
-#   default on but explicit false ignored         -> RS-02, RS-02b red
+#   reply site back to checkSecrets()             -> RS-01, R-00, RS-06 red
+#   default on but explicit false ignored         -> RS-02, RS-02b, RS-06 red
 #   tool-argument site back to checkSecrets()     -> RS-03 red
 #   propose site back to checkSecrets()           -> RS-04 red
 #   rules.no_secrets defaulted true instead       -> RS-05 red

@@ -41,10 +41,14 @@
 #          completes under "observe"
 #
 # Kill table (observed 2026-10-30, each mutant built and run alone):
-#   pattern removed from buildDefaultPatterns()     -> CE-01, CE-03 red
-#   encode step dropped from the pattern            -> CE-02 red
+#   pattern removed from buildDefaultPatterns()     -> CE-01, CE-01o, CE-03 red
+#   encode step dropped from the pattern            -> CE-02, CE-03 red (the
+#                                                      spaced read->post no
+#                                                      longer matches at all)
 #   default left "observe"                          -> CE-01, CE-03, CE-04 red
-#   AGENT_SEND alternative dropped from step 3      -> CE-01 red
+#                                                      (and DP-10 in
+#                                                      test_default_patterns.sh)
+#   AGENT_SEND alternative dropped from step 3      -> CE-01, CE-01o red
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
