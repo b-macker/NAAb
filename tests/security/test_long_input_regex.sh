@@ -35,6 +35,27 @@
 #           155 s for 80,000 bytes (observed) -- RE2 is linear
 #   LR-06c  the same field ending in "@example" is delivered
 #
+# Time on the backtracking fallback (the patterns RE2 cannot read: lookaround,
+# backreferences). Under std::regex AND libregexp these never reached a
+# verdict -- a stall, the crash's quieter twin:
+#   LR-07   a <<python>> block assigning a 60,000-character name, under a bare
+#           enforce config: the run finishes within 30 s (before: past 300 s in
+#           the dangerous-alias patterns, (\w+)\s*=\s*\b(os\.system)\b(?!\s*\()
+#           tried at every position of the word); LR-07c CONTROL: a short name
+#   LR-08   a 60,000-character comment line with 3,000 `//` markers under
+#           no_oversimplification: passes within 30 s (before: the
+#           co-occurrence patterns tried every marker, past the step budget)
+#   LR-08c  the same line ending in "basic implementation" is still refused
+#           for oversimplification -- the check reads the end of the line
+#   LR-09   a pattern still quadratic on the fallback (an operator's
+#           custom_patterns entry) over a 60,000-character comment word is refused at
+#           the step budget: exit 3, governance.scan_budget -- not a stall, not
+#           a pass; LR-09c CONTROL: the same config, a short word, runs
+#   LR-10   --timeout 3 stops a <<javascript>> block stuck in a catastrophic
+#           regex (before: QuickJS's regex engine never polled for interrupts;
+#           the run went on until killed); LR-10c CONTROL: the same regex on a
+#           short input answers
+#
 # The SSN is built here from fragments; the repo holds none.
 #
 # Kill table (each mutant rebuilt, suite re-run; observed 2026-10-30, RE2 build):
@@ -45,6 +66,11 @@
 #   naab::rx searches only the first 50,000 bytes
 #                 -> LR-01c LR-02c LR-03c LR-04c LR-05c LR-06c red (the c arms are
 #                    the guard against fixing the crash by truncating)
+#   the \b dropped from the alias patterns' left-hand side  -> LR-07 red
+#   the first-marker lookbehind dropped (every marker tried)  -> LR-08 red
+#   the step hook never stops a search (lre_check_timeout returns 0)
+#                 -> LR-09 red (timeout), LR-10 red
+#   boundedScan() lets resource_error through               -> LR-09 red (exit 1)
 # Red first: on master the same ten arms as the first mutant fail (SIGSEGV).
 # LR-02c and LR-03c pass on master too: the SSN pattern is the first PII
 # pattern tried, finds the SSN and returns before the pattern that crashed runs.
@@ -212,6 +238,78 @@ if [ "$STUB_OK" = 1 ]; then
     fi
 else
     for a in LR-06 LR-06c; do unm "$a" "no stub"; done
+fi
+
+# ---- the backtracking fallback: time -------------------------------------------
+# timed_prog ID GOVERN_EXTRA PROGRAM [naab args] -> OUT, RC, EL (seconds)
+timed_prog() {
+    local id="$1" extra="$2" prog="$3"; shift 3
+    local d="$W/$id"; mkdir -p "$d"
+    printf '{ %s %s }\n' "$BASE" "$extra" > "$d/govern.json"
+    printf '%s' "$prog" > "$d/p.naab"
+    local t0=$SECONDS
+    RC=0; OUT=$(cd "$d" && timeout 120 "$NAAB" "$@" p.naab 2>&1) || RC=$?
+    EL=$((SECONDS - t0))
+}
+py_assign() { printf 'main {\n    let x = <<python\n%s = 1\n"ok"\n>>\n    print("DONE")\n}\n' "$1"; }
+
+timed_prog lr07c '' "$(py_assign short_name)"
+if [ "$RC" -ne 0 ] || ! has DONE; then
+    unm LR-07 "the short-name control did not run (no python executor?) rc=$RC $(brief)"
+else
+    pass LR-07c "CONTROL: a <<python>> block assigning a short name runs"
+    timed_prog lr07 '' "$(py_assign "$LONG")"
+    if [ "$RC" -eq 0 ] && has DONE && [ "$EL" -lt 30 ]; then
+        pass LR-07 "a 60,000-character name in a python block is governed in ${EL}s"
+    else
+        fail LR-07 "the run must finish within 30 s (rc=$RC, ${EL}s)" "$(brief)"
+    fi
+fi
+
+NOTES=$(python3 -c 'print(" ".join("note //" for _ in range(3000)))')
+OS_CFG=', "code_quality": { "no_oversimplification": "hard" }'
+timed_prog lr08 "$OS_CFG" "$(printf 'main {\n    // %s\n    print("DONE")\n}\n' "$NOTES")"
+if [ "$RC" -eq 0 ] && has DONE && [ "$EL" -lt 30 ]; then
+    pass LR-08 "a 60,000-character comment line with 3,000 markers passes in ${EL}s"
+else
+    fail LR-08 "the run must pass within 30 s (rc=$RC, ${EL}s)" "$(brief)"
+fi
+timed_prog lr08c "$OS_CFG" "$(printf 'main {\n    // %s basic implementation\n    print("DONE")\n}\n' "$NOTES")"
+if [ "$RC" -eq 3 ] && has "no_oversimplification" && ! has DONE; then
+    pass LR-08c "the same line ending in \"basic implementation\" is refused for oversimplification"
+else
+    fail LR-08c "oversimplification should still read the end of the line (rc=$RC)" "$(brief)"
+fi
+
+QUAD_CFG=', "code_quality": { "no_oversimplification": { "level": "hard", "custom_patterns": ["(\\w+)\\s*=(?!\\s)"] } }'
+nb_assign() { printf 'main {\n    // %s\n    print("DONE")\n}\n' "$1"; }
+timed_prog lr09c "$QUAD_CFG" "$(nb_assign short_name)"
+if [ "$RC" -eq 0 ] && has DONE; then
+    pass LR-09c "CONTROL: the custom pattern passes a short comment"
+    timed_prog lr09 "$QUAD_CFG" "$(nb_assign "$LONG")"
+    if [ "$RC" -eq 3 ] && has "governance.scan_budget" && ! has DONE && [ "$EL" -lt 60 ]; then
+        pass LR-09 "a scan past the step budget is refused (exit 3) in ${EL}s"
+    else
+        fail LR-09 "expected a scan_budget refusal within 60 s (rc=$RC, ${EL}s)" "$(brief)"
+    fi
+else
+    fail LR-09c "the control should run (rc=$RC)" "$(brief)"
+    unm LR-09 "its control failed"
+fi
+
+JS_CFG=', "languages": { "allowed": ["javascript"] }'
+js_test() { printf 'main {\n    let x = <<javascript\n/^(a+)+$/.test(%s)\n>>\n    print("DONE " + string(x))\n}\n' "$1"; }
+timed_prog lr10c "$JS_CFG" "$(js_test '"aaa"')" --timeout 3
+if [ "$RC" -ne 0 ] || ! has "DONE true"; then
+    unm LR-10 "the JavaScript control did not run (no QuickJS?) rc=$RC $(brief)"
+else
+    pass LR-10c "CONTROL: the regex answers on a short input"
+    timed_prog lr10 "$JS_CFG" "$(js_test '"a".repeat(34) + "b"')" --timeout 3
+    if [ "$RC" -ne 0 ] && [ "$RC" -ne 124 ] && ! has DONE && has interrupted && [ "$EL" -lt 30 ]; then
+        pass LR-10 "--timeout stops a JavaScript regex in ${EL}s"
+    else
+        fail LR-10 "--timeout 3 should stop the regex (rc=$RC, ${EL}s)" "$(brief)"
+    fi
 fi
 
 echo ""

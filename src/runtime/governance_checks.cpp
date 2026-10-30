@@ -840,8 +840,16 @@ static std::string expandDangerousAliases(const std::string& language,
     // ── Phase 1: Direct assignment aliases ──────────────────────────────
     // Pattern: identifier = dangerous_ref (NOT followed by open paren → reference, not call)
     // Runs on module-expanded code so `fn = sp.Popen` → `fn = subprocess.Popen` is matched.
+    //
+    // Every left-hand side below starts with \b (A89). These patterns keep a
+    // lookahead, so they run on the backtracking matcher, and an unanchored
+    // (\w+) tried at every position of one long word is quadratic: a 60,000-
+    // character word held the governor for minutes. The \b changes no match:
+    // (\w+) must end right before \s*= or \s*[, so it always runs to the end
+    // of its word, and a start inside a word that the word's own start fails
+    // on fails the same way.
     for (const auto& ref : *refs) {
-        std::string pat = "(\\w+)\\s*" + assign_op + "\\s*\\b(" +
+        std::string pat = "\\b(\\w+)\\s*" + assign_op + "\\s*\\b(" +
                           ref.pattern + ")\\b(?!\\s*\\()";
         try {
             naab::rx::regex re(pat, naab::rx::regex::ECMAScript);
@@ -875,7 +883,7 @@ static std::string expandDangerousAliases(const std::string& language,
 
     for (const auto& ref : *refs) {
         // Subscript assignment: d["key"] = os.system
-        std::string sub_pat = "(\\w+)\\s*\\[[^\\]]*\\]\\s*" + assign_op + "\\s*\\b(" +
+        std::string sub_pat = "\\b(\\w+)\\s*\\[[^\\]]*\\]\\s*" + assign_op + "\\s*\\b(" +
                               ref.pattern + ")\\b(?!\\s*\\()";
         try {
             naab::rx::regex re(sub_pat, naab::rx::regex::ECMAScript);
@@ -897,7 +905,7 @@ static std::string expandDangerousAliases(const std::string& language,
         }
 
         // List literal: fns = [os.system] or fns = [x, os.system, y]
-        std::string list_pat = "(\\w+)\\s*" + assign_op + "\\s*\\[[^\\]]*\\b(" +
+        std::string list_pat = "\\b(\\w+)\\s*" + assign_op + "\\s*\\[[^\\]]*\\b(" +
                                ref.pattern + ")\\b(?!\\s*\\()[^\\]]*\\]";
         try {
             naab::rx::regex re(list_pat, naab::rx::regex::ECMAScript);
@@ -1034,7 +1042,7 @@ static std::string expandDangerousAliases(const std::string& language,
     for (int iter = 0; iter < 3; ++iter) {
         std::unordered_map<std::string, std::string> new_aliases;
         for (const auto& kv : aliases) {
-            std::string pat = "(\\w+)\\s*" + assign_op + "\\s*\\b" +
+            std::string pat = "\\b(\\w+)\\s*" + assign_op + "\\s*\\b" +
                               kv.first + "\\b(?!\\s*\\()";
             try {
                 naab::rx::regex re(pat, naab::rx::regex::ECMAScript);
@@ -1646,6 +1654,20 @@ std::string GovernanceEngine::checkComplexity(const std::string& code, int line)
 // ============================================================================
 
 // --- Oversimplification ---
+// The co-occurrence patterns below ask whether one comment holds words from
+// two or three lists, in any order: a comment marker, then a lookahead per
+// list. Tried at every marker, that is quadratic in a line with many markers,
+// and the lookaheads keep these patterns on the backtracking matcher, so a
+// 60,000-character line of `// note` held the governor past its step budget
+// (A89). Only the FIRST marker on a line can match: a later marker sees a
+// suffix of the same line, so its lookaheads fail wherever the first one's
+// do. The lookbehind after the marker admits just that one -- no `#` and no
+// `//` between the line start and it -- and leaves the match text and position
+// as they were; each marker's lookbehind scans back no further than the
+// marker before it.
+#define NAAB_FIRST_COMMENT_MARKER \
+    "(?:#|//)(?<=(?:^|[\\n\\r])[^\\n\\r#/]*(?:/(?!/)[^\\n\\r#/]*)*(?:#|//))"
+
 static const std::vector<std::string> DEFAULT_OVERSIMPLIFICATION_PATTERNS = {
     // Empty/pass-only function bodies
     "def\\s+\\w+\\([^)]*\\):\\s*pass\\s*$",
@@ -1701,30 +1723,30 @@ static const std::vector<std::string> DEFAULT_OVERSIMPLIFICATION_PATTERNS = {
     // ============================================================
 
     // Diminishing adjective + code noun (any order)
-    "(?:#|//)(?=.*\\b(?:basic|simplified|simple|minimal|trivial|naive|rough|crude|approximate|toy|pedagogical|illustrative|proof.of.concept|MVP|bare.minimum|stripped.down|condensed|abridged|truncated)\\b)(?=.*\\b(?:implementation|version|approach|logic|solution|code|algorithm|example)\\b).*",
+    NAAB_FIRST_COMMENT_MARKER "(?=.*\\b(?:basic|simplified|simple|minimal|trivial|naive|rough|crude|approximate|toy|pedagogical|illustrative|proof.of.concept|MVP|bare.minimum|stripped.down|condensed|abridged|truncated)\\b)(?=.*\\b(?:implementation|version|approach|logic|solution|code|algorithm|example)\\b).*",
 
     // Mock/fake/placeholder + data/result/value (any order)
-    "(?:#|//)(?=.*\\b(?:mock|dummy|fake|placeholder|simulated|hardcoded|synthetic|fabricated|generated|contrived|artificial|stand.?in|filler|surrogate|substitute)\\b)(?=.*\\b(?:data|implementation|results?|value|response|output|return|computation|calculation)\\b).*",
+    NAAB_FIRST_COMMENT_MARKER "(?=.*\\b(?:mock|dummy|fake|placeholder|simulated|hardcoded|synthetic|fabricated|generated|contrived|artificial|stand.?in|filler|surrogate|substitute)\\b)(?=.*\\b(?:data|implementation|results?|value|response|output|return|computation|calculation)\\b).*",
 
     // "will/should be" + "replaced/implemented/completed" (any order)
-    "(?:#|//)(?=.*\\b(?:will|should|needs?|could|can|to)\\b)(?=.*\\bbe\\b)(?=.*\\b(?:replaced|implemented|completed|finished|done|updated|improved|expanded|fleshed)\\b).*",
+    NAAB_FIRST_COMMENT_MARKER "(?=.*\\b(?:will|should|needs?|could|can|to)\\b)(?=.*\\bbe\\b)(?=.*\\b(?:replaced|implemented|completed|finished|done|updated|improved|expanded|fleshed)\\b).*",
 
     // "left/serves/acts as" + "exercise/placeholder/skeleton" (any order)
-    "(?:#|//)(?=.*\\b(?:left|serves?|acts?|used)\\b)(?=.*\\bas\\b)(?=.*\\b(?:exercise|example|placeholder|starting.point|skeleton|template|scaffold|stub|fallback)\\b).*",
+    NAAB_FIRST_COMMENT_MARKER "(?=.*\\b(?:left|serves?|acts?|used)\\b)(?=.*\\bas\\b)(?=.*\\b(?:exercise|example|placeholder|starting.point|skeleton|template|scaffold|stub|fallback)\\b).*",
 
     // "in a real/production" + "system/implementation" (any order)
-    "(?:#|//)(?=.*\\b(?:real|production|actual|proper|full|complete)\\b)(?=.*\\b(?:system|application|implementation|version|world|scenario|environment)\\b)(?=.*\\b(?:in|for|would|should|goes|belongs)\\b).*",
+    NAAB_FIRST_COMMENT_MARKER "(?=.*\\b(?:real|production|actual|proper|full|complete)\\b)(?=.*\\b(?:system|application|implementation|version|world|scenario|environment)\\b)(?=.*\\b(?:in|for|would|should|goes|belongs)\\b).*",
 
     // "not fully implemented" — 3 groups to avoid false positives
-    "(?:#|//)(?=.*\\b(?:not|partially|incompletely|never)\\b)(?=.*\\b(?:fully|completely|properly|actually|really|truly)\\b)(?=.*\\b(?:implemented|finished|done|functional|working|complete|developed)\\b).*",
+    NAAB_FIRST_COMMENT_MARKER "(?=.*\\b(?:not|partially|incompletely|never)\\b)(?=.*\\b(?:fully|completely|properly|actually|really|truly)\\b)(?=.*\\b(?:implemented|finished|done|functional|working|complete|developed)\\b).*",
     // "barely/hardly" + state (2 groups — these words imply both negation and degree)
-    "(?:#|//)(?=.*\\b(?:barely|hardly)\\b)(?=.*\\b(?:implemented|finished|done|functional|working|complete|developed)\\b).*",
+    NAAB_FIRST_COMMENT_MARKER "(?=.*\\b(?:barely|hardly)\\b)(?=.*\\b(?:implemented|finished|done|functional|working|complete|developed)\\b).*",
 
     // "omitted/elided for brevity/simplicity" (any order)
-    "(?:#|//)(?=.*\\b(?:omitted|elided|redacted|removed|cut|truncated)\\b)(?=.*\\b(?:brevity|space|time|simplicity|clarity|readability)\\b).*",
+    NAAB_FIRST_COMMENT_MARKER "(?=.*\\b(?:omitted|elided|redacted|removed|cut|truncated)\\b)(?=.*\\b(?:brevity|space|time|simplicity|clarity|readability)\\b).*",
 
     // Scaffold/skeleton + code noun (any order)
-    "(?:#|//)(?=.*\\b(?:skeleton|boilerplate|starter|template|scaffold)\\b)(?=.*\\b(?:code|implementation|version)\\b).*",
+    NAAB_FIRST_COMMENT_MARKER "(?=.*\\b(?:skeleton|boilerplate|starter|template|scaffold)\\b)(?=.*\\b(?:code|implementation|version)\\b).*",
 
     // --- Patterns that work fine as phrase-ordered (unique structures) ---
     "(?:#|//)\\s*(?:for|in)\\s+(?:demonstration|demo|testing|test|example|simplicity|now|this exercise)\\s*(?:purposes?|only)?",
@@ -1761,12 +1783,12 @@ static const std::vector<std::string> DEFAULT_OVERSIMPLIFICATION_PATTERNS = {
     // Group B: padding|gaming|hack|boost|inflate|trick|fool|filler|workaround|fake|dummy|artificial
     // Note: "satisfy" excluded from Group B (too common in normal comments like
     // "satisfy the user requirement") — handled separately with scanner-specific Group A
-    "(?:#|//)(?=.*\\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate|requirement)\\b)(?=.*\\b(?:padding|gaming|hack|boost|inflate|trick|fool|filler|workaround|fake|dummy|artificial)\\b).*",
+    NAAB_FIRST_COMMENT_MARKER "(?=.*\\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate|requirement)\\b)(?=.*\\b(?:padding|gaming|hack|boost|inflate|trick|fool|filler|workaround|fake|dummy|artificial)\\b).*",
     // "satisfy" only flags with scanner-specific concepts (not generic "requirement")
-    "(?:#|//)(?=.*\\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate)\\b)(?=.*\\b(?:satisfy)\\b).*",
+    NAAB_FIRST_COMMENT_MARKER "(?=.*\\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate)\\b)(?=.*\\b(?:satisfy)\\b).*",
 
     // Co-occurrence variant: "just/only [doing X] to/for [governance concept]"
-    "(?:#|//)(?=.*\\b(?:just|only|merely|simply)\\b)(?=.*\\b(?:to|for)\\b)(?=.*\\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate|requirement|pass|meet|reach|satisfy)\\b).*",
+    NAAB_FIRST_COMMENT_MARKER "(?=.*\\b(?:just|only|merely|simply)\\b)(?=.*\\b(?:to|for)\\b)(?=.*\\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate|requirement|pass|meet|reach|satisfy)\\b).*",
 
     // Score calculation/estimate comments (admitting score tracking)
     "(?:#|//).*score\\s*(?:estimate|calculation|breakdown|:).*(?:need|require|missing|more|short)",
@@ -3768,6 +3790,8 @@ std::string GovernanceEngine::checkFunctionBehavioralContract(
             try {
                 naab::rx::regex call_pat("\\b" + required + "\\s*\\(");
                 found = naab::rx::regex_search(func_body, call_pat);
+            } catch (const naab::rx::resource_error&) {
+                throw;  // a scan that did not finish decided nothing (A89)
             } catch (...) {
                 // Invalid regex — fall back to literal search
                 found = func_body.find(required) != std::string::npos;
@@ -3830,6 +3854,8 @@ std::string GovernanceEngine::checkFunctionBehavioralContract(
                     param_found = true;
                     break;
                 }
+            } catch (const naab::rx::resource_error&) {
+                throw;  // a scan that did not finish decided nothing (A89)
             } catch (...) {
                 // Invalid regex — fall back to literal search
                 if (inner_body.find(param) != std::string::npos) {
@@ -4608,15 +4634,55 @@ std::string GovernanceEngine::checkNaabSourceText(const std::string& source,
     // deduplicate_checks collapses (test_dedup_runtime.sh DC-01).
     // The text starts on line 1, so each finding names the line it is on
     // (A76(b); before, a whole-file finding named no line at all).
-    ScopedCheckContext ctx(source_file, 0);
-    std::string err = checkSecrets(source, 1, /*code_starts_at_line=*/true);
-    if (!err.empty()) return err;
-    err = checkPii(source, 1, /*code_starts_at_line=*/true);
-    if (!err.empty()) return err;
-    return checkIncompleteLogic(source, 1, source_file, /*code_starts_at_line=*/true);
+    return boundedScan(source_file, 0, [&]() -> std::string {
+        ScopedCheckContext ctx(source_file, 0);
+        std::string err = checkSecrets(source, 1, /*code_starts_at_line=*/true);
+        if (!err.empty()) return err;
+        err = checkPii(source, 1, /*code_starts_at_line=*/true);
+        if (!err.empty()) return err;
+        return checkIncompleteLogic(source, 1, source_file, /*code_starts_at_line=*/true);
+    });
+}
+
+std::string GovernanceEngine::boundedScan(const std::string& file, int line,
+                                          const std::function<std::string()>& scan) {
+    try {
+        naab::rx::ScanBudget budget(kScanSteps);
+        return scan();
+    } catch (const naab::rx::resource_error&) {
+        // Refused, not passed: the checks that did not finish never decided
+        // about this text (A89).
+        ScopedCheckContext at(file, line);
+        return enforce("governance.scan_budget", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Scan limit reached: a check could not finish reading this code",
+                line > 0 ? fmt::format("line {}", line) : "",
+                "governance.scan_budget",
+                "A pattern check ran past its work limit before it could decide,\n"
+                "so the code is refused rather than run unchecked.\n"
+                "The usual cause is one very long line (tens of thousands of\n"
+                "characters): split it, or move the data into a file the\n"
+                "program reads.",
+                "data = \"<60,000 characters on one line>\"",
+                "with open(\"data.txt\") as f:\n"
+                "    data = f.read()"));
+    }
 }
 
 std::string GovernanceEngine::checkNaabFunctionBody(
+    const std::string& function_name,
+    const std::string& source_code,
+    int line,
+    const std::string& source_file,
+    int param_count,
+    bool imported_module) {
+    return boundedScan(source_file, line, [&] {
+        return checkNaabFunctionBodyScan(function_name, source_code, line,
+                                         source_file, param_count, imported_module);
+    });
+}
+
+std::string GovernanceEngine::checkNaabFunctionBodyScan(
     const std::string& function_name,
     const std::string& source_code,
     int line,
@@ -6125,6 +6191,8 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
     for (const auto& pat : vcs_signals) {
         try {
             if (naab::rx::regex_search(lower, naab::rx::regex(pat))) { has_vcs = true; break; }
+        } catch (const naab::rx::resource_error&) {
+            throw;  // a scan that did not finish decided nothing (A89)
         } catch (...) {
             if (lower.find(pat) != std::string::npos) { has_vcs = true; break; }
         }
@@ -6140,6 +6208,8 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
     for (const auto& pat : history_signals) {
         try {
             if (naab::rx::regex_search(lower, naab::rx::regex(pat))) { has_history = true; break; }
+        } catch (const naab::rx::resource_error&) {
+            throw;  // a scan that did not finish decided nothing (A89)
         } catch (...) {
             if (lower.find(pat) != std::string::npos) { has_history = true; break; }
         }
@@ -6157,6 +6227,8 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
     for (const auto& pat : search_signals) {
         try {
             if (naab::rx::regex_search(lower, naab::rx::regex(pat))) { has_search = true; break; }
+        } catch (const naab::rx::resource_error&) {
+            throw;  // a scan that did not finish decided nothing (A89)
         } catch (...) {
             if (lower.find(pat) != std::string::npos) { has_search = true; break; }
         }
@@ -6174,6 +6246,8 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
     for (const auto& pat : secret_signals) {
         try {
             if (naab::rx::regex_search(lower, naab::rx::regex(pat))) { has_secret = true; break; }
+        } catch (const naab::rx::resource_error&) {
+            throw;  // a scan that did not finish decided nothing (A89)
         } catch (...) {
             if (lower.find(pat) != std::string::npos) { has_secret = true; break; }
         }
@@ -6238,6 +6312,8 @@ std::string GovernanceEngine::checkObfuscationSignals(
         for (const auto& pat : patterns) {
             try {
                 if (naab::rx::regex_search(code, naab::rx::regex(pat))) return true;
+            } catch (const naab::rx::resource_error&) {
+                throw;  // a scan that did not finish decided nothing (A89)
             } catch (...) {
                 if (code.find(pat) != std::string::npos) return true;
             }
@@ -7027,6 +7103,14 @@ bool GovernanceEngine::runSingleBlockCheck(const std::string& check_name,
 std::string GovernanceEngine::checkPolyglotBlock(
     const std::string& language, const std::string& code,
     const std::string& source_file, int line) {
+    return boundedScan(source_file, line, [&] {
+        return checkPolyglotBlockScan(language, code, source_file, line);
+    });
+}
+
+std::string GovernanceEngine::checkPolyglotBlockScan(
+    const std::string& language, const std::string& code,
+    const std::string& source_file, int line) {
 
     // Set check context for report tracking (file + line propagate to enforce/recordPass)
     setCheckContext(source_file, line);
@@ -7436,6 +7520,8 @@ bool GovernanceEngine::looksLikeBase64(const std::string& str) {
     try {
         naab::rx::regex re("^[A-Za-z0-9+/]+=*$");
         return naab::rx::regex_match(str, re);
+    } catch (const naab::rx::resource_error&) {
+        throw;  // a scan that did not finish decided nothing (A89)
     } catch (...) { return false; }
 }
 
@@ -7444,6 +7530,8 @@ bool GovernanceEngine::looksLikeHex(const std::string& str) {
     try {
         naab::rx::regex re("^[0-9a-fA-F]+$");
         return naab::rx::regex_match(str, re);
+    } catch (const naab::rx::resource_error&) {
+        throw;  // a scan that did not finish decided nothing (A89)
     } catch (...) { return false; }
 }
 

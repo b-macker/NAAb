@@ -4347,6 +4347,20 @@ else
     echo "  test_no_std_regex.sh: not found, skipping"
 fi
 
+VENDORED_PATCHES_SCRIPT="tests/self-audit/test_vendored_patches.sh"
+if [ -f "$VENDORED_PATCHES_SCRIPT" ]; then
+    # The vendored QuickJS is its archive plus the A89 regexp-timeout patch,
+    # file for file, as DEPENDENCIES.lock says. Reads files only.
+    if run_shell_test "$VENDORED_PATCHES_SCRIPT" 2>&1; then
+        echo "  test_vendored_patches.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_vendored_patches.sh")
+    fi
+else
+    echo "  test_vendored_patches.sh: not found, skipping"
+fi
+
 FMT_LITERALS_SCRIPT="tests/self-audit/test_fmt_literals.sh"
 if [ -f "$FMT_LITERALS_SCRIPT" ]; then
     # Gate on invalid literal fmt format strings (A42): C++17 does not check

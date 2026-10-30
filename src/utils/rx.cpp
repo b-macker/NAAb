@@ -58,6 +58,29 @@ void appendHexByte(std::string& out, unsigned char b) {
 // may hold; a search that reaches it throws resource_error.
 constexpr size_t kSearchMemoryLimit = 256u << 20;
 
+// The fallback's work limit, in matcher steps (the patched libregexp calls
+// lre_check_timeout() -- here, the runtime's interrupt handler -- every
+// LRE_INTERRUPT_COUNTER_INIT steps). A search draws on the ScanBudget open on
+// its thread, or, with none open, on a budget of its own.
+struct StepBudget {
+    bool scoped = false;
+    std::uint64_t remaining = 0;     // the open ScanBudget's steps
+    std::uint64_t search_left = 0;   // this search's steps, with no scope open
+    bool exhausted = false;
+};
+thread_local StepBudget t_steps;
+
+int stepHook(JSRuntime*, void*) {
+    std::uint64_t& left = t_steps.scoped ? t_steps.remaining : t_steps.search_left;
+    if (left <= LRE_INTERRUPT_COUNTER_INIT) {
+        left = 0;
+        t_steps.exhausted = true;
+        return 1;
+    }
+    left -= LRE_INTERRUPT_COUNTER_INIT;
+    return 0;
+}
+
 struct LreContext {
     JSRuntime* rt = nullptr;
     JSContext* ctx = nullptr;
@@ -73,6 +96,7 @@ JSContext* lreContext() {
         c.rt = JS_NewRuntime();
         if (!c.rt) throw resource_error("regular expression: could not allocate a matcher");
         JS_SetMemoryLimit(c.rt, kSearchMemoryLimit);
+        JS_SetInterruptHandler(c.rt, stepHook, nullptr);
         c.ctx = JS_NewContextRaw(c.rt);
         if (!c.ctx) throw resource_error("regular expression: could not allocate a matcher");
     }
@@ -275,8 +299,13 @@ bool execFallback(const regex::Impl* im, const char* base, size_t len, size_t st
     std::vector<uint8_t*> cap(im->groups * 2, nullptr);
     static const uint8_t kEmpty[1] = {0};
     const uint8_t* cbuf = len ? reinterpret_cast<const uint8_t*>(base) : kEmpty;
+    JSContext* ctx = lreContext();
+    if (!t_steps.scoped) t_steps.search_left = kSearchSteps;
+    t_steps.exhausted = false;
     int r = lre_exec(cap.data(), bc->data(), cbuf, static_cast<int>(start),
-                     static_cast<int>(len), 0, lreContext());
+                     static_cast<int>(len), 0, ctx);
+    if (r == LRE_RET_TIMEOUT || (r < 0 && t_steps.exhausted))
+        throw resource_error("regular expression: the search ran past its step budget");
     if (r < 0)
         throw resource_error("regular expression: the search ran out of its memory budget");
     bool matched = r == 1;
@@ -462,6 +491,25 @@ regex::regex(const std::string& pattern, flag_type flags) : pattern_(pattern), f
 }
 
 unsigned regex::mark_count() const { return impl_ ? impl_->groups - 1 : 0; }
+
+#if defined(NAAB_RX_LIBREGEXP)
+ScanBudget::ScanBudget(std::uint64_t steps)
+    : outer_scoped_(t_steps.scoped), outer_remaining_(t_steps.remaining) {
+    granted_ = outer_scoped_ && outer_remaining_ < steps ? outer_remaining_ : steps;
+    t_steps.scoped = true;
+    t_steps.remaining = granted_;
+}
+ScanBudget::~ScanBudget() {
+    const std::uint64_t spent = granted_ - t_steps.remaining;
+    t_steps.scoped = outer_scoped_;
+    t_steps.remaining = outer_scoped_ ? outer_remaining_ - spent : 0;
+}
+std::uint64_t ScanBudget::remaining() const { return t_steps.remaining; }
+#else
+ScanBudget::ScanBudget(std::uint64_t steps) : granted_(steps) {}
+ScanBudget::~ScanBudget() = default;
+std::uint64_t ScanBudget::remaining() const { return granted_; }
+#endif
 
 bool regex::linear_time() const {
 #if defined(NAAB_RX_RE2)

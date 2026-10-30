@@ -32,11 +32,18 @@
 // a detection check that skipped its pattern would have passed text it never
 // scanned.
 //
+// Work limit. The fallback counts its steps (a patched libregexp; A89), so
+// no input can keep it busy without end: a search takes at most kSearchSteps,
+// or, while a ScanBudget is open on its thread, draws on that budget with every
+// other search under it. Past the limit it throws resource_error. RE2 needs no
+// limit.
+//
 // Built without QuickJS (MSVC, where QuickJS does not compile), the fallback
-// for what RE2 cannot read is std::regex, with its limits.
+// for what RE2 cannot read is std::regex, with its limits and no step count.
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <iosfwd>
 #include <iterator>
 #include <memory>
@@ -52,6 +59,27 @@ namespace rx {
 class resource_error : public std::runtime_error {
 public:
     explicit resource_error(const std::string& what) : std::runtime_error(what) {}
+};
+
+// Steps one fallback search may take when no ScanBudget is open.
+constexpr std::uint64_t kSearchSteps = 100000000;
+
+// A step budget shared by every fallback search on this thread while it is
+// open -- a check that runs many patterns over one text is bounded as a whole.
+// A budget opened inside another gets at most what the outer one has left,
+// and what it spends is spent from the outer one too.
+class ScanBudget {
+public:
+    explicit ScanBudget(std::uint64_t steps);
+    ~ScanBudget();
+    ScanBudget(const ScanBudget&) = delete;
+    ScanBudget& operator=(const ScanBudget&) = delete;
+    std::uint64_t remaining() const;
+
+private:
+    bool outer_scoped_ = false;
+    std::uint64_t outer_remaining_ = 0;
+    std::uint64_t granted_ = 0;
 };
 
 class regex {

@@ -69,7 +69,14 @@ vendored_dependencies:
     archive: quickjs-2021-03-27.tar.xz
     sha256: "a45d90d59cbeb3a6ca7a7092d9db17ef7c9f37cb0ddfef30a1e4aa0c97c44d5b"
     license: MIT
-    purpose: JavaScript engine for polyglot blocks
+    purpose: JavaScript engine for polyglot blocks; its libregexp is naab::rx's fallback matcher
+    # Patched (A89): external/patches/quickjs-2021-03-27-regexp-timeout.patch.
+    # A backport of QuickJS 2024's regexp timeout -- libregexp counts its steps
+    # and asks lre_check_timeout() every 10,000; quickjs.c answers with the
+    # runtime's interrupt handler. naab::rx bounds its fallback searches with it,
+    # and --timeout now reaches a <<javascript>> block stuck in a regexp. The
+    # archive above is the unpatched upstream; the tree under external/ is the
+    # archive plus that patch (tests/self-audit/test_vendored_patches.sh).
 
 # ============================================================================
 # System Dependencies (via package manager)

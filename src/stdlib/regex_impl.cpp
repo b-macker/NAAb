@@ -256,6 +256,8 @@ interpreter::NaabVal RegexModule::call(
             naab::rx::regex re(pattern);  // Validate syntax
             (void)re;
             return makeBool(true);
+        } catch (const naab::rx::resource_error&) {
+            throw;  // a scan that did not finish decided nothing (A89)
         } catch (...) {
             return makeBool(false);
         }

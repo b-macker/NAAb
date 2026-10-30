@@ -3716,6 +3716,13 @@ public:
     std::string checkNaabSourceText(const std::string& source,
                                     const std::string& source_file);
 
+    // The three static entry points above scan text the governed side chose,
+    // and a pattern only the backtracking matcher reads can take time
+    // superlinear in it (A89). Each runs under one step budget
+    // (naab::rx::ScanBudget); a scan that runs past it is refused at HARD
+    // (governance.scan_budget) -- never passed as if it had found nothing.
+    static constexpr std::uint64_t kScanSteps = 400000000;
+
     // --- Polyglot Optimization Checks ---
     std::string checkPolyglotOptimization(const std::string& language,
                                           const std::string& code,
@@ -4545,6 +4552,19 @@ private:
     void capCheckResultsLocked();
 
     // --- Formatting ---
+    std::string boundedScan(const std::string& file, int line,
+                            const std::function<std::string()>& scan);
+    std::string checkPolyglotBlockScan(const std::string& language,
+                                       const std::string& code,
+                                       const std::string& source_file,
+                                       int line);
+    std::string checkNaabFunctionBodyScan(const std::string& function_name,
+                                          const std::string& source_code,
+                                          int line,
+                                          const std::string& source_file,
+                                          int param_count,
+                                          bool imported_module);
+
     static std::string formatError(EnforcementLevel level,
                                    const std::string& what,
                                    const std::string& location,

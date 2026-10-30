@@ -201,3 +201,108 @@ TEST(RxTest, Re2PathKeepsTheEcmaScriptDialect) {
     // [] matches nothing in ECMAScript; RE2 would read a literal ']'.
     EXPECT_FALSE(rx::regex("[]a]").linear_time());
 }
+
+// The step budget (A89): the fallback cannot be kept busy without end. One
+// search stops at kSearchSteps; under a ScanBudget every search draws on the
+// one budget, and a budget opened inside another spends from the outer one.
+TEST(RxTest, FallbackSearchStopsAtItsStepBudget) {
+    // Quadratic on the fallback: an unanchored (\w+) tried at every start of
+    // one long word, kept off RE2 by its lookahead.
+    rx::regex quad("(\\w+)\\s*=(?!x)");
+    ASSERT_FALSE(quad.linear_time());
+    const std::string word(60000, 'a');
+    EXPECT_THROW(rx::regex_search(word, quad), rx::resource_error);
+    // CONTROL: the same pattern on a short input, and the anchored form on
+    // the long one, finish -- the throw is the budget, not the pattern.
+    EXPECT_FALSE(rx::regex_search(std::string(2000, 'a'), quad));
+    EXPECT_FALSE(rx::regex_search(word, rx::regex("\\b(\\w+)\\s*=(?!x)")));
+    try {
+        rx::regex_search(word, quad);
+        FAIL() << "no throw";
+    } catch (const std::regex_error&) {
+        FAIL() << "a budget stop must not be a regex_error: those catch sites skip the pattern";
+    } catch (const rx::resource_error&) {
+    }
+}
+
+TEST(RxTest, ScanBudgetIsSharedAndNests) {
+    rx::regex quad("(\\w+)\\s*=(?!x)");
+    const std::string mid(3000, 'a');
+    // What one search costs (steps are counted in whole blocks, so the same
+    // search costs the same every time).
+    std::uint64_t one = 0;
+    {
+        rx::ScanBudget probe(1000000000);
+        const std::uint64_t before = probe.remaining();
+        rx::regex_search(mid, quad);
+        one = before - probe.remaining();
+    }
+    ASSERT_GT(one, 0u) << "a quadratic search spent nothing: the step count is not live";
+    {
+        rx::ScanBudget b(one * 7 / 2);   // three and a half searches
+        int done = 0;
+        bool stopped = false;
+        for (int i = 0; i < 10 && !stopped; ++i) {
+            try { rx::regex_search(mid, quad); ++done; }
+            catch (const rx::resource_error&) { stopped = true; }
+        }
+        EXPECT_TRUE(stopped) << "ten searches ran on a budget for three and a half";
+        EXPECT_EQ(done, 3) << "searches under one budget did not share it";
+    }
+    {
+        rx::ScanBudget outer(one * 10);
+        const std::uint64_t before = outer.remaining();
+        {
+            rx::ScanBudget inner(one * 100);   // asks for more than the outer has
+            EXPECT_LE(inner.remaining(), before) << "an inner budget got more than the outer had left";
+            rx::regex_search(mid, quad);
+        }
+        EXPECT_EQ(outer.remaining(), before - one) << "the inner scope's steps were not spent from the outer";
+    }
+    // No scope open: the per-search budget is back, and a search fits in it.
+    EXPECT_FALSE(rx::regex_search(mid, quad));
+}
+
+// The oversimplification check's co-occurrence patterns try only the first
+// comment marker on a line (governance_checks.cpp, NAAB_FIRST_COMMENT_MARKER).
+// That must change no match: compared with the old form on a seeded corpus of
+// lines built from markers, slashes, line ends and the words the lookaheads
+// look for -- whether it matches, where, and how long.
+TEST(RxTest, FirstCommentMarkerChangesNoMatch) {
+    const std::string first =
+        "(?:#|//)(?<=(?:^|[\\n\\r])[^\\n\\r#/]*(?:/(?!/)[^\\n\\r#/]*)*(?:#|//))";
+    const std::vector<std::string> bodies = {
+        "(?=.*\\b(?:basic|simple)\\b)(?=.*\\b(?:code|version)\\b).*",
+        "(?=.*\\b(?:not)\\b)(?=.*\\b(?:fully)\\b)(?=.*\\b(?:done)\\b).*",
+        "(?=.*\\b(?:skeleton)\\b).*",
+    };
+    const std::vector<std::string> tokens = {
+        "#", "//", "/", "///", "/#", " ", "  ", "x", "basic", "simple", "code",
+        "version", "not", "fully", "done", "skeleton", "\n", "\r", "\r\n", "=", "a.b"};
+    unsigned seed = 12345;
+    auto next = [&seed] { seed = seed * 1103515245u + 12345u; return (seed >> 8) & 0xffff; };
+    int compared = 0, matched = 0;
+    for (const auto& body : bodies) {
+        for (int flags = 0; flags < 2; ++flags) {
+            rx::regex::flag_type f = flags ? rx::regex::icase : rx::regex::ECMAScript;
+            rx::regex old_re("(?:#|//)" + body, f), new_re(first + body, f);
+            for (int n = 0; n < 3000; ++n) {
+                std::string text;
+                const unsigned len = next() % 24;
+                for (unsigned t = 0; t < len; ++t) text += tokens[next() % tokens.size()];
+                rx::smatch a, b;
+                const bool ma = rx::regex_search(text, a, old_re);
+                const bool mb = rx::regex_search(text, b, new_re);
+                ++compared;
+                ASSERT_EQ(ma, mb) << "pattern body " << body << " text [" << text << "]";
+                if (ma) {
+                    ++matched;
+                    ASSERT_EQ(a.position(0), b.position(0)) << "text [" << text << "]";
+                    ASSERT_EQ(a.length(0), b.length(0)) << "text [" << text << "]";
+                }
+            }
+        }
+    }
+    EXPECT_EQ(compared, 18000);
+    EXPECT_GT(matched, 500) << "the corpus hardly ever matched: the comparison would prove little";
+}
