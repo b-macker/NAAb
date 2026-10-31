@@ -287,6 +287,35 @@ jobs:
             -DCMAKE_DISABLE_FIND_PACKAGE_Python3=TRUE
           ninja -C build naab-lang naab-gov -j%NUMBER_OF_PROCESSORS%
 
+  # The release builds for macOS (release.yml), and nothing else did: v2.0.0's
+  # macOS job was the first macOS compile since v1.8.0 and failed on a
+  # pthread_t cast. Same steps as the release, so a PR that breaks it is red here.
+  build-macos:
+    name: macOS Build Check
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: brew install cmake ninja openssl@3 sqlite3 pkg-config curl
+
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja \
+            -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)
+          ninja -C build naab-lang naab-gov -j$(sysctl -n hw.ncpu)
+
+      - name: Smoke test
+        run: |
+          ./build/naab-lang --version
+          ./build/naab-gov --version
+          printf 'main { print("hello macos") }\n' > hello.naab
+          ./build/naab-lang --no-governance hello.naab
+
   vscode-extension:
     name: VS Code Extension Build
     runs-on: ubuntu-latest

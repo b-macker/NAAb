@@ -3,6 +3,8 @@
 #include <memory>
 #include <cstring>
 #include <stdexcept>
+#include <cstdint>
+#include <type_traits>
 
 #ifndef _WIN32
 #  include <csignal>
@@ -68,6 +70,21 @@ static void fireTimeoutInterruptHook(unsigned long long thread_key, bool script_
         hook(thread_key, script_wide);
     }
 }
+
+#ifndef _WIN32
+// The thread key the Python hook compares with PyThread_get_thread_ident(),
+// which CPython computes as (unsigned long)pthread_self(). pthread_t is an
+// integer on Linux and a pointer on macOS, where a static_cast does not
+// compile, so the conversion is spelled for both.
+template <typename T>
+static unsigned long long threadKey(T tid) {
+    if constexpr (std::is_pointer_v<T>) {
+        return static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(tid));
+    } else {
+        return static_cast<unsigned long long>(tid);
+    }
+}
+#endif
 
 // This thread's own "my deadline fired" flag. Held by shared_ptr because the
 // timer thread that sets it can outlive the thread that armed it.
@@ -165,7 +182,7 @@ void ResourceLimiter::setDeadline(std::chrono::steady_clock::time_point deadline
     // tid is NOT stored as a static — it lives in the lambda closure so each
     // concurrent call to setDeadline() has its own independent timer.
     pthread_t tid = pthread_self();
-    unsigned long long key = static_cast<unsigned long long>(tid);
+    unsigned long long key = threadKey(tid);
     posix_timer_cancel_.store(false, std::memory_order_relaxed);
     auto gen = timerGeneration();
     uint64_t my_gen = ++*gen;
