@@ -78,6 +78,7 @@
 #   naab-gov skips applyAgentRole()                     -> RG-07 (RP-02 cannot: see RG-07)
 #   naab-gov skips applyEnvironment()                   -> RG-07
 #   naab-gov ignores --lease-grant                      -> RG-07
+#   naab-gov ignores governance.default_env             -> RG-07
 #   the ENV opt-in comparison removed                   -> A101 (RP-01 at seeds 19, 22)
 #   the non-object agents warning removed               -> A100
 #   the network_allowed "removed" rule deleted          -> A102 (RP-01 at seeds 32, 57, 63)
