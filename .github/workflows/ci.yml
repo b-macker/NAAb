@@ -205,7 +205,11 @@ jobs:
       - name: Build
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
-          ninja -C build naab-lang libnaab naab-verify-audit naab-gov naab-lsp -j$(nproc)
+          # naab_ratchet_property is built here, before the tree is copied for
+          # the test user: run-all-tests.sh's fallback build runs inside the
+          # copy, did not produce it, and test_ratchet_property.sh then failed
+          # RP-00 as UNMEASURABLE (#352's first run).
+          ninja -C build naab-lang libnaab naab-verify-audit naab-gov naab-lsp naab_ratchet_property -j$(nproc)
 
       - name: Assert the phantom Termux tree was not created by the build
         run: |
