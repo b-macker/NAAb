@@ -163,6 +163,7 @@ json rollKnob(Rng& r, const std::string& k) {
     if (k == "agent.blocked_paths") return lst(kPathEntries, 0.4);
     if (k == "agent.shell_allowed" || k == "agent.network_allowed") return boolean();
     if (k == "agent.allowed_actions") return lst(kActions, 0.5);
+    if (k == "agent.allowed_languages") return lst(kLangs, 0.5);
     if (k == "envs.dev.mode") return json(r.pick(std::vector<std::string>{"off", "audit", "enforce"}));
     return json(nullptr);
 }
@@ -176,7 +177,8 @@ const std::vector<std::string>& knobNames() {
         "net.enabled", "net.https_only", "net.allowed_hosts", "net.blocked_hosts",
         "shell", "lang.allowed", "lang.blocked", "cq.no_secrets", "cq.no_pii",
         "agent.allowed_paths", "agent.blocked_paths", "agent.shell_allowed",
-        "agent.network_allowed", "agent.allowed_actions", "envs.dev.mode"};
+        "agent.network_allowed", "agent.allowed_actions", "agent.allowed_languages",
+        "envs.dev.mode"};
     return k;
 }
 
@@ -255,7 +257,10 @@ json toConfig(const Knobs& k) {
     put("lang.blocked", json::json_pointer("/languages/blocked"));
     put("cq.no_secrets", json::json_pointer("/code_quality/no_secrets"));
     put("cq.no_pii", json::json_pointer("/code_quality/no_pii"));
-    json agent = {{"name", "worker"}};
+    // `agents` is an object keyed by role name: the loader reads only that
+    // form (an array is dropped whole -- the first version of this generator
+    // wrote one, and no role overlay ever applied).
+    json agent = json::object();
     bool any_agent = false;
     auto agentField = [&](const char* knob, const char* field) {
         if (auto v = get(knob)) { agent[field] = *v; any_agent = true; }
@@ -265,7 +270,8 @@ json toConfig(const Knobs& k) {
     agentField("agent.shell_allowed", "shell_allowed");
     agentField("agent.network_allowed", "network_allowed");
     agentField("agent.allowed_actions", "allowed_actions");
-    if (any_agent) c["agents"] = json::array({agent});
+    agentField("agent.allowed_languages", "allowed_languages");
+    if (any_agent) c["agents"] = {{"worker", agent}};
     if (auto v = get("envs.dev.mode")) {
         c["environments"] = {{"dev", {{"mode", *v}}}, {"ci", {{"mode", "enforce"}}}};
     }
@@ -683,6 +689,7 @@ int main(int argc, char** argv) {
 
     std::vector<Finding> findings;
     size_t accepted = 0, refused = 0, errors = 0, crashes = 0, disagree = 0, invalid = 0;
+    size_t role_cases = 0, role_live = 0, lease_cases = 0, lease_live = 0;
     std::vector<std::set<int>> seen(probes().size());
     auto note = [&](const json& v) {
         if (!v.is_array()) return;
@@ -738,6 +745,11 @@ int main(int argc, char** argv) {
             if (base.contains("before")) {
                 record("overlay", i, s, base["before"], res["before"], false, o, o);
                 record("overlay", i, s, base["before_override"], res["before_override"], true, o, o);
+                // Liveness: the overlay must change SOMETHING in some cases,
+                // or the property above is vacuous (a role that never
+                // matched an agent, a lease that never reached the rules).
+                if (base["before"] != res["before"]) (s.role ? role_live : lease_live)++;
+                (s.role ? role_cases : lease_cases)++;
             }
         }
         if (!dump_dir.empty() && i < dump_count) {
@@ -843,6 +855,17 @@ int main(int argc, char** argv) {
         control_failed = true;
     } else if (!quiet) {
         std::cout << "control: planted loosening detected (" << planted_seen << " request(s))\n";
+    }
+    if (!quiet) {
+        std::cout << "control: the role overlay changed a verdict in " << role_live << " of "
+                  << role_cases << " role cases; the lease in " << lease_live << " of "
+                  << lease_cases << " lease cases\n";
+    }
+    if ((role_cases >= 20 && role_live == 0) || (lease_cases >= 20 && lease_live == 0)) {
+        std::cout << "control FAILED: an overlay never changed a verdict (role " << role_live << "/"
+                  << role_cases << ", lease " << lease_live << "/" << lease_cases
+                  << ") -- its property would be vacuous\n";
+        control_failed = true;
     }
     if (disagree) {
         std::cout << "control FAILED: " << disagree << " reload(s) decided differently with --governance-override\n";

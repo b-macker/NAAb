@@ -3391,6 +3391,16 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
     // Prefer "agents" key; fall back to legacy "agent_roles" for backward compat
     std::string agents_key = j.contains("agents") ? "agents" : "agent_roles";
     std::unordered_set<std::string> agents_with_explicit_timeout;
+    // Only the object form ({"name": {...}}) is read. Any other value used to
+    // be dropped without a word, so roles written as a list restricted nothing
+    // (A100; no config in the tree does, found while building the ratchet
+    // property harness, whose generator wrote one).
+    if (j.contains(agents_key) && !j[agents_key].is_object() && !j[agents_key].is_null()) {
+        fmt::print(stderr,
+            "[governance] Warning: \"{}\" must be an object keyed by agent name "
+            "(\"{}\": {{\"worker\": {{...}}}}); it was ignored, so no agent role applies\n",
+            agents_key, agents_key);
+    }
     if (j.contains(agents_key) && j[agents_key].is_object()) {
         for (auto& [name, cfg_json] : j[agents_key].items()) {
             AgentConfig agent;
@@ -5634,6 +5644,16 @@ static bool checkRatchetViolation(
                 notices.push_back(fmt::format("agent.{}.network_allowed: true -> false (tightened)",
                     new_agent.name));
         }
+        // Dropping network_allowed: false reverts the role to global policy --
+        // a loosening, as for shell_allowed below, whose "removed" rule this
+        // twin lacked: a reload deleting the key re-granted the role network
+        // (A102, found by tests/property/ratchet_property.cpp).
+        if (old_agent->network_allowed_set && !old_agent->network_allowed &&
+            !new_agent.network_allowed_set) {
+            violations.push_back(fmt::format(
+                "agent.{}.network_allowed: removed (loosened — reverts to global policy)",
+                new_agent.name));
+        }
 
         // Shell allowed loosening. network_allowed above has been ratcheted since
         // it was added; its twin has not — a mid-run shell_allowed false -> true
@@ -5696,6 +5716,32 @@ static bool checkRatchetViolation(
         } else if (old_agent->allowed_actions.empty() && !new_agent.allowed_actions.empty()) {
             notices.push_back(fmt::format("agent.{}.allowed_actions: added (tightened — {} actions allowed)",
                 new_agent.name, new_agent.allowed_actions.size()));
+        }
+        // ENV_READ / ENV_WRITE are opt-in: the matrix governs environment access
+        // only when it names at least one of them (checkEnvVarRead /
+        // checkEnvVarWrite). So removing an action is NOT always a tightening:
+        // removing the last ENV action switches env governance off, and the one
+        // the matrix had denied becomes allowed -- [.., ENV_READ] -> [..] lets
+        // the role write any variable (A101, found by
+        // tests/property/ratchet_property.cpp). Compared by the gates' rule.
+        {
+            auto envDenied = [](const std::vector<std::string>& acts, const char* action) {
+                bool governs = false, listed = false;
+                for (const auto& a : acts) {
+                    if (a == "ENV_READ" || a == "ENV_WRITE") governs = true;
+                    if (a == action) listed = true;
+                }
+                return governs && !listed;
+            };
+            for (const char* act : {"ENV_READ", "ENV_WRITE"}) {
+                if (envDenied(old_agent->allowed_actions, act) &&
+                    !envDenied(new_agent.allowed_actions, act)) {
+                    violations.push_back(fmt::format(
+                        "agent.{}.allowed_actions: {} denied -> allowed (loosened: the matrix "
+                        "no longer names an ENV action, so it stops governing environment access)",
+                        new_agent.name, act));
+                }
+            }
         }
 
         // Tool config ratchet enforcement (S6)

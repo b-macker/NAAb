@@ -32,6 +32,13 @@
 #   RG-06  the signature is checked as a reload checks it: with a trusted key
 #          installed an unsigned NEW is refused; --ratchet-only judges the
 #          ratchet alone; a signed NEW is accepted
+#   RG-07  the startup overlays reach the decision: a loosening the overlay
+#          already excludes is accepted under it and refused without it --
+#          --agent-id (a role's languages), --env (an environment's mode),
+#          --lease-grant (a lease without NET_CONNECT). The generated cases
+#          cannot show this: in 96 dumped role cases the role never changed a
+#          verdict of the seam (observed), so a naab-gov that ignored the role
+#          agreed with the reload on every one of them
 #   A94    under enforce a misspelled security.sandbox_level no longer switches
 #          the clamp to `standard` off (env.get is refused by the standard
 #          sandbox); CONTROLS: "elevated" reads, no level is clamped
@@ -49,6 +56,14 @@
 #   A97    a lease without ENV_READ keeps the project's blocked_subprocess_vars
 #          (HOME stays withheld from a child); CONTROLS: HOME withheld without
 #          the lease, and passed under the lease when nothing blocks it
+#   A100   an `agents` block written as a list is ignored and now says so;
+#          CONTROL: the object form loads the role and prints no warning
+#   A101   removing a role's last ENV action is refused (the matrix stops
+#          governing env, so the action it denied becomes allowed); CONTROLS:
+#          removing another action keeps env governed and is accepted
+#   A102   removing a role's `network_allowed: false` is refused, as removing
+#          its `shell_allowed: false` already was; CONTROL: setting it true ->
+#          false is accepted
 #
 # Kill table (each mutant rebuilt, this suite re-run; see the PR):
 #   enforceClampApplies back to configured.empty()      -> A94, RP-01 (flag overlays)
@@ -58,10 +73,17 @@
 #   the child-process blocked_read comparison removed   -> A96a, RP-01 (reload)
 #   chkLevel ordered by levelToInt() alone               -> A96b, RP-01 (reload)
 #   allowlist mode ignores the blocked lists again      -> A97, RP-01 (overlay)
-#   naab-gov loads OLD with loadFromFile()              -> RG-03, RP-02
-#   naab-gov skips applyAgentRole() / applyEnvironment() -> RP-02
+#   naab-gov loads OLD with loadFromFile()              -> RG-03
+#   naab-gov skips applyAgentRole()                     -> RG-07 (RP-02 cannot: see RG-07)
+#   naab-gov skips applyEnvironment()                   -> RG-07
+#   naab-gov ignores --lease-grant                      -> RG-07
+#   the ENV opt-in comparison removed                   -> A101 (RP-01 at seeds 19, 22)
+#   the non-object agents warning removed               -> A100
+#   the network_allowed "removed" rule deleted          -> A102 (RP-01 at seeds 32, 57, 63)
 # Red first: RP-01 failed on the code before these fixes, with each of the
-# findings above as its counterexamples (seed 1..9 at 300-400 cases).
+# findings above as its counterexamples (seed 1..9 at 300-400 cases); A101
+# appeared once the generator wrote roles in the form the loader reads (seeds
+# 19 and 22 of 30), A100 being why it had not.
 
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -197,6 +219,27 @@ else
 fi
 teardown_isolated_trust; setup_isolated_trust   # the remaining arms run unsigned
 
+# RG-07: each overlay masks one loosening.
+cfg govern.json '{"version":"5.0","mode":"enforce","languages":{"allowed":["python","ruby"]},"agents":{"worker":{"allowed_languages":["python"]}}}'
+cfg morelang.json '{"version":"5.0","mode":"enforce","languages":{"allowed":["python","ruby","php"]},"agents":{"worker":{"allowed_languages":["python"]}}}'
+ratchet govern.json morelang.json --agent-id worker; role_on=$RC
+ratchet govern.json morelang.json;                   role_off=$RC
+cfg govern.json '{"version":"5.0","mode":"enforce","environments":{"dev":{"mode":"audit"}}}'
+cfg toaudit.json '{"version":"5.0","mode":"audit","environments":{"dev":{"mode":"audit"}}}'
+ratchet govern.json toaudit.json --env dev; env_on=$RC
+ratchet govern.json toaudit.json;           env_off=$RC
+cfg govern.json '{"version":"5.0","mode":"enforce","capabilities":{"network":{"enabled":false}}}'
+cfg neton.json  '{"version":"5.0","mode":"enforce","capabilities":{"network":{"enabled":true}}}'
+ratchet govern.json neton.json --lease-grant FS_READ; lease_on=$RC
+ratchet govern.json neton.json;                       lease_off=$RC
+if [ "$role_on" -eq 0 ] && [ "$role_off" -eq 1 ] && [ "$env_on" -eq 0 ] && [ "$env_off" -eq 1 ] \
+   && [ "$lease_on" -eq 0 ] && [ "$lease_off" -eq 1 ]; then
+    pass RG-07 "the role, the environment and the lease each reach the decision (masked loosening accepted under it, refused without)"
+else
+    fail RG-07 "a startup overlay does not reach the seam's decision" \
+        "role on/off=$role_on/$role_off env on/off=$env_on/$env_off lease on/off=$lease_on/$lease_off (want 0/1 each)"
+fi
+
 # ---------------------------------------------------------------- findings
 R="$W/run"; mkdir -p "$R"
 naab() { RC=0; OUT=$(cd "$R" && NAAB_RP_SECRET=rp-token-7781 timeout 30 "$NAAB" run "$@" 2>&1) || RC=$?; }
@@ -284,6 +327,44 @@ else
     else
         fail A97 "child environment under a lease" "lease: ran=$lease_ran seen=$lease_seen; no lease: seen=$plain_seen; lease, no list: seen=$open_seen"
     fi
+fi
+
+# A100: `agents` as a list is ignored, with a warning.
+printf '{"version":"5.0","mode":"enforce","agents":[{"name":"worker","shell_allowed":false}]}' > "$R/govern.json"
+printf 'main {\n    print("RAN")\n}\n' > "$R/n.naab"
+naab --agent-id worker n.naab; list_warn=$(grep -c 'must be an object keyed by agent name' <<<"$OUT"); list_ran=$(grep -c '^RAN' <<<"$OUT")
+printf '{"version":"5.0","mode":"enforce","agents":{"worker":{"shell_allowed":false}}}' > "$R/govern.json"
+naab --agent-id worker n.naab; obj_warn=$(grep -c 'must be an object keyed by agent name' <<<"$OUT"); obj_role=$(grep -c 'Agent role applied: worker' <<<"$OUT")
+if [ "$list_warn" -ge 1 ] && [ "$list_ran" -eq 1 ] && [ "$obj_warn" -eq 0 ] && [ "$obj_role" -eq 1 ]; then
+    pass A100 "a list-form agents block warns (control: the object form applies the role, no warning)"
+else
+    fail A100 "agents block form" "list: warned=$list_warn ran=$list_ran; object: warned=$obj_warn role=$obj_role"
+fi
+
+# A101: the role's last ENV action removed.
+cfg govern.json '{"version":"5.0","mode":"enforce","agents":{"worker":{"allowed_actions":["FS_READ","ENV_READ"]}}}'
+cfg noenv.json  '{"version":"5.0","mode":"enforce","agents":{"worker":{"allowed_actions":["FS_READ"]}}}'
+cfg nofs.json   '{"version":"5.0","mode":"enforce","agents":{"worker":{"allowed_actions":["ENV_READ"]}}}'
+ratchet govern.json noenv.json; noenv_rc=$RC; noenv_named=$(grep -c "ENV_WRITE denied -> allowed" <<<"$OUT")
+ratchet govern.json nofs.json;  nofs_rc=$RC
+if [ "$noenv_rc" -eq 1 ] && [ "$noenv_named" -eq 1 ] && [ "$nofs_rc" -eq 0 ]; then
+    pass A101 "removing a role's last ENV action is refused (control: removing FS_READ is accepted)"
+else
+    fail A101 "the ENV opt-in in the action-matrix ratchet" "no ENV: rc=$noenv_rc named=$noenv_named; no FS_READ: rc=$nofs_rc"
+fi
+
+# A102: the role's network_allowed: false removed.
+cfg govern.json '{"version":"5.0","mode":"enforce","agents":{"worker":{"network_allowed":false}}}'
+cfg nonet.json  '{"version":"5.0","mode":"enforce","agents":{"worker":{}}}'
+cfg nettrue.json '{"version":"5.0","mode":"enforce","agents":{"worker":{"network_allowed":true}}}'
+ratchet govern.json nonet.json; nonet_rc=$RC; nonet_named=$(grep -c "network_allowed: removed" <<<"$OUT")
+cp "$C/nettrue.json" "$C/govern.json"
+cfg netfalse.json '{"version":"5.0","mode":"enforce","agents":{"worker":{"network_allowed":false}}}'
+ratchet govern.json netfalse.json; tighten_rc=$RC
+if [ "$nonet_rc" -eq 1 ] && [ "$nonet_named" -eq 1 ] && [ "$tighten_rc" -eq 0 ]; then
+    pass A102 "removing a role's network_allowed: false is refused (control: true -> false is accepted)"
+else
+    fail A102 "per-agent network_allowed removal" "removed: rc=$nonet_rc named=$nonet_named; true->false: rc=$tighten_rc"
 fi
 
 echo ""
