@@ -63,6 +63,7 @@
 #include "naab/stdlib.h"  // For setPipeMode()
 #include "naab/stdlib_new_modules.h"  // For EnvModule::setArgsProvider
 #include "naab/governance.h"  // For governance report CLI flags
+#include "naab/run_limits.h"  // the CLI flags that may only tighten govern.json
 #include "naab/crypto_utils.h"   // V-SC-009: Ed25519 keygen
 #include "naab/trust_store.h"    // V-SC-009: Trust store management
 #include "naab/secure_file.h"    // V-SC-009: Secure file writes
@@ -199,13 +200,7 @@ static void syncGovernanceToSandbox(
 // out-rank a real configured level by accident. The CLI value is already
 // validated upstream (unknown spellings exit before this runs), so in practice
 // this only guards a malformed sandbox_level in govern.json.
-static int sandboxLevelRank(const std::string& level) {
-    if (level == "restricted")   return 0;
-    if (level == "standard")     return 1;
-    if (level == "elevated")     return 2;
-    if (level == "unrestricted") return 3;
-    return 3;
-}
+using naab::runlimits::sandboxLevelRank;  // naab/run_limits.h
 
 // The CLI value is validated and rejected outright ("Error: Invalid sandbox
 // level"), but the govern.json value never was -- an unrecognised spelling
@@ -220,9 +215,7 @@ static int sandboxLevelRank(const std::string& level) {
 // repo's precedent for an unrecognised enum is the "unknown enforcement level"
 // warning in governance_config.cpp.
 static void warnUnknownConfiguredSandboxLevel(const std::string& configured) {
-    if (configured.empty()) return;
-    if (configured == "restricted" || configured == "standard" ||
-        configured == "elevated"   || configured == "unrestricted") return;
+    if (configured.empty() || naab::runlimits::isSandboxLevel(configured)) return;
     fmt::print(stderr,
         "[governance] Warning: unknown security.sandbox_level \"{}\" — expected "
         "restricted|standard|elevated|unrestricted. No sandbox level was applied "
@@ -238,21 +231,7 @@ static void warnUnknownConfiguredSandboxLevel(const std::string& configured) {
 // not shrink the govern.json limit"; the owner reversed that on 2026-10-25
 // ("govern.json is king"). The memory limit took the flag whenever it was not
 // the 512 default, so --memory-limit beat a configured limit upward.
-static void applyConfiguredRunLimits(
-    const naab::governance::GovernanceRules& rules,
-    unsigned int& timeout, bool timeout_from_flag,
-    size_t& memory_limit, bool memory_from_flag)
-{
-    // A configured 0 is left out, so it cannot be read as "no limit".
-    if (rules.runtime.timeout_configured && rules.runtime.timeout > 0) {
-        const unsigned int configured = static_cast<unsigned int>(rules.runtime.timeout);
-        timeout = timeout_from_flag ? std::min(timeout, configured) : configured;
-    }
-    if (rules.runtime.memory_limit > 0) {
-        memory_limit = memory_from_flag ? std::min(memory_limit, rules.runtime.memory_limit)
-                                        : rules.runtime.memory_limit;
-    }
-}
+using naab::runlimits::applyConfiguredRunLimits;  // naab/run_limits.h
 
 // This process's own executable, for the servers that start workers
 // (`naab-lang mcp`, `naab-lang api`): a worker is this same binary, not
@@ -304,8 +283,7 @@ static void applyGovernanceSandbox(
     // to the old behaviour when no flag is passed, since the default
     // "unrestricted" ranks least strict.
     warnUnknownConfiguredSandboxLevel(rules.sandbox_level_config);
-    if (!rules.sandbox_level_config.empty() &&
-        sandboxLevelRank(rules.sandbox_level_config) <= sandboxLevelRank(sandbox_level)) {
+    if (naab::runlimits::configuredLevelApplies(rules.sandbox_level_config, sandbox_level)) {
         sandbox_level = rules.sandbox_level_config;
         level_changed = true;
         if (sandbox_level == "restricted") {
@@ -325,8 +303,8 @@ static void applyGovernanceSandbox(
     // decision 2026-10-25; this used to clamp only the "unrestricted" default,
     // so --sandbox-level elevated kept a run elevated that govern.json never
     // granted). Same rule as the VM's inline block.
-    if (enforce_mode && rules.sandbox_level_config.empty() &&
-        sandboxLevelRank(sandbox_level) > sandboxLevelRank("standard")) {
+    if (naab::runlimits::enforceClampApplies(enforce_mode, rules.sandbox_level_config,
+                                             sandbox_level)) {
         const std::string from = sandbox_level;
         sandbox_level = "standard";
         config = createEnterpriseConfig();
@@ -1623,15 +1601,13 @@ int main(int argc, char** argv) {
         // every load and reload path. A malformed value refuses the run (exit 4)
         // rather than running with less narrowing than the server asked for.
         if (lease_grant_set) {
-            static const std::set<std::string> kLeaseActions = {
-                "FS_READ", "FS_WRITE", "NET_CONNECT", "SHELL_EXEC",
-                "ENV_READ", "ENV_WRITE", "AGENT_SEND"};
+            const auto& kLeaseActions = naab::governance::GovernanceEngine::leaseActions();
             std::vector<std::string> actions;
             std::stringstream ss(lease_grant);
             std::string a;
             while (std::getline(ss, a, ',')) {
                 if (a.empty()) continue;
-                if (!kLeaseActions.count(a)) {
+                if (std::find(kLeaseActions.begin(), kLeaseActions.end(), a) == kLeaseActions.end()) {
                     fprintf(stderr, "Error: unknown lease action '%s'\n", a.c_str());
                     fflush(nullptr);
                     naab::exitProcess(4);
@@ -2285,8 +2261,8 @@ int main(int argc, char** argv) {
                     // A13, same change as applyGovernanceSandbox -- the two must
                     // agree or test_sandbox_engine_parity.sh fails.
                     warnUnknownConfiguredSandboxLevel(rules.sandbox_level_config);
-                    if (!rules.sandbox_level_config.empty() &&
-                        sandboxLevelRank(rules.sandbox_level_config) <= sandboxLevelRank(sandbox_level)) {
+                    if (naab::runlimits::configuredLevelApplies(rules.sandbox_level_config,
+                                                                sandbox_level)) {
                         sandbox_level = rules.sandbox_level_config;
                         sandbox_level_changed = true;
                         // Rebuild security_config from govern.json-specified level
@@ -2308,9 +2284,9 @@ int main(int argc, char** argv) {
                     bool upgraded_to_standard = sandbox_level_changed;
                     // A level above `standard` must come from govern.json (see
                     // applyGovernanceSandbox()).
-                    if (vm_governance.getMode() == naab::governance::GovernanceMode::ENFORCE &&
-                        rules.sandbox_level_config.empty() &&
-                        sandboxLevelRank(sandbox_level) > sandboxLevelRank("standard")) {
+                    if (naab::runlimits::enforceClampApplies(
+                            vm_governance.getMode() == naab::governance::GovernanceMode::ENFORCE,
+                            rules.sandbox_level_config, sandbox_level)) {
                         const std::string clamped_from = sandbox_level;
                         sandbox_level = "standard";
                         security_config = createEnterpriseConfig();

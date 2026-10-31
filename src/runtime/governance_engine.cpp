@@ -848,9 +848,29 @@ bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
     fs::path dir(start_dir);
     while (true) {
         fs::path candidate = dir / "govern.json";
-        if (fs::exists(candidate)) {
-            govern_json_dir_ = dir.string();
-            bool loaded = loadFromFile(candidate.string());
+        if (fs::exists(candidate)) return loadFoundConfig(candidate.string(), dir.string(), start_dir);
+
+        fs::path parent = dir.parent_path();
+        if (parent == dir) break;  // Reached root
+        dir = parent;
+    }
+    last_error_ = "not_found";
+    return false;
+}
+
+bool GovernanceEngine::loadProjectConfig(const std::string& config_path,
+                                         const std::string& start_dir) {
+    last_error_.clear();
+    return loadFoundConfig(config_path,
+                           std::filesystem::path(config_path).parent_path().string(), start_dir);
+}
+
+bool GovernanceEngine::loadFoundConfig(const std::string& config_path,
+                                       const std::string& config_dir,
+                                       const std::string& start_dir) {
+    {
+            govern_json_dir_ = config_dir;
+            bool loaded = loadFromFile(config_path);
             if (!loaded) return false;
 
             // Self-protection: structurally block writes to governance infrastructure
@@ -905,14 +925,7 @@ bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
             startGuidanceSources(/*initial_load=*/true);
 
             return true;
-        }
-
-        fs::path parent = dir.parent_path();
-        if (parent == dir) break;  // Reached root
-        dir = parent;
     }
-    last_error_ = "not_found";
-    return false;
 }
 
 // ============================================================================
@@ -6971,6 +6984,14 @@ void GovernanceEngine::applyEnvironment(const std::string& env_name) {
     // init-only: applyEnvironment called before concurrent execution
     applyEnvironmentTo(getMutableRules(), env_name);
     active_env_ = env_name;  // every reload lays it over its rules too
+    // An environment that sets mode audit or enforce turns governance on.
+    // loadFromFile() decided active_ from the file's own mode, so `--env prod`
+    // ({"mode": "enforce"}) over a file in mode off enforced nothing: the rules
+    // said enforce and every gate whose caller checks isActive() was skipped
+    // (A95, measured). Raised only: an environment whose mode is off leaves an
+    // active engine active, as it always has -- whether it should switch
+    // governance off is an open decision (A95), and doing so here would loosen.
+    if (rules().mode != GovernanceMode::OFF) active_.store(true);
     fprintf(stderr, "[governance] Applied environment: %s\n", env_name.c_str());
     if (rules().verbose) {
         for (const auto& [key, value] : it->second) {
@@ -8040,6 +8061,13 @@ void GovernanceEngine::printValidationReport() {
 // ============================================================================
 
 // --- `naab-lang mcp` worker plumbing ------------------------------------------
+
+const std::vector<std::string>& GovernanceEngine::leaseActions() {
+    static const std::vector<std::string> kActions = {
+        "FS_READ", "FS_WRITE", "NET_CONNECT", "SHELL_EXEC",
+        "ENV_READ", "ENV_WRITE", "AGENT_SEND"};
+    return kActions;
+}
 
 void GovernanceEngine::setLeaseGrant(const std::vector<std::string>& actions) {
     g_lease_grant = actions;

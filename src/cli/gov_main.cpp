@@ -5,6 +5,7 @@
 //   naab-gov check --language <lang> [options]    (reads from stdin or --file)
 //   naab-gov scan <path> [--language <lang>]
 //   naab-gov languages                            (the language table, JSON)
+//   naab-gov ratchet <old.json> <new.json>        (would a reload accept NEW?)
 //   naab-gov --version
 //   naab-gov --help
 //
@@ -24,6 +25,7 @@
 #include "naab/process_exit.h"
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -66,6 +68,8 @@ static void printHelp() {
         "  naab-gov check --language <lang> [options]  Check code from stdin or file\n"
         "  naab-gov scan <path> [options]         Scan code for quality issues\n"
         "  naab-gov languages                     Print the language table (JSON)\n"
+        "  naab-gov ratchet <old> <new> [options] Would a mid-run reload of <old> by <new>\n"
+        "                                         be accepted? (the reload ratchet)\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
         "\n"
@@ -88,6 +92,17 @@ static void printHelp() {
         "scan OPTIONS:\n"
         "  --language <lang>       Force language detection (naab, python, go, ...)\n"
         "  --sarif                 Write SARIF to quality-report.sarif\n"
+        "\n"
+        "ratchet OPTIONS:\n"
+        "  --env <name>            Start under this environment overlay, as naab-lang --env\n"
+        "  --agent-id <name>       Start under this agent role, as naab-lang --agent-id\n"
+        "  --lease-grant <a,b,..>  Start under this capability lease (FS_READ, FS_WRITE,\n"
+        "                          NET_CONNECT, SHELL_EXEC, ENV_READ, ENV_WRITE, AGENT_SEND)\n"
+        "  --ratchet-only          Judge the ratchet alone; a reload also verifies <new>'s\n"
+        "                          signature, which is checked unless this is given\n"
+        "  --json                  Print the decision as JSON\n"
+        "  <new> is judged as if it replaced <old> in place: its relative paths resolve\n"
+        "  against <old>'s directory. Exit 0 = accepted, 1 = refused, 4 = a config error.\n"
         "\n"
         "EXIT CODES:\n"
         "  0  Clean — no violations\n"
@@ -614,6 +629,153 @@ static int cmdLanguages() {
     return 0;
 }
 
+// ---------------------------------------------------------------------------
+// ratchet command (Bundle 8)
+// ---------------------------------------------------------------------------
+//
+// Asks the engine what a mid-run reload of <old> by <new> would decide. The
+// decision is GovernanceEngine::evaluateReload(), the function reloadIfChanged()
+// itself calls, so this answers for the running engine rather than for a copy
+// of its rules: <old> is loaded as `naab-lang run` loads a config (the lease
+// before the load, the role and the environment after it, in that order), and
+// <new> is prepared as a reload prepares the changed file.
+static int cmdRatchet(const std::vector<std::string>& args) {
+    using json = nlohmann::json;
+    std::vector<std::string> files;
+    std::string env_name, agent_id, lease;
+    bool lease_set = false, ratchet_only = false, as_json = false;
+    for (size_t i = 0; i < args.size(); ++i) {
+        const std::string& a = args[i];
+        if (a == "--env" && i + 1 < args.size()) {
+            env_name = args[++i];
+        } else if (a == "--agent-id" && i + 1 < args.size()) {
+            agent_id = args[++i];
+        } else if (a == "--lease-grant" && i + 1 < args.size()) {
+            lease = args[++i];
+            lease_set = true;
+        } else if (a == "--ratchet-only") {
+            ratchet_only = true;
+        } else if (a == "--json") {
+            as_json = true;
+        } else if (!a.empty() && a[0] != '-') {
+            files.push_back(a);
+        } else {
+            std::cerr << "naab-gov ratchet: unknown option: " << a << "\n";
+            return 4;
+        }
+    }
+    if (files.size() != 2) {
+        std::cerr << "naab-gov ratchet: expected two files\n"
+                     "Usage: naab-gov ratchet <old govern.json> <new govern.json> [options]\n";
+        return 4;
+    }
+    for (const auto& f : files) {
+        if (!fs::is_regular_file(f)) {
+            std::cerr << "naab-gov ratchet: not a file: " << f << "\n";
+            return 4;
+        }
+    }
+    // Absolute, as a run's discovered govern.json is: the loaded file's
+    // directory is where relative policy entries resolve and what the
+    // self-protected paths name.
+    const std::string old_path = fs::absolute(files[0]).lexically_normal().string();
+    const std::string new_path = fs::absolute(files[1]).lexically_normal().string();
+
+    using Engine = naab::governance::GovernanceEngine;
+    if (lease_set) {
+        const auto& known = Engine::leaseActions();
+        std::vector<std::string> actions;
+        std::stringstream ss(lease);
+        std::string act;
+        while (std::getline(ss, act, ',')) {
+            if (act.empty()) continue;
+            if (std::find(known.begin(), known.end(), act) == known.end()) {
+                std::cerr << "naab-gov ratchet: unknown lease action: " << act << "\n";
+                return 4;
+            }
+            actions.push_back(act);
+        }
+        Engine::setLeaseGrant(actions);
+    }
+
+    Engine engine;
+    // As `naab-lang run` loads the govern.json it discovers (discoverAndLoad):
+    // the file, then the self-protected paths and the project context.
+    if (!engine.loadProjectConfig(old_path, fs::path(old_path).parent_path().string())) {
+        std::cerr << "naab-gov ratchet: cannot load " << files[0] << "\n";
+        return 4;
+    }
+    if (agent_id.empty()) agent_id = engine.getRules().agent_id_config;
+    if (!agent_id.empty()) engine.setAgentId(agent_id);
+    engine.applyAgentRole();
+    if (!env_name.empty()) {
+        if (!engine.getRules().environments.count(env_name)) {
+            std::cerr << "naab-gov ratchet: environment '" << env_name
+                      << "' is not in " << files[0] << "\n";
+            return 4;
+        }
+        engine.applyEnvironment(env_name);
+    }
+
+    using Outcome = Engine::ReloadEvaluation::Outcome;
+    Engine::ReloadEvaluation ev;
+    try {
+        ev = engine.evaluateReload(new_path, !ratchet_only);
+    } catch (const std::exception& e) {
+        std::cerr << "naab-gov ratchet: cannot read " << files[1] << ": " << e.what() << "\n";
+        return 4;
+    }
+
+    const char* outcome = "accepted";
+    int rc = 0;
+    switch (ev.outcome) {
+        case Outcome::Accepted:         outcome = "accepted"; rc = 0; break;
+        case Outcome::RatchetRefused:   outcome = "ratchet_refused"; rc = 1; break;
+        case Outcome::SignatureRefused: outcome = "signature_refused"; rc = 1; break;
+        case Outcome::Unreadable:       outcome = "unreadable"; rc = 4; break;
+        case Outcome::TooWide:          outcome = "too_wide"; rc = 4; break;
+    }
+    if (as_json) {
+        json out = {
+            {"outcome", outcome},
+            {"violations", ev.violations},
+            {"notices", ev.notices},
+            {"signature_checked", ev.signature_checked},
+        };
+        if (ev.outcome == Outcome::SignatureRefused) out["signature_reason"] = ev.signature_diag;
+        std::cout << out.dump(1) << "\n";
+        return rc;
+    }
+    switch (ev.outcome) {
+        case Outcome::Accepted:
+            std::cout << "ACCEPTED: a reload of " << files[0] << " by " << files[1]
+                      << " would be installed\n";
+            break;
+        case Outcome::RatchetRefused:
+            std::cout << "REFUSED: the reload would loosen governance\n";
+            for (const auto& v : ev.violations) std::cout << "  violation: " << v << "\n";
+            break;
+        case Outcome::SignatureRefused:
+            std::cout << "REFUSED: " << files[1] << "'s signature does not verify\n";
+            if (!ev.signature_diag.empty()) std::cout << ev.signature_diag;
+            break;
+        case Outcome::Unreadable:
+            std::cout << "ERROR: cannot open " << files[1] << "\n";
+            break;
+        case Outcome::TooWide:
+            std::cout << "ERROR: a JSON array in " << files[1] << " exceeds the loader's cap\n";
+            break;
+    }
+    for (const auto& n : ev.notices) std::cout << "  notice: " << n << "\n";
+    if (ev.outcome == Outcome::Accepted || ev.outcome == Outcome::RatchetRefused) {
+        std::cout << (ev.signature_checked
+                          ? "  signature: verified as a reload would\n"
+                          : "  signature: not checked (--ratchet-only)\n");
+    }
+    return rc;
+}
+
+
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         printHelp();
@@ -653,6 +815,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "languages") {
             return cmdLanguages();
+        }
+
+        if (cmd == "ratchet") {
+            return cmdRatchet(rest);
         }
     } catch (const naab::governance::GovernanceHardError& e) {
         std::cerr << e.what() << "\n";

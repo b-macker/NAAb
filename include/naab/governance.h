@@ -3219,6 +3219,9 @@ public:
     // shell/network/filesystem/env capabilities and so reaches the sandbox,
     // and intersected in checkFunctionCapability() for every gate.
     static void setLeaseGrant(const std::vector<std::string>& actions);
+    // The actions a lease can grant, the one list `--lease-grant`, the MCP
+    // server's naab_lease and `naab-gov ratchet --lease-grant` accept.
+    static const std::vector<std::string>& leaseActions();
     static bool leaseGrantActive();
     static bool leaseGrants(const std::string& action);
     // Event stream: every behavioural-sequence event this process records is
@@ -3235,8 +3238,45 @@ public:
     bool loadFromFile(const std::string& path);
     bool loadFromString(const std::string& json_config);
     bool discoverAndLoad(const std::string& start_dir);
+    // What discoverAndLoad() does with the govern.json it finds: load it, add
+    // the self-protected paths, apply project context read from start_dir and
+    // start the guidance sources. For a caller that already knows the file
+    // (`naab-gov ratchet`), so it loads the config as a run would.
+    bool loadProjectConfig(const std::string& config_path, const std::string& start_dir);
+private:
+    bool loadFoundConfig(const std::string& config_path, const std::string& config_dir,
+                         const std::string& start_dir);
+public:
 
     // --- Mid-run reload (Governance Under Survivability) ---
+    // What a reload of the config at `path` would decide, prepared exactly as
+    // reloadIfChanged() prepares a changed govern.json -- parse, the array cap,
+    // the signature, the minimum levels, the startup overlays, the protected
+    // paths, then the ratchet against the live rules -- and installing nothing.
+    // reloadIfChanged() is this plus the install, so the two cannot disagree;
+    // `naab-gov ratchet OLD NEW` asks it about a file that would replace the
+    // loaded one (Bundle 8). `path` replaces the loaded file IN PLACE: relative
+    // entries resolve against the loaded config's directory, as they would
+    // after the replacement. A file that is not JSON throws, as in a reload.
+    struct ReloadEvaluation {
+        enum class Outcome {
+            Accepted,          // the ratchet allows it; a reload would install it
+            RatchetRefused,    // a loosening: `violations` names each
+            SignatureRefused,  // `signature_diag` holds the verifier's reason
+            Unreadable,        // the file could not be opened
+            TooWide,           // a JSON array exceeds the loader's cap
+        };
+        Outcome outcome = Outcome::Unreadable;
+        std::vector<std::string> violations;
+        std::vector<std::string> notices;
+        std::string signature_diag;  // the verifier's text: a reason, or a warning on success
+        bool signature_checked = false;
+        bool sandbox_shell_allowed = true;  // the shell decision before the overlays
+        bool file_active = true;            // the file's own mode is not off (startup's rule)
+        GovernanceRules rules;              // the prepared rules (complete when Accepted)
+        std::string update_reason;
+    };
+    ReloadEvaluation evaluateReload(const std::string& path, bool verify_signature = true);
     bool reloadIfChanged();                        // check mtime, reload if tightened, return true if reloaded
     std::vector<std::string> getAndClearNotices(); // retrieve + clear pending reload notices
     int getReloadCount() const { return reload_count_.load(std::memory_order_relaxed); }
@@ -3686,6 +3726,10 @@ public:
     // --- Governance Integrity (EVA-11/EVA-12) ---
     // Prevents LLM config manipulation by enforcing minimum levels
     void enforceMinimumLevels(GovernanceRules& r);
+    // The same, for rules read from `config_path`: F3 (a signed config cannot
+    // run in audit) asks whether THAT file is signed. The overload above asks
+    // about the loaded file, which is the file a reload reads.
+    void enforceMinimumLevels(GovernanceRules& r, const std::string& config_path);
 
     // --- Function Contract Check ---
     // Verifies function return values against declared contracts
