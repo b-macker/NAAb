@@ -126,9 +126,10 @@ jobs:
         with:
           path: src
       # The tag must be the version the tree declares (scripts/bump-version.sh,
-      # tests/self-audit/test_version_consistency.sh), and the release page
-      # carries that version's CHANGELOG.md section, upgrade notes first, with
-      # GitHub's list of merged pull requests after it.
+      # tests/self-audit/test_version_consistency.sh). The release page carries
+      # every CHANGELOG.md section of the tag's minor line, newest first (2.0.1's
+      # notes include 2.0.0's, with its upgrade notes: 2.0.0 was never published
+      # with packages), with GitHub's list of merged pull requests after it.
       - name: Check the tag and take the release notes from CHANGELOG.md
         run: |
           v="${GITHUB_REF_NAME#v}"
@@ -137,8 +138,14 @@ jobs:
             echo "::error::tag $GITHUB_REF_NAME but CMakeLists.txt declares $declared"
             exit 1
           fi
-          awk -v v="$v" 'index($0, "## [" v "]") == 1 {on=1; next} on && /^## \[/ {exit} on' \
-            src/CHANGELOG.md > release-notes.md
+          awk -v v="$v" '
+            function mm(s) { split(s, p, "."); return p[1] "." p[2] }
+            /^## \[/ {
+              h = $0; sub(/^## \[/, "", h); sub(/\].*/, "", h)
+              if (!on) { if (h == v) { on = 1; next } }
+              else if (h == "Unreleased" || mm(h) != mm(v)) exit
+            }
+            on' src/CHANGELOG.md > release-notes.md
           if [ ! -s release-notes.md ]; then
             echo "::error::CHANGELOG.md has no section for $v"
             exit 1

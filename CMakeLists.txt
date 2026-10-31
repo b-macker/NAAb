@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 # Project with semantic versioning
 project(naab_lang
-    VERSION 2.0.0
+    VERSION 2.0.1
     DESCRIPTION "NAAb Block Assembly Language"
     LANGUAGES C CXX
 )

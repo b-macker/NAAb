@@ -1,6 +1,6 @@
 [package]
 name = "naab-lang"
-version = "2.0.0"
+version = "2.0.1"
 authors = ["NAAb Contributors"]
 description = "NAAb Block Assembly Language"
 

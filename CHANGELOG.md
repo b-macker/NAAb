@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-31
+
+The first 2.x release with packages. v2.0.0 was tagged, but its macOS build failed and the release step that attaches the packages and notes never ran. Everything in [2.0.0] below applies to 2.0.1, including "Upgrading from 1.x". From 2.0 on, the Releases page carries 2.x only; every earlier version remains as a git tag.
+
+### Fixed
+- **macOS builds again.** `src/runtime/resource_limits.cpp` converted `pthread_t` to an integer with a `static_cast`, which does not compile where `pthread_t` is a pointer (macOS). It now produces the value CPython's `PyThread_get_thread_ident()` returns for the same thread, which the Python timeout hook compares it with: the address on macOS, the same integer as before on Linux.
+
+### Added
+- **A macOS build check in CI** (`ci.yml`): the release's macOS build steps plus a smoke test. Nothing built on macOS between v1.8.0 and the v2.0.0 tag, so the release was the first to find this.
+
 ## [2.0.0] - 2026-10-30
 
 > Covers `v1.8.0..v2.0.0`: 387 commits on master, 256 of them merged pull
