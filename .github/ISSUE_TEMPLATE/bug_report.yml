@@ -41,7 +41,7 @@ body:
     attributes:
       label: NAAb Version
       description: Output of `naab-lang --version` or commit hash.
-      placeholder: "v0.8.1"
+      placeholder: "v2.0.0"
   - type: dropdown
     id: os
     attributes:

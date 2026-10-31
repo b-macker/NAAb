@@ -263,8 +263,13 @@ print(GovernanceEngine().version)
 "
     fi
 
-    # T8.2: CLI version matches governance_c_api.cpp constant
-    C_API_VER=$(grep 'NAAB_GOV_VERSION' "$LANG_DIR/src/api/governance_c_api.cpp" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
+    # T8.2: CLI version matches the C API's constant. Since 2.0.0 the C API
+    # keeps no literal of its own: its NAAB_GOV_VERSION is config.h's
+    # NAAB_VERSION_STRING, so read the value there (T8.1 asks the library).
+    C_API_VER=""
+    if grep -q 'NAAB_GOV_VERSION = NAAB_VERSION_STRING' "$LANG_DIR/src/api/governance_c_api.cpp"; then
+        C_API_VER=$(sed -n 's/^#define NAAB_VERSION_STRING "\(.*\)"$/\1/p' "$LANG_DIR/include/naab/config.h")
+    fi
     if [ "$GOV_CLI_VER" = "$C_API_VER" ]; then
         echo "  PASS: CLI version ($GOV_CLI_VER) matches C API version ($C_API_VER)"
         PASS=$((PASS + 1))

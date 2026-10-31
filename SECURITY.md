@@ -13,9 +13,8 @@ Over 24 security hardening rounds (R1–R24), 60+ findings have been identified 
 
 | Version | Supported          | Security Updates |
 | ------- | ------------------ | ---------------- |
-| 1.0.x   | :white_check_mark: | Yes (current) |
-| 0.9.x   | :white_check_mark: | Critical fixes only |
-| < 0.9   | :x:                | No               |
+| 2.0.x   | :white_check_mark: | Yes (current) |
+| < 2.0   | :x:                | No               |
 
 ## Reporting a Vulnerability
 

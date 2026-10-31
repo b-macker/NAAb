@@ -3126,6 +3126,10 @@ struct DangerousPattern {
     std::string pattern;
     std::string description;
     std::string safe_alternative;
+    // A reserved word of `language` that the pattern also matches when case is
+    // ignored. A match spelled exactly this way is the keyword, not the call,
+    // and is skipped (A91: `function (` is not the Function() constructor).
+    std::string keyword;
 };
 
 struct SecretPattern {

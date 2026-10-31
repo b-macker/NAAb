@@ -122,12 +122,34 @@ jobs:
     needs: [build-linux-x86_64, build-linux-aarch64, build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          path: src
+      # The tag must be the version the tree declares (scripts/bump-version.sh,
+      # tests/self-audit/test_version_consistency.sh), and the release page
+      # carries that version's CHANGELOG.md section, upgrade notes first, with
+      # GitHub's list of merged pull requests after it.
+      - name: Check the tag and take the release notes from CHANGELOG.md
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          declared=$(sed -n '/project(naab_lang/,/)/ s/^[[:space:]]*VERSION \([^[:space:])]*\).*/\1/p' src/CMakeLists.txt)
+          if [ "$v" != "$declared" ]; then
+            echo "::error::tag $GITHUB_REF_NAME but CMakeLists.txt declares $declared"
+            exit 1
+          fi
+          awk -v v="$v" 'index($0, "## [" v "]") == 1 {on=1; next} on && /^## \[/ {exit} on' \
+            src/CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no section for $v"
+            exit 1
+          fi
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
       - name: Create Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
+          body_path: release-notes.md
           files: |
             naab-linux-x86_64.tar.gz
             naab-linux-x86_64.tar.gz.sha256

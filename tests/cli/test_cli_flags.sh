@@ -40,7 +40,9 @@ echo ""
 
 # --version
 VERSION=$("$NAAB_BIN" --version 2>&1)
-check "--version shows 0.10.0" 'echo "$VERSION" | grep -q "0.10.0"'
+# The version CMakeLists.txt declares, not a copy of it here (scripts/bump-version.sh).
+EXPECT_VERSION=$(sed -n '/project(naab_lang/,/)/ s/^[[:space:]]*VERSION \([^[:space:])]*\).*/\1/p' "$SCRIPT_DIR/../../CMakeLists.txt")
+check "--version shows $EXPECT_VERSION" '[ -n "$EXPECT_VERSION" ] && grep -qF "$EXPECT_VERSION" <<<"$VERSION"'
 
 # Default VM execution
 OUTPUT=$("$NAAB_BIN" "$TMPFILE" 2>/dev/null)

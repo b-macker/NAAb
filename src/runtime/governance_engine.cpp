@@ -419,7 +419,7 @@ static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
     {"javascript", "\\beval\\s*\\(",       "eval() call",
      "Parse data with JSON.parse() instead"},
     {"javascript", "\\bFunction\\s*\\(",   "Function() constructor",
-     "Define functions statically"},
+     "Define functions statically", "function"},
     {"javascript", "require\\s*\\(\\s*['\"]child_process['\"]\\s*\\)",
      "child_process import",
      "Use NAAb stdlib for subprocess execution"},
@@ -3276,15 +3276,34 @@ std::string GovernanceEngine::checkDangerousCall(
         if (pattern.language != "any" && pattern.language != language) continue;
 
         try {
+            // Matched without case: PHP's function names are case-insensitive
+            // (`SYSTEM(...)` runs), and an alias spelled in another case
+            // (`const FUNCTION = Function; FUNCTION(...)`) is refused. A match spelled
+            // exactly as the language's reserved word is that keyword, not the
+            // call, and the search goes on past it: `function (` is never the
+            // Function() constructor, and a reserved word cannot name an alias
+            // of it (A91). #47 made checkCodeInjection's API names
+            // case-sensitive instead, which would let the alias spellings
+            // through here.
             naab::rx::regex re(pattern.pattern, naab::rx::regex::icase);
-            naab::rx::smatch match;
-            if (naab::rx::regex_search(code, match, re)) {
+            std::string found;
+            bool hit = false;
+            for (naab::rx::sregex_iterator it(code.begin(), code.end(), re), end;
+                 it != end; ++it) {
+                std::string m = (*it)[0].str();
+                if (!pattern.keyword.empty() &&
+                    m.compare(0, pattern.keyword.size(), pattern.keyword) == 0) continue;
+                found = std::move(m);
+                hit = true;
+                break;
+            }
+            if (hit) {
                 std::string location = line > 0
                     ? fmt::format("line {}: {} block", line, language)
                     : fmt::format("{} block", language);
 
                 // FIX 29: Include matched text for easier debugging
-                std::string matched_text = match[0].str();
+                std::string matched_text = found;
                 if (matched_text.size() > 60) matched_text = matched_text.substr(0, 60) + "...";
 
                 return enforce("restrictions.dangerous_calls",

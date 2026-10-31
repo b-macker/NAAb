@@ -7,7 +7,7 @@
 
 version: 1
 generated: 2026-07-02T00:00:00Z
-naab_version: 0.10.0
+naab_version: 2.0.0
 
 # ============================================================================
 # Vendored C++ Dependencies (in external/)
