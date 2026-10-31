@@ -1027,6 +1027,29 @@ install(FILES include/naab/public/naab_governance.h
 message(STATUS "  ✓ libnaab-governance (C API shared library, Phase 8.3)")
 
 # C API integration test
+# "Governance only tightens", checked over generated configs (Bundle 8):
+# tests/governance_v4/test_ratchet_property.sh runs it, and CI runs a larger
+# budget. Links what naab-gov links: it drives the engine in-process.
+add_executable(naab_ratchet_property tests/property/ratchet_property.cpp)
+target_include_directories(naab_ratchet_property PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(naab_ratchet_property
+    naab_vm
+    naab_lexer
+    naab_parser
+    naab_interpreter
+    naab_security
+    naab_interpreter
+    naab_scanner
+    naab_semantic
+    naab_stdlib
+    spdlog::spdlog
+    naab_runtime
+    fmt::fmt
+)
+
 add_executable(test_governance_c_api tests/api/test_governance_c_api.c)
 target_include_directories(test_governance_c_api PRIVATE include/naab/public)
 target_link_libraries(test_governance_c_api naab_governance)

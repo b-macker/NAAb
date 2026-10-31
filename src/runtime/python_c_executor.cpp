@@ -521,11 +521,19 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
                 for (const auto& v : policy.allowed_vars) {
                     scrub_code << pyStr(v) << ",";
                 }
-                scrub_code << "])\n"
+                scrub_code << "])\n";
+                // A blocked name or prefix is withheld under the allowlist too
+                // (subprocessListsScrub, A97).
+                scrub_code << "_naab_blocked = set([";
+                for (const auto& v : policy.blocked_vars) scrub_code << pyStr(v) << ",";
+                scrub_code << "])\n_naab_prefixes = [";
+                for (const auto& p : policy.blocked_prefixes) scrub_code << pyStr(p) << ",";
+                scrub_code << "]\n"
                            << "for _k in list(_naab_os.environ.keys()):\n"
-                           << "    if _k not in _naab_allowed:\n"
+                           << "    if _k not in _naab_allowed or _k in _naab_blocked or "
+                              "any(_k.startswith(_p) for _p in _naab_prefixes):\n"
                            << "        _naab_saved_env[_k] = _naab_os.environ.pop(_k)\n"
-                           << "del _naab_allowed\n";
+                           << "del _naab_allowed, _naab_blocked, _naab_prefixes\n";
             } else {
                 // Blocklist: remove specific vars and prefixes
                 scrub_code << "_naab_blocked = set([";

@@ -72,14 +72,16 @@ inline EnvScrubPolicy envScrubListsFrom(const std::string& mode,
     if (!mode.empty() || !blocked_prefixes.empty() || !blocked_vars.empty() ||
         !allowed_vars.empty()) {
         policy.active = true;
-        if (mode == "allowlist") {
-            policy.mode = EnvScrubMode::ALLOWLIST;
-            policy.allowed_vars = allowed_vars;
-        } else {
-            policy.mode = EnvScrubMode::BLOCKLIST;
-            policy.blocked_vars = blocked_vars;
-            policy.blocked_prefixes = blocked_prefixes;
-        }
+        policy.mode = mode == "allowlist" ? EnvScrubMode::ALLOWLIST : EnvScrubMode::BLOCKLIST;
+        if (policy.mode == EnvScrubMode::ALLOWLIST) policy.allowed_vars = allowed_vars;
+        // In both modes: a blocked name stays withheld under an allowlist too.
+        // Allowlist mode used to drop the blocked lists, so a config whose
+        // blocklist withheld an essential name (PATH, HOME) passed it once the
+        // mode was allowlist -- which is what a capability lease without
+        // ENV_READ forces (applyLeaseGrantToRules), so the lease WIDENED what
+        // children received (A97, found by tests/property/ratchet_property.cpp).
+        policy.blocked_vars = blocked_vars;
+        policy.blocked_prefixes = blocked_prefixes;
     }
     return policy;
 }
@@ -99,20 +101,22 @@ inline const std::vector<std::string>& essentialChildEnvVars() {
 }
 
 // The subprocess lists' own verdict: does `policy` scrub `key`, leaving aside
-// NAAb's secrets and blocked_read (shouldScrubEnvVar adds those)?
+// NAAb's secrets and blocked_read (shouldScrubEnvVar adds those)? Embedded
+// Python's os.environ scrub (python_c_executor.cpp) generates the same rule as
+// Python code; the two must change together.
 inline bool subprocessListsScrub(const EnvScrubPolicy& policy, const std::string& key) {
     if (!policy.active) return false;
-    if (policy.mode == EnvScrubMode::ALLOWLIST) {
-        // Scrub everything not allowed; the essential system vars always pass.
-        for (const auto& e : essentialChildEnvVars()) if (key == e) return false;
-        for (const auto& allowed : policy.allowed_vars) if (key == allowed) return false;
-        return true;
-    }
-    // BLOCKLIST mode: scrub if key matches any blocked var or prefix
+    // A blocked name or prefix is scrubbed in either mode.
     for (const auto& blocked : policy.blocked_vars) if (key == blocked) return true;
     for (const auto& prefix : policy.blocked_prefixes) {
         if (key.size() >= prefix.size() && key.compare(0, prefix.size(), prefix) == 0)
             return true;
+    }
+    if (policy.mode == EnvScrubMode::ALLOWLIST) {
+        // Scrub everything not allowed; the essential system vars pass.
+        for (const auto& e : essentialChildEnvVars()) if (key == e) return false;
+        for (const auto& allowed : policy.allowed_vars) if (key == allowed) return false;
+        return true;
     }
     return false;
 }

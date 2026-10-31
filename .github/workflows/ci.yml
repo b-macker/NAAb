@@ -50,6 +50,20 @@ jobs:
           # and no job built it, so none ran in CI (A43(d) was found by hand).
           ninja -C build naab-lang libnaab naab-verify-audit naab-gov naab-lsp -j$(nproc)
 
+      # "Governance only tightens", checked over generated config pairs (Bundle
+      # 8): every accepted reload, startup overlay and CLI overlay must leave
+      # each probe request at least as refused as before, judged by the
+      # engine's own gates. run-all-tests.sh runs it at its default budget
+      # (test_ratchet_property.sh); this runs a larger one under a seed that
+      # changes per run, printed so a counterexample can be reproduced:
+      #   build/naab_ratchet_property --cases N --seed S
+      # Mutation testing was reverted for want of a consumer (#240); this has
+      # one -- a red step on every PR.
+      - name: Ratchet property
+        run: |
+          ninja -C build naab_ratchet_property -j$(nproc)
+          ./build/naab_ratchet_property --cases 4000 --extends 1000 --seed "${{ github.run_number }}" --show 5
+
       # naab_unit_tests (GoogleTest) was the same kind of unbuilt target: five
       # of its nineteen files had stopped compiling before anyone ran it.
       # Exclusions are in tests/unit/known_failures.txt, each tied to
@@ -191,7 +205,11 @@ jobs:
       - name: Build
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
-          ninja -C build naab-lang libnaab naab-verify-audit naab-gov naab-lsp -j$(nproc)
+          # naab_ratchet_property is built here, before the tree is copied for
+          # the test user: run-all-tests.sh's fallback build runs inside the
+          # copy, did not produce it, and test_ratchet_property.sh then failed
+          # RP-00 as UNMEASURABLE (#352's first run).
+          ninja -C build naab-lang libnaab naab-verify-audit naab-gov naab-lsp naab_ratchet_property -j$(nproc)
 
       - name: Assert the phantom Termux tree was not created by the build
         run: |

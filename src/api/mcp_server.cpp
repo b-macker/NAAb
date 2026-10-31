@@ -89,8 +89,7 @@ namespace fs = std::filesystem;
 const char* const kV2026 = "2026-07-28";
 const std::vector<std::string> kInitVersions = {"2025-11-25", "2025-06-18", "2025-03-26"};
 const std::vector<std::string> kAllVersions = {"2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26"};
-const std::vector<std::string> kActions = {
-    "FS_READ", "FS_WRITE", "NET_CONNECT", "SHELL_EXEC", "ENV_READ", "ENV_WRITE", "AGENT_SEND"};
+const std::vector<std::string>& kActions = naab::governance::GovernanceEngine::leaseActions();
 
 constexpr size_t kMaxMessage = 16u * 1024u * 1024u;   // one JSON-RPC line
 constexpr int kDefaultTimeoutSeconds = 30;            // the CLI's own default
