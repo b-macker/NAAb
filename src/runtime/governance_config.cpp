@@ -619,6 +619,27 @@ static int levelToInt(EnforcementLevel level) {
     }
 }
 
+// What a level refuses, as enforce() applies it: 0 lets the action through
+// (an advisory warns; a SOFT block under an operator override logs and
+// continues), 1 refuses catchably (DETECT), 2 refuses. Two runs differ only in
+// whether the override is on, so a level change loosens when it refuses less in
+// either one. levelToInt() is a total order for display and for the mirror
+// reconcile; this is the order the reload ratchet needs.
+static int levelRefusal(EnforcementLevel level, bool override_on) {
+    switch (level) {
+        case EnforcementLevel::DETECT:            return 1;
+        case EnforcementLevel::SOFT:              return override_on ? 0 : 2;
+        case EnforcementLevel::APPROVAL_REQUIRED: return 2;
+        case EnforcementLevel::HARD:              return 2;
+        default:                                  return 0;  // NONE, ADVISORY
+    }
+}
+
+static bool levelLoosens(EnforcementLevel old_v, EnforcementLevel new_v) {
+    return levelRefusal(new_v, false) < levelRefusal(old_v, false) ||
+           levelRefusal(new_v, true) < levelRefusal(old_v, true);
+}
+
 // Each of the three capability switches is stored TWICE: a legacy flat field
 // (shell_allowed, network_allowed, filesystem_mode) and the v3 structured one
 // (capabilities.shell.enabled, .network.enabled, .filesystem.mode). Writers and
@@ -3370,6 +3391,16 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
     // Prefer "agents" key; fall back to legacy "agent_roles" for backward compat
     std::string agents_key = j.contains("agents") ? "agents" : "agent_roles";
     std::unordered_set<std::string> agents_with_explicit_timeout;
+    // Only the object form ({"name": {...}}) is read. Any other value used to
+    // be dropped without a word, so roles written as a list restricted nothing
+    // (A100; no config in the tree does, found while building the ratchet
+    // property harness, whose generator wrote one).
+    if (j.contains(agents_key) && !j[agents_key].is_object() && !j[agents_key].is_null()) {
+        fmt::print(stderr,
+            "[governance] Warning: \"{}\" must be an object keyed by agent name "
+            "(\"{}\": {{\"worker\": {{...}}}}); it was ignored, so no agent role applies\n",
+            agents_key, agents_key);
+    }
     if (j.contains(agents_key) && j[agents_key].is_object()) {
         for (auto& [name, cfg_json] : j[agents_key].items()) {
             AgentConfig agent;
@@ -4786,10 +4817,22 @@ static void checkCapabilityListRatchet(
     const auto& oe = old_r.capabilities.env_vars;
     const auto& ne = new_r.capabilities.env_vars;
     // A master switch going false -> true is reported on its own line by the
-    // caller; with the switch off on either side the lists decide nothing.
+    // caller; with the switch off on either side the lists decide nothing for
+    // env.get(), which refuses every name.
     if (oe.read && ne.read)
         ratchetEnvLists(oe.blocked_read, oe.allowed_read, ne.blocked_read, ne.allowed_read,
                         "read", violations, notices);
+    // ...but blocked_read is also withheld from every child process the program
+    // starts (currentEnvScrubPolicy(), in enforce mode), whatever the switch
+    // says. The comment above read "the lists decide nothing", so with
+    // `read: false` a reload could drop a name from blocked_read and every
+    // later child received it (A96, found by tests/property/ratchet_property.cpp).
+    // With the switch on both sides the comparison above already covers it: only
+    // blocked_read yields Blocked, so a name a child stops being denied is a
+    // Blocked -> weaker change there too.
+    else
+        ratchetEnvLists(oe.blocked_read, {}, ne.blocked_read, {},
+                        "child-process read", violations, notices);
     if (oe.write && ne.write)
         ratchetEnvLists(oe.blocked_write, oe.allowed_write, ne.blocked_write, ne.allowed_write,
                         "write", violations, notices);
@@ -5265,11 +5308,18 @@ static bool checkRatchetViolation(
     }
 
     // --- C. Enforcement levels (HARD > SOFT > ADVISORY) ---
+    // A change loosens when the new level refuses less in a run with an
+    // operator override or without one (levelRefusal). levelToInt() alone is
+    // not that order: SOFT ranks above DETECT, but an overridden SOFT block
+    // lets the action through while DETECT still refuses it, so detect -> soft
+    // was accepted and loosened every run that had the override on (A96,
+    // found by tests/property/ratchet_property.cpp).
     auto chkLevel = [&](EnforcementLevel old_v, EnforcementLevel new_v, const char* name) {
         int oi = levelToInt(old_v), ni = levelToInt(new_v);
-        if (ni < oi) {
-            violations.push_back(fmt::format("{}: {} -> {} (lowered)", name,
-                ratchetLevelStr(old_v), ratchetLevelStr(new_v)));
+        if (levelLoosens(old_v, new_v)) {
+            violations.push_back(fmt::format("{}: {} -> {} ({})", name,
+                ratchetLevelStr(old_v), ratchetLevelStr(new_v),
+                ni < oi ? "lowered" : "loosened: a soft block can be overridden, detect cannot"));
         } else if (ni > oi) {
             notices.push_back(fmt::format("{}: {} -> {} (elevated)", name,
                 ratchetLevelStr(old_v), ratchetLevelStr(new_v)));
@@ -5594,6 +5644,16 @@ static bool checkRatchetViolation(
                 notices.push_back(fmt::format("agent.{}.network_allowed: true -> false (tightened)",
                     new_agent.name));
         }
+        // Dropping network_allowed: false reverts the role to global policy --
+        // a loosening, as for shell_allowed below, whose "removed" rule this
+        // twin lacked: a reload deleting the key re-granted the role network
+        // (A102, found by tests/property/ratchet_property.cpp).
+        if (old_agent->network_allowed_set && !old_agent->network_allowed &&
+            !new_agent.network_allowed_set) {
+            violations.push_back(fmt::format(
+                "agent.{}.network_allowed: removed (loosened — reverts to global policy)",
+                new_agent.name));
+        }
 
         // Shell allowed loosening. network_allowed above has been ratcheted since
         // it was added; its twin has not — a mid-run shell_allowed false -> true
@@ -5656,6 +5716,32 @@ static bool checkRatchetViolation(
         } else if (old_agent->allowed_actions.empty() && !new_agent.allowed_actions.empty()) {
             notices.push_back(fmt::format("agent.{}.allowed_actions: added (tightened — {} actions allowed)",
                 new_agent.name, new_agent.allowed_actions.size()));
+        }
+        // ENV_READ / ENV_WRITE are opt-in: the matrix governs environment access
+        // only when it names at least one of them (checkEnvVarRead /
+        // checkEnvVarWrite). So removing an action is NOT always a tightening:
+        // removing the last ENV action switches env governance off, and the one
+        // the matrix had denied becomes allowed -- [.., ENV_READ] -> [..] lets
+        // the role write any variable (A101, found by
+        // tests/property/ratchet_property.cpp). Compared by the gates' rule.
+        {
+            auto envDenied = [](const std::vector<std::string>& acts, const char* action) {
+                bool governs = false, listed = false;
+                for (const auto& a : acts) {
+                    if (a == "ENV_READ" || a == "ENV_WRITE") governs = true;
+                    if (a == action) listed = true;
+                }
+                return governs && !listed;
+            };
+            for (const char* act : {"ENV_READ", "ENV_WRITE"}) {
+                if (envDenied(old_agent->allowed_actions, act) &&
+                    !envDenied(new_agent.allowed_actions, act)) {
+                    violations.push_back(fmt::format(
+                        "agent.{}.allowed_actions: {} denied -> allowed (loosened: the matrix "
+                        "no longer names an ENV action, so it stops governing environment access)",
+                        new_agent.name, act));
+                }
+            }
         }
 
         // Tool config ratchet enforcement (S6)
@@ -6114,6 +6200,119 @@ static bool agentBehaviorFieldsDiffer(const AgentConfig& a, const AgentConfig& b
            a.context_drift_signals != b.context_drift_signals;
 }
 
+GovernanceEngine::ReloadEvaluation GovernanceEngine::evaluateReload(
+        const std::string& path, bool verify_signature) {
+    using Outcome = ReloadEvaluation::Outcome;
+    ReloadEvaluation ev;
+
+    std::ifstream ifs(path);
+    if (!ifs.is_open()) {
+        ev.outcome = Outcome::Unreadable;
+        return ev;
+    }
+    nlohmann::json j = nlohmann::json::parse(ifs);
+    ifs.close();
+
+    if (!checkJsonArrayWidth(j)) {
+        ev.outcome = Outcome::TooWide;
+        return ev;
+    }
+
+    // Parse into temporary rules
+    loadFromJson(j, ev.rules);
+
+    // Verify signature — reject unsigned changes
+    // Quiet variant: verification's own diagnostics are worded for startup,
+    // where a failure is an INTEGRITY BLOCK that ends the run. Here a failure
+    // only keeps the current config, and a reload runs before every agent
+    // send, so reloadIfChanged() reports the reason once per mtime, in the
+    // reload's own words.
+    if (verify_signature) {
+        ev.signature_checked = true;
+        const bool sig_ok = verifyFileSignatureQuiet(path, ev.signature_diag);
+        if (sig_ok && !ev.signature_diag.empty()) {
+            fmt::print(stderr, "{}", ev.signature_diag);  // e.g. a stale-signature warning
+        }
+        if (!sig_ok) {
+            ev.outcome = Outcome::SignatureRefused;
+            return ev;
+        }
+    }
+
+    // Apply minimum enforcement levels to new rules -- the SAME function
+    // the load path calls (loadFromFile, applyEnvironment). This used to
+    // call enforceMinimumLevelsOnRules() alone, which skips the F3 rule
+    // that a signed config cannot run in AUDIT mode: a signed reload to
+    // `mode: audit` installed AUDIT, so a program that started under
+    // enforce (or under a signed audit config the load path had raised to
+    // enforce) dropped to audit on the next reload. A reload reads the
+    // loaded file, so `path` is the file whose signature F3 asks about.
+    enforceMinimumLevels(ev.rules, path);
+
+    // What the run laid over govern.json at startup -- the role, the
+    // environment, project-context rules, the CLI's output destinations
+    // and baselines flags -- is not in the file: lay it over the new rules
+    // in the order the startup path applied it, after the minimum levels
+    // as there, and before the ratchet compares them. Without it every
+    // accepted reload, even of the same file, dropped them, and a reload
+    // whose overlay the ratchet compares was always refused (A37).
+    // The sandbox sync reads the shell decision from BEFORE the overlays:
+    // at startup the sandbox is synced before the role is applied, so a
+    // shell-less role reaches checkShellAllowed() but not SYS_EXEC (A54 is
+    // an open decision, not this reload's to make).
+    ev.sandbox_shell_allowed = ev.rules.shell_allowed;
+    // Whether governance is active is read the way startup reads it: from the
+    // file's own mode (loadFromFile), raised by an overlay that turns it on
+    // (applyEnvironment) and never lowered by one -- see the install below.
+    ev.file_active = ev.rules.mode != GovernanceMode::OFF;
+    applyStartupOverlays(ev.rules);
+
+    // Re-apply governance self-protection to new rules (survives reload)
+    addGovernanceProtectedPaths(ev.rules);
+
+    // One-way ratchet: reject any loosening
+    auto resolve_path = [this](const std::string& p) { return resolvePolicyPath(p); };
+    bool tightening_only =
+        checkRatchetViolation(rules(), ev.rules, resolve_path, ev.violations, ev.notices);
+    // The mode the engine ENFORCES is not the rules' mode alone: whether
+    // governance is active is engine state (the file's own mode, raised by an
+    // environment), and enforce() exempts only AUDIT, so an active engine whose
+    // rules say off -- a run under an environment with `mode: off` -- blocks as
+    // under enforce. The ratchet compares the rules' modes and read that state
+    // as off: a file going enforce -> off under such an environment compared
+    // off -> off and the install switched every gate off, and the environment
+    // going off -> audit compared as a tightening and stopped every block (A95,
+    // both found by tests/property/ratchet_property.cpp). Compare the enforced
+    // modes too.
+    auto enforcedMode = [](GovernanceMode m, bool active) {
+        if (!active) return GovernanceMode::OFF;
+        return m == GovernanceMode::OFF ? GovernanceMode::ENFORCE : m;
+    };
+    auto modeName = [](GovernanceMode m) {
+        return m == GovernanceMode::ENFORCE ? "enforce" : m == GovernanceMode::AUDIT ? "audit" : "off";
+    };
+    const GovernanceMode enforced_before = enforcedMode(rules().mode, isActive());
+    const GovernanceMode enforced_after =
+        enforcedMode(ev.rules.mode, ev.file_active || ev.rules.mode != GovernanceMode::OFF);
+    // Lower enum value = stricter (ENFORCE, AUDIT, OFF).
+    if (static_cast<int>(enforced_after) > static_cast<int>(enforced_before)) {
+        ev.violations.push_back(fmt::format("mode: enforced {} -> {} (loosened)",
+                                            modeName(enforced_before), modeName(enforced_after)));
+        tightening_only = false;
+    }
+    if (!tightening_only) {
+        ev.outcome = Outcome::RatchetRefused;
+        return ev;
+    }
+
+    // Read optional update_reason from JSON
+    if (j.contains("update_reason") && j["update_reason"].is_string()) {
+        ev.update_reason = j["update_reason"].get<std::string>();
+    }
+    ev.outcome = Outcome::Accepted;
+    return ev;
+}
+
 bool GovernanceEngine::reloadIfChanged() {
     std::lock_guard<std::mutex> reload_lock(reload_mutex_);
 
@@ -6132,43 +6331,30 @@ bool GovernanceEngine::reloadIfChanged() {
 
     if (current_mtime == loaded_mtime_ns_) return false;
 
-    // File changed — attempt reload
+    // File changed — attempt reload. The decision is evaluateReload()'s; what
+    // follows it here is the reload's own bookkeeping (which outcomes cache
+    // the mtime, the once-per-mtime diagnostics) and the install.
     try {
-        std::ifstream ifs(loaded_path_);
-        if (!ifs.is_open()) {
+        using Outcome = ReloadEvaluation::Outcome;
+        ReloadEvaluation ev = evaluateReload(loaded_path_, /*verify_signature=*/true);
+
+        if (ev.outcome == Outcome::Unreadable) {
             loaded_mtime_ns_ = current_mtime; // don't re-check until next change
             return false;
         }
 
-        nlohmann::json j = nlohmann::json::parse(ifs);
-        ifs.close();
-
-        if (!checkJsonArrayWidth(j)) {
+        if (ev.outcome == Outcome::TooWide) {
             fmt::print(stderr, "[governance] Reload rejected: JSON array exceeds cap\n");
             loaded_mtime_ns_ = current_mtime;
             return false;
         }
 
-        // Parse into temporary rules
-        GovernanceRules new_rules;
-        loadFromJson(j, new_rules);
-
-        // Verify signature — reject unsigned changes
-        // Quiet variant: verification's own diagnostics are worded for startup,
-        // where a failure is an INTEGRITY BLOCK that ends the run. Here a failure
-        // only keeps the current config, and this runs before every agent send,
-        // so the reason is reported once per mtime, in the reload's own words.
-        std::string sig_diag;
-        const bool sig_ok = verifyFileSignatureQuiet(loaded_path_, sig_diag);
-        if (sig_ok && !sig_diag.empty()) {
-            fmt::print(stderr, "{}", sig_diag);  // e.g. a stale-signature warning
-        }
-        if (!sig_ok) {
+        if (ev.outcome == Outcome::SignatureRefused) {
             // Suppress duplicate log/telemetry when the same mtime fails repeatedly.
             // The retry is still attempted (verification re-runs each call) but
             // we only emit diagnostics once per mtime to prevent log flooding.
             if (current_mtime != last_sig_fail_mtime_) {
-                std::string reason = sig_diag;
+                std::string reason = ev.signature_diag;
                 const std::string kBlockPrefix = "[governance] INTEGRITY BLOCK: ";
                 if (reason.rfind(kBlockPrefix, 0) == 0) reason.erase(0, kBlockPrefix.size());
                 auto nl = reason.find('\n');
@@ -6196,40 +6382,9 @@ bool GovernanceEngine::reloadIfChanged() {
         // Signature verified — clear the failure tracker
         last_sig_fail_mtime_ = 0;
 
-        // Apply minimum enforcement levels to new rules -- the SAME function
-        // the load path calls (loadFromFile, applyEnvironment). This used to
-        // call enforceMinimumLevelsOnRules() alone, which skips the F3 rule
-        // that a signed config cannot run in AUDIT mode: a signed reload to
-        // `mode: audit` installed AUDIT, so a program that started under
-        // enforce (or under a signed audit config the load path had raised to
-        // enforce) dropped to audit on the next reload. Reloads are always
-        // signed by this point, so the override always applies.
-        enforceMinimumLevels(new_rules);
-
-        // What the run laid over govern.json at startup -- the role, the
-        // environment, project-context rules, the CLI's output destinations
-        // and baselines flags -- is not in the file: lay it over the new rules
-        // in the order the startup path applied it, after the minimum levels
-        // as there, and before the ratchet compares them. Without it every
-        // accepted reload, even of the same file, dropped them, and a reload
-        // whose overlay the ratchet compares was always refused (A37).
-        // The sandbox sync below reads the shell decision from BEFORE the
-        // overlays: at startup the sandbox is synced before the role is
-        // applied, so a shell-less role reaches checkShellAllowed() but not
-        // SYS_EXEC (A54 is an open decision, not this reload's to make).
-        const bool sandbox_shell_allowed = new_rules.shell_allowed;
-        applyStartupOverlays(new_rules);
-
-        // Re-apply governance self-protection to new rules (survives reload)
-        addGovernanceProtectedPaths(new_rules);
-
-        // One-way ratchet: reject any loosening
-        std::vector<std::string> violations;
-        std::vector<std::string> notices;
-        auto resolve_path = [this](const std::string& p) { return resolvePolicyPath(p); };
-        if (!checkRatchetViolation(rules(), new_rules, resolve_path, violations, notices)) {
+        if (ev.outcome == Outcome::RatchetRefused) {
             std::string detail;
-            for (const auto& v : violations) {
+            for (const auto& v : ev.violations) {
                 if (!detail.empty()) detail += "; ";
                 detail += v;
             }
@@ -6245,11 +6400,11 @@ bool GovernanceEngine::reloadIfChanged() {
             return false;
         }
 
-        // Read optional update_reason from JSON
-        std::string update_reason;
-        if (j.contains("update_reason") && j["update_reason"].is_string()) {
-            update_reason = j["update_reason"].get<std::string>();
-        }
+        GovernanceRules& new_rules = ev.rules;
+        const bool sandbox_shell_allowed = ev.sandbox_shell_allowed;
+        const bool file_active = ev.file_active;
+        std::vector<std::string> notices = std::move(ev.notices);
+        const std::string update_reason = ev.update_reason;
         if (!update_reason.empty()) {
             notices.insert(notices.begin(),
                 fmt::format("Governance update: {}", update_reason));
@@ -6279,7 +6434,15 @@ bool GovernanceEngine::reloadIfChanged() {
         // C1: Atomic swap via shared_ptr — readers see consistent snapshot
         auto new_rp = std::make_shared<const GovernanceRules>(std::move(new_rules));
         std::atomic_store(&rules_ptr_, new_rp);
-        active_.store(new_rp->mode != GovernanceMode::OFF);
+        // As at startup: active when the file's own mode is not off, or when an
+        // overlay (an environment) raises it to audit or enforce. This read the
+        // overlaid mode alone, so a run started under an environment whose mode
+        // is off -- active at startup, because loadFromFile() reads the file's
+        // mode -- went inactive at its first accepted reload, and every gate
+        // whose caller checks isActive() started allowing (A95, found by
+        // tests/property/ratchet_property.cpp). The ratchet could not see it: it
+        // compares the overlaid modes, which were equal.
+        active_.store(file_active || new_rp->mode != GovernanceMode::OFF);
         loaded_mtime_ns_ = current_mtime;
         reload_count_++;
         // A plugin file the new rules add is loaded on the next check; the
@@ -6511,9 +6674,13 @@ static void applyLeaseGrantToRules(GovernanceRules& r) {
 }
 
 void GovernanceEngine::enforceMinimumLevels(GovernanceRules& r) {
+    enforceMinimumLevels(r, loaded_path_);
+}
+
+void GovernanceEngine::enforceMinimumLevels(GovernanceRules& r, const std::string& config_path) {
     // F3: Signed configs cannot use AUDIT mode — override to ENFORCE
-    if (r.mode == GovernanceMode::AUDIT && !loaded_path_.empty()) {
-        std::string sig_path = loaded_path_ + ".sig";
+    if (r.mode == GovernanceMode::AUDIT && !config_path.empty()) {
+        std::string sig_path = config_path + ".sig";
         std::error_code ec;
         if (std::filesystem::exists(sig_path, ec)) {
             fprintf(stderr,

@@ -2416,6 +2416,27 @@ else
     echo "  test_capability_list_ratchet.sh: not found, skipping"
 fi
 
+# Governance only tightens (Bundle 8): generated config pairs through the real
+# reload, judged by the engine's own gates; the naab-gov ratchet seam; and one
+# reproduction per finding. The harness forks each case: POSIX only.
+RATCHET_PROP_SCRIPT="tests/governance_v4/test_ratchet_property.sh"
+if $IS_WINDOWS; then
+    echo "  test_ratchet_property.sh: skipped (the harness forks each case — POSIX-only)"
+elif [ -f "$RATCHET_PROP_SCRIPT" ]; then
+    if [ ! -x "build/naab_ratchet_property" ]; then
+        echo "  building naab_ratchet_property (required by this suite)..."
+        cmake --build build --target naab_ratchet_property -j4 >/dev/null 2>&1 || true
+    fi
+    if run_shell_test "$RATCHET_PROP_SCRIPT" 2>&1; then
+        echo "  test_ratchet_property.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_ratchet_property.sh")
+    fi
+else
+    echo "  test_ratchet_property.sh: not found, skipping"
+fi
+
 UNCATCHABLE_SCRIPT="tests/governance_v4/test_uncatchable.sh"
 if [ -f "$UNCATCHABLE_SCRIPT" ]; then
     if run_shell_test "$UNCATCHABLE_SCRIPT" 2>&1; then

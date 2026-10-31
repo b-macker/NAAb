@@ -197,8 +197,10 @@ jobs:
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build naab-lang, naab-gov and libnaab
-        run: cmake --build build --target naab-lang naab-gov libnaab -j4
+      - name: Build naab-lang, naab-gov, libnaab and the ratchet property harness
+        # naab_ratchet_property: test_ratchet_property.sh needs it, and
+        # run-all-tests.sh's fallback build hides its own errors.
+        run: cmake --build build --target naab-lang naab-gov libnaab naab_ratchet_property -j4
 
       - name: Run test suite
         run: bash run-all-tests.sh
