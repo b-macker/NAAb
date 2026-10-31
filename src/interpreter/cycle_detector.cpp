@@ -5,9 +5,63 @@
 #include "cycle_detector.h"
 #include "naab/interpreter.h"
 #include <fmt/core.h>
+#include <mutex>
 
 namespace naab {
 namespace interpreter {
+
+// ---------------------------------------------------------------------------
+// Engine activity (A92) -- see cycle_detector.h
+// ---------------------------------------------------------------------------
+namespace {
+std::mutex g_activity_mutex;
+// Activations on every thread plus pending engines; guarded by g_activity_mutex.
+int g_activity = 0;
+
+struct ThreadActivation {
+    const void* engine;
+    int depth;
+};
+// This thread's activations, innermost last. Written only by this thread, under
+// g_activity_mutex when a record is pushed or popped.
+thread_local std::vector<ThreadActivation> t_activations;
+}  // namespace
+
+EngineActivation::EngineActivation(const void* engine) {
+    if (!t_activations.empty() && t_activations.back().engine == engine) {
+        ++t_activations.back().depth;  // nested on the same engine and thread
+        return;
+    }
+    std::lock_guard<std::mutex> lock(g_activity_mutex);
+    t_activations.push_back({engine, 1});
+    ++g_activity;
+    counted_ = true;
+}
+
+EngineActivation::~EngineActivation() {
+    if (t_activations.empty()) return;  // unreachable: activations are scoped
+    if (!counted_) {
+        --t_activations.back().depth;
+        return;
+    }
+    std::lock_guard<std::mutex> lock(g_activity_mutex);
+    t_activations.pop_back();
+    --g_activity;
+}
+
+PendingEngine::PendingEngine() {
+    std::lock_guard<std::mutex> lock(g_activity_mutex);
+    ++g_activity;
+}
+
+void PendingEngine::release() {
+    if (!held_) return;
+    held_ = false;
+    std::lock_guard<std::mutex> lock(g_activity_mutex);
+    --g_activity;
+}
+
+PendingEngine::~PendingEngine() { release(); }
 
 // Mark all values reachable from a given NaabVal
 void CycleDetector::markReachable(
@@ -99,6 +153,24 @@ size_t CycleDetector::detectAndCollect(
     const std::vector<NaabVal>& extra_roots,
     const std::vector<std::shared_ptr<Environment>>& extra_envs)
 {
+    // A92: collect only when this engine is the only activity in the process.
+    // Its roots are its own; a value another engine is using is not among them
+    // and can look like cycle garbage (see cycle_detector.h). try_lock, so a
+    // collector never waits: a collection that cannot run now runs at a later
+    // trigger. The lock is held to the end, so no engine starts or stops while
+    // the sweep runs.
+    std::unique_lock<std::mutex> gate(g_activity_mutex, std::try_to_lock);
+    const bool alone = gate.owns_lock() &&
+        t_activations.size() <= 1 &&
+        g_activity == static_cast<int>(t_activations.size()) &&
+        (t_activations.empty() || t_activations.back().engine == this);
+    if (!alone) {
+        ++collections_deferred_;
+        last_collection_count_ = 0;
+        return 0;
+    }
+    ++collections_run_;
+
     // V-RT-008: allow null root_env for VM caller (VM uses flat stack, not Environment).
     // If root_env is null, skip env traversal — use extra_roots and extra_envs only.
     std::unordered_set<uint64_t> reachable;

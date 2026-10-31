@@ -161,9 +161,17 @@ E1-E3 exist to pin that.
      path (tree-walker) would end the daemon, not the request -- the defect
      #223 removed from `rest_api.cpp`. `await` already rethrows the error
      uncaught (`visit(AwaitExpr)`), so `throw;` is the VM-shaped replacement.
+  4. the worker interpreter is not counted as running before its body starts
+     (A92, 2026-10-31). The cycle collector runs only when its engine is the
+     only one executing (`src/interpreter/cycle_detector.h`); the VM's spawn
+     holds an `interpreter::PendingEngine` from before the thread starts until
+     the body returns, because the window before the worker's own activation
+     is where main's collections cleared an async fn's argument (about 96% of
+     calls, measured on the VM). The tree-walker's spawn needs the same token:
+     `executeBodyInEnv()` records no activation either.
 - **Decision**: accepted until the branch is fixed. Enabling it as-is turns a
   correct sequential engine into one that crashes. Do not set `is_async` on
-  tree-walker functions without fixing 1-3 in the same change.
+  tree-walker functions without fixing 1-4 in the same change.
 - **Regression test / detector**: `tests/vm/test_async_engine_semantics.sh`
   (AS-01 result parity, AS-02 VM concurrency, AS-03 pins the tree-walker
   sequential -- it goes red the moment the branch becomes reachable).

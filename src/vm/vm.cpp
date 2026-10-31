@@ -661,7 +661,21 @@ static std::string injectAfterHeaders(const std::string& decls, const std::strin
     return decls + code;
 }
 
+size_t VM::gcCollectionsRun() const {
+    return gc_detector_ ? gc_detector_->getCollectionsRun() : 0;
+}
+size_t VM::gcCollectionsDeferred() const {
+    return gc_detector_ ? gc_detector_->getCollectionsDeferred() : 0;
+}
+size_t VM::gcValuesCollected() const {
+    return gc_detector_ ? gc_detector_->getTotalCollected() : 0;
+}
+
 interpreter::NaabVal VM::run() {
+    // A92: this VM is executing on this thread until run() returns or throws,
+    // so no other engine's collector may sweep while it holds values (a
+    // re-entered run() for a callback on the same thread changes nothing).
+    interpreter::EngineActivation gc_activation(gc_detector_.get());
     CallFrame* frame = &frames_[frame_count_ - 1];
     // Handlers below this index belong to frames outside this invocation:
     // when run() is re-entered for a callback, the native caller sits on the
@@ -3918,10 +3932,19 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             // several threads is synchronised, so the async VM gets the engine back
             // (tests/governance_v4/test_vm_async_governance.sh).
             auto* async_vm_governance = governance_;
+            // A92: the async VM counts as running from here, before its thread
+            // starts: setGlobals() and the argument push double the refcount of
+            // its globals and arguments before its own run() records it, and a
+            // collection in this VM in that window cleared them.
+            interpreter::PendingEngine async_pending;
             auto shared_future = std::async(std::launch::async,
                 [closure_copy, args, async_stdlib, file, globals_copy, async_sandbox_config,
                  async_governance, async_vm_governance,
-                 owned_fns = async_owned_fns]() mutable -> interpreter::NaabVal {
+                 owned_fns = async_owned_fns,
+                 pending = std::move(async_pending)]() mutable -> interpreter::NaabVal {
+                    // Released when this body returns (or throws), after the
+                    // async VM is gone and its result is an independent copy.
+                    interpreter::PendingEngine running = std::move(pending);
                     security::ScopedSandbox async_sandbox(async_sandbox_config);
                     struct GovernanceScope {
                         explicit GovernanceScope(governance::GovernanceEngine* e) {

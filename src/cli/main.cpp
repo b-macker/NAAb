@@ -2174,6 +2174,10 @@ int main(int argc, char** argv) {
             }
 
             size_t vm_allocation_count = 0;  // S7: capture VM alloc count for --gc-stats
+            // --gc-stats on the VM reports the VM's collector. It printed the
+            // idle tree-walker's count, which is 0 on the default engine, and
+            // printed cleared values under "Collections run".
+            size_t vm_gc_runs = 0, vm_gc_deferred = 0, vm_gc_collected = 0;
             if (use_vm) {
                 // Governance: reuse shared_governance loaded before preflight (no TOCTOU)
                 auto& vm_governance = shared_governance;
@@ -2960,6 +2964,9 @@ int main(int argc, char** argv) {
                     }
                 }
                 vm_allocation_count = bytecode_vm.getAllocationCount();
+                vm_gc_runs = bytecode_vm.gcCollectionsRun();
+                vm_gc_deferred = bytecode_vm.gcCollectionsDeferred();
+                vm_gc_collected = bytecode_vm.gcValuesCollected();
 
                 // Clear dangling governance pointer before vm_governance goes out of scope
                 naab::governance::GovernanceEngine::setCurrent(nullptr);
@@ -3146,9 +3153,12 @@ int main(int argc, char** argv) {
 
             if (gc_stats) {
                 size_t alloc_count = use_vm ? vm_allocation_count : interpreter.getAllocationCount();
-                fmt::print("[GC] Allocations tracked: {}, Collections run: {}\n",
+                fmt::print("[GC] Allocations tracked: {}, Collections run: {}, deferred: {}, "
+                           "values collected: {}\n",
                            alloc_count,
-                           interpreter.getGCCollectionCount());
+                           use_vm ? vm_gc_runs : interpreter.getGCCollectionsRun(),
+                           use_vm ? vm_gc_deferred : interpreter.getGCCollectionsDeferred(),
+                           use_vm ? vm_gc_collected : interpreter.getGCCollectionCount());
             }
 
             if (profile) {
