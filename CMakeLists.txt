@@ -1620,6 +1620,7 @@ if(HAVE_GOOGLETEST)
         tests/unit/string_functions_test.cpp    # string module, about five cases per function
         tests/unit/rx_test.cpp                  # naab::rx, the engine's regular expressions (A89)
         tests/unit/stdlib_modules_test.cpp      # one call into each of ten stdlib modules
+        tests/unit/gc_engine_activity_test.cpp  # the collector runs only when its engine is alone (A92)
     )
 
     # Link GoogleTest and NAAb libraries

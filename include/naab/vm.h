@@ -375,6 +375,11 @@ public:
     governance::GovernanceEngine* getGovernance() const { return governance_; }
     void setGCThreshold(size_t t) { gc_threshold_ = t; }  // V-RT-008
     size_t getAllocationCount() const { return allocation_count_; }
+    // --gc-stats: collections this VM ran, deferred (another engine was
+    // executing, A92) and the cycle values they cleared.
+    size_t gcCollectionsRun() const;
+    size_t gcCollectionsDeferred() const;
+    size_t gcValuesCollected() const;
 
     // Access globals for governance contract function lookup
     const std::unordered_map<std::string, interpreter::NaabVal>& getGlobals() const { return globals_; }

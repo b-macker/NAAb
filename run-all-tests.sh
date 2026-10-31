@@ -3007,6 +3007,20 @@ else
     echo "  test_async_throw.sh: not found, skipping"
 fi
 
+# The cycle collector runs only when its engine is the only one executing (A92):
+# no async fn, sibling or main loses a list it is using to another engine's collector.
+GCACT_SCRIPT="tests/vm/test_gc_engine_activity.sh"
+if [ -f "$GCACT_SCRIPT" ]; then
+    if run_shell_test "$GCACT_SCRIPT" 2>&1; then
+        echo "  test_gc_engine_activity.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_gc_engine_activity.sh")
+    fi
+else
+    echo "  test_gc_engine_activity.sh: not found, skipping"
+fi
+
 # async fn semantics per engine (ASYNC-001): results agree, VM concurrent, tree-walker pinned synchronous.
 ASYNCSEM_SCRIPT="tests/vm/test_async_engine_semantics.sh"
 if [ -f "$ASYNCSEM_SCRIPT" ]; then

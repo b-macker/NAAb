@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A list could empty itself while two engines ran at once (A92).** The cycle collector marks from one VM's stack and globals but sweeps every value in the process, and clears unreachable containers it takes for cycles. A list another VM was using looked like one, so a program running an `async fn` computed with empty lists: observed, main's own list read 0 elements in 6 of 6 runs while main looped beside an async fn, and an async fn's list argument read empty in about 96% of calls while main collected. The collector now runs only when its engine is the only one executing in the process, and defers otherwise. An `async fn` therefore delays cycle collection until it finishes. `--gc-stats` now reports the engine that ran: collections run, deferred, and values collected. On the default engine it used to print the idle tree-walker's count, which was always 0.
+
 ## [2.0.1] - 2026-10-31
 
 The first 2.x release with packages. v2.0.0 was tagged, but its macOS build failed and the release step that attaches the packages and notes never ran. Everything in [2.0.0] below applies to 2.0.1, including "Upgrading from 1.x". From 2.0 on, the Releases page carries 2.x only; every earlier version remains as a git tag.

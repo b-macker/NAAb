@@ -558,7 +558,9 @@ public:
     bool isGCEnabled() const { return gc_enabled_; }
     void setGCThreshold(size_t threshold) { gc_threshold_ = threshold; }
     size_t getAllocationCount() const { return allocation_count_; }
-    size_t getGCCollectionCount() const;
+    size_t getGCCollectionCount() const;   // cycle values cleared
+    size_t getGCCollectionsRun() const;
+    size_t getGCCollectionsDeferred() const;  // another engine was executing (A92)
     void registerValue(NaabVal value);  // Track value for complete GC
 
     // Command-line arguments support (ISS-028)

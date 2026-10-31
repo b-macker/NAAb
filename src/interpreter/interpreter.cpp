@@ -763,6 +763,9 @@ void Interpreter::setSourceCode(const std::string& source, const std::string& fi
 }
 
 void Interpreter::execute(ast::Program& program) {
+    // A92: see cycle_detector.h -- no other engine collects while this one runs
+    // (libnaab embedders can run interpreters on several threads).
+    EngineActivation gc_activation(cycle_detector_.get());
     program.accept(*this);
 }
 
@@ -3124,6 +3127,14 @@ size_t Interpreter::getGCCollectionCount() const {
         return 0;
     }
     return cycle_detector_->getTotalCollected();
+}
+
+size_t Interpreter::getGCCollectionsRun() const {
+    return cycle_detector_ ? cycle_detector_->getCollectionsRun() : 0;
+}
+
+size_t Interpreter::getGCCollectionsDeferred() const {
+    return cycle_detector_ ? cycle_detector_->getCollectionsDeferred() : 0;
 }
 
 // ============================================================================
