@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **`naab-gov ratchet OLD NEW`: would a mid-run reload of OLD by NEW be accepted?** Exit 0 accepted, 1 refused (each violation named; a NEW whose signature does not verify is refused too, unless `--ratchet-only`), 4 a config error. It asks the engine's own reload decision (`evaluateReload()`, which the reload itself now calls), after loading OLD as a run would, with `--env`, `--agent-id` and `--lease-grant` laid over it as at startup. `--json` prints the decision.
+- **`naab-gov ratchet OLD NEW`: would a mid-run reload of OLD by NEW be accepted?** Exit 0 accepted, 1 refused (each violation named; a NEW whose signature does not verify is refused too, unless `--ratchet-only`), 4 a config error. It asks the engine's own reload decision (`evaluateReload()`, which the reload itself now calls), after loading OLD as a run would, with `--env`, `--agent-id` and `--lease-grant` laid over it as at startup (with no `--env`, `governance.default_env` applies, as in a run). `--json` prints the decision.
 - **A property check of "governance only tightens"** (`naab_ratchet_property`, Bundle 8): generated config pairs through the real reload, with random startup overlays, judged by the engine's own gates; also that an agent role and a capability lease only narrow, and that `--sandbox-level`, `--timeout` and `--memory-limit` never raise what `govern.json` configures. It runs in the suite and, at a larger budget, in CI. Its first runs found the holes below.
 
 ### Fixed
