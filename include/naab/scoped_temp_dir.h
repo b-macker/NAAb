@@ -35,6 +35,7 @@
 #include <random>
 #else
 #include <sys/stat.h>
+#include <unistd.h>   // mkdtemp: declared here on macOS, in <stdlib.h> on glibc
 #endif
 
 namespace naab {
