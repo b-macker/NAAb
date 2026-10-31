@@ -11,12 +11,12 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 1-5 | merged | git log, CHANGELOG |
 | 6: crash-proof governor, then the planned defaults | merged | #347 (`41a3b3c3`) |
 | 7: release | merged | #348 (`ca07ae12`) tagged v2.0.0; its macOS release build failed, so #349 (`735fa217`) released 2.0.1 |
-| 8: "governance only tightens", proved | in progress: PR 1 (the seam, the property harness, the overlays, the CI job, and the holes it found: A94-A97, A100-A102) | |
+| 8: "governance only tightens", proved | in progress: PR 1 built and in local validation, not yet pushed; PR 2 not started | Bundle 8 below |
 | 9-15 | not started | |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). The bundle plan itself was recorded in #351 (`86fc33c9`).
 
-Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 and 2 (the `naab-gov ratchet` seam, the property harness, the same property for the overlays, and the CI job); PR 2 classifies the unclassified ratchet keys. The harness measures `extends` without asserting it, because a child can loosen its parent under both merge strategies today: A98 is the owner's decision.
+Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 and 2 (the `naab-gov ratchet` seam, the property harness, the same property for the overlays, and the CI job); PR 2 classifies the unclassified ratchet keys. The harness measures `extends` without asserting it, because a child can loosen its parent under both merge strategies today: A98 is the owner's decision. Progress and findings are under Bundle 8 below.
 
 ## Standing rules (every bundle)
 
@@ -69,6 +69,35 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
 - **A CI job runs it**, the consumer #240 lacked.
 - **Optional:** an offline Z3 proof of the per-list probe-completeness lemmas.
 - **Then classify the unclassified ratchet keys** (773 in `tests/governance_v4/ratchet_unclassified_baseline.txt`, counted 2026-10-31), declaring an order per key.
+
+**Progress (2026-10-31).** PR 1 is built and in local validation, not yet pushed.
+
+| Part | State |
+|---|---|
+| Seam | built: `naab-gov ratchet OLD NEW` calls `GovernanceEngine::evaluateReload()`, the decision `reloadIfChanged()` itself makes, after starting OLD as a run does (role, environment including `governance.default_env`, lease) |
+| Property harness | built: `naab_ratchet_property` (`tests/property/ratchet_property.cpp`), suite `tests/governance_v4/test_ratchet_property.sh` |
+| `extends` merge | measured, not asserted (A98, below); only the mode floor is asserted |
+| CLI flag overlays | asserted, exhaustively: sandbox level, timeout, memory limit (`include/naab/run_limits.h`) |
+| Lease grants, role overlays | asserted, with liveness controls (a role and a lease must each change some verdict) |
+| Startup overlays at reload | asserted for role, environment and lease (RG-07 checks each one reaches the seam's decision) |
+| CI job | built: a "Ratchet property" step in Build & Test, a new seed each run |
+| Z3 proof (optional) | not started |
+| PR 2: classify the 773 keys | not started |
+
+**What PR 1 found.** Each finding has a row in `docs/open-investigations.md`.
+- **Fixed in PR 1**, and every fix only tightens:
+  - A94: a misspelled `sandbox_level` lifted the enforce clamp;
+  - A95(a)(c): an environment's mode did not change whether governance was active;
+  - A96: two loosening reloads were accepted (child-process `blocked_read`, `detect` -> `soft`);
+  - A97: a lease dropped the project's subprocess blocklist;
+  - A100: an `agents` list was ignored without a warning;
+  - A101: removing a role's last ENV action was read as a tightening;
+  - A102: deleting a role's `network_allowed: false` re-granted the network.
+- **Open, waiting on the owner** (none is added to a bundle without the owner's decision):
+  - A98: what `extends` should promise. A child can loosen its parent under both merge strategies, `parent_wins` included;
+  - A95(b): whether an environment with `mode: off` should switch governance off. Today governance stays on and blocking, so switching it off would loosen today's behaviour;
+  - A100: whether a non-object `agents` block should be refused (exit 4) instead of warned about;
+  - A99: embedded Python's allowlist scrub keeps `LD_LIBRARY_PATH`, which every other child's scrub withholds. It is traced, not measured. Removing it could break Python's own subprocesses on Termux, so it waits for a measurement there.
 
 ## Bundle 9 -- adversarial inputs and concurrency
 
@@ -146,6 +175,7 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
 
 - **Waiting on the owner:**
   - A88: codegen refusals are catchable, and `codegen.level` is inert;
+  - from Bundle 8: A98, A95(b), A100 (refuse or warn), A99 -- see Bundle 8's progress;
   - the 14 compiled-but-unrun test programs, plus the unlinked `naab_testing` library.
 - **Open:** A66, A75(a)(b), A76(e), A70(b)(c), A67, B1, A16/F11/F12, A53, A33(b), D18, and the A64 test debt.
 - **Paused:** the guidance bypass filter.
