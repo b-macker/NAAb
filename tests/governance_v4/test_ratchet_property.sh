@@ -34,7 +34,8 @@
 #          ratchet alone; a signed NEW is accepted
 #   RG-07  the startup overlays reach the decision: a loosening the overlay
 #          already excludes is accepted under it and refused without it --
-#          --agent-id (a role's languages), --env (an environment's mode),
+#          --agent-id (a role's languages), --env (an environment's mode; and
+#          governance.default_env with no --env, as a run applies it),
 #          --lease-grant (a lease without NET_CONNECT). The generated cases
 #          cannot show this: in 96 dumped role cases the role never changed a
 #          verdict of the seam (observed), so a naab-gov that ignored the role
@@ -232,12 +233,16 @@ cfg govern.json '{"version":"5.0","mode":"enforce","capabilities":{"network":{"e
 cfg neton.json  '{"version":"5.0","mode":"enforce","capabilities":{"network":{"enabled":true}}}'
 ratchet govern.json neton.json --lease-grant FS_READ; lease_on=$RC
 ratchet govern.json neton.json;                       lease_off=$RC
+# governance.default_env applies with no --env, as in a run.
+cfg govern.json '{"version":"5.0","mode":"enforce","governance":{"default_env":"dev"},"environments":{"dev":{"mode":"audit"}}}'
+cfg toaudit.json '{"version":"5.0","mode":"audit","governance":{"default_env":"dev"},"environments":{"dev":{"mode":"audit"}}}'
+ratchet govern.json toaudit.json; denv=$RC
 if [ "$role_on" -eq 0 ] && [ "$role_off" -eq 1 ] && [ "$env_on" -eq 0 ] && [ "$env_off" -eq 1 ] \
-   && [ "$lease_on" -eq 0 ] && [ "$lease_off" -eq 1 ]; then
-    pass RG-07 "the role, the environment and the lease each reach the decision (masked loosening accepted under it, refused without)"
+   && [ "$lease_on" -eq 0 ] && [ "$lease_off" -eq 1 ] && [ "$denv" -eq 0 ]; then
+    pass RG-07 "the role, the environment (flag or default_env) and the lease each reach the decision (masked loosening accepted under it, refused without)"
 else
     fail RG-07 "a startup overlay does not reach the seam's decision" \
-        "role on/off=$role_on/$role_off env on/off=$env_on/$env_off lease on/off=$lease_on/$lease_off (want 0/1 each)"
+        "role on/off=$role_on/$role_off env on/off=$env_on/$env_off lease on/off=$lease_on/$lease_off (want 0/1 each); default_env=$denv (want 0)"
 fi
 
 # ---------------------------------------------------------------- findings

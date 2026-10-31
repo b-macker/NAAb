@@ -95,6 +95,7 @@ static void printHelp() {
         "\n"
         "ratchet OPTIONS:\n"
         "  --env <name>            Start under this environment overlay, as naab-lang --env\n"
+        "                          (default: govern.json's governance.default_env)\n"
         "  --agent-id <name>       Start under this agent role, as naab-lang --agent-id\n"
         "  --lease-grant <a,b,..>  Start under this capability lease (FS_READ, FS_WRITE,\n"
         "                          NET_CONNECT, SHELL_EXEC, ENV_READ, ENV_WRITE, AGENT_SEND)\n"
@@ -705,9 +706,15 @@ static int cmdRatchet(const std::vector<std::string>& args) {
         std::cerr << "naab-gov ratchet: cannot load " << files[0] << "\n";
         return 4;
     }
-    if (agent_id.empty()) agent_id = engine.getRules().agent_id_config;
-    if (!agent_id.empty()) engine.setAgentId(agent_id);
+    // As main.cpp: the agent id is the flag, else "anonymous", and an
+    // "anonymous" one takes govern.json's agent_id; the environment is the
+    // flag, else governance.default_env.
+    if (agent_id.empty()) agent_id = "anonymous";
+    if (!engine.getRules().agent_id_config.empty() && agent_id == "anonymous")
+        agent_id = engine.getRules().agent_id_config;
+    engine.setAgentId(agent_id);
     engine.applyAgentRole();
+    if (env_name.empty()) env_name = engine.getRules().default_env;
     if (!env_name.empty()) {
         if (!engine.getRules().environments.count(env_name)) {
             std::cerr << "naab-gov ratchet: environment '" << env_name
