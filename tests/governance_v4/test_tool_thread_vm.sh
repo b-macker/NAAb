@@ -80,10 +80,15 @@ SUM=$(python3 -c "print(sum(i % 7 for i in range($N)))")
 
 # Each agent is routed by a token in its system prompt; its first reply is a
 # call to `crunch`, held open so two sends overlap at the stub, and its second
-# the final text.
+# the final text. The hold must outlast the gap between the two workers' first
+# requests: 300 ms overlapped in 3 of 3 runs here but in 1 of 3 on build-windows
+# (#354), where the second worker's request came later; 1200 ms is the hold the
+# agent-review suite's overlap arm uses, and the key-rotation suite's 700 ms
+# overlap control passed on that runner.
+HOLD_MS=1200
 FIXTURE='{"routes": {
-  "TOKEN-ALPHA": {"responses": [{"tool_calls": [{"name": "crunch", "args": {"tag": "alpha"}}], "hold_ms": 300}, {"content": "DONE-alpha"}]},
-  "TOKEN-BRAVO": {"responses": [{"tool_calls": [{"name": "crunch", "args": {"tag": "bravo"}}], "hold_ms": 300}, {"content": "DONE-bravo"}]}
+  "TOKEN-ALPHA": {"responses": [{"tool_calls": [{"name": "crunch", "args": {"tag": "alpha"}}], "hold_ms": '"$HOLD_MS"'}, {"content": "DONE-alpha"}]},
+  "TOKEN-BRAVO": {"responses": [{"tool_calls": [{"name": "crunch", "args": {"tag": "bravo"}}], "hold_ms": '"$HOLD_MS"'}, {"content": "DONE-bravo"}]}
 }, "responses": [{"content": "unrouted"}]}'
 
 agent_block() {  # name token
@@ -169,10 +174,12 @@ batch_ok() {
         && grep -q '^AFTER 12345 499500$' <<<"$OUT" && calls_ok alpha bravo
 }
 why() { echo "rc=$RC $(grep -E '^RESULT|^AFTER|^MAIN|^ASYNC|rror' <<<"$OUT" | head -4 | tr '\n' ' ') calls.log: $(tr '\n' ',' < "$WDIR/calls.log" 2>/dev/null)"; }
-# overlap: the stub's first two requests (both sends' first model calls) were open at once
+# overlap: the stub's first two requests (both sends' first model calls) were
+# open at once. Prints their windows (ms since stub start), so a failing control
+# shows how far apart the two requests were.
 overlap() {
     # Bytes on stdin, not a path: a native python3 under MSYS2 cannot open /tmp/...
-    [ -f "$WDIR/keys.log" ] || return 1
+    [ -f "$WDIR/keys.log" ] || { echo "no keys.log"; return 1; }
     python3 -c '
 import sys
 rows = []
@@ -184,6 +191,7 @@ rows.sort()
 if len(rows) < 2:
     sys.exit(1)
 (_, s1, e1), (_, s2, e2) = rows[0], rows[1]
+print("[%d,%d] [%d,%d]" % (s1, e1, s2, e2))
 sys.exit(0 if s1 < e2 and s2 < e1 else 1)' < "$WDIR/keys.log"
 }
 
@@ -194,15 +202,16 @@ elif batch_ok; then pass TV-00 "CONTROL: a batch of two run one at a time gives 
 else fail TV-00 "CONTROL: the one-at-a-time batch should give both tools the right sum" "$(why)"; fi
 
 # ---- TV-01 / TV-00b: two at once, three runs -----------------------------------
-ok=0; olap=0; last=""
+ok=0; olap=0; last=""; windows=""
 for k in 1 2 3; do
     run_case "tv01_$k" 2 "" "$BATCH_MAIN"
     [ "$OUT" = "STUB-FAILED" ] && continue
     batch_ok && ok=$((ok+1)) || last="$(why)"
-    overlap && olap=$((olap+1))
+    w="$(overlap)" && olap=$((olap+1))
+    windows="$windows run $k: $w;"
 done
 if [ "$olap" -eq 3 ]; then pass TV-00b "CONTROL: the two sends' model calls were in flight together in 3 of 3 runs"
-else fail TV-00b "CONTROL: the two sends should overlap at the stub (3 of 3), saw $olap -- TV-01 cannot measure concurrency"; fi
+else fail TV-00b "CONTROL: the two sends should overlap at the stub (3 of 3), saw $olap -- TV-01 cannot measure concurrency" "first two request windows, ms (hold $HOLD_MS):$windows"; fi
 if [ "$ok" -eq 3 ]; then pass TV-01 "two batched tools at once: right sums, both results, main's values intact (3 of 3 runs)"
 else fail TV-01 "two batched tools at once should both run correctly and leave main intact: $ok of 3" "$last"; fi
 
