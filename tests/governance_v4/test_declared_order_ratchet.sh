@@ -149,7 +149,10 @@ arms="$(sed -n 's/^arms: //p' <<<"$POUT")"
 if [ -z "$keys" ] || [ "${keys:-0}" -lt 100 ]; then
     bad "DO-01" "the probe probed ${keys:-no} keys -- broken probe, not a result" "$POUT"
 elif [ $PRC -eq 0 ]; then
-    ok "DO-01" "every declared key holds its order through the reload decision ($keys keys; $arms)"
+    # The probe's own counts, without its UNMEASURABLE label: the dead-interpreter
+    # gate reads that word as a skip marker on a passing line.
+    n_pass="$(sed -n 's/^arms: \([0-9]*\) PASS.*/\1/p' <<<"$POUT")"
+    ok "DO-01" "every declared key holds its order through the reload decision ($keys keys, all $n_pass arms)"
 else
     bad "DO-01" "declared keys the engine does not hold ($arms)" "$(grep -E '^(FAIL|UNMEASURABLE) ' <<<"$POUT")"
 fi
