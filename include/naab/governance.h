@@ -3275,6 +3275,7 @@ public:
         bool file_active = true;            // the file's own mode is not off (startup's rule)
         GovernanceRules rules;              // the prepared rules (complete when Accepted)
         std::string update_reason;
+        std::string config_text;            // the new file's JSON, recorded when installed
     };
     ReloadEvaluation evaluateReload(const std::string& path, bool verify_signature = true);
     bool reloadIfChanged();                        // check mtime, reload if tightened, return true if reloaded
@@ -4254,6 +4255,9 @@ private:
     mutable int64_t approval_mtime_ = 0;
     mutable std::mutex approval_mutex_;
     std::string loaded_path_;
+    // The raw JSON (compact) of the installed config file: set by loadFromFile(),
+    // replaced by an accepted reload, compared by the declared-order ratchet.
+    std::string installed_config_text_;
     // Run identity, computed once at load and emitted on the RunStart anchor.
     //
     // Telemetry could not say WHICH config produced a run. report.py reads

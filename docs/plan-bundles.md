@@ -11,7 +11,7 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 1-5 | merged | git log, CHANGELOG |
 | 6: crash-proof governor, then the planned defaults | merged | #347 (`41a3b3c3`) |
 | 7: release | merged | #348 (`ca07ae12`) tagged v2.0.0; its macOS release build failed, so #349 (`735fa217`) released 2.0.1 |
-| 8: "governance only tightens", proved | in progress: PR 1 built and in local validation, not yet pushed; PR 2 not started | Bundle 8 below |
+| 8: "governance only tightens", proved | in progress: PR 1 merged (#352, `76c871cf`); PR 2 built and in local validation, not yet pushed | Bundle 8 below |
 | 9-15 | not started | |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). The bundle plan itself was recorded in #351 (`86fc33c9`).
@@ -70,7 +70,7 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
 - **Optional:** an offline Z3 proof of the per-list probe-completeness lemmas.
 - **Then classify the unclassified ratchet keys** (773 in `tests/governance_v4/ratchet_unclassified_baseline.txt`, counted 2026-10-31), declaring an order per key.
 
-**Progress (2026-10-31).** PR 1 is built and in local validation, not yet pushed.
+**Progress (2026-11-01).** PR 1 is merged (#352, `76c871cf`). PR 2 is built and in local validation, not yet pushed.
 
 | Part | State |
 |---|---|
@@ -82,7 +82,7 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
 | Startup overlays at reload | asserted for role, environment and lease (RG-07 checks each one reaches the seam's decision) |
 | CI job | built: a "Ratchet property" step in Build & Test, a new seed each run |
 | Z3 proof (optional) | not started |
-| PR 2: classify the 773 keys | not started |
+| PR 2: classify the 773 keys | built: every key classified (the unclassified baseline is empty); 475 declared orders compiled into the engine and enforced by `evaluateReload()` (`checkDeclaredOrderRatchet()`); unclear keys `fixed`, by the owner's decision (2026-10-31); suite `tests/governance_v4/test_declared_order_ratchet.sh` |
 
 **What PR 1 found.** Each finding has a row in `docs/open-investigations.md`.
 - **Fixed in PR 1**, and every fix only tightens:
@@ -98,6 +98,14 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
   - A95(b): whether an environment with `mode: off` should switch governance off. Today governance stays on and blocking, so switching it off would loosen today's behaviour;
   - A100: whether a non-object `agents` block should be refused (exit 4) instead of warned about;
   - A99: embedded Python's allowlist scrub keeps `LD_LIBRARY_PATH`, which every other child's scrub withholds. It is traced, not measured. Removing it could break Python's own subprocesses on Termux, so it waits for a measurement there.
+
+**What PR 2 found.** Each finding has a row in `docs/open-investigations.md`.
+- **Fixed in PR 2**, each tightening only:
+  - A103: the codegen ratchet read 0 (no cap) as the tightest value of five caps, and the 0 timeout as 0 s instead of the 15 s fallback;
+  - A106: a reload the ratchet refused still raised the JSON depth limit, which the loader sets process-wide while it parses;
+  - A104: the 773 keys themselves. Most were live settings a signed reload could loosen: run budgets, the `limits.array_size` / `call_depth` aliases, `context_drift.enabled`, `restrictions.polyglot_output`, presence-enabled check blocks, breaker and exposure thresholds, and an environment's `quality_gate.enabled`. On master the probe's loosenings were accepted for 463 of 475 declared keys.
+- **Open, waiting on the owner:**
+  - A105: a non-empty `custom_patterns` on a simple code_quality check replaces its built-in patterns (observed: one added pattern let a `# for now` block run). The reload side is closed (the lists are `fixed`); making `custom_patterns` append at startup is a behaviour change to schedule.
 
 ## Bundle 9 -- adversarial inputs and concurrency
 

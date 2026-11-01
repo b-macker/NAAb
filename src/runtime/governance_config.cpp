@@ -31,6 +31,7 @@
 #include "naab/rx.h"
 #include <chrono>
 #include <functional>
+#include <limits>
 #include <set>
 #ifndef _WIN32
 #  include <sys/file.h>
@@ -4522,6 +4523,334 @@ static bool cddSignalValue(const ContextDriftConfig::Signals& s, int idx) {
 }
 
 // ----------------------------------------------------------------------------
+// Declared orders (Bundle 8, PR 2).
+//
+// The ratchet below is a hand-written list of comparisons, and
+// tests/governance_v4/test_ratchet_coverage.sh showed 773 settings no part of it
+// compared: a signed reload could move each of them in either direction with no
+// violation and no notice, wherever a check reads it live. Each of those keys
+// now has a line in tests/governance_v4/ratchet_classification.txt, and the ones
+// a reload must not loosen carry a DECLARED ORDER -- which direction is tighter
+// -- or are declared `fixed` when no single direction is (owner's decision
+// 2026-10-31: enforced, and fixed for unclear keys). tools/ratchet_coverage.py
+// --emit-orders writes those lines into ratchet_declared_orders.inc, and
+// test_ratchet_coverage.sh fails when the two drift apart.
+//
+// The comparison reads the RAW JSON of the running config (recorded at load,
+// replaced by an accepted reload) and of the new file, at each declared path.
+// Raw, not the parsed rules, because nothing maps a key path back to a field;
+// so it is fail-closed wherever the raw form is ambiguous:
+//   - a key present on one side only (itself, or because a section above it
+//     is) is compared against its declared default (a traced claim in the
+//     table); with no default declared, adding or removing it is refused;
+//   - a value of another type, or a level / enum value the order does not
+//     know, is refused unless it is unchanged;
+//   - when a SHORTHAND stands above a declared key ("no_temporary_code":
+//     "hard", "network": false) and the shorthand sets that key (enabled,
+//     level, format, mode), any change of it is refused; a key the shorthand
+//     does not set keeps its default on that side;
+//   - a check block whose presence is its on switch is declared `present`:
+//     removing it (or a change of its shorthand into a form the loaders read
+//     differently) is refused, adding it is a tightening, and while it is
+//     absent from the RUNNING config nothing declared under it is compared --
+//     the old check was off, so no value under it can loosen.
+// So a reload that rewrites a setting into an equivalent form can be refused.
+// The violation names the key and the direction only: a refused reload is
+// printed where the program can read it.
+namespace {
+
+enum class DeclaredOrder {
+    True,       // true is tighter
+    False,      // false is tighter
+    Lower,      // a lower number is tighter
+    LowerZero,  // a lower number is tighter, and 0 or less means unlimited (the loosest)
+    Higher,     // a higher number is tighter
+    Level,      // an enforcement level, compared as the ratchet compares levels
+    Enum,       // one of `values`, listed loosest first
+    Superset,   // a list: adding entries tightens, removing one loosens
+    Subset,     // a list: removing entries tightens, adding one loosens
+    Fixed,      // no single tighter direction: any change mid-run is refused
+    Present,    // a check block whose PRESENCE is its on switch: removing it loosens
+};
+
+struct DeclaredOrderEntry {
+    const char* path;          // dotted; "<x>" iterates an object's keys, "[]" an array
+    DeclaredOrder order;
+    const char* values;        // Enum only: "a|b|c", loosest first
+    const char* default_json;  // the value of an ABSENT key, when traced; nullptr otherwise
+};
+
+const DeclaredOrderEntry kDeclaredOrders[] = {
+#include "ratchet_declared_orders.inc"
+    {nullptr, DeclaredOrder::Fixed, nullptr, nullptr}  // end marker
+};
+
+const char* declaredOrderPhrase(DeclaredOrder o) {
+    switch (o) {
+        case DeclaredOrder::True:      return "true is tighter";
+        case DeclaredOrder::False:     return "false is tighter";
+        case DeclaredOrder::Lower:     return "a lower value is tighter";
+        case DeclaredOrder::LowerZero: return "a lower value is tighter, and 0 means unlimited";
+        case DeclaredOrder::Higher:    return "a higher value is tighter";
+        case DeclaredOrder::Level:     return "an enforcement level";
+        case DeclaredOrder::Enum:      return "an ordered choice";
+        case DeclaredOrder::Superset:  return "entries may be added, not removed";
+        case DeclaredOrder::Subset:    return "entries may be removed, not added";
+        case DeclaredOrder::Fixed:     return "fixed while the run lasts";
+        case DeclaredOrder::Present:   return "the block's presence switches the check on";
+    }
+    return "declared";
+}
+
+// -1 the new value is tighter, 0 equal (or as tight), +1 looser, 2 not
+// comparable (another type, an unknown level or enum value, or `fixed`).
+int compareDeclared(const DeclaredOrderEntry& e, const nlohmann::json& a,
+                    const nlohmann::json& b) {
+    if (a == b) return 0;
+    switch (e.order) {
+        case DeclaredOrder::True:
+        case DeclaredOrder::False: {
+            if (!a.is_boolean() || !b.is_boolean()) return 2;
+            const bool tight = e.order == DeclaredOrder::True;
+            return b.get<bool>() == tight ? -1 : 1;
+        }
+        case DeclaredOrder::Lower:
+        case DeclaredOrder::LowerZero:
+        case DeclaredOrder::Higher: {
+            if (!a.is_number() || !b.is_number()) return 2;
+            double x = a.get<double>(), y = b.get<double>();
+            if (e.order == DeclaredOrder::LowerZero) {
+                const double inf = std::numeric_limits<double>::infinity();
+                if (x <= 0) x = inf;
+                if (y <= 0) y = inf;
+            }
+            if (x == y) return 0;
+            if (e.order == DeclaredOrder::Higher) return y > x ? -1 : 1;
+            return y < x ? -1 : 1;
+        }
+        case DeclaredOrder::Level: {
+            if (!a.is_string() || !b.is_string()) return 2;
+            EnforcementLevel la, lb;
+            if (!matchEnforcementLevel(a.get<std::string>(), la) ||
+                !matchEnforcementLevel(b.get<std::string>(), lb)) return 2;
+            if (levelLoosens(la, lb)) return 1;
+            if (levelLoosens(lb, la)) return -1;
+            return 0;
+        }
+        case DeclaredOrder::Enum: {
+            if (!a.is_string() || !b.is_string() || !e.values) return 2;
+            std::vector<std::string> vals;
+            std::string cur;
+            for (const char* p = e.values;; ++p) {
+                if (*p == '|' || *p == '\0') { vals.push_back(cur); cur.clear(); if (!*p) break; }
+                else cur += *p;
+            }
+            auto at = [&](const std::string& s) {
+                auto it = std::find(vals.begin(), vals.end(), s);
+                return it == vals.end() ? -1 : static_cast<int>(it - vals.begin());
+            };
+            const int ia = at(a.get<std::string>()), ib = at(b.get<std::string>());
+            if (ia < 0 || ib < 0) return 2;
+            return ib > ia ? -1 : ib < ia ? 1 : 0;
+        }
+        case DeclaredOrder::Superset:
+        case DeclaredOrder::Subset: {
+            if (!a.is_array() || !b.is_array()) return 2;
+            auto has = [](const nlohmann::json& arr, const nlohmann::json& v) {
+                return std::find(arr.begin(), arr.end(), v) != arr.end();
+            };
+            bool removed = false, added = false;
+            for (const auto& v : a) if (!has(b, v)) removed = true;
+            for (const auto& v : b) if (!has(a, v)) added = true;
+            const bool loosens = e.order == DeclaredOrder::Superset ? removed : added;
+            const bool tightens = e.order == DeclaredOrder::Superset ? added : removed;
+            return loosens ? 1 : tightens ? -1 : 0;
+        }
+        case DeclaredOrder::Fixed:
+            return 2;
+        case DeclaredOrder::Present:
+            return 2;  // walkDeclared decides presence itself (presenceOf)
+    }
+    return 2;
+}
+
+// Whether a presence-enabled check block is on: absent = off; true, a level
+// the engine knows, or an object = on. Anything else -- false, an unknown or
+// "none" level, a number -- is -1: the loaders do not agree on it (a
+// complexity_floor block is on whatever its value, a shorthand false is off
+// elsewhere), so a change into or out of it is refused.
+int presenceOf(const nlohmann::json* x) {
+    if (!x || x->is_null()) return 0;
+    if (x->is_object()) return 1;
+    if (x->is_boolean()) return x->get<bool>() ? 1 : -1;
+    if (x->is_string()) {
+        EnforcementLevel lv;
+        if (matchEnforcementLevel(x->get<std::string>(), lv) && lv != EnforcementLevel::NONE) return 1;
+        return -1;
+    }
+    return -1;
+}
+
+// The keys a shorthand value sets when it stands where an object belongs:
+// parseEnforcementLevel()'s enabled and level, a capability's bare switch or
+// mode, restrictions.polyglot_output's format. Every other key below a
+// shorthand keeps its default on that side.
+bool shorthandSets(const std::string& leaf) {
+    return leaf == "enabled" || leaf == "level" || leaf == "format" || leaf == "mode";
+}
+
+void walkDeclared(const DeclaredOrderEntry& e, const std::vector<std::string>& segs,
+                  size_t i, const nlohmann::json* a, const nlohmann::json* b,
+                  const std::string& at, const std::set<size_t>& present_blocks,
+                  std::set<std::string>& violations, std::set<std::string>& notices) {
+    if (!a && !b) return;
+    // A block whose presence is its on switch. Absent on the OLD side means the
+    // old check was off, so nothing under it can loosen: the declared keys
+    // below are not compared. Removing it is the Present entry's to refuse.
+    if (!a && present_blocks.count(i)) return;
+    if (i == segs.size() && e.order == DeclaredOrder::Present) {
+        const int pa = presenceOf(a), pb = presenceOf(b);
+        if (pa == pb && (pa != -1 || (a && b && *a == *b))) return;
+        if (pa == -1 || pb == -1)
+            violations.insert(fmt::format("{}: changed (declared: {})", at, declaredOrderPhrase(e.order)));
+        else if (pa > pb)
+            violations.insert(fmt::format("{}: removed (loosened; declared: {})", at, declaredOrderPhrase(e.order)));
+        else
+            notices.insert(fmt::format("{}: added (tightened)", at));
+        return;
+    }
+    if (i == segs.size()) {
+        nlohmann::json da, db;
+        if (!a || !b) {
+            if (!e.default_json) {
+                violations.insert(fmt::format(
+                    "{}: added or removed mid-run (declared: {}; no default is declared, "
+                    "so its absence is not compared)", at, declaredOrderPhrase(e.order)));
+                return;
+            }
+            const nlohmann::json dflt = nlohmann::json::parse(e.default_json);
+            da = a ? *a : dflt;
+            db = b ? *b : dflt;
+        } else {
+            da = *a;
+            db = *b;
+        }
+        const int r = compareDeclared(e, da, db);
+        if (r == 1) {
+            violations.insert(fmt::format("{}: loosened (declared: {})", at,
+                                          declaredOrderPhrase(e.order)));
+        } else if (r == 2) {
+            violations.insert(fmt::format("{}: changed (declared: {})", at,
+                                          declaredOrderPhrase(e.order)));
+        } else if (r == -1) {
+            notices.insert(fmt::format("{}: tightened", at));
+        }
+        return;
+    }
+    const std::string& seg = segs[i];
+    const bool want_array = seg == "[]";
+    auto container_ok = [&](const nlohmann::json* x) {
+        return !x || (want_array ? x->is_array() : x->is_object());
+    };
+    if (!container_ok(a) || !container_ok(b)) {
+        if (a && b && *a == *b) return;
+        // A shorthand ("no_temporary_code": "hard", "network": false) stands
+        // where the declared key's object belongs. When the shorthand SETS the
+        // key, its effective value comes from this node, whose forms do not
+        // compare: refused. Any other key keeps its default on that side, so
+        // the walk goes on with that side absent.
+        // Only the block's own keys: "no_secrets": "hard" sets no_secrets.level,
+        // not no_secrets.suspicious_variable_names.enabled.
+        if (i + 1 == segs.size() && shorthandSets(segs.back())) {
+            violations.insert(fmt::format(
+                "{}: its form changed mid-run, and settings below it are declared",
+                at.empty() ? std::string("(top level)") : at));
+            return;
+        }
+        if (!container_ok(a)) a = nullptr;
+        if (!container_ok(b)) b = nullptr;
+        if (!a && !b) return;
+    }
+    auto join = [&](const std::string& part) {
+        return at.empty() ? part : at + "." + part;
+    };
+    if (want_array) {
+        const size_t n = std::max(a ? a->size() : 0, b ? b->size() : 0);
+        for (size_t k = 0; k < n; ++k) {
+            const nlohmann::json* ca = (a && k < a->size()) ? &(*a)[k] : nullptr;
+            const nlohmann::json* cb = (b && k < b->size()) ? &(*b)[k] : nullptr;
+            walkDeclared(e, segs, i + 1, ca, cb, fmt::format("{}[{}]", at, k), present_blocks, violations, notices);
+        }
+        return;
+    }
+    if (seg.size() > 2 && seg.front() == '<' && seg.back() == '>') {
+        std::set<std::string> keys;
+        if (a) for (auto it = a->begin(); it != a->end(); ++it) keys.insert(it.key());
+        if (b) for (auto it = b->begin(); it != b->end(); ++it) keys.insert(it.key());
+        // An agent added or removed is the agent ratchet's to judge (adding one
+        // mid-run is refused unless meta.allow_agent_addition_mid_run): compare
+        // only the agents both files define. Every other map fails closed.
+        const bool agent_map = i == 1 && segs[0] == "agents";
+        for (const auto& k : keys) {
+            const nlohmann::json* ca = (a && a->contains(k)) ? &(*a)[k] : nullptr;
+            const nlohmann::json* cb = (b && b->contains(k)) ? &(*b)[k] : nullptr;
+            if (agent_map && (!ca || !cb)) continue;
+            walkDeclared(e, segs, i + 1, ca, cb, join(k), present_blocks, violations, notices);
+        }
+        return;
+    }
+    const nlohmann::json* ca = (a && a->contains(seg)) ? &(*a)[seg] : nullptr;
+    const nlohmann::json* cb = (b && b->contains(seg)) ? &(*b)[seg] : nullptr;
+    walkDeclared(e, segs, i + 1, ca, cb, join(seg), present_blocks, violations, notices);
+}
+
+}  // namespace
+
+// Compares every declared key of the running config's raw JSON with the new
+// file's. Returns false when a reload would loosen one (or change a fixed one),
+// with each named in `violations`.
+static bool checkDeclaredOrderRatchet(const std::string& installed_text,
+                                      const nlohmann::json& new_json,
+                                      std::vector<std::string>& violations,
+                                      std::vector<std::string>& notices) {
+    nlohmann::json old_json;
+    try {
+        if (installed_text.empty()) throw std::runtime_error("empty");
+        old_json = nlohmann::json::parse(installed_text);
+    } catch (...) {
+        violations.push_back(
+            "the running configuration was not recorded, so its declared settings "
+            "cannot be compared (reload refused)");
+        return false;
+    }
+    auto split = [](const char* path) {
+        std::vector<std::string> segs;
+        std::string cur;
+        for (const char* p = path;; ++p) {
+            if (*p == '.' || *p == '\0') { segs.push_back(cur); cur.clear(); if (!*p) break; }
+            else cur += *p;
+        }
+        return segs;
+    };
+    std::vector<std::vector<std::string>> present;
+    for (const DeclaredOrderEntry* e = kDeclaredOrders; e->path; ++e)
+        if (e->order == DeclaredOrder::Present) present.push_back(split(e->path));
+    std::set<std::string> v, n;
+    for (const DeclaredOrderEntry* e = kDeclaredOrders; e->path; ++e) {
+        const std::vector<std::string> segs = split(e->path);
+        // The depths at which this key's walk passes a presence-enabled block.
+        std::set<size_t> blocks;
+        for (const auto& p : present)
+            if (p.size() < segs.size() && std::equal(p.begin(), p.end(), segs.begin()))
+                blocks.insert(p.size());
+        walkDeclared(*e, segs, 0, &old_json, &new_json, "", blocks, v, n);
+    }
+    violations.insert(violations.end(), v.begin(), v.end());
+    notices.insert(notices.end(), n.begin(), n.end());
+    return v.empty();
+}
+
+// ----------------------------------------------------------------------------
 // Capability lists in the reload ratchet.
 //
 // checkRatchetViolation() compared only scalar fields from the day it was
@@ -5377,6 +5706,14 @@ static bool checkRatchetViolation(
     chkRestrict(old_r.code_quality.no_incomplete_logic.enabled, new_r.code_quality.no_incomplete_logic.enabled, "code_quality.no_incomplete_logic.enabled");
     chkRestrict(old_r.code_quality.no_simulation_markers.enabled, new_r.code_quality.no_simulation_markers.enabled, "code_quality.no_simulation_markers.enabled");
     chkRestrict(old_r.taint_tracking.enabled, new_r.taint_tracking.enabled, "taint_tracking.enabled");
+    // An environment overlay (environments.<name>) can set these three, and a
+    // reload lays the startup environment over the new rules before this
+    // comparison (applyStartupOverlays), so they are compared here, on the
+    // overlaid rules, rather than on govern.json's raw text (Bundle 8 PR 2).
+    chkRestrict(old_r.quality_gate.enabled, new_r.quality_gate.enabled, "quality_gate.enabled");
+    chkRestrict(old_r.governance_baseline.enabled, new_r.governance_baseline.enabled, "governance_baseline.enabled");
+    chkRestrict(old_r.governance_baseline.fail_on_regression, new_r.governance_baseline.fail_on_regression,
+                "governance_baseline.fail_on_regression");
 
     // --- D0. Governance mode (ENFORCE < AUDIT < OFF, lower = stricter) ---
     // Never compared until the ratchet-coverage guard listed it: a signed
@@ -5869,12 +6206,30 @@ static bool checkRatchetViolation(
         else if (new_v < old_v)
             notices.push_back(fmt::format("codegen.{}: {} -> {} (tightened)", field, old_v, new_v));
     };
-    chkCodegenLimit(old_r.codegen.max_code_size_bytes, new_r.codegen.max_code_size_bytes, "max_code_size_bytes");
-    chkCodegenLimit(old_r.codegen.max_code_lines, new_r.codegen.max_code_lines, "max_code_lines");
-    chkCodegenLimit(old_r.codegen.timeout_seconds, new_r.codegen.timeout_seconds, "timeout_seconds");
-    chkCodegenLimit(old_r.codegen.max_cumulative_code_bytes, new_r.codegen.max_cumulative_code_bytes, "max_cumulative_code_bytes");
-    chkCodegenLimit(old_r.codegen.max_cumulative_calls, new_r.codegen.max_cumulative_calls, "max_cumulative_calls");
-    chkCodegenLimit(old_r.codegen.max_cumulative_calls_per_agent, new_r.codegen.max_cumulative_calls_per_agent, "max_cumulative_calls_per_agent");
+    // The size and count caps read 0 as NO cap (codegen_impl.cpp tests `> 0`
+    // before each), so 500 -> 0 removes the cap. chkCodegenLimit compared the
+    // raw numbers and accepted that as "tightened" (A103, found classifying the
+    // keys for the declared-order ratchet; observed with naab-gov ratchet).
+    auto chkCodegenCap = [&](int old_v, int new_v, const char* field) {
+        const bool old_unl = old_v <= 0, new_unl = new_v <= 0;
+        if (!old_unl && (new_unl || new_v > old_v))
+            violations.push_back(fmt::format("codegen.{}: {} -> {} (loosened)", field, old_v,
+                                             new_unl ? std::string("unlimited") : std::to_string(new_v)));
+        else if (!new_unl && (old_unl || new_v < old_v))
+            notices.push_back(fmt::format("codegen.{}: {} -> {} (tightened)", field,
+                                          old_unl ? std::string("unlimited") : std::to_string(old_v), new_v));
+    };
+    chkCodegenCap(old_r.codegen.max_code_size_bytes, new_r.codegen.max_code_size_bytes, "max_code_size_bytes");
+    chkCodegenCap(old_r.codegen.max_code_lines, new_r.codegen.max_code_lines, "max_code_lines");
+    // A timeout of 0 runs at the 15 s fallback (codegen_impl.cpp), so compare
+    // the timeout that applies: 5 -> 0 raises it to 15 s.
+    auto effectiveCodegenTimeout = [](int v) { return v > 0 ? v : 15; };
+    chkCodegenLimit(effectiveCodegenTimeout(old_r.codegen.timeout_seconds),
+                    effectiveCodegenTimeout(new_r.codegen.timeout_seconds), "timeout_seconds");
+    chkCodegenCap(old_r.codegen.max_cumulative_code_bytes, new_r.codegen.max_cumulative_code_bytes, "max_cumulative_code_bytes");
+    chkCodegenCap(old_r.codegen.max_cumulative_calls, new_r.codegen.max_cumulative_calls, "max_cumulative_calls");
+    chkCodegenCap(old_r.codegen.max_cumulative_calls_per_agent, new_r.codegen.max_cumulative_calls_per_agent, "max_cumulative_calls_per_agent");
+    // max_nesting_depth: 0 means NO nesting (the strictest), so the raw order holds.
     chkCodegenLimit(old_r.codegen.max_nesting_depth, new_r.codegen.max_nesting_depth, "max_nesting_depth");
 
     // --- Advisory Escalation ratchet ---
@@ -6200,10 +6555,38 @@ static bool agentBehaviorFieldsDiffer(const AgentConfig& a, const AgentConfig& b
            a.context_drift_signals != b.context_drift_signals;
 }
 
+// limits.data.max_json_depth is applied by the loader to a PROCESS-WIDE
+// setting (naab::limits::setMaxJsonDepth) while it parses. A reload parses the
+// new file before it decides, so an evaluation must leave that setting as it
+// found it -- a refused reload used to raise the JSON depth limit anyway
+// (A106) -- and the install applies the accepted file's value.
+namespace {
+struct JsonDepthRestore {
+    int saved = naab::limits::getMaxJsonDepth();
+    ~JsonDepthRestore() { naab::limits::getMaxJsonDepth() = saved; }
+};
+}  // namespace
+
+static void applyInstalledJsonDepth(const std::string& config_text) {
+    try {
+        const nlohmann::json j = nlohmann::json::parse(config_text);
+        if (!j.contains("limits") || !j["limits"].is_object()) return;
+        const auto& lim = j["limits"];
+        if (!lim.contains("data") || !lim["data"].is_object()) return;
+        const auto& d = lim["data"];
+        if (d.contains("max_json_depth") && d["max_json_depth"].is_number_integer())
+            naab::limits::setMaxJsonDepth(d["max_json_depth"].get<int>());
+    } catch (...) {
+        // The text was parsed once already; nothing to apply if it no longer parses.
+    }
+}
+
 GovernanceEngine::ReloadEvaluation GovernanceEngine::evaluateReload(
         const std::string& path, bool verify_signature) {
     using Outcome = ReloadEvaluation::Outcome;
     ReloadEvaluation ev;
+    // An evaluation installs nothing, the process-wide JSON depth included.
+    JsonDepthRestore json_depth_restore;
 
     std::ifstream ifs(path);
     if (!ifs.is_open()) {
@@ -6217,6 +6600,7 @@ GovernanceEngine::ReloadEvaluation GovernanceEngine::evaluateReload(
         ev.outcome = Outcome::TooWide;
         return ev;
     }
+    ev.config_text = j.dump();
 
     // Parse into temporary rules
     loadFromJson(j, ev.rules);
@@ -6298,6 +6682,12 @@ GovernanceEngine::ReloadEvaluation GovernanceEngine::evaluateReload(
     if (static_cast<int>(enforced_after) > static_cast<int>(enforced_before)) {
         ev.violations.push_back(fmt::format("mode: enforced {} -> {} (loosened)",
                                             modeName(enforced_before), modeName(enforced_after)));
+        tightening_only = false;
+    }
+    // Every key the hand-written comparisons above do not cover is declared in
+    // tests/governance_v4/ratchet_classification.txt; the ones with an order (or
+    // fixed) are compared here, on the raw JSON of the two files.
+    if (!checkDeclaredOrderRatchet(installed_config_text_, j, ev.violations, ev.notices)) {
         tightening_only = false;
     }
     if (!tightening_only) {
@@ -6434,6 +6824,9 @@ bool GovernanceEngine::reloadIfChanged() {
         // C1: Atomic swap via shared_ptr — readers see consistent snapshot
         auto new_rp = std::make_shared<const GovernanceRules>(std::move(new_rules));
         std::atomic_store(&rules_ptr_, new_rp);
+        // The next reload's declared orders are compared with what is now installed.
+        installed_config_text_ = ev.config_text;
+        applyInstalledJsonDepth(ev.config_text);  // what the evaluation withheld (A106)
         // As at startup: active when the file's own mode is not off, or when an
         // overlay (an environment) raises it to audit or enforce. This read the
         // overlaid mode alone, so a run started under an environment whose mode
@@ -7519,6 +7912,10 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         auto new_rules = std::make_shared<GovernanceRules>();
         loadFromJson(j, *new_rules);
         loaded_path_ = path;
+        // The raw JSON a reload's declared orders are compared with
+        // (checkDeclaredOrderRatchet). The file's own text: a reload parses the
+        // file alone and resolves no `extends`, so both sides are unresolved.
+        installed_config_text_ = j.dump();
 
         // H4: verify child signature BEFORE resolving extends chain —
         // reject untrusted children before touching anything they reference
