@@ -80,11 +80,13 @@ SUM=$(python3 -c "print(sum(i % 7 for i in range($N)))")
 
 # Each agent is routed by a token in its system prompt; its first reply is a
 # call to `crunch`, held open so two sends overlap at the stub, and its second
-# the final text. On build-windows (#354) the two sends' first calls overlapped
-# in 1 of 3 runs at a 300 ms hold and 0 of 3 at 1200 ms, so the hold is not what
-# keeps them apart there; why is undetermined (no other suite measures overlap at
-# the stub on Windows -- the ones that do skip there). TV-00b's FAIL line carries
-# every request's window, so a failing run shows whether the calls were serial.
+# the final text. On build-windows (#354) TV-00b failed at a 300 and a 1200 ms
+# hold; the windows its FAIL line carries showed why: each run's keys.log held
+# three of its four requests, one of the two concurrent first calls missing. The
+# two calls did overlap -- both second calls followed them -- but the stub's two
+# threads appended their lines at once, and a Windows append is not atomic
+# between file handles. The stub now serialises its log appends (A112;
+# test_stub_routing.sh SR-09).
 HOLD_MS=300
 FIXTURE='{"routes": {
   "TOKEN-ALPHA": {"responses": [{"tool_calls": [{"name": "crunch", "args": {"tag": "alpha"}}], "hold_ms": '"$HOLD_MS"'}, {"content": "DONE-alpha"}]},

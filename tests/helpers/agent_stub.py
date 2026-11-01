@@ -111,6 +111,26 @@ class StubState:
         self.count = 0        # every request, for req_N.json numbering
         self.global_idx = 0   # advances only on UNROUTED requests
         self.lock = threading.Lock()
+        # Appends to the shared logs (keys.log, routes.log, pairing.log) are
+        # serialised. Two handler threads append at the same moment whenever two
+        # requests are held together, and on Windows an append is not atomic
+        # between file handles (the C runtime seeks to the end, then writes):
+        # both lines land at one offset and one is lost. Observed on build-windows
+        # (#354): test_tool_thread_vm.sh's two concurrent first calls left one
+        # keys.log line in 3 of 3 runs. POSIX O_APPEND is atomic, so Linux never
+        # showed it.
+        self.log_lock = threading.Lock()
+
+    def append_log(self, name, line):
+        """Append one line to a shared log in state_dir, one writer at a time."""
+        if not self.state_dir:
+            return
+        try:
+            with self.log_lock:
+                with open("%s/%s" % (self.state_dir, name), "a", encoding="utf-8", errors="replace") as f:
+                    f.write(line)
+        except OSError:
+            pass
 
     def log_key(self, n, api_key, t0, t1):
         """Record which API key served request n, and when.
@@ -121,13 +141,7 @@ class StubState:
         overlapping [t0,t1] windows are what proves requests were genuinely
         in flight together rather than merely adjacent in the log.
         """
-        if not self.state_dir:
-            return
-        try:
-            with open("%s/keys.log" % self.state_dir, "a", encoding="utf-8", errors="replace") as f:
-                f.write("%d %s %d %d\n" % (n, api_key or "-", t0, t1))
-        except OSError:
-            pass
+        self.append_log("keys.log", "%d %s %d %d\n" % (n, api_key or "-", t0, t1))
 
     def _pick(self, responses, idx):
         if not responses:
@@ -157,11 +171,7 @@ class StubState:
                     f.write(body)
             except OSError:
                 pass
-            try:
-                with open("%s/routes.log" % self.state_dir, "a", encoding="utf-8", errors="replace") as f:
-                    f.write("%d %s\n" % (n, key if key is not None else "-"))
-            except OSError:
-                pass
+            self.append_log("routes.log", "%d %s\n" % (n, key if key is not None else "-"))
         return self._pick(responses, idx), n
 
 
@@ -244,12 +254,7 @@ class Handler(BaseHTTPRequestHandler):
         status = spec.get("status", 200)
         bad_pairing = STATE.validate_pairing and pairing_violation(body)
         if bad_pairing:
-            if STATE.state_dir:
-                try:
-                    with open("%s/pairing.log" % STATE.state_dir, "a", encoding="utf-8", errors="replace") as f:
-                        f.write("%d %s\n" % (req_n, bad_pairing))
-                except OSError:
-                    pass
+            STATE.append_log("pairing.log", "%d %s\n" % (req_n, bad_pairing))
             status = 400
             payload = {"error": {"code": 400, "message": PAIRING_ERROR,
                                  "status": "INVALID_ARGUMENT"}}
