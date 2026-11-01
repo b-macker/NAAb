@@ -28,8 +28,10 @@ tools/template_coverage.py, with its self-test) and classifies each one:
                                    (checkDeclaredOrderRatchet): K is true,
                                    false, lower, lower0 (0 = unlimited),
                                    higher, level, enum:a<b<c (loosest first),
-                                   superset or subset; J is the traced value
-                                   an absent key has
+                                   superset, subset, or present (a check block
+                                   whose presence is its on switch; takes no
+                                   default); J is the traced value an absent
+                                   key has
                fixed    -- why     no single tighter direction: the reload
                                    refuses any change
              An entry may name an ANCESTOR of loader leaves (a list of rules,
@@ -49,7 +51,9 @@ carry. The guard's job is the class: no new key reaches the reload path
 without someone deciding what a loosening of it means.
 
 Run:  python3 tools/ratchet_coverage.py [--strip-token TOKEN]... [--config-stdin]
-      python3 tools/ratchet_coverage.py --emit-orders   (the engine's table)
+      python3 tools/ratchet_coverage.py --emit-orders [--table-stdin]
+                                   (the engine's table, from the table file
+                                   or from stdin)
       --strip-token removes a literal from the ratchet text before matching,
       and --config-stdin reads governance_config.cpp from stdin instead of the
       tree (the test's negative controls: a planted loader key, a dropped
@@ -76,7 +80,7 @@ REGION_END = "bool GovernanceEngine::reloadIfChanged()"
 CLASSES = ("ratchet", "inert", "startup", "neutral", "order", "fixed")
 ORDER_KINDS = {"true": "True", "false": "False", "lower": "Lower", "lower0": "LowerZero",
                "higher": "Higher", "level": "Level", "enum": "Enum",
-               "superset": "Superset", "subset": "Subset"}
+               "superset": "Superset", "subset": "Subset", "present": "Present"}
 LEVEL_NAMES = ("hard", "soft", "advisory", "detect", "approval_required", "none")
 INC = os.path.join(REPO, "src", "runtime", "ratchet_declared_orders.inc")
 
@@ -178,7 +182,8 @@ def parse_order(rest):
               "lower": _num(default), "lower0": _num(default), "higher": _num(default),
               "level": isinstance(default, str) and default.lower() in LEVEL_NAMES,
               "enum": isinstance(default, str) and values is not None and default in values,
-              "superset": isinstance(default, list), "subset": isinstance(default, list)}[kind]
+              "superset": isinstance(default, list), "subset": isinstance(default, list),
+              "present": False}[kind]
         if not ok:
             return None, None, None, None, "default %r does not fit order %s" % (default, kind)
     return kind, values, (default if has_default else _NO_DEFAULT), tail[2:].strip(), None
@@ -192,9 +197,13 @@ def _num(v):
 
 
 def load_table(path):
-    entries, errors = {}, []
     with open(path, "rb") as f:
-        lines = f.read().decode("utf-8", "replace").splitlines()
+        return load_table_text(f.read().decode("utf-8", "replace"))
+
+
+def load_table_text(text):
+    entries, errors = {}, []
+    lines = text.splitlines()
     for n, raw in enumerate(lines, 1):
         line = raw.strip()
         if not line or line.startswith("#"):
@@ -230,10 +239,10 @@ def load_table(path):
     return entries, errors
 
 
-def emit_orders(path=TABLE):
+def emit_orders(path=TABLE, text=None):
     """The engine's table: one C++ initialiser per order/fixed entry, in file order."""
     import json
-    entries, errors = load_table(path)
+    entries, errors = load_table_text(text) if text is not None else load_table(path)
     if errors:
         return None, errors
 
@@ -305,6 +314,10 @@ def classify_text(text, strip):
     result = {}
     for p in leaves:
         hit = covered_by(p, table)
+        # A key the ratchet names keeps that credit over an ANCESTOR's entry
+        # (a `present` block entry compares the block, not each key in it).
+        if hit is not None and hit != p and mentions(lits, ratchet_token(p)):
+            hit = None
         if hit is not None:
             cls, arg = table[hit]
             if cls == "ratchet" and not mentions(lits, arg):
@@ -327,7 +340,10 @@ def classify_text(text, strip):
 
 def main(argv):
     if "--emit-orders" in argv:
-        text, errors = emit_orders()
+        # --table-stdin: the table is read from stdin (the test's controls, and
+        # a native Windows python that cannot open an MSYS path).
+        table_text = sys.stdin.buffer.read().decode("utf-8", "replace") if "--table-stdin" in argv else None
+        text, errors = emit_orders(text=table_text)
         if errors:
             sys.stdout.buffer.write(("\n".join("!! " + e for e in errors) + "\n").encode("ascii", "replace"))
             return 1

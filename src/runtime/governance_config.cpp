@@ -4540,15 +4540,20 @@ static bool cddSignalValue(const ContextDriftConfig::Signals& s, int idx) {
 // replaced by an accepted reload) and of the new file, at each declared path.
 // Raw, not the parsed rules, because nothing maps a key path back to a field;
 // so it is fail-closed wherever the raw form is ambiguous:
-//   - a key present on one side only is compared against its declared default
-//     (a traced claim in the table); with no default declared, adding or
-//     removing it mid-run is refused;
+//   - a key present on one side only (itself, or because a section above it
+//     is) is compared against its declared default (a traced claim in the
+//     table); with no default declared, adding or removing it is refused;
 //   - a value of another type, or a level / enum value the order does not
 //     know, is refused unless it is unchanged;
-//   - when something ABOVE a declared key is not an object (or array, for
-//     "[]") on either side -- a check's shorthand ("no_temporary_code":
-//     "hard"), a list-form agents block -- the effective value comes from that
-//     node, so any change of it is refused.
+//   - when a SHORTHAND stands above a declared key ("no_temporary_code":
+//     "hard", "network": false) and the shorthand sets that key (enabled,
+//     level, format, mode), any change of it is refused; a key the shorthand
+//     does not set keeps its default on that side;
+//   - a check block whose presence is its on switch is declared `present`:
+//     removing it (or a change of its shorthand into a form the loaders read
+//     differently) is refused, adding it is a tightening, and while it is
+//     absent from the RUNNING config nothing declared under it is compared --
+//     the old check was off, so no value under it can loosen.
 // So a reload that rewrites a setting into an equivalent form can be refused.
 // The violation names the key and the direction only: a refused reload is
 // printed where the program can read it.
@@ -4565,6 +4570,7 @@ enum class DeclaredOrder {
     Superset,   // a list: adding entries tightens, removing one loosens
     Subset,     // a list: removing entries tightens, adding one loosens
     Fixed,      // no single tighter direction: any change mid-run is refused
+    Present,    // a check block whose PRESENCE is its on switch: removing it loosens
 };
 
 struct DeclaredOrderEntry {
@@ -4591,6 +4597,7 @@ const char* declaredOrderPhrase(DeclaredOrder o) {
         case DeclaredOrder::Superset:  return "entries may be added, not removed";
         case DeclaredOrder::Subset:    return "entries may be removed, not added";
         case DeclaredOrder::Fixed:     return "fixed while the run lasts";
+        case DeclaredOrder::Present:   return "the block's presence switches the check on";
     }
     return "declared";
 }
@@ -4661,24 +4668,55 @@ int compareDeclared(const DeclaredOrderEntry& e, const nlohmann::json& a,
         }
         case DeclaredOrder::Fixed:
             return 2;
+        case DeclaredOrder::Present:
+            return 2;  // walkDeclared decides presence itself (presenceOf)
     }
     return 2;
 }
 
+// Whether a presence-enabled check block is on: absent = off; true, a level
+// the engine knows, or an object = on. Anything else -- false, an unknown or
+// "none" level, a number -- is -1: the loaders do not agree on it (a
+// complexity_floor block is on whatever its value, a shorthand false is off
+// elsewhere), so a change into or out of it is refused.
+int presenceOf(const nlohmann::json* x) {
+    if (!x || x->is_null()) return 0;
+    if (x->is_object()) return 1;
+    if (x->is_boolean()) return x->get<bool>() ? 1 : -1;
+    if (x->is_string()) {
+        EnforcementLevel lv;
+        if (matchEnforcementLevel(x->get<std::string>(), lv) && lv != EnforcementLevel::NONE) return 1;
+        return -1;
+    }
+    return -1;
+}
+
+// The keys a shorthand value sets when it stands where an object belongs:
+// parseEnforcementLevel()'s enabled and level, a capability's bare switch or
+// mode, restrictions.polyglot_output's format. Every other key below a
+// shorthand keeps its default on that side.
+bool shorthandSets(const std::string& leaf) {
+    return leaf == "enabled" || leaf == "level" || leaf == "format" || leaf == "mode";
+}
+
 void walkDeclared(const DeclaredOrderEntry& e, const std::vector<std::string>& segs,
                   size_t i, const nlohmann::json* a, const nlohmann::json* b,
-                  const std::string& at, std::set<std::string>& violations,
-                  std::set<std::string>& notices) {
+                  const std::string& at, const std::set<size_t>& present_blocks,
+                  std::set<std::string>& violations, std::set<std::string>& notices) {
     if (!a && !b) return;
-    // A section present on one side only. Some sections switch their check on
-    // by being present (restrictions.*, the simple code_quality checks), so
-    // removing one -- even an empty one -- can loosen with no declared key
-    // below it ever set: refused, whatever lies below. Only the declared key
-    // itself may be absent on one side, and only with a traced default.
-    if ((!a || !b) && i < segs.size()) {
-        violations.insert(fmt::format(
-            "{}: added or removed mid-run, and settings in it are declared",
-            at.empty() ? std::string("(top level)") : at));
+    // A block whose presence is its on switch. Absent on the OLD side means the
+    // old check was off, so nothing under it can loosen: the declared keys
+    // below are not compared. Removing it is the Present entry's to refuse.
+    if (!a && present_blocks.count(i)) return;
+    if (i == segs.size() && e.order == DeclaredOrder::Present) {
+        const int pa = presenceOf(a), pb = presenceOf(b);
+        if (pa == pb && (pa != -1 || (a && b && *a == *b))) return;
+        if (pa == -1 || pb == -1)
+            violations.insert(fmt::format("{}: changed (declared: {})", at, declaredOrderPhrase(e.order)));
+        else if (pa > pb)
+            violations.insert(fmt::format("{}: removed (loosened; declared: {})", at, declaredOrderPhrase(e.order)));
+        else
+            notices.insert(fmt::format("{}: added (tightened)", at));
         return;
     }
     if (i == segs.size()) {
@@ -4715,12 +4753,21 @@ void walkDeclared(const DeclaredOrderEntry& e, const std::vector<std::string>& s
         return !x || (want_array ? x->is_array() : x->is_object());
     };
     if (!container_ok(a) || !container_ok(b)) {
-        // The effective value of the declared key comes from this node.
         if (a && b && *a == *b) return;
-        violations.insert(fmt::format(
-            "{}: its form changed mid-run, and settings below it are declared",
-            at.empty() ? std::string("(top level)") : at));
-        return;
+        // A shorthand ("no_temporary_code": "hard", "network": false) stands
+        // where the declared key's object belongs. When the shorthand SETS the
+        // key, its effective value comes from this node, whose forms do not
+        // compare: refused. Any other key keeps its default on that side, so
+        // the walk goes on with that side absent.
+        if (shorthandSets(segs.back())) {
+            violations.insert(fmt::format(
+                "{}: its form changed mid-run, and settings below it are declared",
+                at.empty() ? std::string("(top level)") : at));
+            return;
+        }
+        if (!container_ok(a)) a = nullptr;
+        if (!container_ok(b)) b = nullptr;
+        if (!a && !b) return;
     }
     auto join = [&](const std::string& part) {
         return at.empty() ? part : at + "." + part;
@@ -4730,7 +4777,7 @@ void walkDeclared(const DeclaredOrderEntry& e, const std::vector<std::string>& s
         for (size_t k = 0; k < n; ++k) {
             const nlohmann::json* ca = (a && k < a->size()) ? &(*a)[k] : nullptr;
             const nlohmann::json* cb = (b && k < b->size()) ? &(*b)[k] : nullptr;
-            walkDeclared(e, segs, i + 1, ca, cb, fmt::format("{}[{}]", at, k), violations, notices);
+            walkDeclared(e, segs, i + 1, ca, cb, fmt::format("{}[{}]", at, k), present_blocks, violations, notices);
         }
         return;
     }
@@ -4746,13 +4793,13 @@ void walkDeclared(const DeclaredOrderEntry& e, const std::vector<std::string>& s
             const nlohmann::json* ca = (a && a->contains(k)) ? &(*a)[k] : nullptr;
             const nlohmann::json* cb = (b && b->contains(k)) ? &(*b)[k] : nullptr;
             if (agent_map && (!ca || !cb)) continue;
-            walkDeclared(e, segs, i + 1, ca, cb, join(k), violations, notices);
+            walkDeclared(e, segs, i + 1, ca, cb, join(k), present_blocks, violations, notices);
         }
         return;
     }
     const nlohmann::json* ca = (a && a->contains(seg)) ? &(*a)[seg] : nullptr;
     const nlohmann::json* cb = (b && b->contains(seg)) ? &(*b)[seg] : nullptr;
-    walkDeclared(e, segs, i + 1, ca, cb, join(seg), violations, notices);
+    walkDeclared(e, segs, i + 1, ca, cb, join(seg), present_blocks, violations, notices);
 }
 
 }  // namespace
@@ -4774,15 +4821,27 @@ static bool checkDeclaredOrderRatchet(const std::string& installed_text,
             "cannot be compared (reload refused)");
         return false;
     }
-    std::set<std::string> v, n;
-    for (const DeclaredOrderEntry* e = kDeclaredOrders; e->path; ++e) {
+    auto split = [](const char* path) {
         std::vector<std::string> segs;
         std::string cur;
-        for (const char* p = e->path;; ++p) {
+        for (const char* p = path;; ++p) {
             if (*p == '.' || *p == '\0') { segs.push_back(cur); cur.clear(); if (!*p) break; }
             else cur += *p;
         }
-        walkDeclared(*e, segs, 0, &old_json, &new_json, "", v, n);
+        return segs;
+    };
+    std::vector<std::vector<std::string>> present;
+    for (const DeclaredOrderEntry* e = kDeclaredOrders; e->path; ++e)
+        if (e->order == DeclaredOrder::Present) present.push_back(split(e->path));
+    std::set<std::string> v, n;
+    for (const DeclaredOrderEntry* e = kDeclaredOrders; e->path; ++e) {
+        const std::vector<std::string> segs = split(e->path);
+        // The depths at which this key's walk passes a presence-enabled block.
+        std::set<size_t> blocks;
+        for (const auto& p : present)
+            if (p.size() < segs.size() && std::equal(p.begin(), p.end(), segs.begin()))
+                blocks.insert(p.size());
+        walkDeclared(*e, segs, 0, &old_json, &new_json, "", blocks, v, n);
     }
     violations.insert(violations.end(), v.begin(), v.end());
     notices.insert(notices.end(), n.begin(), n.end());
@@ -5645,6 +5704,14 @@ static bool checkRatchetViolation(
     chkRestrict(old_r.code_quality.no_incomplete_logic.enabled, new_r.code_quality.no_incomplete_logic.enabled, "code_quality.no_incomplete_logic.enabled");
     chkRestrict(old_r.code_quality.no_simulation_markers.enabled, new_r.code_quality.no_simulation_markers.enabled, "code_quality.no_simulation_markers.enabled");
     chkRestrict(old_r.taint_tracking.enabled, new_r.taint_tracking.enabled, "taint_tracking.enabled");
+    // An environment overlay (environments.<name>) can set these three, and a
+    // reload lays the startup environment over the new rules before this
+    // comparison (applyStartupOverlays), so they are compared here, on the
+    // overlaid rules, rather than on govern.json's raw text (Bundle 8 PR 2).
+    chkRestrict(old_r.quality_gate.enabled, new_r.quality_gate.enabled, "quality_gate.enabled");
+    chkRestrict(old_r.governance_baseline.enabled, new_r.governance_baseline.enabled, "governance_baseline.enabled");
+    chkRestrict(old_r.governance_baseline.fail_on_regression, new_r.governance_baseline.fail_on_regression,
+                "governance_baseline.fail_on_regression");
 
     // --- D0. Governance mode (ENFORCE < AUDIT < OFF, lower = stricter) ---
     // Never compared until the ratchet-coverage guard listed it: a signed

@@ -12,13 +12,22 @@
 #   <key>  startup  -- why     read once before the program runs; a reload
 #                              cannot change its effect
 #   <key>  neutral  -- why     changes no enforcement in either direction
+#   <key>  order K [default=J] -- why
+#                              a DECLARED ORDER the reload enforces (see the
+#                              Bundle 8 PR 2 block below for K and J)
+#   <key>  fixed    -- why     no single tighter direction: the reload refuses
+#                              any change
 #
-# Every other key the loader reads is UNCLASSIFIED and listed in
-# ratchet_unclassified_baseline.txt -- the debt, which may only shrink. Moving
-# a key from there to here is a claim: an inert/startup/neutral line needs a
-# reason that says how it was established (traced, or observed), and a ratchet
-# line needs a reload test, because "named" proves the ratchet MENTIONS a key,
-# not that it compares it in the right direction.
+# `order` and `fixed` lines are compiled into the engine
+# (src/runtime/ratchet_declared_orders.inc, written by
+# `python3 tools/ratchet_coverage.py --emit-orders`; RC-07 fails when the two
+# differ), so editing one changes what a reload may do. Every other key the
+# loader reads is UNCLASSIFIED and listed in ratchet_unclassified_baseline.txt,
+# which Bundle 8 PR 2 emptied and which may only shrink. Classifying a key is a
+# claim: an inert/startup/neutral line needs a reason that says how it was
+# established (traced, or observed), and a ratchet line needs a reload test,
+# because "named" proves the ratchet MENTIONS a key, not that it compares it in
+# the right direction.
 
 # --- Capability lists (checkCapabilityListRatchet, #303) --------------------
 capabilities.env_vars.blocked_read                 ratchet "capabilities.env_vars ({} lists)"
@@ -389,8 +398,6 @@ baselines.hash_keys                              fixed -- untraced: no single ti
 baselines.path                                   fixed -- untraced: where baselines are read and written; moving it mid-run changes which baselines count
 
 # governance_baseline
-governance_baseline.enabled                      order true -- rule: the governance baseline is compared only while enabled
-governance_baseline.fail_on_regression           order true -- traced: a regression against the baseline fails the run while true (main.cpp, governance_engine.cpp)
 governance_baseline.level                        order level -- rule: the level a regression is enforced at
 governance_baseline.path                         fixed -- untraced: where the baseline is read; moving it changes what counts as a regression
 
@@ -423,8 +430,8 @@ behavioral_sequences.window_size                 fixed -- untraced: no single ti
 behavioral_sequences.patterns                    fixed -- traced: listing any pattern REPLACES the built-in set (behavioral_sequence.cpp buildDefaultPatterns), so neither adding nor removing one is ordered; covers every field of a pattern
 
 # capabilities
-capabilities.filesystem.allowed_extensions       order subset -- rule: an allowlist; adding an extension allows more
-capabilities.filesystem.blocked_extensions       order superset -- rule: a blocklist; removing an extension allows more
+capabilities.filesystem.allowed_extensions       fixed -- traced: an allowlist where EMPTY means every extension (screened: no reader outside the loader), so neither adding nor removing an entry only tightens
+capabilities.filesystem.blocked_extensions       inert -- traced: not parsed at all; the loader warns that no check reads it (governance_config.cpp)
 capabilities.filesystem.max_file_size            order lower0 -- rule: 0 = no limit (template default 0)
 capabilities.filesystem.max_files                order lower0 -- rule: 0 = no limit (template default 0)
 capabilities.functions.<fn_name>.allowed_actions  ratchet "capabilities.functions.{}" -- traced: the function-scope ratchet (F5) compares effective permissions per name
@@ -432,12 +439,12 @@ capabilities.functions.<fn_name>.enabled         ratchet "capabilities.functions
 capabilities.functions.<fn_name>.level           ratchet "capabilities.functions.{}" -- traced: part of the function entry the F5 ratchet compares
 capabilities.network.allow_raw_sockets           order false -- rule: an allow_ switch
 capabilities.network.allow_websockets            order false -- rule: an allow_ switch
-capabilities.network.allowed_ports               order subset -- rule: an allowlist (A87: binds no program connection today)
-capabilities.process.allow_daemon                order false -- rule: an allow_ switch
-capabilities.process.max_processes               fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
-capabilities.process.signals                     order false -- rule: true lets the program send signals
-capabilities.process.spawn                       order false -- rule: true lets the program spawn processes
-capabilities.shell.allowed_commands              order subset -- rule: an allowlist; adding a command allows more
+capabilities.network.allowed_ports               fixed -- traced: an allowlist where EMPTY means every port (governance_engine.cpp and sandbox.cpp `if (!allowed_ports.empty())`), so removing the last entry loosens; any mid-run change refused (A87: binds no program connection today)
+capabilities.process.allow_daemon                inert -- traced: the loader extracts nothing below rationale and warns that no check reads it (A16, governance_config.cpp)
+capabilities.process.max_processes               inert -- traced: the loader extracts nothing below rationale and warns that no check reads it (A16, governance_config.cpp)
+capabilities.process.signals                     inert -- traced: the loader extracts nothing below rationale and warns that no check reads it (A16, governance_config.cpp)
+capabilities.process.spawn                       inert -- traced: the loader extracts nothing below rationale and warns that no check reads it (A16, governance_config.cpp)
+capabilities.shell.allowed_commands              fixed -- traced: an allowlist where EMPTY means every command (the sandbox's `if (!allowed_commands.empty())`), so removing the last entry loosens; any mid-run change refused
 capabilities.shell.max_execution_time            order lower0 -- rule: 0 = no limit (template default 0)
 
 # codegen
@@ -460,10 +467,10 @@ contradiction_detection.max_level                order level -- rule: the highes
 custom_rules                                     order superset -- traced: each rule is its own check (checkCustomRules); adding a rule adds a check, while removing or editing one is refused; covers every field of a rule
 
 # governance_plugins
-governance_plugins                               fixed -- traced: operator governance code loaded by the engine; which plugins run is not ranked; covers every field
+governance_plugins                               order superset -- traced: each entry loads an operator governance file and its rules (the loaded files are remembered, and an added one is loaded on the next check: test_reload_startup_overlays.sh PL-02); adding an entry adds rules, while removing or editing one is refused; compares whole entries
 
 # environments
-environments.<env_name>.<key>                    fixed -- traced: an environment overlays these onto the rules (applyEnvironmentTo); the overlaid rules are compared, and a change of an environment's raw value is refused too
+environments.<env_name>.<key>                    ratchet "quality_gate.enabled" -- traced: only the environment chosen at startup is applied; a reload re-reads it by name and lays it over the new rules before the ratchet compares them (applyStartupOverlays, A37), and each key an environment can set is compared there on the overlaid rules: mode (the mode and enforced-mode checks), quality_gate.enabled, governance_baseline.enabled / .fail_on_regression (chkRestrict) and the three report paths (checkEvidenceRatchet)
 
 # pipeline_separation
 pipeline_separation.enabled                      order true -- rule: the check runs only while enabled
@@ -474,7 +481,6 @@ prerequisites.enabled                            order true -- rule: prerequisit
 prerequisites.checks                             fixed -- traced: each check is a version requirement (governance_engine.cpp prerequisites loop); covers every field
 
 # quality_gate
-quality_gate.enabled                             order true -- rule: the end-of-run quality gate runs only while enabled
 quality_gate.conditions                          fixed -- traced: each condition is a metric, operator and threshold; no single order; covers every field
 
 # runtime_versions
@@ -551,7 +557,7 @@ code_quality.no_hallucinated_apis.shell_patterns  inert -- screened: parsed into
 code_quality.no_hallucinated_apis.go_patterns    inert -- screened: parsed into the struct and read by nothing (grep of src/ and include/ outside the loader and the known-keys table)
 code_quality.no_hallucinated_apis.ruby_patterns  inert -- screened: parsed into the struct and read by nothing (grep of src/ and include/ outside the loader and the known-keys table)
 code_quality.no_hallucinated_apis.cross_language_patterns  inert -- screened: parsed into the struct and read by nothing (grep of src/ and include/ outside the loader and the known-keys table)
-code_quality.no_hallucinated_apis.enabled        order true -- traced: read in the object form (`ha.enabled = val["enabled"]`); the check runs only while true
+code_quality.no_hallucinated_apis.enabled        order true default=true -- traced: the object form sets enabled = true and then reads "enabled" when present, so an absent key inside the block is true
 code_quality.no_hallucinated_apis.level          order level -- traced: the level the check enforces at
 code_quality.no_hallucinated_apis.case_sensitive  order false -- rule: false matches without case, so it matches more
 code_quality.no_hallucinated_apis.check_cross_language  order true -- traced: each enables one sub-check of the hallucinated-API check
@@ -627,12 +633,12 @@ code_quality.complexity_floor.weights.pipeline_cap  order lower -- traced: each 
 code_quality.complexity_floor.weights.pointers   order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
 code_quality.complexity_floor.weights.recursion  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
 code_quality.complexity_floor.weights.try_catch  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
-code_quality.duplicate_calls.enabled             order true -- traced: read (`dc["enabled"]`); the grouped advisory runs only while true
+code_quality.duplicate_calls.enabled             order true default=true -- traced: struct default true (governance.h), changed only when the key is present
 code_quality.duplicate_calls.threshold           order lower -- rule: a call repeated at least this often is reported
 code_quality.duplicate_calls.max_entries         neutral -- rule: how many grouped entries the advisory prints; display only
-code_quality.polyglot_try_catch.enabled          order true -- traced: read (`ptc["enabled"]`); the grouped advisory runs only while true
+code_quality.polyglot_try_catch.enabled          order true default=true -- traced: struct default true (governance.h), changed only when the key is present
 code_quality.polyglot_try_catch.max_entries      neutral -- rule: how many grouped entries the advisory prints; display only
-code_quality.intent_validation.enabled           order true -- traced: read in the object form (`iv["enabled"]`); the check runs only while true
+code_quality.intent_validation.enabled           order true default=true -- traced: the object form sets enabled = true and then reads "enabled" when present, so an absent key inside the block is true
 code_quality.intent_validation.required          order true -- traced: functions need a declared intent while true (governance_checks.cpp `cfg.required`)
 code_quality.intent_validation.level             order level -- traced: the level a mismatch is enforced at
 code_quality.intent_validation.missing_level     order level -- traced: the level a missing intent is enforced at
@@ -852,11 +858,11 @@ restrictions.privilege_escalation.block_su       order true -- traced: each enab
 restrictions.privilege_escalation.block_sudo     order true -- traced: each enables one privilege-escalation refusal
 restrictions.resource_abuse.block_disk_filling   order true -- traced: each enables one resource-abuse refusal
 restrictions.resource_abuse.block_fork_bomb      order true -- traced: each enables one resource-abuse refusal
-restrictions.information_disclosure.enabled      order true -- traced: this block reads its "enabled" key (the loader's comment lists it among the five that do)
+restrictions.information_disclosure.enabled      order true default=false -- traced: struct default false (governance.h), read only when present
 restrictions.information_disclosure.level        order level -- traced: the level the check enforces at
-restrictions.obfuscation.enabled                 order true -- traced: this block reads its "enabled" key (the loader's comment lists it among the five that do)
+restrictions.obfuscation.enabled                 order true default=true -- traced: struct default true (governance.h) and read only when present, so the check is on unless the key says false
 restrictions.obfuscation.level                   order level -- traced: the level the check enforces at
-restrictions.vcs_secret_extraction.enabled       order true -- traced: this block reads its "enabled" key (the loader's comment lists it among the five that do)
+restrictions.vcs_secret_extraction.enabled       order true default=true -- traced: struct default true (governance.h) and read only when present, so the check is on unless the key says false
 restrictions.vcs_secret_extraction.level         order level -- traced: the level the check enforces at
 restrictions.crypto.enabled                      neutral -- traced: not read beyond a warning; the block's presence enables the check (warnIgnoredEnable), and its declared .level makes adding or removing the block a refused change
 restrictions.crypto.level                        order level -- traced: the level a weak-crypto finding is enforced at
@@ -913,3 +919,44 @@ polyglot.variable_binding.require_explicit.level  order level -- traced: the lev
 requirements.main_block                          startup -- traced: checkMainBlockRequired runs once before the program on both engines (VM::execute before run(), Interpreter::visit(Program) at depth 0); covers every key
 requirements.error_handling                      inert -- traced: requiresErrorHandling() has no caller (warnUnimplementedRequirement, docs/findings/inert-config-keys.md); covers every key
 requirements.naming_conventions                  inert -- traced: no naming checker exists (warnUnimplementedRequirement); covers every key
+
+# Presence-enabled check blocks (walkDeclared: a block absent from the running
+# config means its check was off, so nothing below it is compared; removing one
+# is refused). Each struct's `enabled` defaults false and the loader switches it
+# on when the block is present (an object, or a shorthand true / level).
+code_quality.no_secrets                          order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_placeholders                     order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_hardcoded_results                order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_pii                              order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_temporary_code                   order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_simulation_markers               order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_mock_data                        order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_apologetic_language              order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_dead_code                        order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_debug_artifacts                  order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_unsafe_deserialization           order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_sql_injection                    order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_path_traversal                   order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_hardcoded_urls                   order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_hardcoded_ips                    order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.max_complexity                      order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.encoding                            order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_oversimplification               order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_incomplete_logic                 order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.no_hallucinated_apis                order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.complexity_floor                    order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.semantic_checks                     order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+code_quality.intent_validation                   order present -- traced: struct enabled = false (governance.h); the loader sets it from the block's presence or shorthand
+restrictions.dangerous_calls                     order present -- traced: struct enabled = false; the object form enables the check whatever its "enabled" says (warnIgnoredEnable)
+restrictions.shell_injection                     order present -- traced: struct enabled = false; the object form enables the check whatever its "enabled" says (warnIgnoredEnable)
+restrictions.privilege_escalation                order present -- traced: struct enabled = false; the object form enables the check whatever its "enabled" says (warnIgnoredEnable)
+restrictions.code_injection                      order present -- traced: struct enabled = false; the object form enables the check whatever its "enabled" says (warnIgnoredEnable)
+restrictions.crypto                              order present -- traced: struct enabled = false; the object form enables the check whatever its "enabled" says (warnIgnoredEnable)
+restrictions.imports                             order present -- traced: struct enabled = false; the object form enables the check whatever its "enabled" says (warnIgnoredEnable)
+languages.per_language.<lang_name>.dangerous_calls order present -- traced: struct flag false (LanguageConfig); parseEnforcementLevel turns a present value on
+languages.per_language.<lang_name>.no_console_log order present -- traced: struct flag false (LanguageConfig); parseEnforcementLevel turns a present value on
+languages.per_language.<lang_name>.no_curl_pipe_sh order present -- traced: struct flag false (LanguageConfig); parseEnforcementLevel turns a present value on
+languages.per_language.<lang_name>.no_var        order present -- traced: struct flag false (LanguageConfig); parseEnforcementLevel turns a present value on
+languages.per_language.<lang_name>.no_wget_pipe_bash order present -- traced: struct flag false (LanguageConfig); parseEnforcementLevel turns a present value on
+languages.per_language.<lang_name>.require_set_e order present -- traced: struct flag false (LanguageConfig); parseEnforcementLevel turns a present value on
+languages.per_language.<lang_name>.strict_mode   order present -- traced: struct flag false (LanguageConfig); parseEnforcementLevel turns a present value on

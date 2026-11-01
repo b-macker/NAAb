@@ -31,6 +31,12 @@
 #          key it credits (named credit is load-bearing), and stripping a
 #          table token makes that entry hollow
 #   RC-06  output is ASCII
+#   RC-07  src/runtime/ratchet_declared_orders.inc -- the declared orders the
+#          engine compiles and evaluateReload() enforces -- is exactly the
+#          table's --emit-orders output; RC-07c: a changed table line changes it
+#   RC-08  a malformed `order`/`fixed` line (unknown kind, a default that does
+#          not fit, enum values missing or misplaced, no reason) is refused,
+#          and a well-formed one is emitted (control)
 #
 # WHAT THIS DOES NOT CHECK: that a named or tabled comparison is in the right
 # DIRECTION, or that a reload reaches the key at runtime. "Named" means the
@@ -78,8 +84,16 @@ current="$(sed -n 's/^unclassified: //p' <<<"$OUT" | sort -u)"
 pinned="$(grep -v '^#' "$BASELINE" | grep -v '^[[:space:]]*$' | sort -u)"
 new_keys="$(comm -23 <(printf '%s\n' "$current") <(printf '%s\n' "$pinned") | grep -v '^$')"
 gone_keys="$(comm -13 <(printf '%s\n' "$current") <(printf '%s\n' "$pinned") | grep -v '^$')"
-if [ -z "$current" ]; then
-    bad "RC-02" "the tool reported no unclassified keys at all -- broken probe, not a result" "$OUT"
+leaves="$(sed -n 's/^count leaves: //p' <<<"$OUT")"
+if [ -z "$current" ] && [ -n "$pinned" ]; then
+    bad "RC-02" "the tool reported no unclassified keys while the baseline lists some -- broken probe, not a result" "$OUT"
+elif [ -z "$current" ] && ! grep -qx 'count unclassified: 0' <<<"$OUT"; then
+    bad "RC-02" "no unclassified line and no 'count unclassified: 0' -- broken probe, not a result" "$OUT"
+elif [ -z "$current" ] && [ -z "$pinned" ]; then
+    # The baseline was emptied in Bundle 8 PR 2. RC-04 is the control that the
+    # tool can still report an unclassified key; RC-01's self-test that it read
+    # the loader at all.
+    ok "RC-02" "no unclassified key, and the baseline is empty ($leaves loader keys, every one classified)"
 elif [ -z "$new_keys" ] && [ -z "$gone_keys" ]; then
     ok "RC-02" "unclassified keys match the baseline ($(printf '%s\n' "$current" | wc -l | tr -d ' ') keys of debt)"
 else
@@ -137,6 +151,59 @@ if grep -q '^hollow: capabilities.filesystem.blocked_paths$' <<<"$SOUT"; then
 else
     bad "RC-05b" "control failed: capabilities.filesystem.blocked_paths not reported hollow" "$SOUT"
 fi
+
+# ---- RC-07: the engine's table is the classification table --------------------
+# checkDeclaredOrderRatchet() compiles src/runtime/ratchet_declared_orders.inc,
+# which --emit-orders writes from ratchet_classification.txt. A table edit that
+# is not regenerated would leave the engine enforcing the OLD orders while the
+# table claims the new ones. Bash opens both files; python reads the table on
+# stdin, so a native Windows python never opens an MSYS path.
+INC="$REPO/src/runtime/ratchet_declared_orders.inc"
+TABLE="$SCRIPT_DIR/ratchet_classification.txt"
+python3 "$TOOL" --emit-orders --table-stdin < "$TABLE" > "$TMPD/emitted.inc" 2>&1; ERC=$?
+enc_strip_cr < "$TMPD/emitted.inc" > "$TMPD/emitted.n"; enc_strip_cr < "$INC" > "$TMPD/inc.n"
+n_orders="$(grep -c 'DeclaredOrder::' "$TMPD/inc.n")"
+if [ $ERC -ne 0 ]; then
+    bad "RC-07" "--emit-orders failed on the table" "$(cat "$TMPD/emitted.inc")"
+elif [ "$n_orders" -lt 100 ]; then
+    bad "RC-07" "the engine's table holds $n_orders entries -- broken probe, not a result" ""
+elif cmp -s "$TMPD/emitted.n" "$TMPD/inc.n"; then
+    ok "RC-07" "ratchet_declared_orders.inc is the table's --emit-orders output ($n_orders declared keys)"
+else
+    bad "RC-07" "ratchet_declared_orders.inc differs from the table -- regenerate: python3 tools/ratchet_coverage.py --emit-orders > src/runtime/ratchet_declared_orders.inc" \
+        "$(diff "$TMPD/inc.n" "$TMPD/emitted.n" | head -12)"
+fi
+# RC-07c: the comparison can fail. Flip one declared order in a copy of the
+# table: the emitted text must differ from the checked-in .inc.
+sed 's/^\(agent_dispatch\.hard_stop\.max_calls_per_run[[:space:]]*\)order lower0/\1order higher/' "$TABLE" > "$TMPD/flipped.txt"
+python3 "$TOOL" --emit-orders --table-stdin < "$TMPD/flipped.txt" 2>&1 | enc_strip_cr > "$TMPD/flipped.inc"
+if cmp -s "$TMPD/flipped.txt" "$TABLE"; then
+    bad "RC-07c" "control could not plant: the flip matched no table line" ""
+elif cmp -s "$TMPD/flipped.inc" "$TMPD/inc.n"; then
+    bad "RC-07c" "control failed: a flipped order emits the same .inc" ""
+else
+    ok "RC-07c" "control: a changed table line changes the engine's table"
+fi
+
+# ---- RC-08: a malformed declaration is refused, not emitted -------------------
+r8=""
+while IFS='|' read -r line want; do
+    o="$(printf '%s\n' "$line" | python3 "$TOOL" --emit-orders --table-stdin 2>&1)"; orc=$?
+    if [ $orc -eq 0 ] || ! grep -qF -- "$want" <<<"$o"; then r8+="$line -> rc=$orc: $o"$'\n'; fi
+done <<'EOF8'
+a.b  order bogus -- a reason long enough|unknown order kind
+a.b  order lower default="x" -- a reason long enough|does not fit
+a.b  order level default="strict" -- a reason long enough|does not fit
+a.b  order enum -- a reason long enough|enum needs
+a.b  order lower:x<y -- a reason long enough|enum needs
+a.b  order lower|needs '-- reason'
+a.b  fixed|needs '-- reason'
+EOF8
+ctl="$(printf 'a.b  order lower0 default=0 -- a reason long enough\nc.d  fixed -- a reason long enough\n' | python3 "$TOOL" --emit-orders --table-stdin 2>&1)"; crc=$?
+if [ -n "$r8" ]; then bad "RC-08" "a malformed declaration was emitted or refused for another reason" "$r8"
+elif [ $crc -ne 0 ] || ! grep -q '"a.b", DeclaredOrder::LowerZero, nullptr, "0"' <<<"$ctl" || ! grep -q '"c.d", DeclaredOrder::Fixed' <<<"$ctl"; then
+    bad "RC-08" "control failed: a well-formed table was not emitted" "$ctl"
+else ok "RC-08" "seven malformed declarations refused; a well-formed one emitted (control)"; fi
 
 # ---- RC-06 -------------------------------------------------------------------
 if enc_has_non_ascii "$TMPD/out.txt"; then bad "RC-06" "tool output is not ASCII" ""

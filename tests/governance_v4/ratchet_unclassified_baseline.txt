@@ -1,13 +1,12 @@
 # govern.json keys a signed mid-run reload installs that the ratchet does NOT
 # classify -- the debt tools/ratchet_coverage.py reports, pinned by
-# test_ratchet_coverage.sh. Generated 2026-10-11.
+# test_ratchet_coverage.sh. Generated 2026-10-11 with 773 keys; EMPTY since
+# Bundle 8 PR 2 (2026-11-01), which classified every one in
+# ratchet_classification.txt, most of them with a declared order the reload
+# enforces.
 #
-# A key here can be changed by a reload in EITHER direction with no ratchet
-# violation and no notice, wherever a check reads it live. Most are tuning
-# (thresholds, weights, telemetry paths) where that may well be fine; some are
-# not -- e.g. code_quality.no_temporary_code.enabled and most per-check
-# `.level` keys, which a reload can switch off or lower today. Nothing here was judged; the
-# list is what was left over.
+# A key here could be changed by a reload in EITHER direction with no ratchet
+# violation and no notice, wherever a check reads it live.
 #
 # HOW TO CHANGE IT
 #
