@@ -406,7 +406,7 @@ scoring.enabled                                  order true -- rule: the cumulat
 scoring.default_weight                           order higher -- traced: a violation with no rule weight adds this much risk (score accumulator); A60: weights may only rise
 scoring.rule_weights.<key>                       order higher -- traced: a rule's risk weight; A60 (owner's decision 2026-10-22): the governed side may only raise a weight
 scoring.red_threshold                            order lower -- traced: the score at which the risk gate refuses; lower refuses sooner
-scoring.yellow_threshold                         order lower -- traced: the score at which the risk gate warns; lower warns sooner
+scoring.yellow_threshold                         order lower0 -- traced: the score at which the risk gate warns, applied only when > 0 (governance_engine.cpp `scoring.yellow_threshold > 0`), so 0 switches the warning off: the loosest
 scoring.green_threshold                          fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
 scoring.threshold_mode                           fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
 
@@ -415,7 +415,7 @@ scorers.<name>.enabled                           order true -- rule: the named s
 scorers.<name>.default_weight                    order higher -- traced: as scoring.default_weight, for the named scorer
 scorers.<name>.rule_weights.<key>                order higher -- traced: as scoring.rule_weights, for the named scorer
 scorers.<name>.red_threshold                     order lower -- traced: as scoring.red_threshold, for the named scorer
-scorers.<name>.yellow_threshold                  order lower -- traced: as scoring.yellow_threshold, for the named scorer
+scorers.<name>.yellow_threshold                  order lower0 -- traced: as scoring.yellow_threshold, for the named scorer (0 switches the warning off)
 scorers.<name>.green_threshold                   fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
 scorers.<name>.threshold_mode                    fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
 
@@ -600,7 +600,7 @@ code_quality.no_mock_data.literal_patterns       fixed -- traced: a non-empty li
 code_quality.no_mock_data.ignore_in_test_context  order false -- rule: true skips findings in a test context
 code_quality.no_apologetic_language.scan_comments_only  order false -- rule: true limits the scan to comments
 code_quality.no_apologetic_language.scan_strings  order true -- rule: true adds string literals to the scan
-code_quality.max_complexity.max_lines_per_block  order lower -- rule: a block above the maximum is reported; a lower maximum reports more
+code_quality.max_complexity.max_lines_per_block  order lower0 -- traced: a block above the maximum is reported, only when > 0 (governance_checks.cpp `cfg.max_lines_per_block > 0`), so 0 = no limit
 code_quality.max_complexity.max_nesting_depth    order lower -- rule: a block above the maximum is reported; a lower maximum reports more
 code_quality.max_complexity.max_parameters       order lower -- rule: a block above the maximum is reported; a lower maximum reports more
 code_quality.encoding.block_null_bytes           order true -- rule: each enables one encoding refusal
@@ -634,7 +634,7 @@ code_quality.complexity_floor.weights.pointers   order lower -- traced: each con
 code_quality.complexity_floor.weights.recursion  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
 code_quality.complexity_floor.weights.try_catch  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
 code_quality.duplicate_calls.enabled             order true default=true -- traced: struct default true (governance.h), changed only when the key is present
-code_quality.duplicate_calls.threshold           order lower -- rule: a call repeated at least this often is reported
+code_quality.duplicate_calls.threshold           order lower0 -- traced: a call repeated at least this often is reported, only when > 0 (governance_engine.cpp `duplicate_calls.threshold > 0`), so 0 switches the advisory off
 code_quality.duplicate_calls.max_entries         neutral -- rule: how many grouped entries the advisory prints; display only
 code_quality.polyglot_try_catch.enabled          order true default=true -- traced: struct default true (governance.h), changed only when the key is present
 code_quality.polyglot_try_catch.max_entries      neutral -- rule: how many grouped entries the advisory prints; display only

@@ -6555,10 +6555,38 @@ static bool agentBehaviorFieldsDiffer(const AgentConfig& a, const AgentConfig& b
            a.context_drift_signals != b.context_drift_signals;
 }
 
+// limits.data.max_json_depth is applied by the loader to a PROCESS-WIDE
+// setting (naab::limits::setMaxJsonDepth) while it parses. A reload parses the
+// new file before it decides, so an evaluation must leave that setting as it
+// found it -- a refused reload used to raise the JSON depth limit anyway
+// (A106) -- and the install applies the accepted file's value.
+namespace {
+struct JsonDepthRestore {
+    int saved = naab::limits::getMaxJsonDepth();
+    ~JsonDepthRestore() { naab::limits::getMaxJsonDepth() = saved; }
+};
+}  // namespace
+
+static void applyInstalledJsonDepth(const std::string& config_text) {
+    try {
+        const nlohmann::json j = nlohmann::json::parse(config_text);
+        if (!j.contains("limits") || !j["limits"].is_object()) return;
+        const auto& lim = j["limits"];
+        if (!lim.contains("data") || !lim["data"].is_object()) return;
+        const auto& d = lim["data"];
+        if (d.contains("max_json_depth") && d["max_json_depth"].is_number_integer())
+            naab::limits::setMaxJsonDepth(d["max_json_depth"].get<int>());
+    } catch (...) {
+        // The text was parsed once already; nothing to apply if it no longer parses.
+    }
+}
+
 GovernanceEngine::ReloadEvaluation GovernanceEngine::evaluateReload(
         const std::string& path, bool verify_signature) {
     using Outcome = ReloadEvaluation::Outcome;
     ReloadEvaluation ev;
+    // An evaluation installs nothing, the process-wide JSON depth included.
+    JsonDepthRestore json_depth_restore;
 
     std::ifstream ifs(path);
     if (!ifs.is_open()) {
@@ -6798,6 +6826,7 @@ bool GovernanceEngine::reloadIfChanged() {
         std::atomic_store(&rules_ptr_, new_rp);
         // The next reload's declared orders are compared with what is now installed.
         installed_config_text_ = ev.config_text;
+        applyInstalledJsonDepth(ev.config_text);  // what the evaluation withheld (A106)
         // As at startup: active when the file's own mode is not off, or when an
         // overlay (an environment) raises it to audit or enforce. This read the
         // overlaid mode alone, so a run started under an environment whose mode

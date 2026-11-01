@@ -100,8 +100,9 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
   - A99: embedded Python's allowlist scrub keeps `LD_LIBRARY_PATH`, which every other child's scrub withholds. It is traced, not measured. Removing it could break Python's own subprocesses on Termux, so it waits for a measurement there.
 
 **What PR 2 found.** Each finding has a row in `docs/open-investigations.md`.
-- **Fixed in PR 2**, both tightening only:
+- **Fixed in PR 2**, each tightening only:
   - A103: the codegen ratchet read 0 (no cap) as the tightest value of five caps, and the 0 timeout as 0 s instead of the 15 s fallback;
+  - A106: a reload the ratchet refused still raised the JSON depth limit, which the loader sets process-wide while it parses;
   - A104: the 773 keys themselves. Most were live settings a signed reload could loosen: run budgets, the `limits.array_size` / `call_depth` aliases, `context_drift.enabled`, `restrictions.polyglot_output`, presence-enabled check blocks, breaker and exposure thresholds, and an environment's `quality_gate.enabled`. On master the probe's loosenings were accepted for 463 of 475 declared keys.
 - **Open, waiting on the owner:**
   - A105: a non-empty `custom_patterns` on a simple code_quality check replaces its built-in patterns (observed: one added pattern let a `# for now` block run). The reload side is closed (the lists are `fixed`); making `custom_patterns` append at startup is a behaviour change to schedule.
