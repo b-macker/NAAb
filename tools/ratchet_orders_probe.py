@@ -234,6 +234,8 @@ def main(argv):
         else:
             sys.stdout.buffer.write(("unknown argument: %s\n" % argv[i]).encode("ascii", "replace"))
             return 2
+    if gov and not os.path.exists(gov) and os.path.exists(gov + ".exe"):
+        gov += ".exe"  # Windows: the suite names the binary without its extension
     if not gov or not os.path.exists(gov):
         sys.stdout.buffer.write(b"probe: --naab-gov PATH is required and must exist -- UNMEASURABLE\n")
         return 1

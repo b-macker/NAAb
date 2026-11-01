@@ -51,8 +51,12 @@ if [ ! -x "$NAAB" ]; then
 fi
 
 source "$SCRIPT_DIR/../helpers/config_swap.sh"
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+# The configs are unsigned: an empty, isolated trust store keeps the result
+# independent of whatever else populated ~/.naab/trusted-keys.
+setup_isolated_trust
 W="$(mktemp -d)"
-cleanup() { stop_swap_operators; rm -rf "$W"; }
+cleanup() { stop_swap_operators; teardown_isolated_trust; rm -rf "$W"; }
 trap cleanup EXIT
 
 cfg() {  # dir depth

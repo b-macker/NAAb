@@ -98,7 +98,11 @@ if ! command -v python3 >/dev/null 2>&1; then
     skip "DO-00" "python3 missing -- UNMEASURABLE"; report; exit 0
 fi
 
-C="$(mktemp -d)"; trap 'rm -rf "$C"' EXIT
+# The configs are unsigned: an empty, isolated trust store keeps every verdict
+# independent of whatever else populated ~/.naab/trusted-keys.
+source "$REPO/tests/helpers/trust_setup.sh"
+setup_isolated_trust
+C="$(mktemp -d)"; trap 'teardown_isolated_trust; rm -rf "$C"' EXIT
 unset NAAB_GOVERN_KEY NAAB_SIGNING_KEY
 cfg() { printf '%s' "$2" > "$C/$1"; }
 B='"version":"3.0","mode":"enforce"'
@@ -135,7 +139,11 @@ if [ $RC -eq 0 ] && names "ACCEPTED"; then ok "DO-00" "harness: an identical rel
 else bad "DO-00" "harness: an identical reload exited $RC" "$OUT"; report; exit 1; fi
 
 # ---- DO-01: every declared key through the engine ---------------------------
-POUT="$(python3 "$PROBE" --naab-gov "$GOV" 2>&1)"; PRC=$?
+# python3 is a native program under MSYS2 and cannot open an MSYS path, so the
+# paths it is handed go through native_path (unchanged elsewhere).
+. "$REPO/tests/helpers/native_path.sh"
+GOV_N="$(native_path "$GOV")"
+POUT="$(python3 "$PROBE" --naab-gov "$GOV_N" 2>&1)"; PRC=$?
 keys="$(sed -n 's/^keys probed: //p' <<<"$POUT")"
 arms="$(sed -n 's/^arms: //p' <<<"$POUT")"
 if [ -z "$keys" ] || [ "${keys:-0}" -lt 100 ]; then
@@ -151,7 +159,7 @@ sed 's/^\(agent_dispatch\.hard_stop\.max_calls_per_run[[:space:]]*\)order lower0
 if cmp -s "$C/flipped.txt" "$TABLE"; then
     bad "DO-02" "control could not plant: the flip matched no table line" ""
 else
-    FOUT="$(python3 "$PROBE" --naab-gov "$GOV" --table "$C/flipped.txt" --only '^agent_dispatch\.hard_stop\.max_calls_per_run$' 2>&1)"
+    FOUT="$(python3 "$PROBE" --naab-gov "$GOV_N" --table "$(native_path "$C/flipped.txt")" --only '^agent_dispatch\.hard_stop\.max_calls_per_run$' 2>&1)"
     if grep -q '^key FAIL agent_dispatch.hard_stop.max_calls_per_run' <<<"$FOUT"; then
         ok "DO-02" "control: a reversed order in the table makes the probe FAIL that key (it judges the engine)"
     else
