@@ -9870,23 +9870,24 @@ std::string GovernanceEngine::checkPreExecution(
     // so it is the path most matches actually take: an 8-turn run whose pattern
     // fired on every turn produced ZERO BSD_MATCH events.
     //
-    // matched_events holds the steps BEFORE this one, hence the +1: the blocked
-    // action is the step that would have completed the sequence.
+    // A113: match.matched_events is the FULL completed sequence, INCLUDING the
+    // blocked step (advancePattern pushes the candidate before completing), the
+    // same convention the completed path uses. So the count is size(), not
+    // size()+1, and the blocked action is already the last matched event -- do
+    // not append `detail` again.
     {
         std::string events_joined;
         for (size_t i = 0; i < match.matched_events.size(); i++) {
             if (i > 0) events_joined += ",";
             events_joined += match.matched_events[i].detail;
         }
-        if (!events_joined.empty()) events_joined += ",";
-        events_joined += detail;
         if (events_joined.size() > 300) events_joined = events_joined.substr(0, 300);
         writeAgentTelemetry("BSD_MATCH", {
             {"handle_id",     std::to_string(current_agent_handle_.load(std::memory_order_relaxed))},
             {"turn",          std::to_string(current_agent_turn_.load(std::memory_order_relaxed))},
             {"pattern_name",  match.pattern_name},
             {"level",         levelToString(match.pattern->level)},
-            {"steps_matched", std::to_string(match.matched_events.size() + 1)},
+            {"steps_matched", std::to_string(match.matched_events.size())},
             {"events",        events_joined},
             {"path",          "pre_execution"}
         });
@@ -9901,7 +9902,7 @@ std::string GovernanceEngine::checkPreExecution(
         formatError(match.pattern->level,
             fmt::format("Behavioral sequence '{}' blocked before execution: '{}' would "
                 "complete a dangerous {}-step pattern",
-                match.pattern_name, detail, match.matched_events.size() + 1),
+                match.pattern_name, detail, match.matched_events.size()),
             "", "behavioral_sequences." + match.pattern_name,
             "This action would complete a known dangerous sequence.\n"
             "The operation was blocked before execution.",
