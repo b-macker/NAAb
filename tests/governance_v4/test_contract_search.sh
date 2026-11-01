@@ -20,6 +20,7 @@
 #   S3 naab-gov does not check the number of reports         -> CS-09
 #   S4 main is compiled in search mode                       -> CS-04 CS-07
 #   S5 the random part ignores --seed                        -> CS-02b
+#   (CS-12's subject, the ScopedTempDir, is covered by TD-00's prefix list)
 #   (the clause suite's M1 and M2 also turn CS-01/CS-03..05 red: no clause, no
 #   counterexample)
 #
@@ -47,6 +48,10 @@ esac
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+# Every config here is unsigned: with a key in the ambient trust store an
+# unsigned govern.json is an INTEGRITY BLOCK, so the store is this run's own.
+export NAAB_TRUST_STORE_DIR="$TMP/trust"
+mkdir -p "$NAAB_TRUST_STORE_DIR"
 
 # search NAME CONFIG PROGRAM [naab-gov options...] -> OUT, RC, DIR
 search() {
@@ -220,6 +225,21 @@ mkdir -p "$TMP/cs11"; printf '%s\n' "$C_ABS" > "$TMP/cs11/govern.json"; printf '
 OUT="$("$GOV" contracts "$TMP/cs11/p.naab" --naab "$DEAD" 2>&1)"; RC=$?
 if [ "$RC" -eq 2 ] && has "did not finish"; then pass "CS-11 a dead interpreter reads UNMEASURABLE"
 else fail "CS-11 dead interpreter (rc=$RC)" "$OUT"; fi
+
+# The cases file's directory is removed when the search ends (ScopedTempDir).
+TD="$TMP/tmpdir"; mkdir -p "$TD"
+mkdir -p "$TD/naab_contracts_probe"
+if [ -n "$(find "$TD" -maxdepth 1 -name 'naab_contracts_*' -type d)" ]; then
+    rmdir "$TD/naab_contracts_probe"
+    mkdir -p "$TMP/cs12"; printf '%s\n' "$C_ABS" > "$TMP/cs12/govern.json"; printf '%s\n' "$GOOD" > "$TMP/cs12/p.naab"
+    OUT="$(TMPDIR="$TD" "$GOV" contracts "$TMP/cs12/p.naab" --naab "$NAAB" --cases 20 2>&1)"; RC=$?
+    LEFT="$(find "$TD" -maxdepth 1 -name 'naab_contracts_*' -type d)"
+    if [ "$RC" -eq 0 ] && has "no counterexample found" && [ -z "$LEFT" ]; then
+        pass "CS-12 the search leaves no temporary directory behind"
+    else fail "CS-12 temporary directory left (rc=$RC): $LEFT" "$OUT"; fi
+else
+    skip "CS-12 the probe cannot see a planted directory"
+fi
 
 echo
 echo "contract search: $PASS passed, $FAIL failed, $SKIP unmeasurable"

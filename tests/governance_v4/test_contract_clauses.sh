@@ -55,6 +55,10 @@ fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+# Every config here is unsigned: with a key in the ambient trust store an
+# unsigned govern.json is an INTEGRITY BLOCK, so the store is this run's own.
+export NAAB_TRUST_STORE_DIR="$TMP/trust"
+mkdir -p "$NAAB_TRUST_STORE_DIR"
 
 # run NAME CONFIG PROGRAM [extra args...] -> sets OUT (stdout+stderr) and RC
 run() {

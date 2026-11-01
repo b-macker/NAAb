@@ -159,8 +159,10 @@ shape_info() {
         sub-*)      echo "php naab_sub_" ;;
     esac
 }
-# Prefixes with no shape above. Empty: every prefix in src/ has a case.
-UNCOVERED_PREFIXES=""
+# Prefixes with no shape above, each with where its cleanup IS checked.
+#   naab_contracts_  naab-gov contracts' cases file: not an executor, nothing
+#                    to stub; tests/governance_v4/test_contract_search.sh CS-12.
+UNCOVERED_PREFIXES="naab_contracts_"
 
 # ---- the probe -----------------------------------------------------------
 leftovers() {  # $1 = TMPDIR of the run -> every naab_* directory still in it

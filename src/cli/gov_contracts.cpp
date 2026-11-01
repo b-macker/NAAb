@@ -22,6 +22,7 @@
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/ast.h"
+#include "naab/scoped_temp_dir.h"
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -300,18 +301,15 @@ int cmdContracts(const std::vector<std::string>& args, const char* argv0) {
         }
         naab_path = fs::absolute(naab_path).string();
 
+        // The cases file lives in a directory this command owns and removes
+        // on every exit (scoped_temp_dir.h); test_contract_search.sh CS-12.
         const char* tmpdir_env = std::getenv("TMPDIR");
-        std::string tmpl_s = std::string(tmpdir_env && *tmpdir_env ? tmpdir_env : "/tmp") +
-                             "/naab-contracts-XXXXXX";
-        std::vector<char> tbuf(tmpl_s.begin(), tmpl_s.end());
-        tbuf.push_back('\0');
-        char* made = mkdtemp(tbuf.data());
-        if (!made) {
+        naab::runtime::ScopedTempDir tdir(tmpdir_env && *tmpdir_env ? tmpdir_env : "/tmp", "naab_contracts_");
+        if (!tdir.valid()) {
             std::cerr << "naab-gov contracts: cannot make a temporary directory\n";
             return 4;
         }
-        const std::string tdir = made;
-        const std::string cases_path = tdir + "/cases.json";
+        const std::string cases_path = (tdir.path() / "cases.json").string();
         {
             std::ofstream cf(cases_path);
             cf << json{{"cases", case_list}}.dump();
@@ -340,8 +338,6 @@ int cmdContracts(const std::vector<std::string>& args, const char* argv0) {
                 }
                 return false;
             });
-        std::error_code ec;
-        fs::remove_all(tdir, ec);
         worker_rc = (r.started && !r.timed_out && r.term_signal == 0) ? r.exit_code : -1;
         worker_err = r.err;
 
