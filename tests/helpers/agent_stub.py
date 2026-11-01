@@ -71,6 +71,15 @@ engine that answers a call it never showed (A44(b)) fails here as it would
 against the provider, instead of passing a stub that accepts anything.
 "validate_tool_pairing": false in the fixture turns the check off.
 
+Two keys let a fixture send what no well-behaved provider would (the
+model-channel fuzzer, tests/fuzzing/model_channel/):
+    {"raw_payload": {...}}     this JSON object is the whole response body,
+                               in place of the generateContent shape
+    {"raw_body": "..."}        these exact characters are the body, encoded
+                               as Latin-1 so any byte 0-255 can be sent
+                               (malformed JSON, truncated bodies, invalid UTF-8)
+Both take "status" (default 200) and "hold_ms" as usual.
+
 The server is threaded, so concurrent dispatch is served concurrently.
 StubState is mutated only under its lock, so response-queue semantics are
 unchanged from the single-threaded version.
@@ -238,13 +247,20 @@ class Handler(BaseHTTPRequestHandler):
             status = 400
             payload = {"error": {"code": 400, "message": PAIRING_ERROR,
                                  "status": "INVALID_ARGUMENT"}}
+        elif "raw_body" in spec:
+            payload = None
+        elif "raw_payload" in spec:
+            payload = spec["raw_payload"]
         elif status != 200:
             payload = {"error": {"message": spec.get("error", "stub error"),
                                  "status": str(status)}}
         else:
             payload = gemini_body(spec, body)
 
-        data = json.dumps(payload).encode("utf-8")
+        if payload is None and not bad_pairing:
+            data = str(spec["raw_body"]).encode("latin-1", errors="replace")
+        else:
+            data = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))

@@ -58,3 +58,4 @@ tests/self-audit/test_codemap_citecheck.sh	tool	tests codemap cite-check (doc ci
 tests/self-audit/test_codemap_usage.sh	tool	tests tools/codemap/usage.py on a synthetic transcript; never runs naab-lang
 .claude/skills/investigation-gates/tests/selftest.sh	tool	self-test of the investigation-gates skill scripts (bash/Python, temp git repos); never runs naab-lang
 tests/self-audit/test_predispatch_enumeration.sh	tool	tests tools/codemap/predispatch_enum.py (libclang over vm.cpp and call_dispatch.cpp) against its classified list; never runs naab-lang
+tests/self-audit/test_reentrant_time.sh	structural	scans src/ and include/ for gmtime/localtime/ctime/asctime calls; never runs naab-lang

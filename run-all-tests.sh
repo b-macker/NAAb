@@ -2416,6 +2416,21 @@ else
     echo "  test_capability_list_ratchet.sh: not found, skipping"
 fi
 
+# A restriction the loader cannot read refuses the config (A111)
+RESTRICTION_TYPES_SCRIPT="tests/governance_v4/test_restriction_types.sh"
+if $IS_WINDOWS; then
+    echo "  test_restriction_types.sh: skipped (requires shell executor — POSIX-only)"
+elif [ -f "$RESTRICTION_TYPES_SCRIPT" ]; then
+    if run_shell_test "$RESTRICTION_TYPES_SCRIPT" 2>&1; then
+        echo "  test_restriction_types.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_restriction_types.sh")
+    fi
+else
+    echo "  test_restriction_types.sh: not found, skipping"
+fi
+
 # Governance only tightens (Bundle 8): generated config pairs through the real
 # reload, judged by the engine's own gates; the naab-gov ratchet seam; and one
 # reproduction per finding. The harness forks each case: POSIX only.
@@ -3399,6 +3414,19 @@ else
     echo "  test_tool_thread_vm.sh: not found, skipping"
 fi
 
+# A provider's token counts cannot un-spend the run budget (A110)
+TOKEN_COUNT_SCRIPT="tests/governance_v4/test_reported_token_counts.sh"
+if [ -f "$TOKEN_COUNT_SCRIPT" ]; then
+    if run_shell_test "$TOKEN_COUNT_SCRIPT" 2>&1; then
+        echo "  test_reported_token_counts.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_reported_token_counts.sh")
+    fi
+else
+    echo "  test_reported_token_counts.sh: not found, skipping"
+fi
+
 # The governance voice prints its guide once, and a guide carrying a secret or PII is withheld (A40)
 VOICE_SCRIPT="tests/governance_v4/test_governance_voice.sh"
 if [ -f "$VOICE_SCRIPT" ]; then
@@ -3583,6 +3611,36 @@ if [ -f "$FUZZ_SMOKE_SCRIPT" ]; then
     fi
 else
     echo "  run_fuzz_smoke.sh: not found, skipping"
+fi
+
+# Model-channel fuzzer: generated replies and tool calls end in exit 0/3/4 with evidence (Bundle 9)
+MODEL_CHANNEL_FUZZ_SCRIPT="tests/fuzzing/test_model_channel_fuzz.sh"
+if $IS_WINDOWS; then
+    echo "  test_model_channel_fuzz.sh: skipped (drives naab-lang from python3 by path — POSIX-only)"
+elif [ -f "$MODEL_CHANNEL_FUZZ_SCRIPT" ]; then
+    if run_shell_test "$MODEL_CHANNEL_FUZZ_SCRIPT" 2>&1; then
+        echo "  test_model_channel_fuzz.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_model_channel_fuzz.sh")
+    fi
+else
+    echo "  test_model_channel_fuzz.sh: not found, skipping"
+fi
+
+# Config fuzzer: a mutated govern.json loads as written or exits 4 (Bundle 9)
+CONFIG_FUZZ_SCRIPT="tests/fuzzing/test_config_fuzz.sh"
+if $IS_WINDOWS; then
+    echo "  test_config_fuzz.sh: skipped (drives naab-lang from python3 by path and probes shell — POSIX-only)"
+elif [ -f "$CONFIG_FUZZ_SCRIPT" ]; then
+    if run_shell_test "$CONFIG_FUZZ_SCRIPT" 2>&1; then
+        echo "  test_config_fuzz.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_config_fuzz.sh")
+    fi
+else
+    echo "  test_config_fuzz.sh: not found, skipping"
 fi
 
 INVARIANT_SCRIPT="tests/governance_v4/invariants/test_invariant_enforcement.sh"
@@ -4422,6 +4480,20 @@ if [ -f "$FMT_LITERALS_SCRIPT" ]; then
     fi
 else
     echo "  test_fmt_literals.sh: not found, skipping"
+fi
+
+REENTRANT_TIME_SCRIPT="tests/self-audit/test_reentrant_time.sh"
+if [ -f "$REENTRANT_TIME_SCRIPT" ]; then
+    # No gmtime()/localtime()/ctime()/asctime() in the engine: one static buffer
+    # shared by every thread (Bundle 9, ThreadSanitizer). Reads source only.
+    if run_shell_test "$REENTRANT_TIME_SCRIPT" 2>&1; then
+        echo "  test_reentrant_time.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_reentrant_time.sh")
+    fi
+else
+    echo "  test_reentrant_time.sh: not found, skipping"
 fi
 
 BSD_COVERAGE_SCRIPT="tests/self-audit/test_bsd_event_coverage.sh"

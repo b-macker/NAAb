@@ -1030,12 +1030,15 @@ static std::string htmlEscape(const std::string& s) {
 // --- Report Generation ---
 
 std::string GovernanceEngine::generateJsonReport() const {
+    // A copy taken under results_mutex_: async fns and agent.batch workers
+    // record while this runs, and the vector may reallocate under a reader (A86).
+    const std::vector<CheckResult> results_snapshot = getCheckResults();
     nlohmann::json report;
     report["version"] = "4.0";
     report["mode"] = rules().mode == GovernanceMode::ENFORCE ? "enforce" : (rules().mode == GovernanceMode::AUDIT ? "audit" : "off");
 
     int total = 0, passed = 0, failed_hard = 0, failed_soft = 0, advisories = 0;
-    for (const auto& r : check_results_) {
+    for (const auto& r : results_snapshot) {
         total++;
         if (r.passed) { passed++; }
         else if (r.level == EnforcementLevel::HARD) { failed_hard++; }
@@ -1060,7 +1063,7 @@ std::string GovernanceEngine::generateJsonReport() const {
     }
 
     report["results"] = nlohmann::json::array();
-    for (const auto& r : check_results_) {
+    for (const auto& r : results_snapshot) {
         nlohmann::json entry;
         entry["rule"] = r.rule_name;
         entry["level"] = levelToString(r.level);
@@ -1090,6 +1093,9 @@ std::string GovernanceEngine::generateJsonReport() const {
 }
 
 std::string GovernanceEngine::generateSarifReport() const {
+    // A copy taken under results_mutex_: async fns and agent.batch workers
+    // record while this runs, and the vector may reallocate under a reader (A86).
+    const std::vector<CheckResult> results_snapshot = getCheckResults();
     nlohmann::json sarif;
     sarif["version"] = "2.1.0";
     sarif["$schema"] = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json";
@@ -1107,7 +1113,7 @@ std::string GovernanceEngine::generateSarifReport() const {
     std::map<std::string, size_t> rule_index_map;
     auto& rules_arr = run["tool"]["driver"]["rules"] = nlohmann::json::array();
 
-    for (const auto& r : check_results_) {
+    for (const auto& r : results_snapshot) {
         if (rule_index_map.count(r.rule_name)) continue;
         size_t idx = rules_arr.size();
         rule_index_map[r.rule_name] = idx;
@@ -1153,7 +1159,7 @@ std::string GovernanceEngine::generateSarifReport() const {
     // Results (failures only)
     auto& results_arr = run["results"] = nlohmann::json::array();
 
-    for (const auto& r : check_results_) {
+    for (const auto& r : results_snapshot) {
         if (r.passed) continue;
 
         nlohmann::json result;
@@ -1277,7 +1283,7 @@ std::string GovernanceEngine::generateSarifReport() const {
 
     // Invocations (required by GitHub code scanning)
     bool any_hard_failures = false;
-    for (const auto& r : check_results_) {
+    for (const auto& r : results_snapshot) {
         if (!r.passed && r.level != EnforcementLevel::ADVISORY) {
             any_hard_failures = true;
             break;
@@ -1292,10 +1298,13 @@ std::string GovernanceEngine::generateSarifReport() const {
 }
 
 std::string GovernanceEngine::generateJunitReport() const {
+    // A copy taken under results_mutex_: async fns and agent.batch workers
+    // record while this runs, and the vector may reallocate under a reader (A86).
+    const std::vector<CheckResult> results_snapshot = getCheckResults();
     std::ostringstream oss;
-    int total = static_cast<int>(check_results_.size());
+    int total = static_cast<int>(results_snapshot.size());
     int failures = 0, warnings = 0;
-    for (const auto& r : check_results_) {
+    for (const auto& r : results_snapshot) {
         if (!r.passed) {
             if (r.level == EnforcementLevel::ADVISORY) warnings++;
             else failures++;
@@ -1321,7 +1330,7 @@ std::string GovernanceEngine::generateJunitReport() const {
         << " timestamp=\"" << ts_buf << "\""
         << " time=\"0\">\n";
 
-    for (const auto& r : check_results_) {
+    for (const auto& r : results_snapshot) {
         std::string classname = r.category.empty()
             ? "governance" : "governance." + r.category;
 
@@ -1360,9 +1369,12 @@ std::string GovernanceEngine::generateJunitReport() const {
 }
 
 std::string GovernanceEngine::generateCsvReport() const {
+    // A copy taken under results_mutex_: async fns and agent.batch workers
+    // record while this runs, and the vector may reallocate under a reader (A86).
+    const std::vector<CheckResult> results_snapshot = getCheckResults();
     std::ostringstream oss;
     oss << "rule,level,passed,message,category,severity,file,line,cwe,owasp,rationale\n";
-    for (const auto& r : check_results_) {
+    for (const auto& r : results_snapshot) {
         // Build semicolon-joined CWE and OWASP strings
         std::string cwe_str, owasp_str;
         for (size_t i = 0; i < r.cwe_ids.size(); i++) {
@@ -1389,9 +1401,12 @@ std::string GovernanceEngine::generateCsvReport() const {
 }
 
 std::string GovernanceEngine::generateHtmlReport() const {
+    // A copy taken under results_mutex_: async fns and agent.batch workers
+    // record while this runs, and the vector may reallocate under a reader (A86).
+    const std::vector<CheckResult> results_snapshot = getCheckResults();
     std::ostringstream oss;
     int total = 0, passed = 0, failed = 0, warnings = 0;
-    for (const auto& r : check_results_) {
+    for (const auto& r : results_snapshot) {
         total++;
         if (r.passed) passed++;
         else if (r.level == EnforcementLevel::ADVISORY) warnings++;
@@ -1425,7 +1440,7 @@ std::string GovernanceEngine::generateHtmlReport() const {
     if (failed > 0 || warnings > 0) {
         oss << "<h2>Issues</h2>\n<table>\n";
         oss << "<tr><th>Rule</th><th>Level</th><th>Category</th><th>File</th><th>Line</th><th>Message</th><th>Rationale</th><th>Trace</th></tr>\n";
-        for (const auto& r : check_results_) {
+        for (const auto& r : results_snapshot) {
             if (r.passed) continue;
             std::string css_class = (r.level == EnforcementLevel::HARD) ? "fail-hard" :
                                     (r.level == EnforcementLevel::SOFT) ? "fail-soft" : "warning";
@@ -1453,7 +1468,7 @@ std::string GovernanceEngine::generateHtmlReport() const {
 
     oss << "<h2>All Checks (" << total << ")</h2>\n<table>\n";
     oss << "<tr><th>Rule</th><th>Level</th><th>Status</th><th>Category</th></tr>\n";
-    for (const auto& r : check_results_) {
+    for (const auto& r : results_snapshot) {
         std::string status_class = r.passed ? "pass" :
             (r.level == EnforcementLevel::ADVISORY ? "warning" : "fail-hard");
         oss << "<tr><td>" << htmlEscape(r.rule_name) << "</td>"
@@ -1485,6 +1500,9 @@ void GovernanceEngine::writeReports() const {
 
 // --- Telemetry JSONL Output ---
 void GovernanceEngine::writeTelemetry() const {
+    // A copy taken under results_mutex_: async fns and agent.batch workers
+    // record while this runs, and the vector may reallocate under a reader (A86).
+    const std::vector<CheckResult> results_snapshot = getCheckResults();
     if (!rules().telemetry_output.enabled || rules().telemetry_output.output_file.empty()) return;
 
     // Use C FILE* + flock for atomic multi-process writes.
@@ -1536,9 +1554,9 @@ void GovernanceEngine::writeTelemetry() const {
     // execute() followed by main.cpp's quality-gate exit duplicated the whole
     // set (45-48 records on a live run), inflating every count derived from
     // this file. Results only ever accumulate, so an index is sufficient.
-    const size_t results_total = check_results_.size();
+    const size_t results_total = results_snapshot.size();
     for (size_t ri = telemetry_results_dumped_; ri < results_total; ++ri) {
-        const auto& r = check_results_[ri];
+        const auto& r = results_snapshot[ri];
         // Fix 4B: skip duplicate (rule_name, file, line) entries.
         //
         // Only entries that HAVE a source site. enforce() fills file/line from
@@ -1630,7 +1648,7 @@ void GovernanceEngine::writeTelemetry() const {
         summary["run_id"] = run_id_;
         summary["event_type"] = "GovernanceCheckSummary";
         summary["timestamp"] = timestamp;
-        summary["total_checks"] = check_results_.size();
+        summary["total_checks"] = results_snapshot.size();
         summary["unique_sites"] = telemetry_dedup_seen_.size();
         summary["deduplicated"] = dedup_count;
         // Runtime results (no source site) are never collapsed -- see the
@@ -2287,52 +2305,61 @@ void GovernanceEngine::writeProfileEntry(const std::string& language,
 }
 
 bool GovernanceEngine::loadCalibration() {
-    if (calibration_loaded_) return !calibration_data_.empty();
-    calibration_loaded_ = true;
+    // Polyglot blocks are scanned on every async fn's thread, and any scan may
+    // be the first to need the calibration. Load it once, under a lock, and
+    // publish it only when it is complete: the flag used to be a plain bool set
+    // BEFORE the data was read, so a second thread could read a half-built map
+    // (ThreadSanitizer, Bundle 9). Same shape as loadScoringCalibration().
+    if (calibration_loaded_.load(std::memory_order_acquire)) return !calibration_data_.empty();
+    std::lock_guard<std::mutex> lock(polyglot_calibration_mutex_);
+    if (calibration_loaded_.load(std::memory_order_relaxed)) return !calibration_data_.empty();
+    const bool ok = [&]() -> bool {
+        auto& cfg = rules().polyglot_optimization.calibration;
+        if (!cfg.enabled) return false;
 
-    auto& cfg = rules().polyglot_optimization.calibration;
-    if (!cfg.enabled) return false;
-
-    // Expand ~ in path
-    std::string path = cfg.calibration_path;
-    if (path.size() >= 2 && path[0] == '~' && path[1] == '/') {
-        // "~/" expansion. paths::home() resolves USERPROFILE on Windows, where
-        // HOME is normally unset and the old form left the tilde in place.
-        const std::string home = naab::paths::home();
-        if (home != ".") path = home + path.substr(1);
-    }
-
-    std::ifstream in(path);
-    if (!in.is_open()) return false;
-
-    try {
-        nlohmann::json j;
-        in >> j;
-
-        if (!j.contains("results") || !j["results"].is_object()) return false;
-
-        // Check age
-        if (cfg.max_age_days > 0 && j.contains("timestamp") && j["timestamp"].is_string()) {
-            // Simple age check: compare epoch-based if available
-            // For now, just load the data regardless of age
+        // Expand ~ in path
+        std::string path = cfg.calibration_path;
+        if (path.size() >= 2 && path[0] == '~' && path[1] == '/') {
+            // "~/" expansion. paths::home() resolves USERPROFILE on Windows, where
+            // HOME is normally unset and the old form left the tilde in place.
+            const std::string home = naab::paths::home();
+            if (home != ".") path = home + path.substr(1);
         }
 
-        for (auto& [task, lang_scores] : j["results"].items()) {
-            if (!lang_scores.is_object()) continue;
-            for (auto& [lang, data] : lang_scores.items()) {
-                CalibrationEntry entry;
-                if (data.is_object()) {
-                    if (data.contains("us")) entry.us = data["us"].get<int64_t>();
-                    if (data.contains("score")) entry.score = data["score"].get<int>();
-                }
-                calibration_data_[task][lang] = entry;
+        std::ifstream in(path);
+        if (!in.is_open()) return false;
+
+        try {
+            nlohmann::json j;
+            in >> j;
+
+            if (!j.contains("results") || !j["results"].is_object()) return false;
+
+            // Check age
+            if (cfg.max_age_days > 0 && j.contains("timestamp") && j["timestamp"].is_string()) {
+                // Simple age check: compare epoch-based if available
+                // For now, just load the data regardless of age
             }
-        }
 
-        return !calibration_data_.empty();
-    } catch (...) {
-        return false;
-    }
+            for (auto& [task, lang_scores] : j["results"].items()) {
+                if (!lang_scores.is_object()) continue;
+                for (auto& [lang, data] : lang_scores.items()) {
+                    CalibrationEntry entry;
+                    if (data.is_object()) {
+                        if (data.contains("us")) entry.us = data["us"].get<int64_t>();
+                        if (data.contains("score")) entry.score = data["score"].get<int>();
+                    }
+                    calibration_data_[task][lang] = entry;
+                }
+            }
+
+            return !calibration_data_.empty();
+        } catch (...) {
+            return false;
+        }
+    }();
+    calibration_loaded_.store(true, std::memory_order_release);
+    return ok;
 }
 
 // ============================================================================

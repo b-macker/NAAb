@@ -1646,6 +1646,7 @@ if(HAVE_GOOGLETEST)
         tests/unit/stdlib_modules_test.cpp      # one call into each of ten stdlib modules
         tests/unit/gc_engine_activity_test.cpp  # the collector runs only when its engine is alone (A92)
         tests/unit/thread_vm_test.cpp           # which VM a tool runs on; a lent VM entered one at a time (A93)
+        tests/unit/report_snapshot_test.cpp     # a report written while other threads record (A86)
     )
 
     # Link GoogleTest and NAAb libraries

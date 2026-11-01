@@ -1,6 +1,8 @@
 // NAAb Agent Provider — Shared LLM API calling layer
 // Extracted from stdlib/agent_impl.cpp for reuse by governance engine
 
+#include <climits>
+#include <cstdint>
 #include "naab/loopback_url.h"
 #include "naab/curl_egress.h"
 #include "naab/agent_provider.h"
@@ -356,6 +358,29 @@ struct NormalizedResponse {
     bool thinking_reported = false;
 };
 
+// A provider-reported token count as the budgets charge it: never negative, and
+// at most kMaxReportedTokens. The counts came straight from the response body,
+// so a negative one was charged as is and un-spent the run's token budget --
+// one reply reporting -1,000,000 tokens let a 1,000-token run keep sending
+// (A110, found by the model-channel fuzzer) -- and one past int's range
+// wrapped: get<int>() read a count of 2^62 as 0 and one of 2^32-1 as -1
+// (observed). The cap is far above any real reply (the largest context windows
+// hold about 2M tokens) and low enough that a reply's counts, and the int run
+// and per-agent totals they are added to, cannot wrap before a budget stops
+// the run: a bogus count is charged 10M, which crosses every realistic budget.
+static constexpr long long kMaxReportedTokens = 10'000'000;
+
+static int reportedTokenCount(const json& v) {
+    if (v.is_number_unsigned()) {
+        const auto n = v.get<std::uint64_t>();
+        return n > static_cast<std::uint64_t>(kMaxReportedTokens)
+            ? static_cast<int>(kMaxReportedTokens) : static_cast<int>(n);
+    }
+    const auto n = v.get<long long>();
+    if (n < 0) return 0;
+    return static_cast<int>(n > kMaxReportedTokens ? kMaxReportedTokens : n);
+}
+
 static NormalizedResponse normalizeResponse(
     const std::string& provider,
     const json& response) {
@@ -394,11 +419,11 @@ static NormalizedResponse normalizeResponse(
         if (response.contains("usageMetadata")) {
             auto& usage = response["usageMetadata"];
             if (usage.contains("promptTokenCount") && usage["promptTokenCount"].is_number_integer())
-                result.input_tokens = usage["promptTokenCount"].get<int>();
+                result.input_tokens = reportedTokenCount(usage["promptTokenCount"]);
             if (usage.contains("candidatesTokenCount") && usage["candidatesTokenCount"].is_number_integer())
-                result.output_tokens = usage["candidatesTokenCount"].get<int>();
+                result.output_tokens = reportedTokenCount(usage["candidatesTokenCount"]);
             if (usage.contains("thoughtsTokenCount") && usage["thoughtsTokenCount"].is_number_integer()) {
-                result.thinking_tokens = usage["thoughtsTokenCount"].get<int>();
+                result.thinking_tokens = reportedTokenCount(usage["thoughtsTokenCount"]);
                 result.thinking_reported = true;
             }
         }
@@ -432,9 +457,9 @@ static NormalizedResponse normalizeResponse(
         if (response.contains("usage") && response["usage"].is_object()) {
             auto& usage = response["usage"];
             if (usage.contains("input_tokens") && usage["input_tokens"].is_number_integer())
-                result.input_tokens = usage["input_tokens"].get<int>();
+                result.input_tokens = reportedTokenCount(usage["input_tokens"]);
             if (usage.contains("output_tokens") && usage["output_tokens"].is_number_integer())
-                result.output_tokens = usage["output_tokens"].get<int>();
+                result.output_tokens = reportedTokenCount(usage["output_tokens"]);
         }
     }
 

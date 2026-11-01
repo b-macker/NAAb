@@ -78,3 +78,55 @@ jobs:
           if [ $FAIL -gt 0 ]; then
             exit 1
           fi
+
+  # ThreadSanitizer over the concurrency suites (Bundle 9): agent.batch tools
+  # (A93), report writers beside recording threads (A86), the collector beside
+  # another engine (A92), the async VM's governance state (A65). The runner,
+  # its positive control and the suite list are tests/tsan/run_tsan.sh; a report
+  # fails the job unless tests/tsan/suppressions.txt gives a reason for it.
+  test-tsan:
+    name: ThreadSanitizer (concurrency suites)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            ninja-build \
+            libsqlite3-dev \
+            python3-dev \
+            python3-pip \
+            libssl-dev \
+            libffi-dev \
+            libcurl4-openssl-dev \
+            pkg-config
+          pip3 install pybind11
+
+      - name: Build naab-lang and the unit tests with ThreadSanitizer
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          # Into build/, because every suite takes its binary from there.
+          cmake -S . -B build -DENABLE_TSAN=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -G Ninja
+          ninja -C build naab-lang naab_unit_tests -j$(nproc)
+
+      - name: Let ThreadSanitizer map its shadow memory
+        run: |
+          # Ubuntu 24.04 runners randomise mmap with 32 bits, where TSan cannot
+          # start ("unexpected memory mapping"); 28 is the value it supports.
+          sudo sysctl -w vm.mmap_rnd_bits=28
+
+      - name: Run the concurrency suites under ThreadSanitizer
+        env:
+          CXX: clang++
+        run: bash tests/tsan/run_tsan.sh

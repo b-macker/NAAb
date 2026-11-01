@@ -3839,11 +3839,21 @@ public:
     bool isVerificationEnabled() const;
 
     // --- Summary & Reporting ---
-    const std::vector<CheckResult>& getCheckResults() const { return check_results_; }
+    // A copy taken under results_mutex_. It returned a reference to the live
+    // vector, which async fns and agent.batch workers append to (and may
+    // reallocate) while a report or the bolo module reads it (A86). Never call
+    // it while holding results_mutex_ (std::mutex is not recursive).
+    std::vector<CheckResult> getCheckResults() const {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        return check_results_;
+    }
     std::string formatSummary() const;
     std::string formatSummaryOneLine() const;
     void printDashboard() const;
-    void resetCheckResults() { check_results_.clear(); }
+    void resetCheckResults() {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        check_results_.clear();
+    }
 
     // Feature 1: Check if any HARD violation was recorded
     bool wasBlocked() const;
@@ -4518,7 +4528,8 @@ private:
 
     // Calibration data (loaded from calibration.json)
     std::map<std::string, std::map<std::string, CalibrationEntry>> calibration_data_;
-    bool calibration_loaded_ = false;
+    std::atomic<bool> calibration_loaded_{false};  // published after calibration_data_ is complete
+    std::mutex polyglot_calibration_mutex_;          // loadCalibration(): one loader at a time
 
     // Baselines data (lazy-loaded from baselines.json)
     // Uses void* to avoid nlohmann/json.hpp in header (kept in .cpp only)
@@ -4618,6 +4629,11 @@ private:
                        const std::string& violation_message);
     void recordPass(const std::string& rule_name, EnforcementLevel level);
     // V-GOV-024: evict oldest non-preflight entries down to MAX_CHECK_RESULTS.
+    // Append one result under results_mutex_ (the post-run audits; A86).
+    void appendCheckResult(CheckResult r) {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        check_results_.push_back(std::move(r));
+    }
     // Caller MUST hold results_mutex_. Every check_results_ writer calls this.
     void capCheckResultsLocked();
 

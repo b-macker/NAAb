@@ -1,3 +1,4 @@
+#include "naab/utc_time.h"
 #include "naab/tamper_evident_logger.h"
 #include "naab/audit_logger.h"
 #include "naab/crypto_utils.h"
@@ -619,7 +620,8 @@ std::string TamperEvidenceLogger::getCurrentTimestamp() const {
         now.time_since_epoch()) % 1000;
 
     std::ostringstream oss;
-    oss << std::put_time(std::gmtime(&time_t_now), "%Y-%m-%dT%H:%M:%S");
+    const std::tm utc_now = naab::utcTime(time_t_now);  // gmtime() is not thread-safe
+    oss << std::put_time(&utc_now, "%Y-%m-%dT%H:%M:%S");
     oss << '.' << std::setfill('0') << std::setw(3) << ms.count() << 'Z';
 
     return oss.str();

@@ -9,6 +9,7 @@
 #  define pclose _pclose
 #endif
 
+#include "naab/utc_time.h"
 #include "naab/sql_executor.h"
 #include "repl.h"
 #include "naab/config.h"
@@ -955,13 +956,15 @@ int main(int argc, char** argv) {
             if (meta.created_at > 0) {
                 char buf[64];
                 time_t t = static_cast<time_t>(meta.created_at);
-                strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", gmtime(&t));
+                const std::tm utc_t = naab::utcTime(t);
+                strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", &utc_t);
                 fprintf(stdout, "  Created:    %s\n", buf);
             }
             if (meta.expires_at > 0) {
                 char buf[64];
                 time_t t = static_cast<time_t>(meta.expires_at);
-                strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", gmtime(&t));
+                const std::tm utc_t = naab::utcTime(t);
+                strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", &utc_t);
                 fprintf(stdout, "  Expires:    %s%s\n", buf,
                         naab::security::TrustStore::isKeyExpired(meta) ? " (EXPIRED)" : "");
             } else {
@@ -1111,7 +1114,8 @@ int main(int argc, char** argv) {
                 if (exp > 0) {
                     char buf[64];
                     time_t t = static_cast<time_t>(exp);
-                    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", gmtime(&t));
+                    const std::tm utc_t = naab::utcTime(t);
+                    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", &utc_t);
                     fprintf(stdout, "    expires:  %s%s\n", buf,
                         expired ? " (EXPIRED)" : "");
                 } else {

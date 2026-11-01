@@ -4,15 +4,16 @@ The project owner's ordered plan for governance work. It was recorded on 2026-10
 
 A **bundle** is one branch, one pull request and one validated push. **Confirm a bundle's scope with the owner before starting it.** A finding made along the way is recorded in `docs/open-investigations.md` in the same pull request, and is added to a bundle only by the owner's decision.
 
-## Status (2026-10-31)
+## Status (2026-11-01)
 
 | Bundle | State | Where |
 |---|---|---|
 | 1-5 | merged | git log, CHANGELOG |
 | 6: crash-proof governor, then the planned defaults | merged | #347 (`41a3b3c3`) |
 | 7: release | merged | #348 (`ca07ae12`) tagged v2.0.0; its macOS release build failed, so #349 (`735fa217`) released 2.0.1 |
-| 8: "governance only tightens", proved | in progress: PR 1 merged (#352, `76c871cf`); PR 2 built and in local validation, not yet pushed | Bundle 8 below |
-| 9-15 | not started | |
+| 8: "governance only tightens", proved | merged: PR 1 #352 (`76c871cf`), PR 2 #353 (`fc9b8099`) | Bundle 8 below |
+| 9: adversarial inputs and concurrency | in progress, one PR (the default rule): every part built and in local validation; nothing pushed | Bundle 9 below |
+| 10-15 | not started | |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). The bundle plan itself was recorded in #351 (`86fc33c9`).
 
@@ -70,7 +71,7 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
 - **Optional:** an offline Z3 proof of the per-list probe-completeness lemmas.
 - **Then classify the unclassified ratchet keys** (773 in `tests/governance_v4/ratchet_unclassified_baseline.txt`, counted 2026-10-31), declaring an order per key.
 
-**Progress (2026-11-01).** PR 1 is merged (#352, `76c871cf`). PR 2 is built and in local validation, not yet pushed.
+**Progress (2026-11-01).** Both PRs are merged: PR 1 #352 (`76c871cf`), PR 2 #353 (`fc9b8099`).
 
 | Part | State |
 |---|---|
@@ -82,7 +83,7 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
 | Startup overlays at reload | asserted for role, environment and lease (RG-07 checks each one reaches the seam's decision) |
 | CI job | built: a "Ratchet property" step in Build & Test, a new seed each run |
 | Z3 proof (optional) | not started |
-| PR 2: classify the 773 keys | built: every key classified (the unclassified baseline is empty); 475 declared orders compiled into the engine and enforced by `evaluateReload()` (`checkDeclaredOrderRatchet()`); unclear keys `fixed`, by the owner's decision (2026-10-31); suite `tests/governance_v4/test_declared_order_ratchet.sh` |
+| PR 2: classify the 773 keys | merged (#353): every key classified (the unclassified baseline is empty); 475 declared orders compiled into the engine and enforced by `evaluateReload()` (`checkDeclaredOrderRatchet()`); unclear keys `fixed`, by the owner's decision (2026-10-31); suite `tests/governance_v4/test_declared_order_ratchet.sh` |
 
 **What PR 1 found.** Each finding has a row in `docs/open-investigations.md`.
 - **Fixed in PR 1**, and every fix only tightens:
@@ -121,6 +122,14 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
     - The result decides the fix: a lock around the tool call, or each tool run on its own VM.
     - The ThreadSanitizer job guards the fix.
 - **Schedule exploration**, if ThreadSanitizer is quiet.
+
+**Progress (2026-11-01, one PR).** Each finding has a row in `docs/open-investigations.md`.
+- **A93** reproduced first: two batched tools on one VM stack gave wrong results and a null batch result, and an `async fn`'s tool ran on main's stack while main executed. The reproduction decided the fix: a tool runs on the VM its agent call came from, and `agent.batch` LENDS its VM to the workers, which enter it one at a time. A VM per tool was rejected: it drops the dispatcher's frames, which loosens function-scope capabilities (`test_tool_thread_vm.sh` TV-03). With the loan's lock removed, the TSan build reports 143 data races in one run of that suite, so the job guards the fix.
+- **A86** fixed: the report writers, telemetry and the post-run audits read a copy of `check_results_` taken under its lock. A unit test is the instrument; a CLI probe did not reproduce it in 20 runs.
+- **The ThreadSanitizer job** (`tests/tsan/run_tsan.sh`, CI "ThreadSanitizer (concurrency suites)") runs the suites in `tests/tsan/suites.txt` and the matching unit tests. A planted race is its positive control. Its first run found **A108** (the calibration flag published before the data) and **A109** (`gmtime()` in two loggers), both fixed; it is quiet since.
+- **The model-channel fuzzer** (`tests/fuzzing/model_channel`) found **A110**: negative token counts un-spent the run budget, and counts past `int`'s range wrapped. Fixed by clamping at the parse sites.
+- **The config fuzzer** (`tests/fuzzing/config`) found **A111**: a capability restriction in a type its parser does not read loaded without the restriction (27 of 200 seeds). Fixed by refusing such a config (exit 4). It reaches only capability restrictions, so other sections are unmeasured.
+- **Schedule exploration** is perturbation, not enumeration (no `rr` here): `tests/tsan/schedule_perturb.sh` reruns the same suites pinned to one and two CPUs. Report-only; its result is under the PR.
 
 ## Bundle 10 -- state machines and automata
 

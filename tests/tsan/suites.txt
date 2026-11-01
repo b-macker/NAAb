@@ -1,0 +1,13 @@
+# The concurrency suites: concurrency in the VM, the agent batch, polyglot
+# workers. Read by tests/tsan/run_tsan.sh (under ThreadSanitizer) and
+# tests/tsan/schedule_perturb.sh (pinned to fewer CPUs). One path per line,
+# relative to the repository root; a suite added here must pass on the normal
+# build first.
+tests/governance_v4/test_tool_thread_vm.sh
+tests/governance_v4/test_vm_async_governance.sh
+tests/governance_v4/test_concurrent_key_rotation.sh
+tests/vm/test_gc_engine_activity.sh
+tests/vm/test_async_javascript.sh
+tests/vm/test_async_throw.sh
+tests/vm/test_async_engine_semantics.sh
+tests/security/test_queue_cap_async002.sh
