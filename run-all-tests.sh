@@ -3386,6 +3386,19 @@ else
     echo "  test_tool_call_pairing.sh: not found, skipping"
 fi
 
+# A tool runs on the VM the agent call came from: batched tools and an async fn's tool (A93)
+TOOL_VM_SCRIPT="tests/governance_v4/test_tool_thread_vm.sh"
+if [ -f "$TOOL_VM_SCRIPT" ]; then
+    if run_shell_test "$TOOL_VM_SCRIPT" 2>&1; then
+        echo "  test_tool_thread_vm.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_tool_thread_vm.sh")
+    fi
+else
+    echo "  test_tool_thread_vm.sh: not found, skipping"
+fi
+
 # The governance voice prints its guide once, and a guide carrying a secret or PII is withheld (A40)
 VOICE_SCRIPT="tests/governance_v4/test_governance_voice.sh"
 if [ -f "$VOICE_SCRIPT" ]; then

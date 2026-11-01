@@ -2853,11 +2853,14 @@ int main(int argc, char** argv) {
                 naab::security::ScopedTimeout vm_timeout(timeout);
 
                 // Set VM callbacks for tool execution during agent.send()
-                // (must be set before execute so callVMFunction works in tool loops)
+                // (must be set before execute so callVMFunction works in tool loops).
+                // A tool runs on the VM the agent call came from -- this one, an
+                // async fn's, or the one an agent.batch lent its workers -- never
+                // on this one from another thread (A93, naab/thread_vm.h).
                 if (vm_governance.isActive()) {
                     vm_governance.setVMCallbacks(
-                        [&bytecode_vm](naab::interpreter::NaabVal fn, const std::vector<naab::interpreter::NaabVal>& args, bool taint) {
-                            return bytecode_vm.callNaabFunction(fn, args, taint);
+                        [](naab::interpreter::NaabVal fn, const std::vector<naab::interpreter::NaabVal>& args, bool taint) {
+                            return naab::vm::VM::callToolOnThreadVM(std::move(fn), args, taint);
                         },
                         [&bytecode_vm]() -> const auto& {
                             return bytecode_vm.getGlobals();
