@@ -529,7 +529,11 @@ COMPILE_TAIL='    let c = <<python
 str(compile("1", "f", "eval") is not None)
 >>
     print("COMPILE:" + c)'
-PLUG2='"mode": "enforce", "governance_plugins": [ { "file": "plugin.naab", "rules": [ { "id": "A37-PLUG", "function": "check_no_eval", "description": "no eval", "level": "hard", "trigger": "polyglot_block", "languages": ["python"], "message": "m", "help": "h" } ] }, { "file": "plugin2.naab", "rules": [ { "id": "A37-PLUG2", "function": "check_no_compile", "description": "no compile", "level": "hard", "trigger": "polyglot_block", "languages": ["python"], "message": "m", "help": "h" } ] } ]'
+# The first entry is PLUG's, unchanged: the reload only ADDS a plugin. Since
+# Bundle 8 PR 2, governance_plugins is a declared superset of whole entries, so
+# a reload that also edits an existing entry (this arm once changed its message
+# text) is refused.
+PLUG2='"mode": "enforce", "governance_plugins": [ { "file": "plugin.naab", "rules": [ { "id": "A37-PLUG", "function": "check_no_eval", "description": "no eval", "level": "hard", "trigger": "polyglot_block", "languages": ["python"], "message": "eval() is not allowed here", "help": "do not use eval" } ] }, { "file": "plugin2.naab", "rules": [ { "id": "A37-PLUG2", "function": "check_no_compile", "description": "no compile", "level": "hard", "trigger": "polyglot_block", "languages": ["python"], "message": "m", "help": "h" } ] } ]'
 setup pl_2 "$PLUG" "$PLUG2" "$COMPILE_TAIL"; mkplugin "$W/pl_2"
 cat > "$W/pl_2/plugin2.naab" <<'EOF'
 use string

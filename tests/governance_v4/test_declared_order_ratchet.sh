@@ -46,19 +46,33 @@
 #   SH-01  CONTROL: a bare-form "network": true -> false is accepted -- a
 #          shorthand refuses only the keys it sets (test_capability_mirrors.sh
 #          CM-06b)
+#   SH-02  CONTROL: a shorthand "advisory" -> "hard" is accepted -- the rule
+#          concerns the block's own keys, not a deeper key named enabled
+#          (test_min_level_mirrors.sh RS-04)
+#   AG-01  CONTROL: with meta.allow_agent_addition_mid_run, an added agent's
+#          declared keys are not compared (the agent ratchet owns addition);
+#          AG-02: an existing agent's declared key still is
 #   EV-01  an environment overlay's quality_gate.enabled "true" -> "false",
 #          under --env dev, is refused; EV-01c "false" -> "true" accepted
 #   MS-01  a refusal names the key and the direction, not the values
 #
-# Mutants (revert-checked by hand; each turns the arm red):
-#   checkDeclaredOrderRatchet not called from evaluateReload -> DO-01, RB, LA,
-#       CD, PO, PR-01, EV (EV's parsed comparison is separate: drop the
-#       quality_gate chkRestrict -> EV-01)
-#   LowerZero compared as Lower                    -> RB-01, LA-01, DO-01
-#   the present-block skip removed                 -> PR-01c, DO-01
-#   the shorthand-target rule removed (refuse all) -> SH-01
-#   the absent-section rule restored (refuse)      -> AS-01, PR-01c
-#   chkCodegenCap reverted to chkCodegenLimit      -> A103
+# Mutants (revert-checked 2026-11-01; each turned the arms listed red, and no
+# mutant survived):
+#   checkDeclaredOrderRatchet not called from evaluateReload
+#       -> DO-01 RB-01 LA-01 CD-01 PO-01 PR-01 PR-02 AG-02 MS-01
+#   LowerZero compared as Lower                    -> DO-01 RB-01 LA-01
+#   the present-block skip removed                 -> DO-01 PR-01c
+#   a shorthand refuses every key below it         -> SH-01 SH-02
+#   the shorthand rule without its direct-child condition -> SH-02
+#   a section absent on one side refused again     -> DO-01 PR-01 PR-01c AS-01
+#   max_code_lines back on chkCodegenLimit         -> A103
+#   the codegen timeout compared raw               -> A103b
+#   the quality_gate.enabled comparison removed    -> EV-01
+#   the agent-map skip removed                     -> AG-01
+# Red first: against master 76c871cf's naab-gov, DO-01 (463 of 475 keys,
+# 937 of 1645 arms fail; the 12 that pass are blocks the hand-written ratchet
+# already compares), RB-01, LA-01, CD-01, PO-01, A103, A103b, PR-01, PR-02,
+# AG-02, EV-01 and MS-01 fail; every control passes on both binaries.
 # ============================================================
 set -uo pipefail
 
@@ -227,6 +241,24 @@ cfg sh_net_off.json "{$B,\"capabilities\":{\"network\":false}}"
 ratchet sh_net_on.json sh_net_off.json
 if [ $RC -eq 0 ]; then ok "SH-01" "control: bare \"network\": true -> false is accepted (a shorthand refuses only the keys it sets)"
 else bad "SH-01" "bare network true -> false exited $RC (want 0)" "$OUT"; fi
+
+cfg sh_sec_adv.json "{$B,\"code_quality\":{\"no_secrets\":\"advisory\"}}"
+cfg sh_sec_hard.json "{$B,\"code_quality\":{\"no_secrets\":\"hard\"}}"
+ratchet sh_sec_adv.json sh_sec_hard.json
+if [ $RC -eq 0 ]; then ok "SH-02" "control: shorthand no_secrets \"advisory\" -> \"hard\" is accepted (a deeper key named enabled is not the shorthand's)"
+else bad "SH-02" "shorthand no_secrets advisory -> hard exited $RC (want 0; test_min_level_mirrors.sh RS-04)" "$OUT"; fi
+
+# ---- AG-01: an agent added mid-run is the agent ratchet's to judge ----------------
+cfg ag_old.json "{$B,\"meta\":{\"allow_agent_addition_mid_run\":true},\"agents\":{\"a\":{\"provider\":\"gemini\"}}}"
+cfg ag_new.json "{$B,\"meta\":{\"allow_agent_addition_mid_run\":true},\"agents\":{\"a\":{\"provider\":\"gemini\"},\"b\":{\"provider\":\"gemini\",\"tool_result_max_chars\":100}}}"
+ratchet ag_old.json ag_new.json
+if [ $RC -eq 0 ]; then ok "AG-01" "control: with agent addition opted in, a new agent's declared keys are not compared"
+else bad "AG-01" "adding agent b (opted in) exited $RC (want 0)" "$OUT"; fi
+cfg ag_tight.json "{$B,\"agents\":{\"a\":{\"provider\":\"gemini\",\"tool_result_max_chars\":100}}}"
+cfg ag_loose.json "{$B,\"agents\":{\"a\":{\"provider\":\"gemini\",\"tool_result_max_chars\":5000}}}"
+ratchet ag_tight.json ag_loose.json
+if [ $RC -eq 1 ] && names "agents.a.tool_result_max_chars"; then ok "AG-02" "an existing agent's tool_result_max_chars 100 -> 5000 is refused"
+else bad "AG-02" "agent a tool_result_max_chars 100 -> 5000 exited $RC (want 1)" "$OUT"; fi
 
 # ---- EV: an environment's overlay is compared on the overlaid rules ---------------
 cfg ev_on.json "{$B,\"quality_gate\":{\"enabled\":false},\"environments\":{\"dev\":{\"quality_gate.enabled\":\"true\"}}}"
