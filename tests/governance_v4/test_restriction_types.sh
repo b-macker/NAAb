@@ -39,7 +39,11 @@ NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
 GOV="$(dirname "$NAAB")/naab-gov"
 [ -x "$GOV" ] || [ ! -x "$GOV.exe" ] || GOV="$GOV.exe"
 TEST_TMP=$(mktemp -d "${TMPDIR:-/tmp}/naab_rtypes_XXXXXX")
-trap 'rm -rf "$TEST_TMP"' EXIT
+# An empty trust store: with a key in the ambient one, every unsigned config
+# here would be an INTEGRITY BLOCK (exit 3) whatever it says.
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
+trap 'rm -rf "$TEST_TMP"; teardown_isolated_trust' EXIT
 
 PASS=0; FAIL=0; UNM=0
 pass() { PASS=$((PASS+1)); echo "  PASS [$1] $2"; }

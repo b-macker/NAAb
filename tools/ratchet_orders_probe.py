@@ -168,6 +168,15 @@ def names_key(out, segs):
     return shown in out
 
 
+# A changed value of the key's own type where mutate() cannot infer it (an
+# empty list holds no element to copy). Since A111 the loader refuses an
+# ill-typed restriction (exit 4) instead of dropping it, so the change must be
+# well typed to reach the ratchet at all.
+WELL_TYPED_CHANGE = {
+    "capabilities.network.allowed_ports": [443],
+}
+
+
 def probe(gov, path, cls, arg, tmp):
     segs = concrete_path(path)
     arms = []  # (label, old, new, want_rc, must_name)
@@ -176,7 +185,8 @@ def probe(gov, path, cls, arg, tmp):
         if old is None:
             old = 1
         arms.append(("same", old, old, 0, False))
-        arms.append(("change", old, mutate(old), 1, True))
+        changed = WELL_TYPED_CHANGE.get(path, None)
+        arms.append(("change", old, mutate(old) if changed is None else changed, 1, True))
         arms.append(("absent", old, None, 1, True))
     elif arg[0] == "present":
         # A check block whose presence is its on switch: removing it, or a

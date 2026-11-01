@@ -269,6 +269,11 @@ def main(argv):
         out("UNMEASURABLE: --naab %s does not exist" % a.naab)
         return 1
     tmp = a.keep or tempfile.mkdtemp(prefix="naab_fuzz_cfg_")
+    # An empty trust store of our own: with any key in the ambient one, every
+    # unsigned config here is an INTEGRITY BLOCK, so each run would end in the
+    # same refusal whatever it was given (tests/helpers/trust_setup.sh).
+    os.makedirs(os.path.join(tmp, "trust-store"), exist_ok=True)
+    os.environ["NAAB_TRUST_STORE_DIR"] = os.path.join(tmp, "trust-store")
     rnd = random.Random(12345)
     token = lambda: "tok-%08x" % rnd.getrandbits(32)
 

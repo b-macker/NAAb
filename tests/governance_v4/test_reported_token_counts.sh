@@ -36,7 +36,11 @@ unm()  { UNM=$((UNM+1));  echo "  UNMEASURABLE [$1] $2"; }
 
 STUB_PORT=""
 source "$SCRIPT_DIR/../helpers/stub_launch.sh"
-cleanup() { stop_stub 2>/dev/null; rm -rf "$TEST_TMP"; }
+# An empty trust store: with a key in the ambient one, every unsigned config
+# here would be an INTEGRITY BLOCK (exit 3) whatever it says.
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
+cleanup() { stop_stub 2>/dev/null; rm -rf "$TEST_TMP"; teardown_isolated_trust; }
 trap cleanup EXIT
 export FAKE_KEY_TOKCOUNT="fake-key-tokcount"
 
