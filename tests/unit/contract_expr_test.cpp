@@ -44,8 +44,10 @@ TEST(ContractExpr, AcceptsPureExpressions) {
 
 TEST(ContractExpr, CollectsTheNamesItReads) {
     std::vector<std::string> names;
+    // `len` is the callee, checked against the three builtins, not a name
+    // the clause reads: only the reads must be parameters (or result).
     ASSERT_TRUE(accepts("len(xs) > i && xs[i] == result", &names));
-    EXPECT_EQ(names, (std::vector<std::string>{"len", "xs", "i", "result"}));
+    EXPECT_EQ(names, (std::vector<std::string>{"xs", "i", "result"}));
 }
 
 TEST(ContractExpr, RefusesEveryEffect) {
