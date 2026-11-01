@@ -21,8 +21,15 @@
 # under these regimes found nothing, not that no bad order exists.
 #
 #   SP-00   CONTROL: a planted suite that fails exactly when it can see one
-#           CPU fails under cpu1 and passes free -- the pinning is applied and
-#           a failing verdict reaches this report
+#           CPU fails under cpu1 and passes free -- run through run_suite(),
+#           as every suite is, so the pinning is applied and a failing verdict
+#           reaches this report
+#
+# First run (observed 2026-11-01, 3 rounds): 24 of 25 arms passed; under cpu1,
+# test_concurrent_key_rotation.sh CK-11 failed in 1 of 3 rounds. Triaged as the
+# STUB's defect, not the engine's: agent_stub.py logged a request after sending
+# its reply, so request 2's line could come first (fixed; test_stub_routing.sh
+# SR-08, A112).
 #   SP-<regime>/<suite>   passes in every round
 #
 # Report-only, not in CI: about 8 suites x 3 regimes x ROUNDS runs. Needs
@@ -49,6 +56,8 @@ finish() {
 
 echo "=== Schedule perturbation: the concurrency suites on fewer CPUs (Bundle 9) ==="
 
+case "$ROUNDS" in ''|*[!0-9]*) ROUNDS=0 ;; esac
+if [ "$ROUNDS" -lt 1 ]; then unm SP-00 "ROUNDS must be a whole number of at least 1 -- zero rounds would read as passing"; finish; fi
 if ! command -v taskset >/dev/null 2>&1; then unm SP-00 "taskset not found -- every arm UNMEASURABLE"; finish; fi
 CPUS="$(nproc 2>/dev/null || echo 1)"
 if [ "$CPUS" -lt 2 ]; then unm SP-00 "one CPU here: pinning changes nothing -- every arm UNMEASURABLE"; finish; fi
@@ -63,6 +72,16 @@ regime_prefix() {
 }
 REGIMES=(all cpu2 cpu1)
 
+# run_suite REGIME PATH -> RC, OUT. The one way a suite is run, for the planted
+# control and the real suites alike, so the control proves the pinning the
+# suites get.
+run_suite() {
+    local prefix; prefix="$(regime_prefix "$1")"
+    # $prefix is unquoted on purpose: empty, or "taskset -c LIST".
+    # shellcheck disable=SC2086
+    OUT="$(cd "$ROOT" && timeout 1800 $prefix bash "$2" 2>&1)"; RC=$?
+}
+
 # ---- SP-00: the planted control ----------------------------------------------
 # nproc reports the CPUs this process may run on, so it sees the pinning.
 cat > "$WORK/planted.sh" <<'P'
@@ -71,8 +90,8 @@ n="$(nproc)"
 if [ "$n" -eq 1 ]; then echo "  FAIL [planted] ran on one CPU"; exit 1; fi
 echo "  PASS [planted] ran on $n CPUs"; exit 0
 P
-free_rc=0; bash "$WORK/planted.sh" >/dev/null 2>&1 || free_rc=$?
-pin_rc=0; taskset -c 0 bash "$WORK/planted.sh" >/dev/null 2>&1 || pin_rc=$?
+run_suite all "$WORK/planted.sh"; free_rc=$RC
+run_suite cpu1 "$WORK/planted.sh"; pin_rc=$RC
 if [ "$free_rc" -eq 0 ] && [ "$pin_rc" -ne 0 ]; then
     pass SP-00 "CONTROL: a planted one-CPU failure fails under cpu1 and passes free"
 else
@@ -94,10 +113,8 @@ for reg in "${REGIMES[@]}"; do
         if [ ! -f "$ROOT/$s" ]; then fail "SP-$reg/$name" "suite missing"; continue; fi
         bad=0; last=""
         for r in $(seq 1 "$ROUNDS"); do
-            # $prefix is unquoted on purpose: empty, or "taskset -c LIST".
-            # shellcheck disable=SC2086
-            out="$(cd "$ROOT" && timeout 1800 $prefix bash "$s" 2>&1)"; rc=$?
-            if [ "$rc" -ne 0 ]; then bad=$((bad+1)); last="round $r, exit $rc"$'\n'"$out"; fi
+            run_suite "$reg" "$s"
+            if [ "$RC" -ne 0 ]; then bad=$((bad+1)); last="round $r, exit $RC"$'\n'"$OUT"; fi
         done
         if [ "$bad" -eq 0 ]; then pass "SP-$reg/$name" "passes in $ROUNDS of $ROUNDS rounds"
         else fail "SP-$reg/$name" "failed in $bad of $ROUNDS rounds" "$last"; fi

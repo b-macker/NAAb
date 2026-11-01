@@ -63,6 +63,12 @@ the log. Give a response "hold_ms" to keep its slot open long enough for
 that overlap to be observable -- a stub that answers instantly makes every
 arm look sequential no matter what the engine did.
 
+A request's keys.log line is written BEFORE its response body is sent, so a
+sequential client's lines are in request order and none is lost when the stub
+is stopped after the last reply. "log_hold_ms" on a response waits that long
+just before the line is written -- the probe for that ordering
+(test_stub_routing.sh SR-08).
+
 Tool-call pairing is validated as Gemini validates it: a turn of
 functionResponse parts must follow a model turn holding the same number of
 functionCall parts, with the same names. A request that breaks it is answered
@@ -272,9 +278,22 @@ class Handler(BaseHTTPRequestHandler):
         hold = spec.get("hold_ms", 0)
         if hold:
             time.sleep(hold / 1000.0)
-        self.wfile.write(data)
+        # Log BEFORE the body goes out: a client cannot act on this response
+        # until the body arrives, so request N's line is written before
+        # request N+1 can exist. Logged after the write, a sequential client's
+        # next request could log first -- or the stub be stopped before this
+        # line was written at all, once the program had its last reply.
+        # Observed under one CPU (tests/tsan/schedule_perturb.sh): CK-11 read
+        # request 2's key on line 1, in 1 of 3 rounds; a delay planted before
+        # the old log call lost request 1's line in 3 of 3 runs. t1 still
+        # follows the hold, which is the window CK-03 and the overlap probes
+        # compare.
+        log_hold = spec.get("log_hold_ms", 0)
+        if log_hold:
+            time.sleep(log_hold / 1000.0)
         t1 = int((time.monotonic() - START_MONO) * 1000)
         STATE.log_key(req_n, api_key, t0, t1)
+        self.wfile.write(data)
 
     def log_message(self, fmt, *args):  # silence per-request stderr noise
         pass

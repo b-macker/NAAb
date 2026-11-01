@@ -129,7 +129,7 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
 - **The ThreadSanitizer job** (`tests/tsan/run_tsan.sh`, CI "ThreadSanitizer (concurrency suites)") runs the suites in `tests/tsan/suites.txt` and the matching unit tests. A planted race is its positive control. Its first run found **A108** (the calibration flag published before the data) and **A109** (`gmtime()` in two loggers), both fixed; it is quiet since.
 - **The model-channel fuzzer** (`tests/fuzzing/model_channel`) found **A110**: negative token counts un-spent the run budget, and counts past `int`'s range wrapped. Fixed by clamping at the parse sites.
 - **The config fuzzer** (`tests/fuzzing/config`) found **A111**: a capability restriction in a type its parser does not read loaded without the restriction (27 of 200 seeds). Fixed by refusing such a config (exit 4). It reaches only capability restrictions, so other sections are unmeasured.
-- **Schedule exploration** is perturbation, not enumeration (no `rr` here): `tests/tsan/schedule_perturb.sh` reruns the same suites pinned to one and two CPUs. Report-only; its result is under the PR.
+- **Schedule exploration** is perturbation, not enumeration (no `rr` here): `tests/tsan/schedule_perturb.sh` reruns the same suites pinned to one and two CPUs. Report-only. Its first run (3 rounds) found **A112**, a defect in the agent stub rather than the engine: CK-11 failed in 1 of 3 one-CPU rounds because the stub logged a request after replying. Fixed, with `test_stub_routing.sh` SR-08 as its guard.
 
 ## Bundle 10 -- state machines and automata
 
