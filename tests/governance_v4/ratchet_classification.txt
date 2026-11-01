@@ -189,3 +189,727 @@ project_context.sources.llm              startup -- traced: read by ProjectConte
 project_context.sources.manifests        startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
 project_context.suppress_rules           startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
 project_context.watch_files              startup -- traced: read by ProjectContextLoader::loadContext() from discoverAndLoad() only; a reload replays, it does not re-extract
+
+# --- Bundle 8 PR 2: the keys the unclassified baseline listed ----------------
+# Every key below was in ratchet_unclassified_baseline.txt (773 keys at
+# 2026-10-31); the baseline is now empty. Two new classes are ENFORCED by the
+# engine, not just recorded: tools/ratchet_coverage.py --emit-orders compiles
+# every `order` and `fixed` line into src/runtime/ratchet_declared_orders.inc,
+# and evaluateReload() refuses a reload that moves one the loosening way
+# (checkDeclaredOrderRatchet, governance_config.cpp):
+#
+#   <key>  order K [default=J] -- why
+#          K: true / false (that value is the tighter), lower / higher (the
+#          smaller / larger number is tighter), lower0 (as lower, but 0 means
+#          unlimited and is the loosest), level (hard > approval_required >
+#          soft > detect > advisory), enum:a<b<c (loosest first), superset
+#          (removing an entry loosens), subset (adding one loosens).
+#          J: the value an absent key has. With no default, adding or
+#          removing the key mid-run is refused.
+#   <key>  fixed -- why   no single tighter direction: ANY mid-run change refused
+#
+# The comparison reads the raw JSON at the key's path in the installed file and
+# the new one. A section present on one side only is refused (its presence can
+# itself be the on switch), so is a section that changed form (shorthand <->
+# object), and an entry naming an ancestor covers every key below it. Reasons
+# say how each was established: traced (the consumer was read), struct (a
+# governance.h comment), rule (a pattern checked on the section's consumer) or
+# untraced (fixed, fail closed -- the owner's decision for unclear keys,
+# 2026-10-31). Probe: test_declared_order_ratchet.sh.
+
+# advisory_escalation
+advisory_escalation.weight_multiplier            order higher -- traced: enforce() multiplies a repeated advisory's weight by it (advisory escalation); a larger factor makes repeats cost more
+
+# agent_dispatch
+agent_dispatch.hard_stop.action                  order enum:warn<block -- struct: "block" or "warn"; warn lets the run continue past a hard stop
+agent_dispatch.hard_stop.consecutive_failure_limit  order lower0 -- struct: 0 = unlimited; read live by agent_impl.cpp on every provider call (getRules().agent_dispatch.hard_stop); observed: a reload raising or zeroing it was accepted before this
+agent_dispatch.hard_stop.max_agent_time_ms       order lower0 -- struct: 0 = unlimited; read live by agent_impl.cpp on every provider call (getRules().agent_dispatch.hard_stop); observed: a reload raising or zeroing it was accepted before this
+agent_dispatch.hard_stop.max_calls_per_run       order lower0 -- struct: 0 = unlimited; read live by agent_impl.cpp on every provider call (getRules().agent_dispatch.hard_stop); observed: a reload raising or zeroing it was accepted before this
+agent_dispatch.hard_stop.max_tokens_per_run      order lower0 -- struct: 0 = unlimited; read live by agent_impl.cpp on every provider call (getRules().agent_dispatch.hard_stop); observed: a reload raising or zeroing it was accepted before this
+agent_dispatch.max_retries_per_run               order lower0 -- struct: 0 = unlimited; a run-level retry budget
+agent_dispatch.max_concurrent                    fixed -- untraced: concurrency sizing of agent.batch/fan_out; no single tighter direction (A93: two batched tools can share a VM)
+agent_dispatch.pool_size                         fixed -- untraced: concurrency sizing of agent.batch/fan_out; no single tighter direction (A93: two batched tools can share a VM)
+agent_dispatch.pool_queue_max                    fixed -- untraced: concurrency sizing of agent.batch/fan_out; no single tighter direction (A93: two batched tools can share a VM)
+
+# agent_review
+agent_review.cache                               startup -- traced: the agent review runs once in main.cpp before the program (two call sites); a reload's value is never read
+agent_review.detection                           startup -- traced: the agent review runs once in main.cpp before the program (two call sites); a reload's value is never read
+agent_review.dispatch_mode                       startup -- traced: the agent review runs once in main.cpp before the program (two call sites); a reload's value is never read
+agent_review.enabled                             startup -- traced: the agent review runs once in main.cpp before the program (two call sites); a reload's value is never read
+agent_review.enforcement.<zone>                  startup -- traced: the agent review runs once in main.cpp before the program (two call sites); a reload's value is never read
+agent_review.fail_policy                         startup -- traced: the agent review runs once in main.cpp before the program (two call sites); a reload's value is never read
+agent_review.fail_strategy                       startup -- traced: the agent review runs once in main.cpp before the program (two call sites); a reload's value is never read
+agent_review.hints                               startup -- traced: the agent review runs once in main.cpp before the program (two call sites); a reload's value is never read
+agent_review.max_parallel                        startup -- traced: the agent review runs once in main.cpp before the program (two call sites); a reload's value is never read
+agent_review.scorer                              startup -- traced: the agent review runs once in main.cpp before the program (two call sites); a reload's value is never read
+agent_review.validation                          startup -- traced: the agent review runs once in main.cpp before the program (two call sites); a reload's value is never read
+agent_review.voice                               startup -- traced: the agent review runs once in main.cpp before the program (two call sites); a reload's value is never read
+
+# agents
+agents.<name>.capabilities.shell.enabled         ratchet "agent.{}.shell_allowed" -- traced: the loader reads it into agent.shell_allowed when shell_allowed is unset (governance_config.cpp), and that field is compared
+agents.<name>.context_drift_signals.<sig_key>    ratchet "agent.{}.context_drift_signals.{}" -- traced: the per-agent override is compared on its effective value
+agents.<name>.timeout                            ratchet "agent.{}.timeout_seconds" -- traced: the loader writes agent.timeout_seconds, which is compared
+agents.<name>.context_strategy                   neutral -- traced: chooses how history is windowed when context_window > 0 (agentSend); it grants nothing and refuses nothing, and the living-script operator adjusts it mid-run by design
+agents.<name>.system_prompt                      neutral -- traced: the agent's instructions; a change re-derives the CDD mandate keywords (onAgentConfigChanged) and grants no capability; governance cannot rank prose
+agents.<name>.output_contract.required_fields    order superset -- traced: each required field is checked on the reply (output contract); removing one checks less
+agents.<name>.output_contract.field_types.<field>  fixed -- untraced: a contract check whose tighter direction depends on the field; any mid-run change refused
+agents.<name>.output_contract.regex_checks.<field>  fixed -- untraced: a contract check whose tighter direction depends on the field; any mid-run change refused
+agents.<name>.output_contract.format             fixed -- untraced: a contract check whose tighter direction depends on the field; any mid-run change refused
+agents.<name>.provider                           fixed -- untraced: which provider API the agent calls; endpoint changes are an operator decision between runs
+agents.<name>.response_format                    fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+agents.<name>.stop_reason_action                 fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+agents.<name>.stream                             fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+agents.<name>.rate_limit.delay_between_calls_ms  order higher -- struct: forced spacing between calls; a longer delay throttles more
+agents.<name>.rate_limit.requests_per_minute     order lower0 -- struct: 0 = no client-side limit
+agents.<name>.retry.backoff_ms                   fixed -- untraced: retry and key-rotation tuning; no single tighter direction established
+agents.<name>.retry.backoff_multiplier           fixed -- untraced: retry and key-rotation tuning; no single tighter direction established
+agents.<name>.retry.jitter                       fixed -- untraced: retry and key-rotation tuning; no single tighter direction established
+agents.<name>.retry.fallback_model_on            fixed -- untraced: retry and key-rotation tuning; no single tighter direction established
+agents.<name>.retry.key_retry_after_seconds      fixed -- untraced: retry and key-rotation tuning; no single tighter direction established
+agents.<name>.retry.max_attempts                 fixed -- untraced: retry and key-rotation tuning; no single tighter direction established
+agents.<name>.retry.never_retry                  fixed -- untraced: retry and key-rotation tuning; no single tighter direction established
+agents.<name>.retry.retry_on                     fixed -- untraced: retry and key-rotation tuning; no single tighter direction established
+agents.<name>.retry.skip_key_on                  fixed -- untraced: retry and key-rotation tuning; no single tighter direction established
+agents.<name>.retry.throttle_cooldown_seconds    fixed -- untraced: retry and key-rotation tuning; no single tighter direction established
+agents.<name>.retry.throttle_key_on              fixed -- untraced: retry and key-rotation tuning; no single tighter direction established
+agents.<name>.tool_result_max_chars              order lower -- traced: a tool result longer than it is truncated (agent_impl.cpp, no zero guard: 0 truncates everything)
+agents.<name>.tool_result_max_total_chars        order lower -- traced: tool output beyond the turn's total is truncated (agent_impl.cpp, no zero guard)
+agents.<name>.tool_timeout_seconds               order lower -- traced: a tool call's time limit; the loader clamps it to at least 1
+
+# api
+api.key                                          startup -- traced: read when `naab-lang api` / `naab-lang mcp` starts (main.cpp setApiKeys, mcp loadPolicy); a running program's reload is not read by the server
+api.keys.[].key                                  startup -- traced: read when `naab-lang api` / `naab-lang mcp` starts (main.cpp setApiKeys, mcp loadPolicy); a running program's reload is not read by the server
+api.keys.[].name                                 startup -- traced: read when `naab-lang api` / `naab-lang mcp` starts (main.cpp setApiKeys, mcp loadPolicy); a running program's reload is not read by the server
+api.keys.[].scopes                               startup -- traced: read when `naab-lang api` / `naab-lang mcp` starts (main.cpp setApiKeys, mcp loadPolicy); a running program's reload is not read by the server
+api.max_body                                     startup -- traced: read when `naab-lang api` / `naab-lang mcp` starts (main.cpp setApiKeys, mcp loadPolicy); a running program's reload is not read by the server
+api.rate_limit                                   startup -- traced: read when `naab-lang api` / `naab-lang mcp` starts (main.cpp setApiKeys, mcp loadPolicy); a running program's reload is not read by the server
+api.timeout                                      startup -- traced: read when `naab-lang api` / `naab-lang mcp` starts (main.cpp setApiKeys, mcp loadPolicy); a running program's reload is not read by the server
+api.tls_cert                                     startup -- traced: read when `naab-lang api` / `naab-lang mcp` starts (main.cpp setApiKeys, mcp loadPolicy); a running program's reload is not read by the server
+api.tls_key                                      startup -- traced: read when `naab-lang api` / `naab-lang mcp` starts (main.cpp setApiKeys, mcp loadPolicy); a running program's reload is not read by the server
+
+# approval
+approval.approver_keys                           order subset -- traced: each key may approve; adding one lets another key approve
+approval.default_expiry_hours                    order lower -- traced: how long an approval stays valid; longer is looser
+approval.store_path                              fixed -- untraced: where approvals are read from; moving it mid-run could change which approvals count
+
+# runtime
+runtime.gc_stats                                 startup -- traced: read by main.cpp before the program to configure the collector
+runtime.gc_threshold                             startup -- traced: read by main.cpp before the program to configure the collector
+runtime.memory_limit                             startup -- traced: applied by applyConfiguredRunLimits() (include/naab/run_limits.h) in main.cpp before the program runs
+runtime.timeout                                  startup -- traced: applied by applyConfiguredRunLimits() in main.cpp, which arms the run's ScopedTimeout before the program runs
+
+# security
+security.allow_network                           startup -- traced: read by main.cpp at startup into the sandbox's network switch; the reload sync only removes capabilities
+security.strict_types                            startup -- traced: read by main.cpp at startup (strict_types_config)
+security.blocked_commands                        inert -- traced: the loader warns it has no effect and stores nothing (governance_config.cpp naab-46)
+security.blocked_paths                           inert -- traced: the loader warns it has no effect and stores nothing (governance_config.cpp naab-46)
+
+# trust
+trust.check_key_expiry                           order true -- traced: signature verification refuses an expired key while true; a reload is verified with these rules
+trust.check_revocation                           order true -- traced: signature verification refuses a revoked key while true
+trust.require_fresh_signature                    order true -- traced: refuses a signature older than max_signature_age_days while true
+trust.max_signature_age_days                     order lower0 -- struct: 0 = no staleness check
+trust.stale_signature_level                      order level -- rule: the level a stale signature is reported at
+
+# governance
+governance.baseline_save                         startup -- traced: read only by main.cpp before the program (the CLI's own flags); nothing reads the reloaded value
+governance.dashboard                             startup -- traced: read only by main.cpp before the program (the CLI's own flags); nothing reads the reloaded value
+governance.gc_stats                              startup -- traced: read only by main.cpp before the program (the CLI's own flags); nothing reads the reloaded value
+governance.gc_threshold                          startup -- traced: read only by main.cpp before the program (the CLI's own flags); nothing reads the reloaded value
+governance.lint_only                             startup -- traced: read only by main.cpp before the program (the CLI's own flags); nothing reads the reloaded value
+governance.no_color                              startup -- traced: read only by main.cpp before the program (the CLI's own flags); nothing reads the reloaded value
+governance.override                              startup -- traced: read only by main.cpp before the program (the CLI's own flags); nothing reads the reloaded value
+governance.quiet                                 startup -- traced: read only by main.cpp before the program (the CLI's own flags); nothing reads the reloaded value
+governance.strict_types                          startup -- traced: read only by main.cpp before the program (the CLI's own flags); nothing reads the reloaded value
+governance.verbose                               startup -- traced: read only by main.cpp before the program (the CLI's own flags); nothing reads the reloaded value
+governance.explanations                          neutral -- traced: adds explanation text to messages (governance_engine.cpp); it refuses nothing
+governance.require_override_reason               order true -- traced: an override needs a stated reason while true (governance_engine.cpp)
+
+# output
+output.no_color                                  startup -- traced: read only by main.cpp before the program
+output.quiet                                     startup -- traced: read only by main.cpp before the program
+output.advisory_summary                          neutral -- traced: prints the grouped advisory summary (governance_engine.cpp); display only
+output.max_advisories                            neutral -- struct: caps how many ADVISORY messages are printed (0 = unlimited); display only, the findings are still recorded
+output.errors.max_errors_per_rule                inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+output.errors.max_total_errors                   inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+output.errors.show_code_context                  inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+output.errors.show_examples                      inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+output.errors.show_help                          inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+output.errors.verbose                            inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+output.formatting.color                          inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+output.formatting.unicode_symbols                inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+output.formatting.width                          inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+output.summary.group_by                          inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+output.summary.show_passing                      inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+output.summary.enabled                           inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+output.summary.format                            inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+output.voice                                     fixed -- traced: names the agent the end-of-run remediation guide is sent to (runGovernanceVoice), an egress of the script and its findings; any mid-run change refused
+output.voice_cache                               fixed -- untraced: caches the voice's guide; any mid-run change refused
+
+# meta
+meta.environment.allow_cli_override              inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+meta.environment.env_prefix                      inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+meta.feature_flags.experimental_checks           inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+meta.feature_flags.verbose_parsing               inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+meta.schema_validation.suggest_corrections       inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+meta.schema_validation.warn_unknown_keys         inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
+meta.environment.allow_env_var_substitution      fixed -- untraced: read by governance_reports.cpp; any mid-run change refused
+meta.inheritance.max_depth                       startup -- traced: read only while resolving `extends` in loadFromFile(); a reload parses the file alone and resolves no extends
+meta.inheritance.merge_arrays                    startup -- traced: read only while resolving `extends` in loadFromFile(); a reload parses the file alone and resolves no extends
+meta.inheritance.merge_strategy                  startup -- traced: read only while resolving `extends` in loadFromFile(); a reload parses the file alone and resolves no extends
+
+# hooks
+hooks.on_complete.inherit_governance_keys        order false -- traced: true hands the hook process NAAb's governance keys (governance_reports.cpp fireHook); false withholds them
+hooks.on_complete.args                           fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.on_complete.command                        fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.on_complete.timeout                        fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.on_override.inherit_governance_keys        order false -- traced: true hands the hook process NAAb's governance keys (governance_reports.cpp fireHook); false withholds them
+hooks.on_override.args                           fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.on_override.command                        fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.on_override.timeout                        fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.on_violation.inherit_governance_keys       order false -- traced: true hands the hook process NAAb's governance keys (governance_reports.cpp fireHook); false withholds them
+hooks.on_violation.args                          fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.on_violation.command                       fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.on_violation.timeout                       fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.post_check.inherit_governance_keys         order false -- traced: true hands the hook process NAAb's governance keys (governance_reports.cpp fireHook); false withholds them
+hooks.post_check.args                            fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.post_check.command                         fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.post_check.timeout                         fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.pre_check.inherit_governance_keys          order false -- traced: true hands the hook process NAAb's governance keys (governance_reports.cpp fireHook); false withholds them
+hooks.pre_check.args                             fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.pre_check.command                          fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+hooks.pre_check.timeout                          fixed -- traced: the operator program run at the event (fireHook); which program runs is not ranked, any mid-run change refused
+
+# baselines
+baselines.enabled                                order true -- rule: output baselines are checked only while enabled
+baselines.level                                  order level -- rule: the level a baseline mismatch is enforced at
+baselines.tolerance                              order lower -- traced: a numeric result within the tolerance matches its baseline (governance_reports.cpp); larger accepts more
+baselines.auto_record                            fixed -- traced: records results as new baselines (governance_engine.cpp); recording what the run produced can change what later checks accept
+baselines.hash_keys                              fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+baselines.path                                   fixed -- untraced: where baselines are read and written; moving it mid-run changes which baselines count
+
+# governance_baseline
+governance_baseline.enabled                      order true -- rule: the governance baseline is compared only while enabled
+governance_baseline.fail_on_regression           order true -- traced: a regression against the baseline fails the run while true (main.cpp, governance_engine.cpp)
+governance_baseline.level                        order level -- rule: the level a regression is enforced at
+governance_baseline.path                         fixed -- untraced: where the baseline is read; moving it changes what counts as a regression
+
+# scoring
+scoring.enabled                                  order true -- rule: the cumulative risk gate runs only while enabled
+scoring.default_weight                           order higher -- traced: a violation with no rule weight adds this much risk (score accumulator); A60: weights may only rise
+scoring.rule_weights.<key>                       order higher -- traced: a rule's risk weight; A60 (owner's decision 2026-10-22): the governed side may only raise a weight
+scoring.red_threshold                            order lower -- traced: the score at which the risk gate refuses; lower refuses sooner
+scoring.yellow_threshold                         order lower -- traced: the score at which the risk gate warns; lower warns sooner
+scoring.green_threshold                          fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+scoring.threshold_mode                           fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+
+# scorers
+scorers.<name>.enabled                           order true -- rule: the named scorer runs only while enabled
+scorers.<name>.default_weight                    order higher -- traced: as scoring.default_weight, for the named scorer
+scorers.<name>.rule_weights.<key>                order higher -- traced: as scoring.rule_weights, for the named scorer
+scorers.<name>.red_threshold                     order lower -- traced: as scoring.red_threshold, for the named scorer
+scorers.<name>.yellow_threshold                  order lower -- traced: as scoring.yellow_threshold, for the named scorer
+scorers.<name>.green_threshold                   fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+scorers.<name>.threshold_mode                    fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+
+# scoring_calibration
+scoring_calibration.enabled                      fixed -- traced: enables weight overrides from the calibration file (A60); any mid-run change refused
+scoring_calibration.auto_save                    fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+scoring_calibration.path                         fixed -- traced: where weight overrides are read; the program may not write it (A60), and moving it mid-run is refused too
+
+# behavioral_sequences
+behavioral_sequences.enabled                     order true -- rule: sequence detection runs only while enabled
+behavioral_sequences.window_size                 fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+behavioral_sequences.patterns                    fixed -- traced: listing any pattern REPLACES the built-in set (behavioral_sequence.cpp buildDefaultPatterns), so neither adding nor removing one is ordered; covers every field of a pattern
+
+# capabilities
+capabilities.filesystem.allowed_extensions       order subset -- rule: an allowlist; adding an extension allows more
+capabilities.filesystem.blocked_extensions       order superset -- rule: a blocklist; removing an extension allows more
+capabilities.filesystem.max_file_size            order lower0 -- rule: 0 = no limit (template default 0)
+capabilities.filesystem.max_files                order lower0 -- rule: 0 = no limit (template default 0)
+capabilities.functions.<fn_name>.allowed_actions  ratchet "capabilities.functions.{}" -- traced: the function-scope ratchet (F5) compares effective permissions per name
+capabilities.functions.<fn_name>.enabled         ratchet "capabilities.functions.{}" -- traced: part of the function entry the F5 ratchet compares
+capabilities.functions.<fn_name>.level           ratchet "capabilities.functions.{}" -- traced: part of the function entry the F5 ratchet compares
+capabilities.network.allow_raw_sockets           order false -- rule: an allow_ switch
+capabilities.network.allow_websockets            order false -- rule: an allow_ switch
+capabilities.network.allowed_ports               order subset -- rule: an allowlist (A87: binds no program connection today)
+capabilities.process.allow_daemon                order false -- rule: an allow_ switch
+capabilities.process.max_processes               fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+capabilities.process.signals                     order false -- rule: true lets the program send signals
+capabilities.process.spawn                       order false -- rule: true lets the program spawn processes
+capabilities.shell.allowed_commands              order subset -- rule: an allowlist; adding a command allows more
+capabilities.shell.max_execution_time            order lower0 -- rule: 0 = no limit (template default 0)
+
+# codegen
+codegen.max_code_lines                           ratchet "max_code_lines" -- traced: chkCodegenCap/chkCodegenLimit compare it (0 = no cap for the caps, the 15 s fallback for timeout_seconds; A103)
+codegen.max_code_size_bytes                      ratchet "max_code_size_bytes" -- traced: chkCodegenCap/chkCodegenLimit compare it (0 = no cap for the caps, the 15 s fallback for timeout_seconds; A103)
+codegen.max_cumulative_calls                     ratchet "max_cumulative_calls" -- traced: chkCodegenCap/chkCodegenLimit compare it (0 = no cap for the caps, the 15 s fallback for timeout_seconds; A103)
+codegen.max_cumulative_calls_per_agent           ratchet "max_cumulative_calls_per_agent" -- traced: chkCodegenCap/chkCodegenLimit compare it (0 = no cap for the caps, the 15 s fallback for timeout_seconds; A103)
+codegen.max_cumulative_code_bytes                ratchet "max_cumulative_code_bytes" -- traced: chkCodegenCap/chkCodegenLimit compare it (0 = no cap for the caps, the 15 s fallback for timeout_seconds; A103)
+codegen.max_nesting_depth                        ratchet "max_nesting_depth" -- traced: chkCodegenCap/chkCodegenLimit compare it (0 = no cap for the caps, the 15 s fallback for timeout_seconds; A103)
+codegen.timeout_seconds                          ratchet "timeout_seconds" -- traced: chkCodegenCap/chkCodegenLimit compare it (0 = no cap for the caps, the 15 s fallback for timeout_seconds; A103)
+codegen.level                                    order level -- rule: the level codegen refusals are enforced at (A88: currently inert)
+codegen.max_stderr_chars                         fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+codegen.sanitize_stderr                          order true -- rule: stderr passes the error sanitizer while true
+
+# contradiction_detection
+contradiction_detection.enabled                  order true -- rule: contradiction checks run only while enabled
+contradiction_detection.max_level                order level -- rule: the highest level a contradiction is reported at
+
+# custom_rules
+custom_rules                                     order superset -- traced: each rule is its own check (checkCustomRules); adding a rule adds a check, while removing or editing one is refused; covers every field of a rule
+
+# governance_plugins
+governance_plugins                               fixed -- traced: operator governance code loaded by the engine; which plugins run is not ranked; covers every field
+
+# environments
+environments.<env_name>.<key>                    fixed -- traced: an environment overlays these onto the rules (applyEnvironmentTo); the overlaid rules are compared, and a change of an environment's raw value is refused too
+
+# pipeline_separation
+pipeline_separation.enabled                      order true -- rule: the check runs only while enabled
+pipeline_separation.level                        order level -- rule: the level it is enforced at
+
+# prerequisites
+prerequisites.enabled                            order true -- rule: prerequisites are checked only while enabled
+prerequisites.checks                             fixed -- traced: each check is a version requirement (governance_engine.cpp prerequisites loop); covers every field
+
+# quality_gate
+quality_gate.enabled                             order true -- rule: the end-of-run quality gate runs only while enabled
+quality_gate.conditions                          fixed -- traced: each condition is a metric, operator and threshold; no single order; covers every field
+
+# runtime_versions
+runtime_versions                                 fixed -- traced: version pins checked when a block runs; covers every field
+
+# temporal_coupling
+temporal_coupling.enabled                        order true -- rule: the check runs only while enabled
+temporal_coupling.level                          order level -- rule: the level it is enforced at
+temporal_coupling.max_correlation                fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+temporal_coupling.min_events                     fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+
+# limits
+limits.array_size                                order lower0 -- traced: writes rules_.max_array_size, which checkArrayGrowth enforces (0 = no limit); the ratchet compared only limits.data.array_size, so a reload through this key moved the enforced limit uncompared (observed)
+limits.call_depth                                order lower0 -- traced: writes rules_.max_call_depth, which the call-depth check enforces (0 = no limit); the ratchet compared only limits.execution.call_depth (observed)
+limits.execution.timeout_seconds                 fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+limits.data.max_json_depth                       order lower -- rule: parsing deeper JSON is refused; a lower depth refuses more
+limits.rate.cooldown_on_limit_ms                 fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+
+# code_quality
+code_quality.no_temporary_code.enabled           neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.no_temporary_code.level             order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.no_dead_code.enabled                neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.no_dead_code.level                  order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.no_debug_artifacts.enabled          neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.no_debug_artifacts.level            order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.no_unsafe_deserialization.enabled   neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.no_unsafe_deserialization.level     order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.no_sql_injection.enabled            neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.no_sql_injection.level              order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.no_path_traversal.enabled           neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.no_path_traversal.level             order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.no_hardcoded_urls.enabled           neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.no_hardcoded_urls.level             order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.no_hardcoded_ips.enabled            neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.no_hardcoded_ips.level              order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.no_mock_data.enabled                neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.no_mock_data.level                  order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.no_apologetic_language.enabled      neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.no_apologetic_language.level        order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.max_complexity.enabled              neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.max_complexity.level                order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.encoding.enabled                    neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.encoding.level                      order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.complexity_floor.enabled            neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.complexity_floor.level              order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.semantic_checks.enabled             neutral -- traced: not read in the object form beyond a warning (warnIgnoredEnableFlag / loadSimpleCheck): the block's presence enables the check, and its declared .level makes adding or removing the block a refused change
+code_quality.semantic_checks.level               order level -- traced: the level the check enforces at (parseLevelOnly); the shorthand form is a form change, refused
+code_quality.no_temporary_code.patterns          fixed -- traced: loadSimpleCheck pushes patterns AND custom_patterns into one list, and the check uses it INSTEAD of its built-in patterns when non-empty (governance_checks.cpp `cfg.patterns.empty() ? DEFAULT : cfg.patterns`), so adding a pattern can drop every default one
+code_quality.no_temporary_code.custom_patterns   fixed -- traced: as .patterns: it lands in the same list that replaces the built-in patterns when non-empty
+code_quality.no_simulation_markers.patterns      fixed -- traced: loadSimpleCheck pushes patterns AND custom_patterns into one list, and the check uses it INSTEAD of its built-in patterns when non-empty (governance_checks.cpp `cfg.patterns.empty() ? DEFAULT : cfg.patterns`), so adding a pattern can drop every default one
+code_quality.no_simulation_markers.custom_patterns  fixed -- traced: as .patterns: it lands in the same list that replaces the built-in patterns when non-empty
+code_quality.no_dead_code.patterns               fixed -- traced: loadSimpleCheck pushes patterns AND custom_patterns into one list, and the check uses it INSTEAD of its built-in patterns when non-empty (governance_checks.cpp `cfg.patterns.empty() ? DEFAULT : cfg.patterns`), so adding a pattern can drop every default one
+code_quality.no_dead_code.custom_patterns        fixed -- traced: as .patterns: it lands in the same list that replaces the built-in patterns when non-empty
+code_quality.no_debug_artifacts.patterns         fixed -- traced: loadSimpleCheck pushes patterns AND custom_patterns into one list, and the check uses it INSTEAD of its built-in patterns when non-empty (governance_checks.cpp `cfg.patterns.empty() ? DEFAULT : cfg.patterns`), so adding a pattern can drop every default one
+code_quality.no_debug_artifacts.custom_patterns  fixed -- traced: as .patterns: it lands in the same list that replaces the built-in patterns when non-empty
+code_quality.no_unsafe_deserialization.patterns  fixed -- traced: loadSimpleCheck pushes patterns AND custom_patterns into one list, and the check uses it INSTEAD of its built-in patterns when non-empty (governance_checks.cpp `cfg.patterns.empty() ? DEFAULT : cfg.patterns`), so adding a pattern can drop every default one
+code_quality.no_unsafe_deserialization.custom_patterns  fixed -- traced: as .patterns: it lands in the same list that replaces the built-in patterns when non-empty
+code_quality.no_sql_injection.patterns           fixed -- traced: loadSimpleCheck pushes patterns AND custom_patterns into one list, and the check uses it INSTEAD of its built-in patterns when non-empty (governance_checks.cpp `cfg.patterns.empty() ? DEFAULT : cfg.patterns`), so adding a pattern can drop every default one
+code_quality.no_sql_injection.custom_patterns    fixed -- traced: as .patterns: it lands in the same list that replaces the built-in patterns when non-empty
+code_quality.no_path_traversal.patterns          fixed -- traced: loadSimpleCheck pushes patterns AND custom_patterns into one list, and the check uses it INSTEAD of its built-in patterns when non-empty (governance_checks.cpp `cfg.patterns.empty() ? DEFAULT : cfg.patterns`), so adding a pattern can drop every default one
+code_quality.no_path_traversal.custom_patterns   fixed -- traced: as .patterns: it lands in the same list that replaces the built-in patterns when non-empty
+code_quality.no_hardcoded_urls.patterns          fixed -- traced: loadSimpleCheck pushes patterns AND custom_patterns into one list, and the check uses it INSTEAD of its built-in patterns when non-empty (governance_checks.cpp `cfg.patterns.empty() ? DEFAULT : cfg.patterns`), so adding a pattern can drop every default one
+code_quality.no_hardcoded_urls.custom_patterns   fixed -- traced: as .patterns: it lands in the same list that replaces the built-in patterns when non-empty
+code_quality.no_hardcoded_ips.patterns           fixed -- traced: loadSimpleCheck pushes patterns AND custom_patterns into one list, and the check uses it INSTEAD of its built-in patterns when non-empty (governance_checks.cpp `cfg.patterns.empty() ? DEFAULT : cfg.patterns`), so adding a pattern can drop every default one
+code_quality.no_hardcoded_ips.custom_patterns    fixed -- traced: as .patterns: it lands in the same list that replaces the built-in patterns when non-empty
+code_quality.no_oversimplification.custom_patterns  order superset -- traced: appended to the active patterns (governance_checks.cpp `for (p : cfg.custom_patterns) active_pats.push_back(p)`); removing one checks less
+code_quality.no_oversimplification.case_sensitive  order false -- traced: searchPatterns ignores case when false, so false matches more
+code_quality.no_incomplete_logic.custom_patterns  order superset -- traced: appended to the active patterns (governance_checks.cpp `for (p : cfg.custom_patterns) active_pats.push_back(p)`); removing one checks less
+code_quality.no_incomplete_logic.case_sensitive  order false -- traced: searchPatterns ignores case when false, so false matches more
+code_quality.no_hallucinated_apis.custom_patterns  order superset -- traced: searched in addition to the built-in checks (governance_checks.cpp `if (!cfg.custom_patterns.empty()) searchPatterns(...)`)
+code_quality.no_hallucinated_apis.python_patterns  inert -- screened: parsed into the struct and read by nothing (grep of src/ and include/ outside the loader and the known-keys table)
+code_quality.no_hallucinated_apis.javascript_patterns  inert -- screened: parsed into the struct and read by nothing (grep of src/ and include/ outside the loader and the known-keys table)
+code_quality.no_hallucinated_apis.shell_patterns  inert -- screened: parsed into the struct and read by nothing (grep of src/ and include/ outside the loader and the known-keys table)
+code_quality.no_hallucinated_apis.go_patterns    inert -- screened: parsed into the struct and read by nothing (grep of src/ and include/ outside the loader and the known-keys table)
+code_quality.no_hallucinated_apis.ruby_patterns  inert -- screened: parsed into the struct and read by nothing (grep of src/ and include/ outside the loader and the known-keys table)
+code_quality.no_hallucinated_apis.cross_language_patterns  inert -- screened: parsed into the struct and read by nothing (grep of src/ and include/ outside the loader and the known-keys table)
+code_quality.no_hallucinated_apis.enabled        order true -- traced: read in the object form (`ha.enabled = val["enabled"]`); the check runs only while true
+code_quality.no_hallucinated_apis.level          order level -- traced: the level the check enforces at
+code_quality.no_hallucinated_apis.case_sensitive  order false -- rule: false matches without case, so it matches more
+code_quality.no_hallucinated_apis.check_cross_language  order true -- traced: each enables one sub-check of the hallucinated-API check
+code_quality.no_hallucinated_apis.check_made_up_functions  order true -- traced: each enables one sub-check of the hallucinated-API check
+code_quality.no_hallucinated_apis.check_wrong_syntax  order true -- traced: each enables one sub-check of the hallucinated-API check
+code_quality.no_incomplete_logic.check_always_true_false  order true -- traced: each enables one sub-check of no_incomplete_logic
+code_quality.no_incomplete_logic.check_bare_raise  order true -- traced: each enables one sub-check of no_incomplete_logic
+code_quality.no_incomplete_logic.check_empty_catch  order true -- traced: each enables one sub-check of no_incomplete_logic
+code_quality.no_incomplete_logic.check_generic_errors  order true -- traced: each enables one sub-check of no_incomplete_logic
+code_quality.no_incomplete_logic.check_missing_validation  order true -- traced: each enables one sub-check of no_incomplete_logic
+code_quality.no_incomplete_logic.check_single_iteration_loops  order true -- traced: each enables one sub-check of no_incomplete_logic
+code_quality.no_incomplete_logic.check_swallowed_exceptions  order true -- traced: each enables one sub-check of no_incomplete_logic
+code_quality.no_incomplete_logic.check_vague_error_messages  order true -- traced: each enables one sub-check of no_incomplete_logic
+code_quality.no_incomplete_logic.suppressions    order subset -- traced: a suppressed pattern is not reported; adding one reports less
+code_quality.no_oversimplification.check_comment_only_bodies  order true -- traced: each enables one sub-check of no_oversimplification
+code_quality.no_oversimplification.check_empty_bodies  order true -- traced: each enables one sub-check of no_oversimplification
+code_quality.no_oversimplification.check_fabricated_results  order true -- traced: each enables one sub-check of no_oversimplification
+code_quality.no_oversimplification.check_identity_functions  order true -- traced: each enables one sub-check of no_oversimplification
+code_quality.no_oversimplification.check_not_implemented  order true -- traced: each enables one sub-check of no_oversimplification
+code_quality.no_oversimplification.check_trivial_returns  order true -- traced: each enables one sub-check of no_oversimplification
+code_quality.no_oversimplification.min_function_lines  fixed -- untraced: which functions the check skips by length; direction not established; any mid-run change refused
+code_quality.no_hardcoded_results.check_dict_success_fields  order true -- traced: each enables one sub-check of no_hardcoded_results
+code_quality.no_hardcoded_results.check_return_true_false  order true -- traced: each enables one sub-check of no_hardcoded_results
+code_quality.no_pii.detect_credit_card           order true -- traced: each enables one PII detector (checkPii)
+code_quality.no_pii.detect_email                 order true -- traced: each enables one PII detector (checkPii)
+code_quality.no_pii.detect_ip_address            order true -- traced: each enables one PII detector (checkPii)
+code_quality.no_pii.detect_phone                 order true -- traced: each enables one PII detector (checkPii)
+code_quality.no_pii.detect_ssn                   order true -- traced: each enables one PII detector (checkPii)
+code_quality.no_pii.mask_in_errors               order true -- traced: a PII finding is masked in the message while true (governance_checks.cpp `cfg.mask_in_errors`); false prints the matched value
+code_quality.no_placeholders.case_sensitive      order false -- rule: false matches markers without case, so it matches more
+code_quality.no_placeholders.custom_markers      order superset -- traced: appended to the markers; removing one checks less
+code_quality.no_placeholders.markers             fixed -- traced: the loader clears the built-in markers and replaces them (`markers.clear()`), so a change can drop a default marker
+code_quality.no_secrets.entropy_check.min_length  fixed -- untraced: which strings the entropy test considers; direction not established
+code_quality.no_secrets.entropy_check.threshold  fixed -- untraced: the entropy above which a string is a secret; direction not established for the comparison used
+code_quality.no_secrets.suspicious_variable_names.enabled  order true -- rule: the suspicious-name sub-check runs only while true
+code_quality.no_secrets.suspicious_variable_names.names  fixed -- untraced: whether the list replaces or extends the built-in names was not established
+code_quality.no_mock_data.variable_prefixes      fixed -- traced: a non-empty list replaces the built-in prefixes (`cfg.variable_prefixes.empty() ? defaults : cfg`)
+code_quality.no_mock_data.function_prefixes      fixed -- untraced: as variable_prefixes; any mid-run change refused
+code_quality.no_mock_data.literal_patterns       fixed -- traced: a non-empty list replaces the built-in literals (`cfg.literal_patterns.empty() ? default_literals : ...`)
+code_quality.no_mock_data.ignore_in_test_context  order false -- rule: true skips findings in a test context
+code_quality.no_apologetic_language.scan_comments_only  order false -- rule: true limits the scan to comments
+code_quality.no_apologetic_language.scan_strings  order true -- rule: true adds string literals to the scan
+code_quality.max_complexity.max_lines_per_block  order lower -- rule: a block above the maximum is reported; a lower maximum reports more
+code_quality.max_complexity.max_nesting_depth    order lower -- rule: a block above the maximum is reported; a lower maximum reports more
+code_quality.max_complexity.max_parameters       order lower -- rule: a block above the maximum is reported; a lower maximum reports more
+code_quality.encoding.block_null_bytes           order true -- rule: each enables one encoding refusal
+code_quality.encoding.block_unicode_bidi         order true -- rule: each enables one encoding refusal
+code_quality.semantic_checks.check_api_signatures  order true -- traced: each enables one semantic sub-check
+code_quality.semantic_checks.check_dangerous_eval  order true -- traced: each enables one semantic sub-check
+code_quality.semantic_checks.check_imports       order true -- traced: each enables one semantic sub-check
+code_quality.semantic_checks.check_shell_syntax  order true -- traced: each enables one semantic sub-check
+code_quality.complexity_floor.check_naab         order true -- traced: NAAb functions are scored while true
+code_quality.complexity_floor.check_polyglot     order true -- traced: polyglot blocks are scored while true
+code_quality.complexity_floor.skip_if_has_polyglot_block  order false -- traced: true skips a function holding a polyglot block (governance_checks.cpp)
+code_quality.complexity_floor.min_score          order higher -- traced: a function scoring below it fails the floor; a higher floor fails more
+code_quality.complexity_floor.min_lines_for_check  order lower -- traced: a function shorter than it is skipped (governance_checks.cpp `line_count < cfg.min_lines_for_check`); 0 checks every function
+code_quality.complexity_floor.rules              fixed -- traced: per-name floors that override min_score (ComplexityFloorRule); no single order; covers every field of a rule
+code_quality.complexity_floor.target_prefixes    fixed -- traced: becomes a rules entry when no rules are given (the bridge in the loader); which functions it narrows to is not ordered
+code_quality.complexity_floor.weights.array_ops  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.comprehension  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.error_propagation  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.external_call  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.function   order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.import     order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.large_iterations  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.lifetime   order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.loop       order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.memory_alloc  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.nested_loops  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.padding_loop  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.pipeline   order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.pipeline_cap  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.pointers   order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.recursion  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.complexity_floor.weights.try_catch  order lower -- traced: each construct adds its weight to a function's score, and a function scoring below min_score fails; a lower weight fails more
+code_quality.duplicate_calls.enabled             order true -- traced: read (`dc["enabled"]`); the grouped advisory runs only while true
+code_quality.duplicate_calls.threshold           order lower -- rule: a call repeated at least this often is reported
+code_quality.duplicate_calls.max_entries         neutral -- rule: how many grouped entries the advisory prints; display only
+code_quality.polyglot_try_catch.enabled          order true -- traced: read (`ptc["enabled"]`); the grouped advisory runs only while true
+code_quality.polyglot_try_catch.max_entries      neutral -- rule: how many grouped entries the advisory prints; display only
+code_quality.intent_validation.enabled           order true -- traced: read in the object form (`iv["enabled"]`); the check runs only while true
+code_quality.intent_validation.required          order true -- traced: functions need a declared intent while true (governance_checks.cpp `cfg.required`)
+code_quality.intent_validation.level             order level -- traced: the level a mismatch is enforced at
+code_quality.intent_validation.missing_level     order level -- traced: the level a missing intent is enforced at
+code_quality.intent_validation.min_function_lines  order lower -- traced: a function shorter than it is not checked (`body_lines >= cfg.min_function_lines`)
+code_quality.intent_validation.min_overlap       order higher -- rule: an intent overlapping less than this fails; a higher minimum fails more
+code_quality.intent_validation.exempt_functions  order subset -- rule: an exempt function is not checked; adding one checks less
+code_quality.intent_validation.mode              fixed -- untraced: what an intent is compared against; no single order; any mid-run change refused
+code_quality.intent_validation.project_intent    fixed -- untraced: what an intent is compared against; no single order; any mid-run change refused
+code_quality.intent_validation.function_intents.<name>  fixed -- untraced: what an intent is compared against; no single order; any mid-run change refused
+code_quality.drift_detection                     startup -- traced: checkDriftDetection runs once in main.cpp before the program, on both engines (`collectDriftMetrics` then `checkDriftDetection`); nothing reads a reloaded value; covers every key of the section
+
+# context_drift
+context_drift.enabled                            order true -- traced: CDD runs only while true; the hand-written ratchet compared none of its switch, so a reload could turn CDD off (row in docs/open-investigations.md)
+context_drift.level                              order level -- traced: the level a coherence loss is enforced at
+context_drift.signals.capability_underutilization  ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.circular_actions           ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.claim_result_reconciliation  ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.coherence_velocity         ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.context_growth             ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.entity_consistency         ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.instruction_conflict       ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.instruction_recall         ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.intent_contradictions      ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.mandate_alignment          ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.persona_fingerprint        ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.plan_drift                 ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.prompt_compliance          ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.repeated_failures          ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.response_degenerate        ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.response_quality           ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.response_repetition        ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.scope_creep                ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.semantic_stability         ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.thinking_collapse          ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.tool_chain_integrity       ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.validation_outcome         ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.vocabulary_contraction     ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.coherence_natural_healing          ratchet "coherence_natural_healing" -- traced: compared in the coherence recovery block (raising it loosens)
+context_drift.coherence_recovery_amount          ratchet "coherence_recovery_amount" -- traced: compared in the coherence recovery block (raising it loosens)
+context_drift.coherence_recovery_cap             ratchet "coherence_recovery_cap" -- traced: compared in the coherence recovery block (raising it loosens)
+context_drift.coherence_healing_damage_fraction  ratchet "coherence_healing_damage_fraction" -- traced: compared in the coherence recovery block (raising it loosens)
+context_drift.coherence_threshold                order higher -- traced: coherence below it is a coherence loss (behavioral_sequence.cpp `coherence_score < coherence_threshold`); a higher threshold fires sooner
+context_drift.max_contradictions                 fixed -- untraced: direction of the contradiction limit not established
+context_drift.check_interval_turns               order lower -- traced: CDD analyses a turn only every N turns (`turn - last_checked_turn < check_interval_turns` skips); a lower interval analyses more
+context_drift.adaptive_baseline_enabled          fixed -- traced: on absorbs statistical penalties within mean + k*stddev, and off silences S17 and freezes S12's baseline (CLAUDE.md, adaptive baselining); neither direction only tightens
+context_drift.adaptive_baseline_sensitivity      order lower -- traced: a signal pays only above mean + k*stddev; a lower k absorbs less
+context_drift.adaptive_baseline_window           fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.temporal_decay_enabled             order true -- traced: coherence erodes while a handle is idle only while true
+context_drift.temporal_decay_per_minute          order higher -- traced: how much coherence an idle minute costs
+context_drift.temporal_decay_grace_minutes       order lower -- traced: idle minutes before decay starts
+context_drift.response_min_output_tokens         order higher -- traced: S23 fires on a reply below it (CLAUDE.md, response_degenerate)
+context_drift.coherence_damage_window            fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.escalation_effectiveness_window    fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.fingerprint_window                 fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.reality_checkpoint.enabled         order true -- traced: the checkpoint blocks sustained pressure only while true
+context_drift.reality_checkpoint.level           order level -- traced: the level the checkpoint blocks at
+context_drift.reality_checkpoint.pressure_threshold  order lower -- traced: a turn counts toward the checkpoint while composite >= threshold (CLAUDE.md, circuit breaker counters); lower counts more
+context_drift.reality_checkpoint.sustained_turns_required  order lower -- traced: turns above the threshold before the checkpoint fires
+context_drift.reality_checkpoint.min_turns_between_checkpoints  order lower -- rule: the spacing between checkpoints; lower checks more often
+context_drift.reality_checkpoint.acceleration_multiplier  fixed -- untraced: shapes the composite pressure that also drives the circuit breaker; any mid-run change refused
+context_drift.reality_checkpoint.expected_conversation_depth  fixed -- untraced: shapes the composite pressure that also drives the circuit breaker; any mid-run change refused
+context_drift.reality_checkpoint.signal_density_divisor  fixed -- untraced: shapes the composite pressure that also drives the circuit breaker; any mid-run change refused
+context_drift.reality_checkpoint.weights         fixed -- traced: the composite pressure is a weighted sum the circuit breaker and checkpoint both read; raising one factor's weight is not ordered against the others; covers every factor
+context_drift.thresholds.response_quality_min_ratio  order higher -- traced: the signal fires when its measure falls below this minimum (CLAUDE.md, content-aware CDD); a higher minimum fires more
+context_drift.thresholds.thinking_collapse_ratio  order higher -- traced: the signal fires when its measure falls below this minimum (CLAUDE.md, content-aware CDD); a higher minimum fires more
+context_drift.thresholds.semantic_stability_min_overlap  order higher -- traced: the signal fires when its measure falls below this minimum (CLAUDE.md, content-aware CDD); a higher minimum fires more
+context_drift.thresholds.mandate_alignment_min   order higher -- traced: the signal fires when its measure falls below this minimum (CLAUDE.md, content-aware CDD); a higher minimum fires more
+context_drift.thresholds.instruction_recall_min  order higher -- traced: the signal fires when its measure falls below this minimum (CLAUDE.md, content-aware CDD); a higher minimum fires more
+context_drift.thresholds.entity_context_min_overlap  order higher -- traced: the signal fires when its measure falls below this minimum (CLAUDE.md, content-aware CDD); a higher minimum fires more
+context_drift.thresholds.tool_result_recall_min  order higher -- traced: the signal fires when its measure falls below this minimum (CLAUDE.md, content-aware CDD); a higher minimum fires more
+context_drift.thresholds.context_growth_factor   order lower -- traced: the signal fires when its measure exceeds this (CLAUDE.md, content-aware CDD); a lower bound fires more
+context_drift.thresholds.persona_deviation_factor  order lower -- traced: the signal fires when its measure exceeds this (CLAUDE.md, content-aware CDD); a lower bound fires more
+context_drift.thresholds.instruction_conflict_topic_overlap  order lower -- traced: the signal fires when its measure exceeds this (CLAUDE.md, content-aware CDD); a lower bound fires more
+context_drift.thresholds.plan_step_overlap_min   fixed -- traced: a response matches a plan step at overlap >= it (behavioral_sequence.cpp), which both silences regression and enables skip detection; not ordered
+context_drift.thresholds.prompt_compliance_mandate_min  order higher -- traced: gate 1 of S20 treats a prompt below it as off-topic; higher marks more prompts off-topic
+context_drift.thresholds.prompt_compliance_response_min_tokens  order lower -- traced: gate 2 of S20 needs a reply at least this long; lower lets shorter replies fire
+context_drift.thresholds.repeated_failure_count  order lower -- rule: failures before repeated_failures fires
+context_drift.thresholds.circular_lookback       fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.claim_accuracy_min      fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.coherence_history_size  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.entity_context_window   fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.entropy_contraction_ratio  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.entropy_min_initial     fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.instruction_conflict_window  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.persona_history_window  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.response_repetition_lookback  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.scope_creep_min_history  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.scope_creep_min_new_types  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.thinking_history_window  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.underutilization_delay  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.velocity_drop           fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.vocab_contraction_window  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.weights.coherence_velocity         inert -- traced: S6 is detection-only and never subtracts coherence (CLAUDE.md, coherence_velocity)
+context_drift.weights.capability_underutilization  order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.circular                   order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.claim_result_reconciliation  order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.context_growth             order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.contradiction              order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.entity_consistency         order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.instruction_conflict       order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.instruction_recall         order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.mandate_alignment          order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.persona_fingerprint        order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.plan_drift                 order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.prompt_compliance          order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.repeated_failure           order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.response_degenerate        order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.response_quality           order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.response_repetition        order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.scope_creep                order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.semantic_stability         order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.thinking_collapse          order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.tool_chain_integrity       order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.validation_outcome         order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.vocabulary_contraction     order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+
+# circuit_breaker
+circuit_breaker.output_admissibility.action      ratchet "output_admissibility.action" -- traced: compared in the output-admissibility block of the ratchet (CLAUDE.md, Output admissibility)
+circuit_breaker.output_admissibility.enabled     ratchet "output_admissibility.enabled" -- traced: compared in the output-admissibility block of the ratchet (CLAUDE.md, Output admissibility)
+circuit_breaker.output_admissibility.gate_tool_calls  ratchet "output_admissibility.gate_tool_calls" -- traced: compared in the output-admissibility block of the ratchet (CLAUDE.md, Output admissibility)
+circuit_breaker.output_admissibility.inadmissible_history  ratchet "output_admissibility.inadmissible_history" -- traced: compared in the output-admissibility block of the ratchet (CLAUDE.md, Output admissibility)
+circuit_breaker.output_admissibility.max_quarantine_streak  ratchet "output_admissibility.max_quarantine_streak" -- traced: compared in the output-admissibility block of the ratchet (CLAUDE.md, Output admissibility)
+circuit_breaker.output_admissibility.on_undetermined  ratchet "output_admissibility.on_undetermined" -- traced: compared in the output-admissibility block of the ratchet (CLAUDE.md, Output admissibility)
+circuit_breaker.output_admissibility.require_corroboration  ratchet "output_admissibility.require_corroboration" -- traced: compared in the output-admissibility block of the ratchet (CLAUDE.md, Output admissibility)
+circuit_breaker.output_admissibility.threshold   ratchet "output_admissibility.threshold" -- traced: compared in the output-admissibility block of the ratchet (CLAUDE.md, Output admissibility)
+circuit_breaker.output_admissibility.level       order level -- traced: the level a "block" action enforces at (clamped to at least DETECT)
+circuit_breaker.enabled                          order true -- traced: governance levels move only while the breaker is enabled; step-up needs a level
+circuit_breaker.elevated_threshold               order lower -- traced: a level target needs composite >= its threshold (CLAUDE.md, circuit breaker counters); lower escalates sooner
+circuit_breaker.elevated_sustained               order lower -- traced: turns at or above the level's threshold before it escalates (cb_sustained_turns)
+circuit_breaker.high_threshold                   order lower -- traced: a level target needs composite >= its threshold (CLAUDE.md, circuit breaker counters); lower escalates sooner
+circuit_breaker.high_sustained                   order lower -- traced: turns at or above the level's threshold before it escalates (cb_sustained_turns)
+circuit_breaker.critical_threshold               order lower -- traced: a level target needs composite >= its threshold (CLAUDE.md, circuit breaker counters); lower escalates sooner
+circuit_breaker.critical_sustained               order lower -- traced: turns at or above the level's threshold before it escalates (cb_sustained_turns)
+circuit_breaker.step_up_enabled                  order true -- traced: step-up challenges are issued only while true
+circuit_breaker.step_up_at_level                 order enum:high<elevated -- traced: agent_impl.cpp reads "high" as level 2 and any other value as level 1 (elevated), so high challenges later
+circuit_breaker.step_up_keyword_threshold        order higher -- traced: a challenge passes at keyword_ratio >= it; higher fails more
+circuit_breaker.step_up_contextual_threshold     order higher -- traced: as step_up_keyword_threshold, for contextual challenges
+circuit_breaker.step_up_min_words                order higher -- traced: a shorter answer scores -1 and fails (scoreStepUpChallengeRatio)
+circuit_breaker.step_up_cooldown_turns           order lower -- traced: turns between challenges; lower challenges more often
+circuit_breaker.step_up_challenge                fixed -- traced: what a challenge asks and what context it carries; which challenge is harder is not ordered; any mid-run change refused
+circuit_breaker.step_up_challenge_history        fixed -- traced: what a challenge asks and what context it carries; which challenge is harder is not ordered; any mid-run change refused
+circuit_breaker.step_up_contextual               fixed -- traced: what a challenge asks and what context it carries; which challenge is harder is not ordered; any mid-run change refused
+circuit_breaker.step_up_history_recent_count     fixed -- traced: what a challenge asks and what context it carries; which challenge is harder is not ordered; any mid-run change refused
+circuit_breaker.coherence_correction_cooldown_turns  neutral -- traced: prepends reminder or correction text to the next request (ephemeral, not stored in history); it grants and refuses nothing, and the living-script operator adjusts these fields mid-run by design (allowed_circuit_fields)
+circuit_breaker.coherence_correction_enabled     neutral -- traced: prepends reminder or correction text to the next request (ephemeral, not stored in history); it grants and refuses nothing, and the living-script operator adjusts these fields mid-run by design (allowed_circuit_fields)
+circuit_breaker.coherence_correction_message     neutral -- traced: prepends reminder or correction text to the next request (ephemeral, not stored in history); it grants and refuses nothing, and the living-script operator adjusts these fields mid-run by design (allowed_circuit_fields)
+circuit_breaker.coherence_correction_threshold   neutral -- traced: prepends reminder or correction text to the next request (ephemeral, not stored in history); it grants and refuses nothing, and the living-script operator adjusts these fields mid-run by design (allowed_circuit_fields)
+circuit_breaker.mandate_reinforcement_enabled    neutral -- traced: prepends reminder or correction text to the next request (ephemeral, not stored in history); it grants and refuses nothing, and the living-script operator adjusts these fields mid-run by design (allowed_circuit_fields)
+circuit_breaker.mandate_reinforcement_interval   neutral -- traced: prepends reminder or correction text to the next request (ephemeral, not stored in history); it grants and refuses nothing, and the living-script operator adjusts these fields mid-run by design (allowed_circuit_fields)
+circuit_breaker.mandate_reinforcement_message    neutral -- traced: prepends reminder or correction text to the next request (ephemeral, not stored in history); it grants and refuses nothing, and the living-script operator adjusts these fields mid-run by design (allowed_circuit_fields)
+
+# exposure_tracking
+exposure_tracking.enabled                        order true -- traced: checkAdmission's exposure limits apply only while true (`if (!cfg.enabled) return ""`)
+exposure_tracking.level                          order level -- traced: the level an admission denial is enforced at
+exposure_tracking.max_autonomous_actions         order lower0 -- traced: checkAdmission refuses past it only when > 0 (`cfg.X > 0 && ...`); 0 = no limit
+exposure_tracking.max_pipeline_depth             order lower0 -- traced: checkAdmission refuses past it only when > 0 (`cfg.X > 0 && ...`); 0 = no limit
+exposure_tracking.max_unique_agents              order lower0 -- traced: checkAdmission refuses past it only when > 0 (`cfg.X > 0 && ...`); 0 = no limit
+exposure_tracking.coherence_floor                order higher -- traced: admission is denied below it when > 0; 0 = off
+exposure_tracking.checkpoint_cooldown_turns      order higher -- traced: admission is denied within the cooldown after a checkpoint when > 0
+exposure_tracking.min_capability_utilization     fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+exposure_tracking.utilization_check_after_turns  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+
+# governance_health
+governance_health.enabled                        order true -- traced: the pulse runs only while true; an IMPAIRED verdict forces output inadmissible
+governance_health.check_after_turns              fixed -- untraced: pulse tuning that moves the verdict OA reads; any mid-run change refused
+governance_health.coherence_floor_warning        fixed -- untraced: pulse tuning that moves the verdict OA reads; any mid-run change refused
+governance_health.consecutive_passes_suspicion   fixed -- untraced: pulse tuning that moves the verdict OA reads; any mid-run change refused
+governance_health.governance_entropy_warning     fixed -- untraced: pulse tuning that moves the verdict OA reads; any mid-run change refused
+governance_health.impaired_degraded_turns        fixed -- untraced: pulse tuning that moves the verdict OA reads; any mid-run change refused
+governance_health.impaired_signal_count          fixed -- untraced: pulse tuning that moves the verdict OA reads; any mid-run change refused
+governance_health.pulse_cooldown_turns           fixed -- untraced: pulse tuning that moves the verdict OA reads; any mid-run change refused
+
+# polyglot_optimization
+polyglot_optimization.enabled                    order true -- traced: the polyglot-optimization analyzers run only while true
+polyglot_optimization.enforcement_level          order level -- traced: the level their findings are enforced at
+polyglot_optimization.ai_guidance                fixed -- untraced: analyzer tuning, guidance text and state-file paths; no single order; covers every key below it
+polyglot_optimization.calibration                fixed -- untraced: analyzer tuning, guidance text and state-file paths; no single order; covers every key below it
+polyglot_optimization.confidence                 fixed -- untraced: analyzer tuning, guidance text and state-file paths; no single order; covers every key below it
+polyglot_optimization.helper_errors              fixed -- untraced: analyzer tuning, guidance text and state-file paths; no single order; covers every key below it
+polyglot_optimization.language_diversity         fixed -- untraced: analyzer tuning, guidance text and state-file paths; no single order; covers every key below it
+polyglot_optimization.pattern_detection          fixed -- untraced: analyzer tuning, guidance text and state-file paths; no single order; covers every key below it
+polyglot_optimization.profiling                  fixed -- untraced: analyzer tuning, guidance text and state-file paths; no single order; covers every key below it
+polyglot_optimization.task_language_matrix       fixed -- untraced: analyzer tuning, guidance text and state-file paths; no single order; covers every key below it
+polyglot_optimization.verification.drift_tracking  fixed -- untraced: analyzer tuning, guidance text and state-file paths; no single order; covers every key below it
+polyglot_optimization.verification.enabled       order true -- rule: cross-language verification runs only while true
+polyglot_optimization.verification.enforcement_level  order level -- rule: the level a verification mismatch is enforced at
+polyglot_optimization.verification.consensus_languages  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+polyglot_optimization.verification.max_verification_time_ms  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+polyglot_optimization.verification.min_consensus  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+polyglot_optimization.verification.show_drift_details  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+polyglot_optimization.verification.tolerance     fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+polyglot_optimization.verification.verify_task_types  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+
+# contracts
+contracts.functions                              fixed -- traced: each entry is a behavioural contract (must_call, must_produce, arity, return checks...) whose fields have no common order; adding, removing or editing a contract mid-run is refused; covers every field
+contracts.level                                  order level -- traced: the level a contract breach is enforced at
+contracts.validate_inputs                        order true -- rule: inputs are validated against the contract while true
+
+# restrictions
+restrictions.code_injection.block_command_injection  order true -- traced: each enables one code-injection refusal (loader block_* flags)
+restrictions.code_injection.block_dynamic_code_gen  order true -- traced: each enables one code-injection refusal (loader block_* flags)
+restrictions.code_injection.block_ldap_injection  order true -- traced: each enables one code-injection refusal (loader block_* flags)
+restrictions.code_injection.block_sql_injection_patterns  order true -- traced: each enables one code-injection refusal (loader block_* flags)
+restrictions.code_injection.block_template_injection  order true -- traced: each enables one code-injection refusal (loader block_* flags)
+restrictions.code_injection.block_xpath_injection  order true -- traced: each enables one code-injection refusal (loader block_* flags)
+restrictions.data_exfiltration.block_base64_encode_secrets  order true -- traced: each enables one exfiltration refusal
+restrictions.data_exfiltration.block_encoding_chains  order true -- traced: each enables one exfiltration refusal
+restrictions.data_exfiltration.block_hex_encode_secrets  order true -- traced: each enables one exfiltration refusal
+restrictions.data_exfiltration.block_network_exfil  order true -- traced: each enables one exfiltration refusal
+restrictions.data_exfiltration.block_socket_exfil  order true -- traced: each enables one exfiltration refusal
+restrictions.data_exfiltration.patterns          fixed -- traced: a non-empty list is used INSTEAD of the built-in patterns (governance_checks.cpp "use those exclusively")
+restrictions.shell_injection.patterns            fixed -- traced: a non-empty list replaces the built-in patterns (`cfg.patterns.empty() ? default_patterns : cfg.patterns`)
+restrictions.information_disclosure.block_env_dump  order true -- traced: each enables one disclosure refusal
+restrictions.information_disclosure.block_process_listing  order true -- traced: each enables one disclosure refusal
+restrictions.information_disclosure.block_system_info_leak  order true -- traced: each enables one disclosure refusal
+restrictions.privilege_escalation.block_su       order true -- traced: each enables one privilege-escalation refusal
+restrictions.privilege_escalation.block_sudo     order true -- traced: each enables one privilege-escalation refusal
+restrictions.resource_abuse.block_disk_filling   order true -- traced: each enables one resource-abuse refusal
+restrictions.resource_abuse.block_fork_bomb      order true -- traced: each enables one resource-abuse refusal
+restrictions.information_disclosure.enabled      order true -- traced: this block reads its "enabled" key (the loader's comment lists it among the five that do)
+restrictions.information_disclosure.level        order level -- traced: the level the check enforces at
+restrictions.obfuscation.enabled                 order true -- traced: this block reads its "enabled" key (the loader's comment lists it among the five that do)
+restrictions.obfuscation.level                   order level -- traced: the level the check enforces at
+restrictions.vcs_secret_extraction.enabled       order true -- traced: this block reads its "enabled" key (the loader's comment lists it among the five that do)
+restrictions.vcs_secret_extraction.level         order level -- traced: the level the check enforces at
+restrictions.crypto.enabled                      neutral -- traced: not read beyond a warning; the block's presence enables the check (warnIgnoredEnable), and its declared .level makes adding or removing the block a refused change
+restrictions.crypto.level                        order level -- traced: the level a weak-crypto finding is enforced at
+restrictions.crypto.weak_ciphers                 fixed -- traced: a non-empty list replaces the built-in one (`cfg.weak_hashes.empty() ? defaults : cfg.weak_hashes`), so a change can drop a default
+restrictions.crypto.weak_hashes                  fixed -- traced: a non-empty list replaces the built-in one (`cfg.weak_hashes.empty() ? defaults : cfg.weak_hashes`), so a change can drop a default
+restrictions.polyglot_output.format              order enum:any<json -- traced: "json" requires a string result to parse as JSON (checkPolyglotOutput, A52); the ratchet compared neither form of the key
+restrictions.polyglot_output.max_size            inert -- traced: parsed into the struct and read by nothing (CLAUDE.md, foreign results)
+restrictions.polyglot_output.require_structured  inert -- traced: parsed into the struct and read by nothing (CLAUDE.md, foreign results)
+restrictions.polyglot_output.validate_json       inert -- traced: parsed into the struct and read by nothing (CLAUDE.md, foreign results)
+
+# languages
+languages.per_language.<lang_name>.banned_commands  order superset -- traced: the check refuses each listed name and has no built-in list (`if (lc.banned_functions.empty()) return ""`); removing a name refuses less
+languages.per_language.<lang_name>.banned_functions  order superset -- traced: the check refuses each listed name and has no built-in list (`if (lc.banned_functions.empty()) return ""`); removing a name refuses less
+languages.per_language.<lang_name>.banned_globals  order superset -- traced: the check refuses each listed name and has no built-in list (`if (lc.banned_functions.empty()) return ""`); removing a name refuses less
+languages.per_language.<lang_name>.banned_keywords  order superset -- traced: the check refuses each listed name and has no built-in list (`if (lc.banned_functions.empty()) return ""`); removing a name refuses less
+languages.per_language.<lang_name>.banned_namespaces  order superset -- traced: the check refuses each listed name and has no built-in list (`if (lc.banned_functions.empty()) return ""`); removing a name refuses less
+languages.per_language.<lang_name>.max_lines     order lower0 -- traced: applied only when > 0 (governance_checks.cpp `lc.max_lines > 0`, `max_output_size > 0`, `timeout > 0`); 0 = no limit
+languages.per_language.<lang_name>.max_output_size  order lower0 -- traced: applied only when > 0 (governance_checks.cpp `lc.max_lines > 0`, `max_output_size > 0`, `timeout > 0`); 0 = no limit
+languages.per_language.<lang_name>.timeout       order lower0 -- traced: applied only when > 0 (governance_checks.cpp `lc.max_lines > 0`, `max_output_size > 0`, `timeout > 0`); 0 = no limit
+languages.per_language.<lang_name>.dangerous_calls.enabled  order true -- traced: parseEnforcementLevel's object form; the check runs only while enabled (the shorthand form is a form change, refused)
+languages.per_language.<lang_name>.dangerous_calls.level  order level -- traced: parseEnforcementLevel's object form; the level the check enforces at
+languages.per_language.<lang_name>.no_console_log.enabled  order true -- traced: parseEnforcementLevel's object form; the check runs only while enabled (the shorthand form is a form change, refused)
+languages.per_language.<lang_name>.no_console_log.level  order level -- traced: parseEnforcementLevel's object form; the level the check enforces at
+languages.per_language.<lang_name>.no_curl_pipe_sh.enabled  order true -- traced: parseEnforcementLevel's object form; the check runs only while enabled (the shorthand form is a form change, refused)
+languages.per_language.<lang_name>.no_curl_pipe_sh.level  order level -- traced: parseEnforcementLevel's object form; the level the check enforces at
+languages.per_language.<lang_name>.no_var.enabled  order true -- traced: parseEnforcementLevel's object form; the check runs only while enabled (the shorthand form is a form change, refused)
+languages.per_language.<lang_name>.no_var.level  order level -- traced: parseEnforcementLevel's object form; the level the check enforces at
+languages.per_language.<lang_name>.no_wget_pipe_bash.enabled  order true -- traced: parseEnforcementLevel's object form; the check runs only while enabled (the shorthand form is a form change, refused)
+languages.per_language.<lang_name>.no_wget_pipe_bash.level  order level -- traced: parseEnforcementLevel's object form; the level the check enforces at
+languages.per_language.<lang_name>.require_set_e.enabled  order true -- traced: parseEnforcementLevel's object form; the check runs only while enabled (the shorthand form is a form change, refused)
+languages.per_language.<lang_name>.require_set_e.level  order level -- traced: parseEnforcementLevel's object form; the level the check enforces at
+languages.per_language.<lang_name>.strict_mode.enabled  order true -- traced: parseEnforcementLevel's object form; the check runs only while enabled (the shorthand form is a form change, refused)
+languages.per_language.<lang_name>.strict_mode.level  order level -- traced: parseEnforcementLevel's object form; the level the check enforces at
+languages.per_language.<lang_name>.require_package_main  order true -- rule: Go blocks must declare package main while true
+languages.per_language.<lang_name>.version_hint  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+languages.require_explicit                       order true -- rule: a polyglot block must name a configured language while true
+
+# polyglot
+polyglot.output.max_output_lines                 inert -- screened: no reader outside the loader and naab-lang init's generator (src/cli/governance_init.cpp)
+polyglot.output.require_json_pipe                inert -- screened: no reader outside the loader and naab-lang init's generator (src/cli/governance_init.cpp)
+polyglot.output.require_naab_return              inert -- screened: no reader outside the loader and naab-lang init's generator (src/cli/governance_init.cpp)
+polyglot.output.validate_encoding                inert -- screened: no reader outside the loader and naab-lang init's generator (src/cli/governance_init.cpp)
+polyglot.parallel.fail_strategy                  inert -- screened: no reader outside the loader and naab-lang init's generator (src/cli/governance_init.cpp)
+polyglot.parallel.max_parallel_blocks            inert -- screened: no reader outside the loader and naab-lang init's generator (src/cli/governance_init.cpp)
+polyglot.parallel.timeout_per_block              inert -- screened: no reader outside the loader and naab-lang init's generator (src/cli/governance_init.cpp)
+polyglot.persistent_runtime.max_memory_per_session_mb  inert -- screened: no reader outside the loader and naab-lang init's generator (src/cli/governance_init.cpp)
+polyglot.persistent_runtime.max_sessions         inert -- screened: no reader outside the loader and naab-lang init's generator (src/cli/governance_init.cpp)
+polyglot.persistent_runtime.session_timeout      inert -- screened: no reader outside the loader and naab-lang init's generator (src/cli/governance_init.cpp)
+polyglot.variable_binding.max_bound_variables    inert -- screened: no reader outside the loader and naab-lang init's generator (src/cli/governance_init.cpp)
+polyglot.variable_binding.require_explicit.enabled  order true -- traced: checkVariableBinding refuses implicit bindings only while true (governance_checks.cpp)
+polyglot.variable_binding.require_explicit.level  order level -- traced: the level an implicit binding is enforced at
+
+# requirements
+requirements.main_block                          startup -- traced: checkMainBlockRequired runs once before the program on both engines (VM::execute before run(), Interpreter::visit(Program) at depth 0); covers every key
+requirements.error_handling                      inert -- traced: requiresErrorHandling() has no caller (warnUnimplementedRequirement, docs/findings/inert-config-keys.md); covers every key
+requirements.naming_conventions                  inert -- traced: no naming checker exists (warnUnimplementedRequirement); covers every key

@@ -23,6 +23,17 @@ tools/template_coverage.py, with its self-test) and classifies each one:
                startup  -- why     read once at startup; a reload cannot
                                    change its effect
                neutral  -- why     changes no enforcement in either direction
+               order K [default=J] -- why
+                                   a DECLARED ORDER the reload enforces
+                                   (checkDeclaredOrderRatchet): K is true,
+                                   false, lower, lower0 (0 = unlimited),
+                                   higher, level, enum:a<b<c (loosest first),
+                                   superset or subset; J is the traced value
+                                   an absent key has
+               fixed    -- why     no single tighter direction: the reload
+                                   refuses any change
+             An entry may name an ANCESTOR of loader leaves (a list of rules,
+             say); it then classifies every leaf below it.
   filtered   per-block "rationale" (text only) and the .level.enabled /
              .level.level paths parseEnforcementLevel() statically reads.
 
@@ -38,6 +49,7 @@ carry. The guard's job is the class: no new key reaches the reload path
 without someone deciding what a loosening of it means.
 
 Run:  python3 tools/ratchet_coverage.py [--strip-token TOKEN]... [--config-stdin]
+      python3 tools/ratchet_coverage.py --emit-orders   (the engine's table)
       --strip-token removes a literal from the ratchet text before matching,
       and --config-stdin reads governance_config.cpp from stdin instead of the
       tree (the test's negative controls: a planted loader key, a dropped
@@ -61,7 +73,12 @@ TABLE = os.path.join(REPO, "tests", "governance_v4", "ratchet_classification.txt
 REGION_START = "// Capability lists in the reload ratchet."
 REGION_END = "bool GovernanceEngine::reloadIfChanged()"
 
-CLASSES = ("ratchet", "inert", "startup", "neutral")
+CLASSES = ("ratchet", "inert", "startup", "neutral", "order", "fixed")
+ORDER_KINDS = {"true": "True", "false": "False", "lower": "Lower", "lower0": "LowerZero",
+               "higher": "Higher", "level": "Level", "enum": "Enum",
+               "superset": "Superset", "subset": "Subset"}
+LEVEL_NAMES = ("hard", "soft", "advisory", "detect", "approval_required", "none")
+INC = os.path.join(REPO, "src", "runtime", "ratchet_declared_orders.inc")
 
 # POSITIVE controls: must classify as shown, or the instrument is broken.
 SELF_TEST = {
@@ -132,6 +149,48 @@ def ratchet_token(path):
     return path
 
 
+def parse_order(rest):
+    """`K[:values] [default=JSON] -- reason` -> (kind, values, default, reason, error)."""
+    import json
+    m = re.match(r'^(\w+)(?::(\S+))?\s*(.*)$', rest)
+    if not m:
+        return None, None, None, None, "order entry needs a kind"
+    kind, vals, tail = m.group(1), m.group(2), m.group(3)
+    if kind not in ORDER_KINDS:
+        return None, None, None, None, "unknown order kind %r" % kind
+    if (kind == "enum") != (vals is not None):
+        return None, None, None, None, "enum needs ':a<b<c' and only enum takes values"
+    values = vals.split("<") if vals else None
+    default = None
+    if tail.startswith("default="):
+        try:
+            default, end = json.JSONDecoder().raw_decode(tail[len("default="):])
+        except ValueError:
+            return None, None, None, None, "default= is not JSON"
+        tail = tail[len("default=") + end:].strip()
+        has_default = True
+    else:
+        has_default = False
+    if not tail.startswith("--") or len(tail[2:].strip()) < 10:
+        return None, None, None, None, "order entry needs '-- reason'"
+    if has_default:
+        ok = {"true": isinstance(default, bool), "false": isinstance(default, bool),
+              "lower": _num(default), "lower0": _num(default), "higher": _num(default),
+              "level": isinstance(default, str) and default.lower() in LEVEL_NAMES,
+              "enum": isinstance(default, str) and values is not None and default in values,
+              "superset": isinstance(default, list), "subset": isinstance(default, list)}[kind]
+        if not ok:
+            return None, None, None, None, "default %r does not fit order %s" % (default, kind)
+    return kind, values, (default if has_default else _NO_DEFAULT), tail[2:].strip(), None
+
+
+_NO_DEFAULT = object()
+
+
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
 def load_table(path):
     entries, errors = {}, []
     with open(path, "rb") as f:
@@ -157,12 +216,54 @@ def load_table(path):
                 errors.append("table line %d: ratchet entry needs a \"token\"" % n)
                 continue
             entries[key] = (cls, t.group(1))
+        elif cls == "order":
+            kind, values, default, reason, err = parse_order(rest)
+            if err:
+                errors.append("table line %d: %s" % (n, err))
+                continue
+            entries[key] = (cls, (kind, values, default, reason))
         else:
             if not rest.startswith("--") or len(rest[2:].strip()) < 10:
                 errors.append("table line %d: %s entry needs '-- reason'" % (n, cls))
                 continue
             entries[key] = (cls, rest[2:].strip())
     return entries, errors
+
+
+def emit_orders(path=TABLE):
+    """The engine's table: one C++ initialiser per order/fixed entry, in file order."""
+    import json
+    entries, errors = load_table(path)
+    if errors:
+        return None, errors
+
+    def cstr(s):
+        return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    out = ["// GENERATED by tools/ratchet_coverage.py --emit-orders from",
+           "// tests/governance_v4/ratchet_classification.txt -- do not edit;",
+           "// test_ratchet_coverage.sh RC-07 fails when the two differ.",
+           "// {path, order, enum values (loosest first), default JSON of an absent key}"]
+    for key, (cls, arg) in entries.items():
+        if cls == "fixed":
+            out.append("{%s, DeclaredOrder::Fixed, nullptr, nullptr}," % cstr(key))
+        elif cls == "order":
+            kind, values, default, _ = arg
+            v = cstr("|".join(values)) if values else "nullptr"
+            d = "nullptr" if default is _NO_DEFAULT else cstr(json.dumps(default, separators=(",", ":")))
+            out.append("{%s, DeclaredOrder::%s, %s, %s}," % (cstr(key), ORDER_KINDS[kind], v, d))
+    return "\n".join(out) + "\n", []
+
+
+def covered_by(leaf, table):
+    """The table entry classifying `leaf`: the leaf itself, else its nearest ancestor."""
+    if leaf in table:
+        return leaf
+    segs = leaf.split(".")
+    for k in range(len(segs) - 1, 0, -1):
+        anc = ".".join(segs[:k])
+        if anc in table:
+            return anc
+    return None
 
 
 def classify(argv):
@@ -203,8 +304,9 @@ def classify_text(text, strip):
 
     result = {}
     for p in leaves:
-        if p in table:
-            cls, arg = table[p]
+        hit = covered_by(p, table)
+        if hit is not None:
+            cls, arg = table[hit]
             if cls == "ratchet" and not mentions(lits, arg):
                 result[p] = "hollow"   # claims a comparison the code does not name
             else:
@@ -214,7 +316,7 @@ def classify_text(text, strip):
         else:
             result[p] = "unclassified"
     for key in table:
-        if key not in result:
+        if key not in result and not any(p.startswith(key + ".") for p in result):
             failures.append("!! stale table entry (the loader no longer reads it): " + key)
     for key, want in SELF_TEST.items():
         got = result.get(key)
@@ -224,6 +326,13 @@ def classify_text(text, strip):
 
 
 def main(argv):
+    if "--emit-orders" in argv:
+        text, errors = emit_orders()
+        if errors:
+            sys.stdout.buffer.write(("\n".join("!! " + e for e in errors) + "\n").encode("ascii", "replace"))
+            return 1
+        sys.stdout.buffer.write(text.encode("ascii", "replace"))
+        return 0
     result, failures = classify(argv)
     lines = []
     if result is not None:
