@@ -3357,6 +3357,66 @@ std::string GovernanceEngine::checkFunctionContract(
 
 // --- Input Contract Validation (v4) ---
 
+std::string GovernanceEngine::contractShownValue(const std::string& rendered) const {
+    if (!secretFinding(rendered).empty() || !piiFinding(rendered).empty()) {
+        return "<withheld: matches a secret or PII pattern>";
+    }
+    if (rendered.size() > 80) return rendered.substr(0, 77) + "...";
+    return rendered;
+}
+
+std::string GovernanceEngine::checkContractClauseFailed(
+    const std::string& func_name, bool ensures, const std::string& clause,
+    const std::string& outcome,
+    const std::vector<std::pair<std::string, std::string>>& values,
+    int line, const std::string& source_file) {
+
+    // Scoped: a clause is checked on every call, and an unscoped location
+    // would be stamped on whatever check runs next (test_dedup_runtime.sh).
+    ScopedCheckContext check_loc(source_file, line);
+    clearTrace();
+    auto it = rules().contracts.functions.find(func_name);
+    EnforcementLevel level = rules().contracts.level;
+    std::string description;
+    if (it != rules().contracts.functions.end()) {
+        if (it->second.level != EnforcementLevel::NONE) level = it->second.level;
+        description = it->second.description;
+    }
+    const char* kind = ensures ? "ensures" : "requires";
+    addTrace(fmt::format("{} clause '{}' of '{}': {}", kind, clause, func_name, outcome));
+
+    // formatError() bullets each help line, so one fact per line.
+    std::string args_shown, result_shown;
+    for (const auto& [name, rendered] : values) {
+        if (ensures && name == "result" && &rendered == &values.back().second) {
+            result_shown = contractShownValue(rendered);
+            continue;
+        }
+        if (!args_shown.empty()) args_shown += ", ";
+        args_shown += name + " = " + contractShownValue(rendered);
+    }
+    std::string help = description.empty()
+        ? std::string(ensures
+            ? "Every ensures clause must hold for what the function returns."
+            : "Every requires clause must hold for the arguments a function is called with.")
+        : description;
+    help += fmt::format("\nClause: {}\nOutcome: {}", clause, outcome);
+    if (!args_shown.empty()) {
+        help += (ensures ? "\nArguments on entry: " : "\nArguments: ") + args_shown;
+    }
+    if (ensures) help += "\nResult: " + (result_shown.empty() ? std::string("null") : result_shown);
+    return enforce(fmt::format("contracts.{}.{}", func_name, kind), level,
+        formatError(level,
+            fmt::format("Contract violation for '{}': {} does not hold", func_name, kind),
+            line > 0 ? fmt::format("line {}", line) : "",
+            "contracts",
+            help,
+            ensures ? fmt::format("{}(...) returns a value the clause rejects", func_name)
+                    : fmt::format("{}(...) called with arguments the clause rejects", func_name),
+            ensures ? "return a value every ensures clause accepts"
+                    : "check the arguments before the call, or fix the caller"));
+}
+
 std::string GovernanceEngine::checkFunctionInputContract(
     const std::string& func_name,
     const std::vector<std::string>& arg_types,

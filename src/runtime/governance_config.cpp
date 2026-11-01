@@ -7,6 +7,7 @@
 #include "naab/env_policy.h"
 #include "naab/path_policy.h"
 #include "naab/governance_message_format.h"  // labels the LSP reads back (A43(d))
+#include "naab/contract_expr.h"   // contracts.<fn>.requires/ensures (Bundle 11)
 #include <algorithm>
 #include <cctype>
 #include <vector>
@@ -107,6 +108,48 @@ static void requireKnownLanguage(const std::string& name, const char* where) {
         "  Help:\n" + help +
         "  - An unrecognised name matches no block: in a block list it blocks\n"
         "    nothing, so it is refused rather than ignored.\n");
+}
+
+// contracts.functions.<fn>.requires / ensures (Bundle 11). A string is one
+// clause, a list holds several; each must be a pure NAAb expression
+// (contract_expr.h). Anything else is a config error: dropping it would leave
+// a contract the operator wrote checking nothing.
+static void parseContractClauses(const std::string& fn_name, const char* key,
+                                 const nlohmann::json& v, std::vector<std::string>& out) {
+    const std::string where = "contracts.functions." + fn_name + "." + key;
+    auto refuse = [&](const std::string& got, const std::string& why) {
+        throw std::runtime_error(
+            "Governance config error: invalid contract clause in " + where + "\n\n"
+            "  Got: " + got + "\n"
+            "  Expected: a NAAb expression, or a list of them, that only reads its\n"
+            "  inputs (the function's parameters" +
+            std::string(std::string(key) == "ensures" ? ", and result" : "") + ")\n\n"
+            "  Help:\n"
+            "  - " + why + "\n"
+            "  - A clause runs on every call, so it may use operators, indexing,\n"
+            "    member access, lists, dicts and len()/type()/typeof(), and\n"
+            "    nothing that calls code or changes a value.\n\n"
+            "  Example:\n"
+            "    x Wrong: \"requires\": [\"log(n)\"]\n"
+            "    v Right: \"requires\": [\"n >= 0\", \"len(items) > 0\"]\n");
+    };
+    std::vector<std::string> texts;
+    if (v.is_string()) {
+        texts.push_back(v.get<std::string>());
+    } else if (v.is_array()) {
+        for (const auto& c : v) {
+            if (!c.is_string()) refuse(c.dump(), "each clause must be a string holding one expression");
+            texts.push_back(c.get<std::string>());
+        }
+    } else {
+        refuse(v.dump(), "the value must be a string or a list of strings");
+    }
+    for (const auto& t : texts) {
+        std::vector<std::string> names;
+        std::string why;
+        if (!naab::contracts::parseContractClause(t, names, why)) refuse("\"" + t + "\"", why);
+        out.push_back(t);
+    }
 }
 
 static std::string configLanguage(const std::string& name, const char* where) {
@@ -3236,6 +3279,17 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     for (auto& a : fn_obj["must_satisfy_args"]) {
                         fc.must_satisfy_args_json.push_back(a.dump());
                     }
+                }
+                // Bundle 11: requires / ensures, each a list of NAAb
+                // expressions (a single string is one clause). Refused at load
+                // -- never dropped -- when a value is not text or a clause is
+                // not pure: a contract that silently checks nothing is the
+                // failure this check exists to prevent (A111's rule).
+                if (fn_obj.contains("requires")) {
+                    parseContractClauses(fn_name, "requires", fn_obj["requires"], fc.requires_clauses);
+                }
+                if (fn_obj.contains("ensures")) {
+                    parseContractClauses(fn_name, "ensures", fn_obj["ensures"], fc.ensures_clauses);
                 }
                 parseRationale(fn_obj, fc.rationale);
                 rules_.contracts.functions[fn_name] = std::move(fc);

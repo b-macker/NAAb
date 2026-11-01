@@ -161,6 +161,9 @@ enum class OpCode : uint8_t {
 
     // Parameters
     OP_ARG_PASSED,      // [param:24] Push true if the call passed parameter `param`
+
+    // Contracts (Bundle 11)
+    OP_CONTRACT_ENTRY,  // after the default prologue: check requires, keep the entry arguments for ensures
 };
 
 // ============================================================================
@@ -248,6 +251,16 @@ struct UpvalueDesc {
 // CompiledFunction — bytecode + metadata for one function
 // ============================================================================
 
+struct CompiledFunction;
+
+// One contracts.<fn>.requires / ensures clause (naab/contract_expr.h): its text
+// and the closure-free function it compiles to -- fn(params...) for requires,
+// fn(params..., result) for ensures -- which returns true when it holds.
+struct ContractClause {
+    std::string text;
+    CompiledFunction* check = nullptr;
+};
+
 struct CompiledFunction {
     std::string name;
     int arity = 0;                  // Required params (min args)
@@ -272,6 +285,12 @@ struct CompiledFunction {
 
     // Debug info: slot index → variable name (for debugger variable inspection)
     std::vector<std::string> local_names;
+
+    // contracts.<name>.requires / ensures, compiled when this function was
+    // (Bundle 11). Non-empty only when govern.json gives the function a
+    // clause; the body then starts with OP_CONTRACT_ENTRY.
+    std::vector<ContractClause> contract_requires;
+    std::vector<ContractClause> contract_ensures;
 };
 
 // ============================================================================
@@ -286,6 +305,9 @@ struct CallFrame {
     int handler_count = 0;               // Exception handlers in this frame
     int argc = 0;                        // Arguments the call passed (the rest are defaults)
     std::string source_file;
+    // The arguments on entry (after defaults, lists and dicts copied), kept
+    // by OP_CONTRACT_ENTRY for an ensures clause; null otherwise.
+    std::shared_ptr<std::vector<interpreter::NaabVal>> contract_args;
 };
 
 // ============================================================================
@@ -401,7 +423,51 @@ public:
     // Debugger: get current scope variables (slot → name mapping)
     std::map<std::string, interpreter::NaabVal> getCurrentScopeVariables() const;
 
+    // --contract-search (Bundle 11, `naab-gov contracts`): after the program's
+    // definitions run (main is not compiled in this mode), call each case's
+    // function with its arguments and write one JSON line describing every
+    // outcome to `out_fd`. A clause that fails during a case stops that case
+    // and is reported instead of enforced; everything else is governed as in
+    // a run.
+    struct ContractSearchCase {
+        std::string function;
+        std::vector<std::string> args_json;
+    };
+    void setContractSearch(std::vector<ContractSearchCase> cases, int out_fd) {
+        contract_search_cases_ = std::move(cases);
+        contract_search_fd_ = out_fd;
+        contract_search_ = true;
+    }
+
 private:
+    // Bundle 11: requires / ensures. Evaluates `fn`'s clauses of one kind over
+    // `args` (and `result` for ensures); a clause that is false, not a bool,
+    // or cannot be evaluated is a violation, enforced at the contract's level.
+    // `frame_index` is the checked function's frame (the search tells its own
+    // call's requires apart from a nested one).
+    void evalContractClauses(CompiledFunction* fn, bool ensures,
+                             const std::vector<interpreter::NaabVal>& args,
+                             const interpreter::NaabVal* result, int line,
+                             const std::string& file, int frame_index);
+    // Refuses, while a clause is being evaluated, what a clause may not do
+    // at run time: a call that is not len/type/typeof, a member access on a
+    // value that is not a dict (naab/contract_expr.h).
+    void refuseInContractClause(const char* what);
+    int contract_eval_depth_ = 0;
+    // A function with a contract that returns through OP_RETURN or
+    // OP_RETURN_NULL: the output contract and the ensures clauses.
+    // explicit_value: OP_RETURN (the output contract runs for every named
+    // function, as it always did); OP_RETURN_NULL runs it only for a
+    // function that has a contract, so a null return leaves no location
+    // behind for functions without one.
+    void checkReturnContracts(CallFrame* frame, const interpreter::NaabVal& result, int line,
+                              bool explicit_value);
+    void runContractSearchCases();
+    bool contract_search_ = false;
+    int contract_search_fd_ = -1;
+    int contract_search_frame_ = -1;  // the searched call's frame while a case runs
+    std::vector<ContractSearchCase> contract_search_cases_;
+
     // Value stack (heap-allocated to avoid 560KB on C++ stack)
     static constexpr size_t STACK_MAX = 65536;
     std::unique_ptr<interpreter::NaabVal[]> stack_;

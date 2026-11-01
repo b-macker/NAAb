@@ -340,6 +340,7 @@ add_library(naab_parser
     src/parser/parser.cpp
     src/parser/ast_nodes.cpp
     src/parser/error_hints.cpp
+    src/parser/contract_expr.cpp    # contracts.<fn>.requires/ensures: parse + purity whitelist
 )
 target_link_libraries(naab_parser
     naab_lexer
@@ -453,6 +454,7 @@ target_include_directories(naab_security PRIVATE
 )
 target_link_libraries(naab_security
     naab_analyzer
+    naab_parser    # governance_config.cpp parses contract clauses (contract_expr.h)
     naab_runtime   # governance_engine.cpp calls writeFileSecure (secure_file.cpp).
                    # Cyclic with naab_runtime -> naab_security; CMake resolves
                    # static-lib cycles by repeating archives on the link line.
@@ -502,6 +504,9 @@ message(STATUS "  ✓ Runtime error enhancement (Phase 4.2)")
 add_library(naab_vm
     src/vm/vm.cpp
     src/vm/compiler.cpp
+)
+target_include_directories(naab_vm PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include   # --contract-search cases and report
 )
 target_link_libraries(naab_vm
     naab_parser
@@ -797,16 +802,21 @@ endif()
 message(STATUS "  ✓ Standard library")
 
 # REST API (Phase 4.7)
+# A governed program in a fresh `naab-lang run` worker process (worker.h):
+# REST /execute, the MCP server and `naab-gov contracts` share it.
+add_library(naab_worker STATIC src/api/worker.cpp)
+target_link_libraries(naab_worker Threads::Threads)
+
 add_library(naab_rest_api
     src/api/rest_api.cpp
     src/api/mcp_server.cpp
-    src/api/worker.cpp
 )
 target_include_directories(naab_rest_api PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
     ${CMAKE_CURRENT_SOURCE_DIR}/external/cpp-httplib
 )
 target_link_libraries(naab_rest_api
+    naab_worker
     naab_interpreter
     naab_runtime
     fmt::fmt
@@ -944,12 +954,13 @@ install(TARGETS libnaab
 message(STATUS "  ✓ libnaab shared library (Phase 8.1)")
 
 # naab-gov — Standalone governance + scanning CLI (Phase 8.2)
-add_executable(naab-gov src/cli/gov_main.cpp)
+add_executable(naab-gov src/cli/gov_main.cpp src/cli/gov_contracts.cpp)
 target_include_directories(naab-gov PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_link_libraries(naab-gov
+    naab_worker        # contracts: the search runs in a naab-lang worker
     naab_vm            # lint compiles the file so the per-function checks run
     naab_lexer
     naab_parser
@@ -1647,6 +1658,7 @@ if(HAVE_GOOGLETEST)
         tests/unit/gc_engine_activity_test.cpp  # the collector runs only when its engine is alone (A92)
         tests/unit/thread_vm_test.cpp           # which VM a tool runs on; a lent VM entered one at a time (A93)
         tests/unit/report_snapshot_test.cpp     # a report written while other threads record (A86)
+        tests/unit/contract_expr_test.cpp       # requires/ensures clauses: the purity whitelist (Bundle 11)
     )
 
     # Link GoogleTest and NAAb libraries

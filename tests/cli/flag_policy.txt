@@ -56,6 +56,7 @@
 --category	neutral	blocks/scan listing filter; no govern.json bearing
 --check	neutral	fmt subcommand: check formatting only; no govern.json bearing
 --command	neutral	rejected inline-code flag (-c) from other languages; prints a help error, not an option
+--contract-search	run-policy	naab-gov contracts worker plumbing (the search's cases); runs the program's functions instead of main under the same govern.json, VM only, refuses if malformed or without --event-stream-fd
 --debug	neutral	enable the interactive debugger; execution utility
 --diff	neutral	fmt subcommand: show a diff only; no govern.json bearing
 --drift-baseline-save	bypass-guarded:checkBlocked	saves a drift baseline; wired into the bypass-flag block (operator-lockable)

@@ -37,6 +37,11 @@ public:
 
     const std::string& getLastError() const { return last_error_; }
 
+    // --contract-search (Bundle 11): compile() runs main{}'s governance checks
+    // as for a run but emits none of its body, so executing the result only
+    // defines the program's functions.
+    void setOmitMainBody(bool v) { omit_main_body_ = v; }
+
     // Transfer ownership of all compiled functions (for keeping them alive after compiler dies)
     std::vector<std::unique_ptr<CompiledFunction>> takeCompiledFunctions() {
         return std::move(compiled_functions_);
@@ -92,6 +97,7 @@ private:
     std::shared_ptr<const source::ParsedSource> parsed_source_;  // setSourceText()
     std::shared_ptr<const source::ParsedSource> sourceForChecks() const;
     bool skip_main_ = false;  // True when compiling a module (skip main blocks)
+    bool omit_main_body_ = false;  // --contract-search: main's checks run, its body is not emitted
 
     // Owned compiled functions (for memory management)
     std::vector<std::unique_ptr<CompiledFunction>> compiled_functions_;
@@ -140,6 +146,15 @@ private:
     void compileFunctionBody(const std::string& name,
                              const std::vector<ast::Parameter>& params,
                              ast::Stmt* body, bool is_async, int line);
+
+    // contracts.<name>.requires / ensures (Bundle 11): compile each clause
+    // into its own closure-free function of the parameters (plus `result`
+    // for ensures) and attach it to `fn`. Called inside compileFunctionBody()
+    // after the default prologue; emits OP_CONTRACT_ENTRY when a clause
+    // exists. A clause naming anything that is not a parameter, or one on a
+    // generator, is a config error (exit 4).
+    void attachContractClauses(CompiledFunction* fn, const std::string& name,
+                               const std::vector<ast::Parameter>& params, int line);
 
     // Create a new CompiledFunction, return raw pointer (owned by compiled_functions_)
     CompiledFunction* newFunction(const std::string& name = "");

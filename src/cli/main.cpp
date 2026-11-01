@@ -665,6 +665,9 @@ int main(int argc, char** argv) {
     std::string global_lease_grant;
     std::string global_event_seed;        // --event-seed FILE: replay a caller's earlier events
     int global_event_stream_fd = -1;      // --event-stream-fd N: write recorded events to fd N
+    // `naab-gov contracts` worker plumbing (Bundle 11): call the program's
+    // contracted functions with generated inputs instead of running main.
+    std::string global_contract_search;   // --contract-search FILE: the cases
     unsigned int global_timeout = 0;       // --timeout: override default 30s (0 = use default)
 
     while (command_arg_index < argc) {
@@ -792,6 +795,9 @@ int main(int argc, char** argv) {
         } else if (arg == "--event-stream-fd" && command_arg_index + 1 < argc) {
             try { global_event_stream_fd = std::stoi(argv[++command_arg_index]); }
             catch (...) { global_event_stream_fd = -2; }  // invalid: refused at use
+            command_arg_index++;
+        } else if (arg == "--contract-search" && command_arg_index + 1 < argc) {
+            global_contract_search = argv[++command_arg_index];
             command_arg_index++;
         } else if (arg == "--signing-key" && command_arg_index + 1 < argc) {
             // V-SC-009: Override NAAB_SIGNING_KEY for this invocation
@@ -1321,6 +1327,7 @@ int main(int argc, char** argv) {
         std::string lease_grant = global_lease_grant;
         std::string event_seed = global_event_seed;
         int event_stream_fd = global_event_stream_fd;
+        std::string contract_search = global_contract_search;
         std::string governance_report_json = global_governance_report_json;
         std::string governance_report_sarif = global_governance_report_sarif;
         std::string governance_report_junit = global_governance_report_junit;
@@ -1426,6 +1433,8 @@ int main(int argc, char** argv) {
             } else if (arg == "--event-stream-fd" && i + 1 < argc) {
                 try { event_stream_fd = std::stoi(argv[++i]); }
                 catch (...) { event_stream_fd = -2; }
+            } else if (arg == "--contract-search" && i + 1 < argc) {
+                contract_search = argv[++i];
             } else if (arg == "--") {
                 // V-LSP-004: end-of-flags — remaining args are positional
                 while (++i < argc) {
@@ -1636,6 +1645,37 @@ int main(int argc, char** argv) {
             fflush(nullptr);
             naab::exitProcess(4);
 #endif
+        }
+        // --contract-search (Bundle 11): the cases `naab-gov contracts`
+        // generated. It reports on the event stream, runs on the VM only, and
+        // is refused rather than half-applied when anything is missing.
+        std::vector<naab::vm::VM::ContractSearchCase> contract_search_cases;
+        if (!contract_search.empty()) {
+            auto refuseSearch = [&](const char* why) {
+                fprintf(stderr, "Error: --contract-search: %s\n", why);
+                fflush(nullptr);
+                naab::exitProcess(4);
+            };
+            if (event_stream_fd < 0) refuseSearch("it reports on --event-stream-fd, which is not set");
+            if (!use_vm) refuseSearch("the search runs on the VM; drop --tree-walk");
+            std::ifstream cf(contract_search);
+            if (!cf) refuseSearch("the cases file cannot be read");
+            try {
+                nlohmann::json cj = nlohmann::json::parse(cf);
+                if (!cj.contains("cases") || !cj["cases"].is_array()) refuseSearch("the cases file has no cases list");
+                for (const auto& c : cj["cases"]) {
+                    if (!c.is_object() || !c.contains("function") || !c["function"].is_string() ||
+                        !c.contains("args") || !c["args"].is_array()) {
+                        refuseSearch("a case needs a function name and an args list");
+                    }
+                    naab::vm::VM::ContractSearchCase sc;
+                    sc.function = c["function"].get<std::string>();
+                    for (const auto& a : c["args"]) sc.args_json.push_back(a.dump());
+                    contract_search_cases.push_back(std::move(sc));
+                }
+            } catch (const nlohmann::json::exception&) {
+                refuseSearch("the cases file is not valid JSON");
+            }
         }
 
         // Guidance connectors (https / command sources) are fetched only by a
@@ -1850,6 +1890,17 @@ int main(int argc, char** argv) {
                     "  - Remove --tree-walk from the command.\n");
                 fflush(nullptr);
                 naab::exitProcess(4);
+            }
+            // requires/ensures are compiled into the VM's code (Bundle 11);
+            // the tree-walker evaluates none, so say so rather than let an
+            // audit run read as checked.
+            for (const auto& [fname, fc] : shared_governance.getRules().contracts.functions) {
+                if (!fc.requires_clauses.empty() || !fc.ensures_clauses.empty()) {
+                    fprintf(stderr,
+                        "[governance] Note: contract clauses (requires/ensures) are checked by the\n"
+                        "  default engine only; --tree-walk does not evaluate them in this run.\n");
+                    break;
+                }
             }
         }
 
@@ -2614,6 +2665,7 @@ int main(int argc, char** argv) {
                     // Bytecode VM path — compiler gets governance for pre-flight taint analysis
                     if (gov_loaded) bc_compiler.setGovernance(&vm_governance);
                     bc_compiler.setSourceText(source);  // the checks read what was parsed (A45)
+                    if (!contract_search.empty()) bc_compiler.setOmitMainBody(true);
                     main_fn = bc_compiler.compile(*program, filename);
                 } catch (...) {
                     if (vm_governance.isActive()) {
@@ -2872,6 +2924,9 @@ int main(int argc, char** argv) {
                     );
                 }
 
+                if (!contract_search.empty()) {
+                    bytecode_vm.setContractSearch(std::move(contract_search_cases), event_stream_fd);
+                }
                 try {
                     auto result = bytecode_vm.execute(main_fn);
                     (void)result;

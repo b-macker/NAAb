@@ -2087,6 +2087,19 @@ std::unique_ptr<ast::Expr> Parser::parseExpression() {
     return parseAssignment();
 }
 
+std::unique_ptr<ast::Expr> Parser::parseExpressionOnly() {
+    auto skipBlank = [&]() {
+        while (match(lexer::TokenType::NEWLINE) || match(lexer::TokenType::COMMENT)) {}
+    };
+    skipBlank();
+    auto expr = parseExpression();
+    skipBlank();
+    if (!isAtEnd()) {
+        throw ParseError("unexpected '" + current().value + "' after the expression");
+    }
+    return expr;
+}
+
 std::unique_ptr<ast::Expr> Parser::parseAssignment() {
     auto expr = parsePipeline();
 

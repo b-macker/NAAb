@@ -2383,6 +2383,15 @@ struct FunctionContract {
     // Format: "result.key op value" (e.g., "result.compliance_rate >= 0")
     std::vector<std::string> must_satisfy;
     std::vector<std::string> must_satisfy_args_json;  // Test args for must_satisfy (JSON strings)
+
+    // Bundle 11: requires / ensures. Each entry is one NAAb expression
+    // (include/naab/contract_expr.h): every `requires_clauses` entry must hold
+    // over the arguments when the function is entered, every
+    // `ensures_clauses` entry over the entry arguments and `result` when it
+    // returns. Checked by the VM at the call boundary, at this contract's
+    // level (else contracts.level). The loader refuses an impure clause.
+    std::vector<std::string> requires_clauses;
+    std::vector<std::string> ensures_clauses;
 };
 
 struct ContractsConfig {
@@ -3743,6 +3752,22 @@ public:
     std::string checkFunctionInputContract(const std::string& func_name,
                                             const std::vector<std::string>& arg_types,
                                             int line = 0);
+
+    // Bundle 11: a contracts.<fn>.requires / ensures clause that did not hold.
+    // `outcome` says how (false, not a boolean, could not be evaluated);
+    // `values` are the inputs (and result) as the VM rendered them, each
+    // shown through contractShownValue(). Enforced at the contract's level
+    // (else contracts.level); returns enforce()'s result.
+    std::string checkContractClauseFailed(
+        const std::string& func_name, bool ensures, const std::string& clause,
+        const std::string& outcome,
+        const std::vector<std::pair<std::string, std::string>>& values,
+        int line, const std::string& source_file);
+    // A value as a contract message or the search report shows it: cut to 80
+    // characters, and withheld when it matches a secret or PII pattern --
+    // the arguments are the program's data, and the message reaches the
+    // terminal, the reports and telemetry.
+    std::string contractShownValue(const std::string& rendered) const;
 
     // --- Complexity Floor Check ---
     // Verifies that functions meet minimum structural complexity
