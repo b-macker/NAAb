@@ -724,6 +724,125 @@ static void reconcileCodeQualityMirrors(GovernanceRules& r) {
          r.code_quality.no_hardcoded_results.enabled, r.code_quality.no_hardcoded_results.level);
 }
 
+// A restriction the loader cannot read is a restriction it silently does not
+// apply. The capability parsers read a switch only when it is a boolean and a
+// list entry only when it is a string, so `"shell": {"enabled": "no"}`,
+// `"enabled": 0`, `"blocked_paths": [["vault/"]]` and `"blocked_read":
+// [["SECRET"]]` all loaded with the restriction gone and said nothing --
+// observed by the config fuzzer (tests/fuzzing/config, Bundle 9), shell ran and
+// the blocked file and variable were read under `mode: enforce`. A config like
+// that is refused instead (exit 4, as for a config that does not parse), naming
+// the key: it cannot load as written. Accepted as today: a single string where a
+// capability list is expected (its parser applies it as a one-entry list; the
+// language, agent-role and function lists are read only as arrays, so a string
+// is refused there), and the
+// bare forms (`"shell": false`, `"network": false`, `"filesystem": "read"`, and
+// `"filesystem": true`, which restricts nothing). Throws std::runtime_error.
+static const char* jsonTypeName(const nlohmann::json& v) {
+    if (v.is_null()) return "null";
+    if (v.is_boolean()) return "a boolean";
+    if (v.is_number()) return "a number";
+    if (v.is_string()) return "a string";
+    if (v.is_array()) return "a list";
+    return "an object";
+}
+
+static void checkRestrictionTypes(const nlohmann::json& j) {
+    if (!j.is_object()) return;
+    auto refuse = [](const std::string& key, const std::string& want, const nlohmann::json& got) {
+        throw std::runtime_error(
+            "\"" + key + "\" must be " + want + ", got " + jsonTypeName(got) + ".\n"
+            "  A restriction the loader cannot read would not be applied, so the\n"
+            "  config is refused rather than loaded without it. Write it as " + want + ".");
+    };
+    // strict: the key's parser reads it only when it is an array, so a single
+    // string is dropped there too (languages, agent roles, function entries);
+    // the capability lists iterate a single string as a one-entry list.
+    auto strList = [&](const nlohmann::json& node, const std::string& base, const char* key,
+                       bool strict = false) {
+        if (!node.is_object() || !node.contains(key)) return;
+        const auto& v = node[key];
+        if (v.is_string() && !strict) return;
+        if (!v.is_array()) refuse(base + "." + key, "a list of strings", v);
+        for (const auto& e : v)
+            if (!e.is_string()) refuse(base + "." + key, "a list of strings (an entry is not a string)", e);
+    };
+    auto boolean = [&](const nlohmann::json& node, const std::string& base, const char* key) {
+        if (node.is_object() && node.contains(key) && !node[key].is_boolean())
+            refuse(base + "." + key, "true or false", node[key]);
+    };
+
+    if (j.contains("capabilities")) {
+        const auto& cap = j["capabilities"];
+        if (!cap.is_object()) refuse("capabilities", "an object", cap);
+        if (cap.contains("shell") && !cap["shell"].is_boolean() && !cap["shell"].is_object())
+            refuse("capabilities.shell", "true, false or an object", cap["shell"]);
+        if (cap.contains("network") && !cap["network"].is_boolean() && !cap["network"].is_object())
+            refuse("capabilities.network", "true, false or an object", cap["network"]);
+        if (cap.contains("filesystem")) {
+            const auto& fs = cap["filesystem"];
+            if (!fs.is_string() && !fs.is_object() && !(fs.is_boolean() && fs.get<bool>()))
+                refuse("capabilities.filesystem", "a mode string or an object", fs);
+        }
+        for (const char* k : {"env_vars", "functions", "process"})
+            if (cap.contains(k) && !cap[k].is_object())
+                refuse(std::string("capabilities.") + k, "an object", cap[k]);
+        if (cap.contains("env_vars")) {
+            const auto& ev = cap["env_vars"];
+            for (const char* k : {"allowed_read", "blocked_read", "allowed_write", "blocked_write",
+                                  "allowed_subprocess_vars", "blocked_subprocess_vars",
+                                  "blocked_subprocess_prefixes"})
+                strList(ev, "capabilities.env_vars", k);
+            for (const char* k : {"read", "write"}) boolean(ev, "capabilities.env_vars", k);
+        }
+        if (cap.contains("filesystem") && cap["filesystem"].is_object()) {
+            const auto& fs = cap["filesystem"];
+            for (const char* k : {"allowed_paths", "blocked_paths", "allowed_extensions", "blocked_extensions"})
+                strList(fs, "capabilities.filesystem", k);
+            for (const char* k : {"allow_symlinks", "allow_hidden_files", "allow_absolute_paths"})
+                boolean(fs, "capabilities.filesystem", k);
+            if (fs.contains("mode") && !fs["mode"].is_string())
+                refuse("capabilities.filesystem.mode", "a mode string", fs["mode"]);
+        }
+        if (cap.contains("network") && cap["network"].is_object()) {
+            const auto& net = cap["network"];
+            for (const char* k : {"allowed_hosts", "blocked_hosts"}) strList(net, "capabilities.network", k);
+            for (const char* k : {"enabled", "https_only", "allow_websockets", "allow_raw_sockets"})
+                boolean(net, "capabilities.network", k);
+            if (net.contains("allowed_ports")) {
+                const auto& v = net["allowed_ports"];
+                if (!v.is_number_integer() && !v.is_array())
+                    refuse("capabilities.network.allowed_ports", "a list of port numbers", v);
+                if (v.is_array())
+                    for (const auto& e : v)
+                        if (!e.is_number_integer())
+                            refuse("capabilities.network.allowed_ports", "a list of port numbers (an entry is not one)", e);
+            }
+        }
+        if (cap.contains("shell") && cap["shell"].is_object()) {
+            const auto& sh = cap["shell"];
+            for (const char* k : {"allowed_commands", "blocked_commands"}) strList(sh, "capabilities.shell", k);
+            for (const char* k : {"enabled", "allow_pipes", "allow_redirects"}) boolean(sh, "capabilities.shell", k);
+        }
+        if (cap.contains("functions") && cap["functions"].is_object())
+            for (const auto& [name, entry] : cap["functions"].items())
+                strList(entry, "capabilities.functions." + name, "allowed_actions", true);
+    }
+    if (j.contains("languages") && j["languages"].is_object())
+        for (const char* k : {"allowed", "blocked"}) strList(j["languages"], "languages", k, true);
+    if (j.contains("agents") && j["agents"].is_object()) {
+        for (const auto& [name, a] : j["agents"].items()) {
+            if (!a.is_object()) continue;
+            const std::string base = "agents." + name;
+            for (const char* k : {"allowed_actions", "allowed_languages", "blocked_languages",
+                                  "allowed_paths", "blocked_paths", "tools"})
+                strList(a, base, k, true);
+            for (const char* k : {"shell_allowed", "network_allowed", "shell_content_allowed", "tools_enabled"})
+                boolean(a, base, k);
+        }
+    }
+}
+
 static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // Take the one load-time environment snapshot (env_snapshot.h) -- the proxy,
     // CA bundle and environment every outbound connection and guidance command
@@ -731,6 +850,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // (startup) load captures; a later reload is a no-op, which is correct -- a
     // reload runs after user code.
     naab::net::captureProxyCaSnapshotOnce();
+    checkRestrictionTypes(j);
 #ifdef NAAB_CONFIG_MUTATION
     loadFromJsonImpl(applySettingDrop(j), rules_);
 #else

@@ -9,6 +9,7 @@
 #  define pclose _pclose
 #endif
 
+#include "naab/utc_time.h"
 #include "naab/sql_executor.h"
 #include "repl.h"
 #include "naab/config.h"
@@ -955,13 +956,15 @@ int main(int argc, char** argv) {
             if (meta.created_at > 0) {
                 char buf[64];
                 time_t t = static_cast<time_t>(meta.created_at);
-                strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", gmtime(&t));
+                const std::tm utc_t = naab::utcTime(t);
+                strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", &utc_t);
                 fprintf(stdout, "  Created:    %s\n", buf);
             }
             if (meta.expires_at > 0) {
                 char buf[64];
                 time_t t = static_cast<time_t>(meta.expires_at);
-                strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", gmtime(&t));
+                const std::tm utc_t = naab::utcTime(t);
+                strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", &utc_t);
                 fprintf(stdout, "  Expires:    %s%s\n", buf,
                         naab::security::TrustStore::isKeyExpired(meta) ? " (EXPIRED)" : "");
             } else {
@@ -1111,7 +1114,8 @@ int main(int argc, char** argv) {
                 if (exp > 0) {
                     char buf[64];
                     time_t t = static_cast<time_t>(exp);
-                    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", gmtime(&t));
+                    const std::tm utc_t = naab::utcTime(t);
+                    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", &utc_t);
                     fprintf(stdout, "    expires:  %s%s\n", buf,
                         expired ? " (EXPIRED)" : "");
                 } else {
@@ -2853,11 +2857,14 @@ int main(int argc, char** argv) {
                 naab::security::ScopedTimeout vm_timeout(timeout);
 
                 // Set VM callbacks for tool execution during agent.send()
-                // (must be set before execute so callVMFunction works in tool loops)
+                // (must be set before execute so callVMFunction works in tool loops).
+                // A tool runs on the VM the agent call came from -- this one, an
+                // async fn's, or the one an agent.batch lent its workers -- never
+                // on this one from another thread (A93, naab/thread_vm.h).
                 if (vm_governance.isActive()) {
                     vm_governance.setVMCallbacks(
-                        [&bytecode_vm](naab::interpreter::NaabVal fn, const std::vector<naab::interpreter::NaabVal>& args, bool taint) {
-                            return bytecode_vm.callNaabFunction(fn, args, taint);
+                        [](naab::interpreter::NaabVal fn, const std::vector<naab::interpreter::NaabVal>& args, bool taint) {
+                            return naab::vm::VM::callToolOnThreadVM(std::move(fn), args, taint);
                         },
                         [&bytecode_vm]() -> const auto& {
                             return bytecode_vm.getGlobals();

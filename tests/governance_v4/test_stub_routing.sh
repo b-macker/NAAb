@@ -23,6 +23,8 @@
 #   D4  last matching key wins, not first         -> SR-05
 #   D5  wrap-around instead of last-repeats       -> SR-01 SR-02 SR-04
 #   D6  req_N.json opened without encoding=utf-8 -> SR-07 (SR-07c stays green)
+#   D7  keys.log written after the body, as before -> SR-08 (SR-08c stays green)
+#   D8  append_log() without its lock                -> SR-09 (SR-09c stays green)
 #
 # Each gate is isolated by at least one row (SR-01/SR-02 by D5, SR-04 by D3,
 # SR-05 by D4), so none of them is riding on a neighbour.
@@ -70,6 +72,10 @@ gate_def SR-05 ROUTING  "first matching key in fixture order wins"
 gate_def SR-06 EVIDENCE "routes.log records one decision per request"
 gate_def SR-07 COMPAT   "a non-ASCII body is answered and logged intact under a non-UTF-8 locale"
 gate_def SR-07c CONTROL "an ASCII body is answered under the same locale"
+gate_def SR-08 EVIDENCE "keys.log holds a sequential client's requests in order, none lost at stop"
+gate_def SR-08c CONTROL "without a held log line, keys.log holds both requests"
+gate_def SR-09 EVIDENCE "every append to a shared log is made under the stub's log lock"
+gate_def SR-09c CONTROL "the SR-09 scan flags an unlocked append in a planted copy"
 
 # ------------------------------------------------------------------
 # A minimal client: POST a body, print the model's text on one line.
@@ -284,6 +290,88 @@ if [ $NA_RC -eq 0 ] && [ "$NA_OUT" = "G1" ] && grep -qF "$NONASCII_CHAR" "$TEST_
 else
     fail SR-07 "a non-ASCII body broke the stub under a non-UTF-8 locale" \
          "rc=$NA_RC out='$NA_OUT' req_1=$(wc -c < "$TEST_TMP/loc_nonascii/req_1.json" 2>/dev/null) bytes; $(grep -a -m1 'Error' "$TEST_TMP/loc_nonascii/stub.log" 2>/dev/null)"
+fi
+
+# ------------------------------------------------------------------
+# SR-08 / SR-08c -- keys.log against the reply it records
+# ------------------------------------------------------------------
+# The stub wrote a request's keys.log line AFTER sending its body, so a
+# sequential client could send request 2 before request 1 was logged, and a
+# stub stopped after the last reply could lose a line outright. Seen under one
+# CPU (tests/tsan/schedule_perturb.sh): test_concurrent_key_rotation.sh CK-11
+# read request 2's key on line 1. log_hold_ms on the first response holds that
+# request's logging step for 300 ms; the line must still come first, and both
+# lines must be there once the stub is stopped right after the client returns.
+log_seq() {  # $1=state subdir, $2=fixture; echoes "<n of line 1> <line count>"
+    local dir="$TEST_TMP/$1"
+    mkdir -p "$dir"
+    start_stub "$2" "$dir" || return 1
+    python3 "$TEST_TMP/post.py" "$STUB_PORT" "$BODY_N" "$BODY_N" >/dev/null 2>"$dir/client.err"
+    local rc=$?
+    stop_stub
+    echo "$(awk 'NR==1{print $1}' "$dir/keys.log" 2>/dev/null) $(wc -l < "$dir/keys.log" 2>/dev/null | tr -d ' ')"
+    return $rc
+}
+cat > "$TEST_TMP/log_hold.json" << 'EOF'
+{"responses": [{"content": "G1", "log_hold_ms": 300}, {"content": "G2"}]}
+EOF
+LC_OUT="$(log_seq log_plain "$TEST_TMP/flat.json")"; LC_RC=$?
+if [ $LC_RC -eq 0 ] && [ "$LC_OUT" = "1 2" ]; then
+    pass SR-08c "without a held log line, keys.log holds both requests in order"
+else
+    fail SR-08c "keys.log did not hold two ordered lines even without a hold" "rc=$LC_RC line1/count='$LC_OUT'"
+fi
+LH_OUT="$(log_seq log_held "$TEST_TMP/log_hold.json")"; LH_RC=$?
+if [ $LH_RC -eq 0 ] && [ "$LH_OUT" = "1 2" ]; then
+    pass SR-08 "a held log line is still written first, and none is lost when the stub is stopped"
+else
+    fail SR-08 "keys.log lost or reordered request 1's line" "rc=$LH_RC line1/count='$LH_OUT' (want '1 2')"
+fi
+
+# ------------------------------------------------------------------
+# SR-09 / SR-09c -- shared-log appends are serialised
+# ------------------------------------------------------------------
+# Two handler threads append to keys.log at once whenever two requests are held
+# together, and on Windows an append is not atomic between file handles: both
+# lines land at one offset and one is lost (build-windows, #354: one of the two
+# concurrent first calls missing from keys.log in 3 of 3 runs). POSIX O_APPEND is
+# atomic, so no run on Linux can show the race; this arm reads the stub's syntax
+# tree instead: every open() in append mode must sit inside `with self.log_lock`.
+unlocked_appends() {  # $1 = a copy of agent_stub.py; prints each unlocked append's line
+    python3 - "$1" <<'PYEOF'
+import ast, sys
+tree = ast.parse(open(sys.argv[1], encoding="utf-8").read())
+def is_append_open(n):
+    return (isinstance(n, ast.Call) and getattr(n.func, "id", "") == "open"
+            and len(n.args) >= 2 and isinstance(n.args[1], ast.Constant) and n.args[1].value == "a")
+def under_log_lock(stack):
+    for w in stack:
+        for item in w.items:
+            e = item.context_expr
+            if isinstance(e, ast.Attribute) and e.attr == "log_lock":
+                return True
+    return False
+def walk(node, stack):
+    for child in ast.iter_child_nodes(node):
+        if is_append_open(child) and not under_log_lock(stack):
+            print(child.lineno)
+        walk(child, stack + [child] if isinstance(child, ast.With) else stack)
+walk(tree, [])
+PYEOF
+}
+STUB_SRC="$SCRIPT_DIR/../helpers/agent_stub.py"
+UNLOCKED="$(unlocked_appends "$STUB_SRC")"
+APPENDS="$(grep -c '"a", encoding' "$STUB_SRC")"
+if [ -z "$UNLOCKED" ] && [ "$APPENDS" -ge 1 ]; then
+    pass SR-09 "every append to a shared log ($APPENDS site) is under the log lock"
+else
+    fail SR-09 "an append to a shared log is not under the log lock" "unlocked at line(s): $UNLOCKED; append sites: $APPENDS"
+fi
+sed 's/^            with self.log_lock:$/            if True:/' "$STUB_SRC" > "$TEST_TMP/stub_unlocked.py"
+if [ -n "$(unlocked_appends "$TEST_TMP/stub_unlocked.py")" ]; then
+    pass SR-09c "the scan flags the append once the lock is removed from a copy"
+else
+    fail SR-09c "the scan did not flag an unlocked append in the planted copy -- SR-09 measures nothing"
 fi
 
 gate_print_summary

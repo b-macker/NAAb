@@ -3926,6 +3926,9 @@ void GovernanceEngine::setSource(const std::string& source) {
 }
 
 void GovernanceEngine::runGovernanceVoice() {
+    // A copy taken under results_mutex_: async fns and agent.batch workers
+    // record while this runs, and the vector may reallocate under a reader (A86).
+    const std::vector<CheckResult> results_snapshot = getCheckResults();
     if (rules().output.voice.empty() || source_.empty()) return;
     // Once per engine. A precaution: each path calls this once where it ends
     // (traced), but a throw after the VM's end-of-run call would reach a catch
@@ -3934,7 +3937,7 @@ void GovernanceEngine::runGovernanceVoice() {
 
     // Collect non-passing results
     std::vector<const CheckResult*> violations;
-    for (const auto& r : check_results_) {
+    for (const auto& r : results_snapshot) {
         if (!r.passed) violations.push_back(&r);
     }
     if (violations.empty()) return;
@@ -4462,7 +4465,10 @@ void GovernanceEngine::printDashboard() const {
 // ============================================================================
 
 bool GovernanceEngine::wasBlocked() const {
-    for (const auto& r : check_results_) {
+    // A copy taken under results_mutex_: async fns and agent.batch workers
+    // record while this runs, and the vector may reallocate under a reader (A86).
+    const std::vector<CheckResult> results_snapshot = getCheckResults();
+    for (const auto& r : results_snapshot) {
         if (!r.passed && (r.level == EnforcementLevel::HARD || r.escalated)) return true;
     }
     return false;
@@ -4833,10 +4839,13 @@ GovernanceEngine::getCalibrationOverrides() const {
 // ============================================================================
 
 void GovernanceEngine::saveGovernanceBaseline() const {
+    // A copy taken under results_mutex_: async fns and agent.batch workers
+    // record while this runs, and the vector may reallocate under a reader (A86).
+    const std::vector<CheckResult> results_snapshot = getCheckResults();
     if (rules().governance_baseline.path.empty()) return;
 
     int hard = 0, soft = 0, advisory = 0, security = 0;
-    for (const auto& r : check_results_) {
+    for (const auto& r : results_snapshot) {
         if (r.passed) continue;
         if (r.level == EnforcementLevel::HARD) hard++;
         else if (r.level == EnforcementLevel::SOFT) soft++;
@@ -4866,7 +4875,7 @@ void GovernanceEngine::saveGovernanceBaseline() const {
     baseline["soft_violations"] = soft;
     baseline["advisory_violations"] = advisory;
     baseline["security_findings"] = security;
-    baseline["total_checks"] = static_cast<int>(check_results_.size());
+    baseline["total_checks"] = static_cast<int>(results_snapshot.size());
 
     std::ofstream ofs(rules().governance_baseline.path);
     if (ofs.is_open()) {
@@ -4877,6 +4886,9 @@ void GovernanceEngine::saveGovernanceBaseline() const {
 }
 
 std::string GovernanceEngine::checkGovernanceBaseline() const {
+    // A copy taken under results_mutex_: async fns and agent.batch workers
+    // record while this runs, and the vector may reallocate under a reader (A86).
+    const std::vector<CheckResult> results_snapshot = getCheckResults();
     if (!rules().governance_baseline.enabled) return "";
 
     std::ifstream ifs(rules().governance_baseline.path);
@@ -4890,7 +4902,7 @@ std::string GovernanceEngine::checkGovernanceBaseline() const {
     }
 
     int hard = 0, soft = 0, advisory = 0, security = 0;
-    for (const auto& r : check_results_) {
+    for (const auto& r : results_snapshot) {
         if (r.passed) continue;
         if (r.level == EnforcementLevel::HARD) hard++;
         else if (r.level == EnforcementLevel::SOFT) soft++;
@@ -7716,7 +7728,7 @@ void GovernanceEngine::auditPolyglotOutputs() {
         // Check for secrets in output
         std::string err = checkSecrets(rec.captured_output, rec.source_line);
         if (!err.empty()) {
-            check_results_.push_back({"pass2.output_secrets", EnforcementLevel::ADVISORY,
+            appendCheckResult({"pass2.output_secrets", EnforcementLevel::ADVISORY,
                 false, rec.language + " L" + std::to_string(rec.source_line) + ": " + err,
                 "pass2_output", "medium", rec.source_line, rec.file, {}, {}});
         }
@@ -7724,7 +7736,7 @@ void GovernanceEngine::auditPolyglotOutputs() {
         // Check for PII in output
         err = checkPii(rec.captured_output, rec.source_line);
         if (!err.empty()) {
-            check_results_.push_back({"pass2.output_pii", EnforcementLevel::ADVISORY,
+            appendCheckResult({"pass2.output_pii", EnforcementLevel::ADVISORY,
                 false, rec.language + " L" + std::to_string(rec.source_line) + ": " + err,
                 "pass2_output", "medium", rec.source_line, rec.file, {}, {}});
         }
@@ -7732,7 +7744,7 @@ void GovernanceEngine::auditPolyglotOutputs() {
         // Check for high-entropy output (possible leaked credentials)
         err = checkOutputEntropy(rec.captured_output, rec.source_line);
         if (!err.empty()) {
-            check_results_.push_back({"pass2.output_entropy", EnforcementLevel::ADVISORY,
+            appendCheckResult({"pass2.output_entropy", EnforcementLevel::ADVISORY,
                 false, rec.language + " L" + std::to_string(rec.source_line) + ": " + err,
                 "pass2_output", "low", rec.source_line, rec.file, {}, {}});
         }
@@ -7740,7 +7752,7 @@ void GovernanceEngine::auditPolyglotOutputs() {
         // Check for error dumps in output
         err = checkErrorDumps(rec.captured_output, rec.source_line);
         if (!err.empty()) {
-            check_results_.push_back({"pass2.output_error_dump", EnforcementLevel::ADVISORY,
+            appendCheckResult({"pass2.output_error_dump", EnforcementLevel::ADVISORY,
                 false, rec.language + " L" + std::to_string(rec.source_line) + ": " + err,
                 "pass2_output", "low", rec.source_line, rec.file, {}, {}});
         }
@@ -7780,7 +7792,7 @@ void GovernanceEngine::auditTaintFlows() {
         std::to_string(allowed) + " allowed, " +
         std::to_string(sanitized) + " sanitized";
 
-    check_results_.push_back({"pass2.taint_summary", EnforcementLevel::ADVISORY,
+    appendCheckResult({"pass2.taint_summary", EnforcementLevel::ADVISORY,
         allowed == 0, msg, "pass2_taint", allowed > 0 ? "high" : "low",
         0, "", {}, {}});
 }
@@ -7790,7 +7802,7 @@ void GovernanceEngine::auditDeterminism() {
     for (const auto& rec : polyglot_executions_) {
         std::string err = checkDeterminism(rec.language, rec.final_code, rec.source_line);
         if (!err.empty()) {
-            check_results_.push_back({"pass2.determinism", EnforcementLevel::ADVISORY,
+            appendCheckResult({"pass2.determinism", EnforcementLevel::ADVISORY,
                 false, rec.language + " L" + std::to_string(rec.source_line) + ": " + err,
                 "pass2_determinism", "low", rec.source_line, rec.file, {}, {}});
         }
@@ -7809,7 +7821,7 @@ void GovernanceEngine::auditSemanticCorrectness() {
 
         // Non-zero exit code
         if (rec.exit_code != 0) {
-            check_results_.push_back({"pass2.exit_code", EnforcementLevel::ADVISORY,
+            appendCheckResult({"pass2.exit_code", EnforcementLevel::ADVISORY,
                 false, rec.language + " L" + std::to_string(rec.source_line) +
                 ": subprocess exited with code " + std::to_string(rec.exit_code),
                 "pass2_semantic", "medium", rec.source_line, rec.file, {}, {}});
@@ -7817,7 +7829,7 @@ void GovernanceEngine::auditSemanticCorrectness() {
 
         // Contract verification result
         if (rec.contract_verified) {
-            check_results_.push_back({"pass2.contract", EnforcementLevel::ADVISORY,
+            appendCheckResult({"pass2.contract", EnforcementLevel::ADVISORY,
                 true, rec.language + " L" + std::to_string(rec.source_line) +
                 ": -> JSON contract verified",
                 "pass2_semantic", "low", rec.source_line, rec.file, {}, {}});
@@ -7840,7 +7852,7 @@ void GovernanceEngine::auditCrossBlockFlows() {
         if (rules().taint_tracking.gate_cross_block) {
             cbLevel = rules().taint_tracking.cross_block_level;
         }
-        check_results_.push_back({"pass2.cross_block_taint", cbLevel,
+        appendCheckResult({"pass2.cross_block_taint", cbLevel,
             false, std::to_string(unsanitized) + " cross-block data flow(s) without sanitization",
             "pass2_cross_block", "medium", 0, "", {}, {}});
 
@@ -7857,6 +7869,8 @@ void GovernanceEngine::auditSideEffects() {
 }
 
 std::string GovernanceEngine::computeCoverageReport() const {
+    // Caller holds results_mutex_ (its one caller, printValidationReport(),
+    // does): read check_results_ directly, a snapshot here would deadlock.
     std::map<std::string, std::pair<int, int>> category_stats;  // {total, failed}
     for (const auto& cr : check_results_) {
         auto& stats = category_stats[cr.category];

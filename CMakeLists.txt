@@ -565,6 +565,7 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/js_executor.cpp
     src/runtime/sql_executor.cpp  # <<sql>> blocks: in-process, in-memory SQLite
     src/runtime/language_registry.cpp
+    src/runtime/thread_vm.cpp  # A93: which VM a tool runs on
     src/runtime/cpp_executor_adapter.cpp
     src/runtime/js_executor_adapter.cpp
     src/runtime/shell_executor.cpp  # Polyglot: Shell executor
@@ -1644,6 +1645,8 @@ if(HAVE_GOOGLETEST)
         tests/unit/rx_test.cpp                  # naab::rx, the engine's regular expressions (A89)
         tests/unit/stdlib_modules_test.cpp      # one call into each of ten stdlib modules
         tests/unit/gc_engine_activity_test.cpp  # the collector runs only when its engine is alone (A92)
+        tests/unit/thread_vm_test.cpp           # which VM a tool runs on; a lent VM entered one at a time (A93)
+        tests/unit/report_snapshot_test.cpp     # a report written while other threads record (A86)
     )
 
     # Link GoogleTest and NAAb libraries

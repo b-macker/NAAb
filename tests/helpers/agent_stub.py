@@ -63,6 +63,12 @@ the log. Give a response "hold_ms" to keep its slot open long enough for
 that overlap to be observable -- a stub that answers instantly makes every
 arm look sequential no matter what the engine did.
 
+A request's keys.log line is written BEFORE its response body is sent, so a
+sequential client's lines are in request order and none is lost when the stub
+is stopped after the last reply. "log_hold_ms" on a response waits that long
+just before the line is written -- the probe for that ordering
+(test_stub_routing.sh SR-08).
+
 Tool-call pairing is validated as Gemini validates it: a turn of
 functionResponse parts must follow a model turn holding the same number of
 functionCall parts, with the same names. A request that breaks it is answered
@@ -70,6 +76,15 @@ functionCall parts, with the same names. A request that breaks it is answered
 engine that answers a call it never showed (A44(b)) fails here as it would
 against the provider, instead of passing a stub that accepts anything.
 "validate_tool_pairing": false in the fixture turns the check off.
+
+Two keys let a fixture send what no well-behaved provider would (the
+model-channel fuzzer, tests/fuzzing/model_channel/):
+    {"raw_payload": {...}}     this JSON object is the whole response body,
+                               in place of the generateContent shape
+    {"raw_body": "..."}        these exact characters are the body, encoded
+                               as Latin-1 so any byte 0-255 can be sent
+                               (malformed JSON, truncated bodies, invalid UTF-8)
+Both take "status" (default 200) and "hold_ms" as usual.
 
 The server is threaded, so concurrent dispatch is served concurrently.
 StubState is mutated only under its lock, so response-queue semantics are
@@ -96,6 +111,26 @@ class StubState:
         self.count = 0        # every request, for req_N.json numbering
         self.global_idx = 0   # advances only on UNROUTED requests
         self.lock = threading.Lock()
+        # Appends to the shared logs (keys.log, routes.log, pairing.log) are
+        # serialised. Two handler threads append at the same moment whenever two
+        # requests are held together, and on Windows an append is not atomic
+        # between file handles (the C runtime seeks to the end, then writes):
+        # both lines land at one offset and one is lost. Observed on build-windows
+        # (#354): test_tool_thread_vm.sh's two concurrent first calls left one
+        # keys.log line in 3 of 3 runs. POSIX O_APPEND is atomic, so Linux never
+        # showed it.
+        self.log_lock = threading.Lock()
+
+    def append_log(self, name, line):
+        """Append one line to a shared log in state_dir, one writer at a time."""
+        if not self.state_dir:
+            return
+        try:
+            with self.log_lock:
+                with open("%s/%s" % (self.state_dir, name), "a", encoding="utf-8", errors="replace") as f:
+                    f.write(line)
+        except OSError:
+            pass
 
     def log_key(self, n, api_key, t0, t1):
         """Record which API key served request n, and when.
@@ -106,13 +141,7 @@ class StubState:
         overlapping [t0,t1] windows are what proves requests were genuinely
         in flight together rather than merely adjacent in the log.
         """
-        if not self.state_dir:
-            return
-        try:
-            with open("%s/keys.log" % self.state_dir, "a", encoding="utf-8", errors="replace") as f:
-                f.write("%d %s %d %d\n" % (n, api_key or "-", t0, t1))
-        except OSError:
-            pass
+        self.append_log("keys.log", "%d %s %d %d\n" % (n, api_key or "-", t0, t1))
 
     def _pick(self, responses, idx):
         if not responses:
@@ -142,11 +171,7 @@ class StubState:
                     f.write(body)
             except OSError:
                 pass
-            try:
-                with open("%s/routes.log" % self.state_dir, "a", encoding="utf-8", errors="replace") as f:
-                    f.write("%d %s\n" % (n, key if key is not None else "-"))
-            except OSError:
-                pass
+            self.append_log("routes.log", "%d %s\n" % (n, key if key is not None else "-"))
         return self._pick(responses, idx), n
 
 
@@ -229,22 +254,24 @@ class Handler(BaseHTTPRequestHandler):
         status = spec.get("status", 200)
         bad_pairing = STATE.validate_pairing and pairing_violation(body)
         if bad_pairing:
-            if STATE.state_dir:
-                try:
-                    with open("%s/pairing.log" % STATE.state_dir, "a", encoding="utf-8", errors="replace") as f:
-                        f.write("%d %s\n" % (req_n, bad_pairing))
-                except OSError:
-                    pass
+            STATE.append_log("pairing.log", "%d %s\n" % (req_n, bad_pairing))
             status = 400
             payload = {"error": {"code": 400, "message": PAIRING_ERROR,
                                  "status": "INVALID_ARGUMENT"}}
+        elif "raw_body" in spec:
+            payload = None
+        elif "raw_payload" in spec:
+            payload = spec["raw_payload"]
         elif status != 200:
             payload = {"error": {"message": spec.get("error", "stub error"),
                                  "status": str(status)}}
         else:
             payload = gemini_body(spec, body)
 
-        data = json.dumps(payload).encode("utf-8")
+        if payload is None and not bad_pairing:
+            data = str(spec["raw_body"]).encode("latin-1", errors="replace")
+        else:
+            data = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
@@ -256,9 +283,22 @@ class Handler(BaseHTTPRequestHandler):
         hold = spec.get("hold_ms", 0)
         if hold:
             time.sleep(hold / 1000.0)
-        self.wfile.write(data)
+        # Log BEFORE the body goes out: a client cannot act on this response
+        # until the body arrives, so request N's line is written before
+        # request N+1 can exist. Logged after the write, a sequential client's
+        # next request could log first -- or the stub be stopped before this
+        # line was written at all, once the program had its last reply.
+        # Observed under one CPU (tests/tsan/schedule_perturb.sh): CK-11 read
+        # request 2's key on line 1, in 1 of 3 rounds; a delay planted before
+        # the old log call lost request 1's line in 3 of 3 runs. t1 still
+        # follows the hold, which is the window CK-03 and the overlap probes
+        # compare.
+        log_hold = spec.get("log_hold_ms", 0)
+        if log_hold:
+            time.sleep(log_hold / 1000.0)
         t1 = int((time.monotonic() - START_MONO) * 1000)
         STATE.log_key(req_n, api_key, t0, t1)
+        self.wfile.write(data)
 
     def log_message(self, fmt, *args):  # silence per-request stderr noise
         pass

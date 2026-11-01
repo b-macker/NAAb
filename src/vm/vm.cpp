@@ -38,6 +38,7 @@
 #include <chrono>
 #include <unordered_set>
 #include <naab/safe_math.h>
+#include "naab/thread_vm.h"
 
 namespace naab {
 namespace vm {
@@ -676,6 +677,9 @@ interpreter::NaabVal VM::run() {
     // so no other engine's collector may sweep while it holds values (a
     // re-entered run() for a callback on the same thread changes nothing).
     interpreter::EngineActivation gc_activation(gc_detector_.get());
+    // A93: NAAb code on this thread runs on this VM until run() returns, so a
+    // tool an agent call here starts runs nested on it (naab/thread_vm.h).
+    runtime::RunningVMScope running_vm(this);
     CallFrame* frame = &frames_[frame_count_ - 1];
     // Handlers below this index belong to frames outside this invocation:
     // when run() is re-entered for a callback, the native caller sits on the
@@ -4197,6 +4201,29 @@ bool VM::callFunction(VMClosure* closure, int argc) {
     }
 
     return true;
+}
+
+interpreter::NaabVal VM::callToolOnThreadVM(interpreter::NaabVal fn,
+                                             const std::vector<interpreter::NaabVal>& args,
+                                             bool taint_all_args) {
+    runtime::ThreadVM here = runtime::currentThreadVM();
+    if (!here.vm) {
+        throw std::runtime_error(
+            "Agent error: no VM to run the tool on\n\n"
+            "  A tool runs on the VM that made the agent call, and this thread has none.\n");
+    }
+    auto* vm = static_cast<VM*>(here.vm);
+    if (!here.loan) {
+        return vm->callNaabFunction(std::move(fn), args, taint_all_args);
+    }
+    // A lent VM: its own thread waits in agent.batch; workers enter one at a time.
+    std::lock_guard<std::mutex> entry(here.loan->entry);
+    if (here.loan->revoked.load(std::memory_order_acquire)) {
+        throw std::runtime_error(
+            "Agent error: tool not run\n\n"
+            "  The agent.batch call that started this send has ended.\n");
+    }
+    return vm->callNaabFunction(std::move(fn), args, taint_all_args);
 }
 
 interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,

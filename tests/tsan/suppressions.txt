@@ -1,0 +1,7 @@
+# ThreadSanitizer suppressions for tests/tsan/run_tsan.sh.
+#
+# Each entry needs a reason that says why the report is not a NAAb defect,
+# and how that was established. An unexplained entry is a race hidden, not
+# judged: add one only after reading the report and the code it names.
+#
+# (none yet)

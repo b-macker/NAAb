@@ -3,6 +3,7 @@
 // agent.batch(), agent.fan_out(), agent.pipeline()
 // Requires "agents" section in govern.json for configuration
 
+#include "naab/thread_vm.h"
 #include "naab/stdlib_new_modules.h"
 #include "naab/error_sanitizer.h"
 #include "naab/naab_val.h"
@@ -6917,6 +6918,12 @@ static NaabVal agentBatch(std::vector<NaabVal>& args) {
     auto* gov_engine_ptr = governance::GovernanceEngine::getCurrent();
     // Capture sandbox config for worker thread propagation (fail-closed: GAP 7)
     auto sandbox_config = security::ScopedSandbox::effectiveConfig();
+    // A93: a tool a worker's model calls runs on THIS thread's VM, lent to the
+    // workers for the batch and entered by one at a time; revoked when this
+    // function returns or throws (naab/thread_vm.h). Before, every tool ran on
+    // the main VM from the worker's own thread, two at once.
+    runtime::VMLoan vm_loan;
+    runtime::ThreadVM lent_vm = vm_loan.lent();
 
     // Submit in batches respecting max_concurrent
     std::vector<NaabVal> results(tasks.size());
@@ -6928,10 +6935,12 @@ static NaabVal agentBatch(std::vector<NaabVal>& args) {
         for (size_t i = idx; i < batch_end; i++) {
             auto& task = tasks[i];
             futures.push_back(pool.enqueue(
-                [handle = task.handle, message = task.message, gov_engine_ptr, sandbox_config]() mutable -> NaabVal {
+                [handle = task.handle, message = task.message, gov_engine_ptr, sandbox_config,
+                 lent_vm]() mutable -> NaabVal {
                     GovernanceGuard guard(gov_engine_ptr);
                     // Activate sandbox in worker thread (propagate from main thread)
                     security::ScopedSandbox worker_sandbox(sandbox_config);
+                    runtime::LentVMScope worker_vm(lent_vm);
                     try {
                         std::vector<NaabVal> send_args = {handle, message};
                         return agentSend(send_args);

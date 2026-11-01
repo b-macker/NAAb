@@ -390,6 +390,14 @@ public:
                                           const std::vector<interpreter::NaabVal>& args,
                                           bool taint_all_args = false);
 
+    // A registered tool, on the VM the agent call came from (A93,
+    // naab/thread_vm.h): the VM running on this thread, else the one an
+    // agent.batch dispatcher lent this worker, entered under the loan's lock.
+    // Throws when this thread has neither, or the loan was revoked.
+    static interpreter::NaabVal callToolOnThreadVM(interpreter::NaabVal fn,
+                                                   const std::vector<interpreter::NaabVal>& args,
+                                                   bool taint_all_args);
+
     // Debugger: get current scope variables (slot → name mapping)
     std::map<std::string, interpreter::NaabVal> getCurrentScopeVariables() const;
 
