@@ -2726,6 +2726,52 @@ else
     echo "  test_bsd_preexec_double_record.sh: not found, skipping"
 fi
 
+# A113: a completed behavioural sequence must be enforced whatever its shape or
+# its neighbours -- an advisory listed first no longer suppresses a hard block,
+# single-step patterns are caught before the call, and a stale anchor does not
+# let a fresh start slip the gap window.
+BSDEC_SCRIPT="tests/governance_v4/test_bsd_enforcement_completeness.sh"
+if [ -f "$BSDEC_SCRIPT" ]; then
+    if run_shell_test "$BSDEC_SCRIPT" 2>&1; then
+        echo "  test_bsd_enforcement_completeness.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_bsd_enforcement_completeness.sh")
+    fi
+else
+    echo "  test_bsd_enforcement_completeness.sh: not found, skipping"
+fi
+
+# B10.1: load-time lint -- a pattern that can never fire (a step with no
+# matcher), and a pattern subsumed by another. Report-only, sound by
+# construction (identical step sequences only), never refuses a config.
+BSDLINT_SCRIPT="tests/governance_v4/test_bsd_pattern_lint.sh"
+if [ -f "$BSDLINT_SCRIPT" ]; then
+    if run_shell_test "$BSDLINT_SCRIPT" 2>&1; then
+        echo "  test_bsd_pattern_lint.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_bsd_pattern_lint.sh")
+    fi
+else
+    echo "  test_bsd_pattern_lint.sh: not found, skipping"
+fi
+
+# B10.2: thin depth-3 smoke for the governance state-machine explorer (no
+# commit at CRITICAL; the level never de-escalates). The full exploration is a
+# report-only tool (tools/governance_explore/explore.py), not in CI.
+BSDSM_SCRIPT="tests/governance_v4/test_governance_statemachine.sh"
+if [ -f "$BSDSM_SCRIPT" ]; then
+    if run_shell_test "$BSDSM_SCRIPT" 2>&1; then
+        echo "  test_governance_statemachine.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_governance_statemachine.sh")
+    fi
+else
+    echo "  test_governance_statemachine.sh: not found, skipping"
+fi
+
 # CI's SARIF merger corrupted result.ruleIndex for every file after the first,
 # and GitHub rejected the upload as a neutral check while the job stayed green.
 # Nothing could reach the merger while it was inline in the workflow YAML.

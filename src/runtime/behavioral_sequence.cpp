@@ -34,6 +34,23 @@ static std::string normalizeEventTypeName(const std::string& raw) {
     return s;
 }
 
+// How hard a level blocks, for picking the strictest of several completions on
+// one event (A113 fix 1). HARD wins over SOFT over APPROVAL_REQUIRED over
+// DETECT (catchable) over ADVISORY (warn). This orders which completion the
+// engine ENFORCES; it is not the ratchet's levelToInt (that is a tightening
+// order over config edits, a different question).
+static int bsdBlockRank(EnforcementLevel l) {
+    switch (l) {
+        case EnforcementLevel::HARD:              return 5;
+        case EnforcementLevel::APPROVAL_REQUIRED: return 4;
+        case EnforcementLevel::SOFT:              return 3;
+        case EnforcementLevel::DETECT:            return 2;
+        case EnforcementLevel::ADVISORY:          return 1;
+        case EnforcementLevel::NONE:              return 0;
+    }
+    return 0;
+}
+
 // Keyword extraction shared with agent_impl.cpp (include/naab/keyword_extract.h) —
 // CDD signal keywords must come from the same tokenizer as mandate/response keywords.
 static void extractKeywordsLocal(const std::string& text, std::unordered_set<std::string>& out) {
@@ -460,8 +477,127 @@ bool BehavioralSequenceDetector::isEnabled() const {
     return config_ && config_->enabled;
 }
 
-SequenceMatchResult BehavioralSequenceDetector::recordEvent(const RuntimeEvent& event) {
+// A113: advance one pattern's partial-match set for `ev`. Shared by recordEvent
+// (live state) and wouldMatch (a copy), so the pre-check cannot predict one
+// thing and the record commit another. Returns true, filling `out`, when the
+// event completes the pattern.
+bool BehavioralSequenceDetector::advancePattern(const SequencePattern& pattern,
+        PatternMatchState& st, const RuntimeEvent& ev, size_t ev_seq,
+        SequenceMatchResult& out) const {
+    if (pattern.steps.empty()) return false;
+
+    // 1. Expire partials past their gap or decay window, measured from each
+    //    partial's own last matched step.
+    {
+        std::vector<SequencePartial> kept;
+        kept.reserve(st.partials.size());
+        for (auto& p : st.partials) {
+            bool expired = false;
+            if (pattern.max_gap > 0 && ev_seq > p.last_match_seq_id) {
+                size_t gap = ev_seq - p.last_match_seq_id - 1;
+                if (gap > static_cast<size_t>(pattern.max_gap)) expired = true;
+            }
+            if (!expired) {
+                auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                    ev.timestamp - p.last_match_time).count();
+                if (elapsed > pattern.decay_seconds) expired = true;
+                else if (ev.turn > 0 && p.last_match_turn > 0 &&
+                         (ev.turn - p.last_match_turn) > pattern.decay_turns) expired = true;
+            }
+            if (!expired) kept.push_back(std::move(p));
+        }
+        st.partials = std::move(kept);
+    }
+
+    bool completed = false;
+    std::vector<SequencePartial> next;
+    next.reserve(st.partials.size() + 1);
+
+    auto crossAgentOk = [&](const std::vector<RuntimeEvent>& evs) {
+        if (!pattern.cross_agent) return true;
+        std::unordered_set<std::string> agents;
+        for (const auto& me : evs) if (!me.agent_config.empty()) agents.insert(me.agent_config);
+        return agents.size() >= 2;
+    };
+    // A partial that reached the end completes (subject to cross_agent) and is
+    // consumed; otherwise it is kept at its new step. At most one completion is
+    // reported per pattern per event — after the dedup below only one partial
+    // can sit at the final step.
+    auto settle = [&](SequencePartial&& adv) {
+        if (adv.next_step >= pattern.steps.size()) {
+            if (!completed && crossAgentOk(adv.matched_events)) {
+                out.pattern_name = pattern.name;
+                out.pattern = &pattern;
+                out.matched_events = adv.matched_events;
+                completed = true;
+            }
+        } else {
+            next.push_back(std::move(adv));
+        }
+    };
+
+    // 2. Advance every partial this event matches; keep the rest (intervening
+    //    events stay within the window until gap/decay expires them).
+    for (auto& p : st.partials) {
+        if (matchesStep(ev, pattern.steps[p.next_step])) {
+            SequencePartial adv = p;
+            adv.matched_events.push_back(ev);
+            adv.next_step = p.next_step + 1;
+            adv.last_match_seq_id = ev_seq;
+            adv.last_match_turn = ev.turn;
+            adv.last_match_time = ev.timestamp;
+            settle(std::move(adv));
+        } else {
+            next.push_back(std::move(p));
+        }
+    }
+    // Start a fresh partial at step 0 only when this event did not already
+    // complete the pattern. Matching remains NON-OVERLAPPING, as the single
+    // cursor was: consecutive events do not spawn a cascade of overlapping
+    // matches (the oracle in test_bsd_preexec_double_record pins 3, not 5, from
+    // six same-type events). The fresh start is what re-anchors a STALLED
+    // partial (fix 4) -- a case where, by definition, nothing completed -- and
+    // it is where a single-step pattern (no stored partial to advance) fires.
+    if (!completed && matchesStep(ev, pattern.steps[0])) {
+        SequencePartial fresh;
+        fresh.matched_events.push_back(ev);
+        fresh.next_step = 1;
+        fresh.last_match_seq_id = ev_seq;
+        fresh.last_match_turn = ev.turn;
+        fresh.last_match_time = ev.timestamp;
+        settle(std::move(fresh));
+    }
+
+    // 3. Bound the set. Two partials waiting at the same step differ only by
+    //    their window; the newer accepts the next step over a strictly longer
+    //    horizon, so collapsing to the newest per step never loses a detection.
+    //    cross_agent patterns keep each (their histories differ for the
+    //    two-agent test) under a hard cap.
+    if (!pattern.cross_agent) {
+        std::unordered_map<size_t, SequencePartial> newest;
+        for (auto& p : next) {
+            auto it = newest.find(p.next_step);
+            if (it == newest.end() || p.last_match_seq_id > it->second.last_match_seq_id)
+                newest[p.next_step] = std::move(p);
+        }
+        next.clear();
+        for (auto& kv : newest) next.push_back(std::move(kv.second));
+    } else if (next.size() > 256) {
+        std::sort(next.begin(), next.end(),
+                  [](const SequencePartial& a, const SequencePartial& b) {
+                      return a.last_match_seq_id < b.last_match_seq_id;
+                  });
+        next.erase(next.begin(), next.begin() + (next.size() - 256));
+    }
+
+    st.partials = std::move(next);
+    return completed;
+}
+
+SequenceMatchResult BehavioralSequenceDetector::recordEvent(const RuntimeEvent& event,
+        std::vector<SequenceMatchResult>* all_completions) {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (all_completions) all_completions->clear();
     if (!config_ || !config_->enabled) return {};
     const auto& patterns = getActivePatterns();
     if (patterns.empty()) return {};
@@ -479,104 +615,23 @@ SequenceMatchResult BehavioralSequenceDetector::recordEvent(const RuntimeEvent& 
         evicted_event_count_++;
     }
 
-    // Check each pattern's FSM
+    // Advance EVERY pattern (A113 fix 1): one event may complete several, and a
+    // pattern that completes must not be hidden by another listed before it.
+    // Return the strictest completion; report them all through all_completions.
+    SequenceMatchResult strictest;
     for (const auto& pattern : patterns) {
         auto& state = pattern_states_[pattern.name];
-
-        // Check decay: reset if too old
-        if (state.current_step > 0) {
-            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-                ev.timestamp - state.last_match_time).count();
-            bool decayed = (elapsed > pattern.decay_seconds);
-            if (!decayed && ev.turn > 0 && state.last_match_turn > 0) {
-                decayed = (ev.turn - state.last_match_turn) > pattern.decay_turns;
-            }
-            if (decayed) {
-                state.current_step = 0;
-                state.matched_events.clear();
-            }
-        }
-
-        // Check gap: reset if too many events between matches
-        if (state.current_step > 0) {
-            size_t gap = ev.sequence_id - state.last_match_seq_id - 1;
-            if (gap > static_cast<size_t>(pattern.max_gap)) {
-                state.current_step = 0;
-                state.matched_events.clear();
-            }
-        }
-
-        // Try to match current step
-        if (state.current_step < pattern.steps.size()) {
-            if (matchesStep(ev, pattern.steps[state.current_step])) {
-                state.matched_events.push_back(ev);
-                state.last_match_seq_id = ev.sequence_id;
-                state.last_match_turn = ev.turn;
-                state.last_match_time = ev.timestamp;
-                state.current_step++;
-
-                // Pattern complete?
-                if (state.current_step >= pattern.steps.size()) {
-                    // Cross-agent check: reject if all events came from same agent
-                    if (pattern.cross_agent) {
-                        std::unordered_set<std::string> agents;
-                        for (const auto& me : state.matched_events) {
-                            if (!me.agent_config.empty()) agents.insert(me.agent_config);
-                        }
-                        if (agents.size() < 2) {
-                            state.current_step = 0;
-                            state.matched_events.clear();
-                            continue;
-                        }
-                    }
-                    SequenceMatchResult result;
-                    result.pattern_name = pattern.name;
-                    result.pattern = &pattern;
-                    result.matched_events = state.matched_events;
-                    state.current_step = 0;
-                    state.matched_events.clear();
-                    match_count_++;
-                    return result;
-                }
-            }
-        }
-
-        // If we reset above due to gap/decay, re-check step 0
-        if (state.current_step == 0 && state.matched_events.empty()) {
-            if (!pattern.steps.empty() && matchesStep(ev, pattern.steps[0])) {
-                state.matched_events.push_back(ev);
-                state.last_match_seq_id = ev.sequence_id;
-                state.last_match_turn = ev.turn;
-                state.last_match_time = ev.timestamp;
-                state.current_step = 1;
-
-                if (state.current_step >= pattern.steps.size()) {
-                    // Cross-agent check: reject if all events came from same agent
-                    if (pattern.cross_agent) {
-                        std::unordered_set<std::string> agents;
-                        for (const auto& me : state.matched_events) {
-                            if (!me.agent_config.empty()) agents.insert(me.agent_config);
-                        }
-                        if (agents.size() < 2) {
-                            state.current_step = 0;
-                            state.matched_events.clear();
-                            continue;
-                        }
-                    }
-                    SequenceMatchResult result;
-                    result.pattern_name = pattern.name;
-                    result.pattern = &pattern;
-                    result.matched_events = state.matched_events;
-                    state.current_step = 0;
-                    state.matched_events.clear();
-                    match_count_++;
-                    return result;
-                }
+        SequenceMatchResult m;
+        if (advancePattern(pattern, state, ev, ev.sequence_id, m)) {
+            match_count_++;
+            if (all_completions) all_completions->push_back(m);
+            if (strictest.pattern_name.empty() ||
+                bsdBlockRank(m.pattern->level) > bsdBlockRank(strictest.pattern->level)) {
+                strictest = m;
             }
         }
     }
-
-    return {};
+    return strictest;
 }
 
 bool BehavioralSequenceDetector::matchesStep(const RuntimeEvent& event,
@@ -754,55 +809,39 @@ std::string deadEnumStepSpelling(const std::string& matcher) {
     return "";
 }
 
-SequenceMatchResult BehavioralSequenceDetector::wouldMatch(const RuntimeEvent& event) const {
+SequenceMatchResult BehavioralSequenceDetector::wouldMatch(const RuntimeEvent& event,
+        std::vector<SequenceMatchResult>* all_completions) const {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (all_completions) all_completions->clear();
     if (!config_ || !config_->enabled) return {};
     const auto& patterns = getActivePatterns();
     if (patterns.empty()) return {};
 
+    // Simulate the same advance recordEvent would commit, on a COPY of each
+    // pattern's state, so this stays read-only and the two cannot diverge. The
+    // would-be sequence id is what recordEvent would assign next; single-step
+    // patterns and any pattern this event completes are all reported (A113).
+    RuntimeEvent ev = event;
+    if (ev.timestamp == std::chrono::steady_clock::time_point{}) {
+        ev.timestamp = std::chrono::steady_clock::now();
+    }
+    const size_t ev_seq = sequence_counter_ + 1;
+
+    SequenceMatchResult strictest;
     for (const auto& pattern : patterns) {
+        PatternMatchState sim;
         auto it = pattern_states_.find(pattern.name);
-        if (it == pattern_states_.end()) continue;
-        const auto& state = it->second;
-
-        // Only fire if this event would be the FINAL step
-        if (state.current_step == 0) continue;
-        if (state.current_step + 1 != pattern.steps.size()) continue;
-
-        // Gap check: would this event arrive too late?
-        // sequence_counter_+1 is the would-be seq_id; -1 to match recordEvent formula
-        if (pattern.max_gap > 0 && state.last_match_seq_id > 0) {
-            size_t gap = sequence_counter_ + 1 - state.last_match_seq_id - 1;
-            if (gap > static_cast<size_t>(pattern.max_gap)) continue;
-        }
-
-        // Decay check (time + turn — matches recordEvent logic)
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-            now - state.last_match_time).count();
-        if (elapsed > pattern.decay_seconds) continue;
-        if (event.turn > 0 && state.last_match_turn > 0 &&
-            (event.turn - state.last_match_turn) > pattern.decay_turns) continue;
-
-        // Does this event match the final step?
-        if (matchesStep(event, pattern.steps[state.current_step])) {
-            // Cross-agent check: reject if all events (including candidate) from same agent
-            if (pattern.cross_agent) {
-                std::unordered_set<std::string> agents;
-                for (const auto& me : state.matched_events) {
-                    if (!me.agent_config.empty()) agents.insert(me.agent_config);
-                }
-                if (!event.agent_config.empty()) agents.insert(event.agent_config);
-                if (agents.size() < 2) continue;
+        if (it != pattern_states_.end()) sim = it->second;
+        SequenceMatchResult m;
+        if (advancePattern(pattern, sim, ev, ev_seq, m)) {
+            if (all_completions) all_completions->push_back(m);
+            if (strictest.pattern_name.empty() ||
+                bsdBlockRank(m.pattern->level) > bsdBlockRank(strictest.pattern->level)) {
+                strictest = m;
             }
-            SequenceMatchResult result;
-            result.pattern_name = pattern.name;
-            result.pattern = &pattern;
-            result.matched_events = state.matched_events;  // steps so far (not including this one)
-            return result;
         }
     }
-    return {};
+    return strictest;
 }
 
 std::vector<RuntimeEvent> BehavioralSequenceDetector::getEventsForTurn(int turn) const {
@@ -861,9 +900,11 @@ double BehavioralSequenceDetector::getMaxPartialProgress() const {
         if (pattern.steps.empty()) continue;
         auto it = pattern_states_.find(pattern.name);
         if (it == pattern_states_.end()) continue;
-        double progress = static_cast<double>(it->second.current_step) /
-                          static_cast<double>(pattern.steps.size());
-        if (progress > max_progress) max_progress = progress;
+        for (const auto& p : it->second.partials) {
+            double progress = static_cast<double>(p.next_step) /
+                              static_cast<double>(pattern.steps.size());
+            if (progress > max_progress) max_progress = progress;
+        }
     }
     return max_progress;
 }

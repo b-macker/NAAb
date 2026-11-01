@@ -4028,6 +4028,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             size_t stepless_patterns = 0;
             for (auto& pat : bs["patterns"]) {
                 SequencePattern sp;
+                std::vector<size_t> empty_step_indices;  // B10.1
                 sp.name = pat.value("name", "");
                 sp.max_gap = pat.value("max_gap", 10);
                 sp.decay_seconds = pat.value("decay_seconds", 300);
@@ -4071,8 +4072,20 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                                 step.detail_globs.push_back("");
                             }
                         }
+                        if (step.match_any.empty()) empty_step_indices.push_back(sp.steps.size());
                         sp.steps.push_back(std::move(step));
                     }
+                }
+                // B10.1: a step with no matcher never matches, so the pattern
+                // can never fire (distinct from the dead-enum case above, which
+                // is already reported per matcher). Report, do not refuse: a
+                // pattern that cannot fire changes no verdict.
+                if (!sp.steps.empty() && !empty_step_indices.empty()) {
+                    fmt::print(stderr,
+                        "[governance] Warning: behavioral_sequences pattern \"{}\": step {} has no "
+                        "matcher and can never match, so this pattern can never fire.\n",
+                        sp.name.empty() ? std::string("(unnamed)") : sp.name,
+                        empty_step_indices.front());
                 }
                 if (sp.steps.empty()) {
                     // A pattern with no steps can never match -- the matcher
@@ -4097,6 +4110,48 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     "{} of them with no steps. A patterns list replaces the built-in "
                     "patterns, so the built-ins are not active either.\n",
                     cfg.patterns.size(), stepless_patterns);
+            }
+            // B10.1 subsumption: a pattern whose steps are identical to
+            // another's, and whose window is at least as wide at an equal or
+            // stricter level, fires whenever the other would -- so the other
+            // adds nothing. Report only; enforcement is unchanged. Sound by
+            // construction: identical step sequences only (any difference in a
+            // matcher or a detail glob is not reported), so no operator is told
+            // a pattern that does fire is redundant.
+            auto bsdStepsEqual = [](const SequencePattern& a, const SequencePattern& b) {
+                if (a.steps.size() != b.steps.size()) return false;
+                if (a.cross_agent != b.cross_agent) return false;
+                for (size_t k = 0; k < a.steps.size(); ++k) {
+                    if (a.steps[k].match_any != b.steps[k].match_any) return false;
+                    if (a.steps[k].detail_globs != b.steps[k].detail_globs) return false;
+                }
+                return true;
+            };
+            auto bsdCovers = [](const SequencePattern& a, const SequencePattern& b) {
+                return a.max_gap >= b.max_gap && a.decay_seconds >= b.decay_seconds &&
+                       a.decay_turns >= b.decay_turns &&
+                       levelToInt(a.level) >= levelToInt(b.level);
+            };
+            for (size_t i = 0; i < cfg.patterns.size(); ++i) {
+                if (cfg.patterns[i].steps.empty()) continue;
+                for (size_t j = i + 1; j < cfg.patterns.size(); ++j) {
+                    if (cfg.patterns[j].steps.empty()) continue;
+                    if (!bsdStepsEqual(cfg.patterns[i], cfg.patterns[j])) continue;
+                    const SequencePattern* keep = nullptr;
+                    const SequencePattern* drop = nullptr;
+                    if (bsdCovers(cfg.patterns[i], cfg.patterns[j])) {
+                        keep = &cfg.patterns[i]; drop = &cfg.patterns[j];
+                    } else if (bsdCovers(cfg.patterns[j], cfg.patterns[i])) {
+                        keep = &cfg.patterns[j]; drop = &cfg.patterns[i];
+                    }
+                    if (keep) {
+                        fmt::print(stderr,
+                            "[governance] Warning: behavioral_sequences pattern \"{}\" is subsumed "
+                            "by \"{}\" (same steps; \"{}\" fires whenever \"{}\" would, at an equal "
+                            "or stricter level), so \"{}\" adds nothing.\n",
+                            drop->name, keep->name, keep->name, drop->name, drop->name);
+                    }
+                }
             }
         }
     }

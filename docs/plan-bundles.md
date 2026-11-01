@@ -12,8 +12,9 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 6: crash-proof governor, then the planned defaults | merged | #347 (`41a3b3c3`) |
 | 7: release | merged | #348 (`ca07ae12`) tagged v2.0.0; its macOS release build failed, so #349 (`735fa217`) released 2.0.1 |
 | 8: "governance only tightens", proved | merged: PR 1 #352 (`76c871cf`), PR 2 #353 (`fc9b8099`) | Bundle 8 below |
-| 9: adversarial inputs and concurrency | in progress, one PR (the default rule): every part built and in local validation; nothing pushed | Bundle 9 below |
-| 10-15 | not started | |
+| 9: adversarial inputs and concurrency | merged | #354 (`7a4c1c50`); A108-A112 |
+| 10: state machines and automata | in progress, one PR: A113 (four BSD enforcement fixes) + load-time lint + the bounded state-machine explorer; in local validation | Bundle 10 below |
+| 11-15 | not started | |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). The bundle plan itself was recorded in #351 (`86fc33c9`).
 
@@ -144,6 +145,8 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
   - at CRITICAL no commit lands;
   - a calm sibling never de-escalates another handle's level;
   - an undetermined hold never advances the streak.
+
+**Progress (A113, this PR).** The history pass over the matcher found four ways a completed pattern went unenforced (owner approved fixing all four): one event completed at most one pattern (an advisory listed first suppressed a hard block); the pre-check skipped single-step patterns; and a stalled partial kept its oldest start. Fixed in `behavioral_sequence.cpp` -- every pattern advanced per event, strictest enforced, single-step pre-checked, a bounded partial list re-anchoring a stall, matching still non-overlapping (`test_bsd_enforcement_completeness.sh`, 3 mutants). The **emptiness + subsumption** lint is a report-only load warning, sound by construction (`governance_config.cpp`, `test_bsd_pattern_lint.sh`). The **bounded explorer** is `tools/governance_explore/explore.py` (report-only; depth 4 = 173 orderings, clean), checking no-commit-at-CRITICAL and no-de-escalation; `test_governance_statemachine.sh` is the depth-3 CI smoke. Pulse, quarantine-streak and lease safety properties already have dedicated suites (`test_undetermined_gate.sh` Group E, `test_propose_commit.sh` Group J); the explorer covers the orderings they do not.
 
 ## Bundle 11 -- contracts and manifests for LLM-written code
 

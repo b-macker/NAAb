@@ -69,12 +69,21 @@ struct RuntimeEvent {
 };
 
 // --- FSM State Per Pattern ---
-struct PatternMatchState {
-    size_t current_step = 0;
+// One in-flight partial match of a pattern (A113). The detector keeps a LIST
+// of these per pattern, not a single cursor: a stale start must not block a
+// fresh one that still fits the gap window (fix 4). next_step is the index of
+// the step this partial is waiting to match; last_match_* are the position of
+// its most recently matched step, so gap and decay are measured per partial.
+struct SequencePartial {
+    size_t next_step = 0;
     size_t last_match_seq_id = 0;
     int last_match_turn = 0;
     std::chrono::steady_clock::time_point last_match_time;
-    std::vector<RuntimeEvent> matched_events;  // one per completed step
+    std::vector<RuntimeEvent> matched_events;  // one per matched step so far
+};
+
+struct PatternMatchState {
+    std::vector<SequencePartial> partials;
 };
 
 // --- Sequence Match Result (returned by recordEvent) ---
@@ -513,11 +522,19 @@ public:
     // Configure from parsed govern.json
     void configure(const BehavioralSequenceConfig& config);
 
-    // Record a runtime event; returns match result (thread-safe, no TOCTOU)
-    SequenceMatchResult recordEvent(const RuntimeEvent& event);
+    // Record a runtime event; returns match result (thread-safe, no TOCTOU).
+    // One event may complete more than one pattern (A113 fix 1): the return is
+    // the STRICTEST completion (the one that blocks hardest), and when
+    // `all_completions` is non-null it is filled with every completion this
+    // event produced, so the caller can record each. Empty return = no match.
+    SequenceMatchResult recordEvent(const RuntimeEvent& event,
+                                    std::vector<SequenceMatchResult>* all_completions = nullptr);
 
-    // Check if adding this event would complete a pattern (read-only, no state mutation)
-    SequenceMatchResult wouldMatch(const RuntimeEvent& event) const;
+    // Would adding this event complete a pattern (read-only, no state change)?
+    // Same multi-completion contract as recordEvent, and it must predict
+    // exactly what recordEvent would commit -- both run the one advance logic.
+    SequenceMatchResult wouldMatch(const RuntimeEvent& event,
+                                   std::vector<SequenceMatchResult>* all_completions = nullptr) const;
 
     // Get events from the current turn (for drift analysis)
     std::vector<RuntimeEvent> getEventsForTurn(int turn) const;
@@ -554,6 +571,14 @@ private:
 
     const std::vector<SequencePattern>& getActivePatterns() const;
     void buildDefaultPatterns();
+    // Advance `st` for `ev` (seq `ev_seq`): expire partials past gap/decay,
+    // advance the ones this event matches, start a fresh one when the event
+    // matches step 0, and bound the set. Returns true and fills `out` when the
+    // event completes the pattern. recordEvent runs it on the live state;
+    // wouldMatch runs it on a copy, so the two cannot drift (A113).
+    bool advancePattern(const SequencePattern& pattern, PatternMatchState& st,
+                        const RuntimeEvent& ev, size_t ev_seq,
+                        SequenceMatchResult& out) const;
     bool matchesStep(const RuntimeEvent& event, const SequenceStep& step) const;
     bool globMatch(const std::string& text, const std::string& pattern) const;
     std::string eventTypeToString(RuntimeEventType type) const;
