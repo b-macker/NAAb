@@ -4759,7 +4759,9 @@ void walkDeclared(const DeclaredOrderEntry& e, const std::vector<std::string>& s
         // key, its effective value comes from this node, whose forms do not
         // compare: refused. Any other key keeps its default on that side, so
         // the walk goes on with that side absent.
-        if (shorthandSets(segs.back())) {
+        // Only the block's own keys: "no_secrets": "hard" sets no_secrets.level,
+        // not no_secrets.suspicious_variable_names.enabled.
+        if (i + 1 == segs.size() && shorthandSets(segs.back())) {
             violations.insert(fmt::format(
                 "{}: its form changed mid-run, and settings below it are declared",
                 at.empty() ? std::string("(top level)") : at));
