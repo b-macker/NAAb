@@ -3037,17 +3037,6 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
         // entry: the import reads it through this gate (A25), and
         // checkManifestModule() then checks the text it read.
         if (!admitted && mode != "write" && rm.modules_abs.count(canon_n)) admitted = true;
-        // A governance plugin is the operator's governance code, read through
-        // the module loader's gate like any import; the manifest bounds the
-        // program, not the governance that judges it.
-        if (!admitted && mode != "write") {
-            for (const auto& plugin : rules().governance_plugins) {
-                if (resolveManifestEntry("", resolvePluginPath(plugin)) == canon_n) {
-                    admitted = true;
-                    break;
-                }
-            }
-        }
         if (!admitted) {
             const char* list_name = (mode == "write") ? "files.write" : "files.read";
             return deny("manifest.files", EnforcementLevel::HARD,
@@ -6088,9 +6077,6 @@ std::string GovernanceEngine::checkManifestModule(const std::string& canonical_p
     std::string abs_path = canonical_path;
     try { abs_path = std::filesystem::absolute(canonical_path).string(); } catch (...) {}
     const std::string canon = resolveManifestEntry("", abs_path);
-    for (const auto& plugin : rules().governance_plugins) {
-        if (resolveManifestEntry("", resolvePluginPath(plugin)) == canon) return "";
-    }
     auto it = rm.modules_abs.find(canon);
     if (it == rm.modules_abs.end()) {
         return enforce("manifest.modules", EnforcementLevel::HARD,

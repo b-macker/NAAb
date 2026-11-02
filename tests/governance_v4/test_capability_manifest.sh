@@ -30,15 +30,19 @@
 #   K10 the files layer removed                        -> MF-07 MF-07r MF-07p
 #   K11 module pin removed                             -> MF-11 MF-11b
 #   K12 the agent check removed                        -> MF-10
-#   K13 narrowing not re-applied on reload              -> MF-13
+#   K13 narrowing not re-applied on reload              -> MF-13c (the ratchet then
+#       refuses the un-narrowed, looser reload; the first run of this mutant read
+#       UNMEASURABLE because the control skipped on a refused reload -- now a FAIL)
 #   K14 the manifest is not protected from the program -> MF-12
 #   K15 --lint-only asked for a manifest               -> MF-14
 #   K16 extends drops a parent's manifest.required      -> MF-19
 #   K17 inference drops a process.run inline language   -> MF-15
 #   K18 inference omits FS_READ for an import            -> MF-00i
 #   K19 inference omits FS_READ beside FS_WRITE          -> MF-07 MF-07c
-#   K20 the files layer refuses a governance plugin      -> MF-22c MF-22
-#   K21 the module pin refuses a governance plugin       -> MF-22c MF-22
+#   Not a mutant: MF-22c/MF-22 are an observation. Plugin exemptions in the files
+#   layer and the module pin were written and SURVIVED as mutants (the plugin read
+#   never reaches those gates on the default engine; it loads with no action
+#   granted), so they were removed as dead code (A116).
 #
 # Usage: bash tests/governance_v4/test_capability_manifest.sh [path/to/naab-lang]
 set -uo pipefail
@@ -377,7 +381,13 @@ _swap(\"$n/govern.json\", \"$T/$name/govern.json\")
     OUT="$(cd "$D" && timeout 120 "$NAAB" run p.naab 2>&1)"; RC=$?
 }
 reload_arm mf13c 1
-if has "SWAP=swapped" && has "Config reloaded mid-run" && has "JS=42"; then
+if has "SWAP=swapped" && ! has "Config reloaded mid-run"; then
+    # The swap happened and the reload was not accepted: an engine that
+    # refuses every reload under a manifest fails here (mutant K13: the
+    # reloaded rules come out un-narrowed, looser, and the ratchet refuses).
+    bad "MF-13c" "a reload that only drops manifest.required must be accepted (rc=$RC)" "$OUT"
+    skip "MF-13" "the reload control failed"
+elif has "SWAP=swapped" && has "Config reloaded mid-run" && has "JS=42"; then
     ok "MF-13c" "the reload is accepted and a listed language runs after it (control)"
     reload_arm mf13 0
     if has "SWAP=swapped" && has "Config reloaded mid-run" && ! has "JS=42" && [ "$RC" -eq 3 ]; then
@@ -388,8 +398,9 @@ else
     skip "MF-13" "the reload control did not run"
 fi
 
-# A governance plugin is the operator's code, read through the import gate:
-# under a manifest it still loads and its rule still runs.
+# A governance plugin is the operator's code: under a manifest that grants no
+# action at all it still loads and its rule still runs (observed: the plugin
+# read does not reach the manifest's gates on this engine).
 PLUG_CFG='{"version":"3.0","mode":"enforce","manifest":{"required":true},"security":{"sandbox_level":"elevated"},
  "governance_plugins":[{"file":"plugin.naab","rules":[{"id":"MF-PLUG","function":"check_no_eval","description":"no eval",
    "level":"hard","trigger":"polyglot_block","languages":["python"],"message":"eval() is not allowed here","help":"do not use eval"}]}]}'
@@ -418,10 +429,10 @@ str(eval("1 + 1"))
 >>
     print("PY=" + e)
 }'
-mk mf22c "$PLUG_CFG" "$P_PLUG_OK"; mkplugin; infer; sign; go
+mk mf22c "$PLUG_CFG" "$P_PLUG_OK"; mkplugin; infer; edit 'm["actions"] = []'; sign; go
 if [ "$RC" -eq 0 ] && has "PY=2"; then
     ok "MF-22c" "a project with a governance plugin runs under its inferred manifest (control)"
-    mk mf22 "$PLUG_CFG" "$P_PLUG_BAD"; mkplugin; infer; sign; go
+    mk mf22 "$PLUG_CFG" "$P_PLUG_BAD"; mkplugin; infer; edit 'm["actions"] = []'; sign; go
     if [ "$RC" -eq 3 ] && has "MF-PLUG" && ! has "PY=2"; then
         ok "MF-22" "the plugin loads under the manifest and its rule refuses the block"
     else bad "MF-22" "the plugin must load and fire under a manifest (rc=$RC)" "$OUT"; fi

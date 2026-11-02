@@ -3452,8 +3452,7 @@ public:
     // unless listed at this path -- and, once read (module_text non-null),
     // unless the text has the listed SHA-256. Called at the module loaders'
     // one read point (ModuleResolver and ModuleRegistry parseModuleFile), so
-    // every engine's import is pinned. A governance plugin file is the
-    // operator's and is not a program module.
+    // every engine's import is pinned.
     std::string checkManifestModule(const std::string& path,
                                     const std::string* module_text);
     // agent.create(name) under a manifest: refused (HARD, manifest.agents)

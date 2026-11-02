@@ -483,17 +483,6 @@ int cmdInfer(const std::vector<std::string>& args) {
                             "files.read still bounds what is read");
     }
 
-    // The project's governance plugins are read through the import gate,
-    // which asks for FS_READ (see the manifest's notes).
-    {
-        governance::GovernanceEngine gov;
-        if (gov.discoverAndLoad(base.string()) && !gov.getRules().governance_plugins.empty()) {
-            inf.actions.insert("FS_READ");
-            inf.notes.push_back("govern.json loads governance plugins: their files are read through the "
-                                "import gate, which needs FS_READ");
-        }
-    }
-
     governance::CapabilityManifest m;
     m.program_file = abs.filename().string();
     m.program_sha256 = security::CryptoUtils::sha256(text);
