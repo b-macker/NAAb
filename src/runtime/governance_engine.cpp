@@ -10,6 +10,7 @@
 #include "naab/host_match.h"
 #include "naab/language_descriptors.h"
 #include "naab/path_policy.h"
+#include "naab/capability_manifest.h"
 #include "naab/env_policy.h"
 #include <cstdarg>
 #include "naab/paths.h"
@@ -67,6 +68,37 @@ namespace governance {
     static std::vector<std::string> g_lease_grant;
     static std::atomic<int> g_event_stream_fd{-1};
     static std::mutex g_event_stream_mutex;
+
+    // The signed capability manifest (Bundle 11 PR 2). Written once, by
+    // setCapabilityManifest() before the program runs, then only read; the
+    // flag publishes the pointer. Entries are resolved to canonical absolute
+    // paths at set time, so every check compares like with like.
+    struct ResolvedCapabilityManifest {
+        CapabilityManifest m;
+        std::vector<std::string> read_abs;
+        std::vector<std::string> write_abs;
+        std::map<std::string, std::string> modules_abs;  // canonical path -> sha256
+        std::string sig_path;
+    };
+    static std::atomic<bool> g_manifest_active{false};
+    static std::shared_ptr<const ResolvedCapabilityManifest> g_manifest;
+    static std::mutex g_manifest_set_mutex;
+
+// A manifest entry as the gates compare it: relative entries rebased on the
+// manifest's directory, canonicalised, '/' separators.
+static std::string resolveManifestEntry(const std::string& base_dir, const std::string& entry) {
+    std::filesystem::path p(entry);
+    if (p.is_relative()) p = std::filesystem::path(base_dir) / p;
+    std::string out;
+    try {
+        out = std::filesystem::weakly_canonical(p).string();
+    } catch (...) {
+        out = p.lexically_normal().string();
+    }
+    std::replace(out.begin(), out.end(), '\\', '/');
+    return out;
+}
+
 
     // Thread-local decision trace — avoids data races from concurrent check threads
     static thread_local std::vector<std::string> t_current_decision_trace;
@@ -2473,6 +2505,21 @@ std::string GovernanceEngine::checkFunctionCapability(
                 example_bad,
                 example_good.empty() ? "Use only the actions the lease granted" : example_good));
     }
+    // The capability manifest is one more set in the same intersection, and
+    // for the same reason it is checked before the empty-map return: it
+    // applies whether or not the project declares function capabilities.
+    // AGENT_SEND has no capability switch, so this is the only place it binds.
+    if (!manifestGrants(required)) {
+        return enforce("manifest.actions", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Action not in this program's capability manifest: " + required,
+                "",
+                "manifest",
+                "The program's approved capability manifest does not list " + required + ".\n"
+                "The person who approves the manifest adds it and signs it again.",
+                example_bad,
+                example_good.empty() ? "Use only the actions the manifest lists" : example_good));
+    }
 
     if (rules().capabilities.functions.empty()) return "";
     const auto& fns = rules().capabilities.functions;
@@ -2713,13 +2760,16 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
 // it runs inside CPython's C frames, where a C++ exception (GovernanceHardError
 // from a HARD enforce()) must not propagate, so it asks for the verdict and
 // raises PermissionError in Python instead.
-std::string GovernanceEngine::pathPolicyDenial(const std::string& filepath, bool write) {
-    return checkPathAccessImpl(filepath, write ? "write" : "read", /*decide_only=*/true);
+std::string GovernanceEngine::pathPolicyDenial(const std::string& filepath, bool write,
+                                               bool program_access) {
+    return checkPathAccessImpl(filepath, write ? "write" : "read", /*decide_only=*/true,
+                               program_access);
 }
 
 std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
                                                   const std::string& mode,
-                                                  bool decide_only) {
+                                                  bool decide_only,
+                                                  bool program_access) {
     if (!decide_only) clearTrace();
     // Every refusal below goes through deny(): enforcing callers get enforce()
     // exactly as before; decide_only callers get the short reason instead.
@@ -2966,6 +3016,50 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
                     "not in this agent role's allowed paths: " + filepath);
             }
             break;
+        }
+    }
+
+    // Layer 5: the capability manifest (Bundle 11 PR 2). A program reads only
+    // what its approved manifest lists under files.read and writes only what
+    // it lists under files.write, entry by entry (a directory entry covers what
+    // is under it). Same decision function, deny-first, like a role: the
+    // manifest narrows the project policy above and never widens it. Not
+    // applied to the engine's own reads of operator configuration
+    // (program_access false: guidance sources).
+    if (program_access && capabilityManifestActive()) {
+        const auto& rm = *g_manifest;
+        const auto& listed = (mode == "write") ? rm.write_abs : rm.read_abs;
+        const auto identity = [](const std::string& p) { return p; };
+        bool admitted = !listed.empty() &&
+            decidePathAccess(canon_n, listed, {}, PathPrecedence::DenyWins, identity).result ==
+                PathVerdict::Result::Allow;
+        // Reading a module the manifest pins is approved by its `modules`
+        // entry: the import reads it through this gate (A25), and
+        // checkManifestModule() then checks the text it read.
+        if (!admitted && mode != "write" && rm.modules_abs.count(canon_n)) admitted = true;
+        // A governance plugin is the operator's governance code, read through
+        // the module loader's gate like any import; the manifest bounds the
+        // program, not the governance that judges it.
+        if (!admitted && mode != "write") {
+            for (const auto& plugin : rules().governance_plugins) {
+                if (resolveManifestEntry("", resolvePluginPath(plugin)) == canon_n) {
+                    admitted = true;
+                    break;
+                }
+            }
+        }
+        if (!admitted) {
+            const char* list_name = (mode == "write") ? "files.write" : "files.read";
+            return deny("manifest.files", EnforcementLevel::HARD,
+                formatError(EnforcementLevel::HARD,
+                    "File not in this program's capability manifest: " + filepath,
+                    "Resolved to: " + canon_n,
+                    std::string("manifest ") + list_name,
+                    std::string("The program's approved capability manifest does not list this path under ") +
+                        list_name + ".\nThe person who approves the manifest adds it and signs it again.",
+                    "file." + mode + "(\"" + filepath + "\", ...)",
+                    "use a path the manifest lists"),
+                std::string("not in the capability manifest's ") + list_name + ": " + filepath);
         }
     }
 
@@ -5908,6 +6002,131 @@ bool GovernanceEngine::verifyContentSignature(
     return verifySignatureImpl(file_path, content);
 }
 
+// ============================================================================
+// The signed capability manifest (Bundle 11 PR 2, capability_manifest.h)
+// ============================================================================
+
+std::string GovernanceEngine::requireCapabilityManifest(const std::string& program_path,
+                                                        const std::string& program_text) {
+    if (!isActive() || !rules().manifest.required) return "";
+    namespace fs = std::filesystem;
+    std::string mpath = capabilityManifestPathFor(program_path);
+    try { mpath = fs::absolute(mpath).lexically_normal().string(); } catch (...) {}
+
+    auto refuse = [&](const std::string& what, const std::string& help) {
+        return enforce("manifest.required", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD, what, "Manifest: " + mpath,
+                "manifest.required", help, "", ""));
+    };
+    static const char* const kRedraft =
+        "Draft it with `naab-gov manifest infer PROGRAM`, review it, and have the\n"
+        "approver sign it with `naab-gov manifest sign MANIFEST`.";
+
+    // Read ONCE; the signature and the parse below judge these same bytes.
+    std::ifstream in(mpath, std::ios::binary);
+    if (!in.is_open()) {
+        return refuse("This program has no capability manifest",
+            std::string("The project requires a signed capability manifest beside the program.\n") + kRedraft);
+    }
+    std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    in.close();
+
+    // Signed by a trusted Ed25519 key, and nothing less. verifySignatureImpl()
+    // also accepts an unsigned file when no key is installed and a legacy HMAC
+    // signature; neither is a person's approval, so both are refused here.
+    if (!hasTrustStoreKeys()) {
+        return refuse("The capability manifest cannot be verified: no trusted signing key is installed",
+            "A manifest is approved by signing it with a key in the trust store.\n"
+            "Install the approver's public key, then have the manifest signed.");
+    }
+    if (!verifyContentSignature(mpath, content)) {
+        return refuse("The capability manifest is not signed by a trusted key",
+            std::string("The manifest changed after it was signed, or was never signed.\n") + kRedraft);
+    }
+
+    CapabilityManifest m;
+    std::string perr;
+    if (!parseCapabilityManifest(content, leaseActions(), m, perr)) {
+        return refuse("The capability manifest is malformed: " + perr,
+            std::string("A manifest must state every capability it grants, in its format.\n") + kRedraft);
+    }
+    m.path = mpath;
+    m.base_dir = fs::path(mpath).parent_path().string();
+    const std::string prog_name = fs::path(program_path).filename().string();
+    if (m.program_file != prog_name) {
+        return refuse("The capability manifest is for another program: " + m.program_file,
+            std::string("A manifest approves one program by name and text.\n") + kRedraft);
+    }
+    if (security::CryptoUtils::sha256(program_text) != m.program_sha256) {
+        return refuse("The program text is not the text its capability manifest approved",
+            std::string("The program changed after its manifest was signed. Review the change, then\n"
+                        "have the manifest drafted, approved and signed again.\n") + kRedraft);
+    }
+    if (!setCapabilityManifest(m)) {
+        return refuse("A capability manifest is already in force in this process",
+            "One process runs one program under one manifest.");
+    }
+    // Lay it over the rules already loaded (init-only, before the program runs
+    // and before the sandbox is synced from them). Every later load and reload
+    // gets it from enforceMinimumLevels().
+    applyCapabilityManifestToRules(getMutableRules());
+    recordPass("manifest.required", EnforcementLevel::HARD);
+    fprintf(stderr,
+        "[governance] Capability manifest applied: %s (%zu actions, %zu languages, %zu hosts, "
+        "%zu read / %zu write paths, %zu agents, %zu modules)\n",
+        mpath.c_str(), m.actions.size(), m.languages.size(), m.hosts.size(),
+        m.files_read.size(), m.files_write.size(), m.agents.size(), m.modules.size());
+    return "";
+}
+
+std::string GovernanceEngine::checkManifestModule(const std::string& canonical_path,
+                                                  const std::string* module_text) {
+    if (!capabilityManifestActive()) return "";
+    const auto& rm = *g_manifest;
+    // A relative module path is read from the process cwd, so it is resolved
+    // there, as the loader opens it.
+    std::string abs_path = canonical_path;
+    try { abs_path = std::filesystem::absolute(canonical_path).string(); } catch (...) {}
+    const std::string canon = resolveManifestEntry("", abs_path);
+    for (const auto& plugin : rules().governance_plugins) {
+        if (resolveManifestEntry("", resolvePluginPath(plugin)) == canon) return "";
+    }
+    auto it = rm.modules_abs.find(canon);
+    if (it == rm.modules_abs.end()) {
+        return enforce("manifest.modules", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Module not in this program's capability manifest: " + canonical_path,
+                "", "manifest modules",
+                "The program's approved capability manifest does not list this module.\n"
+                "The person who approves the manifest adds it and signs it again.",
+                "", ""));
+    }
+    if (module_text && security::CryptoUtils::sha256(*module_text) != it->second) {
+        return enforce("manifest.modules", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Module text is not the text the capability manifest approved: " + canonical_path,
+                "", "manifest modules",
+                "The module changed after the manifest was signed. Review the change, then\n"
+                "have the manifest drafted, approved and signed again.",
+                "", ""));
+    }
+    return "";
+}
+
+std::string GovernanceEngine::checkManifestAgent(const std::string& config_name) {
+    if (!capabilityManifestActive()) return "";
+    const auto& agents = g_manifest->m.agents;
+    if (std::find(agents.begin(), agents.end(), config_name) != agents.end()) return "";
+    return enforce("manifest.agents", EnforcementLevel::HARD,
+        formatError(EnforcementLevel::HARD,
+            "Agent not in this program's capability manifest: " + config_name,
+            "", "manifest agents",
+            "The program's approved capability manifest does not list this agent.\n"
+            "The person who approves the manifest adds it and signs it again.",
+            "agent.create(\"" + config_name + "\")",
+            "create only the agents the manifest lists"));
+}
+
 bool GovernanceEngine::isBlockedFlag(const std::string& flag) const {
     for (const auto& blocked : rules().integrity.blocked_flags) {
         if (flag == blocked) return true;
@@ -8095,6 +8314,36 @@ bool GovernanceEngine::leaseGrantActive() {
 bool GovernanceEngine::leaseGrants(const std::string& action) {
     if (!leaseGrantActive()) return true;
     return std::find(g_lease_grant.begin(), g_lease_grant.end(), action) != g_lease_grant.end();
+}
+
+bool GovernanceEngine::setCapabilityManifest(const CapabilityManifest& m) {
+    std::lock_guard<std::mutex> lk(g_manifest_set_mutex);
+    if (g_manifest_active.load(std::memory_order_acquire)) return false;
+    auto r = std::make_shared<ResolvedCapabilityManifest>();
+    r->m = m;
+    for (const auto& e : m.files_read) r->read_abs.push_back(resolveManifestEntry(m.base_dir, e));
+    for (const auto& e : m.files_write) r->write_abs.push_back(resolveManifestEntry(m.base_dir, e));
+    for (const auto& [path, hash] : m.modules)
+        r->modules_abs[resolveManifestEntry(m.base_dir, path)] = hash;
+    r->sig_path = m.path + ".sig";
+    g_manifest = std::move(r);
+    g_manifest_active.store(true, std::memory_order_release);
+    return true;
+}
+
+bool GovernanceEngine::capabilityManifestActive() {
+    return g_manifest_active.load(std::memory_order_acquire);
+}
+
+const CapabilityManifest* GovernanceEngine::activeCapabilityManifest() {
+    if (!capabilityManifestActive()) return nullptr;
+    return &g_manifest->m;
+}
+
+bool GovernanceEngine::manifestGrants(const std::string& action) {
+    if (!capabilityManifestActive()) return true;
+    const auto& a = g_manifest->m.actions;
+    return std::find(a.begin(), a.end(), action) != a.end();
 }
 
 void GovernanceEngine::setEventStreamFd(int fd) {

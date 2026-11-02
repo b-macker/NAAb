@@ -87,6 +87,9 @@ std::unique_ptr<ast::Program> ModuleRegistry::parseModuleFile(const std::string&
     // #213 but this second module path (ModuleRegistry) was not, so `use secret`
     // still bypassed capabilities.filesystem.mode:none / blocked_paths.
     if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+        // The capability manifest pins modules (Bundle 11 PR 2).
+        std::string m_err = gov->checkManifestModule(file_path, nullptr);
+        if (!m_err.empty()) throw std::runtime_error(m_err);
         std::string fs_err = gov->checkFilesystemAllowed("read");
         if (!fs_err.empty()) throw std::runtime_error(fs_err);
         std::string path_err = gov->checkPathAccess(file_path, "read");
@@ -100,6 +103,10 @@ std::unique_ptr<ast::Program> ModuleRegistry::parseModuleFile(const std::string&
         throw std::runtime_error("Failed to open file: " + file_path);
     }
     std::string source = std::move(*src);
+    if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+        std::string m_err = gov->checkManifestModule(file_path, &source);
+        if (!m_err.empty()) throw std::runtime_error(m_err);
+    }
 
     if (source.empty()) {
         throw std::runtime_error("Empty module file: " + file_path);
