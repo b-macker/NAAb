@@ -430,6 +430,7 @@ add_library(naab_security
     src/runtime/governance_engine.cpp        # Governance engine core (init, enforce, recordPass)
     src/runtime/governance_config.cpp       # Governance config (loadFromJson, applyEnvironment)
     src/runtime/governance_checks.cpp       # Governance checks (checkFileAccess, etc.)
+    src/runtime/capability_manifest.cpp     # The signed capability manifest's file format (Bundle 11)
     src/runtime/language_descriptors.cpp    # The one language table (aliases, comment syntax)
     src/runtime/score_accumulator.cpp      # ScoreAccumulator — script-facing scoring math
     src/runtime/agent_provider.cpp         # Shared LLM API calling layer (Gemini/Anthropic)
@@ -954,7 +955,7 @@ install(TARGETS libnaab
 message(STATUS "  ✓ libnaab shared library (Phase 8.1)")
 
 # naab-gov — Standalone governance + scanning CLI (Phase 8.2)
-add_executable(naab-gov src/cli/gov_main.cpp src/cli/gov_contracts.cpp)
+add_executable(naab-gov src/cli/gov_main.cpp src/cli/gov_contracts.cpp src/cli/gov_manifest.cpp)
 target_include_directories(naab-gov PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
     ${CMAKE_CURRENT_SOURCE_DIR}/include

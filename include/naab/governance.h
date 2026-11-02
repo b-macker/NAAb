@@ -31,6 +31,7 @@
 #include "naab/project_context.h"
 #include "naab/naab_val.h"
 #include "naab/behavioral_sequence.h"
+#include "naab/capability_manifest.h"
 
 namespace naab {
 class TelemetryForwarder;  // Forward declaration (telemetry_forwarder.h)
@@ -2394,6 +2395,14 @@ struct FunctionContract {
     std::vector<std::string> ensures_clauses;
 };
 
+// `manifest` (Bundle 11 PR 2, include/naab/capability_manifest.h): with
+// `required: true` a run needs the program's signed capability manifest and is
+// narrowed to it. Read once, before the program runs.
+struct ManifestConfig {
+    bool required = false;
+    std::string rationale;
+};
+
 struct ContractsConfig {
     EnforcementLevel level = EnforcementLevel::SOFT;
     bool validate_inputs = false;
@@ -2862,6 +2871,7 @@ struct GovernanceRules {
     PolyglotConfig polyglot;
     PolyglotOptimizationConfig polyglot_optimization;
     ContractsConfig contracts;
+    ManifestConfig manifest;
     TaintTrackingConfig taint_tracking;
     BehavioralSequenceConfig behavioral_sequences;
     ContextDriftConfig context_drift;
@@ -3233,6 +3243,25 @@ public:
     static const std::vector<std::string>& leaseActions();
     static bool leaseGrantActive();
     static bool leaseGrants(const std::string& action);
+
+    // --- The signed capability manifest (Bundle 11 PR 2) ---
+    // Process-wide like the lease, and set once: by requireCapabilityManifest()
+    // when govern.json sets manifest.required and the program's manifest is
+    // present, signed by a trusted key and for this program text. From then
+    // on enforceMinimumLevels() lays it over every load and reload (shell,
+    // network, filesystem, env switches, languages, hosts, its own files
+    // protected), checkFunctionCapability() intersects its actions, and
+    // checkPathAccessImpl(), checkManifestModule() and checkManifestAgent()
+    // refuse a file, module or agent it does not list. A second set is
+    // refused (returns false): what a run is narrowed to does not change.
+    static bool setCapabilityManifest(const CapabilityManifest& m);
+    static bool capabilityManifestActive();
+    static const CapabilityManifest* activeCapabilityManifest();
+    static bool manifestGrants(const std::string& action);
+    // The manifest's narrowing of a rule set: the capability switches (as a
+    // lease narrows them), languages, hosts, and its own files protected from
+    // the program. Tightening only. No-op when no manifest is in force.
+    static void applyCapabilityManifestToRules(GovernanceRules& r);
     // Event stream: every behavioural-sequence event this process records is
     // written to `fd` as one JSON line, as it happens. -1 = off.
     static void setEventStreamFd(int fd);
@@ -3402,9 +3431,33 @@ public:
     // The same path decision without enforcement: "" when allowed, otherwise a
     // short reason. Never throws, records nothing -- for callers that cannot
     // let a GovernanceHardError propagate (the embedded Python audit hook).
-    std::string pathPolicyDenial(const std::string& filepath, bool write);
+    // `program_access` is false for the engine's own reads of operator
+    // configuration (guidance sources): a capability manifest bounds what the
+    // PROGRAM touches, not what the operator's governance reads.
+    std::string pathPolicyDenial(const std::string& filepath, bool write,
+                                 bool program_access = true);
     std::string checkPathAccessImpl(const std::string& filepath, const std::string& mode,
-                                    bool decide_only);
+                                    bool decide_only, bool program_access = true);
+
+    // --- The signed capability manifest (Bundle 11 PR 2) ---
+    // With manifest.required (and not --lint-only), the program at
+    // program_path needs <stem>.manifest.json beside it: read once, signed by a
+    // trusted Ed25519 key (no unsigned mode, no legacy HMAC), well-formed, and
+    // for exactly program_text. A failure is enforced HARD (rule
+    // manifest.required). On success the manifest is set process-wide and laid
+    // over the loaded rules. "" when not required or when it applied.
+    std::string requireCapabilityManifest(const std::string& program_path,
+                                          const std::string& program_text);
+    // A NAAb module read under a manifest: refused (HARD, manifest.modules)
+    // unless listed at this path -- and, once read (module_text non-null),
+    // unless the text has the listed SHA-256. Called at the module loaders'
+    // one read point (ModuleResolver and ModuleRegistry parseModuleFile), so
+    // every engine's import is pinned.
+    std::string checkManifestModule(const std::string& path,
+                                    const std::string* module_text);
+    // agent.create(name) under a manifest: refused (HARD, manifest.agents)
+    // unless listed.
+    std::string checkManifestAgent(const std::string& config_name);
     // A filesystem policy ENTRY (allowed_paths / blocked_paths, project or
     // agent) as the gate compares it: project-relative entries rebased on the
     // govern.json directory, canonicalised, '/' separators. Shared with the

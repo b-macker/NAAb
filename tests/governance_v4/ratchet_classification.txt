@@ -837,6 +837,9 @@ contracts.functions                              fixed -- traced: each entry is 
 contracts.level                                  order level -- traced: the level a contract breach is enforced at
 contracts.validate_inputs                        order true -- rule: inputs are validated against the contract while true
 
+# manifest (Bundle 11 PR 2)
+manifest.required                                startup -- traced: read once, by requireCapabilityManifest() before the program runs; the manifest it admits is process-wide and enforceMinimumLevels() lays it over every reload, so a reload changes neither the requirement nor the narrowing in force (observed: test_capability_manifest.sh MF-13)
+
 # restrictions
 restrictions.code_injection.block_command_injection  order true -- traced: each enables one code-injection refusal (loader block_* flags)
 restrictions.code_injection.block_dynamic_code_gen  order true -- traced: each enables one code-injection refusal (loader block_* flags)
