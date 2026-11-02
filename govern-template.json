@@ -794,6 +794,12 @@
     "max_level": "advisory"
   },
 
+  "_comment_manifest": "The signed capability manifest (Bundle 11): with required true a run needs <stem>.manifest.json beside the program -- drafted by `naab-gov manifest infer PROGRAM`, reviewed, and signed by a key in the trust store with `naab-gov manifest sign` -- for exactly that program's name and text, and every NAAb module it imports pinned by hash. The run is then narrowed to it like a lease: an action, language, host, file, agent or module it does not list is refused (HARD). A missing, unsigned or mismatched manifest refuses the run (exit 3). --lint-only is not asked for one. Polyglot code is bounded by the sandbox only: a subprocess language runs where the listed hosts and files do not reach (CONTRA-013), and without SHELL_EXEC it is refused.",
+  "manifest": {
+    "required": false,
+    "_comment_required": "true = refuse any run whose program has no signed capability manifest for its exact text, and narrow the run to it. Read once, before the program runs: a mid-run reload changes neither the requirement nor the narrowing in force. An extends parent's true holds in the child."
+  },
+
   "_comment_contracts": "Function contracts — runtime assertions on inputs and return values (design-by-contract)",
   "contracts": {
     "level": "soft",
