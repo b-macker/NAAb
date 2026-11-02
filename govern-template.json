@@ -915,6 +915,15 @@
         "description": "Arity constraint (alternative to min_arity/max_arity)",
         "arity": { "min": 1, "max": 4 },
         "return_type": "array"
+      },
+
+      "_comment_v8": "v8 (Bundle 11): requires / ensures -- NAAb expressions the VM checks at every call. requires reads the parameters when the function is entered (after defaults); ensures reads the parameters as they were on entry and the returned value, named result. Only true holds: false, a non-boolean, or an expression that cannot be evaluated is a breach, enforced at this contract's level (else contracts.level). A clause must be pure -- operators, indexing, member access, lists, dicts and len()/type()/typeof() only; a call, an assignment, an interpolating string or a polyglot block refuses the config (exit 4), and so does a name that is not a parameter. A string is one clause; a list holds several, all of which must hold. Checked on the VM only (--tree-walk does not evaluate them). `naab-gov contracts FILE` searches for an input that meets requires and breaks a clause.",
+      "percent_of": {
+        "description": "requires/ensures: the caller must pass a part of a positive total; the result is a percentage",
+        "requires": ["total > 0", "part >= 0", "part <= total"],
+        "_comment_requires": "Default: none. Every clause must hold for the arguments on entry, or the call is refused before the body runs.",
+        "ensures": ["result >= 0", "result <= 100"],
+        "_comment_ensures": "Default: none. Every clause must hold for the returned value (result) and the entry arguments, or the return is refused."
       }
     }
   },

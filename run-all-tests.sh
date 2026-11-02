@@ -2772,6 +2772,33 @@ else
     echo "  test_governance_statemachine.sh: not found, skipping"
 fi
 
+# Bundle 11: contracts.<fn>.requires / ensures, checked by the VM at the call
+# boundary (and A114: the output contract on a null return).
+CCLAUSE_SCRIPT="tests/governance_v4/test_contract_clauses.sh"
+if [ -f "$CCLAUSE_SCRIPT" ]; then
+    if run_shell_test "$CCLAUSE_SCRIPT" 2>&1; then
+        echo "  test_contract_clauses.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_contract_clauses.sh")
+    fi
+else
+    echo "  test_contract_clauses.sh: not found, skipping"
+fi
+
+# Bundle 11: naab-gov contracts, the opt-in counterexample search (a worker).
+CSEARCH_SCRIPT="tests/governance_v4/test_contract_search.sh"
+if [ -f "$CSEARCH_SCRIPT" ]; then
+    if run_shell_test "$CSEARCH_SCRIPT" 2>&1; then
+        echo "  test_contract_search.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_contract_search.sh")
+    fi
+else
+    echo "  test_contract_search.sh: not found, skipping"
+fi
+
 # CI's SARIF merger corrupted result.ruleIndex for every file after the first,
 # and GitHub rejected the upload as a neutral check while the job stayed green.
 # Nothing could reach the merger while it was inline in the workflow YAML.

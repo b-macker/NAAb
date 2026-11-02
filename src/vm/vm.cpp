@@ -24,6 +24,7 @@
 #include "naab/resource_limits.h"
 #include "naab/limits.h"
 #include "naab/array_growth.h"
+#include <cerrno>
 #include <climits>
 #include <cmath>
 #include <algorithm>
@@ -39,6 +40,13 @@
 #include <unordered_set>
 #include <naab/safe_math.h>
 #include "naab/thread_vm.h"
+#include "naab/contract_expr.h"
+#include <nlohmann/json.hpp>
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace naab {
 namespace vm {
@@ -249,6 +257,12 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
     }
 
     auto result = run();
+
+    // --contract-search: the definitions ran (main was not compiled); now the
+    // cases call the program's functions (Bundle 11).
+    if (contract_search_ && module_loading_depth_ == 0) {
+        runContractSearchCases();
+    }
 
     // Post-execution governance: flush advisories, print summary, write reports
     if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
@@ -764,6 +778,7 @@ interpreter::NaabVal VM::run() {
         &&vm_STUB_NOP, &&vm_STUB_NOP,                                     // 76-77 (MAKE_GEN/ASYNC — reserved)
         &&vm_OP_RUNTIME_START, &&vm_STUB_NOP,                              // 78-79 (RUNTIME_START, EXEC via CALL_METHOD)
         &&vm_OP_ARG_PASSED,                                                // 80
+        &&vm_OP_CONTRACT_ENTRY,                                            // 81
     };
 
     #define VM_CASE(opcode) vm_##opcode
@@ -822,6 +837,35 @@ interpreter::NaabVal VM::run() {
                 // Did this call pass parameter `arg`? A function's prologue asks
                 // before filling a missing parameter with its default.
                 push(interpreter::NaabVal::makeBool(frame->argc > static_cast<int>(arg)));
+            }
+                VM_NEXT();
+
+            VM_CASE(OP_CONTRACT_ENTRY): {
+                // contracts.<fn>.requires / ensures (Bundle 11). The compiler
+                // emits this after the default prologue of a function with a
+                // clause, so the arguments are the ones the body will see.
+                if (governance_ && governance_->isActive()) {
+                    CompiledFunction* cfn = frame->function;
+                    const int fi = frame_count_ - 1;
+                    std::vector<interpreter::NaabVal> entry_args(
+                        frame->slots + 1, frame->slots + 1 + cfn->max_arity);
+                    if (!cfn->contract_requires.empty()) {
+                        int cline = CURRENT_CHUNK().getLine(
+                            static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
+                        evalContractClauses(cfn, false, entry_args, nullptr, cline,
+                            frame->source_file.empty() ? current_file_ : frame->source_file, fi);
+                        frame = &frames_[frame_count_ - 1];
+                    }
+                    if (!cfn->contract_ensures.empty()) {
+                        // ensures reads the arguments as they were on entry:
+                        // the body may reassign a parameter or change a list.
+                        for (auto& a : entry_args) {
+                            if (a.isList() || a.isDict()) a = a.deepCopy();
+                        }
+                        frame->contract_args =
+                            std::make_shared<std::vector<interpreter::NaabVal>>(std::move(entry_args));
+                    }
+                }
             }
                 VM_NEXT();
 
@@ -1652,24 +1696,18 @@ interpreter::NaabVal VM::run() {
                 // Governance: track return taint + check function contract
                 bool return_tainted = peekTaint(0);
                 if (governance_ && governance_->isActive()) {
-                    governance_->setLastReturnTainted(return_tainted);
-
-                    // Function output contract check
-                    const std::string& fn_name = frame->function->name;
-                    if (!fn_name.empty()) {
-                        std::string result_str = peek(0).toString();
-                        std::string result_type = peek(0).getTypeName();
+                    // The output contract and ensures, through the helper
+                    // OP_RETURN_NULL shares (A114). Before the taint flag: an
+                    // ensures clause is NAAb code, and its own return would
+                    // overwrite this return's flag.
+                    if (!frame->function->name.empty()) {
                         int line = CURRENT_CHUNK().getLine(
                             static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
-                        std::string err = governance_->checkFunctionContract(
-                            fn_name, result_str, result_type, line,
-                            frame->source_file.empty() ? current_file_ : frame->source_file);
-                        if (!err.empty()) {
-                            governance_->logContractCheck(fn_name, "FAIL", err,
-                                frame->source_file.empty() ? current_file_ : frame->source_file, line);
-                            runtimeError("%s", err.c_str());
-                        }
+                        interpreter::NaabVal returned = peek(0);
+                        checkReturnContracts(frame, returned, line, /*explicit_value=*/true);
+                        frame = &frames_[frame_count_ - 1];
                     }
+                    governance_->setLastReturnTainted(return_tainted);
                 }
 
                 interpreter::NaabVal result = pop();
@@ -1788,8 +1826,18 @@ interpreter::NaabVal VM::run() {
                         frame->function->name.empty() ? "<anonymous>" : frame->function->name);
                 }
 
-                // Governance: clear return taint for null returns
+                // Governance: the output contract and ensures for a null
+                // return -- a bare `return` or falling off the end. Only the
+                // explicit return checked them, so return_not_null and the
+                // rest never saw these (A114). Then clear the return taint.
                 if (governance_ && governance_->isActive()) {
+                    if (!frame->function->name.empty()) {
+                        int line = CURRENT_CHUNK().getLine(
+                            static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
+                        checkReturnContracts(frame, interpreter::NaabVal::makeNull(), line,
+                                             /*explicit_value=*/false);
+                        frame = &frames_[frame_count_ - 1];
+                    }
                     governance_->setLastReturnTainted(false);
                 }
 
@@ -1835,6 +1883,7 @@ interpreter::NaabVal VM::run() {
                 VM_NEXT();
 
             VM_CASE(OP_CALL_METHOD): {
+                if (contract_eval_depth_ > 0) refuseInContractClause("call a method");
                 // Packed: [name_idx:16][argc:8] in the 24-bit arg
                 uint32_t name_idx = (arg >> 8) & 0xFFFF;
                 uint8_t argc = static_cast<uint8_t>(arg & 0xFF);
@@ -2674,6 +2723,11 @@ interpreter::NaabVal VM::run() {
                         }
                     }
                 } else if (obj.isString()) {
+                    // A clause reads dict members only: on a module or builtin
+                    // name this route CALLS a function (env.get_all).
+                    if (contract_eval_depth_ > 0) {
+                        refuseInContractClause("read a member of a module or builtin");
+                    }
                     const std::string& sv = obj.asString();
                     // Stdlib module constant access: math.PI, math.E, etc.
                     if (sv.size() >= 18 && sv.substr(0, 18) == "__stdlib_module__:") {
@@ -2755,6 +2809,7 @@ interpreter::NaabVal VM::run() {
                                      name.c_str(), obj.getTypeName().c_str());
                     }
                 } else if (obj.isBlock()) {
+                    if (contract_eval_depth_ > 0) refuseInContractClause("read a member of a block");
                     // Block member access: create sub-BlockValue with member_path
                     auto& block = obj.asBlock();
                     auto sub_block = std::make_shared<interpreter::BlockValue>(
@@ -3778,6 +3833,22 @@ static void deepCopyFunctionTree(
     copy->source_file = src->source_file;
     copy->source_line = src->source_line;
     copy->local_names = src->local_names;
+    copy->has_main_block = src->has_main_block;
+
+    // requires / ensures: each clause's check function is a function tree of
+    // its own (its constants hold this thread's handles too).
+    auto copyClauses = [&](const std::vector<ContractClause>& from, std::vector<ContractClause>& to) {
+        for (const auto& c : from) {
+            CompiledFunction* check = nullptr;
+            if (c.check) {
+                deepCopyFunctionTree(c.check, cache, owned);
+                check = cache[c.check];
+            }
+            to.push_back(ContractClause{c.text, check});
+        }
+    };
+    copyClauses(src->contract_requires, copy->contract_requires);
+    copyClauses(src->contract_ensures, copy->contract_ensures);
 
     // Copy chunk: opcodes and line info are plain data
     copy->chunk.code = src->chunk.code;
@@ -3839,6 +3910,18 @@ static void deepCopyFunctionTree(
 // ============================================================================
 
 bool VM::callValue(interpreter::NaabVal callee, int argc) {
+    // A contract clause calls len/type/typeof and nothing else -- checked at
+    // load, and here, because a program can define its own `len` and a
+    // parameter can hold any function (naab/contract_expr.h).
+    if (contract_eval_depth_ > 0) {
+        bool pure = false;
+        if (callee.isString()) {
+            const std::string& cs = callee.asString();
+            pure = cs.rfind("__builtin__:", 0) == 0 &&
+                   contracts::isPureContractBuiltin(cs.substr(12));
+        }
+        if (!pure) refuseInContractClause("call a function other than len(), type() or typeof()");
+    }
     if (callee.isVMClosure()) {
         auto& closure = callee.asVMClosure();
         CompiledFunction* fn = closure->function;
@@ -4184,6 +4267,7 @@ bool VM::callFunction(VMClosure* closure, int argc) {
     new_frame->argc = argc;
     new_frame->handler_count = 0;
     new_frame->source_file = fn->source_file;
+    if (new_frame->contract_args) new_frame->contract_args.reset();
 
     // Debugger: push call frame for backtrace
     if (debugger_ && debugger_->isActive()) {
@@ -5346,6 +5430,207 @@ std::string VM::getVariableHelper(const std::string& name) const {
 // Error reporting
 // ============================================================================
 
+// ============================================================================
+// Contracts: requires / ensures (Bundle 11, naab/contract_expr.h)
+// ============================================================================
+
+namespace {
+
+// --contract-search: a clause that failed during a searched call. A
+// GovernanceHardError, so nothing between the clause and the search driver --
+// a NAAb try/catch, a native callback's catch -- swallows it, as nothing
+// swallows a HARD block; the driver is the only catch for this type.
+struct ContractSearchStop : public governance::GovernanceHardError {
+    bool entry_requires;  // the searched call's own requires: the input is set aside
+    std::string function, kind, clause, outcome;
+    ContractSearchStop(bool entry, std::string fn, std::string k, std::string c, std::string o)
+        : governance::GovernanceHardError("a contract clause failed during --contract-search"),
+          entry_requires(entry), function(std::move(fn)), kind(std::move(k)),
+          clause(std::move(c)), outcome(std::move(o)) {}
+};
+
+std::string renderContractValue(const interpreter::NaabVal& v) {
+    if (v.isString()) return "\"" + v.asString() + "\"";
+    return v.toString();
+}
+
+std::string contractFirstLine(const std::string& s) {
+    auto nl = s.find('\n');
+    return nl == std::string::npos ? s : s.substr(0, nl);
+}
+
+}  // namespace
+
+}  // namespace vm
+namespace stdlib {
+interpreter::NaabVal jsonToValue(const nlohmann::json& j);  // json_impl.cpp
+}  // namespace stdlib
+namespace vm {
+
+void VM::refuseInContractClause(const char* what) {
+    runtimeError("Contract clause error: a contract clause may not %s", what);
+}
+
+void VM::evalContractClauses(CompiledFunction* fn, bool ensures,
+                             const std::vector<interpreter::NaabVal>& args,
+                             const interpreter::NaabVal* result, int line,
+                             const std::string& file, int frame_index) {
+    const auto& clauses = ensures ? fn->contract_ensures : fn->contract_requires;
+    for (const auto& clause : clauses) {
+        if (!clause.check) continue;
+        std::vector<interpreter::NaabVal> call_args = args;
+        if (ensures) call_args.push_back(result ? *result : interpreter::NaabVal::makeNull());
+        interpreter::NaabVal value;
+        std::string eval_error;
+        // A clause's own return writes the engine's per-thread return-taint
+        // flag; put back what the program's code left there, so checking a
+        // contract can neither launder a taint nor invent one.
+        const bool saved_taint = governance_->lastReturnWasTainted();
+        const std::string saved_source = governance_->lastTaintSource();
+        ++contract_eval_depth_;
+        try {
+            auto closure = std::make_shared<VMClosure>(
+                clause.check, std::vector<std::shared_ptr<ObjUpvalue>>{});
+            value = callNaabFunction(interpreter::NaabVal::makeVMClosure(std::move(closure)),
+                                     call_args);
+        } catch (const governance::GovernanceHardError&) {
+            --contract_eval_depth_;
+            governance_->setLastReturnTainted(saved_taint, saved_source);
+            throw;
+        } catch (const std::exception& e) {
+            eval_error = contractFirstLine(e.what());
+        }
+        --contract_eval_depth_;
+        governance_->setLastReturnTainted(saved_taint, saved_source);
+        // Only true holds. A clause that is not a boolean, or that cannot be
+        // evaluated, is a violation: it checked nothing.
+        if (eval_error.empty() && value.isBool() && value.asBool()) continue;
+
+        std::string outcome;
+        if (!eval_error.empty()) {
+            outcome = "could not be evaluated: " + eval_error;
+        } else if (value.isBool()) {
+            outcome = "evaluated to false";
+        } else {
+            outcome = "evaluated to " + value.getTypeName() + " " +
+                      governance_->contractShownValue(renderContractValue(value)) +
+                      ", not true or false";
+        }
+        const char* kind = ensures ? "ensures" : "requires";
+        if (contract_search_ && contract_search_frame_ >= 0) {
+            throw ContractSearchStop(!ensures && frame_index == contract_search_frame_,
+                                     fn->name, kind, clause.text, outcome);
+        }
+        std::vector<std::pair<std::string, std::string>> values;
+        for (size_t i = 0; i < args.size(); ++i) {
+            std::string pname = (i + 1 < fn->local_names.size() && !fn->local_names[i + 1].empty())
+                ? fn->local_names[i + 1] : ("argument " + std::to_string(i + 1));
+            values.emplace_back(pname, renderContractValue(args[i]));
+        }
+        if (ensures && result) values.emplace_back("result", renderContractValue(*result));
+        std::string err = governance_->checkContractClauseFailed(
+            fn->name, ensures, clause.text, outcome, values, line, file);
+        if (!err.empty()) runtimeError("%s", err.c_str());
+    }
+}
+
+void VM::checkReturnContracts(CallFrame* frame, const interpreter::NaabVal& result_in, int line,
+                              bool explicit_value) {
+    CompiledFunction* fn = frame->function;
+    const std::string file = frame->source_file.empty() ? current_file_ : frame->source_file;
+    const interpreter::NaabVal result = result_in;
+    if (!fn->contract_ensures.empty() && frame->contract_args) {
+        const std::vector<interpreter::NaabVal> args = *frame->contract_args;
+        evalContractClauses(fn, true, args, &result, line, file, frame_count_ - 1);
+    }
+    if (!explicit_value) {
+        const auto& fns = governance_->getRules().contracts.functions;
+        if (fns.find(fn->name) == fns.end()) return;
+    }
+    std::string err = governance_->checkFunctionContract(
+        fn->name, result.toString(), result.getTypeName(), line, file);
+    if (!err.empty()) {
+        governance_->logContractCheck(fn->name, "FAIL", err, file, line);
+        runtimeError("%s", err.c_str());
+    }
+}
+
+void VM::runContractSearchCases() {
+    // One line per case, then one closing line with the count: the worker's
+    // event stream drops lines longer than an event (worker.h), and the count
+    // lets naab-gov tell a finished search from one cut short.
+    auto emit = [&](const nlohmann::json& j) {
+        if (contract_search_fd_ < 0) return;
+        std::string text = j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n";
+        size_t off = 0;
+        while (off < text.size()) {
+#ifdef _WIN32
+            int n = _write(contract_search_fd_, text.data() + off,
+                           static_cast<unsigned>(text.size() - off));
+#else
+            ssize_t n = ::write(contract_search_fd_, text.data() + off, text.size() - off);
+            if (n < 0 && errno == EINTR) continue;
+#endif
+            if (n <= 0) break;
+            off += static_cast<size_t>(n);
+        }
+    };
+    auto cut = [](std::string t, size_t n) {
+        if (t.size() > n) t = t.substr(0, n - 3) + "...";
+        return t;
+    };
+    auto shown = [&](const std::string& text) {
+        return governance_ ? governance_->contractShownValue(text) : cut(text, 80);
+    };
+    size_t index = 0;
+    for (const auto& c : contract_search_cases_) {
+        nlohmann::json rec;
+        rec["index"] = index++;
+        auto git = globals_.find(c.function);
+        if (git == globals_.end() || !git->second.isVMClosure()) {
+            rec["outcome"] = "missing";
+            emit({{"contract_search_case", rec}});
+            continue;
+        }
+        std::vector<interpreter::NaabVal> args;
+        bool bad = false;
+        for (const auto& a : c.args_json) {
+            try {
+                args.push_back(stdlib::jsonToValue(nlohmann::json::parse(a)));
+            } catch (const std::exception&) {
+                bad = true;
+                break;
+            }
+        }
+        if (bad) {
+            rec["outcome"] = "bad_case";
+            emit({{"contract_search_case", rec}});
+            continue;
+        }
+        contract_search_frame_ = frame_count_;
+        try {
+            interpreter::NaabVal r = callNaabFunction(git->second, args);
+            rec["outcome"] = "returned";
+            rec["result"] = shown(renderContractValue(r));
+        } catch (const ContractSearchStop& stop) {
+            rec["outcome"] = stop.entry_requires ? "requires_unmet" : "violated";
+            rec["in_function"] = cut(stop.function, 200);
+            rec["kind"] = stop.kind;
+            rec["clause"] = cut(stop.clause, 300);
+            rec["detail"] = cut(stop.outcome, 300);
+        } catch (const governance::GovernanceHardError&) {
+            contract_search_frame_ = -1;
+            throw;  // a governance block ends the search as it ends a run
+        } catch (const std::exception& e) {
+            rec["outcome"] = "threw";
+            rec["error"] = shown(contractFirstLine(e.what()));
+        }
+        contract_search_frame_ = -1;
+        emit({{"contract_search_case", rec}});
+    }
+    emit({{"contract_search_done", {{"version", 1}, {"cases", index}}}});
+}
+
 void VM::runtimeError(const char* format, ...) {
     va_list args;
     va_start(args, format);
@@ -5489,6 +5774,7 @@ static const char* opcodeName(OpCode op) {
         case OpCode::OP_RUNTIME_START: return "OP_RUNTIME_START";
         case OpCode::OP_RUNTIME_EXEC: return "OP_RUNTIME_EXEC";
         case OpCode::OP_ARG_PASSED: return "OP_ARG_PASSED";
+        case OpCode::OP_CONTRACT_ENTRY: return "OP_CONTRACT_ENTRY";
     }
     return "OP_UNKNOWN";
 }

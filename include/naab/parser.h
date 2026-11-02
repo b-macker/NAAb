@@ -34,6 +34,13 @@ public:
     // Parse a single expression (useful for REPL, debugger conditions, etc.)
     std::unique_ptr<ast::Expr> parseExpression();
 
+    // Parse one expression and nothing after it: anything but newlines and
+    // comments after the expression is a ParseError. For text that must be
+    // exactly one expression (contract clauses in govern.json), where
+    // parseExpression() alone would stop at the first token it cannot use
+    // and leave the rest unread.
+    std::unique_ptr<ast::Expr> parseExpressionOnly();
+
     // Set source code for error reporting (Phase 1.3)
     void setSource(const std::string& source_code, const std::string& filename = "");
 

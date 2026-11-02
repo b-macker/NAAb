@@ -3,6 +3,8 @@
 #include "naab/governance.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
+#include "naab/contract_expr.h"
+#include <algorithm>
 #include <stdexcept>
 #include <unordered_set>
 #include <fstream>
@@ -360,6 +362,10 @@ void Compiler::compileFunctionBody(const std::string& name,
         patchJump(done);
     }
 
+    // requires / ensures: after the defaults, so a clause sees the values the
+    // body will see (Bundle 11).
+    attachContractClauses(fn, name, params, line);
+
     // Compile the body
     beginScope();
     body->accept(*this);
@@ -413,6 +419,79 @@ void Compiler::compileFunctionBody(const std::string& name,
         uint32_t desc = (upval.is_local ? (1u << 24) : 0u) | upval.index;
         currentChunk().emit(desc, line);
     }
+}
+
+void Compiler::attachContractClauses(CompiledFunction* fn, const std::string& name,
+                                     const std::vector<ast::Parameter>& params, int line) {
+    if (!governance_ || !governance_->isActive() || name.empty() || name == "<lambda>") return;
+    const auto& fns = governance_->getRules().contracts.functions;
+    auto it = fns.find(name);
+    if (it == fns.end()) return;
+    const auto& contract = it->second;
+    if (contract.requires_clauses.empty() && contract.ensures_clauses.empty()) return;
+
+    auto refuse = [&](const std::string& clause, const std::string& why) {
+        throw std::runtime_error(
+            "Governance config error: the contract for '" + name + "' cannot be checked\n\n"
+            "  Clause: " + clause + "\n\n"
+            "  Help:\n"
+            "  - " + why + "\n"
+            "  - A clause reads the function's parameters (and result, in ensures)\n"
+            "    and nothing else, so it means the same wherever the function is\n"
+            "    called from.\n");
+    };
+    if (fn->is_generator) {
+        refuse(contract.requires_clauses.empty() ? contract.ensures_clauses.front()
+                                                 : contract.requires_clauses.front(),
+               "requires/ensures are not checked on a generator function, so a\n"
+               "    contract on one would check nothing; remove it or make the\n"
+               "    function return its values.");
+    }
+    std::vector<std::string> param_names;
+    for (const auto& p : params) param_names.push_back(p.name);
+
+    auto compileClauses = [&](const std::vector<std::string>& texts, bool ensures,
+                              std::vector<ContractClause>& out) {
+        for (const auto& text : texts) {
+            std::vector<std::string> names;
+            std::string why;
+            auto expr = contracts::parseContractClause(text, names, why);
+            if (!expr) refuse(text, why);
+            std::vector<std::string> locals = param_names;
+            if (ensures) {
+                if (std::find(param_names.begin(), param_names.end(), "result") != param_names.end()) {
+                    refuse(text, "the function has a parameter named result, the name an ensures\n"
+                                 "    clause gives the returned value; rename the parameter.");
+                }
+                locals.push_back("result");
+            }
+            for (const auto& n : names) {
+                if (std::find(locals.begin(), locals.end(), n) != locals.end()) continue;
+                if (contracts::isPureContractBuiltin(n)) continue;
+                refuse(text, "'" + n + "' is not a parameter of " + name +
+                             (ensures ? " (nor result)" : "") + "; a clause can only read\n"
+                             "    the function's inputs" + (ensures ? " and its returned value." : "."));
+            }
+            // A function of its own, compiled at top level so nothing can
+            // resolve to a variable of the function it checks.
+            CompilerState* saved = current_;
+            current_ = nullptr;
+            CompiledFunction* check = newFunction("");
+            check->arity = check->max_arity = static_cast<int>(locals.size());
+            check->source_file = source_file_;
+            check->source_line = line;
+            beginFunction(check);
+            for (const auto& l : locals) { addLocal(l); markInitialized(); }
+            expr->accept(*this);
+            emitOp(OpCode::OP_RETURN, line);
+            endFunction();
+            current_ = saved;
+            out.push_back(ContractClause{text, check});
+        }
+    };
+    compileClauses(contract.requires_clauses, false, fn->contract_requires);
+    compileClauses(contract.ensures_clauses, true, fn->contract_ensures);
+    emitOp(OpCode::OP_CONTRACT_ENTRY, line);
 }
 
 // ============================================================================
@@ -474,6 +553,9 @@ void Compiler::visit(ast::MainBlock& node) {
             }
         }
     }
+    // --contract-search: the checks above ran; the body is the one thing a
+    // search does not run (the cases call the functions instead).
+    if (omit_main_body_) return;
     beginScope();
     node.getBody()->accept(*this);
     endScope();

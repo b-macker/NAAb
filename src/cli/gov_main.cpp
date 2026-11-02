@@ -6,6 +6,7 @@
 //   naab-gov scan <path> [--language <lang>]
 //   naab-gov languages                            (the language table, JSON)
 //   naab-gov ratchet <old.json> <new.json>        (would a reload accept NEW?)
+//   naab-gov contracts <file.naab>                (counterexample search; RUNS code)
 //   naab-gov --version
 //   naab-gov --help
 //
@@ -70,6 +71,9 @@ static void printHelp() {
         "  naab-gov languages                     Print the language table (JSON)\n"
         "  naab-gov ratchet <old> <new> [options] Would a mid-run reload of <old> by <new>\n"
         "                                         be accepted? (the reload ratchet)\n"
+        "  naab-gov contracts <file.naab> [opts]  Search for inputs that meet a function's\n"
+        "                                         requires and break a clause (RUNS the\n"
+        "                                         functions, in a naab-lang worker)\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
         "\n"
@@ -104,6 +108,17 @@ static void printHelp() {
         "  --json                  Print the decision as JSON\n"
         "  <new> is judged as if it replaced <old> in place: its relative paths resolve\n"
         "  against <old>'s directory. Exit 0 = accepted, 1 = refused, 4 = a config error.\n"
+        "\n"
+        "contracts OPTIONS:\n"
+        "  --seed <n>              Seed for the generated inputs (default 1; same seed,\n"
+        "                          same inputs)\n"
+        "  --cases <n>             Inputs tried per function (default 200)\n"
+        "  --timeout <s>           Time limit for the worker (default 60; govern.json's\n"
+        "                          limit caps it)\n"
+        "  --naab <path>           The naab-lang to run (default: beside naab-gov)\n"
+        "  --json                  Print the report as JSON\n"
+        "  Exit 0 = no counterexample found, 1 = a counterexample, 2 = UNMEASURABLE\n"
+        "  (nothing tested), 3 = a governance block, 4 = a config or usage error.\n"
         "\n"
         "EXIT CODES:\n"
         "  0  Clean — no violations\n"
@@ -640,6 +655,9 @@ static int cmdLanguages() {
 // of its rules: <old> is loaded as `naab-lang run` loads a config (the lease
 // before the load, the role and the environment after it, in that order), and
 // <new> is prepared as a reload prepares the changed file.
+// gov_contracts.cpp (Bundle 11)
+int cmdContracts(const std::vector<std::string>& args, const char* argv0);
+
 static int cmdRatchet(const std::vector<std::string>& args) {
     using json = nlohmann::json;
     std::vector<std::string> files;
@@ -826,6 +844,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "ratchet") {
             return cmdRatchet(rest);
+        }
+
+        if (cmd == "contracts") {
+            return cmdContracts(rest, argv[0]);
         }
     } catch (const naab::governance::GovernanceHardError& e) {
         std::cerr << e.what() << "\n";
