@@ -3088,6 +3088,20 @@ else
     echo "  test_value_equality.sh: not found, skipping"
 fi
 
+# VM: a match or catch binding inside a larger expression reads its own slot,
+# not a temporary of the expression around it (A118, Bundle 12).
+EXPRLOCALS_SCRIPT="tests/vm/test_expression_locals.sh"
+if [ -f "$EXPRLOCALS_SCRIPT" ]; then
+    if run_shell_test "$EXPRLOCALS_SCRIPT" 2>&1; then
+        echo "  test_expression_locals.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_expression_locals.sh")
+    fi
+else
+    echo "  test_expression_locals.sh: not found, skipping"
+fi
+
 # VM: a callback that throws through native code (sort comparators, array.map_fn,
 # agent tools) must not jump into its caller's handler or leave the VM out of step (A41).
 CBTHROW_SCRIPT="tests/vm/test_callback_throw.sh"

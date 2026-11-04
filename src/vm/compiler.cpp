@@ -134,6 +134,43 @@ void Compiler::beginScope() {
     current_->scope_depth++;
 }
 
+namespace {
+// A118: counts the values a visitor holds on the stack while it compiles
+// another child (CompilerState::expr_temps), and gives them back when the
+// visitor is done with them, however it leaves.
+class TempHold {
+public:
+    explicit TempHold(int& counter, int n = 0) : counter_(counter) { add(n); }
+    void add(int k = 1) { counter_ += k; held_ += k; }
+    ~TempHold() { counter_ -= held_; }
+    TempHold(const TempHold&) = delete;
+    TempHold& operator=(const TempHold&) = delete;
+private:
+    int& counter_;
+    int held_ = 0;
+};
+const char* const kTempSlotName = " __expr_temp__";  // no identifier can name it
+}  // namespace
+
+int Compiler::reserveExprTempSlots() {
+    const int n = current_->expr_temps;
+    for (int i = 0; i < n; i++) {
+        addLocal(kTempSlotName);
+        markInitialized();
+    }
+    current_->expr_temps = 0;
+    return n;
+}
+
+void Compiler::releaseExprTempSlots(int n) {
+    for (int i = 0; i < n; i++) {
+        if (current_->locals.empty() || current_->locals.back().name != kTempSlotName)
+            throw std::runtime_error("Compiler error: expression temporaries out of step");
+        current_->locals.pop_back();
+    }
+    current_->expr_temps = n;
+}
+
 void Compiler::endScope() {
     current_->scope_depth--;
 
@@ -740,7 +777,11 @@ void Compiler::visit(ast::LiteralExpr& node) {
                     }
                     int str_fn = identifierConstant("string");
                     emitWide(OpCode::OP_GET_GLOBAL, static_cast<uint32_t>(str_fn), line);
-                    expr_ast->accept(*this);
+                    {
+                        // the text so far and the string() callee are beneath it
+                        TempHold hold(current_->expr_temps, (have_value ? 1 : 0) + 1);
+                        expr_ast->accept(*this);
+                    }
                     emit3(OpCode::OP_CALL, 1, 0, 0, line);  // string(expr)
                 } else {
                     int tidx = makeConstant(interpreter::NaabVal::makeString(seg.text));
@@ -900,12 +941,15 @@ void Compiler::visit(ast::BinaryExpr& node) {
             }
             emitSetVariable(ident->getName(), line);
         } else if (auto* member = dynamic_cast<ast::MemberExpr*>(node.getLeft())) {
+            TempHold hold(current_->expr_temps, 1);  // the value
             member->getObject()->accept(*this);
             int name_idx = identifierConstant(member->getMember());
             emitWide(OpCode::OP_SET_MEMBER, static_cast<uint32_t>(name_idx), line);
         } else if (auto* sub = dynamic_cast<ast::BinaryExpr*>(node.getLeft())) {
             if (sub->getOp() == ast::BinaryOp::Subscript) {
+                TempHold hold(current_->expr_temps, 1);  // the value
                 sub->getLeft()->accept(*this);   // obj
+                hold.add();
                 sub->getRight()->accept(*this);  // index
                 emitOp(OpCode::OP_SET_INDEX, line);
             }
@@ -918,10 +962,13 @@ void Compiler::visit(ast::BinaryExpr& node) {
         if (auto* call = dynamic_cast<ast::CallExpr*>(node.getRight())) {
             // Right side is a call: x |> fn(a, b) → fn(x, a, b)
             call->getCallee()->accept(*this);   // push fn
+            TempHold hold(current_->expr_temps, 1);
             node.getLeft()->accept(*this);       // push x (first arg)
+            hold.add();
             emitStaticTaintMark(node.getLeft(), line);
             for (auto& arg : call->getArgs()) {
                 arg->accept(*this);              // push remaining args
+                hold.add();
                 emitStaticTaintMark(arg.get(), line);
             }
             int argc = 1 + static_cast<int>(call->getArgs().size());
@@ -929,6 +976,7 @@ void Compiler::visit(ast::BinaryExpr& node) {
         } else {
             // Right side is identifier: x |> fn → fn(x)
             node.getRight()->accept(*this);  // push fn
+            TempHold hold(current_->expr_temps, 1);
             node.getLeft()->accept(*this);   // push x
             emitStaticTaintMark(node.getLeft(), line);
             emit3(OpCode::OP_CALL, 1, 0, 0, line);
@@ -939,7 +987,10 @@ void Compiler::visit(ast::BinaryExpr& node) {
     // Subscript: obj[index]
     if (node.getOp() == ast::BinaryOp::Subscript) {
         node.getLeft()->accept(*this);
-        node.getRight()->accept(*this);
+        {
+            TempHold hold(current_->expr_temps, 1);  // the object
+            node.getRight()->accept(*this);
+        }
         emitOp(OpCode::OP_GET_INDEX, line);
         return;
     }
@@ -1007,7 +1058,10 @@ void Compiler::visit(ast::BinaryExpr& node) {
 
     // Standard binary ops
     node.getLeft()->accept(*this);
-    node.getRight()->accept(*this);
+    {
+        TempHold hold(current_->expr_temps, 1);  // the left operand
+        node.getRight()->accept(*this);
+    }
 
     switch (node.getOp()) {
         case ast::BinaryOp::Add: emitOp(OpCode::OP_ADD, line); break;
@@ -1188,7 +1242,10 @@ void Compiler::visit(ast::TryCatchExpr& node) {
     // Catch block — exception value is on stack (pushed by VM on throw)
     patchJump(try_begin);
 
-    // Bind error to local so catch expression can reference it
+    // Bind error to local so catch expression can reference it. The handler
+    // pushes it where the stack stood at OP_TRY_BEGIN, above any temporaries
+    // of the enclosing expression, so those get slots first (A118).
+    const int temp_slots = reserveExprTempSlots();
     beginScope();
     addLocal(node.getErrorName());
     markInitialized();
@@ -1201,6 +1258,7 @@ void Compiler::visit(ast::TryCatchExpr& node) {
     // Move catch_result under the local, then endScope pops the local
     emitOp(OpCode::OP_SWAP, line);
     endScope();  // pops error_val local
+    releaseExprTempSlots(temp_slots);
     // Stack: [..., catch_result]
 
     patchJump(skip_catch);
@@ -1747,10 +1805,14 @@ void Compiler::visit(ast::CallExpr& node) {
             emitOp(OpCode::OP_DUP, line);
             int skip_call = emitJump(OpCode::OP_JUMP_IF_NULL, line);
             emitOp(OpCode::OP_POP, line); // pop dup (not null)
-            // Compile args
-            for (auto& arg : node.getArgs()) {
-                arg->accept(*this);
-                emitStaticTaintMark(arg.get(), line);
+            // Compile args (the object, then each argument, beneath the next)
+            {
+                TempHold hold(current_->expr_temps, 1);
+                for (auto& arg : node.getArgs()) {
+                    arg->accept(*this);
+                    emitStaticTaintMark(arg.get(), line);
+                    hold.add();
+                }
             }
             // Emit method call
             int name_idx = identifierConstant(member->getMember());
@@ -1767,10 +1829,14 @@ void Compiler::visit(ast::CallExpr& node) {
         }
         // Compile the object
         member->getObject()->accept(*this);
-        // Compile arguments
-        for (auto& arg : node.getArgs()) {
-            arg->accept(*this);
-            emitStaticTaintMark(arg.get(), line);
+        // Compile arguments (the object, then each argument, beneath the next)
+        {
+            TempHold hold(current_->expr_temps, 1);
+            for (auto& arg : node.getArgs()) {
+                arg->accept(*this);
+                emitStaticTaintMark(arg.get(), line);
+                hold.add();
+            }
         }
         // Emit OP_CALL_METHOD with method name and argc
         int name_idx = identifierConstant(member->getMember());
@@ -1782,9 +1848,13 @@ void Compiler::visit(ast::CallExpr& node) {
 
     // Normal function call: compile callee, then args, then OP_CALL
     node.getCallee()->accept(*this);
-    for (auto& arg : node.getArgs()) {
-        arg->accept(*this);
-        emitStaticTaintMark(arg.get(), line);
+    {
+        TempHold hold(current_->expr_temps, 1);  // the callee, then each argument
+        for (auto& arg : node.getArgs()) {
+            arg->accept(*this);
+            emitStaticTaintMark(arg.get(), line);
+            hold.add();
+        }
     }
     emit3(OpCode::OP_CALL, static_cast<uint8_t>(node.getArgs().size()), 0, 0, line);
 }
@@ -1815,9 +1885,14 @@ void Compiler::visit(ast::MemberExpr& node) {
 void Compiler::visit(ast::DictExpr& node) {
     int line = node.getLocation().line;
     auto& entries = node.getEntries();
-    for (auto& kv : entries) {
-        kv.first->accept(*this);   // key
-        kv.second->accept(*this);  // value
+    {
+        TempHold hold(current_->expr_temps);  // every earlier key and value
+        for (auto& kv : entries) {
+            kv.first->accept(*this);   // key
+            hold.add();
+            kv.second->accept(*this);  // value
+            hold.add();
+        }
     }
     emitWide(OpCode::OP_DICT, static_cast<uint32_t>(entries.size()), line);
 }
@@ -1825,8 +1900,12 @@ void Compiler::visit(ast::DictExpr& node) {
 void Compiler::visit(ast::ListExpr& node) {
     int line = node.getLocation().line;
     auto& elems = node.getElements();
-    for (auto& elem : elems) {
-        elem->accept(*this);
+    {
+        TempHold hold(current_->expr_temps);  // every earlier element
+        for (auto& elem : elems) {
+            elem->accept(*this);
+            hold.add();
+        }
     }
     emitWide(OpCode::OP_LIST, static_cast<uint32_t>(elems.size()), line);
 }
@@ -1834,7 +1913,10 @@ void Compiler::visit(ast::ListExpr& node) {
 void Compiler::visit(ast::RangeExpr& node) {
     int line = node.getLocation().line;
     node.getStart()->accept(*this);
-    node.getEnd()->accept(*this);
+    {
+        TempHold hold(current_->expr_temps, 1);  // the start
+        node.getEnd()->accept(*this);
+    }
     emitWide(OpCode::OP_RANGE, node.isInclusive() ? 1u : 0u, line);
 }
 
@@ -1855,7 +1937,8 @@ void Compiler::visit(ast::StructLiteralExpr& node) {
     }
     // OP_STRUCT_NEW: clone the struct def dict as a new instance
     emitWide(OpCode::OP_STRUCT_NEW, 0, line);
-    // Initialize fields
+    // Initialize fields (the instance is beneath each value)
+    TempHold hold(current_->expr_temps, 1);
     for (auto& [field_name, expr] : node.getFieldInits()) {
         expr->accept(*this);
         int field_idx = identifierConstant(field_name);
@@ -1906,8 +1989,10 @@ void Compiler::visit(ast::LambdaExpr& node) {
 void Compiler::visit(ast::MatchExpr& node) {
     int line = node.getSubject()->getLocation().line;
 
-    // Subject goes on stack as anonymous local
+    // Subject goes on stack as anonymous local, above any temporaries of the
+    // enclosing expression, which get slots first (A118)
     node.getSubject()->accept(*this);
+    const int temp_slots = reserveExprTempSlots();
     addLocal("__match_subject__");
     markInitialized();
     int subject_slot = static_cast<int>(current_->locals.size()) - 1;
@@ -1995,7 +2080,7 @@ void Compiler::visit(ast::MatchExpr& node) {
                     if (elem_lit) {
                         emitWide(OpCode::OP_GET_LOCAL,
                             static_cast<uint32_t>(first_binding_slot + i), line);
-                        elems[i]->accept(*this);
+                        elems[i]->accept(*this);  // a literal: it declares no local
                         emitOp(OpCode::OP_EQ, line);
                         emitCondTaint(1, line);
                         check_fail_jumps.push_back(
@@ -2093,7 +2178,10 @@ void Compiler::visit(ast::MatchExpr& node) {
             } else {
                 // Compare subject == pattern
                 emitWide(OpCode::OP_GET_LOCAL, static_cast<uint32_t>(subject_slot), line);
-                arm.pattern->accept(*this);
+                {
+                    TempHold hold(current_->expr_temps, 1);  // the subject's copy
+                    arm.pattern->accept(*this);
+                }
                 emitOp(OpCode::OP_EQ, line);
                 emitCondTaint(1, line);
 
@@ -2157,6 +2245,7 @@ void Compiler::visit(ast::MatchExpr& node) {
     // Stack: [..., result@N] — subject slot now holds the match result
     emitCondTaint(2, line);
     current_->locals.pop_back();
+    releaseExprTempSlots(temp_slots);
 }
 
 void Compiler::visit(ast::AwaitExpr& node) {

@@ -87,6 +87,14 @@ private:
         // handler is already gone by then, on both the fall-through path
         // (OP_TRY_END) and the exception path (the unwinder pops it).
         std::vector<int> open_try_depths;
+        // A118: values the expression being compiled holds on the stack above
+        // the declared locals -- a callee and earlier arguments, a left
+        // operand, earlier list elements -- while it compiles another child.
+        // A local an expression declares (a match subject or binding, a catch
+        // binding) sits above them, so reserveExprTempSlots() gives them
+        // placeholder slots first; without that the local's slot was one of
+        // them (print(match ...) wrote the match over print).
+        int expr_temps = 0;
         bool dead_code = false;  // Set after unconditional return/jump; skip emitting
     };
 
@@ -119,6 +127,11 @@ private:
     void emitStaticTaintMark(ast::Expr* expr, int line);  // OP_GOV_TAINT_MARK when the static rule says tainted
     // OP_COND_TAINT (0 save, 1 add, 2 apply), only when taint tracking is on.
     void emitCondTaint(uint32_t mode, int line);
+    // A118: placeholder slots for the temporaries beneath a local an
+    // expression declares; release after the local is gone (compile-time only:
+    // the values belong to the enclosing expression).
+    int reserveExprTempSlots();
+    void releaseExprTempSlots(int n);
     void markVarTainted(const std::string& name) { tainted_vars_[name] = true; }
     void clearVarTaint(const std::string& name) { tainted_vars_.erase(name); }
 

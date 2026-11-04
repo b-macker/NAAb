@@ -78,6 +78,7 @@ lambda_param|LambdaExpr|-|let f = fn(v) { return v }|f(t)|assign|tainted|a taint
 match_arm|MatchExpr|-|-|match 1 { 1 => t, _ => "c" }|assign|tainted|an arm
 match_subject|MatchExpr|-|-|match t { "x" => "a", _ => "b" }|assign|tainted|conditions count: the subject
 match_subject_binding|MatchExpr|-|-|match t { v => "a" }|assign|tainted|the subject decides even when no arm compares it
+match_subject_sink|MatchExpr|-|-|match t { "x" => "a", _ => "b" }|sink|tainted|the subject, in a sink argument (needs A118's fix: the subject sat on the callee's slot)
 match_guard|MatchExpr|-|-|match 1 { n if t == "x" => "a", _ => "b" }|assign|tainted|conditions count: a guard
 match_clean|MatchExpr|-|-|match 1 { 1 => "a", _ => "b" }|assign|clean|a clean match (control)
 match_list_guard|MatchExpr|-|-|match [1] { [n] if t == "x" => "a", _ => "b" }|assign|tainted|a guard on a list pattern
@@ -92,4 +93,5 @@ yield_clean|YieldExpr|fn gc(v) { yield "c" }|let x0 = "q" for v in gc("q") { x0 
 try_try|TryCatchExpr|-|-|try { t } catch (e) { "" }|assign|tainted|the try arm
 try_catch|TryCatchExpr|-|-|try { throw "x" } catch (e) { t }|assign|tainted|the catch arm
 throw_catch|ThrowExpr|-|-|try { throw t } catch (e) { e }|assign|tainted|the catch binding receives the thrown value
+throw_catch_sink|ThrowExpr|-|-|try { throw t } catch (e) { e }|sink|tainted|the catch binding, in a sink argument (needs A118's fix)
 throw_stmt_catch|ThrowExpr|-|let x0 = "" try { throw t } catch (e) { x0 = e }|x0|assign|tainted|statement form

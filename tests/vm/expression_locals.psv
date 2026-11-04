@@ -1,0 +1,54 @@
+# A118 (Bundle 12): a value an expression declares as a local -- a match
+# subject, a match binding, a catch binding -- must read and write its own
+# slot whatever the enclosing expression already holds on the stack.
+# tests/vm/test_expression_locals.sh crosses every CONTEXT with every INNER
+# construct. A case passes when the VM's output with the construct equals the
+# VM's output with the construct replaced by its literal value (the oracle:
+# no expression local), and the tree-walker agrees.
+#
+# Contexts: C|id|prelude|statement|why -- X is replaced in both; @@ is a newline,
+# @PIPE@ the pipeline operator (| is the delimiter); - is empty
+C|ctx_let|-|let r = X|alone (control: no temporary beneath it)
+C|ctx_call1|-|let r = f1(X)|a call's first argument: the callee is beneath it
+C|ctx_call2|-|let r = f2("p", X)|a later argument: the callee and an argument are beneath it
+C|ctx_print|-|let r = "-"@@print(X)|a builtin's argument (the A118 failure)
+C|ctx_bin_right|-|let r = "p" + X|a binary operator's right operand
+C|ctx_bin_left|-|let r = X + "q"|its left operand (control)
+C|ctx_list2|-|let r = ["p", X]|a later list element
+C|ctx_dict2|-|let r = {a: "p", b: X}|a later dict value
+C|ctx_struct2|-|let r = new P { a: "p", b: X }|a later struct field
+C|ctx_method|-|let r = "abc".replace("b", X)|a method argument: the receiver is beneath it
+C|ctx_stdlib2|-|let r = string.replace("abc", "b", X)|a stdlib call's later argument
+C|ctx_pipe|-|let r = X @PIPE@ f1|a pipeline's left value: the callee is beneath it
+C|ctx_nested|-|let r = f2("p", f2("q", X))|two calls deep
+C|ctx_index_assign|-|let r = ["p", "q"]@@r[1] = X|an assignment's value (control: compiled first)
+C|ctx_return|fn g(s) { return f1(X) }|let r = g(s)|a returned value inside a function (via g)
+C|ctx_pipe_call|-|let r = X @PIPE@ f2("p")|a pipeline into a call: the callee is beneath it
+C|ctx_dict_key|-|let r = {a: "p", (X): "v"}|a computed dict key: the earlier entry is beneath it
+C|ctx_pattern|-|let r = match X { f1(X) => "same", _ => "diff" }|a call in a match pattern: the subject's copy and the callee are beneath it
+C|ctx_optional|-|let r = "abc"?.replace("b", X)|an optional-chaining method argument
+C|ctx_match_arm|-|let r = match "k" { "k" => "p" + X, _ => "z" }|inside another match's arm
+#
+# Quote-free contexts: Q|id|prelude|statement|why -- run with the J constructs,
+# because a quote cannot appear inside ${...} and these positions need an int
+Q|q_interp|-|let r = "v=${X}"|an interpolated string: the text so far and string() are beneath it
+Q|q_range|-|let r = 0..X|a range's end: the start is beneath it
+Q|q_subscript|-|let r = [5, 6, 7][X]|a subscript's index: the list is beneath it
+Q|q_member_target|-|let r = new P { a: "p", b: "q" }@@let l = [r]@@l[X - 2].a = "z"|a member assignment's object: the value is beneath it
+Q|q_index_target|-|let r = [5, 6, 7]@@r[X] = 9|an assignment target's index: the value and the list are beneath it
+#
+# Quote-free constructs: J|id|expression|literal value (an int)
+J|j_subject|match n { 1 => 2, _ => 0 }|2
+J|j_binding|match n { v => v + 1 }|2
+J|j_list|match [1, 1] { [a, b] => a + b, _ => 0 }|2
+J|j_catch|try { throw 1 } catch (e) { e }|1
+#
+# Inner constructs: id|expression|literal value
+I|in_subject|match s { "x" => "a", _ => "b" }|"a"
+I|in_binding|match s { v => v + "!" }|"x!"
+I|in_guard|match s { v if v == "x" => "g", _ => "n" }|"g"
+I|in_list|match ["x", "y"] { [a, b] => a + b, _ => "n" }|"xy"
+I|in_catch|try { throw "e" } catch (e) { e }|"e"
+I|in_catch_use|try { throw "e" } catch (e) { e + "!" }|"e!"
+I|in_try_value|try { "t" } catch (e) { "c" }|"t"
+I|in_closure|match s { v => call0(fn() { return v + "!" }) }|"x!"

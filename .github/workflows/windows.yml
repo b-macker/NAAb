@@ -151,12 +151,16 @@ jobs:
       #
       # Bounds are set off measured times, with room for a slow runner:
       #   NAAb programs   57s observed  -> 15
-      #   shell suites  3m37s observed  -> 25
+      #   shell suites  3m37s observed  -> 25 (2026-08-02)
+      #   shell suites 23m34s observed  -> 40 (master 69eb5da6, 2026-11-04)
       # The shell bound also has to clear one legitimate SHELL_TEST_TIMEOUT
       # (600s + 30s kill grace) firing inside an otherwise healthy run, or a
       # single hung suite would take the whole step down as a timeout and hide
       # which suite it was — the wrapper's failure line is the more specific
-      # evidence, so it must be allowed to print.
+      # evidence, so it must be allowed to print. 25 stopped meeting that rule
+      # as suites were added (23m34s + 10m30s is 34 minutes), and the first PR
+      # after that measurement timed out at 25 with no test failing. Re-measure
+      # and raise again when the observed time comes within that margin.
       #
       # Both phases run through tools/testtiming/run_timed.sh (report-only, as
       # in ci.yml): it returns run-all-tests.sh's exit status unchanged and
@@ -168,7 +172,7 @@ jobs:
 
       - name: CLI tests — shell suites
         shell: msys2 {0}
-        timeout-minutes: 25
+        timeout-minutes: 40
         run: NAAB_TEST_PHASE=shell NAAB_TIMING_DIR=test-timing/shell NAAB_SKIP_REPORT=test-timing/skips-windows.tsv bash tools/testtiming/run_timed.sh
 
       - name: Upload test timing
