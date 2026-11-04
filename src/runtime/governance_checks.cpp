@@ -7723,6 +7723,10 @@ bool GovernanceEngine::isTaintSource(const std::string& func_name) const {
     return false;
 }
 
+bool GovernanceEngine::taintTrackingEnabled() const {
+    return isActive() && rules().taint_tracking.enabled;
+}
+
 bool GovernanceEngine::isSanitizer(const std::string& func_name) const {
     if (!rules().taint_tracking.enabled) return false;
     for (const auto& san : rules().taint_tracking.sanitizers) {

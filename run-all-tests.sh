@@ -3292,6 +3292,21 @@ else
     echo "  test_taint_engine_parity.sh: not found, skipping"
 fi
 
+# The taint semantics (Bundle 12): every row of taint_semantics.psv on both
+# engines, the table covering every expression kind, and the shared rule
+# (include/naab/taint_rule.h) naming every NodeKind.
+TAINT_SEMANTICS_SCRIPT="tests/governance_v4/test_taint_semantics.sh"
+if [ -f "$TAINT_SEMANTICS_SCRIPT" ]; then
+    if run_shell_test "$TAINT_SEMANTICS_SCRIPT" 2>&1; then
+        echo "  test_taint_semantics.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_taint_semantics.sh")
+    fi
+else
+    echo "  test_taint_semantics.sh: not found, skipping"
+fi
+
 # Module governance: full body checks skip during module loading, behavioral
 # contracts still fire. Verifies skip_main_ (VM) agrees with
 # module_loading_depth_ (tree-walker).

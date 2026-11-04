@@ -6,147 +6,41 @@
 
 #include "naab/interpreter.h"
 #include "naab/string_interpolation.h"
+#include "naab/taint_rule.h"
 #include <fmt/core.h>
 
 namespace naab {
 namespace interpreter {
 
-// Governance v4: Recursively check if an expression tree references any tainted variable
-// Covers ALL 15 expression AST node types (BUG-S through BUG-Z completeness)
+// Is this expression's value tainted? The rule is naab/taint_rule.h, shared
+// with the VM compiler's compile-time walk (Bundle 12); this adapter supplies
+// what the tree-walker knows at run time: the engine's tainted names, its
+// sources and sanitizers, and an awaited call's return flag.
 bool Interpreter::expressionContainsTaint(ast::Expr* expr) {
     if (!governance_ || !governance_->isActive()) return false;
     if (!expr) return false;
 
-    // Direct identifier reference
-    if (auto* id = dynamic_cast<ast::IdentifierExpr*>(expr)) {
-        return governance_->isTainted(id->getName());
-    }
-
-    // Binary expression (string concat, subscript, arithmetic, etc.)
-    if (auto* bin = dynamic_cast<ast::BinaryExpr*>(expr)) {
-        return expressionContainsTaint(bin->getLeft()) ||
-               expressionContainsTaint(bin->getRight());
-    }
-
-    // BUG-W: Unary expression (!tainted, -tainted)
-    if (auto* un = dynamic_cast<ast::UnaryExpr*>(expr)) {
-        return expressionContainsTaint(un->getOperand());
-    }
-
-    // Function call arguments (e.g., string(tainted_var))
-    if (auto* call = dynamic_cast<ast::CallExpr*>(expr)) {
-        for (const auto& arg : call->getArgs()) {
-            if (expressionContainsTaint(arg.get())) return true;
+    struct Hooks : taint::RuleHooks {
+        governance::GovernanceEngine* gov;
+        explicit Hooks(governance::GovernanceEngine* g) : gov(g) {}
+        bool nameTainted(const std::string& name) override { return gov->isTainted(name); }
+        taint::CallVerdict call(ast::CallExpr& c) override {
+            const std::string name = taint::calleeName(c.getCallee());
+            if (name.empty()) return taint::CallVerdict::Undecided;
+            if (gov->isTaintSource(name)) return taint::CallVerdict::Tainted;
+            if (gov->isSanitizer(name)) return taint::CallVerdict::Clean;
+            return taint::CallVerdict::Undecided;
         }
-        if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
-            if (expressionContainsTaint(member->getObject())) return true;
-        }
-        return false;
-    }
-
-    // Member access (e.g., tainted_dict.key)
-    if (auto* member = dynamic_cast<ast::MemberExpr*>(expr)) {
-        return expressionContainsTaint(member->getObject());
-    }
-
-    // BUG-S: String interpolation in LiteralExpr -- scan ${...} for tainted
-    // variable references. Same splitter as the evaluator, so an escaped \${x}
-    // is literal text, not a use of x.
-    if (auto* lit = dynamic_cast<ast::LiteralExpr*>(expr)) {
-        if (lit->getLiteralKind() == ast::LiteralKind::String) {
-            for (const auto& id : interp::interpolatedIdentifiers(lit->getValue())) {
-                if (governance_->isTainted(id)) return true;
-            }
-        }
-        return false;
-    }
-
-    // BUG-T: If-expression (let x = if cond { tainted } else { clean })
-    if (auto* ifex = dynamic_cast<ast::IfExpr*>(expr)) {
-        return expressionContainsTaint(ifex->getThenExpr()) ||
-               expressionContainsTaint(ifex->getElseExpr());
-    }
-
-    // BUG-U: List literal ([tainted, clean])
-    if (auto* list = dynamic_cast<ast::ListExpr*>(expr)) {
-        for (const auto& elem : list->getElements()) {
-            if (expressionContainsTaint(elem.get())) return true;
-        }
-        return false;
-    }
-
-    // BUG-V: Dict literal ({"key": tainted})
-    if (auto* dict = dynamic_cast<ast::DictExpr*>(expr)) {
-        for (const auto& entry : dict->getEntries()) {
-            if (expressionContainsTaint(entry.second.get())) return true;
-        }
-        return false;
-    }
-
-    // BUG-X: Struct literal (new Point { x: tainted, y: 0 })
-    if (auto* sl = dynamic_cast<ast::StructLiteralExpr*>(expr)) {
-        for (const auto& field : sl->getFieldInits()) {
-            if (expressionContainsTaint(field.second.get())) return true;
-        }
-        return false;
-    }
-
-    // BUG-Y: Await expression (await async_func())
-    if (auto* aw = dynamic_cast<ast::AwaitExpr*>(expr)) {
-        // Check if the inner expression (the call) references tainted vars
-        if (expressionContainsTaint(aw->getExpr())) return true;
-        // Also check if the async function RETURNED tainted data
-        // (runtime check — safe because expressionContainsTaint is always
-        //  called after eval() has already executed the expression)
-        // FIX-A: Consume-once — reset after reading
-        if (governance_ && governance_->lastReturnWasTainted()) {
-            governance_->setLastReturnTainted(false);
+        // The async function RETURNED tainted data. Safe as a runtime check:
+        // expressionContainsTaint() runs after eval() has executed the
+        // expression. Consume-once (FIX-A): reset after reading.
+        bool awaitResultTainted(ast::AwaitExpr&) override {
+            if (!gov->lastReturnWasTainted()) return false;
+            gov->setLastReturnTainted(false);
             return true;
         }
-        return false;
-    }
-
-    // BUG-Z: Range expression (tainted..10)
-    if (auto* rng = dynamic_cast<ast::RangeExpr*>(expr)) {
-        return expressionContainsTaint(rng->getStart()) ||
-               expressionContainsTaint(rng->getEnd());
-    }
-
-    // try/catch as an EXPRESSION: `let x = try { tainted } catch (e) { "" }`
-    // produces a value, so taint must flow through both arms exactly as it does
-    // through IfExpr above. This was missing, and was masked by a second defect:
-    // VarDeclStmt left lastReturnWasTainted set, so the next declaration was
-    // tainted by the stale flag whatever it contained — which happened to cover
-    // this case. Fixing that leak exposed this one. Two bugs cancelling.
-    if (auto* tc = dynamic_cast<ast::TryCatchExpr*>(expr)) {
-        return expressionContainsTaint(tc->getTryExpr()) ||
-               expressionContainsTaint(tc->getCatchExpr());
-    }
-
-    // Yield carries its operand's value out of a generator.
-    if (auto* yl = dynamic_cast<ast::YieldExpr*>(expr)) {
-        return expressionContainsTaint(yl->getExpr());
-    }
-
-    // InlineCodeExpr: handled by isTaintSource("polyglot_output") in VarDeclStmt/Assignment
-    // LambdaExpr: body is a block, not a value expression — N/A
-    // ThrowExpr: transfers control, never yields a value to an assignment — N/A
-
-    // MatchExpr: check all arm body expressions for tainted returns (FIX for BUG-MatchExpr)
-    if (auto* match = dynamic_cast<ast::MatchExpr*>(expr)) {
-        // Check if subject itself is tainted
-        // Note: Subject taint doesn't propagate to result (only affects control flow)
-        // But we check it for completeness
-        // if (expressionContainsTaint(match->getSubject())) return true;  // Optional
-
-        // Check if any arm body expression contains taint
-        for (auto& arm : match->getArms()) {
-            if (expressionContainsTaint(arm.body.get())) return true;
-        }
-        return false;
-    }
-
-    return false;
+    } hooks(governance_.get());
+    return taint::expressionTainted(expr, hooks);
 }
 
 // REFACTOR-1: Unified check — is the RHS expression tainted? (source, propagation, or return taint)

@@ -4294,6 +4294,9 @@ public:
                                         const std::string& origin_arg = "");
     bool isTaintSource(const std::string& func_name) const;
     bool isSanitizer(const std::string& func_name) const;
+    // Active, with taint_tracking enabled: the compiler emits the VM's runtime
+    // condition-taint instructions only then.
+    bool taintTrackingEnabled() const;
 
     // BUG-O: Save/restore taint state for module loading isolation
     std::unordered_set<std::string> saveTaintState() const;

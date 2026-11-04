@@ -362,6 +362,7 @@ struct GeneratorValue {
     std::shared_ptr<FunctionValue> func;  // The generator function
     std::vector<NaabVal> args;  // Arguments passed at creation
     std::vector<NaabVal> collected_values;  // Yielded values
+    bool yielded_tainted = false;  // a yielded value was tainted (Bundle 12)
 };
 
 // Runtime value types
@@ -702,6 +703,10 @@ private:
 
     // Governance engine (loaded from govern.json)
     std::unique_ptr<governance::GovernanceEngine> governance_;
+    // Did any NAAb callback a stdlib call ran return tainted data? The return
+    // flag is last-write-wins across callbacks (Bundle 12; the VM keeps the
+    // same accumulator).
+    bool callback_returned_tainted_ = false;
 
     // Scanner engine (loaded from govern.json "scanner" section)
     std::unique_ptr<scanner::ScannerEngine> scanner_;

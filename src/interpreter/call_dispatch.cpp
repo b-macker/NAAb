@@ -1525,7 +1525,16 @@ void Interpreter::visit(ast::CallExpr& node) {
                     }
 
                     // Call the stdlib function
-                    result_ = module->call(func_name, args);
+                    const bool outer_callback_taint = callback_returned_tainted_;
+                    callback_returned_tainted_ = false;
+                    try {
+                        result_ = module->call(func_name, args);
+                    } catch (...) {
+                        callback_returned_tainted_ = outer_callback_taint;
+                        throw;
+                    }
+                    const bool callback_taint = callback_returned_tainted_;
+                    callback_returned_tainted_ = outer_callback_taint;
 
                     // Finding C fix: post-call taint source marking for function references.
                     // When a taint source (e.g. env.get, io.read_line) is called via a stored
@@ -1538,6 +1547,9 @@ void Interpreter::visit(ast::CallExpr& node) {
                             governance_->setLastReturnTainted(true, full_call);
                         } else if (governance_->isSanitizer(full_call)) {
                             governance_->setLastReturnTainted(false);
+                        } else if (callback_taint) {
+                            // A callback this call ran returned tainted data.
+                            governance_->setLastReturnTainted(true, full_call + ":callback");
                         } else {
                             // Taint propagation: if any input argument is tainted,
                             // the return value inherits taint. This closes the gap

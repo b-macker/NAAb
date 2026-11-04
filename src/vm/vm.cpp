@@ -779,6 +779,7 @@ interpreter::NaabVal VM::run() {
         &&vm_OP_RUNTIME_START, &&vm_STUB_NOP,                              // 78-79 (RUNTIME_START, EXEC via CALL_METHOD)
         &&vm_OP_ARG_PASSED,                                                // 80
         &&vm_OP_CONTRACT_ENTRY,                                            // 81
+        &&vm_OP_COND_TAINT,                                                // 82
     };
 
     #define VM_CASE(opcode) vm_##opcode
@@ -837,6 +838,23 @@ interpreter::NaabVal VM::run() {
                 // Did this call pass parameter `arg`? A function's prologue asks
                 // before filling a missing parameter with its default.
                 push(interpreter::NaabVal::makeBool(frame->argc > static_cast<int>(arg)));
+            }
+                VM_NEXT();
+
+            VM_CASE(OP_COND_TAINT): {
+                // Conditions count (Bundle 12, the owner's decision): the value
+                // of an if or a match is tainted when what decided it was.
+                // The compiler's walk sees a condition whose taint it can name;
+                // this carries one only the runtime knows (a callback's result).
+                if (arg == 0) {
+                    cond_taint_.push_back(governance_ && peekTaint(0) ? 1 : 0);
+                } else if (arg == 1) {
+                    if (!cond_taint_.empty() && governance_ && peekTaint(0)) cond_taint_.back() = 1;
+                } else {
+                    bool c = false;
+                    if (!cond_taint_.empty()) { c = cond_taint_.back() != 0; cond_taint_.pop_back(); }
+                    if (c && governance_) peekTaint(0) = true;
+                }
             }
                 VM_NEXT();
 
@@ -1693,8 +1711,14 @@ interpreter::NaabVal VM::run() {
                         frame->function->name.empty() ? "<anonymous>" : frame->function->name);
                 }
 
-                // Governance: track return taint + check function contract
-                bool return_tainted = peekTaint(0);
+                // Governance: track return taint + check function contract.
+                // A call's result is tainted when an argument was (the rule
+                // both static walks apply); a configured sanitizer's is not.
+                bool return_tainted = peekTaint(0) || (governance_ && frame->args_tainted);
+                if (return_tainted && governance_ && governance_->isActive()) {
+                    const std::string& fn_name = frame->function->name;
+                    if (!fn_name.empty() && governance_->isSanitizer(fn_name)) return_tainted = false;
+                }
                 if (governance_ && governance_->isActive()) {
                     // The output contract and ensures, through the helper
                     // OP_RETURN_NULL shares (A114). Before the taint flag: an
@@ -1796,13 +1820,6 @@ interpreter::NaabVal VM::run() {
                 }
                 syncTaintTop();
                 push(std::move(result));
-                // Sanitizer functions clear taint on their return value
-                if (return_tainted && governance_ && governance_->isActive()) {
-                    const std::string& fn_name = frame->function->name;
-                    if (!fn_name.empty() && governance_->isSanitizer(fn_name)) {
-                        return_tainted = false;
-                    }
-                }
                 peekTaint(0) = return_tainted;
                 // Restore lineage to the return value's new position
                 if (return_tainted && governance_) {
@@ -1830,6 +1847,9 @@ interpreter::NaabVal VM::run() {
                 // return -- a bare `return` or falling off the end. Only the
                 // explicit return checked them, so return_not_null and the
                 // rest never saw these (A114). Then clear the return taint.
+                // A null returned from a call given tainted arguments is
+                // tainted as any other result is (see OP_RETURN).
+                bool null_tainted = false;
                 if (governance_ && governance_->isActive()) {
                     if (!frame->function->name.empty()) {
                         int line = CURRENT_CHUNK().getLine(
@@ -1838,7 +1858,9 @@ interpreter::NaabVal VM::run() {
                                              /*explicit_value=*/false);
                         frame = &frames_[frame_count_ - 1];
                     }
-                    governance_->setLastReturnTainted(false);
+                    null_tainted = frame->args_tainted &&
+                        !(!frame->function->name.empty() && governance_->isSanitizer(frame->function->name));
+                    governance_->setLastReturnTainted(null_tainted);
                 }
 
                 closeUpvalues(frame->slots);
@@ -1858,6 +1880,7 @@ interpreter::NaabVal VM::run() {
                         *p = interpreter::NaabVal();
                     syncTaintTop();
                     push(interpreter::NaabVal::makeNull());
+                    if (null_tainted) peekTaint(0) = true;
                     return interpreter::NaabVal::makeNull();
                 }
                 {
@@ -1868,6 +1891,7 @@ interpreter::NaabVal VM::run() {
                 }
                 syncTaintTop();
                 push(interpreter::NaabVal::makeNull());
+                if (null_tainted) peekTaint(0) = true;
                 frame = &frames_[frame_count_ - 1];
             }
                 VM_NEXT();
@@ -1975,12 +1999,26 @@ interpreter::NaabVal VM::run() {
                         // A pre-check that consumed this call's record ends with the call,
                         // returned or thrown (GovernanceEngine::endPreExecutionScope).
                         interpreter::NaabVal result;
+                        // The return flag read below must say what a NAAb callback
+                        // returned DURING this call (array.map_fn's function). Left
+                        // as it was, it carried a taint source's or an earlier
+                        // call's mark into the first later stdlib call, whose
+                        // clean result -- string.upper("c") -- then read as
+                        // tainted: the VM twin of the declaration leak fixed on
+                        // the tree-walker (campaign finding 14). Bundle 12.
+                        if (governance_ && governance_->isActive())
+                            governance_->setLastReturnTainted(false);
+                        const bool outer_callback_taint = callback_returned_tainted_;
+                        callback_returned_tainted_ = false;
                         try {
                             result = callStdlibMethod(mod, method, argc, args_ptr);
                         } catch (...) {
+                            callback_returned_tainted_ = outer_callback_taint;
                             if (governance_) governance_->endPreExecutionScope();
                             throw;
                         }
+                        const bool callback_taint = callback_returned_tainted_;
+                        callback_returned_tainted_ = outer_callback_taint;
                         // Clear stale slots before adjusting stack pointer
                         for (int si = 0; si < argc + 1; si++)
                             *(stack_top_ - 1 - si) = interpreter::NaabVal();
@@ -2001,7 +2039,8 @@ interpreter::NaabVal VM::run() {
                                 }
                             } else if (governance_->isSanitizer(full_method_name)) {
                                 peekTaint(0) = false;
-                            } else if (governance_->lastReturnWasTainted()) {
+                            } else if (callback_taint || governance_->lastReturnWasTainted()) {
+                                // A callback this call ran returned tainted data.
                                 peekTaint(0) = true;
                                 governance_->setLastReturnTainted(false);
                             } else if (any_arg_tainted_vm) {
@@ -2384,11 +2423,12 @@ interpreter::NaabVal VM::run() {
                     std::string derr = governance_->checkDictSize(static_cast<size_t>(count));
                     if (!derr.empty()) runtimeError("%s", derr.c_str());
                 }
-                // Taint: dict is tainted if ANY value is tainted
+                // Taint: a dict is tainted if ANY key or value is (a computed
+                // key carries its taint too, Bundle 12)
                 bool dict_taint = false;
                 if (governance_) {
-                    for (int i = count - 1; i >= 0; i--) {
-                        if (peekTaint(i * 2)) { dict_taint = true; break; }
+                    for (int i = 0; i < count * 2; i++) {
+                        if (peekTaint(i)) { dict_taint = true; break; }
                     }
                 }
                 std::unordered_map<std::string, interpreter::NaabVal> entries;
@@ -2576,19 +2616,26 @@ interpreter::NaabVal VM::run() {
                                 ? args_it->second.asListConst() : empty_args;
                             // Save and set generator collection target
                             auto* saved_gen = generator_values_;
+                            const bool saved_yield_taint = generator_yield_tainted_;
+                            generator_yield_tainted_ = false;
                             std::vector<interpreter::NaabVal> collected;
                             generator_values_ = &collected;
                             try {
                                 callNaabFunction(fn_it->second, gen_args);
                             } catch (...) {
                                 generator_values_ = saved_gen;
+                                generator_yield_tainted_ = saved_yield_taint;
                                 throw;
                             }
                             generator_values_ = saved_gen;
+                            // What it yielded is tainted when any yielded value
+                            // was, or the generator was called with tainted data.
+                            const bool yielded_taint = generator_yield_tainted_;
+                            generator_yield_tainted_ = saved_yield_taint;
                             // Now iterate over collected values
                             push(interpreter::NaabVal::makeList(std::move(collected)));
                             push(interpreter::NaabVal::makeInt(0));
-                            if (governance_) peekTaint(1) = iter_taint;
+                            if (governance_) peekTaint(1) = iter_taint || yielded_taint;
                             goto done_get_iter;
                         }
                     }
@@ -2859,6 +2906,7 @@ interpreter::NaabVal VM::run() {
                 handler.catch_ip = frame->ip + arg; // arg is relative offset from next instruction
                 handler.finally_ip = nullptr;
                 handler.stack_base = stack_top_;
+                handler.cond_taint_depth = cond_taint_.size();
                 exception_handlers_.push_back(handler);
             }
                 VM_NEXT();
@@ -2893,6 +2941,7 @@ interpreter::NaabVal VM::run() {
                 frame = &frames_[frame_count_ - 1];
                 stack_top_ = handler.stack_base;
                 syncTaintTop();
+                if (cond_taint_.size() > handler.cond_taint_depth) cond_taint_.resize(handler.cond_taint_depth);
                 frame->ip = handler.catch_ip;
                 // Push exception value for catch clause (preserve taint)
                 push(exception);
@@ -3618,6 +3667,9 @@ interpreter::NaabVal VM::run() {
                         // Deep-copy result so main VM owns all handles
                         // (async VM's handles may be freed after it exits)
                         push(future_val->future.get().deepCopy());
+                        // The async fn's return taint (its worker sets it).
+                        if (governance_ && future_val->return_tainted &&
+                            future_val->return_tainted->load()) peekTaint(0) = true;
                     } catch (const governance::GovernanceHardError&) {
                         throw;  // uncatchable — propagate to main
                     } catch (const VMThrownValue& t) {
@@ -3643,6 +3695,7 @@ interpreter::NaabVal VM::run() {
                 VM_NEXT();
 
             VM_CASE(OP_YIELD): {
+                if (governance_ && peekTaint(0)) generator_yield_tainted_ = true;
                 interpreter::NaabVal val = pop();
                 if (generator_values_) {
                     generator_values_->push_back(val);
@@ -3729,6 +3782,7 @@ interpreter::NaabVal VM::run() {
             frame = &frames_[frame_count_ - 1];
             stack_top_ = handler.stack_base;
             syncTaintTop();
+            if (cond_taint_.size() > handler.cond_taint_depth) cond_taint_.resize(handler.cond_taint_depth);
             frame->ip = handler.catch_ip;
             push(t.value);
             if (t.tainted) peekTaint(0) = true;  // V-TAINT-THROW across the callback
@@ -3747,6 +3801,7 @@ interpreter::NaabVal VM::run() {
             frame = &frames_[frame_count_ - 1];
             stack_top_ = handler.stack_base;
             syncTaintTop();
+            if (cond_taint_.size() > handler.cond_taint_depth) cond_taint_.resize(handler.cond_taint_depth);
             frame->ip = handler.catch_ip;
             // Push error as dict with "message" key (matching tree-walker)
             std::unordered_map<std::string, interpreter::NaabVal> err;
@@ -3782,6 +3837,7 @@ interpreter::NaabVal VM::run() {
             frame = &frames_[frame_count_ - 1];
             stack_top_ = handler.stack_base;
             syncTaintTop();
+            if (cond_taint_.size() > handler.cond_taint_depth) cond_taint_.resize(handler.cond_taint_depth);
             frame->ip = handler.catch_ip;
             // Push error as dict with "message" key (matching tree-walker)
             std::unordered_map<std::string, interpreter::NaabVal> err;
@@ -3932,8 +3988,13 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             interpreter::NaabVal* args_start = stack_top_ - argc;
             std::vector<interpreter::NaabVal> args;
             args.reserve(argc);
+            // Each argument's taint goes with it to the worker, whose frame
+            // then judges the result as a call on this thread does (Bundle 12);
+            // the worker hands its return taint back through the future.
+            std::vector<bool> arg_taint(static_cast<size_t>(argc), false);
             for (int i = 0; i < argc; i++) {
                 args.push_back(args_start[i].deepCopy());
+                if (governance_) arg_taint[static_cast<size_t>(i)] = peekTaint(argc - 1 - i);
             }
 
             // Deep-copy closure with pre-closed upvalues for the async thread.
@@ -3992,6 +4053,7 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             }
 
             auto future_val = std::make_shared<interpreter::FutureValue>();
+            auto return_taint = future_val->return_tainted;
             future_val->description = "async fn " + fn->name;
             future_val->func_name = fn->name;
 
@@ -4025,8 +4087,8 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             // collection in this VM in that window cleared them.
             interpreter::PendingEngine async_pending;
             auto shared_future = std::async(std::launch::async,
-                [closure_copy, args, async_stdlib, file, globals_copy, async_sandbox_config,
-                 async_governance, async_vm_governance,
+                [closure_copy, args, arg_taint, return_taint, async_stdlib, file, globals_copy,
+                 async_sandbox_config, async_governance, async_vm_governance,
                  owned_fns = async_owned_fns,
                  pending = std::move(async_pending)]() mutable -> interpreter::NaabVal {
                     // Released when this body returns (or throws), after the
@@ -4047,7 +4109,13 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                         async_vm.setCurrentFile(file);
                         async_vm.setGlobals(globals_copy);
                         auto result = async_vm.callNaabFunction(
-                            interpreter::NaabVal::makeVMClosure(closure_copy), args);
+                            interpreter::NaabVal::makeVMClosure(closure_copy), args,
+                            /*taint_all_args=*/false, &arg_taint);
+                        // The flag is per thread: this worker's, set by the
+                        // function's own return.
+                        if (async_vm_governance && async_vm_governance->isActive() &&
+                            async_vm_governance->lastReturnWasTainted())
+                            return_taint->store(true);
                         safe_result = result.deepCopy();
                     }
                     // async_vm fully destructed — safe_result has independent handles
@@ -4076,6 +4144,14 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             // Store the closure in the generator for later use
             // We'll eagerly run it at iteration time via callNaabFunction
 
+            // Called with tainted data, what it yields is tainted (the rule:
+            // a call's result is tainted when an argument is). Read before
+            // the arguments are popped.
+            bool gen_args_tainted = false;
+            if (governance_) {
+                for (int i = 0; i < argc; i++)
+                    if (peekTaint(i)) { gen_args_tainted = true; break; }
+            }
             for (int si = 0; si < argc + 1; si++)
                 *(stack_top_ - 1 - si) = interpreter::NaabVal();
             stack_top_ -= (argc + 1);  // Pop args + callee
@@ -4088,6 +4164,7 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             gen_info["__args__"] = interpreter::NaabVal::makeList(std::move(gen_args_list));
             gen_info["__is_generator__"] = interpreter::NaabVal::makeBool(true);
             push(interpreter::NaabVal::makeDict(std::move(gen_info)));
+            if (gen_args_tainted) peekTaint(0) = true;
             return true;
         }
 
@@ -4172,6 +4249,11 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                 }
             }
         }
+        bool module_args_tainted = false;
+        if (governance_) {
+            for (int i = 0; i < argc; i++)
+                if (peekTaint(i)) { module_args_tainted = true; break; }
+        }
         interpreter::NaabVal* args_ptr = stack_top_ - argc;
         interpreter::NaabVal result = callBuiltinFunction(mod_name, argc, args_ptr);
         for (int si = 0; si < argc + 1; si++)
@@ -4179,12 +4261,17 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
         stack_top_ -= (argc + 1);
         syncTaintTop();
         push(std::move(result));
-        // Taint source/sanitizer post-call check
+        // Taint source/sanitizer post-call check; otherwise the result is
+        // tainted when an argument was, as for a builtin. `"${x}"` compiles to
+        // string(x), and after `use string` that is this route: interpolating
+        // a value only the runtime knew was tainted laundered it (Bundle 12).
         if (governance_ && governance_->isActive()) {
             if (governance_->isTaintSource(mod_name)) {
                 peekTaint(0) = true;
             } else if (governance_->isSanitizer(mod_name)) {
                 peekTaint(0) = false;
+            } else if (module_args_tainted) {
+                peekTaint(0) = true;
             }
         }
         return true;
@@ -4265,6 +4352,15 @@ bool VM::callFunction(VMClosure* closure, int argc) {
     // slots points to the callee's slot (slot 0 = function itself)
     new_frame->slots = stack_top_ - std::max(argc, fn->max_arity) - 1;
     new_frame->argc = argc;
+    // The arguments the call passed (padded defaults are not data the caller
+    // handed over). Their slots sit above the callee.
+    new_frame->args_tainted = false;
+    if (governance_) {
+        for (int i = 0; i < argc; i++)
+            if (taint_stack_[(new_frame->slots + 1 + i) - stack_.get()]) {
+                new_frame->args_tainted = true; break;
+            }
+    }
     new_frame->handler_count = 0;
     new_frame->source_file = fn->source_file;
     if (new_frame->contract_args) new_frame->contract_args.reset();
@@ -4312,7 +4408,8 @@ interpreter::NaabVal VM::callToolOnThreadVM(interpreter::NaabVal fn,
 
 interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
                                           const std::vector<interpreter::NaabVal>& args,
-                                          bool taint_all_args) {
+                                          bool taint_all_args,
+                                          const std::vector<bool>* arg_taint) {
     if (!fn.isVMClosure()) {
         runtimeError("callNaabFunction: value is not a function");
     }
@@ -4331,12 +4428,13 @@ interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
 
     // Push function + args onto stack
     push(fn);  // callee slot (untainted — it's the function itself)
-    for (auto& arg : args) {
-        push(arg);
-        if (taint_all_args) {
+    for (size_t ai = 0; ai < args.size(); ai++) {
+        push(args[ai]);
+        if (taint_all_args || (arg_taint && ai < arg_taint->size() && (*arg_taint)[ai])) {
             *(taint_top_ - 1) = true;  // override the false set by push()
         }
     }
+    const size_t caller_cond_taint = cond_taint_.size();
 
     // Set up the call
     auto& closure = fn.asVMClosure();
@@ -4372,6 +4470,7 @@ interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
             frame_count_--;
         }
         while (exception_handlers_.size() > caller_handlers) exception_handlers_.pop_back();
+        if (cond_taint_.size() > caller_cond_taint) cond_taint_.resize(caller_cond_taint);
         stop_frame_count_ = saved_stop;
         interpreter::NaabVal* old_top = stack_top_;
         stack_top_ = saved_stack_top;
@@ -4393,6 +4492,10 @@ interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
     }
     syncTaintTop();
     --run_depth_;
+    // The callback's own return left its taint in the return flag. A contract
+    // clause is not a callback (it is evaluated, and puts the flag back).
+    if (governance_ && contract_eval_depth_ == 0 && governance_->lastReturnWasTainted())
+        callback_returned_tainted_ = true;
     return result;
 }
 
@@ -5775,6 +5878,7 @@ static const char* opcodeName(OpCode op) {
         case OpCode::OP_RUNTIME_EXEC: return "OP_RUNTIME_EXEC";
         case OpCode::OP_ARG_PASSED: return "OP_ARG_PASSED";
         case OpCode::OP_CONTRACT_ENTRY: return "OP_CONTRACT_ENTRY";
+        case OpCode::OP_COND_TAINT: return "OP_COND_TAINT";
     }
     return "OP_UNKNOWN";
 }
@@ -5858,6 +5962,7 @@ int disassembleInstruction(const Chunk& chunk, int offset) {
         case OpCode::OP_CATCH_BEGIN:
         case OpCode::OP_POLYGLOT:
         case OpCode::OP_ARG_PASSED:
+        case OpCode::OP_COND_TAINT:
             printf("%-24s %d", name_str, arg);
             // For constant references, show the value
             if (op == OpCode::OP_CONST && arg < chunk.constants.size()) {
