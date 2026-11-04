@@ -24,7 +24,7 @@ Binary lands at `build/naab-lang`. A second CLI, `naab-gov` (`src/cli/gov_main.c
 # Full suite — 441 tests, 0 unexpected failures
 bash run-all-tests.sh   # from the repo root
 
-# Security leak check — 921 checks (920 + a planted-leak control), 0 failures
+# Security leak check — 1105 checks (1104 + a planted-leak control), 0 failures
 bash tests/security/test_error_msg_leaks.sh
 
 # GoogleTest unit tests (also in CI) — 641 pass; 9 exclusions in tests/unit/known_failures.txt

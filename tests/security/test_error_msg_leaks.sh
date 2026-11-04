@@ -17,7 +17,21 @@ PASS=0
 FAIL=0
 LANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
-# Files that contain governance/security error messages
+# Files that contain governance/security error messages. The list is written
+# by hand, so a file that gains governance error text is unguarded until it is
+# added here (A119). Four files that carry governance text are deliberately NOT
+# listed, because every line the patterns match there is not a message the
+# program or a model reads, and string_literal_filter cannot tell them apart
+# (read line by line, 2026-11-04):
+#   src/cli/main.cpp                    usage text, --keygen instructions, the
+#                                       flag names checkBlocked() is passed,
+#                                       getenv() calls
+#   src/api/rest_api.cpp                the --no-governance argument handed to
+#                                       its own worker
+#   src/runtime/governance_guidance.cpp the child-environment scrub's key names
+#   src/stdlib/governance_impl.cpp      governance.health()'s documented
+#                                       telemetry_connected field
+# A message added to one of them is not checked here.
 SECURITY_FILES=(
     "src/runtime/governance_engine.cpp"
     "src/runtime/governance_checks.cpp"
@@ -39,6 +53,10 @@ SECURITY_FILES=(
     "src/stdlib/agent_impl.cpp"
     "src/stdlib/codegen_impl.cpp"
     "src/interpreter/polyglot.cpp"
+    "src/vm/compiler.cpp"
+    "src/interpreter/modules.cpp"
+    "src/runtime/agent_review.cpp"
+    "src/runtime/subprocess_helpers.cpp"
 )
 
 # Patterns that should NEVER appear in string literals within these files
