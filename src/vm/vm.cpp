@@ -1975,12 +1975,26 @@ interpreter::NaabVal VM::run() {
                         // A pre-check that consumed this call's record ends with the call,
                         // returned or thrown (GovernanceEngine::endPreExecutionScope).
                         interpreter::NaabVal result;
+                        // The return flag read below must say what a NAAb callback
+                        // returned DURING this call (array.map_fn's function). Left
+                        // as it was, it carried a taint source's or an earlier
+                        // call's mark into the first later stdlib call, whose
+                        // clean result -- string.upper("c") -- then read as
+                        // tainted: the VM twin of the declaration leak fixed on
+                        // the tree-walker (campaign finding 14). Bundle 12.
+                        if (governance_ && governance_->isActive())
+                            governance_->setLastReturnTainted(false);
+                        const bool outer_callback_taint = callback_returned_tainted_;
+                        callback_returned_tainted_ = false;
                         try {
                             result = callStdlibMethod(mod, method, argc, args_ptr);
                         } catch (...) {
+                            callback_returned_tainted_ = outer_callback_taint;
                             if (governance_) governance_->endPreExecutionScope();
                             throw;
                         }
+                        const bool callback_taint = callback_returned_tainted_;
+                        callback_returned_tainted_ = outer_callback_taint;
                         // Clear stale slots before adjusting stack pointer
                         for (int si = 0; si < argc + 1; si++)
                             *(stack_top_ - 1 - si) = interpreter::NaabVal();
@@ -2001,7 +2015,8 @@ interpreter::NaabVal VM::run() {
                                 }
                             } else if (governance_->isSanitizer(full_method_name)) {
                                 peekTaint(0) = false;
-                            } else if (governance_->lastReturnWasTainted()) {
+                            } else if (callback_taint || governance_->lastReturnWasTainted()) {
+                                // A callback this call ran returned tainted data.
                                 peekTaint(0) = true;
                                 governance_->setLastReturnTainted(false);
                             } else if (any_arg_tainted_vm) {
@@ -4393,6 +4408,10 @@ interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
     }
     syncTaintTop();
     --run_depth_;
+    // The callback's own return left its taint in the return flag. A contract
+    // clause is not a callback (it is evaluated, and puts the flag back).
+    if (governance_ && contract_eval_depth_ == 0 && governance_->lastReturnWasTainted())
+        callback_returned_tainted_ = true;
     return result;
 }
 

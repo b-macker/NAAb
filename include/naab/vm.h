@@ -475,6 +475,12 @@ private:
 
     // Shadow taint stack (mirrors value stack 1:1 for governance taint tracking)
     std::unique_ptr<bool[]> taint_stack_;
+    // Did any NAAb callback a stdlib call ran (array.map_fn's function) return
+    // tainted data? Set by callNaabFunction(), saved and cleared around each
+    // stdlib call. The return flag alone is last-write-wins: map_fn over [1, 2]
+    // whose callback returned the tainted value for 1 and a constant for 2 read
+    // clean (Bundle 12).
+    bool callback_returned_tainted_ = false;
     bool* taint_top_;
 
     // VM taint lineage: maps absolute stack offset → origin info.

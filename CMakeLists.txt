@@ -1661,6 +1661,7 @@ if(HAVE_GOOGLETEST)
         tests/unit/report_snapshot_test.cpp     # a report written while other threads record (A86)
         tests/unit/contract_expr_test.cpp       # requires/ensures clauses: the purity whitelist (Bundle 11)
         tests/unit/capability_manifest_test.cpp # the capability manifest's file format (Bundle 11 PR 2)
+        tests/unit/taint_rule_test.cpp          # the static taint rule: an unknown kind is tainted (Bundle 12)
     )
 
     # Link GoogleTest and NAAb libraries

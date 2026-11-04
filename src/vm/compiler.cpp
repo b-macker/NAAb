@@ -1,4 +1,5 @@
 #include "naab/compiler.h"
+#include "naab/taint_rule.h"
 #include "naab/string_interpolation.h"
 #include "naab/governance.h"
 #include "naab/lexer.h"
@@ -592,6 +593,7 @@ void Compiler::visit(ast::ReturnStmt& node) {
             }
         }
         node.getExpr()->accept(*this);
+        emitStaticTaintMark(node.getExpr(), node.getLocation().line);
         emitOp(OpCode::OP_RETURN, node.getLocation().line);
     } else {
         emitOp(OpCode::OP_RETURN_NULL, node.getLocation().line);
@@ -917,8 +919,10 @@ void Compiler::visit(ast::BinaryExpr& node) {
             // Right side is a call: x |> fn(a, b) → fn(x, a, b)
             call->getCallee()->accept(*this);   // push fn
             node.getLeft()->accept(*this);       // push x (first arg)
+            emitStaticTaintMark(node.getLeft(), line);
             for (auto& arg : call->getArgs()) {
                 arg->accept(*this);              // push remaining args
+                emitStaticTaintMark(arg.get(), line);
             }
             int argc = 1 + static_cast<int>(call->getArgs().size());
             emit3(OpCode::OP_CALL, static_cast<uint8_t>(argc), 0, 0, line);
@@ -926,6 +930,7 @@ void Compiler::visit(ast::BinaryExpr& node) {
             // Right side is identifier: x |> fn → fn(x)
             node.getRight()->accept(*this);  // push fn
             node.getLeft()->accept(*this);   // push x
+            emitStaticTaintMark(node.getLeft(), line);
             emit3(OpCode::OP_CALL, 1, 0, 0, line);
         }
         return;
@@ -1741,6 +1746,7 @@ void Compiler::visit(ast::CallExpr& node) {
             // Compile args
             for (auto& arg : node.getArgs()) {
                 arg->accept(*this);
+                emitStaticTaintMark(arg.get(), line);
             }
             // Emit method call
             int name_idx = identifierConstant(member->getMember());
@@ -1760,6 +1766,7 @@ void Compiler::visit(ast::CallExpr& node) {
         // Compile arguments
         for (auto& arg : node.getArgs()) {
             arg->accept(*this);
+            emitStaticTaintMark(arg.get(), line);
         }
         // Emit OP_CALL_METHOD with method name and argc
         int name_idx = identifierConstant(member->getMember());
@@ -1773,6 +1780,7 @@ void Compiler::visit(ast::CallExpr& node) {
     node.getCallee()->accept(*this);
     for (auto& arg : node.getArgs()) {
         arg->accept(*this);
+        emitStaticTaintMark(arg.get(), line);
     }
     emit3(OpCode::OP_CALL, static_cast<uint8_t>(node.getArgs().size()), 0, 0, line);
 }
@@ -2151,111 +2159,39 @@ void Compiler::visit(ast::YieldExpr& node) {
 
 // ============================================================================
 // Pre-flight compile-time taint analysis
-// Mirrors tree-walker's expressionContainsTaint() for static taint detection.
-// This catches cases the runtime shadow taint stack misses:
-// - Both branches of if-expressions
-// - ${var} in string interpolation
-// - Pipeline expressions containing tainted vars
-// - Await expressions wrapping tainted calls
+// The rule is naab/taint_rule.h, shared with the tree-walker (Bundle 12); this
+// adapter supplies what the compiler knows: the names marked tainted so far,
+// sources, sanitizers, and functions compiled to return tainted data. It adds
+// what the runtime taint stack cannot see -- conditions (an if-condition, a
+// match subject) and a callee that is a source -- wherever the compiler asks:
+// a declaration, an assignment, a call argument, a returned value.
 // ============================================================================
 
 bool Compiler::exprContainsTaint(ast::Expr* expr) {
     if (!expr || !governance_ || !governance_->isActive()) return false;
-
-    // IdentifierExpr: check if variable is in compile-time taint set
-    if (auto* id = dynamic_cast<ast::IdentifierExpr*>(expr)) {
-        return tainted_vars_.count(id->getName()) > 0;
-    }
-
-    // CallExpr: check if callee is a taint source (e.g., env.get)
-    if (auto* call = dynamic_cast<ast::CallExpr*>(expr)) {
-        if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
-            std::string full_name;
-            if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject())) {
-                full_name = obj_id->getName() + ".";
-            }
-            full_name += member->getMember();
-            if (governance_->isTaintSource(full_name)) return true;
-            // Check if callee is a sanitizer (clears taint)
-            if (governance_->isSanitizer(full_name)) return false;
+    struct Hooks : taint::RuleHooks {
+        Compiler& c;
+        explicit Hooks(Compiler& comp) : c(comp) {}
+        bool nameTainted(const std::string& name) override { return c.tainted_vars_.count(name) > 0; }
+        taint::CallVerdict call(ast::CallExpr& call) override {
+            const std::string name = taint::calleeName(call.getCallee());
+            if (name.empty()) return taint::CallVerdict::Undecided;
+            if (c.governance_->isTaintSource(name)) return taint::CallVerdict::Tainted;
+            if (c.governance_->isSanitizer(name)) return taint::CallVerdict::Clean;
+            if (dynamic_cast<ast::IdentifierExpr*>(call.getCallee()) &&
+                c.tainted_functions_.count(name) > 0)
+                return taint::CallVerdict::Tainted;
+            return taint::CallVerdict::Undecided;
         }
-        if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
-            if (governance_->isTaintSource(id->getName())) return true;
-            // Sanitizer functions clear taint
-            if (governance_->isSanitizer(id->getName())) return false;
-            // Check if this is a known tainted function (returns tainted data)
-            if (tainted_functions_.count(id->getName()) > 0) return true;
-        }
-        // Check if any argument is tainted (taint flows through function calls)
-        for (auto& arg : call->getArgs()) {
-            if (exprContainsTaint(arg.get())) return true;
-        }
-        return false;
-    }
+    } hooks(*this);
+    return taint::expressionTainted(expr, hooks);
+}
 
-    // BinaryExpr: either operand tainted → result tainted
-    if (auto* bin = dynamic_cast<ast::BinaryExpr*>(expr)) {
-        return exprContainsTaint(bin->getLeft()) || exprContainsTaint(bin->getRight());
-    }
-
-    // UnaryExpr: taint passes through
-    if (auto* un = dynamic_cast<ast::UnaryExpr*>(expr)) {
-        return exprContainsTaint(un->getOperand());
-    }
-
-    // IfExpr: EITHER branch could execute → check BOTH (static analysis)
-    if (auto* ife = dynamic_cast<ast::IfExpr*>(expr)) {
-        return exprContainsTaint(ife->getCondition()) ||
-               exprContainsTaint(ife->getThenExpr()) ||
-               exprContainsTaint(ife->getElseExpr());
-    }
-
-    // LiteralExpr(String): scan ${var} for tainted variable references.
-    // Same splitter as the evaluator, so an escaped \${x} is not a use of x.
-    if (auto* lit = dynamic_cast<ast::LiteralExpr*>(expr)) {
-        if (lit->getLiteralKind() == ast::LiteralKind::String) {
-            for (const auto& id : interp::interpolatedIdentifiers(lit->getValue())) {
-                if (tainted_vars_.count(id) > 0) return true;
-            }
-        }
-        return false;
-    }
-
-    // AwaitExpr: taint passes through
-    if (auto* aw = dynamic_cast<ast::AwaitExpr*>(expr)) {
-        return exprContainsTaint(aw->getExpr());
-    }
-
-    // MemberExpr: taint from object propagates
-    if (auto* mem = dynamic_cast<ast::MemberExpr*>(expr)) {
-        return exprContainsTaint(mem->getObject());
-    }
-
-    // ListExpr: any element tainted → list tainted
-    if (auto* list = dynamic_cast<ast::ListExpr*>(expr)) {
-        for (auto& elem : list->getElements()) {
-            if (exprContainsTaint(elem.get())) return true;
-        }
-        return false;
-    }
-
-    // DictExpr: any value tainted → dict tainted
-    if (auto* dict = dynamic_cast<ast::DictExpr*>(expr)) {
-        for (auto& entry : dict->getEntries()) {
-            if (exprContainsTaint(entry.second.get())) return true;
-        }
-        return false;
-    }
-
-    // InlineCodeExpr (polyglot): check if polyglot_output is a taint source
-    if (auto* ice = dynamic_cast<ast::InlineCodeExpr*>(expr)) {
-        if (governance_->isTaintSource("polyglot_output") ||
-            governance_->isTaintSource("polyglot_output:" + ice->getLanguage()))
-            return true;
-        return false;
-    }
-
-    return false;
+// A value the static rule finds tainted is marked where it is produced, so the
+// runtime taint stack carries it into the call or return it feeds.
+void Compiler::emitStaticTaintMark(ast::Expr* expr, int line) {
+    if (governance_ && governance_->isActive() && exprContainsTaint(expr))
+        emitOp(OpCode::OP_GOV_TAINT_MARK, line);
 }
 
 } // namespace vm

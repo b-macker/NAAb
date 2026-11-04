@@ -1929,9 +1929,14 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                     runtime_ver);
             }
 
-            // Store result value
+            // Store result value. A polyglot result is tainted (V-GOV-006), as a
+            // declaration on the sequential path marks it through
+            // checkRhsTainted(); this path stored it unmarked, so a javascript
+            // block's value reached a sink clean on the tree-walker (Bundle 12).
             if (!block.assigned_var.empty()) {
                 current_env_->define(block.assigned_var, value);
+                if (governance_ && governance_->isActive())
+                    governance_->markTainted(block.assigned_var);
             }
         } else {
             // Handle error - check for undefined variable errors

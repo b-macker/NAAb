@@ -600,7 +600,10 @@ Interpreter::Interpreter()
             // Create callback that uses this interpreter's callFunction method
             array_mod->setFunctionEvaluator(
                 [this](NaabVal fn, const std::vector<NaabVal>& args) -> NaabVal {
-                    return this->callFunction(fn, args);
+                    NaabVal r = this->callFunction(fn, args);
+                    if (governance_ && governance_->isActive() && governance_->lastReturnWasTainted())
+                        callback_returned_tainted_ = true;
+                    return r;
                 }
             );
             LOG_DEBUG("[INFO] Array module configured with function evaluator\n");

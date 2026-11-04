@@ -116,6 +116,7 @@ private:
     std::unordered_map<std::string, bool> tainted_vars_;
     std::unordered_map<std::string, bool> tainted_functions_;  // functions that return tainted data
     bool exprContainsTaint(ast::Expr* expr);
+    void emitStaticTaintMark(ast::Expr* expr, int line);  // OP_GOV_TAINT_MARK when the static rule says tainted
     void markVarTainted(const std::string& name) { tainted_vars_[name] = true; }
     void clearVarTaint(const std::string& name) { tainted_vars_.erase(name); }
 

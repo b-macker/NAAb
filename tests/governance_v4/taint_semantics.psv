@@ -1,0 +1,75 @@
+# The taint semantics (Bundle 12): is a value tainted, by expression kind and
+# operand position? One row per case. tests/governance_v4/test_taint_semantics.sh
+# runs every row on BOTH engines and requires each to give the expected verdict;
+# the static rule both AST walks share is include/naab/taint_rule.h.
+#
+# Columns (| separated; "-" is an empty field):
+#   id       unique row name
+#   kind     the ast::NodeKind the row exercises (every expression kind must
+#            have a row -- the suite checks include/naab/ast.h)
+#   prelude  file-scope declarations (use, fn, struct)
+#   setup    statements in main{} after `let t = env.get("HOME")` (t is tainted)
+#   expr     the expression under test; @@ is a newline (polyglot blocks)
+#   context  assign: `let x = EXPR` then print(x); sink: print(EXPR)
+#   expect   tainted | clean -- what print, the configured sink, must see
+#   why      the rule the row pins
+#
+# id|kind|prelude|setup|expr|context|expect|why
+ident|IdentifierExpr|-|-|t|assign|tainted|a tainted name
+lit_plain|LiteralExpr|-|-|"c"|assign|clean|a constant (control)
+lit_interp|LiteralExpr|-|-|"v=${t}"|assign|tainted|an interpolated tainted name
+lit_escaped|LiteralExpr|-|-|"v=\${t}"|assign|clean|an escaped ${ is text, not a use of t
+bin_left|BinaryExpr|-|-|t + "a"|assign|tainted|either operand
+bin_right|BinaryExpr|-|-|"a" + t|assign|tainted|either operand
+bin_cmp|BinaryExpr|-|-|t == "x"|assign|tainted|a comparison is computed from its operands
+bin_coalesce|BinaryExpr|-|-|t ?? "d"|assign|tainted|?? either side
+subscript|BinaryExpr|-|let l = [t]|l[0]|assign|tainted|an element of a tainted list
+un_not|UnaryExpr|-|-|!(t == "x")|assign|tainted|the operand
+un_neg|UnaryExpr|-|let n = string.length(t)|-n|assign|tainted|the operand
+call_arg|CallExpr|-|-|string.upper(t)|assign|tainted|an argument
+call_method|CallExpr|-|-|t.upper()|assign|tainted|a method's receiver
+call_method_clean|CallExpr|-|-|"c".upper()|assign|clean|a clean receiver (control)
+call_userfn_arg|CallExpr|fn idf(v) { return v }|-|idf(t)|assign|tainted|a user function returns its tainted argument
+call_userfn_ret|CallExpr|fn getr() { return env.get("HOME") }|-|getr()|assign|tainted|a user function returns a source
+call_clean_after_source|CallExpr|-|-|string.upper("c")|assign|clean|a clean stdlib call after a source (the VM's stale return flag tainted it)
+call_clean_after_gap|CallExpr|use json|let g1 = 1|json.stringify("c")|assign|clean|still clean with statements between
+call_math_clean|CallExpr|use math|-|math.abs(-1)|assign|clean|any module, not only string
+call_source_inline|CallExpr|-|-|env.get("HOME")|sink|tainted|a source written into the sink argument
+call_sanitized_inline|CallExpr|fn sanitize_s(v) { return "clean" }|-|sanitize_s(t)|sink|clean|a configured sanitizer's result, inline
+call_sanitized_assign|CallExpr|fn sanitize_s(v) { return "clean" }|-|sanitize_s(t)|assign|clean|a configured sanitizer's result, assigned
+cb_capture|CallExpr|use array|-|array.map_fn([1, 2], fn(v) { return t })|assign|tainted|a callback returned tainted data
+cb_last_clean|CallExpr|use array|-|array.map_fn([1, 2], fn(v) { if v == 1 { return t } return "c" })|assign|tainted|ANY callback, not only the last (last-write-wins laundered it)
+cb_nested|CallExpr|use array|-|array.map_fn([1], fn(v) { return array.map_fn([1, 2], fn(w) { if w == 1 { return t } return "c" }) })|assign|tainted|a nested call's callbacks
+cb_clean|CallExpr|use array|-|array.map_fn([1, 2], fn(v) { return "c" })|assign|clean|clean callbacks (control)
+cb_clean_after_tainted|CallExpr|use array|let a = array.map_fn([1], fn(v) { return t })|array.map_fn([1], fn(v) { return "c" })|assign|clean|an earlier call's callback taint does not leak
+member_dict|MemberExpr|-|let d = {k: t}|d.k|assign|tainted|a field of a tainted dict
+dict_val|DictExpr|-|-|{k: t}|assign|tainted|a value
+dict_key|DictExpr|-|let k = t|{(k): "v"}|assign|tainted|a computed key
+dict_clean|DictExpr|-|-|{k: "v"}|assign|clean|a constant dict (control)
+list_elem|ListExpr|-|-|[t]|assign|tainted|an element
+list_nested|ListExpr|-|-|[["a", t]]|assign|tainted|a nested element
+list_clean|ListExpr|-|-|[1, 2]|assign|clean|a constant list (control)
+range_end|RangeExpr|-|let n = string.length(t)|0..n|assign|tainted|either bound
+struct_field|StructLiteralExpr|struct P { a: string }|-|new P { a: t }|assign|tainted|a field initialiser
+inline_js|InlineCodeExpr|-|-|<<javascript@@"x"@@>>|assign|tainted|polyglot output (V-GOV-006)
+inline_js_bound|InlineCodeExpr|-|-|<<javascript[t]@@t@@>>|assign|tainted|polyglot output with a bound variable
+inline_js_sink|InlineCodeExpr|-|-|<<javascript@@"x"@@>>|sink|tainted|polyglot output written into the sink argument
+if_then|IfExpr|-|-|if true { t } else { "c" }|assign|tainted|a branch
+if_else|IfExpr|-|-|if false { "c" } else { t }|assign|tainted|a branch
+if_cond|IfExpr|-|-|if t == "x" { "a" } else { "b" }|assign|tainted|conditions count (owner's decision)
+if_cond_sink|IfExpr|-|-|if t == "x" { "a" } else { "b" }|sink|tainted|conditions count in a sink argument too
+if_clean|IfExpr|-|let c0 = "x"|if c0 == "x" { "a" } else { "b" }|assign|clean|a clean condition (control)
+lambda_value|LambdaExpr|-|-|fn() { return t }|assign|clean|a function value holds no data
+lambda_call|LambdaExpr|-|let f = fn() { return t }|f()|assign|tainted|its call is judged by what it returns
+lambda_param|LambdaExpr|-|let f = fn(v) { return v }|f(t)|assign|tainted|a tainted argument returned
+match_arm|MatchExpr|-|-|match 1 { 1 => t, _ => "c" }|assign|tainted|an arm
+match_subject|MatchExpr|-|-|match t { "x" => "a", _ => "b" }|assign|tainted|conditions count: the subject
+match_guard|MatchExpr|-|-|match 1 { n if t == "x" => "a", _ => "b" }|assign|tainted|conditions count: a guard
+match_clean|MatchExpr|-|-|match 1 { 1 => "a", _ => "b" }|assign|clean|a clean match (control)
+await_arg|AwaitExpr|async fn ag(v) { return v }|-|await ag(t)|assign|tainted|an awaited call's argument
+await_ret|AwaitExpr|async fn ah() { return env.get("HOME") }|-|await ah()|assign|tainted|an awaited call's return
+yield_gen|YieldExpr|fn gen(v) { yield v }|let x0 = "" for v in gen(t) { x0 = v }|x0|assign|tainted|a yielded value
+try_try|TryCatchExpr|-|-|try { t } catch (e) { "" }|assign|tainted|the try arm
+try_catch|TryCatchExpr|-|-|try { throw "x" } catch (e) { t }|assign|tainted|the catch arm
+throw_catch|ThrowExpr|-|-|try { throw t } catch (e) { e }|assign|tainted|the catch binding receives the thrown value
+throw_stmt_catch|ThrowExpr|-|let x0 = "" try { throw t } catch (e) { x0 = e }|x0|assign|tainted|statement form
