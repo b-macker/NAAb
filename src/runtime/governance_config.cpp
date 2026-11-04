@@ -4,6 +4,7 @@
 #include "naab/loopback_url.h"
 #include "naab/net_proxy_snapshot.h"
 #include "naab/language_descriptors.h"
+#include "naab/host_match.h"
 #include "naab/env_policy.h"
 #include "naab/path_policy.h"
 #include "naab/governance_message_format.h"  // labels the LSP reads back (A43(d))
@@ -873,6 +874,12 @@ static void checkRestrictionTypes(const nlohmann::json& j) {
     }
     if (j.contains("languages") && j["languages"].is_object())
         for (const char* k : {"allowed", "blocked"}) strList(j["languages"], "languages", k, true);
+    // manifest.required switches on the capability manifest; a value the
+    // parser does not read would leave a run unrequired.
+    if (j.contains("manifest")) {
+        if (!j["manifest"].is_object()) refuse("manifest", "an object", j["manifest"]);
+        boolean(j["manifest"], "manifest", "required");
+    }
     if (j.contains("agents") && j["agents"].is_object()) {
         for (const auto& [name, a] : j["agents"].items()) {
             if (!a.is_object()) continue;
@@ -3146,6 +3153,14 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
     }
 
     // Contracts
+    // The capability manifest (Bundle 11 PR 2): read once, before the
+    // program runs, by GovernanceEngine::requireCapabilityManifest().
+    if (j.contains("manifest") && j["manifest"].is_object()) {
+        const auto& mf = j["manifest"];
+        if (mf.contains("required") && mf["required"].is_boolean())
+            rules_.manifest.required = mf["required"].get<bool>();
+        parseRationale(mf, rules_.manifest.rationale);
+    }
     if (j.contains("contracts") && j["contracts"].is_object()) {
         auto& ct = j["contracts"];
         if (ct.contains("level")) {
@@ -7259,25 +7274,28 @@ std::vector<std::string> GovernanceEngine::getAndClearNotices() {
 // after parsing and merging, so a reload cannot drop the lease and the ratchet
 // compares two narrowed rule sets. Both mirror copies are written. Tightening
 // only: each line moves a value toward "denied" and never back.
-static void applyLeaseGrantToRules(GovernanceRules& r) {
-    if (!GovernanceEngine::leaseGrantActive()) return;
-    if (!GovernanceEngine::leaseGrants("SHELL_EXEC")) {
+// Shared by the lease and the capability manifest: both narrow by the same
+// action vocabulary, so one function decides what a withheld action switches
+// off, and the two cannot drift.
+static void narrowCapabilitiesToGrant(GovernanceRules& r,
+                                      bool (*grants)(const std::string&)) {
+    if (!grants("SHELL_EXEC")) {
         r.shell_allowed = false;
         r.capabilities.shell.enabled = false;
     }
-    if (!GovernanceEngine::leaseGrants("NET_CONNECT")) {
+    if (!grants("NET_CONNECT")) {
         r.network_allowed = false;
         r.capabilities.network.enabled = false;
     }
-    const bool rd = GovernanceEngine::leaseGrants("FS_READ");
-    const bool wr = GovernanceEngine::leaseGrants("FS_WRITE");
+    const bool rd = grants("FS_READ");
+    const bool wr = grants("FS_WRITE");
     auto narrow = [&](std::string& mode) {
         if (!rd) mode = "none";
         else if (!wr && mode == "write") mode = "read";
     };
     narrow(r.filesystem_mode);
     narrow(r.capabilities.filesystem.mode);
-    if (!GovernanceEngine::leaseGrants("ENV_READ")) {
+    if (!grants("ENV_READ")) {
         r.capabilities.env_vars.read = false;
         // `read = false` only gates env.get(). A denied ENV_READ must withhold
         // the environment everywhere the program can reach it -- embedded
@@ -7292,7 +7310,68 @@ static void applyLeaseGrantToRules(GovernanceRules& r) {
         r.capabilities.env_vars.subprocess_scrub_mode = "allowlist";
         r.capabilities.env_vars.allowed_subprocess_vars.clear();
     }
-    if (!GovernanceEngine::leaseGrants("ENV_WRITE")) r.capabilities.env_vars.write = false;
+    if (!grants("ENV_WRITE")) r.capabilities.env_vars.write = false;
+}
+
+static void applyLeaseGrantToRules(GovernanceRules& r) {
+    if (!GovernanceEngine::leaseGrantActive()) return;
+    narrowCapabilitiesToGrant(r, &GovernanceEngine::leaseGrants);
+}
+
+// Stands in for an allow list that admits nothing: an EMPTY languages.allowed
+// means "unrestricted", so a manifest that lists no language (or none the
+// project admits) must not leave it empty. Not a language name.
+static const char* const kNoManifestLanguage =
+    "(none: the capability manifest lists no language the project allows)";
+
+// The capability manifest (Bundle 11 PR 2). Applied on every load and reload
+// path from enforceMinimumLevels(), like the lease, so a reload cannot drop it
+// and the ratchet compares two narrowed rule sets.
+void GovernanceEngine::applyCapabilityManifestToRules(GovernanceRules& r) {
+    const CapabilityManifest* m = activeCapabilityManifest();
+    if (!m) return;
+    narrowCapabilitiesToGrant(r, &GovernanceEngine::manifestGrants);
+
+    // Languages: the manifest's languages the project admits. An empty
+    // project list admits every language, so the manifest's list replaces it.
+    {
+        // Entries compare as runtime names, as languages.allowed's do.
+        std::unordered_set<std::string> kept;
+        for (const auto& l : m->languages) {
+            const std::string rt = naab::lang::runtimeLanguage(l);
+            if (r.allowed_languages.empty() ||
+                naab::lang::languageListAdmits(r.allowed_languages, rt))
+                kept.insert(rt);
+        }
+        if (kept.empty()) kept.insert(kNoManifestLanguage);
+        r.allowed_languages = kept;
+        r.languages.allowed = kept;  // the mirror the loader keeps (CONTRA checks)
+    }
+
+    // Hosts: the manifest's exact hosts the project admits. With none left,
+    // there is nowhere the program may connect, so the network goes off --
+    // an empty allowed_hosts would mean "any host". blocked_hosts stays.
+    if (r.capabilities.network.enabled) {
+        std::vector<std::string> kept;
+        for (const auto& h : m->hosts) {
+            if (r.capabilities.network.allowed_hosts.empty() ||
+                naab::net::hostMatchesAny(h, r.capabilities.network.allowed_hosts))
+                kept.push_back(h);
+        }
+        if (kept.empty()) {
+            r.network_allowed = false;
+            r.capabilities.network.enabled = false;
+        } else {
+            r.capabilities.network.allowed_hosts = kept;
+        }
+    }
+
+    // The manifest and its signature are governance artifacts: the program
+    // may not read or rewrite them, as it may not govern.json.
+    for (const std::string& p : {m->path, m->path + ".sig"}) {
+        auto& bp = r.capabilities.filesystem.blocked_paths;
+        if (std::find(bp.begin(), bp.end(), p) == bp.end()) bp.push_back(p);
+    }
 }
 
 void GovernanceEngine::enforceMinimumLevels(GovernanceRules& r) {
@@ -7314,6 +7393,7 @@ void GovernanceEngine::enforceMinimumLevels(GovernanceRules& r, const std::strin
 
     enforceMinimumLevelsOnRules(r);
     applyLeaseGrantToRules(r);
+    applyCapabilityManifestToRules(r);
 
     // Warn about contradictory config: code quality checks enabled but mode is audit/off
     if (r.mode != GovernanceMode::ENFORCE) {
@@ -7379,6 +7459,10 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
             child.mode = base.mode;  // can't be looser than base
         }
     }
+
+    // --- The capability manifest: a parent's requirement holds in the child,
+    // whatever the strategy -- dropping it would loosen the parent's policy.
+    if (base.manifest.required) child.manifest.required = true;
 
     // --- Capabilities: merge each sub-field ---
     auto& cc = child.capabilities;

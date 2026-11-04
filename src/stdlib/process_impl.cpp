@@ -4,6 +4,7 @@
 //
 
 #include "naab/stdlib_new_modules.h"
+#include "naab/inline_interpreter.h"
 #include "naab/interpreter.h"
 #include "naab/safe_math.h"
 #include "naab/subprocess_helpers.h"
@@ -29,12 +30,12 @@
 namespace naab {
 namespace stdlib {
 
-namespace {
-
 // Recognise `<interpreter> <inline-code flag> <code>` and return the code with
 // the governance language name. The command may carry a directory, a Windows
 // .exe suffix or a version suffix (python3.12, /usr/bin/node). Short flags may
 // be clustered (`bash -ec`, `python3 -Ic`) when the code flag comes last.
+// Shared (naab/inline_interpreter.h) with the capability-manifest inference,
+// so the draft names the language process.run is checked as.
 bool inlineInterpreterCode(const std::string& cmd,
                            const std::vector<std::string>& argv,
                            std::string& lang, std::string& code) {
@@ -72,8 +73,6 @@ bool inlineInterpreterCode(const std::string& cmd,
             if (a.rfind(lf + "=", 0) == 0) { code = a.substr(lf.size() + 1); return true; }
     return false;
 }
-
-} // namespace
 
 bool ProcessModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {

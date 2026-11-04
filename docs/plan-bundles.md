@@ -14,7 +14,7 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 8: "governance only tightens", proved | merged: PR 1 #352 (`76c871cf`), PR 2 #353 (`fc9b8099`) | Bundle 8 below |
 | 9: adversarial inputs and concurrency | merged | #354 (`7a4c1c50`); A108-A112 |
 | 10: state machines and automata | merged | #355 (`f9337bdf`); A113 |
-| 11: contracts and manifests for LLM-written code | in progress, two PRs by the owner's decision (2026-11-01). PR 1: requires/ensures as NAAb expressions checked by the VM at the call boundary, and the opt-in counterexample search `naab-gov contracts` in a worker; A114. PR 2: the signed capability manifest | Bundle 11 below |
+| 11: contracts and manifests for LLM-written code | in progress, two PRs by the owner's decision (2026-11-01). PR 1 merged (#356, `703fa6c4`): requires/ensures as NAAb expressions checked by the VM at the call boundary, and the opt-in counterexample search `naab-gov contracts` in a worker; A114. PR 2: the signed capability manifest; A115, A116 | Bundle 11 below |
 | 12-15 | not started | |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). The bundle plan itself was recorded in #351 (`86fc33c9`).
@@ -162,7 +162,7 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
   - approved by a person, enforced at runtime as an allowlist;
   - polyglot code stays bounded by the sandbox only (CONTRA-013), and the manifest says so.
 
-**Decisions (the owner, 2026-11-01):** two PRs -- requires/ensures plus the counterexample search, then the manifest. Clauses are **NAAb expressions** (not a declarative form), compiled and run by the VM. The search is **opt-in and runs in a worker** (`naab-gov contracts FILE`, a `naab-lang run --contract-search` worker under the project's govern.json), so `naab-gov check` stays static. The manifest is **a signed sidecar plus a govern.json switch**: `naab-gov manifest infer FILE` drafts `<program>.manifest.json`, a person signs it with a trust-store key, `manifest.required: true` refuses a run whose manifest is missing, unsigned or for other program text, and the approved manifest narrows the run like a lease.
+**Decisions (the owner, 2026-11-01):** two PRs -- requires/ensures plus the counterexample search, then the manifest. Clauses are **NAAb expressions** (not a declarative form), compiled and run by the VM. The search is **opt-in and runs in a worker** (`naab-gov contracts FILE`, a `naab-lang run --contract-search` worker under the project's govern.json), so `naab-gov check` stays static. The manifest is **a signed sidecar plus a govern.json switch**: `naab-gov manifest infer FILE` drafts `<program>.manifest.json`, a person signs it with a trust-store key, `manifest.required: true` refuses a run whose manifest is missing, unsigned or for other program text, and the approved manifest narrows the run like a lease. Two more (2026-11-02): the manifest **pins every imported NAAb module** by path and SHA-256 (an unlisted or changed module is refused at import), and it is read **only under `manifest.required`** (a manifest beside a program that does not require one changes nothing).
 
 ## Bundle 12 -- taint as information flow
 

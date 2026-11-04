@@ -1313,6 +1313,13 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
             "  - Agents must be defined in governance config before use\n");
     }
 
+    // The capability manifest lists the agents the program may create
+    // (Bundle 11 PR 2); one it does not list is refused before anything else.
+    {
+        std::string merr = engine->checkManifestAgent(config_name);
+        if (!merr.empty()) throw std::runtime_error(merr);
+    }
+
     // Fix 3B: mark agent phase active so Pulse consecutive_passes counter
     // only tracks agent-phase checks, not static source scanning.
     engine->setAgentGovernanceActive(true);

@@ -1908,6 +1908,19 @@ int main(int argc, char** argv) {
             // Read source file
             std::string source = read_file(filename);
 
+            // The signed capability manifest (Bundle 11 PR 2): judged against
+            // this text, before anything of the program runs and before the
+            // sandbox is synced from the rules it narrows. --lint-only runs
+            // nothing, so it is not asked for one.
+            if (gov_loaded && !lint_only && !shared_governance.getRules().lint_only_config) {
+                try {
+                    shared_governance.requireCapabilityManifest(filename, source);
+                } catch (const naab::governance::GovernanceHardError&) {
+                    shared_governance.writeReports();
+                    throw;
+                }
+            }
+
             // Lex
             naab::lexer::Lexer lexer(source);
             auto tokens = lexer.tokenize();

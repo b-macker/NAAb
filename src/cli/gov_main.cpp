@@ -7,6 +7,7 @@
 //   naab-gov languages                            (the language table, JSON)
 //   naab-gov ratchet <old.json> <new.json>        (would a reload accept NEW?)
 //   naab-gov contracts <file.naab>                (counterexample search; RUNS code)
+//   naab-gov manifest infer|sign|check            (the signed capability manifest)
 //   naab-gov --version
 //   naab-gov --help
 //
@@ -74,6 +75,9 @@ static void printHelp() {
         "  naab-gov contracts <file.naab> [opts]  Search for inputs that meet a function's\n"
         "                                         requires and break a clause (RUNS the\n"
         "                                         functions, in a naab-lang worker)\n"
+        "  naab-gov manifest infer <file.naab>    Draft the program's capability manifest\n"
+        "  naab-gov manifest sign <manifest>      Sign it with the approver's key\n"
+        "  naab-gov manifest check <file.naab>    Would a run accept its manifest?\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
         "\n"
@@ -119,6 +123,15 @@ static void printHelp() {
         "  --json                  Print the report as JSON\n"
         "  Exit 0 = no counterexample found, 1 = a counterexample, 2 = UNMEASURABLE\n"
         "  (nothing tested), 3 = a governance block, 4 = a config or usage error.\n"
+        "\n"
+        "manifest (with manifest.required in govern.json, a run needs <stem>.manifest.json\n"
+        "beside the program, signed by a trusted key, for exactly its text, and is\n"
+        "narrowed to it):\n"
+        "  infer <file> [--output PATH] [--force]   Draft it from what the program shows\n"
+        "                          statically; a draft, reviewed before it is signed\n"
+        "  sign <manifest>         Sign with NAAB_SIGNING_KEY (an Ed25519 private key)\n"
+        "  check <file>            0 = accepted, 3 = refused, 4 = a config or usage error\n"
+        "  infer exits 2 (UNMEASURABLE, nothing written) when it meets a node it cannot walk.\n"
         "\n"
         "EXIT CODES:\n"
         "  0  Clean — no violations\n"
@@ -657,6 +670,8 @@ static int cmdLanguages() {
 // <new> is prepared as a reload prepares the changed file.
 // gov_contracts.cpp (Bundle 11)
 int cmdContracts(const std::vector<std::string>& args, const char* argv0);
+// gov_manifest.cpp (Bundle 11 PR 2)
+int cmdManifest(const std::vector<std::string>& args, const char* argv0);
 
 static int cmdRatchet(const std::vector<std::string>& args) {
     using json = nlohmann::json;
@@ -848,6 +863,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "contracts") {
             return cmdContracts(rest, argv[0]);
+        }
+
+        if (cmd == "manifest") {
+            return cmdManifest(rest, argv[0]);
         }
     } catch (const naab::governance::GovernanceHardError& e) {
         std::cerr << e.what() << "\n";

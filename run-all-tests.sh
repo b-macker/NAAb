@@ -2799,6 +2799,19 @@ else
     echo "  test_contract_search.sh: not found, skipping"
 fi
 
+# Bundle 11: the signed capability manifest (manifest.required; naab-gov manifest).
+CMANIFEST_SCRIPT="tests/governance_v4/test_capability_manifest.sh"
+if [ -f "$CMANIFEST_SCRIPT" ]; then
+    if run_shell_test "$CMANIFEST_SCRIPT" 2>&1; then
+        echo "  test_capability_manifest.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_capability_manifest.sh")
+    fi
+else
+    echo "  test_capability_manifest.sh: not found, skipping"
+fi
+
 # CI's SARIF merger corrupted result.ruleIndex for every file after the first,
 # and GitHub rejected the upload as a neutral check while the job stayed green.
 # Nothing could reach the merger while it was inline in the workflow YAML.

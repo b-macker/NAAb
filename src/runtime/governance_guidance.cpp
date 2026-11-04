@@ -449,7 +449,7 @@ static const GuidanceDoc* guidanceLoadDoc(GovernanceEngine& eng,
     const std::string abs = eng.resolvePolicyPath(src.path);
     // Read only what the project may read: a guidance source must not be the
     // route by which a blocked file reaches a model provider.
-    const std::string denial = eng.pathPolicyDenial(abs, /*write=*/false);
+    const std::string denial = eng.pathPolicyDenial(abs, /*write=*/false, /*program_access=*/false);
     if (!denial.empty()) {
         why_not = "policy";
         if (st.warned.insert("policy:" + abs).second) {
@@ -741,7 +741,7 @@ static bool guidanceQuery(GovernanceEngine& eng, GovernanceEngine::GuidanceState
                     src.name.c_str(), msg.c_str());
     };
     const std::string abs = eng.resolvePolicyPath(src.path);
-    if (!eng.pathPolicyDenial(abs, /*write=*/false).empty()) {
+    if (!eng.pathPolicyDenial(abs, /*write=*/false, /*program_access=*/false).empty()) {
         why = "policy";
         warnOnce("policy:" + abs, "is not read: the filesystem policy does not let this project read " + src.path);
         return false;
@@ -859,7 +859,7 @@ static const GuidanceDoc* guidanceLoadSqliteDoc(GovernanceEngine& eng,
                     src.name.c_str(), msg.c_str());
     };
     const std::string abs = eng.resolvePolicyPath(src.path);
-    if (!eng.pathPolicyDenial(abs, /*write=*/false).empty()) {
+    if (!eng.pathPolicyDenial(abs, /*write=*/false, /*program_access=*/false).empty()) {
         why = "policy";
         warnOnce("policy:" + abs, "is not read: the filesystem policy does not let this project read " + src.path);
         return nullptr;

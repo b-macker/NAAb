@@ -495,6 +495,10 @@ std::unique_ptr<ast::Program> ModuleResolver::parseModuleFile(const fs::path& pa
     // to read bytes from disk, so `import "x.naab"` cannot bypass
     // capabilities.filesystem.mode:none / blocked_paths.
     if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+        // The capability manifest pins modules (Bundle 11 PR 2): an unlisted
+        // module is refused as a module, before the path gate.
+        std::string m_err = gov->checkManifestModule(path.string(), nullptr);
+        if (!m_err.empty()) throw std::runtime_error(m_err);
         std::string fs_err = gov->checkFilesystemAllowed("read");
         if (!fs_err.empty()) throw std::runtime_error(fs_err);
         std::string path_err = gov->checkPathAccess(path.string(), "read");
@@ -508,6 +512,11 @@ std::unique_ptr<ast::Program> ModuleResolver::parseModuleFile(const fs::path& pa
         throw std::runtime_error("Failed to open module file: " + path.string());
     }
     std::string source = std::move(*src);
+    // ... and a listed one must be the text the manifest approved.
+    if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+        std::string m_err = gov->checkManifestModule(path.string(), &source);
+        if (!m_err.empty()) throw std::runtime_error(m_err);
+    }
 
     // Lex and parse
     lexer::Lexer lexer(source);
