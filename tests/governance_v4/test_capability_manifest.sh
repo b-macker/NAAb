@@ -473,10 +473,14 @@ fi
 
 # A governance plugin is the operator's code: under a manifest that grants no
 # action at all it still loads and its rule still runs (observed: the plugin
-# read does not reach the manifest's gates on this engine).
+# read does not reach the manifest's gates on this engine). The block is
+# JavaScript, which runs in-process everywhere: with no action granted there is
+# no SHELL_EXEC, and where Python is a separate process (Windows) the shell-off
+# rule refuses a <<python>> block before the plugin is asked (observed at
+# 25d4ebc6, once the signature no longer refused first).
 PLUG_CFG='{"version":"3.0","mode":"enforce","manifest":{"required":true},"security":{"sandbox_level":"elevated"},
  "governance_plugins":[{"file":"plugin.naab","rules":[{"id":"MF-PLUG","function":"check_no_eval","description":"no eval",
-   "level":"hard","trigger":"polyglot_block","languages":["python"],"message":"eval() is not allowed here","help":"do not use eval"}]}]}'
+   "level":"hard","trigger":"polyglot_block","languages":["javascript"],"message":"eval() is not allowed here","help":"do not use eval"}]}]}'
 mkplugin() {
     cat > "$D/plugin.naab" <<'PLUGIN'
 use string
@@ -491,22 +495,22 @@ export function check_no_eval(ctx) {
 PLUGIN
 }
 P_PLUG_OK='main {
-    let e = <<python
-str(1 + 1)
+    let e = <<javascript
+String(1 + 1)
 >>
-    print("PY=" + e)
+    print("JS=" + e)
 }'
 P_PLUG_BAD='main {
-    let e = <<python
-str(eval("1 + 1"))
+    let e = <<javascript
+String(eval("1 + 1"))
 >>
-    print("PY=" + e)
+    print("JS=" + e)
 }'
 mk mf22c "$PLUG_CFG" "$P_PLUG_OK"; mkplugin; infer; edit 'm["actions"] = []'; sign; go
-if [ "$RC" -eq 0 ] && has "PY=2"; then
+if [ "$RC" -eq 0 ] && applied && has "JS=2"; then
     ok "MF-22c" "a project with a governance plugin runs under its inferred manifest (control)"
     mk mf22 "$PLUG_CFG" "$P_PLUG_BAD"; mkplugin; infer; edit 'm["actions"] = []'; sign; go
-    if [ "$RC" -eq 3 ] && has "MF-PLUG" && ! has "PY=2"; then
+    if [ "$RC" -eq 3 ] && applied && has "MF-PLUG" && ! has "JS=2"; then
         ok "MF-22" "the plugin loads under the manifest and its rule refuses the block"
     else bad "MF-22" "the plugin must load and fire under a manifest (rc=$RC)" "$OUT"; fi
 else
