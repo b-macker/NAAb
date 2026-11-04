@@ -4017,6 +4017,19 @@ public:
     bool verifySignatureImpl(const std::string& file_path,
                               const std::string& content) const;
     static bool signFile(const std::string& file_path);
+    // The bytes a signature covers, read the one way every signer and every
+    // signature check reads them: signFile(), verifyFileSignature(), the drift
+    // baseline and the capability manifest. Text mode, as signFile has always
+    // read: on Windows the C runtime turns CRLF into LF, so a file signed on one
+    // platform still verifies after a checkout that converted its line endings
+    // (the committed example govern.json.sig files), and a file saved with CRLF
+    // verifies after it is signed. The capability manifest used to be read in
+    // binary mode while signFile read text, so on Windows a CRLF manifest was
+    // signed over other bytes than the run checked and never verified (observed
+    // on the Windows runner, #357). A caller that also parses the file parses
+    // what this returned, so the signature and the parse judge the same bytes.
+    // False when the file cannot be opened.
+    static bool readSignedFile(const std::string& path, std::string& content);
     bool isBlockedFlag(const std::string& flag) const;
     static std::string getKeyFingerprint();
 

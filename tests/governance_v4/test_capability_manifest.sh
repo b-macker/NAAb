@@ -13,8 +13,11 @@
 # run must pass), so a refuse-everything build fails the controls and a
 # check-nothing build fails the refusals. A refusal is judged by its message AND
 # a side effect that must not happen (a file not written, a request the stub
-# never received). Manifests are edited through python reading stdin (no path
-# crosses to a native python) and signed again after every edit.
+# never received), and a narrowing refusal also by "Capability manifest
+# applied": a run refused at the signature exits 3 with nothing written too.
+# Manifests are edited through python reading stdin and writing bytes (no path
+# crosses to a native python, no CRLF from its stdout) and signed again after
+# every edit; MF-23 is the CRLF manifest, on purpose.
 #
 # Kill table (each mutant built and run alone, naab-lang and naab-gov rebuilt;
 # the controls stayed green), observed:
@@ -39,6 +42,16 @@
 #   K17 inference drops a process.run inline language   -> MF-15
 #   K18 inference omits FS_READ for an import            -> MF-00i
 #   K19 inference omits FS_READ beside FS_WRITE          -> MF-07 MF-07c
+#   K20 the manifest read in binary mode again, its own ifstream (as at
+#       f37f5b1d)                                 -> MF-24 (its source probe);
+#       MF-23 only on a Windows runner, where text and binary reads differ --
+#       observed before the fix: run 41373119598, eleven arms refused "not
+#       signed by a trusted key" after edit() wrote CRLF
+#   K20b signFile reads the file its own way          -> MF-24
+#   K21 harness, not engine: sign() leaves every manifest unsigned, the
+#       Windows failure's shape                   -> all eleven narrowing arms
+#       (MF-06 MF-07 MF-07r MF-07p MF-08 MF-09 MF-10 MF-10s MF-11 MF-11b MF-12);
+#       before applied() was required, MF-06, MF-07p and MF-08 read PASS under it
 #   Not a mutant: MF-22c/MF-22 are an observation. Plugin exemptions in the files
 #   layer and the module pin were written and SURVIVED as mutants (the plugin read
 #   never reaches those gates on the default engine; it loads with no action
@@ -99,16 +112,24 @@ sign()  { (cd "$D" && NAAB_SIGNING_KEY="${1:-$NAAB_SIGNING_KEY}" "$NAAB_GOV" man
 # The generic signer signs any file: used where the manifest is malformed on
 # purpose, since `naab-gov manifest sign` refuses to sign one (MF-05s).
 sign_raw() { (cd "$D" && "$NAAB" --sign-governance p.manifest.json >/dev/null 2>&1); }
-# edit 'PYTHON' -- rewrite the manifest dict `m`; the file is fed as bytes.
+# edit 'PYTHON' -- rewrite the manifest dict `m`; the file is fed and written as
+# bytes. Through sys.stdout a native Windows python writes CRLF, which made every
+# edited manifest a CRLF one on the Windows runner only; MF-23 covers CRLF on
+# purpose, on every platform.
 edit() {
     python3 -c 'import json,sys
 m = json.load(sys.stdin)
 exec(sys.argv[1])
-sys.stdout.write(json.dumps(m, indent=2) + "\n")' "$1" < "$D/p.manifest.json" > "$D/p.manifest.json.new" \
+sys.stdout.buffer.write((json.dumps(m, indent=2) + "\n").encode())' "$1" < "$D/p.manifest.json" > "$D/p.manifest.json.new" \
         && mv "$D/p.manifest.json.new" "$D/p.manifest.json"
 }
 go()  { OUT="$(cd "$D" && timeout 60 "$NAAB" run "${1:-p.naab}" 2>&1)"; RC=$?; }
 has() { grep -qF -- "$1" <<<"$OUT"; }
+# The manifest was accepted. Every narrowing refusal needs this beside its own
+# message: a run refused at the signature also exits 3 with nothing written.
+# With every manifest left unsigned (K21), MF-06, MF-07p and MF-08 read PASS on
+# that outer refusal before this; on the Windows runner MF-08 did (f37f5b1d).
+applied() { has "Capability manifest applied"; }
 
 P_W='import { twice } from "./lib.naab"
 main {
@@ -194,10 +215,62 @@ if [ "$RC" -eq 3 ] && has 'missing key "hosts"'; then
     ok "MF-05b" "a signed manifest missing a key is refused"
 else bad "MF-05b" "a missing key must refuse the manifest (rc=$RC)" "$OUT"; fi
 
+# A manifest saved with CRLF line endings (a Windows editor) is signed and
+# checked over the same bytes. Before the shared reader, `naab-gov manifest
+# sign` read it in text mode (CRLF -> LF on Windows) and the run in binary
+# mode, so on Windows a CRLF manifest never verified: observed on the Windows
+# runner at f37f5b1d (run 41373119598), where edit() wrote CRLF and eleven arms
+# failed "not signed by a trusted key". On Linux the two reads agree, so MF-23
+# is a control here and MF-24 is the arm Linux can turn red.
+mk mf23 "$BASE" "$P_W"; infer
+python3 -c 'import sys
+b = sys.stdin.buffer.read().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+sys.stdout.buffer.write(b)' < "$D/p.manifest.json" > "$D/p.manifest.json.new" && mv "$D/p.manifest.json.new" "$D/p.manifest.json"
+CRS=$(tr -cd '\r' < "$D/p.manifest.json" | wc -c | tr -d ' ')
+sign; go
+if [ "$CRS" -gt 0 ] && [ "$RC" -eq 0 ] && applied && has "TWICE=42" && [ -f "$D/out/a.txt" ]; then
+    ok "MF-23" "a CRLF manifest signed by naab-gov manifest sign verifies and runs ($CRS CRs)"
+else bad "MF-23" "a CRLF manifest must verify after it is signed (rc=$RC crs=$CRS)" "$OUT"; fi
+
+# Screened (reads source text): every function that signs a file or checks a
+# file's signature reads it through GovernanceEngine::readSignedFile(), so the
+# signer and every verifier see the same bytes. A function with its own
+# ifstream is how the manifest came to read binary while signFile read text.
+# sites= is the positive control that the probe found the functions at all.
+read -r -d '' SIGSITES_PY <<'PY'
+import re, sys
+src = sys.stdin.buffer.read().decode("utf-8", "replace").replace("\r\n", "\n").split("\n")
+DEF = re.compile(r"^[A-Za-z].*\bGovernanceEngine::(\w+)\(")
+starts = [i for i, l in enumerate(src) if DEF.match(l)]
+def enclosing(i):
+    s = max(j for j in starts if j <= i)
+    e = next(k for k in range(s, len(src)) if src[k] == "}")
+    return DEF.match(src[s]).group(1), s, "\n".join(src[s:e + 1])
+found = {}
+for i, l in enumerate(src):
+    if ("verifyContentSignature(" in l and not DEF.match(l)) or \
+       l.startswith("bool GovernanceEngine::signFile(") or \
+       l.startswith("bool GovernanceEngine::verifyFileSignature(const std::string& file_path) const"):
+        name, s, body = enclosing(i)
+        found[s] = (name, body)
+out = []
+for s in sorted(found):
+    name, body = found[s]
+    good = "readSignedFile(" in body and "ifstream" not in body
+    out.append(("OK " if good else "BAD ") + name)
+out.append("sites=%d" % len(found))
+sys.stdout.buffer.write(("\n".join(out) + "\n").encode())
+PY
+SIGSITES="$(python3 -c "$SIGSITES_PY" < "$REPO/src/runtime/governance_engine.cpp" 2>&1)"
+NSITES=$(sed -n 's/^sites=//p' <<<"$SIGSITES")
+if [ "${NSITES:-0}" -ge 4 ] && ! grep -q '^BAD ' <<<"$SIGSITES"; then
+    ok "MF-24" "every signer and signature check reads through readSignedFile ($NSITES functions)"
+else bad "MF-24" "a signer or verifier reads the file its own way" "$SIGSITES"; fi
+
 echo "=== narrowing: actions, files, languages, hosts, agents, modules ==="
 
 mk mf06 "$BASE" "$P_W"; infer; edit 'm["actions"].remove("FS_WRITE"); m["files"]["write"] = []'; sign; go
-if [ "$RC" -eq 3 ] && [ ! -f "$D/out/a.txt" ]; then
+if [ "$RC" -eq 3 ] && applied && has "Filesystem write access is not allowed" && [ ! -f "$D/out/a.txt" ]; then
     ok "MF-06" "a withheld FS_WRITE refuses file.write"
 else bad "MF-06" "file.write must be refused without FS_WRITE (rc=$RC)" "$OUT"; fi
 
@@ -207,7 +280,7 @@ P_AB='main {
     print("WROTE_BOTH")
 }'
 mk mf07 "$BASE" "$P_AB"; infer; edit 'm["files"]["write"].remove("out/b.txt")'; sign; go
-if [ "$RC" -eq 3 ] && has "File not in this program's capability manifest" && [ -f "$D/out/a.txt" ] && [ ! -f "$D/out/b.txt" ]; then
+if [ "$RC" -eq 3 ] && applied && has "File not in this program's capability manifest" && [ -f "$D/out/a.txt" ] && [ ! -f "$D/out/b.txt" ]; then
     ok "MF-07" "a write the manifest lists runs; one it does not is refused (exit 3)"
 else bad "MF-07" "files.write must admit out/a.txt and refuse out/b.txt (rc=$RC)" "$OUT"; fi
 
@@ -223,7 +296,7 @@ mk mf07rc "$BASE" "$P_R"; infer; sign; go
 if [ "$RC" -eq 0 ] && has "READ=seed"; then ok "MF-07rc" "a listed read runs (control)"
 else bad "MF-07rc" "control: a read the manifest lists must run (rc=$RC)" "$OUT"; fi
 mk mf07r "$BASE" "$P_R"; infer; edit 'm["files"]["read"] = ["data/other.txt"]'; sign; go
-if [ "$RC" -eq 3 ] && has "files.read" && ! has "READ=seed"; then
+if [ "$RC" -eq 3 ] && applied && has "files.read" && ! has "READ=seed"; then
     ok "MF-07r" "a read the manifest does not list is refused"
 else bad "MF-07r" "an unlisted read must be refused (rc=$RC)" "$OUT"; fi
 
@@ -240,7 +313,7 @@ if [ "$RC" -eq 0 ] && has "PY=seed"; then
     if [ "$RC" -eq 0 ] && has "PY=seed"; then ok "MF-07pc" "an embedded Python read the manifest lists runs (control)"
     else bad "MF-07pc" "control: a listed Python read must run (rc=$RC)" "$OUT"; fi
     mk mf07p "$BASE" "$P_PY"; infer; edit 'm["actions"] = sorted(set(m["actions"]) | {"FS_READ"})'; sign; go
-    if ! has "PY=seed"; then ok "MF-07p" "an embedded Python read the manifest does not list is refused"
+    if applied && has "PermissionError" && has "open denied" && ! has "PY=seed"; then ok "MF-07p" "an embedded Python read the manifest does not list is refused"
     else bad "MF-07p" "a Python open() of an unlisted file must be refused (rc=$RC)" "$OUT"; fi
 else
     skip "MF-07pc" "Python blocks do not read files here without a manifest (rc=$RC)"
@@ -257,7 +330,7 @@ mk mf08c "$BASE" "$P_JS"; infer; sign; go
 if [ "$RC" -eq 0 ] && has "JS=42"; then ok "MF-08c" "a language the manifest lists runs (control)"
 else bad "MF-08c" "control: listed javascript must run (rc=$RC)" "$OUT"; fi
 mk mf08 "$BASE" "$P_JS"; infer; edit 'm["languages"] = []'; sign; go
-if [ "$RC" -eq 3 ] && ! has "JS=42"; then ok "MF-08" "a language the manifest does not list is refused"
+if [ "$RC" -eq 3 ] && applied && has 'Language "javascript" is not allowed' && has "the capability manifest lists no language" && ! has "JS=42"; then ok "MF-08" "a language the manifest does not list is refused"
 else bad "MF-08" "unlisted javascript must be refused (rc=$RC)" "$OUT"; fi
 
 # The sandbox's host decision runs before DNS: a listed host gets past it (and
@@ -276,7 +349,7 @@ if has "DONE" && ! has "denied by sandbox" && ! has "not allowed"; then
     ok "MF-09c" "a host the manifest lists gets past the host decision (control)"
 else bad "MF-09c" "control: a listed host must not be denied by the host lists (rc=$RC)" "$OUT"; fi
 mk mf09 "$BASE" "$P_HTTP"; infer; edit 'm["hosts"] = ["other.example.invalid"]'; sign; go
-if has "denied by sandbox" && ! has "FETCHED"; then ok "MF-09" "a host the manifest does not list is denied"
+if applied && has "denied by sandbox" && ! has "FETCHED"; then ok "MF-09" "a host the manifest does not list is denied"
 else bad "MF-09" "an unlisted host must be denied (rc=$RC)" "$OUT"; fi
 
 # Agents. A fixture stub stands in for the provider.
@@ -315,21 +388,21 @@ else
         ok "MF-10c" "a listed agent is created and its send reaches the provider (control)"
     else bad "MF-10c" "control: the inferred manifest must let the agent run (rc=$RC reqs=$REQS)" "$OUT"; fi
     agent_arm mf10 'm["agents"] = ["other"]'
-    if [ "$RC" -eq 3 ] && has "Agent not in this program's capability manifest" && ! has "CREATED" && [ "$REQS" -eq 0 ]; then
+    if [ "$RC" -eq 3 ] && applied && has "Agent not in this program's capability manifest" && ! has "CREATED" && [ "$REQS" -eq 0 ]; then
         ok "MF-10" "agent.create of an agent the manifest does not list is refused"
     else bad "MF-10" "an unlisted agent must be refused (rc=$RC reqs=$REQS)" "$OUT"; fi
     agent_arm mf10s 'm["actions"].remove("AGENT_SEND")'
-    if [ "$RC" -eq 3 ] && has "Action not in this program's capability manifest: AGENT_SEND" && has "CREATED" && [ "$REQS" -eq 0 ]; then
+    if [ "$RC" -eq 3 ] && applied && has "Action not in this program's capability manifest: AGENT_SEND" && has "CREATED" && [ "$REQS" -eq 0 ]; then
         ok "MF-10s" "a withheld AGENT_SEND refuses the send before any request leaves"
     else bad "MF-10s" "agent.send without AGENT_SEND must be refused (rc=$RC reqs=$REQS)" "$OUT"; fi
 fi
 
 mk mf11 "$BASE" "$P_W"; infer; sign; printf '// changed\n' >> "$D/lib.naab"; go
-if [ "$RC" -eq 3 ] && has "Module text is not the text the capability manifest approved" && [ ! -f "$D/out/a.txt" ]; then
+if [ "$RC" -eq 3 ] && applied && has "Module text is not the text the capability manifest approved" && [ ! -f "$D/out/a.txt" ]; then
     ok "MF-11" "a module changed after approval is refused at import"
 else bad "MF-11" "a changed module must be refused (rc=$RC)" "$OUT"; fi
 mk mf11b "$BASE" "$P_W"; infer; edit 'm["modules"] = {}'; sign; go
-if [ "$RC" -eq 3 ] && has "Module not in this program's capability manifest" && [ ! -f "$D/out/a.txt" ]; then
+if [ "$RC" -eq 3 ] && applied && has "Module not in this program's capability manifest" && [ ! -f "$D/out/a.txt" ]; then
     ok "MF-11b" "a module the manifest does not list is refused at import"
 else bad "MF-11b" "an unlisted module must be refused (rc=$RC)" "$OUT"; fi
 
@@ -338,7 +411,7 @@ P_SELF='main {
     print("SELF=" + file.read("p.manifest.json"))
 }'
 mk mf12 "$BASE" "$P_SELF"; infer; sign; go
-if [ "$RC" -eq 3 ] && ! has "SELF=" && has "blocked"; then
+if [ "$RC" -eq 3 ] && applied && ! has "SELF=" && has "blocked"; then
     ok "MF-12" "the program cannot read its own manifest, even when the manifest lists it"
 else bad "MF-12" "the manifest must be protected from the program (rc=$RC)" "$OUT"; fi
 
@@ -501,15 +574,18 @@ main {
     print(twice(1))
 }'
 (cd "$D" && "$NAAB_GOV" manifest infer p.naab >/dev/null 2>&1); RC=$?
+# Written as bytes: a native Windows python's print() ends each line with CRLF,
+# and the captured text then compares unequal to WANT while looking identical.
 GOT="$(python3 -c 'import json,sys
 m = json.load(sys.stdin)
-print("actions=" + ",".join(m["actions"]))
-print("languages=" + ",".join(m["languages"]))
-print("hosts=" + ",".join(m["hosts"]))
-print("read=" + ",".join(m["files"]["read"]))
-print("write=" + ",".join(m["files"]["write"]))
-print("agents=" + ",".join(m["agents"]))
-print("modules=" + ",".join(sorted(m["modules"])))' < "$D/p.manifest.json" 2>&1)"
+lines = ["actions=" + ",".join(m["actions"]),
+         "languages=" + ",".join(m["languages"]),
+         "hosts=" + ",".join(m["hosts"]),
+         "read=" + ",".join(m["files"]["read"]),
+         "write=" + ",".join(m["files"]["write"]),
+         "agents=" + ",".join(m["agents"]),
+         "modules=" + ",".join(sorted(m["modules"]))]
+sys.stdout.buffer.write(("\n".join(lines) + "\n").encode())' < "$D/p.manifest.json" 2>&1)"
 WANT='actions=AGENT_SEND,ENV_READ,FS_READ,FS_WRITE,NET_CONNECT,SHELL_EXEC
 languages=javascript,python
 hosts=api.example.invalid

@@ -1660,6 +1660,7 @@ if(HAVE_GOOGLETEST)
         tests/unit/thread_vm_test.cpp           # which VM a tool runs on; a lent VM entered one at a time (A93)
         tests/unit/report_snapshot_test.cpp     # a report written while other threads record (A86)
         tests/unit/contract_expr_test.cpp       # requires/ensures clauses: the purity whitelist (Bundle 11)
+        tests/unit/capability_manifest_test.cpp # the capability manifest's file format (Bundle 11 PR 2)
     )
 
     # Link GoogleTest and NAAb libraries

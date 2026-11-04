@@ -5668,16 +5668,19 @@ std::string GovernanceEngine::getKeyFingerprint() {
     return hmac.substr(hmac.size() > 8 ? hmac.size() - 8 : 0);
 }
 
+bool GovernanceEngine::readSignedFile(const std::string& path, std::string& content) {
+    std::ifstream ifs(path);  // text mode on purpose: see the declaration
+    if (!ifs.is_open()) return false;
+    content.assign(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
+    return true;
+}
+
 bool GovernanceEngine::signFile(const std::string& file_path) {
-    // Read file content
-    std::ifstream ifs(file_path);
-    if (!ifs.is_open()) {
+    std::string content;
+    if (!readSignedFile(file_path, content)) {
         fprintf(stderr, "[governance] Error: cannot read %s for signing\n", file_path.c_str());
         return false;
     }
-    std::string content((std::istreambuf_iterator<char>(ifs)),
-                         std::istreambuf_iterator<char>());
-    ifs.close();
 
     std::string sig_content;
 
@@ -5977,11 +5980,8 @@ bool GovernanceEngine::verifyFileSignature(const std::string& file_path,
 }
 
 bool GovernanceEngine::verifyFileSignature(const std::string& file_path) const {
-    std::ifstream ifs(file_path);
-    if (!ifs.is_open()) return false;
-    std::string content((std::istreambuf_iterator<char>(ifs)),
-                         std::istreambuf_iterator<char>());
-    ifs.close();
+    std::string content;
+    if (!readSignedFile(file_path, content)) return false;
     return verifySignatureImpl(file_path, content);
 }
 
@@ -6011,14 +6011,13 @@ std::string GovernanceEngine::requireCapabilityManifest(const std::string& progr
         "Draft it with `naab-gov manifest infer PROGRAM`, review it, and have the\n"
         "approver sign it with `naab-gov manifest sign MANIFEST`.";
 
-    // Read ONCE; the signature and the parse below judge these same bytes.
-    std::ifstream in(mpath, std::ios::binary);
-    if (!in.is_open()) {
+    // Read ONCE, as signFile() read it; the signature and the parse below
+    // judge these same bytes.
+    std::string content;
+    if (!readSignedFile(mpath, content)) {
         return refuse("This program has no capability manifest",
             std::string("The project requires a signed capability manifest beside the program.\n") + kRedraft);
     }
-    std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    in.close();
 
     // Signed by a trusted Ed25519 key, and nothing less. verifySignatureImpl()
     // also accepts an unsigned file when no key is installed and a legacy HMAC
@@ -6128,8 +6127,10 @@ std::string GovernanceEngine::checkDriftDetection(
 
     // Load baseline
     std::string resolved = resolveDriftBaselinePath();
-    std::ifstream ifs(resolved);
-    if (!ifs.is_open()) {
+    // Read into memory ONCE (TOCTOU fix: no re-read after verify), as
+    // signFile() read it.
+    std::string baseline_content;
+    if (!readSignedFile(resolved, baseline_content)) {
         // Gate 10: fail-closed when baseline is required but missing (tamper protection)
         if (cfg.require_baseline) {
             std::string msg = "Drift baseline missing or deleted: " + resolved +
@@ -6140,11 +6141,6 @@ std::string GovernanceEngine::checkDriftDetection(
         }
         return "";  // No baseline yet — skip
     }
-
-    // Read baseline into memory ONCE (TOCTOU fix: no re-read after verify)
-    std::string baseline_content((std::istreambuf_iterator<char>(ifs)),
-                                  std::istreambuf_iterator<char>());
-    ifs.close();
 
     // Verify baseline signature on the in-memory content
     if (!verifyContentSignature(resolved, baseline_content)) {
