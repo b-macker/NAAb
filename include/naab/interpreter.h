@@ -362,6 +362,7 @@ struct GeneratorValue {
     std::shared_ptr<FunctionValue> func;  // The generator function
     std::vector<NaabVal> args;  // Arguments passed at creation
     std::vector<NaabVal> collected_values;  // Yielded values
+    bool yielded_tainted = false;  // a yielded value was tainted (Bundle 12)
 };
 
 // Runtime value types

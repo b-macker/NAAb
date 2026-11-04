@@ -31,12 +31,19 @@ call_method|CallExpr|-|-|t.upper()|assign|tainted|a method's receiver
 call_method_clean|CallExpr|-|-|"c".upper()|assign|clean|a clean receiver (control)
 call_userfn_arg|CallExpr|fn idf(v) { return v }|-|idf(t)|assign|tainted|a user function returns its tainted argument
 call_userfn_ret|CallExpr|fn getr() { return env.get("HOME") }|-|getr()|assign|tainted|a user function returns a source
+call_userfn_ignores|CallExpr|fn k(v) { return "c" }|-|k(t)|assign|tainted|a call's result is tainted when an argument is, whatever the body returns (the rule does not look inside)
+call_lambda_ignores|CallExpr|-|let f = fn(v) { return "c" }|f(t)|assign|tainted|the same for a function value
+call_userfn_null|CallExpr|fn kn(v) { return }|-|kn(t)|assign|tainted|and for a null result (a body's last let is its value, so a bare return)
 call_clean_after_source|CallExpr|-|-|string.upper("c")|assign|clean|a clean stdlib call after a source (the VM's stale return flag tainted it)
 call_clean_after_gap|CallExpr|use json|let g1 = 1|json.stringify("c")|assign|clean|still clean with statements between
 call_math_clean|CallExpr|use math|-|math.abs(-1)|assign|clean|any module, not only string
+call_string_module|CallExpr|-|-|string(t)|assign|tainted|a module called as a function (what "${x}" compiles to after use string)
+call_builtin_len|CallExpr|-|-|len(t)|assign|tainted|a builtin
 call_source_inline|CallExpr|-|-|env.get("HOME")|sink|tainted|a source written into the sink argument
 call_sanitized_inline|CallExpr|fn sanitize_s(v) { return "clean" }|-|sanitize_s(t)|sink|clean|a configured sanitizer's result, inline
 call_sanitized_assign|CallExpr|fn sanitize_s(v) { return "clean" }|-|sanitize_s(t)|assign|clean|a configured sanitizer's result, assigned
+call_sanitizer_returns_arg|CallExpr|fn sanitize_id(v) { return v }|-|sanitize_id(t)|sink|clean|a sanitizer that returns its argument still clears it
+call_sanitizer_ignores|CallExpr|fn sanitize_k(v) { return "c" }|-|sanitize_k(t)|assign|clean|a sanitizer is not a call whose arguments taint the result
 cb_capture|CallExpr|use array|-|array.map_fn([1, 2], fn(v) { return t })|assign|tainted|a callback returned tainted data
 cb_last_clean|CallExpr|use array|-|array.map_fn([1, 2], fn(v) { if v == 1 { return t } return "c" })|assign|tainted|ANY callback, not only the last (last-write-wins laundered it)
 cb_nested|CallExpr|use array|-|array.map_fn([1], fn(v) { return array.map_fn([1, 2], fn(w) { if w == 1 { return t } return "c" }) })|assign|tainted|a nested call's callbacks
@@ -46,6 +53,7 @@ member_dict|MemberExpr|-|let d = {k: t}|d.k|assign|tainted|a field of a tainted 
 dict_val|DictExpr|-|-|{k: t}|assign|tainted|a value
 dict_key|DictExpr|-|let k = t|{(k): "v"}|assign|tainted|a computed key
 dict_clean|DictExpr|-|-|{k: "v"}|assign|clean|a constant dict (control)
+dict_key_only|DictExpr|-|let k = t|{(k): 1}|assign|tainted|a computed key with a constant value
 list_elem|ListExpr|-|-|[t]|assign|tainted|an element
 list_nested|ListExpr|-|-|[["a", t]]|assign|tainted|a nested element
 list_clean|ListExpr|-|-|[1, 2]|assign|clean|a constant list (control)
@@ -59,16 +67,28 @@ if_else|IfExpr|-|-|if false { "c" } else { t }|assign|tainted|a branch
 if_cond|IfExpr|-|-|if t == "x" { "a" } else { "b" }|assign|tainted|conditions count (owner's decision)
 if_cond_sink|IfExpr|-|-|if t == "x" { "a" } else { "b" }|sink|tainted|conditions count in a sink argument too
 if_clean|IfExpr|-|let c0 = "x"|if c0 == "x" { "a" } else { "b" }|assign|clean|a clean condition (control)
+if_nested|IfExpr|-|-|if t == "x" { if true { "a" } else { "b" } } else { "c" }|assign|tainted|an outer condition over an inner if
+if_inner_cond|IfExpr|-|let c0 = "x"|if c0 == "x" { if t == "y" { "a" } else { "b" } } else { "c" }|assign|tainted|an inner condition
+if_cond_unwind|IfExpr|-|let c0 = "x" let g = fn() { let w = if t == "y" { throw "e" } else { throw "f" } return w }|if c0 == "x" { try { g() } catch (e) { "b" } } else { "c" }|assign|clean|a tainted condition left by a throw does not taint the enclosing if (no row of the rule is tainted)
+if_cond_unwind_cb|IfExpr|-|let c0 = "x"|if c0 == "x" { try { array.map_fn([1], fn(v) { let w = if t == "y" { throw "e" } else { throw "f" } return w }) } catch (e) { "b" } } else { "c" }|assign|clean|the same throw out of a callback's nested run
+if_cond_unwind_await|IfExpr|async fn af() { throw "e" }|let c0 = "x" let g = fn() { let w = if t == "y" { await af() } else { await af() } return w }|if c0 == "x" { try { g() } catch (e) { "b" } } else { "c" }|assign|clean|the same throw arriving through an await
 lambda_value|LambdaExpr|-|-|fn() { return t }|assign|clean|a function value holds no data
 lambda_call|LambdaExpr|-|let f = fn() { return t }|f()|assign|tainted|its call is judged by what it returns
 lambda_param|LambdaExpr|-|let f = fn(v) { return v }|f(t)|assign|tainted|a tainted argument returned
 match_arm|MatchExpr|-|-|match 1 { 1 => t, _ => "c" }|assign|tainted|an arm
 match_subject|MatchExpr|-|-|match t { "x" => "a", _ => "b" }|assign|tainted|conditions count: the subject
+match_subject_binding|MatchExpr|-|-|match t { v => "a" }|assign|tainted|the subject decides even when no arm compares it
 match_guard|MatchExpr|-|-|match 1 { n if t == "x" => "a", _ => "b" }|assign|tainted|conditions count: a guard
 match_clean|MatchExpr|-|-|match 1 { 1 => "a", _ => "b" }|assign|clean|a clean match (control)
+match_list_guard|MatchExpr|-|-|match [1] { [n] if t == "x" => "a", _ => "b" }|assign|tainted|a guard on a list pattern
 await_arg|AwaitExpr|async fn ag(v) { return v }|-|await ag(t)|assign|tainted|an awaited call's argument
 await_ret|AwaitExpr|async fn ah() { return env.get("HOME") }|-|await ah()|assign|tainted|an awaited call's return
+await_ignores|AwaitExpr|async fn ak(v) { return "c" }|-|await ak(t)|assign|tainted|an async call is a call: its argument taints the result
+await_clean|AwaitExpr|async fn ac(v) { return "c" }|-|await ac("q")|assign|clean|a clean async call (control)
 yield_gen|YieldExpr|fn gen(v) { yield v }|let x0 = "" for v in gen(t) { x0 = v }|x0|assign|tainted|a yielded value
+yield_ignores|YieldExpr|fn gk(v) { yield "c" }|let x0 = "q" for v in gk(t) { x0 = v }|x0|assign|tainted|a generator called with tainted data
+yield_captured|YieldExpr|fn gy() { yield env.get("HOME") }|let x0 = "q" for v in gy() { x0 = v }|x0|assign|tainted|a yielded source with clean arguments
+yield_clean|YieldExpr|fn gc(v) { yield "c" }|let x0 = "q" for v in gc("q") { x0 = v }|x0|assign|clean|a clean generator (control)
 try_try|TryCatchExpr|-|-|try { t } catch (e) { "" }|assign|tainted|the try arm
 try_catch|TryCatchExpr|-|-|try { throw "x" } catch (e) { t }|assign|tainted|the catch arm
 throw_catch|ThrowExpr|-|-|try { throw t } catch (e) { e }|assign|tainted|the catch binding receives the thrown value

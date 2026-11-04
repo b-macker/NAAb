@@ -1154,6 +1154,9 @@ void Compiler::visit(ast::ContinueStmt& node) {
 void Compiler::visit(ast::IfExpr& node) {
     int line = node.getLocation().line;
     node.getCondition()->accept(*this);
+    // The condition decides the value (Bundle 12: conditions count). Its taint
+    // is saved here and laid over the branch's result at the end.
+    emitCondTaint(0, line);
     int else_jump = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
     emitOp(OpCode::OP_POP, line); // pop condition (true path)
     node.getThenExpr()->accept(*this);
@@ -1162,6 +1165,7 @@ void Compiler::visit(ast::IfExpr& node) {
     emitOp(OpCode::OP_POP, line); // pop condition (false path)
     node.getElseExpr()->accept(*this);
     patchJump(end_jump);
+    emitCondTaint(2, line);
 }
 
 void Compiler::visit(ast::TryCatchExpr& node) {
@@ -1907,6 +1911,9 @@ void Compiler::visit(ast::MatchExpr& node) {
     addLocal("__match_subject__");
     markInitialized();
     int subject_slot = static_cast<int>(current_->locals.size()) - 1;
+    // The subject, each pattern compared with it and each guard decide which
+    // arm's value the match takes (Bundle 12: conditions count).
+    emitCondTaint(0, line);
 
     std::vector<int> end_jumps;
 
@@ -1916,6 +1923,7 @@ void Compiler::visit(ast::MatchExpr& node) {
             if (arm.guard) {
                 // Guarded wildcard: _ if cond => body
                 arm.guard->accept(*this);
+                emitCondTaint(1, line);
                 int no_guard = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
                 emitOp(OpCode::OP_POP, line); // pop guard result (true)
                 arm.body->accept(*this);
@@ -1989,6 +1997,7 @@ void Compiler::visit(ast::MatchExpr& node) {
                             static_cast<uint32_t>(first_binding_slot + i), line);
                         elems[i]->accept(*this);
                         emitOp(OpCode::OP_EQ, line);
+                        emitCondTaint(1, line);
                         check_fail_jumps.push_back(
                             emitJump(OpCode::OP_JUMP_IF_FALSE, line));
                         emitOp(OpCode::OP_POP, line); // pop EQ true
@@ -1998,6 +2007,7 @@ void Compiler::visit(ast::MatchExpr& node) {
                 // Guard check
                 if (arm.guard) {
                     arm.guard->accept(*this);
+                    emitCondTaint(1, line);
                     check_fail_jumps.push_back(
                         emitJump(OpCode::OP_JUMP_IF_FALSE, line));
                     emitOp(OpCode::OP_POP, line); // pop guard true
@@ -2054,6 +2064,7 @@ void Compiler::visit(ast::MatchExpr& node) {
 
                 if (arm.guard) {
                     arm.guard->accept(*this);
+                    emitCondTaint(1, line);
                     int no_guard = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
                     emitOp(OpCode::OP_POP, line); // pop guard result (true)
 
@@ -2084,11 +2095,13 @@ void Compiler::visit(ast::MatchExpr& node) {
                 emitWide(OpCode::OP_GET_LOCAL, static_cast<uint32_t>(subject_slot), line);
                 arm.pattern->accept(*this);
                 emitOp(OpCode::OP_EQ, line);
+                emitCondTaint(1, line);
 
                 if (arm.guard) {
                     int no_match = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
                     emitOp(OpCode::OP_POP, line); // pop EQ result (true)
                     arm.guard->accept(*this);
+                    emitCondTaint(1, line);
                     int no_guard = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
                     emitOp(OpCode::OP_POP, line); // pop guard result (true)
                     arm.body->accept(*this);
@@ -2142,6 +2155,7 @@ void Compiler::visit(ast::MatchExpr& node) {
     emitWide(OpCode::OP_SET_LOCAL, static_cast<uint32_t>(subject_slot), line);
     emitOp(OpCode::OP_POP, line);
     // Stack: [..., result@N] — subject slot now holds the match result
+    emitCondTaint(2, line);
     current_->locals.pop_back();
 }
 
@@ -2189,6 +2203,11 @@ bool Compiler::exprContainsTaint(ast::Expr* expr) {
 
 // A value the static rule finds tainted is marked where it is produced, so the
 // runtime taint stack carries it into the call or return it feeds.
+void Compiler::emitCondTaint(uint32_t mode, int line) {
+    if (governance_ && governance_->taintTrackingEnabled())
+        emitWide(OpCode::OP_COND_TAINT, mode, line);
+}
+
 void Compiler::emitStaticTaintMark(ast::Expr* expr, int line) {
     if (governance_ && governance_->isActive() && exprContainsTaint(expr))
         emitOp(OpCode::OP_GOV_TAINT_MARK, line);

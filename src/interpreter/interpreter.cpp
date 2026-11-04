@@ -2067,8 +2067,11 @@ void Interpreter::visit(ast::YieldExpr& node) {
             "    }\n");
     }
 
-    // Evaluate the yielded value and collect it
+    // Evaluate the yielded value and collect it. A tainted one taints what
+    // the loop over the generator binds (the VM: OP_YIELD).
     auto value = eval(*node.getExpr());
+    if (governance_ && governance_->isActive() && checkRhsTainted(node.getExpr()))
+        active_generator_->yielded_tainted = true;
     active_generator_->collected_values.push_back(value);
     result_ = NaabVal::makeNull();  // yield itself returns void
 }
@@ -2346,6 +2349,7 @@ void Interpreter::visit(ast::ForStmt& node) {
         current_env_ = func_env;
         returning_ = false;
         active_generator_ = gen.get();
+        gen->yielded_tainted = false;
 
         // FIX-E2: Exception safety — restore state even if generator body throws
         try {
@@ -2363,6 +2367,13 @@ void Interpreter::visit(ast::ForStmt& node) {
         result_ = saved_result;
         returning_ = saved_returning;
         active_generator_ = saved_generator;
+        if (gen->yielded_tainted && governance_ && governance_->isActive()) {
+            if (node.isDestructuring()) {
+                for (const auto& name : node.getDestructureNames()) governance_->markTainted(name);
+            } else {
+                governance_->markTainted(node.getVar());
+            }
+        }
 
         // Now iterate over the collected values
         size_t iter_count = 0;

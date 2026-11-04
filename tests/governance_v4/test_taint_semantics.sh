@@ -16,16 +16,56 @@
 # taint_rule.h names every NodeKind, so a kind added to the AST fails here before
 # it can be laundered (its default is tainted, -Wswitch reports it as a warning).
 #
-# Measured against master 528fbb59 (the pre-Bundle-12 binary), 23 rows changed
-# verdict, each in the decided direction: the tree-walker missed javascript
-# output, a throw into a catch, conditions and an inline source; neither engine
-# saw a match subject, a computed dict key or a condition in a sink argument;
-# the VM tainted every clean stdlib call after a source (its return flag was
-# never cleared); and a callback that returned tainted data before a clean one
-# laundered it on both (the flag is last-write-wins).
+# Measured against master 528fbb59 (the binary built before Bundle 12): 52 of
+# the 156 row checks fail, each in the direction the table decides (A117). The
+# tree-walker missed javascript output, a throw into a catch, conditions, an
+# inline source and a generator yielding a source; neither engine saw a match
+# subject, a computed dict key or a condition in a sink argument; the VM tainted
+# every clean stdlib call after a source (its return flag was never cleared); a
+# callback that returned tainted data before a clean one laundered it on both
+# (the flag is last-write-wins); and under the callback origin the VM's runtime
+# dropped taint through interpolation, dict keys, conditions, async calls,
+# generators and any call whose body ignored its tainted argument.
 #
-# Kill table (each mutant built and run alone; the controls stayed green):
-#   see the Bundle 12 PR; recorded in the header below once measured.
+# Kill table: each mutant applied alone, built and run; the rows it turned red
+# (every other row and every control stayed green). M1-M12 were run before the
+# callback origin existed, so they list source-origin rows only.
+#   The static rule (include/naab/taint_rule.h) and its callers:
+#   M1  if-condition dropped from the rule      if_cond, if_cond_sink
+#   M2  match subject dropped                   match_subject
+#   M3  match guard dropped                     match_guard
+#   M4  throw carries nothing                   throw_catch (tw; the VM carries a thrown value's taint itself)
+#   M5  a polyglot block is clean               inline_js_sink (tw; the VM marks polyglot output at run time)
+#   M6  dict keys dropped                       dict_key
+#   M7a a source call is undecided              10 rows on the vm or tw (lit_interp, call_source_inline, dict_key, ...)
+#   M7b a sanitizer call is undecided           call_sanitized_inline
+#   M8  VM return flag not cleared per call     call_clean_after_source, call_clean_after_gap, call_math_clean (vm)
+#   M9  VM no compile-time mark on arguments    if_cond_sink (vm)
+#   M10a VM callback accumulator not set        cb_last_clean, cb_nested (vm)
+#   M10b tw callback accumulator not set        cb_last_clean, cb_nested (tw)
+#   M11 rule fails open on an unknown kind      tests/unit/taint_rule_test.cpp (UnknownKind..., StatementKind...)
+#   M12 tw parallel path does not mark          inline_js, inline_js_bound (tw)
+#   The VM runtime, under the callback origin unless noted:
+#   R1  module-as-function drops arg taint      lit_interp, call_string_module
+#   R2  OP_DICT ignores keys                    dict_key, dict_key_only
+#   R3  condition not saved                     if_cond, if_cond_sink, if_nested, if_inner_cond, match_subject_binding
+#   R4  pattern/guard not added                 match_guard, match_list_guard
+#   R5  saved condition not applied             the if rows and match_subject, match_guard, match_list_guard
+#   R6  handler restore (run()'s catch)         if_cond_unwind_await (both origins: the leak over-taints)
+#   R6b handler restore (OP_THROW)              if_cond_unwind (both origins)
+#   R7  async args go untainted                 await_arg, await_ignores
+#   R8  async return taint not read             await_arg, await_ignores
+#   R9  generator args do not taint             yield_gen, yield_ignores
+#   R10 yielded taint not recorded              yield_captured (both origins)
+#   R11 call result ignores argument taint      call_userfn_ignores, call_lambda_ignores, await_ignores
+#   R12 sanitizer return not cleared            the four sanitizer rows, both origins
+#   R13 null result ignores argument taint      call_userfn_null
+#   R14 tw yield taint not recorded             yield_captured (tw, both origins)
+#   R15 if-expression emits no condition op     if_cond, if_cond_sink, if_nested, if_inner_cond
+#   R16 callNaabFunction() condition restore    SURVIVES: every throw a NAAb catch receives also passes a
+#                                               handler restore (R6/R6b); it alone matters for a native
+#                                               caller that survives a callback's throw -- an agent tool
+#                                               loop does (traced, not run: this table has no agent stub)
 #
 # Usage: bash tests/governance_v4/test_taint_semantics.sh [path/to/naab-lang]
 set -uo pipefail
@@ -59,9 +99,20 @@ cfg() {  # cfg MODE
 cfg enforce > "$T/vm/govern.json"
 cfg audit > "$T/tw/govern.json"
 
+# Two origins for the tainted value t, and every row runs under both:
+#   source    t comes straight from the source call, which the VM compiler's
+#             walk sees, so the VM marks t at compile time AND at run time;
+#   callback  t is a callback's result, which no static walk can see, so on the
+#             VM only the runtime taint stack carries it. A kind the runtime
+#             drops is laundered under this origin alone.
+ORIGIN_EXPR_source='env.get("HOME")'
+ORIGIN_EXPR_callback='array.map_fn([1], fn(v) { return env.get("HOME") })[0]'
+ORIGIN=source
+
 # run_case ENGINE PRELUDE SETUP EXPR CONTEXT -> VIOL (count) DONE (0/1) OUT
 run_case() {
-    local engine="$1" prelude="$2" setup="$3" expr="$4" context="$5" body dir
+    local engine="$1" prelude="$2" setup="$3" expr="$4" context="$5" body dir origin_var origin_expr
+    origin_var="ORIGIN_EXPR_$ORIGIN"; origin_expr="${!origin_var}"
     expr="${expr//@@/$'\n'}"
     if [ "$context" = "sink" ]; then
         body="print(${expr})"
@@ -70,8 +121,8 @@ run_case() {
     print(x)"
     fi
     dir="$T/$engine"
-    printf 'use env\nuse string\n%s\nmain {\n    let t = env.get("HOME")\n    %s\n    %s\n    print("DONE")\n}\n' \
-        "$prelude" "$setup" "$body" > "$dir/p.naab"
+    printf 'use env\nuse string\nuse array\n%s\nmain {\n    let t = %s\n    %s\n    %s\n    print("DONE")\n}\n' \
+        "$prelude" "$origin_expr" "$setup" "$body" > "$dir/p.naab"
     if [ "$engine" = "tw" ]; then
         OUT="$(cd "$dir" && timeout 30 "$NAAB" --tree-walk p.naab 2>&1)"
     else
@@ -85,13 +136,15 @@ verdict() { [ "$VIOL" -gt 0 ] && echo tainted || echo clean; }
 
 echo "=== harness controls ==="
 HC_OK=1
+for ORIGIN in source callback; do
 for engine in vm tw; do
     run_case "$engine" "" "" "t" assign
-    if [ "$DONE" -eq 1 ] && [ "$(verdict)" = tainted ]; then ok "HC-1/$engine" "a tainted name is flagged at the sink"
-    else bad "HC-1/$engine" "the detector must see a tainted name (done=$DONE)" "$OUT"; HC_OK=0; fi
+    if [ "$DONE" -eq 1 ] && [ "$(verdict)" = tainted ]; then ok "HC-1/$engine/$ORIGIN" "a tainted name is flagged at the sink"
+    else bad "HC-1/$engine/$ORIGIN" "the detector must see a tainted name (done=$DONE)" "$OUT"; HC_OK=0; fi
     run_case "$engine" "" "" '"c"' assign
-    if [ "$DONE" -eq 1 ] && [ "$(verdict)" = clean ]; then ok "HC-2/$engine" "a constant is not flagged"
-    else bad "HC-2/$engine" "a constant must not be flagged (done=$DONE)" "$OUT"; HC_OK=0; fi
+    if [ "$DONE" -eq 1 ] && [ "$(verdict)" = clean ]; then ok "HC-2/$engine/$ORIGIN" "a constant is not flagged"
+    else bad "HC-2/$engine/$ORIGIN" "a constant must not be flagged (done=$DONE)" "$OUT"; HC_OK=0; fi
+done
 done
 
 echo "=== the table covers every expression kind; the rule names every NodeKind ==="
@@ -125,11 +178,14 @@ if [ "$HC_OK" -ne 1 ]; then
     echo "  (harness controls failed: the rows below cannot be judged)"
 fi
 NROWS=0
+for ORIGIN in source callback; do
+echo "--- t from: $ORIGIN"
 while IFS='|' read -r id kind prelude setup expr context expect why; do
     [ -z "$id" ] && continue
     [ "$prelude" = "-" ] && prelude=""
     [ "$setup" = "-" ] && setup=""
-    NROWS=$((NROWS+1))
+    [ "$ORIGIN" = source ] && NROWS=$((NROWS+1))
+    id="$id/$ORIGIN"
     [ "$HC_OK" -ne 1 ] && { skip "$id" "harness controls failed"; continue; }
     run_case vm "$prelude" "$setup" "$expr" "$context"; vm_v=$(verdict); vm_done=$DONE; vm_out=$OUT
     run_case tw "$prelude" "$setup" "$expr" "$context"; tw_v=$(verdict); tw_done=$DONE; tw_out=$OUT
@@ -146,6 +202,7 @@ $(tail -6 <<<"$vm_out")
 $(tail -6 <<<"$tw_out")"
     fi
 done <<<"$ROWS"
+done
 if [ "$NROWS" -lt 50 ]; then bad "TS-N" "only $NROWS rows read from the table"; fi
 
 echo ""

@@ -4,7 +4,7 @@ The project owner's ordered plan for governance work. It was recorded on 2026-10
 
 A **bundle** is one branch, one pull request and one validated push. **Confirm a bundle's scope with the owner before starting it.** A finding made along the way is recorded in `docs/open-investigations.md` in the same pull request, and is added to a bundle only by the owner's decision.
 
-## Status (2026-11-01)
+## Status (2026-11-04)
 
 | Bundle | State | Where |
 |---|---|---|
@@ -14,8 +14,9 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 8: "governance only tightens", proved | merged: PR 1 #352 (`76c871cf`), PR 2 #353 (`fc9b8099`) | Bundle 8 below |
 | 9: adversarial inputs and concurrency | merged | #354 (`7a4c1c50`); A108-A112 |
 | 10: state machines and automata | merged | #355 (`f9337bdf`); A113 |
-| 11: contracts and manifests for LLM-written code | in progress, two PRs by the owner's decision (2026-11-01). PR 1 merged (#356, `703fa6c4`): requires/ensures as NAAb expressions checked by the VM at the call boundary, and the opt-in counterexample search `naab-gov contracts` in a worker; A114. PR 2: the signed capability manifest; A115, A116 | Bundle 11 below |
-| 12-15 | not started | |
+| 11: contracts and manifests for LLM-written code | merged, two PRs by the owner's decision (2026-11-01). PR 1 #356 (`703fa6c4`): requires/ensures as NAAb expressions checked by the VM at the call boundary, and the opt-in counterexample search `naab-gov contracts` in a worker; A114. PR 2 #357 (`528fbb59`): the signed capability manifest; A115, A116 | Bundle 11 below |
+| 12: taint as information flow | in progress, two PRs by the owner's decision (2026-11-04). PR 1: one taint semantics -- one static rule both AST walks share, unknown kinds fail closed, a suite generated from the semantics table; A117. PR 2: the static noninterference check, an opt-in report | Bundle 12 below |
+| 13-15 | not started | |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). The bundle plan itself was recorded in #351 (`86fc33c9`).
 
@@ -169,6 +170,10 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
 - **One taint semantics.** Unknown AST nodes fail CLOSED; today `expressionContainsTaint()` returns false for them.
 - **A static information-flow check** (noninterference) for the NAAb fragment.
 - **Collapse the two implementations**, or generate the parity tests from the semantics.
+
+**Decisions (the owner, 2026-11-04):** two PRs -- the one semantics with generated parity tests, then the static check. The implementations are **kept and pinned, not collapsed**: the parity tests are generated from one semantics table. There turned out to be **three** implementations, not two: the tree-walker's AST walk, the VM compiler's compile-time AST walk (`Compiler::exprContainsTaint()`, which marks values with `OP_GOV_TAINT_MARK`) and the VM's runtime taint stack; the two AST walks **share one rule** (`include/naab/taint_rule.h`). **Conditions count**: a tainted if-condition, match subject, pattern or guard taints the result, on both engines (the VM's compile-time walk already counted an if-condition; nothing loosens). The VM's **stale return flag** (every clean stdlib call after a taint source read as tainted) **is fixed**. The static check (PR 2) is an **opt-in report** first, `naab-gov taint FILE`: nothing is refused at run time until its false-positive rate has been measured.
+
+**Progress (2026-11-04).** PR 1 in progress: the shared rule, the table `tests/governance_v4/taint_semantics.psv` and the suite generated from it, `tests/governance_v4/test_taint_semantics.sh`; its findings are A117. Running every row a second time with the tainted value coming from a callback, which only the VM's runtime stack carries, showed the runtime dropping taint the static rule keeps (A117(f)); PR 1 brings the runtime to the same rule, since "one semantics on both engines" is the decision. Found on the way and NOT in this bundle's scope: A118, a VM wrong-value bug in match and catch bindings inside larger expressions -- the owner's call.
 
 ## Bundle 13 -- measure what governance catches; help operators
 

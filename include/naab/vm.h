@@ -164,6 +164,11 @@ enum class OpCode : uint8_t {
 
     // Contracts (Bundle 11)
     OP_CONTRACT_ENTRY,  // after the default prologue: check requires, keep the entry arguments for ensures
+
+    // Taint (Bundle 12): a condition taints the value of the if or match it
+    // decides. [mode:24] 0 = save TOS's taint, 1 = add TOS's taint to the saved
+    // one (a match pattern or guard), 2 = add the saved taint to TOS and drop it.
+    OP_COND_TAINT,
 };
 
 // ============================================================================
@@ -304,6 +309,10 @@ struct CallFrame {
     VMClosure* closure = nullptr;        // Closure with upvalues (if any)
     int handler_count = 0;               // Exception handlers in this frame
     int argc = 0;                        // Arguments the call passed (the rest are defaults)
+    // A call's result is tainted when an argument was (Bundle 12: the rule the
+    // static walks apply, include/naab/taint_rule.h), unless the function is a
+    // configured sanitizer. Set when the frame is pushed, read at its return.
+    bool args_tainted = false;
     std::string source_file;
     // The arguments on entry (after defaults, lists and dicts copied), kept
     // by OP_CONTRACT_ENTRY for an ensures clause; null otherwise.
@@ -334,6 +343,7 @@ struct ExceptionHandler {
     uint32_t* finally_ip = nullptr;
     interpreter::NaabVal* stack_base = nullptr;
     int handler_slot = -1;
+    size_t cond_taint_depth = 0;  // the condition-taint stack when the handler was pushed
 };
 
 // ============================================================================
@@ -408,9 +418,12 @@ public:
 
     // Call a NAAb function from C++ (used by stdlib callbacks and governance contracts)
     // taint_all_args: when true, mark all arguments as tainted (for tool execution with LLM-generated args)
+    // arg_taint: each argument's taint, for a caller that knows it (an async
+    // fn's worker); an argument past its end is untainted.
     interpreter::NaabVal callNaabFunction(interpreter::NaabVal fn,
                                           const std::vector<interpreter::NaabVal>& args,
-                                          bool taint_all_args = false);
+                                          bool taint_all_args = false,
+                                          const std::vector<bool>* arg_taint = nullptr);
 
     // A registered tool, on the VM the agent call came from (A93,
     // naab/thread_vm.h): the VM running on this thread, else the one an
@@ -481,6 +494,14 @@ private:
     // whose callback returned the tainted value for 1 and a constant for 2 read
     // clean (Bundle 12).
     bool callback_returned_tainted_ = false;
+    // The taint of each if-condition and match subject/pattern/guard being
+    // decided (OP_COND_TAINT). A branch is one expression, so only an exception
+    // leaves it early: each handler records the depth and delivery restores it,
+    // as callNaabFunction() does for a throw out of a nested run().
+    std::vector<uint8_t> cond_taint_;
+    // Did a value a generator yielded carry taint? Saved and cleared around each
+    // generator's collection (OP_GET_ITER).
+    bool generator_yield_tainted_ = false;
     bool* taint_top_;
 
     // VM taint lineage: maps absolute stack offset → origin info.
