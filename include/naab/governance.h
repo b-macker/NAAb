@@ -4294,6 +4294,11 @@ public:
                                         const std::string& origin_arg = "");
     bool isTaintSource(const std::string& func_name) const;
     bool isSanitizer(const std::string& func_name) const;
+    // Is this sink name one taint_tracking.sinks lists? The match a run's
+    // checkTaintedSink() / checkTaintedValueAtSink() decide by (prefix, and
+    // file.append counted as file.write); the static flow report asks the same
+    // function, so the two cannot disagree on what a sink is.
+    bool isTaintSink(const std::string& sink_type) const;
     // Active, with taint_tracking enabled: the compiler emits the VM's runtime
     // condition-taint instructions only then.
     bool taintTrackingEnabled() const;

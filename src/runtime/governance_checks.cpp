@@ -7785,23 +7785,27 @@ std::string GovernanceEngine::checkTaintedValueAtSink(const std::string& label,
     return taintedSinkDecision(label, sink_type, file, line);
 }
 
-std::string GovernanceEngine::taintedSinkDecision(const std::string& var_name,
-                                                   const std::string& sink_type,
-                                                   const std::string& file, int line) {
+bool GovernanceEngine::isTaintSink(const std::string& sink_type) const {
+    if (!rules().taint_tracking.enabled) return false;
     // FIX-DX-1: PREFIX match for sink types (not substring)
     // Auto-expand: file.append is equivalent to file.write for taint purposes
     std::string effective_sink = sink_type;
     if (sink_type == "file.append") effective_sink = "file.write";
-    bool is_sink = false;
     for (const auto& s : rules().taint_tracking.sinks) {
         if (effective_sink.size() >= s.size() &&
-            effective_sink.compare(0, s.size(), s) == 0) { is_sink = true; break; }
+            effective_sink.compare(0, s.size(), s) == 0) return true;
         // Also check the original sink_type for exact/prefix match
         if (sink_type.size() >= s.size() &&
-            sink_type.compare(0, s.size(), s) == 0) { is_sink = true; break; }
-        if (sink_type == s) { is_sink = true; break; }
+            sink_type.compare(0, s.size(), s) == 0) return true;
+        if (sink_type == s) return true;
     }
-    if (!is_sink) {
+    return false;
+}
+
+std::string GovernanceEngine::taintedSinkDecision(const std::string& var_name,
+                                                   const std::string& sink_type,
+                                                   const std::string& file, int line) {
+    if (!isTaintSink(sink_type)) {
         addTrace(fmt::format("'{}' not in configured sinks — allowed", sink_type));
         return "";
     }

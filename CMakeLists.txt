@@ -475,6 +475,7 @@ add_library(naab_interpreter
     src/interpreter/interpreter.cpp
     src/interpreter/type_system.cpp
     src/interpreter/governance_taint.cpp
+    src/interpreter/taint_flow.cpp      # Bundle 12: the static information-flow analysis (naab-gov taint)
     src/interpreter/modules.cpp
     src/interpreter/expressions.cpp
     src/interpreter/polyglot.cpp
@@ -955,7 +956,7 @@ install(TARGETS libnaab
 message(STATUS "  ✓ libnaab shared library (Phase 8.1)")
 
 # naab-gov — Standalone governance + scanning CLI (Phase 8.2)
-add_executable(naab-gov src/cli/gov_main.cpp src/cli/gov_contracts.cpp src/cli/gov_manifest.cpp)
+add_executable(naab-gov src/cli/gov_main.cpp src/cli/gov_contracts.cpp src/cli/gov_manifest.cpp src/cli/gov_taint.cpp)
 target_include_directories(naab-gov PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
     ${CMAKE_CURRENT_SOURCE_DIR}/include

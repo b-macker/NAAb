@@ -78,8 +78,16 @@ static void printHelp() {
         "  naab-gov manifest infer <file.naab>    Draft the program's capability manifest\n"
         "  naab-gov manifest sign <manifest>      Sign it with the approver's key\n"
         "  naab-gov manifest check <file.naab>    Would a run accept its manifest?\n"
+        "  naab-gov taint <file.naab> [opts]      Report flows of tainted data to sinks,\n"
+        "                                         implicit ones included (static: runs\n"
+        "                                         nothing, refuses nothing)\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
+        "\n"
+        "taint OPTIONS:\n"
+        "  --config <govern.json>  Use this govern.json (default: the one a run of the\n"
+        "                          file would find, from its directory)\n"
+        "  --json                  Print the report as JSON\n"
         "\n"
         "lint OPTIONS:\n"
         "  --config <govern.json>  Use this govern.json instead of auto-discovery\n"
@@ -670,6 +678,7 @@ static int cmdLanguages() {
 // <new> is prepared as a reload prepares the changed file.
 // gov_contracts.cpp (Bundle 11)
 int cmdContracts(const std::vector<std::string>& args, const char* argv0);
+int cmdTaint(const std::vector<std::string>& args);
 // gov_manifest.cpp (Bundle 11 PR 2)
 int cmdManifest(const std::vector<std::string>& args, const char* argv0);
 
@@ -867,6 +876,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "manifest") {
             return cmdManifest(rest, argv[0]);
+        }
+
+        if (cmd == "taint") {
+            return cmdTaint(rest);
         }
     } catch (const naab::governance::GovernanceHardError& e) {
         std::cerr << e.what() << "\n";

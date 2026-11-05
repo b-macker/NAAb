@@ -2,6 +2,7 @@
 #include "naab/vm.h"
 #include "naab/value_equality.h"
 #include "naab/string_interpolation.h"
+#include "naab/taint_rule.h"
 #include "naab/compiler.h"
 #include "naab/debugger.h"
 #include "naab/governance.h"
@@ -3076,14 +3077,7 @@ interpreter::NaabVal VM::run() {
                     // Taint sink check: block tainted variables from reaching polyglot blocks
                     // Use shadow taint stack data (bound_taints) for locals, AND governance taint set for globals
                     if (governance_->isActive()) {
-                        std::string sink_type;
-                        if (language == "shell" || language == "sh" || language == "bash") {
-                            sink_type = "shell_exec";
-                        } else if (language == "js" || language == "javascript") {
-                            sink_type = "javascript_exec";
-                        } else {
-                            sink_type = language + "_exec";
-                        }
+                        const std::string sink_type = taint::polyglotSinkType(language);
                         for (size_t bi = 0; bi < bound_var_names.size(); bi++) {
                             // Check both shadow taint stack AND governance taint set
                             bool is_tainted = (bi < bound_taints.size() && bound_taints[bi])

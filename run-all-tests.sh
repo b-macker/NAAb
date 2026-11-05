@@ -3321,6 +3321,22 @@ else
     echo "  test_taint_semantics.sh: not found, skipping"
 fi
 
+# The static information-flow report, naab-gov taint (Bundle 12 PR 2): it
+# agrees with the run-time semantics on every taint_semantics.psv row, finds the
+# statement-level flows of taint_flow.psv, and calls a value flow every line the
+# VM itself refuses.
+TAINT_FLOW_SCRIPT="tests/governance_v4/test_taint_flow.sh"
+if [ -f "$TAINT_FLOW_SCRIPT" ]; then
+    if run_shell_test "$TAINT_FLOW_SCRIPT" 2>&1; then
+        echo "  test_taint_flow.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_taint_flow.sh")
+    fi
+else
+    echo "  test_taint_flow.sh: not found, skipping"
+fi
+
 # Module governance: full body checks skip during module loading, behavioral
 # contracts still fire. Verifies skip_main_ (VM) agrees with
 # module_loading_depth_ (tree-walker).
