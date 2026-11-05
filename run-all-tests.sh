@@ -3102,6 +3102,20 @@ else
     echo "  test_expression_locals.sh: not found, skipping"
 fi
 
+# VM: a runtime error inside an expression names the line it is on, not 0
+# (A121(d), Bundle 12).
+EXPRLOC_SCRIPT="tests/vm/test_expression_locations.sh"
+if [ -f "$EXPRLOC_SCRIPT" ]; then
+    if run_shell_test "$EXPRLOC_SCRIPT" 2>&1; then
+        echo "  test_expression_locations.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_expression_locations.sh")
+    fi
+else
+    echo "  test_expression_locations.sh: not found, skipping"
+fi
+
 # VM: a callback that throws through native code (sort comparators, array.map_fn,
 # agent tools) must not jump into its caller's handler or leave the VM out of step (A41).
 CBTHROW_SCRIPT="tests/vm/test_callback_throw.sh"

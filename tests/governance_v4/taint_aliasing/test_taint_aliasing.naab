@@ -640,5 +640,8 @@ main {
         print("ALL TESTS ACCOUNTED FOR")
     } else {
         print("UNEXPECTED FAILURES: " + string(failures))
+        // A failure must fail the run: run-all-tests.sh reads the exit code,
+        // and this test printed its FAILURES and exited 0 for months (A123).
+        throw "UNEXPECTED FAILURES: " + string(failures)
     }
 }

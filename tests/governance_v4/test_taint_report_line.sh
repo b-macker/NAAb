@@ -23,12 +23,24 @@
 #          while the tree-walker blocked it
 #   TL-03c CONTROL: the same config prints a clean string on both engines, so
 #          TL-03 is not passing because print itself is broken
+#   TL-04  a module-function sink whose argument is `s ?? d` names the call's
+#          line (6). The VM read the location four instructions before the
+#          call, and every binary operator was built with no location, so this
+#          named line 0 (A121(d))
+#   TL-05  a call spread over four lines names the line of its '(' (6), and so
+#          does naab-gov taint. Four instructions back is the `s` on line 9,
+#          which the VM named
 #   TL-TW  under the enforce config --tree-walk is refused before it runs
+#
+# Red first (observed 2026-11-05, the pre-change parser and VM): TL-04 named
+# line 0, TL-05 line 9 (naab-gov taint already named 6); TL-00..TL-03c pass
+# on both builds. Mutant: the VM's sink check reading `- 4` again turns TL-05
+# red (TL-04 stays green, since `??` now carries its line too).
 # ============================================================
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NAAB="$SCRIPT_DIR/../../build/naab-lang"
+NAAB="${1:-$SCRIPT_DIR/../../build/naab-lang}"
 
 PASS=0; FAIL=0; SKIP=0
 ok()   { PASS=$((PASS+1)); echo "  PASS [$1] $2"; }
@@ -140,6 +152,42 @@ if [ -z "$t3" ]; then ok "TL-03" "a tainted print is blocked on the VM (exit 3) 
 else bad "TL-03" "the print sink is not checked on every engine" "$t3"; fi
 if [ -z "$c3" ]; then ok "TL-03c" "CONTROL: a clean print still prints on both engines"
 else bad "TL-03c" "a clean print did not print -- TL-03 proves nothing" "$c3"; fi
+
+# --- TL-04 / TL-05: the line a module-call sink names ------------------------------
+GOV="$(dirname "$NAAB")/naab-gov"
+mkdir -p "$W/m"
+cat > "$W/m/govern.json" <<'EOF'
+{ "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "elevated" },
+  "taint_tracking": { "enabled": true, "level": "hard", "sources": ["env.get"], "sinks": ["env.set_var"] } }
+EOF
+printf 'use env\nmain {\n    let s = env.get("TL_SECRET")\n    let d = "x"\n\n    env.set_var("TL_OUT", s ?? d)\n}\n' > "$W/m/coalesce.naab"
+printf 'use env\nmain {\n    let s = env.get("TL_SECRET")\n    let d = "x"\n\n    env.set_var(\n        "TL_OUT",\n        "p" +\n        s)\n}\n' > "$W/m/spread.naab"
+# report_line PROG -> the line of naab-gov taint's first value flow, "" if none
+report_line() {
+    (cd "$W/m" && timeout 60 "$GOV" taint "$1" --json 2>/dev/null) | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except ValueError:
+    sys.exit(0)
+for f in d.get("flows", []):
+    if f.get("kind") == "value":
+        print(f["line"]); break
+' | tr -d '\r'
+}
+line_of "$W/m" coalesce.naab ""
+if [ "$RC" -eq 3 ] && [ "$LINE" = "6" ]; then
+    ok "TL-04" "a sink argument through ?? names the call's line (6), not 0"
+else
+    bad "TL-04" "expected exit 3 at line 6" "rc=$RC line=${LINE:-none}"
+fi
+line_of "$W/m" spread.naab ""
+L_run="$LINE"; L_rep="$(report_line spread.naab)"
+if [ "$RC" -eq 3 ] && [ "$L_run" = "6" ] && [ "$L_rep" = "6" ]; then
+    ok "TL-05" "a call over four lines names its '(' line (6) in the run and in naab-gov taint"
+else
+    bad "TL-05" "expected the run and the report at line 6" "rc=$RC run=${L_run:-none} report=${L_rep:-none}"
+fi
 
 out=$(cd "$W/p" && TL_SECRET=x timeout 20 "$NAAB" tainted.naab --tree-walk 2>&1); rc=$?
 if tw_refused "$rc" "$out" && [[ "$out" != *"reached sink"* ]]; then

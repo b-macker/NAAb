@@ -59,10 +59,21 @@ v_callee_sink|fn out(v) {@@    print(v)@@}|out(t)|value@p2|p2|a sink inside a fu
 c_callee_control|fn hi() {@@    print("hi")@@}|if t == "/x" {@@    hi()@@}|control@p2|none|a function called under tainted control runs under it
 c_callee_implicit|fn pick() {@@    let c = env.get("HOME")@@    let r = "a"@@    if c == "/x" {@@        r = "b"@@    }@@    return r@@}|print(pick())|control@s1|none|a function returning what a tainted branch set
 c_callee_throws|fn chk(c) {@@    if c == "/x" {@@        throw "e"@@    }@@}|let a = "p"@@try {@@    chk(t)@@    a = "q"@@} catch (e) {@@    a = "r"@@}@@print(a)|control@s8|none|a callee that throws under tainted control
-v_callback|-|let r = array.map_fn([t], fn(v) {@@    print(v)@@    return v@@})|value@s2|none|a callback given tainted data -- a value flow the run does NOT refuse (A120(a): the element reaches the callback untainted)
+v_callback|-|let r = array.map_fn([t], fn(v) {@@    print(v)@@    return v@@})|value@s2|s2|a callback given tainted data: its parameter is tainted (A120(a): the run used to hand the element over clean)
+n_callback_clean|-|let r = array.map_fn(["c"], fn(v) {@@    print(v)@@    return v@@})|none|none|a callback given clean data (control for v_callback: the run does not taint every callback)
+n_callback_nested_clean|-|let r = array.map_fn([t], fn(v) {@@    let q = array.map_fn(["c"], fn(w) {@@        print(w)@@        return w@@    })@@    return v@@})|none|none|a clean call inside a tainted call's callback: the inner callback gets the inner call's data, not the outer's
+v_callback_restore|-|let n = [0]@@let r = array.map_fn([t, t], fn(v) {@@    let q = array.map_fn(["c"], fn(w) {@@        return w@@    })@@    if n[0] == 1 {@@        print(v)@@    }@@    n[0] = 1@@    return v@@})|value@s7|s7|the second element's callback, after a clean inner call returned: the outer call's data is put back for it
+n_callback_after|-|let r = array.map_fn([t], fn(v) {@@    return v@@})@@let q = array.map_fn(["c"], fn(w) {@@    print(w)@@    return w@@})|none|none|a clean call after a tainted one: nothing is left over
+v_callback_find|-|let xs = [t]@@let r = xs.find(fn(v) {@@    print(v)@@    return true@@})|value@s3|s3|a method's callback (find) gets the receiver's data
+v_callback_for_each|-|let xs = [t]@@xs.for_each(fn(v) {@@    print(v)@@})|value@s3|s3|a method's callback (for_each) gets the receiver's data
+v_callback_sorted|-|let xs = [t, "b"]@@let ys = xs.sorted(fn(a, b) {@@    print(a)@@    return 0@@})|value@s3|s3|a comparator (sorted) gets the receiver's data
+n_callback_find_clean|-|let xs = ["c"]@@let r = xs.find(fn(v) {@@    print(v)@@    return true@@})|none|none|a method's callback on clean data (control for the three above)
 v_push|-|let a = []@@a.push(t)@@print(a)|value@s3|s3|a list a tainted value was pushed into
 v_dict_set|-|let d = {"k": "c"}@@d["k"] = t@@print(d)|value@s3|s3|a dict entry set to tainted data
-v_struct_field|struct S {@@    a: string@@}|let s = S { a: "c" }@@s.a = t@@print(s)|value@s3|none|a struct field set to tainted data -- a value flow the run does NOT refuse (A120(b): a field store does not taint the struct)
+v_struct_field|struct S {@@    a: string@@}|let s = S { a: "c" }@@s.a = t@@print(s)|value@s3|s3|a struct field set to tainted data taints the struct (A120(b): the VM's field store used to mark nothing)
+v_struct_field_read|struct S {@@    a: string@@}|let s = S { a: "c" }@@s.a = t@@print(s.a)|value@s3|s3|the tainted field read back
+n_struct_clean_store|struct S {@@    a: string@@}|let s = S { a: "c" }@@s.a = "d"@@print(s)|none|none|a clean value stored in a field (control: a store does not taint by itself)
+v_coalesce_arg|-|print(t ?? "x")|value@s1|s1|a sink argument through ?? -- print's route always named this line; the module-call route that named 0 (A121(d)) is test_taint_report_line.sh TL-04
 n_strong|-|let a = t@@a = "c"@@print(a)|none|none|a clean assignment replaces the taint (control)
 v_strong_under|-|let a = t@@if t == "/x" {@@    a = "c"@@}@@print(a)|value@s5|s5|a clean assignment on one path does not clear the other
 c_leak_scope|-|if t == "/x" {@@    print("in")@@}@@print("out")|control@s2|none|the sink after the branch is not under it
