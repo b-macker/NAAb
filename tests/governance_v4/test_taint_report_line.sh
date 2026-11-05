@@ -28,8 +28,8 @@
 #          call, and every binary operator was built with no location, so this
 #          named line 0 (A121(d))
 #   TL-05  a call spread over four lines names the line of its '(' (6), and so
-#          does naab-gov taint. Four instructions back is the `s` on line 9,
-#          which the VM named
+#          does naab-gov taint. The VM named line 9, the `s` argument's line
+#          (which instruction sits four back was inferred, not dumped)
 #   TL-TW  under the enforce config --tree-walk is refused before it runs
 #
 # Red first (observed 2026-11-05, the pre-change parser and VM): TL-04 named
