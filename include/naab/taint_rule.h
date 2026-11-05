@@ -56,6 +56,15 @@ struct RuleHooks {
     virtual bool awaitResultTainted(ast::AwaitExpr&) { return false; }
 };
 
+// The sink a variable bound into a polyglot block reaches, as
+// taint_tracking.sinks names it: shell_exec, javascript_exec, <lang>_exec.
+// Shared by both engines' bound-variable checks and the static flow report.
+inline std::string polyglotSinkType(const std::string& language) {
+    if (language == "shell" || language == "sh" || language == "bash") return "shell_exec";
+    if (language == "js" || language == "javascript") return "javascript_exec";
+    return language + "_exec";
+}
+
 // The dotted name a callee is configured under: `env.get`, `sanitize_x`.
 inline std::string calleeName(ast::Expr* callee) {
     if (auto* id = dynamic_cast<ast::IdentifierExpr*>(callee)) return id->getName();

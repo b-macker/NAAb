@@ -118,14 +118,7 @@ bool Interpreter::checkRhsSanitized(ast::Expr* rhs_expr) {
 void Interpreter::checkPolyglotBoundVarTaint(const std::string& language,
     const std::vector<std::string>& bound_vars, int line) {
     if (!governance_ || !governance_->isActive()) return;
-    std::string sink_type;
-    if (language == "shell" || language == "sh" || language == "bash") {
-        sink_type = "shell_exec";
-    } else if (language == "js") {
-        sink_type = "javascript_exec";
-    } else {
-        sink_type = language + "_exec";
-    }
+    const std::string sink_type = taint::polyglotSinkType(language);
     for (const auto& bv : bound_vars) {
         std::string terr = governance_->checkTaintedSink(bv, sink_type, current_file_, line);
         if (!terr.empty()) throw std::runtime_error(terr);

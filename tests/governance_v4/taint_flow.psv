@@ -1,0 +1,82 @@
+# The static information-flow report (Bundle 12 PR 2): what `naab-gov taint`
+# must find, statement by statement. tests/governance_v4/test_taint_flow.sh
+# generates one program per row and checks three things:
+#   R1  the report finds exactly `expect`;
+#   R2  the VM's own taint check, run on the same program, refuses exactly `run`
+#       (pinned, so a change in what a run catches shows here);
+#   R3  every line the run refuses is a VALUE flow in the report -- whatever a
+#       run judges explicit, the analysis must too, or it misses explicit flows.
+#
+# The program: `use env`, `use string`, `use array`, the prelude, then
+#   main {
+#       let t = env.get("HOME")      (t is tainted)
+#       <setup>
+#       print("DONE")
+#   }
+# under taint_tracking { sources [env.get], sinks [print, shell_exec],
+# sanitizers [sanitize_] }. The HOME this runs under is never "/x", so a branch
+# on `t == "/x"` is never taken by the run -- the report judges the paths, the
+# run only the one it takes.
+#
+# Columns (| separated; "-" is an empty field; @@ is a newline):
+#   id       unique row name; v_ a value flow, c_ a control flow, n_ none
+#   prelude  file-scope declarations (fn, struct)
+#   setup    statements in main{} after `let t = ...`
+#   expect   the report's findings: kind@pos, space separated, or none.
+#            kind: value | control. pos: sN (setup line N), pN (prelude line N),
+#            done (the closing print)
+#   run      the lines the VM refuses, the same positions, or none; - means not
+#            cross-checked (polyglot rows: the executor may be absent)
+#   why      what the row pins
+#
+# id|prelude|setup|expect|run|why
+v_direct|-|print(t)|value@s1|s1|the source itself at the sink
+v_let|-|let a = t + "x"@@print(a)|value@s2|s2|a value computed from the source
+n_const|-|let a = "c"@@print(a)|none|none|a constant (control: no flow)
+n_unused|-|let a = t@@print("x")|none|none|the source read and never sent (control)
+n_sanitized|fn sanitize_x(v) {@@    return "ok"@@}|let a = sanitize_x(t)@@print(a)|none|none|a configured sanitizer clears the data (control)
+c_sanitized_branch|fn sanitize_x(v) {@@    return "ok"@@}|if t == "/x" {@@    print(sanitize_x(t))@@}|control@s2|none|sanitizing the data does not hide the path it took
+c_if_assign|-|let a = "p"@@if t == "/x" {@@    a = "q"@@}@@print(a)|control@s5|none|an if-statement's assignment (A117: not judged by the run)
+c_if_else|-|let a = "p"@@if t == "/x" {@@    a = "q"@@} else {@@    a = "r"@@}@@print(a)|control@s7|none|both branches assign constants
+c_if_sink|-|if t == "/x" {@@    print("bit")@@}|control@s2|none|a sink inside a branch on tainted data: the bit-by-bit shape
+n_if_clean|-|let c = "k"@@if c == "k" {@@    print("bit")@@}|none|none|a branch on clean data (control)
+n_after_if|-|if t == "/x" {@@    let z = 1@@}@@print("after")|none|none|code after a branch is not under it (control)
+c_nested|-|let a = "p"@@if t == "/x" {@@    if true {@@        a = "q"@@    }@@}@@print(a)|control@s7|none|an inner branch inherits the outer condition
+c_while_sink|-|let i = 0@@while t == "/x" && i < 1 {@@    print("w")@@    i = i + 1@@}|control@s3|none|a loop condition on tainted data
+c_while_count|-|let n = 0@@let s = string.length(t)@@let i = 0@@while i < s {@@    n = n + 1@@    i = i + 1@@}@@print(n)|control@s8|none|a count a tainted bound chose (a fixed point over the loop)
+c_for_sink|-|for ch in string.split(t, "/") {@@    print("x")@@}|control@s2|none|a loop over tainted data: the iteration count
+v_for_elem|-|for ch in string.split(t, "/") {@@    print(ch)@@}|value@s2|s2|a loop variable from a tainted list is data
+n_for_clean|-|for ch in ["a", "b"] {@@    print(ch)@@}|none|none|a loop over clean data (control)
+v_loop_carried|-|let a = "c"@@let b = "c"@@for i in [1, 2] {@@    print(b)@@    b = a@@    a = t@@}|value@s4|none|a value that arrives on a later iteration (a fixed point); the run's two iterations do not reach it
+c_break|-|for i in [1, 2, 3] {@@    if t == "/x" {@@        break@@    }@@    print("loop")@@}@@print("after")|control@s5|none|a break under tainted control: the rest of the loop depends on it, the code after the loop does not
+c_return|fn g(c) {@@    if c == "/x" {@@        return 0@@    }@@    print("after")@@    return 1@@}|g(t)|control@p5|none|a return under tainted control: the rest of the function depends on it
+c_short|-|let ok = t == "/x" && print("sc")|control@s1|none|the right side of && runs only when the tainted left side says
+c_match_arm|-|let r = match t {@@    "/x" => print("m"),@@    _ => "z"@@}|control@s2|none|a match arm chosen by tainted data
+c_try_throw|-|let a = "p"@@try {@@    if t == "/x" {@@        throw "e"@@    }@@    a = "q"@@} catch (e) {@@    a = "r"@@}@@print(a)|control@s10|none|a throw under tainted control: the rest of the try and the catch depend on it
+v_catch_value|-|try {@@    throw t@@} catch (e) {@@    print(e)@@}|value@s4|s4|a thrown tainted value reaches the catch binding
+v_callee_source|fn src() {@@    return env.get("HOME")@@}|print(src())|value@s1|s1|a function that reads the source
+v_callee_sink|fn out(v) {@@    print(v)@@}|out(t)|value@p2|p2|a sink inside a function given tainted data
+c_callee_control|fn hi() {@@    print("hi")@@}|if t == "/x" {@@    hi()@@}|control@p2|none|a function called under tainted control runs under it
+c_callee_implicit|fn pick() {@@    let c = env.get("HOME")@@    let r = "a"@@    if c == "/x" {@@        r = "b"@@    }@@    return r@@}|print(pick())|control@s1|none|a function returning what a tainted branch set
+c_callee_throws|fn chk(c) {@@    if c == "/x" {@@        throw "e"@@    }@@}|let a = "p"@@try {@@    chk(t)@@    a = "q"@@} catch (e) {@@    a = "r"@@}@@print(a)|control@s8|none|a callee that throws under tainted control
+v_callback|-|let r = array.map_fn([t], fn(v) {@@    print(v)@@    return v@@})|value@s2|none|a callback given tainted data -- a value flow the run does NOT refuse (A120(a): the element reaches the callback untainted)
+v_push|-|let a = []@@a.push(t)@@print(a)|value@s3|s3|a list a tainted value was pushed into
+v_dict_set|-|let d = {"k": "c"}@@d["k"] = t@@print(d)|value@s3|s3|a dict entry set to tainted data
+v_struct_field|struct S {@@    a: string@@}|let s = S { a: "c" }@@s.a = t@@print(s)|value@s3|none|a struct field set to tainted data -- a value flow the run does NOT refuse (A120(b): a field store does not taint the struct)
+n_strong|-|let a = t@@a = "c"@@print(a)|none|none|a clean assignment replaces the taint (control)
+v_strong_under|-|let a = t@@if t == "/x" {@@    a = "c"@@}@@print(a)|value@s5|s5|a clean assignment on one path does not clear the other
+c_leak_scope|-|if t == "/x" {@@    print("in")@@}@@print("out")|control@s2|none|the sink after the branch is not under it
+v_shell_bound|-|<<shell[t]@@    echo "$t" > /dev/null@@    >>|value@s1|-|a tainted variable bound into a polyglot block
+c_shell_under|-|if t == "/x" {@@    <<shell@@        true@@        >>@@}|control@s2|-|a polyglot block run under tainted control
+v_higher_order|fn run(f) {@@    return f()@@}|print(run(fn() { return t }))|value@s1|s1|a function value passed to a user function and called through its parameter
+c_higher_order|fn run(f) {@@    return f()@@}|if t == "/x" {@@    run(fn() { print("in") })@@}|control@s2|none|a callback run under tainted control, through a parameter
+c_ifexpr_sink|-|let r = if t == "/x" { print("i") } else { "z" }|control@s1|none|a sink inside a branch of an if-expression on tainted data
+c_try_expr_outcome|fn chk() {@@    if env.get("HOME") == "/x" {@@        throw "e"@@    }@@}|let r = try { chk() } catch (e) { "no" }@@print(r)|control@s2|none|a try expression's value: whether the callee threw is chosen by tainted data
+c_catch_sink|-|try {@@    if t == "/x" {@@        throw "e"@@    }@@} catch (e) {@@    print("caught")@@}|control@s6|none|a sink in a catch block runs only when the tainted branch threw
+c_try_rest|-|try {@@    if t == "/x" {@@        throw "e"@@    }@@    print("rest")@@} catch (e) {@@    let z = 1@@}|control@s5|none|the rest of a try after a throw under tainted control runs only when it did not throw
+c_try_expr_then_lambda|fn chk() {@@    if env.get("HOME") == "/x" {@@        throw "e"@@    }@@}|let r = [try { chk() } catch (e) { "no" }, array.map_fn([1], fn(v) {@@    let z = v@@    return z@@})]@@print(r)|control@s5|none|a try expression's outcome survives a callback's own statements later in the same expression
+c_try_expr_then_call|fn chk() {@@    if env.get("HOME") == "/x" {@@        throw "e"@@    }@@}@@fn g() {@@    let z = 1@@    return "g"@@}|let r = [try { chk() } catch (e) { "no" }, g()]@@print(r)|control@s2|none|a try expression's outcome survives a called function's own statements later in the same expression
+c_lambda_made_under|-|let g = fn() { return "p" }@@if t == "/x" {@@    let a = "q"@@    g = fn() { return a }@@}@@print(g())|control@s6|none|a function value made under tainted control returns what that control chose
+v_nested_capture|fn f() {@@    let c = env.get("HOME")@@    fn inner() {@@        return c@@    }@@    print(inner())@@}|f()|value@p6|p6|a function declared inside another reads the enclosing names (found by the measurement: test_concurrent_async.naab)
+v_nested_async|fn f() {@@    let c = env.get("HOME")@@    async fn ac() {@@        return c@@    }@@    let r = await ac()@@    print(r)@@}|f()|value@p7|p7|the same through an async fn and await
+v_nested_late|fn f() {@@    let c = "k"@@    fn inner() {@@        return c@@    }@@    c = env.get("HOME")@@    print(inner())@@}|f()|value@p7|p7|a nested function reads the variable when it is called, not when it was declared (the VM prints the later value)
