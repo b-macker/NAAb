@@ -87,10 +87,18 @@ cfg() {  # cfg SINKS_JSON -> a govern.json on stdout
     printf '{"version":"5.0","mode":"enforce","security":{"sandbox_level":"elevated"},"taint_tracking":{"enabled":true,"level":"advisory","sources":["env.get"],"sinks":%s,"sanitizers":["sanitize_"]}}\n' "$1"
 }
 
+# Every naab-gov call is bounded. The report runs nothing of the program, but
+# its config load runs `prerequisites` (C-13 starts one), and an unbounded call
+# that hung would hold this suite's output pipe open after the suite's own
+# timeout killed bash -- a stalled step with no log, instead of a FAIL naming
+# the call. 124 is timeout's exit status.
+gov() { timeout "${TF_GOV_TIMEOUT:-60}" "$GOV" "$@"; }
+
 # report DIR FILE -> REPORT: "kind line" per flow (from --json), RC
 report() {
     local out
-    out="$(cd "$1" && "$GOV" taint "$2" --json 2>&1)"; RC=$?
+    out="$(cd "$1" && gov taint "$2" --json 2>&1)"; RC=$?
+    [ "$RC" -eq 124 ] && echo "  (naab-gov taint $1/$2 did not finish in ${TF_GOV_TIMEOUT:-60} s)"
     REPORT="$(python3 -c '
 import json, sys
 try:
@@ -238,64 +246,64 @@ main {
     print("x")
 }'
 printf '%s\n' "$flow" > "$C/none/p.naab"
-out="$(cd "$C/none" && "$GOV" taint p.naab 2>&1)"; rc=$?
+out="$(cd "$C/none" && gov taint p.naab 2>&1)"; rc=$?
 if [ "$rc" -eq 2 ] && grep -q "UNMEASURABLE" <<<"$out"; then ok "C-01" "no govern.json: reported unmeasurable, exit 2"
 else bad "C-01" "expected exit 2 and UNMEASURABLE, got rc=$rc" "$out"; fi
 
 printf '%s\n' '{"version":"5.0","mode":"enforce","taint_tracking":{"enabled":false,"sources":["env.get"],"sinks":["print"]}}' > "$C/off/govern.json"
 printf '%s\n' "$flow" > "$C/off/p.naab"
-out="$(cd "$C/off" && "$GOV" taint p.naab 2>&1)"; rc=$?
+out="$(cd "$C/off" && gov taint p.naab 2>&1)"; rc=$?
 if [ "$rc" -eq 2 ] && grep -q "not enabled" <<<"$out"; then ok "C-02" "taint_tracking off: reported unmeasurable, exit 2"
 else bad "C-02" "expected exit 2, not enabled; got rc=$rc" "$out"; fi
 
 printf '%s\n' '{"version":"5.0","mode":"enforce","taint_tracking":{"enabled":true,"sources":[],"sinks":["print"]}}' > "$C/nosrc/govern.json"
 printf '%s\n' "$flow" > "$C/nosrc/p.naab"
-out="$(cd "$C/nosrc" && "$GOV" taint p.naab 2>&1)"; rc=$?
+out="$(cd "$C/nosrc" && gov taint p.naab 2>&1)"; rc=$?
 if [ "$rc" -eq 2 ] && grep -q "no source" <<<"$out"; then ok "C-03" "no source listed: reported unmeasurable, exit 2"
 else bad "C-03" "expected exit 2, no source; got rc=$rc" "$out"; fi
 
 cfg '["print"]' > "$C/ok/govern.json"
 printf 'main {\n    let = \n}\n' > "$C/ok/bad.naab"
-out="$(cd "$C/ok" && "$GOV" taint bad.naab 2>&1)"; rc=$?
+out="$(cd "$C/ok" && gov taint bad.naab 2>&1)"; rc=$?
 if [ "$rc" -eq 4 ]; then ok "C-04" "a file that does not parse: exit 4"
 else bad "C-04" "expected exit 4, got rc=$rc" "$out"; fi
 
 printf '%s\n' "$clean" > "$C/ok/clean.naab"
-out="$(cd "$C/ok" && "$GOV" taint clean.naab 2>&1)"; rc=$?
+out="$(cd "$C/ok" && gov taint clean.naab 2>&1)"; rc=$?
 if [ "$rc" -eq 0 ] && grep -q "no flow found" <<<"$out"; then ok "C-05" "a clean program: no flow found, exit 0"
 else bad "C-05" "expected exit 0, no flow found; got rc=$rc" "$out"; fi
 
 printf '%s\n' "$flow" > "$C/ok/flow.naab"
-out="$(cd "$C/ok" && "$GOV" taint flow.naab 2>&1)"; rc=$?
+out="$(cd "$C/ok" && gov taint flow.naab 2>&1)"; rc=$?
 if [ "$rc" -eq 1 ] && grep -q "control line 5: print" <<<"$out"; then ok "C-06" "a control flow: reported with its line, exit 1"
 else bad "C-06" "expected exit 1 and a control flow at line 5; got rc=$rc" "$out"; fi
 
 printf '%s\n' "$kept" > "$C/ok/kept.naab"
-out="$(cd "$C/ok" && "$GOV" taint kept.naab 2>&1)"; rc=$?
+out="$(cd "$C/ok" && gov taint kept.naab 2>&1)"; rc=$?
 if [ "$rc" -eq 2 ] && grep -q "not analysed" <<<"$out"; then ok "C-07" "nothing found but a construct not analysed: reported unmeasurable, exit 2 (not clean)"
 else bad "C-07" "expected exit 2 with a not-analysed line; got rc=$rc" "$out"; fi
 
 printf '%s\n' "$flow" > "$C/other/p.naab"   # no govern.json beside it
-out="$(cd "$C/other" && "$GOV" taint p.naab --config "$C/ok/govern.json" 2>&1)"; rc=$?
+out="$(cd "$C/other" && gov taint p.naab --config "$C/ok/govern.json" 2>&1)"; rc=$?
 if [ "$rc" -eq 1 ] && grep -q "control line 5" <<<"$out"; then ok "C-08" "--config names the policy where none is discovered"
 else bad "C-08" "expected the flow under --config; got rc=$rc" "$out"; fi
 
 cfg '["file.write"]' > "$C/other/sinks.json"
-out="$(cd "$C/other" && "$GOV" taint p.naab --config "$C/other/sinks.json" 2>&1)"; rc=$?
+out="$(cd "$C/other" && gov taint p.naab --config "$C/other/sinks.json" 2>&1)"; rc=$?
 if [ "$rc" -eq 0 ]; then ok "C-09" "the sink list is read from the config: print is not a sink here, so no flow (pairs with C-06)"
 else bad "C-09" "expected exit 0 with print not a sink; got rc=$rc" "$out"; fi
 
-out="$(cd "$C/ok" && "$GOV" taint flow.naab --json 2>/dev/null)"
+out="$(cd "$C/ok" && gov taint flow.naab --json 2>/dev/null)"
 if python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["result"]=="flows" and d["flows"][0]["kind"]=="control" and d["flows"][0]["line"]==5' <<<"$out" 2>/dev/null; then
     ok "C-10" "--json: result, kind and line"
 else bad "C-10" "--json did not carry the flow" "$out"; fi
 
-out="$(cd "$C/ok" && "$GOV" taint flow.naab 2>&1)"
+out="$(cd "$C/ok" && gov taint flow.naab 2>&1)"
 if ! grep -q "not analysed" <<<"$out" && grep -q "control line 5" <<<"$out"; then
     ok "C-12" "a standard-library module (use env) is not an imported module the report skips"
 else bad "C-12" "a stdlib call was reported as not analysed" "$out"; fi
 
-out="$(cd "$C/ok" && "$GOV" taint flow.naab --bogus 2>&1)"; rc=$?
+out="$(cd "$C/ok" && gov taint flow.naab --bogus 2>&1)"; rc=$?
 if [ "$rc" -eq 4 ]; then ok "C-11" "an unknown option: exit 4"
 else bad "C-11" "expected exit 4, got rc=$rc" "$out"; fi
 
@@ -312,8 +320,10 @@ d["prerequisites"] = {"enabled": True, "checks": [
     {"type": "command", "name": "tee got.txt", "required": "exists", "level": "advisory"}]}
 print(json.dumps(d))' < "$C/ok/govern.json" > "$C/pre/govern.json"
 printf '%s\n' "$flow" > "$C/pre/p.naab"
-out="$(cd "$C/pre" && "$GOV" taint p.naab <<<"PIPED_INPUT_C13" 2>&1)"; rc=$?
-if [ ! -f "$C/pre/got.txt" ]; then
+out="$(cd "$C/pre" && gov taint p.naab <<<"PIPED_INPUT_C13" 2>&1)"; rc=$?
+if [ "$rc" -eq 124 ]; then
+    bad "C-13" "naab-gov did not finish in ${TF_GOV_TIMEOUT:-60} s with a prerequisite command configured" "$out"
+elif [ ! -f "$C/pre/got.txt" ]; then
     skip "C-13" "the prerequisite command did not run here (no tee on PATH?) -- cannot observe its stdin"
 elif [ "$rc" -eq 1 ] && ! grep -q "PIPED_INPUT_C13" "$C/pre/got.txt"; then
     ok "C-13" "a prerequisite command the config load starts gets none of the caller's stdin (A122)"
