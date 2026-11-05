@@ -107,7 +107,7 @@ except Exception:
     print("PARSE-ERROR"); sys.exit(0)
 for f in d.get("flows", []):
     print(f["kind"], f["line"])
-' <<<"$out")"
+' <<<"$out" | tr -d '\r')"   # print() writes CRLF on Windows
     RAW="$out"
 }
 
@@ -203,7 +203,7 @@ for r in d.get("results", []):
     if r.get("rule") == "taint_tracking.sink_violation" and not r.get("passed", True):
         for m in re.findall(r"p\.naab:(\d+)", json.dumps(r)):
             print(m)
-' < "$d/rep.json")
+' < "$d/rep.json" | tr -d '\r')
     # a refusal inside the prelude is a prelude position
     fixed=""
     for f in $flagged; do
