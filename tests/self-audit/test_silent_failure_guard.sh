@@ -24,12 +24,24 @@
 #   SG-04  a pinned test that prints none is a FAIL (remove the pin)
 #   SG-05  CONTROL: the planted test passes with the guard removed from a copy
 #          of run-all-tests.sh -- SG-01 measures the guard, not the fixture
+#   SG-06  a test that printed a failure because the platform has no executor
+#          for a REAL language ("No executor found for language: shell" --
+#          build-windows has none, and 27 tests failed silently that way,
+#          observed on 3d0303b7) counts as missing executor, not as a FAIL
+#   SG-06c CONTROL: the same with a misspelled language (`pyton`) is a FAIL --
+#          only a name the language table knows is an absence
+#   SG-07  the non-zero path reads the same list: a test that throws after the
+#          same line counts as missing executor
+#   SG-07c CONTROL: an old signature on the non-zero path ("Python support not
+#          available") still counts as missing executor -- the refactor kept it
 #
 # Red first (observed 2026-11-06): against run-all-tests.sh as of 01fb3552
 # (no guard), SG-01, SG-03, SG-03b and SG-04 fail -- SG-05 is that run.
 # Kill table (observed 2026-11-06):
 #   M63 the `FAIL: 0` exclusion removed      -> SG-00, SG-03b, SG-A08, SG-A09
 #   M64 the pin list ignored                 -> SG-03, SG-03b, SG-04
+#   M66 the exit-0 path skips missing_executor_reason -> SG-06, SG-03b
+#   M67 any language name counts, not only the table's -> SG-06c, SG-03b
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -85,6 +97,10 @@ tree() {
     local d="$1" guard="$2" pinned="$3"
     mkdir -p "$d/build" "$d/tests/bugs" "$d/tests/helpers" "$d/home"
     ln -s "$NAAB" "$d/build/naab-lang"
+    # naab-gov gives run-all-tests.sh the language table (KNOWN_LANGS)
+    for g in "$(dirname "$NAAB")/naab-gov" "$REPO/build/naab-gov"; do
+        if [ -x "$g" ]; then ln -s "$g" "$d/build/naab-gov"; break; fi
+    done
     cp "$REPO/tests/helpers/silent_failure.sh" "$d/tests/helpers/"
     if [ "$guard" = yes ]; then
         cp "$REPO/run-all-tests.sh" "$d/run-all-tests.sh"
@@ -102,6 +118,10 @@ PY
     printf 'main {\n    print("PASS: 3")\n    print("FAIL: 0")\n}\n' > "$d/tests/bugs/sg_clean.naab"
     printf 'main {\n    print("FAIL: planted")\n}\n' > "$d/tests/bugs/sg_silent.naab"
     printf 'main {\n    throw "planted"\n}\n' > "$d/tests/bugs/sg_throw.naab"
+    printf 'main {\n    print("No executor found for language: shell")\n    print("FAIL: clean value blocked")\n}\n' > "$d/tests/bugs/sg_noexec.naab"
+    printf 'main {\n    print("No executor found for language: pyton")\n    print("FAIL: clean value blocked")\n}\n' > "$d/tests/bugs/sg_noexec_typo.naab"
+    printf 'main {\n    print("No executor found for language: shell")\n    throw "planted"\n}\n' > "$d/tests/bugs/sg_noexec_throw.naab"
+    printf 'main {\n    print("Python support not available for expression values")\n    throw "planted"\n}\n' > "$d/tests/bugs/sg_nopy_throw.naab"
     if [ "$pinned" = yes ]; then
         printf 'main {\n    print("FAIL: pinned")\n}\n' > "$d/tests/bugs/test_chaos_module_boundary.naab"
     else
@@ -140,10 +160,32 @@ if grep -q '^  XFAIL: test_chaos_module_boundary.naab (prints a failure under ex
 else
     bad SG-03 "the pinned test should be counted known silent" "$(line test_chaos_module_boundary.naab)"
 fi
-if [ "$RC" -ne 0 ] && grep -qE '^  Unexpected fails: 2$' <<<"$OUT"; then
-    ok SG-03b "the run fails on exactly the two failures (sg_silent, sg_throw)"
+if [ "$RC" -ne 0 ] && grep -qE '^  Unexpected fails: 3$' <<<"$OUT"; then
+    ok SG-03b "the run fails on exactly the three failures (sg_silent, sg_throw, sg_noexec_typo)"
 else
-    bad SG-03b "expected rc!=0 and 2 unexpected fails (rc=$RC)" "$(grep -E 'Unexpected fails|Known silent' <<<"$OUT")"
+    bad SG-03b "expected rc!=0 and 3 unexpected fails (rc=$RC)" "$(grep -E 'Unexpected fails|Known silent' <<<"$OUT")"
+fi
+if [ ! -e "$W/g/build/naab-gov" ]; then
+    bad SG-06 "naab-gov not built: the language table is unreadable (UNMEASURABLE, not a pass)"
+elif grep -q '^  XFAIL: sg_noexec.naab (missing executor: no shell executor on this platform; it printed a failure under exit 0)$' <<<"$OUT"; then
+    ok SG-06 "a silent failure from a missing shell executor counts as missing executor"
+else
+    bad SG-06 "sg_noexec.naab should be missing executor" "$(line sg_noexec.naab)"
+fi
+if grep -q '^  FAIL: sg_noexec_typo.naab (exited 0 but printed a failure)$' <<<"$OUT"; then
+    ok SG-06c "CONTROL: a misspelled language is a FAIL, not an absence"
+else
+    bad SG-06c "sg_noexec_typo.naab should be a FAIL" "$(line sg_noexec_typo.naab)"
+fi
+if grep -q '^  XFAIL: sg_noexec_throw.naab (missing executor: no shell executor on this platform)$' <<<"$OUT"; then
+    ok SG-07 "the non-zero path reads the same list"
+else
+    bad SG-07 "sg_noexec_throw.naab should be missing executor" "$(line sg_noexec_throw.naab)"
+fi
+if grep -q '^  XFAIL: sg_nopy_throw.naab (missing executor)$' <<<"$OUT"; then
+    ok SG-07c "CONTROL: the non-zero path keeps its old signatures"
+else
+    bad SG-07c "sg_nopy_throw.naab should be missing executor" "$(line sg_nopy_throw.naab)"
 fi
 
 runner "$W/u" yes no

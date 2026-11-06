@@ -31,6 +31,75 @@ trap 'restore_trust_store' EXIT
 # The silent-failure rule run_test() applies to exit-0 runs (A123).
 # shellcheck source=tests/helpers/silent_failure.sh
 source "tests/helpers/silent_failure.sh"
+
+# Every language name the language table knows (canonical names and aliases),
+# from naab-gov. "No executor found for language: X" is an environmental
+# absence only for a real language X -- a misspelled one is the test's defect.
+# No naab-gov, or a table that cannot be read: the set is empty and that rule
+# never matches (the test stays a FAIL).
+KNOWN_LANGS=" "
+for _gov in ./build/naab-gov ./build/naab-gov.exe; do
+    if [ -x "$_gov" ]; then
+        _names=$("$_gov" languages 2>/dev/null | python3 -c 'import sys, json
+names = []
+for e in json.load(sys.stdin):
+    names.append(e["canonical"]); names.extend(e.get("aliases", []))
+sys.stdout.write(" ".join(names))' 2>/dev/null) || _names=""
+        KNOWN_LANGS=" ${_names//$'\r'/} "
+        break
+    fi
+done
+unset _gov _names
+
+# missing_executor_reason FILE -- if FILE (a test's output) shows that the
+# platform lacks what the test needs, print why and return 0; else return 1.
+# One list for both of run_test()'s branches: a test that exits non-zero, and a
+# test that exits 0 but printed a failure (A123: 27 build-windows tests catch
+# the missing-executor error and print FAIL).
+missing_executor_reason() {
+    local f="$1" lang=""
+    [ -f "$f" ] || return 1
+    if grep -q "Python support not available" "$f"; then
+        # Emitted by two build-dependent paths: the tree-walker Interpreter
+        # ctor when <Python.h> was absent at compile time, and (both engines)
+        # the GenericSubprocessExecutor fallback on non-pybind11 builds when
+        # an expression-position <<python>> block yields no output (bare
+        # expressions have no value channel without the embedded executor).
+        echo "missing executor"; return 0
+    fi
+    if grep -q "python execution denied by sandbox" "$f" && \
+       grep -q "governance disables running commands" "$f"; then
+        # Python refused by the shell-off gate. That happens ONLY where python
+        # is a separate process (no embedded Python: Windows, Linux without
+        # pybind11) -- embedded Python runs in-process and is never refused --
+        # and a project that disables shell refuses such runtimes by design.
+        # Platform absence of the in-process executor, the same class as the
+        # Python case above. Python ONLY: the same refusal for cpp/go/rust/...
+        # happens on every build, so a .naab test hitting it is a real change
+        # and must stay a FAIL.
+        echo "missing executor: python is a subprocess here and the shell-off config refuses it"; return 0
+    fi
+    if grep -qE "block failed(: | \(exit code 127\): )'[^']+' could not be run" "$f"; then
+        # A polyglot block whose runtime binary could not be STARTED (exit
+        # 127: not installed / not on PATH) -- the subprocess executors'
+        # environmental-absence message (GenericSubprocessExecutor: tsx,
+        # php, python3; CSharpExecutor: mcs, mono). Those blocks used to
+        # evaluate to null under exit 0, so tests using them "passed" with
+        # the language never run; failing loudly is the fix, and absence of
+        # the compiler is the same class as the Python case above.
+        echo "missing executor: runtime not installed"; return 0
+    fi
+    # No executor is registered for a real language on this build -- the
+    # shell executor on build-windows. Read the language from the first such
+    # line; only a name the language table knows counts.
+    lang=$(grep -a -m1 -oE "No executor found for language: [A-Za-z0-9_+#.-]+" "$f" 2>/dev/null) || lang=""
+    lang="${lang#No executor found for language: }"
+    lang="${lang%$'\r'}"
+    if [ -n "$lang" ] && [[ "$KNOWN_LANGS" == *" $lang "* ]]; then
+        echo "missing executor: no $lang executor on this platform"; return 0
+    fi
+    return 1
+}
 TEST_DIRS=(
     "examples"
     "tests/bugs"
@@ -412,9 +481,17 @@ run_test() {
         local marker=""
         marker=$(silent_failure_marker "$output_file") || marker=""
         local known="${KNOWN_SILENT_FAILURE_TESTS[$test_name]:-}"
+        local reason=""
         if [ -n "$marker" ] && [ -n "$known" ]; then
             KNOWN_SILENT=$((KNOWN_SILENT + 1))
             echo "  XFAIL: $test_name (prints a failure under exit 0, pinned: $known)"
+        elif [ -n "$marker" ] && reason=$(missing_executor_reason "$output_file"); then
+            # The failure it printed comes from what the platform lacks -- the
+            # same signatures a non-zero exit is judged by. On build-windows 27
+            # tests catch the "No executor found for language: shell" error and
+            # print FAIL (observed on 3d0303b7); they passed silently before.
+            MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
+            echo "  XFAIL: $test_name ($reason; it printed a failure under exit 0)"
         elif [ -n "$marker" ]; then
             FAILED=$((FAILED + 1))
             FAILED_TESTS+=("$test_name (exited 0 but printed a failure: ${marker:0:120})")
@@ -441,36 +518,11 @@ run_test() {
         elif [ "${NEEDS_TREE_WALK_TESTS[$test_name]}" = "1" ]; then
             NEEDS_TREE_WALK=$((NEEDS_TREE_WALK + 1))
             echo "  XFAIL: $test_name (needs --tree-walk)"
-        elif [ -f "$output_file" ] && grep -q "Python support not available" "$output_file"; then
-            # Emitted by two build-dependent paths: the tree-walker Interpreter
-            # ctor when <Python.h> was absent at compile time, and (both engines)
-            # the GenericSubprocessExecutor fallback on non-pybind11 builds when
-            # an expression-position <<python>> block yields no output (bare
-            # expressions have no value channel without the embedded executor).
+        elif reason=$(missing_executor_reason "$output_file"); then
+            # The platform lacks what the test needs (missing_executor_reason
+            # says which signature matched).
             MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
-            echo "  XFAIL: $test_name (missing executor)"
-        elif [ -f "$output_file" ] && grep -q "python execution denied by sandbox" "$output_file" && \
-             grep -q "governance disables running commands" "$output_file"; then
-            # Python refused by the shell-off gate. That happens ONLY where python
-            # is a separate process (no embedded Python: Windows, Linux without
-            # pybind11) -- embedded Python runs in-process and is never refused --
-            # and a project that disables shell refuses such runtimes by design.
-            # Platform absence of the in-process executor, the same class as the
-            # Python case above. Python ONLY: the same refusal for cpp/go/rust/...
-            # happens on every build, so a .naab test hitting it is a real change
-            # and must stay a FAIL.
-            MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
-            echo "  XFAIL: $test_name (missing executor: python is a subprocess here and the shell-off config refuses it)"
-        elif [ -f "$output_file" ] && grep -qE "block failed(: | \(exit code 127\): )'[^']+' could not be run" "$output_file"; then
-            # A polyglot block whose runtime binary could not be STARTED (exit
-            # 127: not installed / not on PATH) -- the subprocess executors'
-            # environmental-absence message (GenericSubprocessExecutor: tsx,
-            # php, python3; CSharpExecutor: mcs, mono). Those blocks used to
-            # evaluate to null under exit 0, so tests using them "passed" with
-            # the language never run; failing loudly is the fix, and absence of
-            # the compiler is the same class as the Python case above.
-            MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
-            echo "  XFAIL: $test_name (missing executor: runtime not installed)"
+            echo "  XFAIL: $test_name ($reason)"
         elif [ "${LIVE_AGENT_TESTS[$test_name]}" = "1" ] && [ -f "$output_file" ] && \
              grep -q "Agent error: API key not available" "$output_file"; then
             # Live-agent examples call agent.send() against a real provider and
