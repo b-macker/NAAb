@@ -19,7 +19,7 @@ typeof fs
     } catch (e) {
         // If error is semantic/governance, that's a FAIL
         // If error is runtime (require not defined), governance accepted it — PASS
-        if string(e).contains("Unknown Node.js module") {
+        if string(e).contains("Unknown module '") {
             print("FAIL: require('fs') blocked by governance")
         } else {
             passed = passed + 1
@@ -37,7 +37,7 @@ path.join('a', 'b')
         passed = passed + 1
         print("PASS: require('path') accepted")
     } catch (e) {
-        if string(e).contains("Unknown Node.js module") {
+        if string(e).contains("Unknown module '") {
             print("FAIL: require('path') blocked by governance")
         } else {
             passed = passed + 1
@@ -55,7 +55,7 @@ typeof crypto
         passed = passed + 1
         print("PASS: require('crypto') accepted")
     } catch (e) {
-        if string(e).contains("Unknown Node.js module") {
+        if string(e).contains("Unknown module '") {
             print("FAIL: require('crypto') blocked by governance")
         } else {
             passed = passed + 1
@@ -73,7 +73,7 @@ typeof express
         passed = passed + 1
         print("PASS: require('express') accepted")
     } catch (e) {
-        if string(e).contains("Unknown Node.js module") {
+        if string(e).contains("Unknown module '") {
             print("FAIL: require('express') blocked by governance")
         } else {
             passed = passed + 1
@@ -84,6 +84,11 @@ typeof express
     return [passed, total]
 }
 
+// 7b82a8d5 renamed the check's message from "Unknown Node.js module '...' --
+// verify it's installed" to "Unknown module '...' in JavaScript polyglot
+// block". Every arm here matched the old text, so the fake_package arm failed
+// and the four "accepted" arms -- which pass when the text is ABSENT -- could
+// no longer see a refusal at all (A123).
 fn test_unknown_requires_caught() {
     let passed = 0
     let total = 0
@@ -97,7 +102,7 @@ const fake = require('fake_package');
 fake.run()
 >>
     } catch (e) {
-        if string(e).contains("Unknown Node.js module") {
+        if string(e).contains("Unknown module 'fake_package' in JavaScript polyglot block") {
             caught = true
         }
     }
@@ -315,5 +320,9 @@ main {
         print("ALL TESTS PASSED")
     } else {
         print("SOME TESTS FAILED")
+    }
+    // A failure must fail the run: run-all-tests.sh reads the exit code (A123).
+    if total_passed != total_tests {
+        throw "" + (total_tests - total_passed) + " failed"
     }
 }

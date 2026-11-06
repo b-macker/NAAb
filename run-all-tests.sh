@@ -28,6 +28,9 @@ restore_trust_store() {
   fi
 }
 trap 'restore_trust_store' EXIT
+# The silent-failure rule run_test() applies to exit-0 runs (A123).
+# shellcheck source=tests/helpers/silent_failure.sh
+source "tests/helpers/silent_failure.sh"
 TEST_DIRS=(
     "examples"
     "tests/bugs"
@@ -40,7 +43,6 @@ TEST_DIRS=(
     "tests/fixtures"
     "tests/formatter"
     "tests/llm_patterns"
-    "tests/path_resolution"
     "tests/chapter_verification"
     "tests/governance_v3"
     "tests/governance_v4"
@@ -58,6 +60,7 @@ FAILED=0
 ERROR_BEHAVIOR=0
 MISSING_EXECUTOR=0
 NEEDS_TREE_WALK=0
+KNOWN_SILENT=0
 SKIPPED=0
 TOTAL=0
 
@@ -165,6 +168,15 @@ NEEDS_TREE_WALK_TESTS["multi_language_analytics.naab"]=1      # uses BLOCK-PY-*,
 NEEDS_TREE_WALK_TESTS["web_scraper.naab"]=1                   # uses BLOCK-JS-FORMAT
 
 # Category 3: Files that are NOT standalone tests (should not be run directly)
+# Category: tests that print a failure and exit 0, pinned while their fix is
+# scheduled (A123). run_test() turns an exit-0 run whose output reports a
+# failure (tests/helpers/silent_failure.sh) into a FAIL; an entry here keeps
+# that run out of the failures and says which record owns the fix. An entry
+# whose test stops printing a failure is itself a FAIL, so the entry is
+# removed when the fix lands. Each value names the record and who resolves it.
+declare -A KNOWN_SILENT_FAILURE_TESTS
+KNOWN_SILENT_FAILURE_TESTS["test_chaos_module_boundary.naab"]="A121: a clean value from an imported module flagged at a shell binding; Bundle 12 PR 3"
+
 declare -A SKIP_FILES
 SKIP_FILES["edge_helper_module.naab"]=1   # imported by edge tests, not standalone
 SKIP_FILES["chaos_module_taint.naab"]=1   # imported by chaos tests, not standalone
@@ -394,9 +406,29 @@ run_test() {
     # Run the test with timeout
     local output_file="$HOME/.naab_test_output_$$.txt"
     if timeout "$timeout_duration" "$NAAB_BIN" $gov_flag $sandbox_flag run "$test_file" > "$output_file" 2>&1; then
-        PASSED=$((PASSED + 1))
-        PASSED_TESTS+=("$test_name")
-        echo "  PASS: $test_name"
+        # An exit status of 0 is not a pass when the test's own output reports
+        # a failure: sixteen tests counted their failures, printed them and
+        # exited 0 (A123). The rule is silent_failure_marker().
+        local marker=""
+        marker=$(silent_failure_marker "$output_file") || marker=""
+        local known="${KNOWN_SILENT_FAILURE_TESTS[$test_name]:-}"
+        if [ -n "$marker" ] && [ -n "$known" ]; then
+            KNOWN_SILENT=$((KNOWN_SILENT + 1))
+            echo "  XFAIL: $test_name (prints a failure under exit 0, pinned: $known)"
+        elif [ -n "$marker" ]; then
+            FAILED=$((FAILED + 1))
+            FAILED_TESTS+=("$test_name (exited 0 but printed a failure: ${marker:0:120})")
+            echo "  FAIL: $test_name (exited 0 but printed a failure)"
+            echo "       ${marker:0:200}"
+        elif [ -n "$known" ]; then
+            FAILED=$((FAILED + 1))
+            FAILED_TESTS+=("$test_name (pinned as printing a failure, but printed none: remove its KNOWN_SILENT_FAILURE_TESTS entry)")
+            echo "  FAIL: $test_name (pinned as printing a failure, printed none: remove its entry)"
+        else
+            PASSED=$((PASSED + 1))
+            PASSED_TESTS+=("$test_name")
+            echo "  PASS: $test_name"
+        fi
     else
         local exit_code=$?
         # Check which category this failure belongs to
@@ -3116,6 +3148,79 @@ else
     echo "  test_expression_locations.sh: not found, skipping"
 fi
 
+# A JavaScript block's value is its last expression, whatever statements
+# precede it (A125, Bundle 16).
+JSLAST_SCRIPT="tests/vm/test_js_last_expression.sh"
+if [ -f "$JSLAST_SCRIPT" ]; then
+    if run_shell_test "$JSLAST_SCRIPT" 2>&1; then
+        echo "  test_js_last_expression.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_js_last_expression.sh")
+    fi
+else
+    echo "  test_js_last_expression.sh: not found, skipping"
+fi
+
+# A relative path resolves against the working directory, from the entry file
+# and from an imported module alike (A123, Bundle 16; replaced main.naab, which
+# expected module-relative paths and printed its failure under exit 0).
+PATHRES_SCRIPT="tests/path_resolution/test_path_resolution.sh"
+if [ -f "$PATHRES_SCRIPT" ]; then
+    if run_shell_test "$PATHRES_SCRIPT" 2>&1; then
+        echo "  test_path_resolution.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_path_resolution.sh")
+    fi
+else
+    echo "  test_path_resolution.sh: not found, skipping"
+fi
+
+# Embedded Python cannot start a command under a standard sandbox: os.system and
+# subprocess are refused by the audit hook (A123, Bundle 16; replaced the .naab
+# test, which ran unrestricted and printed its failure under exit 0).
+PYOS_SCRIPT="tests/security/test_python_os_block.sh"
+if [ -f "$PYOS_SCRIPT" ]; then
+    if run_shell_test "$PYOS_SCRIPT" 2>&1; then
+        echo "  test_python_os_block.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_python_os_block.sh")
+    fi
+else
+    echo "  test_python_os_block.sh: not found, skipping"
+fi
+
+# The engine's own children (prerequisite commands, hooks) start with the null
+# device as stdin, and prerequisites run only where a program runs (A122,
+# Bundle 16). Needs naab-gov for the static-command arms.
+CHILDSTDIN_SCRIPT="tests/governance_v4/test_engine_child_stdin.sh"
+if [ -f "$CHILDSTDIN_SCRIPT" ]; then
+    if run_shell_test "$CHILDSTDIN_SCRIPT" 2>&1; then
+        echo "  test_engine_child_stdin.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_engine_child_stdin.sh")
+    fi
+else
+    echo "  test_engine_child_stdin.sh: not found, skipping"
+fi
+
+# Embedded Python's allowlist scrub passes the same essential names as every
+# other child's -- essentialChildEnvVars(), one list (A99, Bundle 16).
+PYENVALLOW_SCRIPT="tests/security/test_python_env_allowlist.sh"
+if [ -f "$PYENVALLOW_SCRIPT" ]; then
+    if run_shell_test "$PYENVALLOW_SCRIPT" 2>&1; then
+        echo "  test_python_env_allowlist.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_python_env_allowlist.sh")
+    fi
+else
+    echo "  test_python_env_allowlist.sh: not found, skipping"
+fi
+
 # VM: a callback that throws through native code (sort comparators, array.map_fn,
 # agent tools) must not jump into its caller's handler or leave the VM out of step (A41).
 CBTHROW_SCRIPT="tests/vm/test_callback_throw.sh"
@@ -4569,6 +4674,21 @@ else
     echo "  test_shell_path_handoff.sh: not found, skipping"
 fi
 
+SILENT_FAIL_SCRIPT="tests/self-audit/test_silent_failure_guard.sh"
+if [ -f "$SILENT_FAIL_SCRIPT" ]; then
+    # A .naab test that exits 0 but prints a failure is a FAIL (A123): the
+    # classifier over a table, then this runner's own .naab phase over planted
+    # tests in a scratch tree, with the guard removed as the control.
+    if run_shell_test "$SILENT_FAIL_SCRIPT" 2>&1; then
+        echo "  test_silent_failure_guard.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_silent_failure_guard.sh")
+    fi
+else
+    echo "  test_silent_failure_guard.sh: not found, skipping"
+fi
+
 PIPEFAIL_GREP_SCRIPT="tests/self-audit/test_pipefail_grep.sh"
 if [ -f "$PIPEFAIL_GREP_SCRIPT" ]; then
     # Gate on `PRODUCER | grep -q` under pipefail: false when the producer
@@ -5083,11 +5203,12 @@ echo "  Passed:           $PASSED"
 echo "  Error behavior:   $ERROR_BEHAVIOR (tests designed to exit non-zero)"
 echo "  Missing executor: $MISSING_EXECUTOR (require compilers not on this platform)"
 echo "  Needs tree-walk: $NEEDS_TREE_WALK (use BLOCK-... syntax, VM unsupported)"
+echo "  Known silent:     $KNOWN_SILENT (print a failure under exit 0; pinned, fix scheduled -- KNOWN_SILENT_FAILURE_TESTS)"
 echo "  Unexpected fails: $FAILED"
 if [ $SKIPPED -gt 0 ]; then
     echo "  Skipped:          $SKIPPED (non-standalone files + excluded dirs)"
 fi
-ACCOUNTED=$((PASSED + ERROR_BEHAVIOR + MISSING_EXECUTOR + NEEDS_TREE_WALK))
+ACCOUNTED=$((PASSED + ERROR_BEHAVIOR + MISSING_EXECUTOR + NEEDS_TREE_WALK + KNOWN_SILENT))
 echo ""
 # TOTAL counts .naab programs only, so it is 0 in the shell-only phase — the
 # percentage would divide by zero. Shell suites are judged by $FAILED below,
@@ -5119,7 +5240,7 @@ if [ $FAILED -gt 0 ]; then
     echo ""
     exit 1
 elif [ "$TOTAL" -gt 0 ]; then
-    echo "ALL $TOTAL TESTS ACCOUNTED FOR ($PASSED passed + $ERROR_BEHAVIOR error behavior + $MISSING_EXECUTOR missing executor + $NEEDS_TREE_WALK needs tree-walk)"
+    echo "ALL $TOTAL TESTS ACCOUNTED FOR ($PASSED passed + $ERROR_BEHAVIOR error behavior + $MISSING_EXECUTOR missing executor + $NEEDS_TREE_WALK needs tree-walk + $KNOWN_SILENT known silent)"
     echo ""
     exit 0
 else

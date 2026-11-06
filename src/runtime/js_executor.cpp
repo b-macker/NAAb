@@ -329,7 +329,11 @@ interpreter::NaabVal JsExecutor::evaluate(
                     "switch ", "switch(", "if ", "if(",
                     "return ", "throw ", "break", "continue",
                     "try ", "try{",
-                    "function ", "function("
+                    "function ", "function(",
+                    // Declarations are statements too: wrapped as
+                    // `return (var x = ...)` they were a SyntaxError, so a block
+                    // whose last statement declared something never ran (A125).
+                    "var ", "let ", "const ", "class ", "async function"
                 };
                 size_t start = s.find_first_not_of(" \t\r\n");
                 if (start == std::string::npos) return false;
@@ -349,6 +353,75 @@ interpreter::NaabVal JsExecutor::evaluate(
                     }
                 }
                 return false;
+            };
+
+            // A125: the value of a block whose last top-level statement starts
+            // after something other than a top-level ';' -- most often a
+            // function declaration, which ends in '}': `function f(n) {...}`
+            // then `f(21)`. The scans below look for the last statement's
+            // start at a ';' only, read the whole block as one statement that
+            // begins with `function`, and returned undefined (null in NAAb).
+            // Here every top-level ';' and newline from the end is a candidate
+            // start, and the first split QuickJS itself COMPILES as
+            // "statements, then return this expression" is the block's value.
+            // The suffix must compile inside `return (...)`, so it is one whole
+            // expression that ends the code; a block that ends in a statement
+            // (a loop, an if) has none and keeps returning undefined. Used only
+            // where the scans below would return undefined, so a block that
+            // works today is never re-split. Compiling does not run anything.
+            auto compiles = [this](const std::string& src) -> bool {
+                JSValue fn = JS_Eval(ctx_, src.c_str(), src.size(), "<probe>",
+                                     JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
+                if (JS_IsException(fn)) {
+                    JS_FreeValue(ctx_, JS_GetException(ctx_));
+                    return false;
+                }
+                JS_FreeValue(ctx_, fn);
+                return true;
+            };
+            auto splitAtLastExpression = [&](const std::string& full) -> std::string {
+                int depth = 0;
+                bool in_str = false;
+                char str_ch = 0;
+                int tried = 0;
+                for (size_t ci = full.size(); ci > 0 && tried < 256; ci--) {
+                    char c = full[ci - 1];
+                    if (in_str) {
+                        if (c == str_ch && (ci < 2 || full[ci - 2] != '\\')) in_str = false;
+                        continue;
+                    }
+                    if (c == '"' || c == '\'' || c == '`') { in_str = true; str_ch = c; continue; }
+                    if (c == '}' || c == ')' || c == ']') { depth++; continue; }
+                    if (c == '{' || c == '(' || c == '[') { depth--; continue; }
+                    if (depth != 0 || (c != ';' && c != '\n')) continue;
+                    std::string expr = full.substr(ci);
+                    size_t a = expr.find_first_not_of(" \t\r\n");
+                    size_t b = expr.find_last_not_of(" \t\r\n;");
+                    if (a == std::string::npos || b == std::string::npos || b < a) continue;
+                    expr = expr.substr(a, b - a + 1);
+                    if (startsWithStmtKeyword(expr)) continue;
+                    if (c == '\n') {
+                        // A newline ends a statement only where JavaScript
+                        // inserts a semicolon. Split there only after a closing
+                        // brace (a declaration or block), and never before a
+                        // token that continues the expression: `var f =
+                        // function(x) {...}` then `(41)` is ONE statement, an
+                        // immediate call, and splitting it would run other code.
+                        size_t pe = full.find_last_not_of(" \t\r\n", ci - 1);
+                        if (pe == std::string::npos || full[pe] != '}') continue;
+                        const char first = expr[0];
+                        if (first == '(' || first == '[' || first == '`' || first == '+' ||
+                            first == '-' || first == '/' || first == '.' || first == ',' ||
+                            first == '?' || first == ':' || first == '=' || first == '<' ||
+                            first == '>' || first == '*' || first == '%' || first == '&' ||
+                            first == '|' || first == '^' || first == '!') continue;
+                    }
+                    ++tried;
+                    std::string candidate = "(function() {\n" + full.substr(0, ci) +
+                                            "\nreturn (" + expr + ");\n})()";
+                    if (compiles(candidate)) return candidate;
+                }
+                return "";
             };
 
             if (js_lines.empty()) {
@@ -430,16 +503,23 @@ interpreter::NaabVal JsExecutor::evaluate(
                         if (!expr_part.empty() && expr_part.back() == ';') expr_part.pop_back();
 
                         // If expr_part is a statement (for/while/etc), it can't be returned
+                        // -- unless a later expression follows it (A125).
+                        std::string split;
                         if (startsWithStmtKeyword(expr_part)) {
+                            split = splitAtLastExpression(full_code);
                             stmts_part += "\n" + expr_part;
                             expr_part = "undefined";
                         }
-                        wrapped = "(function() {\n" + stmts_part + "\nreturn (" + expr_part + ");\n})()";
+                        wrapped = !split.empty() ? split
+                            : "(function() {\n" + stmts_part + "\nreturn (" + expr_part + ");\n})()";
                     } else {
                         // No semicolon found — entire block is one expression
                         // Check if it's actually a statement block
                         if (startsWithStmtKeyword(full_code)) {
-                            wrapped = "(function() {\n" + full_code + "\nreturn (undefined);\n})()";
+                            // A statement first, but an expression may follow it (A125).
+                            std::string split = splitAtLastExpression(full_code);
+                            wrapped = !split.empty() ? split
+                                : "(function() {\n" + full_code + "\nreturn (undefined);\n})()";
                         } else {
                             wrapped = "(function() {\nreturn (" + full_code + ");\n})()";
                         }

@@ -169,14 +169,14 @@ function test_nim_idioms() {
 proc double(x: int): int = x * 2
 echo double(21)
     >>
-    if (proc_test == 42) { passed = passed + 1; print("✓ PASS: Nim proc") } else { print("✗ FAIL: Nim proc (got: " + proc_test + ")") }
+    if (proc_test == "42") { passed = passed + 1; print("✓ PASS: Nim proc") } else { print("✗ FAIL: Nim proc (got: " + proc_test + ")") }
 
     total = total + 1
     let seq_test = <<nim
 var data = @[1, 2, 3, 4, 5]
 echo data.len
     >>
-    if (seq_test == 5) { passed = passed + 1; print("✓ PASS: Nim sequence") } else { print("✗ FAIL: Nim sequence (got: " + seq_test + ")") }
+    if (seq_test == "5") { passed = passed + 1; print("✓ PASS: Nim sequence") } else { print("✗ FAIL: Nim sequence (got: " + seq_test + ")") }
 
     total = total + 1
     let for_test = <<nim
@@ -185,7 +185,7 @@ for i in 1..5:
   s += i * i
 echo s
     >>
-    if (for_test == 55) { passed = passed + 1; print("✓ PASS: Nim for loop") } else { print("✗ FAIL: Nim for loop (got: " + for_test + ")") }
+    if (for_test == "55") { passed = passed + 1; print("✓ PASS: Nim for loop") } else { print("✗ FAIL: Nim for loop (got: " + for_test + ")") }
 
     print("Nim idioms: " + passed + "/" + total)
     return [passed, total]
@@ -257,4 +257,8 @@ main {
     print("  TOTAL: " + tp + "/" + tr + " passed, " + tf + " failed")
     if (tf == 0) { print("  ✓ ALL TESTS PASSED") } else { print("  ✗ SOME TESTS FAILED") }
     print("═══════════════════════════════════════")
+    // A failure must fail the run: run-all-tests.sh reads the exit code (A123).
+    if tf != 0 {
+        throw "" + tf + " failed"
+    }
 }

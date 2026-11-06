@@ -252,4 +252,8 @@ main {
     print("  TOTAL: " + tp + "/" + tr + " passed, " + tf + " failed")
     if (tf == 0) { print("  ✓ ALL TESTS PASSED") } else { print("  ✗ SOME TESTS FAILED") }
     print("═══════════════════════════════════════")
+    // A failure must fail the run: run-all-tests.sh reads the exit code (A123).
+    if tf != 0 {
+        throw "" + tf + " failed"
+    }
 }

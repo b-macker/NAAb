@@ -4,6 +4,9 @@
 main {
     let passed = 0
     let total = 0
+    // A stdout-based executor hands back its output as a string: b44018d4
+    // removed the int coercion on purpose (`date +%Y` became an int and broke
+    // string.trim()), so these compare the text the block prints (A123).
 
     // Test 1: Define global variable
     total = total + 1
@@ -11,7 +14,7 @@ main {
     $count = 1
     puts $count
     >>
-    if (a == 1) {
+    if (a == "1") {
         passed = passed + 1
         print("  PASS: Ruby global var defined and returned")
     } else {
@@ -24,7 +27,7 @@ main {
     $count += 10
     puts $count
     >>
-    if (b == 11) {
+    if (b == "11") {
         passed = passed + 1
         print("  PASS: Ruby global var persists between blocks")
     } else {
@@ -41,7 +44,7 @@ main {
     let c = <<ruby
     puts triple($count)
     >>
-    if (c == 33) {
+    if (c == "33") {
         passed = passed + 1
         print("  PASS: Ruby method persists between blocks")
     } else {
@@ -50,4 +53,8 @@ main {
 
     print("")
     print("Ruby persistent state: " + ("" + passed) + "/" + ("" + total) + " passed")
+    // A failure must fail the run: run-all-tests.sh reads the exit code (A123).
+    if passed != total {
+        throw "" + (total - passed) + " of " + total + " failed"
+    }
 }

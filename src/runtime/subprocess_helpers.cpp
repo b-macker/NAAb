@@ -30,6 +30,7 @@
 #  include <sys/wait.h>   // For waitpid, WIFEXITED, WEXITSTATUS, WIFSIGNALED
 #  include <sys/resource.h> // For getrlimit, RLIMIT_AS, setrlimit, RLIMIT_NPROC/FSIZE/NOFILE
 #  include <signal.h>     // For kill()
+#  include <fcntl.h>      // For open(/dev/null) -- ChildStdin::Null
 #  ifdef __linux__
 #    include <sys/prctl.h>  // For prctl(PR_SET_NO_NEW_PRIVS)
 #  endif
@@ -504,7 +505,8 @@ int execute_subprocess_with_pipes(
     std::string& stdout_str,
     std::string& stderr_str,
     const std::map<std::string, std::string>* env,
-    const SubprocessContainment* containment) {
+    const SubprocessContainment* containment,
+    ChildStdin child_stdin) {
 
 #ifdef _WIN32
     // =========================================================================
@@ -621,12 +623,14 @@ int execute_subprocess_with_pipes(
         HANDLE thread = nullptr;
         HANDLE hOut = INVALID_HANDLE_VALUE;
         HANDLE hErr = INVALID_HANDLE_VALUE;
+        HANDLE hIn = INVALID_HANDLE_VALUE;   // the null device, ChildStdin::Null only
         LPPROC_THREAD_ATTRIBUTE_LIST attrs = nullptr;
         HANDLE per_child_job = nullptr;  // Per-child containment Job Object
         ~WinSubprocessCleanup() {
             if (attrs) { ::DeleteProcThreadAttributeList(attrs); std::free(attrs); }
             if (hOut != INVALID_HANDLE_VALUE) ::CloseHandle(hOut);
             if (hErr != INVALID_HANDLE_VALUE) ::CloseHandle(hErr);
+            if (hIn != INVALID_HANDLE_VALUE) ::CloseHandle(hIn);
             if (thread) ::CloseHandle(thread);
             if (proc) ::CloseHandle(proc);
             // KILL_ON_JOB_CLOSE triggers on close — kills any orphaned children
@@ -658,8 +662,21 @@ int execute_subprocess_with_pipes(
         return -1;
     }
 
-    // Narrow handle inheritance (W3): only hOut/hErr may cross into the child.
-    // Any other inheritable handles in the parent stay put.
+    // ChildStdin::Null: the child reads the null device, never the run's stdin
+    // (A122). It must be inheritable and in the handle list below.
+    if (child_stdin == ChildStdin::Null) {
+        cleanup.hIn = ::CreateFileA("NUL", GENERIC_READ,
+                                    FILE_SHARE_READ | FILE_SHARE_WRITE, &sa,
+                                    OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (cleanup.hIn == INVALID_HANDLE_VALUE) {
+            fprintf(stderr, "[subprocess] CreateFile for the null device failed (error %lu)\n",
+                    ::GetLastError());
+            return -1;
+        }
+    }
+
+    // Narrow handle inheritance (W3): only hOut/hErr (and hIn, when set) may
+    // cross into the child. Any other inheritable handles in the parent stay put.
     SIZE_T attrSize = 0;
     ::InitializeProcThreadAttributeList(nullptr, 1, 0, &attrSize);
     cleanup.attrs = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(std::malloc(attrSize));
@@ -670,10 +687,12 @@ int execute_subprocess_with_pipes(
         if (cleanup.attrs) { std::free(cleanup.attrs); cleanup.attrs = nullptr; }
         return -1;
     }
-    HANDLE inheritable[2] = { cleanup.hOut, cleanup.hErr };
+    HANDLE inheritable[3] = { cleanup.hOut, cleanup.hErr, cleanup.hIn };
+    const SIZE_T inheritable_size =
+        (cleanup.hIn != INVALID_HANDLE_VALUE ? 3 : 2) * sizeof(HANDLE);
     if (!::UpdateProcThreadAttribute(cleanup.attrs, 0,
                                      PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-                                     inheritable, sizeof(inheritable),
+                                     inheritable, inheritable_size,
                                      nullptr, nullptr)) {
         fprintf(stderr, "[subprocess] UpdateProcThreadAttribute failed (error %lu)\n",
                 ::GetLastError());
@@ -683,7 +702,8 @@ int execute_subprocess_with_pipes(
     STARTUPINFOEXA siex = {};
     siex.StartupInfo.cb = sizeof(STARTUPINFOEXA);
     siex.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
-    siex.StartupInfo.hStdInput  = ::GetStdHandle(STD_INPUT_HANDLE);
+    siex.StartupInfo.hStdInput  = cleanup.hIn != INVALID_HANDLE_VALUE
+                                      ? cleanup.hIn : ::GetStdHandle(STD_INPUT_HANDLE);
     siex.StartupInfo.hStdOutput = cleanup.hOut;
     siex.StartupInfo.hStdError  = cleanup.hErr;
     siex.lpAttributeList = cleanup.attrs;
@@ -791,6 +811,21 @@ int execute_subprocess_with_pipes(
     // Keep FDs open — child will dup2 them directly (async-signal-safe)
     // instead of calling fopen() which allocates and is NOT async-signal-safe
 
+    // ChildStdin::Null: opened here, dup2'd in the child. A null device that
+    // cannot be opened fails the call: the alternative is the run's stdin.
+    int stdin_fd = -1;
+    if (child_stdin == ChildStdin::Null) {
+        stdin_fd = open("/dev/null", O_RDONLY | O_CLOEXEC);
+        if (stdin_fd == -1) {
+            close(stdout_fd);
+            close(stderr_fd);
+            unlink(stdout_tmp.c_str());
+            unlink(stderr_tmp.c_str());
+            fprintf(stderr, "[subprocess] could not open the null device for a child's stdin\n");
+            return -1;
+        }
+    }
+
     // Build argv array for execvp (no shell interpretation)
     std::vector<const char*> argv;
     argv.push_back(command_path.c_str());
@@ -824,6 +859,7 @@ int execute_subprocess_with_pipes(
     pid_t pid = fork();
     if (pid == -1) {
         // Fork failed
+        if (stdin_fd >= 0) close(stdin_fd);
         unlink(stdout_tmp.c_str());
         unlink(stderr_tmp.c_str());
         size_t mem_limit = getActiveMemoryLimitMB();
@@ -849,6 +885,10 @@ int execute_subprocess_with_pipes(
         dup2(stderr_fd, STDERR_FILENO);
         close(stdout_fd);
         close(stderr_fd);
+        if (stdin_fd >= 0) {
+            dup2(stdin_fd, STDIN_FILENO);  // dup2 clears O_CLOEXEC on fd 0
+            close(stdin_fd);
+        }
 
         execFirstCandidate(exec_candidates,
                            const_cast<char* const*>(argv.data()),
@@ -860,6 +900,7 @@ int execute_subprocess_with_pipes(
     // Parent: close inherited FDs — no longer needed (files read by name after child exits)
     close(stdout_fd);
     close(stderr_fd);
+    if (stdin_fd >= 0) close(stdin_fd);
 
     // Parent process: wait for child.
     // V-RT-003: use a poll loop instead of blocking waitpid(). If the execution
@@ -954,7 +995,9 @@ std::string probeRuntimeVersion(const std::string& binary,
     std::string out, err;
     int rc = -1;
     try {
-        rc = execute_subprocess_with_pipes(binary, args, out, err, nullptr, &c);
+        // The engine's own child: stdin from the null device (A122).
+        rc = execute_subprocess_with_pipes(binary, args, out, err, nullptr, &c,
+                                           ChildStdin::Null);
     } catch (const std::exception&) {
         return "";
     }

@@ -121,7 +121,7 @@ echo "file1.txt
 file2.txt
 file3.txt" | wc -l
     >>
-    if (shell_count == 3) {
+    if (shell_count == "3") {
         passed = passed + 1
         print("✓ PASS: Shell line counting")
     } else {
@@ -615,4 +615,8 @@ main {
     }
 
     print("╚═══════════════════════════════════════════════════════╝")
+    // A failure must fail the run: run-all-tests.sh reads the exit code (A123).
+    if total_failed != 0 {
+        throw "" + total_failed + " failed"
+    }
 }

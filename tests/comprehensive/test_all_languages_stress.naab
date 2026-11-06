@@ -530,4 +530,8 @@ echo ($x * $y) + ($z / 3);
     }
     print()
     print("═══════════════════════════════════════════════════════════════")
+    // A failure must fail the run: run-all-tests.sh reads the exit code (A123).
+    if failed_tests != 0 {
+        throw "" + failed_tests + " stress tests failed"
+    }
 }

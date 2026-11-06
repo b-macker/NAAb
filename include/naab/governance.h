@@ -3523,6 +3523,19 @@ public:
     // steer them). naab-gov, the C API, the MCP server process and REST never
     // fetch -- a static checker or a binding must not run operator commands.
     static void allowExternalGuidance(bool on);
+    // Prerequisites (`prerequisites.checks`) start commands -- `command` runs
+    // the command it names, `tool`/`package`/`python_version` run which, pip,
+    // npm or python3 -- so, like external guidance, they run only in a process
+    // that runs a program: `naab-lang run` (and the REST/MCP workers, which are
+    // that) turns this on before it loads governance, and `naab-lang --attest`,
+    // which exists to run them. Everything else that loads a govern.json --
+    // naab-gov's lint/taint/ratchet/manifest/contracts/check, --lint-only, the
+    // signing commands, the C API, the REST and MCP server processes -- prints
+    // once that they were not run (A122(c), the owner's decision 2026-11-06).
+    // Before, every load ran them, so a static review of a project started the
+    // commands its govern.json names.
+    static void allowPrerequisites(bool on);
+    static bool prerequisitesAllowed();
     // Start, or reconfigure after an accepted reload, the background fetch of
     // this config's https/command sources. With initial_load (discoverAndLoad)
     // the first fetch happens before returning, bounded by
@@ -3954,6 +3967,11 @@ public:
 
     // --- Environment Attestation ---
     std::vector<AttestationResult> runAttestation();
+    // The load path's line when prerequisites are configured and this process
+    // does not run them (allowPrerequisites(false)); printed once per process.
+    void notePrerequisitesNotRun() const;
+    // What the last runAttestation() found (the load's, when allowed).
+    const std::vector<AttestationResult>& attestationResults() const { return attestation_results_; }
 
     // --- Contradiction Detection ---
     std::vector<ContradictionResult> detectContradictions();

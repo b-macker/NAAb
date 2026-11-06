@@ -57,8 +57,9 @@
 #   A97    a lease without ENV_READ keeps the project's blocked_subprocess_vars
 #          (HOME stays withheld from a child); CONTROLS: HOME withheld without
 #          the lease, and passed under the lease when nothing blocks it
-#   A100   an `agents` block written as a list is ignored and now says so;
-#          CONTROL: the object form loads the role and prints no warning
+#   A100   an `agents` (or `agent_roles`) block written as a list is refused,
+#          exit 4, nothing runs (it was ignored with a warning until the
+#          owner's decision of 2026-11-06); CONTROL: the object form loads the role
 #   A101   removing a role's last ENV action is refused (the matrix stops
 #          governing env, so the action it denied becomes allowed); CONTROLS:
 #          removing another action keeps env governed and is accepted
@@ -80,7 +81,8 @@
 #   naab-gov ignores --lease-grant                      -> RG-07
 #   naab-gov ignores governance.default_env             -> RG-07
 #   the ENV opt-in comparison removed                   -> A101 (RP-01 at seeds 19, 22)
-#   the non-object agents warning removed               -> A100
+#   the non-object agents refusal removed               -> A100
+#   the refusal reads "agents" only, not agent_roles     -> A100
 #   the network_allowed "removed" rule deleted          -> A102 (RP-01 at seeds 32, 57, 63)
 # Red first: RP-01 failed on the code before these fixes, with each of the
 # findings above as its counterexamples (seed 1..9 at 300-400 cases); A101
@@ -335,16 +337,21 @@ else
     fi
 fi
 
-# A100: `agents` as a list is ignored, with a warning.
-printf '{"version":"5.0","mode":"enforce","agents":[{"name":"worker","shell_allowed":false}]}' > "$R/govern.json"
+# A100: an `agents` (or legacy `agent_roles`) block written as a list is
+# refused (exit 4, nothing runs) -- it used to load as no roles, with a warning.
 printf 'main {\n    print("RAN")\n}\n' > "$R/n.naab"
-naab --agent-id worker n.naab; list_warn=$(grep -c 'must be an object keyed by agent name' <<<"$OUT"); list_ran=$(grep -c '^RAN' <<<"$OUT")
+printf '{"version":"5.0","mode":"enforce","agents":[{"name":"worker","shell_allowed":false}]}' > "$R/govern.json"
+naab --agent-id worker n.naab; list_rc=$RC; list_named=$(grep -c '"agents" must be an object keyed by agent name' <<<"$OUT"); list_ran=$(grep -c '^RAN' <<<"$OUT")
+printf '{"version":"5.0","mode":"enforce","agent_roles":[{"name":"worker","shell_allowed":false}]}' > "$R/govern.json"
+naab --agent-id worker n.naab; legacy_rc=$RC; legacy_named=$(grep -c '"agent_roles" must be an object keyed by agent name' <<<"$OUT"); legacy_ran=$(grep -c '^RAN' <<<"$OUT")
 printf '{"version":"5.0","mode":"enforce","agents":{"worker":{"shell_allowed":false}}}' > "$R/govern.json"
-naab --agent-id worker n.naab; obj_warn=$(grep -c 'must be an object keyed by agent name' <<<"$OUT"); obj_role=$(grep -c 'Agent role applied: worker' <<<"$OUT")
-if [ "$list_warn" -ge 1 ] && [ "$list_ran" -eq 1 ] && [ "$obj_warn" -eq 0 ] && [ "$obj_role" -eq 1 ]; then
-    pass A100 "a list-form agents block warns (control: the object form applies the role, no warning)"
+naab --agent-id worker n.naab; obj_rc=$RC; obj_named=$(grep -c 'must be an object keyed by agent name' <<<"$OUT"); obj_role=$(grep -c 'Agent role applied: worker' <<<"$OUT")
+if [ "$list_rc" -eq 4 ] && [ "$list_named" -ge 1 ] && [ "$list_ran" -eq 0 ] \
+   && [ "$legacy_rc" -eq 4 ] && [ "$legacy_named" -ge 1 ] && [ "$legacy_ran" -eq 0 ] \
+   && [ "$obj_rc" -eq 0 ] && [ "$obj_named" -eq 0 ] && [ "$obj_role" -eq 1 ]; then
+    pass A100 "a list-form agents / agent_roles block is refused, exit 4 (control: the object form applies the role)"
 else
-    fail A100 "agents block form" "list: warned=$list_warn ran=$list_ran; object: warned=$obj_warn role=$obj_role"
+    fail A100 "agents block form" "agents list: rc=$list_rc named=$list_named ran=$list_ran; agent_roles list: rc=$legacy_rc named=$legacy_named ran=$legacy_ran; object: rc=$obj_rc named=$obj_named role=$obj_role"
 fi
 
 # A101: the role's last ENV action removed.

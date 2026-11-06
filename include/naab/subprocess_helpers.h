@@ -219,15 +219,26 @@ public:
     static bool active();
 };
 
+// What a child's stdin is. A child the PROGRAM starts (process.run, a
+// polyglot executor) inherits it: the program's own input, to hand on. The
+// engine's own children -- prerequisite checks -- take the null device: they
+// have no use for the run's input, and an inherited pipe let an interpreter
+// named as a `command` prerequisite read and run whatever was piped to the
+// program (A122). Hooks are started by fireHook(), which does the same.
+enum class ChildStdin { Inherit, Null };
+
 // Helper to execute a subprocess and capture its stdout/stderr separately
-// Returns exit code, fills stdout_str and stderr_str
+// Returns exit code, fills stdout_str and stderr_str. With ChildStdin::Null,
+// a null device that cannot be opened fails the call (-1) rather than handing
+// the child the run's stdin.
 int execute_subprocess_with_pipes(
     const std::string& command_path,
     const std::vector<std::string>& args,
     std::string& stdout_str,
     std::string& stderr_str,
     const std::map<std::string, std::string>* env = nullptr,
-    const SubprocessContainment* containment = nullptr
+    const SubprocessContainment* containment = nullptr,
+    ChildStdin child_stdin = ChildStdin::Inherit
 );
 
 } // namespace runtime

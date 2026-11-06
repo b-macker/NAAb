@@ -880,10 +880,18 @@ static void checkRestrictionTypes(const nlohmann::json& j) {
         if (!j["manifest"].is_object()) refuse("manifest", "an object", j["manifest"]);
         boolean(j["manifest"], "manifest", "required");
     }
-    if (j.contains("agents") && j["agents"].is_object()) {
-        for (const auto& [name, a] : j["agents"].items()) {
+    // The roles block, under the key the loader reads ("agents", else the
+    // legacy "agent_roles"). Only the object form keyed by role name is read:
+    // a list of {"name": ...} objects loaded as no roles at all, so every
+    // per-role narrowing was absent (A100; a warning until the owner's
+    // decision of 2026-11-06 to refuse it, A111's rule). null means none.
+    const char* agents_key = j.contains("agents") ? "agents" : "agent_roles";
+    if (j.contains(agents_key) && !j[agents_key].is_null() && !j[agents_key].is_object())
+        refuse(agents_key, "an object keyed by agent name ({\"worker\": {...}})", j[agents_key]);
+    if (j.contains(agents_key) && j[agents_key].is_object()) {
+        for (const auto& [name, a] : j[agents_key].items()) {
             if (!a.is_object()) continue;
-            const std::string base = "agents." + name;
+            const std::string base = std::string(agents_key) + "." + name;
             for (const char* k : {"allowed_actions", "allowed_languages", "blocked_languages",
                                   "allowed_paths", "blocked_paths", "tools"})
                 strList(a, base, k, true);
@@ -3581,16 +3589,8 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
     // Prefer "agents" key; fall back to legacy "agent_roles" for backward compat
     std::string agents_key = j.contains("agents") ? "agents" : "agent_roles";
     std::unordered_set<std::string> agents_with_explicit_timeout;
-    // Only the object form ({"name": {...}}) is read. Any other value used to
-    // be dropped without a word, so roles written as a list restricted nothing
-    // (A100; no config in the tree does, found while building the ratchet
-    // property harness, whose generator wrote one).
-    if (j.contains(agents_key) && !j[agents_key].is_object() && !j[agents_key].is_null()) {
-        fmt::print(stderr,
-            "[governance] Warning: \"{}\" must be an object keyed by agent name "
-            "(\"{}\": {{\"worker\": {{...}}}}); it was ignored, so no agent role applies\n",
-            agents_key, agents_key);
-    }
+    // Only the object form ({"name": {...}}) is read; any other non-null value
+    // is refused before this runs (checkRestrictionTypes, A100).
     if (j.contains(agents_key) && j[agents_key].is_object()) {
         for (auto& [name, cfg_json] : j[agents_key].items()) {
             AgentConfig agent;
@@ -8377,8 +8377,13 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         // Contradiction Detection: static analysis of config conflicts
         detectContradictions();
 
-        // Environment Attestation: verify prerequisites if configured
-        runAttestation();
+        // Environment Attestation: verify prerequisites if configured -- only
+        // in a process that runs a program (allowPrerequisites(), A122(c)).
+        if (prerequisitesAllowed()) {
+            runAttestation();
+        } else {
+            notePrerequisitesNotRun();
+        }
 
         return true;
     } catch (const nlohmann::json::parse_error& e) {

@@ -16,7 +16,7 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 10: state machines and automata | merged | #355 (`f9337bdf`); A113 |
 | 11: contracts and manifests for LLM-written code | merged, two PRs by the owner's decision (2026-11-01). PR 1 #356 (`703fa6c4`): requires/ensures as NAAb expressions checked by the VM at the call boundary, and the opt-in counterexample search `naab-gov contracts` in a worker; A114. PR 2 #357 (`528fbb59`): the signed capability manifest; A115, A116 | Bundle 11 below |
 | 12: taint as information flow | in progress, two PRs by the owner's decision (2026-11-04). PR 1 (merged, #358): one taint semantics -- one static rule both AST walks share, unknown kinds fail closed, a suite generated from the semantics table; A117. PR 2 (merged, #360): the static noninterference check, an opt-in report, `naab-gov taint`; measured, A120-A122. Follow-up PR 1 (merged, #361, `01fb3552`): A120 and A121(d) fixed, A122(b), A123 and A124 recorded. PR 3 decided (the owner, 2026-11-06), after Bundle 16: A121(a)-(c), A124. The control-flow bar waits on Bundle 13 | Bundle 12 below |
-| 16: honest tests and the engine's own child processes | next, by the owner's decision (2026-11-06): run before Bundle 13 | Bundle 16 below |
+| 16: honest tests and the engine's own child processes | built (2026-11-06), one PR: A123 (13 of 14 tests and the guard; one pinned for Bundle 12 PR 3), A125, A122, A99, A100 fixed; A126 recorded for the owner | Bundle 16 below |
 | 13-15 | not started; Bundle 16 runs first | |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). The bundle plan itself was recorded in #351 (`86fc33c9`).
@@ -209,6 +209,13 @@ Added by the owner's decision (2026-11-06). It runs before Bundle 13 because Bun
 - **A100: a non-object `agents` block refuses the config (exit 4)**, by A111's rule for a restriction in a type its parser does not read. None of the 80 tracked configs with a roles block uses the list form.
 
 **Order** (the owner, 2026-11-06): Bundle 16, then Bundle 12 PR 3, then Bundle 8's follow-up (A95(b), A98).
+
+**Progress (2026-11-06).** Built as one PR; each item's record is in `docs/open-investigations.md`.
+- A123: the 13 tests fail their run when they fail (each made red once); `path_resolution` and `test_python_os_block` became shell suites, because a `.naab` test cannot choose its working directory or sandbox level. The `run_test` guard is live: over the whole `.naab` phase it flagged only the one pinned test, `test_chaos_module_boundary.naab`, which waits on A121.
+- A125 was two defects in one function: the split at the last statement, and declarations wrapped as expressions (a block ending in one never ran).
+- A122: the decided fix, plus the runtime-version probe (the same class: the engine's own child). The static commands that load a config -- signing, the C API, the server processes -- no longer run prerequisites either.
+- A99, A100: as decided; A100's refusal also covers the legacy `agent_roles` key.
+- **Found and not decided: A126** -- `naab-gov lint` fires the project's `on_violation` hook, the hook half of A122(c). Pinned (`test_engine_child_stdin.sh` ES-07), the owner's call.
 
 ## Bundle 13 -- measure what governance catches; help operators
 
