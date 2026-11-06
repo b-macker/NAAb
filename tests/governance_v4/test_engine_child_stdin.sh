@@ -74,9 +74,13 @@ for b in "$NAAB" "$GOV"; do
 done
 W="$(mktemp -d "${TMPDIR:-/tmp}/naab-childstdin.XXXXXX")" || exit 1
 [ -n "$W" ] && [ -d "$W" ] || { echo "FATAL: no work dir" >&2; exit 1; }
-trap 'rm -rf "$W"' EXIT
+# These configs are unsigned: an isolated trust store (NAAB_TRUST_STORE_DIR,
+# which wins over HOME), and a scratch HOME for everything else.
+# shellcheck source=../helpers/trust_setup.sh
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
+trap 'teardown_isolated_trust; rm -rf "$W"' EXIT
 case "$W" in *[[:space:]]*) echo "  SKIP: the work dir has a space (the prerequisite argv is split on spaces)"; exit 0 ;; esac
-# An isolated trust store: these configs are unsigned.
 export HOME="$W/home"; mkdir -p "$HOME"
 
 # A program that reads one line and prints it; optionally starts a child too.

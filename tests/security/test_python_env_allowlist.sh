@@ -43,7 +43,12 @@ esac
 [ -x "$NAAB" ] || { echo "  FAIL naab-lang not built (UNMEASURABLE, not a pass)"; exit 1; }
 W="$(mktemp -d "${TMPDIR:-/tmp}/naab-pyenv.XXXXXX")" || exit 1
 [ -n "$W" ] && [ -d "$W" ] || { echo "FATAL: no work dir" >&2; exit 1; }
-trap 'rm -rf "$W"' EXIT
+# These configs are unsigned: an isolated trust store (NAAB_TRUST_STORE_DIR,
+# which wins over HOME), and a scratch HOME for everything else.
+# shellcheck source=../helpers/trust_setup.sh
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
+trap 'teardown_isolated_trust; rm -rf "$W"' EXIT
 export HOME="$W/home"; mkdir -p "$HOME"
 
 printf 'main { let v = <<python\n1+1\n>>\nprint(string(v)) }\n' > "$W/probe.naab"
