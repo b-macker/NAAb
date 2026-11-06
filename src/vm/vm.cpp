@@ -112,6 +112,18 @@ int Chunk::getLine(int offset) const {
 
 namespace {
 
+// Sets a flag for the length of one call and puts the outer value back on the
+// way out, thrown or returned: a callback can make its own stdlib call, and a
+// NAAb catch can take a throw from inside one (A120(a)).
+struct CallbackArgTaintScope {
+    bool& slot;
+    bool saved;
+    CallbackArgTaintScope(bool& s, bool v) : slot(s), saved(s) { slot = v; }
+    ~CallbackArgTaintScope() { slot = saved; }
+    CallbackArgTaintScope(const CallbackArgTaintScope&) = delete;
+    CallbackArgTaintScope& operator=(const CallbackArgTaintScope&) = delete;
+};
+
 bool bsdEnabled(governance::GovernanceEngine* gov) {
     return gov && gov->isActive() && gov->getRules().behavioral_sequences.enabled;
 }
@@ -229,7 +241,7 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
                 array_mod->setFunctionEvaluator(
                     [this](interpreter::NaabVal fn,
                            const std::vector<interpreter::NaabVal>& args) -> interpreter::NaabVal {
-                        return this->callNaabFunction(fn, args);
+                        return this->callNaabFunction(fn, args, callback_args_tainted_);
                     }
                 );
             }
@@ -1596,7 +1608,7 @@ interpreter::NaabVal VM::run() {
                 if (governance_ && governance_->isActive()) {
                     if (peekTaint(0)) {
                         int gov_line = CURRENT_CHUNK().getLine(
-                            static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 2);
+                            static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
                         std::string origin_func = governance_->lastTaintSource();
                         std::string origin_arg;
                         // Prefer lineage map (more precise) over lastTaintSource
@@ -1635,7 +1647,7 @@ interpreter::NaabVal VM::run() {
                 if (governance_ && governance_->isActive()) {
                     if (t) {
                         int gov_line = CURRENT_CHUNK().getLine(
-                            static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 2);
+                            static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
                         if (origin_func_dg.empty()) origin_func_dg = governance_->lastTaintSource();
                         governance_->markTainted(name, origin_func_dg, origin_arg_dg,
                             current_file_, gov_line);
@@ -1946,7 +1958,7 @@ interpreter::NaabVal VM::run() {
                             }
                             stdlibCallGates(mod, method, static_cast<int>(argc), stack_top_ - argc,
                                 CURRENT_CHUNK().getLine(
-                                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4));
+                                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1));
                         }
 
                         // Governance: check if this is a taint sink (e.g., env.set_var)
@@ -1959,7 +1971,7 @@ interpreter::NaabVal VM::run() {
                                     any_arg_tainted_vm = true;
                                     std::string arg_label = "argument " + std::to_string(ai) + " of '" + full_method_name + "()'";
                                     int gov_line = CURRENT_CHUNK().getLine(
-                                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
                                     // taint_stack_ says this argument is tainted; say so to the
                                     // engine directly. Marking the label in the SHARED taint set
                                     // raced: async fns share the engine and the label.
@@ -1985,7 +1997,7 @@ interpreter::NaabVal VM::run() {
                         // variable name as arg 0, which is what the detail wants.
                         if (bsdEnabled(governance_)) {
                             int pre_line = CURRENT_CHUNK().getLine(
-                                static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                                static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
                             std::string block_msg = bsdPreCheck(governance_, mod, method,
                                 first_arg_str, current_file_, pre_line);
                             if (!block_msg.empty()) runtimeError("%s", block_msg.c_str());
@@ -2012,6 +2024,7 @@ interpreter::NaabVal VM::run() {
                         const bool outer_callback_taint = callback_returned_tainted_;
                         callback_returned_tainted_ = false;
                         try {
+                            CallbackArgTaintScope arg_taint_scope(callback_args_tainted_, any_arg_tainted_vm);
                             result = callStdlibMethod(mod, method, argc, args_ptr);
                         } catch (...) {
                             callback_returned_tainted_ = outer_callback_taint;
@@ -2035,7 +2048,7 @@ interpreter::NaabVal VM::run() {
                                 if (governance_->getRules().taint_tracking.lineage) {
                                     size_t result_offset = static_cast<size_t>((stack_top_ - 1) - stack_.get());
                                     int src_line = CURRENT_CHUNK().getLine(
-                                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
                                     taint_lineage_map_[result_offset] = {full_method_name, first_arg_str, current_file_, src_line};
                                 }
                             } else if (governance_->isSanitizer(full_method_name)) {
@@ -2055,7 +2068,7 @@ interpreter::NaabVal VM::run() {
                             // Behavioral sequence event emission
                             if (bsdEnabled(governance_)) {
                                 int ev_line = CURRENT_CHUNK().getLine(
-                                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
                                 bsdRecord(governance_, mod, method, first_arg_str, current_file_, ev_line);
                             }
                         }
@@ -2301,7 +2314,19 @@ interpreter::NaabVal VM::run() {
                     }
 
                     interpreter::NaabVal* args_ptr = stack_top_ - argc;
-                    interpreter::NaabVal result = callBuiltinMethod(obj, method, argc, args_ptr);
+                    // A callback a method runs (sort's comparator, find's
+                    // predicate) is given the receiver's and arguments' data.
+                    bool method_data_tainted = false;
+                    if (governance_) {
+                        method_data_tainted = obj_tainted || containerTainted(obj);
+                        for (int ai = 0; ai < argc && !method_data_tainted; ai++)
+                            method_data_tainted = peekTaint(argc - 1 - ai);
+                    }
+                    interpreter::NaabVal result;
+                    {
+                        CallbackArgTaintScope arg_taint_scope(callback_args_tainted_, method_data_tainted);
+                        result = callBuiltinMethod(obj, method, argc, args_ptr);
+                    }
                     // `obj` is a REFERENCE into the stack (peek(argc)), and the loop
                     // below nulls that slot -- so the V-VM-003 bookkeeping after it
                     // read a null and never recorded a tainted container: held.push(x)
@@ -2803,7 +2828,7 @@ interpreter::NaabVal VM::run() {
                                     }, frame_count_);
                             }
                             member_line = CURRENT_CHUNK().getLine(
-                                static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                                static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
                             stdlibCallGates(mod, name, 0, nullptr, member_line);
                             if (bsdEnabled(governance_)) {
                                 std::string block_msg = bsdPreCheck(governance_, mod, name, "",
@@ -2892,6 +2917,14 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Cannot set member '%s' on %s",
                                  name.c_str(), obj.getTypeName().c_str());
+                }
+                // A120(b): a struct is a dict on the VM, and a field store is a
+                // store into it, so it marks the container as OP_SET_INDEX does.
+                // It used to mark nothing: `s.a = t` left `s` clean, and `s`
+                // reached a sink unflagged (the tree-walker's FIX-4, 8b5b47c4,
+                // never reached this opcode).
+                if (governance_ && val_taint_sm && obj.isDict()) {
+                    tainted_containers_.insert_or_assign(obj.toLegacy().get(), obj);
                 }
                 push(val);
                 if (governance_) peekTaint(0) = val_taint_sm;
@@ -3584,7 +3617,7 @@ interpreter::NaabVal VM::run() {
                             array_mod->setFunctionEvaluator(
                                 [this](interpreter::NaabVal fn,
                                        const std::vector<interpreter::NaabVal>& args) -> interpreter::NaabVal {
-                                    return this->callNaabFunction(fn, args);
+                                    return this->callNaabFunction(fn, args, callback_args_tainted_);
                                 }
                             );
                         }
@@ -3723,7 +3756,7 @@ interpreter::NaabVal VM::run() {
                 if (governance_ && governance_->isActive() && peekTaint(0)) {
                     std::string var_name = READ_CONSTANT(arg).toString();
                     int gov_line = CURRENT_CHUNK().getLine(
-                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
                     // A65: the value is tainted (peekTaint above), so decide on that.
                     // checkTaintedSink() looked the TARGET name up in the engine's
                     // shared taint set, which the VM writes only for a global and
@@ -4870,7 +4903,7 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
                 std::sort(arr.begin(), arr.end(), [this, &comp_fn, &sort_ex](const interpreter::NaabVal& a, const interpreter::NaabVal& b) -> bool {
                     if (sort_ex) return false;
                     try {
-                        auto res = callNaabFunction(comp_fn, {a, b});
+                        auto res = callNaabFunction(comp_fn, {a, b}, callback_args_tainted_);
                         if (res.isInt()) return res.asInt() < 0;
                         if (res.isDouble()) return res.asDouble() < 0;
                         return false;
@@ -4904,7 +4937,7 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
                 std::sort(arr.begin(), arr.end(), [this, &comp_fn, &sort_ex](const interpreter::NaabVal& a, const interpreter::NaabVal& b) -> bool {
                     if (sort_ex) return false;
                     try {
-                        auto res = callNaabFunction(comp_fn, {a, b});
+                        auto res = callNaabFunction(comp_fn, {a, b}, callback_args_tainted_);
                         if (res.isInt()) return res.asInt() < 0;
                         if (res.isDouble()) return res.asDouble() < 0;
                         return false;
@@ -4968,7 +5001,7 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
         if (method == "find") {
             if (argc < 1) runtimeError("find() requires 1 argument (predicate function)");
             for (const auto& item : list) {
-                auto res = callNaabFunction(args[0], {item});
+                auto res = callNaabFunction(args[0], {item}, callback_args_tainted_);
                 if (res.toBool()) return item;
             }
             return interpreter::NaabVal::makeNull();
@@ -4976,7 +5009,7 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
         if (method == "for_each" || method == "forEach") {
             if (argc < 1) runtimeError("forEach() requires 1 argument (function)");
             for (const auto& item : list) {
-                callNaabFunction(args[0], {item});
+                callNaabFunction(args[0], {item}, callback_args_tainted_);
             }
             return interpreter::NaabVal::makeNull();
         }

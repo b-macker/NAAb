@@ -278,5 +278,8 @@ main {
         print("ALL TESTS PASSED")
     } else {
         print("FAILURES: " + string(total_tests - total_passed))
+        // A failure must fail the run: run-all-tests.sh reads the exit code,
+        // and this test printed its FAILURES and exited 0 for months (A123).
+        throw "FAILURES: " + string(total_tests - total_passed)
     }
 }

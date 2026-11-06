@@ -1572,9 +1572,10 @@ std::unique_ptr<ast::Stmt> Parser::parseStatement() {
                             nt == lexer::TokenType::MINUS_EQ);
         }
         if (!is_assignment) {
+            const ast::SourceLocation stmt_loc(current().line, current().column);
             auto expr = parseMatchExpr();
             optionalSemicolon();
-            return std::make_unique<ast::ExprStmt>(std::move(expr), ast::SourceLocation());
+            return std::make_unique<ast::ExprStmt>(std::move(expr), stmt_loc);
         }
         // Fall through to parseExprStmt() for assignment
     }
@@ -2104,13 +2105,14 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
     auto expr = parsePipeline();
 
     if (match(lexer::TokenType::EQ)) {
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         skipNewlines();
         auto value = parseAssignment();  // Right-associative
         expr = std::make_unique<ast::BinaryExpr>(
             ast::BinaryOp::Assign,
             std::move(expr),
             std::move(value),
-            ast::SourceLocation()
+            op_loc
         );
     }
     // Compound assignment: x += y  →  x = x + y (same for -=, *=, /=, %=)
@@ -2121,6 +2123,7 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
              check(lexer::TokenType::PERCENT_EQ)) {
         auto op_token = current();
         advance();
+        const ast::SourceLocation op_loc(op_token.line, op_token.column);
         skipNewlines();
 
         // Determine the arithmetic operation
@@ -2143,31 +2146,31 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
 
         std::unique_ptr<ast::Expr> lhs_copy;
         if (id) {
-            lhs_copy = std::make_unique<ast::IdentifierExpr>(id->getName(), ast::SourceLocation());
+            lhs_copy = std::make_unique<ast::IdentifierExpr>(id->getName(), op_loc);
         } else if (member) {
             auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject());
             if (obj_id) {
-                auto obj_copy = std::make_unique<ast::IdentifierExpr>(obj_id->getName(), ast::SourceLocation());
-                lhs_copy = std::make_unique<ast::MemberExpr>(std::move(obj_copy), member->getMember(), ast::SourceLocation());
+                auto obj_copy = std::make_unique<ast::IdentifierExpr>(obj_id->getName(), op_loc);
+                lhs_copy = std::make_unique<ast::MemberExpr>(std::move(obj_copy), member->getMember(), op_loc);
             }
         } else if (subscript && subscript->getOp() == ast::BinaryOp::Subscript) {
             // arr[i] += val  →  arr[i] = arr[i] + val
             auto* sub_obj = dynamic_cast<ast::IdentifierExpr*>(subscript->getLeft());
             if (sub_obj) {
-                auto obj_copy = std::make_unique<ast::IdentifierExpr>(sub_obj->getName(), ast::SourceLocation());
+                auto obj_copy = std::make_unique<ast::IdentifierExpr>(sub_obj->getName(), op_loc);
                 // Clone the index expression (identifier or literal)
                 std::unique_ptr<ast::Expr> idx_copy;
                 if (auto* idx_id = dynamic_cast<ast::IdentifierExpr*>(subscript->getRight())) {
-                    idx_copy = std::make_unique<ast::IdentifierExpr>(idx_id->getName(), ast::SourceLocation());
+                    idx_copy = std::make_unique<ast::IdentifierExpr>(idx_id->getName(), op_loc);
                 } else if (auto* idx_lit = dynamic_cast<ast::LiteralExpr*>(subscript->getRight())) {
-                    idx_copy = std::make_unique<ast::LiteralExpr>(idx_lit->getLiteralKind(), idx_lit->getValue(), ast::SourceLocation());
+                    idx_copy = std::make_unique<ast::LiteralExpr>(idx_lit->getLiteralKind(), idx_lit->getValue(), op_loc);
                 }
                 if (idx_copy) {
                     lhs_copy = std::make_unique<ast::BinaryExpr>(
                         ast::BinaryOp::Subscript,
                         std::move(obj_copy),
                         std::move(idx_copy),
-                        ast::SourceLocation()
+                        op_loc
                     );
                 }
             }
@@ -2189,17 +2192,18 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
             arith_op,
             std::move(lhs_copy),
             std::move(value),
-            ast::SourceLocation()
+            op_loc
         );
         expr = std::make_unique<ast::BinaryExpr>(
             ast::BinaryOp::Assign,
             std::move(expr),
             std::move(arith_expr),
-            ast::SourceLocation()
+            op_loc
         );
     }
     // Null coalescing assignment: x ??= y  →  x = x ?? y
     else if (match(lexer::TokenType::QUESTION_QUESTION_EQ)) {
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         skipNewlines();
         auto value = parseAssignment();  // Right-associative
 
@@ -2210,26 +2214,26 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
 
         std::unique_ptr<ast::Expr> lhs_copy;
         if (id) {
-            lhs_copy = std::make_unique<ast::IdentifierExpr>(id->getName(), ast::SourceLocation());
+            lhs_copy = std::make_unique<ast::IdentifierExpr>(id->getName(), op_loc);
         } else if (member) {
             auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject());
             if (obj_id) {
-                auto obj_copy = std::make_unique<ast::IdentifierExpr>(obj_id->getName(), ast::SourceLocation());
-                lhs_copy = std::make_unique<ast::MemberExpr>(std::move(obj_copy), member->getMember(), ast::SourceLocation());
+                auto obj_copy = std::make_unique<ast::IdentifierExpr>(obj_id->getName(), op_loc);
+                lhs_copy = std::make_unique<ast::MemberExpr>(std::move(obj_copy), member->getMember(), op_loc);
             }
         } else if (sub && sub->getOp() == ast::BinaryOp::Subscript) {
             auto* sub_obj = dynamic_cast<ast::IdentifierExpr*>(sub->getLeft());
             if (sub_obj) {
-                auto obj_copy = std::make_unique<ast::IdentifierExpr>(sub_obj->getName(), ast::SourceLocation());
+                auto obj_copy = std::make_unique<ast::IdentifierExpr>(sub_obj->getName(), op_loc);
                 std::unique_ptr<ast::Expr> idx_copy;
                 if (auto* idx_id = dynamic_cast<ast::IdentifierExpr*>(sub->getRight())) {
-                    idx_copy = std::make_unique<ast::IdentifierExpr>(idx_id->getName(), ast::SourceLocation());
+                    idx_copy = std::make_unique<ast::IdentifierExpr>(idx_id->getName(), op_loc);
                 } else if (auto* idx_lit = dynamic_cast<ast::LiteralExpr*>(sub->getRight())) {
-                    idx_copy = std::make_unique<ast::LiteralExpr>(idx_lit->getLiteralKind(), idx_lit->getValue(), ast::SourceLocation());
+                    idx_copy = std::make_unique<ast::LiteralExpr>(idx_lit->getLiteralKind(), idx_lit->getValue(), op_loc);
                 }
                 if (idx_copy) {
                     lhs_copy = std::make_unique<ast::BinaryExpr>(
-                        ast::BinaryOp::Subscript, std::move(obj_copy), std::move(idx_copy), ast::SourceLocation());
+                        ast::BinaryOp::Subscript, std::move(obj_copy), std::move(idx_copy), op_loc);
                 }
             }
         }
@@ -2250,13 +2254,13 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
             ast::BinaryOp::NullCoalesce,
             std::move(lhs_copy),
             std::move(value),
-            ast::SourceLocation()
+            op_loc
         );
         expr = std::make_unique<ast::BinaryExpr>(
             ast::BinaryOp::Assign,
             std::move(expr),
             std::move(coalesce_expr),
-            ast::SourceLocation()
+            op_loc
         );
     }
 
@@ -2272,6 +2276,7 @@ std::unique_ptr<ast::Expr> Parser::parsePipeline() {
     // Allow newlines before pipeline operator
     skipNewlines();
     while (match(lexer::TokenType::PIPELINE)) {
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         skipNewlines();  // Also allow newlines after the operator
         auto right = parseNullCoalesce();
         skipNewlines();  // Check for more pipeline operators after newlines
@@ -2279,7 +2284,7 @@ std::unique_ptr<ast::Expr> Parser::parsePipeline() {
             ast::BinaryOp::Pipeline,
             std::move(left),
             std::move(right),
-            ast::SourceLocation()
+            op_loc
         );
     }
 
@@ -2290,13 +2295,14 @@ std::unique_ptr<ast::Expr> Parser::parseNullCoalesce() {
     auto left = parseLogicalOr();
 
     while (match(lexer::TokenType::QUESTION_QUESTION)) {
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         skipNewlines();
         auto right = parseLogicalOr();
         left = std::make_unique<ast::BinaryExpr>(
             ast::BinaryOp::NullCoalesce,
             std::move(left),
             std::move(right),
-            ast::SourceLocation()
+            op_loc
         );
     }
 
@@ -2307,13 +2313,14 @@ std::unique_ptr<ast::Expr> Parser::parseLogicalOr() {
     auto left = parseLogicalAnd();
 
     while (match(lexer::TokenType::OR)) {
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         skipNewlines(); // Add this line
         auto right = parseLogicalAnd();
         left = std::make_unique<ast::BinaryExpr>(
             ast::BinaryOp::Or,
             std::move(left),
             std::move(right),
-            ast::SourceLocation()
+            op_loc
         );
     }
 
@@ -2324,13 +2331,14 @@ std::unique_ptr<ast::Expr> Parser::parseLogicalAnd() {
     auto left = parseEquality();
 
     while (match(lexer::TokenType::AND)) {
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         skipNewlines(); // Add this line
         auto right = parseEquality();
         left = std::make_unique<ast::BinaryExpr>(
             ast::BinaryOp::And,
             std::move(left),
             std::move(right),
-            ast::SourceLocation()
+            op_loc
         );
     }
 
@@ -2349,13 +2357,14 @@ std::unique_ptr<ast::Expr> Parser::parseEquality() {
         } else {
             break;
         }
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         skipNewlines(); // Add this line
         auto right = parseRange();
         left = std::make_unique<ast::BinaryExpr>(
             op,
             std::move(left),
             std::move(right),
-            ast::SourceLocation()
+            op_loc
         );
     }
 
@@ -2368,25 +2377,27 @@ std::unique_ptr<ast::Expr> Parser::parseRange() {
 
     // Check for inclusive range ..=
     if (match(lexer::TokenType::DOTDOT_EQ)) {
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         skipNewlines(); // Add this line
         auto right = parseComparison();
         return std::make_unique<ast::RangeExpr>(
             std::move(left),
             std::move(right),
             true,  // inclusive
-            ast::SourceLocation()
+            op_loc
         );
     }
 
     // Check for exclusive range ..
     if (match(lexer::TokenType::DOTDOT)) {
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         skipNewlines(); // Add this line
         auto right = parseComparison();
         return std::make_unique<ast::RangeExpr>(
             std::move(left),
             std::move(right),
             false,  // exclusive
-            ast::SourceLocation()
+            op_loc
         );
     }
 
@@ -2413,18 +2424,19 @@ std::unique_ptr<ast::Expr> Parser::parseComparison() {
             size_t save = pos_;
             advance();
             if (match(lexer::TokenType::IN)) {
+                const ast::SourceLocation in_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
                 skipNewlines();
                 auto right = parseTerm();
                 auto in_expr = std::make_unique<ast::BinaryExpr>(
                     ast::BinaryOp::In,
                     std::move(left),
                     std::move(right),
-                    ast::SourceLocation()
+                    in_loc
                 );
                 left = std::make_unique<ast::UnaryExpr>(
                     ast::UnaryOp::Not,
                     std::move(in_expr),
-                    ast::SourceLocation()
+                    in_loc
                 );
                 continue;
             } else {
@@ -2434,13 +2446,14 @@ std::unique_ptr<ast::Expr> Parser::parseComparison() {
         } else {
             break;
         }
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         skipNewlines();
         auto right = parseTerm();
         left = std::make_unique<ast::BinaryExpr>(
             op,
             std::move(left),
             std::move(right),
-            ast::SourceLocation()
+            op_loc
         );
     }
 
@@ -2459,13 +2472,14 @@ std::unique_ptr<ast::Expr> Parser::parseTerm() {
         } else {
             break;
         }
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         skipNewlines(); // Add this line
         auto right = parseFactor();
         left = std::make_unique<ast::BinaryExpr>(
             op,
             std::move(left),
             std::move(right),
-            ast::SourceLocation()
+            op_loc
         );
     }
 
@@ -2486,13 +2500,14 @@ std::unique_ptr<ast::Expr> Parser::parseFactor() {
         } else {
             break;
         }
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         skipNewlines(); // Add this line
         auto right = parseUnary();
         left = std::make_unique<ast::BinaryExpr>(
             op,
             std::move(left),
             std::move(right),
-            ast::SourceLocation()
+            op_loc
         );
     }
 
@@ -2501,20 +2516,22 @@ std::unique_ptr<ast::Expr> Parser::parseFactor() {
 
 std::unique_ptr<ast::Expr> Parser::parseUnary() {
     if (match(lexer::TokenType::MINUS)) {
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         auto operand = parseUnary();
         return std::make_unique<ast::UnaryExpr>(
             ast::UnaryOp::Neg,
             std::move(operand),
-            ast::SourceLocation()
+            op_loc
         );
     }
 
     if (match(lexer::TokenType::NOT)) {
+        const ast::SourceLocation op_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         auto operand = parseUnary();
         return std::make_unique<ast::UnaryExpr>(
             ast::UnaryOp::Not,
             std::move(operand),
-            ast::SourceLocation()
+            op_loc
         );
     }
 
@@ -2636,7 +2653,7 @@ std::unique_ptr<ast::Expr> Parser::parsePostfix() {
             expr = std::make_unique<ast::MemberExpr>(
                 std::move(expr),
                 member_name,
-                ast::SourceLocation(),
+                ast::SourceLocation(member_tok.line, member_tok.column),
                 is_optional
             );
         }
@@ -2651,7 +2668,7 @@ std::unique_ptr<ast::Expr> Parser::parsePostfix() {
                 expect(lexer::TokenType::RBRACKET, "Expected ']' after slice");
 
                 // Build: __slice(arr, start, end)
-                auto callee = std::make_unique<ast::IdentifierExpr>("__slice", ast::SourceLocation());
+                auto callee = std::make_unique<ast::IdentifierExpr>("__slice", bracket_loc);
                 std::vector<std::unique_ptr<ast::Expr>> args;
                 args.push_back(std::move(expr));
                 args.push_back(std::move(index));
@@ -2665,7 +2682,7 @@ std::unique_ptr<ast::Expr> Parser::parsePostfix() {
                     ast::BinaryOp::Subscript,
                     std::move(expr),
                     std::move(index),
-                    ast::SourceLocation()
+                    bracket_loc
                 );
             }
         }
@@ -2689,7 +2706,8 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         ast::LiteralKind kind = (value.find('.') != std::string::npos)
             ? ast::LiteralKind::Float
             : ast::LiteralKind::Int;
-        return std::make_unique<ast::LiteralExpr>(kind, value, ast::SourceLocation());
+        return std::make_unique<ast::LiteralExpr>(kind, value,
+            ast::SourceLocation(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column));
     }
 
     if (match(lexer::TokenType::STRING)) {
@@ -2702,11 +2720,13 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
 
     if (match(lexer::TokenType::BOOLEAN)) {
         std::string value = tokens_[pos_ - 1].value;
-        return std::make_unique<ast::LiteralExpr>(ast::LiteralKind::Bool, value, ast::SourceLocation());
+        return std::make_unique<ast::LiteralExpr>(ast::LiteralKind::Bool, value,
+            ast::SourceLocation(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column));
     }
 
     if (match(lexer::TokenType::NULL_LITERAL)) {
-        return std::make_unique<ast::LiteralExpr>(ast::LiteralKind::Null, "null", ast::SourceLocation());
+        return std::make_unique<ast::LiteralExpr>(ast::LiteralKind::Null, "null",
+            ast::SourceLocation(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column));
     }
 
     // Struct literal: new StructName<T> { field: value, ... } or new module.StructName { ... }
@@ -2925,6 +2945,7 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
 
     // List literal
     if (match(lexer::TokenType::LBRACKET)) {
+        const ast::SourceLocation list_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         std::vector<std::unique_ptr<ast::Expr>> elements;
 
         if (!check(lexer::TokenType::RBRACKET)) {
@@ -2937,11 +2958,12 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
 
         expect(lexer::TokenType::RBRACKET, "Expected ']'");
 
-        return std::make_unique<ast::ListExpr>(std::move(elements), ast::SourceLocation());
+        return std::make_unique<ast::ListExpr>(std::move(elements), list_loc);
     }
 
     // Dict literal
     if (match(lexer::TokenType::LBRACE)) {
+        const ast::SourceLocation dict_loc(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         // Phase 2.1: Set context flag for better error hints about dict keys
         parser_context_->in_dict_literal = true;
 
@@ -2982,7 +3004,7 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
 
         parser_context_->in_dict_literal = false;
 
-        return std::make_unique<ast::DictExpr>(std::move(pairs), ast::SourceLocation());
+        return std::make_unique<ast::DictExpr>(std::move(pairs), dict_loc);
     }
 
     // Await expression: await expr

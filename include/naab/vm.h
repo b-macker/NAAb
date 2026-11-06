@@ -494,6 +494,16 @@ private:
     // whose callback returned the tainted value for 1 and a constant for 2 read
     // clean (Bundle 12).
     bool callback_returned_tainted_ = false;
+    // Is the stdlib or built-in call now running given tainted data (an
+    // argument, or the receiver of a method)? Set around the call by
+    // CallbackArgTaintScope; the array module's evaluator and
+    // callBuiltinMethod's sort/sorted/find/for_each callbacks hand it to
+    // callNaabFunction(), which then taints the callback's parameters, as the
+    // static rule judges them (taint_flow.cpp: a callback's parameters get the
+    // call's other data). Before, the elements of a tainted list reached the
+    // callback clean: `array.map_fn([t], fn(v) { sink(v) })` was not flagged
+    // (A120(a)). Coarse by design: every parameter, every element.
+    bool callback_args_tainted_ = false;
     // The taint of each if-condition and match subject/pattern/guard being
     // decided (OP_COND_TAINT). A branch is one expression, so only an exception
     // leaves it early: each handler records the depth and delivery restores it,

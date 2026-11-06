@@ -15,8 +15,9 @@
 #         off, no source; a partial analysis that found nothing is not clean;
 #         --config; --json.
 #
-# Kill table: 35 mutants, each applied alone (src/interpreter/taint_flow.cpp,
-# src/cli/gov_taint.cpp), built and run; the first arm it turned red. 34 killed:
+# Kill table: 41 mutants, each applied alone (src/interpreter/taint_flow.cpp,
+# src/cli/gov_taint.cpp, and for M36-M41 src/vm/vm.cpp), built and run; the
+# first arm it turned red. 40 killed:
 #   M01 if-statement branch gives no control      B/c_if_assign (and 7 more)
 #   M02 while condition gives no control          B/c_while_sink, c_while_count
 #   M03 for over a value gives no control         B/c_for_sink
@@ -51,6 +52,15 @@
 #   M33 a call clobbers the statement's control   B/c_try_expr_then_call
 #   M34 nested fn sees no enclosing names         B/v_nested_capture, _async, _late
 #   M35 nested fn sees declaration-time names     B/v_nested_late
+# The run's half (A120, src/vm/vm.cpp), each applied alone, built and run:
+#   M36 a struct field store marks nothing         B/v_struct_field, v_struct_field_read (R2)
+#   M37 the array evaluator gives callbacks no taint B/v_callback, v_callback_restore (R2)
+#   M38 a method's callback gets no taint          B/v_callback_find, _for_each, _sorted (R2)
+#   M39 the scope does not put the outer value back B/v_callback_restore (R2)
+#   M40 the scope inherits the outer value         B/n_callback_nested_clean (R2, R3)
+#   M41 a method's callback ignores the receiver   B/v_callback_find, _for_each, _sorted (R2)
+# Red first: on the pre-change build (a06f5b2d) exactly those seven v_ rows fail
+# R2 and every n_ control passes (observed 2026-11-05).
 # Survived, equivalent: M17 (a `let` ignores the control it is declared under).
 # A `let` is scoped to its block, so every way its value leaves (assignment,
 # return, push, a function value made there and called later) already joins

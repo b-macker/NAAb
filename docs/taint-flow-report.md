@@ -84,8 +84,9 @@ network between two statements; the timing of anything.
   does not know.
 - **Part B**, R3: every line the VM refuses in `taint_flow.psv`'s programs is a
   value flow in the report. The other direction found **A120**: two value flows
-  the run lets through -- a stdlib callback's arguments from a tainted list, and
-  a struct field store.
+  the run let through -- a stdlib callback's arguments from a tainted list, and
+  a struct field store. Both are fixed in the run since (2026-11-05); their rows
+  now pin `run` at the flow's line.
 
 - **Part B**, R3 on programs nobody wrote for it: `tools/taintflow/crosscheck.py`
   runs every test program whose own govern.json makes the report list flows and
@@ -167,15 +168,16 @@ report's value flows. Observed:
     and counts (`test_chaos_module_boundary.naab` 17/41/61,
     `test_edge_18_taint_interaction.naab` 63);
   - 2 are the right sink with the location `:0` -- `t ?? "fallback"` as a sink
-    argument loses its line in the run's message (A121(d)); the report has both
-    as value flows at their real lines;
+    argument loses its line in the run's message (A121(d), fixed since: every
+    operator was built with no location, and the VM read an argument's line);
+    the report has both as value flows at their real lines;
   - 3 are the run flagging a clean value by name (A121(a)(b)): a `catch (e)`
     that shadows a tainted `e`, and a same-named variable in another function.
 - The report's **275 value flows** in those programs: 270 flagged by the run,
   2 the `:0` pair, and 3 more:
   - `test_taint_aliasing.naab:334` and `test_subscript_taint.naab:139`, each a
     struct field store passed to a `<<shell[...]>>` block -- the run misses
-    both (A120(b), in two tests nobody wrote for this);
+    both (A120(b), in two tests nobody wrote for this; fixed since);
   - `test_edge_07_bypass_sanitizer.naab:189`, the report's own over-report:
     `if true { t = validate_input(t) }` -- the report does not fold a constant
     condition, so the path that skips the sanitizer counts.
