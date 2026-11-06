@@ -33,7 +33,15 @@
 #   SG-07  the non-zero path reads the same list: a test that throws after the
 #          same line counts as missing executor
 #   SG-07c CONTROL: an old signature on the non-zero path ("Python support not
-#          available") still counts as missing executor -- the refactor kept it
+#          available for expression values") still counts as missing executor
+#   SG-08  the startup warning "Python support not available (Python blocks
+#          disabled)" -- printed on EVERY run of a build without Python, so
+#          every build-windows run -- does not excuse a test with no Python
+#          block: it stays a FAIL (matched alone, it made every failing test
+#          on such a build missing executor, a plain `throw` too: observed on
+#          build-windows, dd8d81b7)
+#   SG-08c CONTROL: the same warning for a test that has a Python block counts
+#          as missing executor (0cf74009's intent)
 #
 # Red first (observed 2026-11-06): against run-all-tests.sh as of 01fb3552
 # (no guard), SG-01, SG-03, SG-03b and SG-04 fail -- SG-05 is that run.
@@ -42,6 +50,14 @@
 #   M64 the pin list ignored                 -> SG-03, SG-03b, SG-04
 #   M66 the exit-0 path skips missing_executor_reason -> SG-06, SG-03b
 #   M67 any language name counts, not only the table's -> SG-06c, SG-03b
+#   M68 the startup warning counts without a Python block -> SG-08, SG-03b
+#   M69 the startup-warning rule dropped                  -> SG-08c, SG-03b
+#   M70 run_test passes no test source to the classifier  -> SG-08c, SG-03b
+#   M71 the Python tags not read from the language table  -> SG-08c, SG-03b
+# Red first for SG-08 (observed 2026-11-06): HEAD bc63a462's runner reads
+# sg_warn_throw.naab as missing executor (SG-08, SG-03b fail). On build-windows,
+# where every run prints that warning, dd8d81b7's runner read every planted
+# test the same way (SG-01, SG-02, SG-03b, SG-06, SG-06c, SG-07; observed).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -122,6 +138,8 @@ PY
     printf 'main {\n    print("No executor found for language: pyton")\n    print("FAIL: clean value blocked")\n}\n' > "$d/tests/bugs/sg_noexec_typo.naab"
     printf 'main {\n    print("No executor found for language: shell")\n    throw "planted"\n}\n' > "$d/tests/bugs/sg_noexec_throw.naab"
     printf 'main {\n    print("Python support not available for expression values")\n    throw "planted"\n}\n' > "$d/tests/bugs/sg_nopy_throw.naab"
+    printf 'main {\n    print("[WARN] Python support not available (Python blocks disabled)")\n    throw "planted"\n}\n' > "$d/tests/bugs/sg_warn_throw.naab"
+    printf 'main {\n    print("[WARN] Python support not available (Python blocks disabled)")\n    if false {\n        let v = <<python\n1\n>>\n    }\n    throw "planted"\n}\n' > "$d/tests/bugs/sg_warn_py_throw.naab"
     if [ "$pinned" = yes ]; then
         printf 'main {\n    print("FAIL: pinned")\n}\n' > "$d/tests/bugs/test_chaos_module_boundary.naab"
     else
@@ -160,10 +178,20 @@ if grep -q '^  XFAIL: test_chaos_module_boundary.naab (prints a failure under ex
 else
     bad SG-03 "the pinned test should be counted known silent" "$(line test_chaos_module_boundary.naab)"
 fi
-if [ "$RC" -ne 0 ] && grep -qE '^  Unexpected fails: 3$' <<<"$OUT"; then
-    ok SG-03b "the run fails on exactly the three failures (sg_silent, sg_throw, sg_noexec_typo)"
+if [ "$RC" -ne 0 ] && grep -qE '^  Unexpected fails: 4$' <<<"$OUT"; then
+    ok SG-03b "the run fails on exactly the four failures (sg_silent, sg_throw, sg_noexec_typo, sg_warn_throw)"
 else
-    bad SG-03b "expected rc!=0 and 3 unexpected fails (rc=$RC)" "$(grep -E 'Unexpected fails|Known silent' <<<"$OUT")"
+    bad SG-03b "expected rc!=0 and 4 unexpected fails (rc=$RC)" "$(grep -E 'Unexpected fails|Known silent' <<<"$OUT")"
+fi
+if grep -q '^  FAIL: sg_warn_throw.naab$' <<<"$OUT"; then
+    ok SG-08 "the build-wide Python warning does not excuse a test with no Python block"
+else
+    bad SG-08 "sg_warn_throw.naab should be a FAIL" "$(line sg_warn_throw.naab)"
+fi
+if grep -q '^  XFAIL: sg_warn_py_throw.naab (missing executor)$' <<<"$OUT"; then
+    ok SG-08c "CONTROL: the same warning excuses a test that has a Python block"
+else
+    bad SG-08c "sg_warn_py_throw.naab should be missing executor" "$(line sg_warn_py_throw.naab)"
 fi
 if [ ! -e "$W/g/build/naab-gov" ]; then
     bad SG-06 "naab-gov not built: the language table is unreadable (UNMEASURABLE, not a pass)"

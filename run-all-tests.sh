@@ -38,33 +38,56 @@ source "tests/helpers/silent_failure.sh"
 # No naab-gov, or a table that cannot be read: the set is empty and that rule
 # never matches (the test stays a FAIL).
 KNOWN_LANGS=" "
+# PYTHON_TAGS: the block tags that name Python (its canonical name and its
+# aliases), from the same table, for missing_executor_reason()'s warning rule.
+PYTHON_TAGS="python py"
 for _gov in ./build/naab-gov ./build/naab-gov.exe; do
     if [ -x "$_gov" ]; then
         _names=$("$_gov" languages 2>/dev/null | python3 -c 'import sys, json
 names = []
+py = []
 for e in json.load(sys.stdin):
     names.append(e["canonical"]); names.extend(e.get("aliases", []))
-sys.stdout.write(" ".join(names))' 2>/dev/null) || _names=""
-        KNOWN_LANGS=" ${_names//$'\r'/} "
+    if e["canonical"] == "python":
+        py = [e["canonical"]] + list(e.get("aliases", []))
+sys.stdout.write(" ".join(names) + "\n" + " ".join(py))' 2>/dev/null) || _names=""
+        _names="${_names//$'\r'/}"
+        KNOWN_LANGS=" ${_names%%$'\n'*} "
+        _py="${_names#*$'\n'}"
+        [ -n "$_py" ] && [ "$_py" != "$_names" ] && PYTHON_TAGS="$_py"
         break
     fi
 done
-unset _gov _names
+unset _gov _names _py
 
-# missing_executor_reason FILE -- if FILE (a test's output) shows that the
-# platform lacks what the test needs, print why and return 0; else return 1.
-# One list for both of run_test()'s branches: a test that exits non-zero, and a
-# test that exits 0 but printed a failure (A123: 27 build-windows tests catch
-# the missing-executor error and print FAIL).
+# missing_executor_reason OUTPUT [TEST] -- if OUTPUT (a test's output) shows
+# that the platform lacks what the test needs, print why and return 0; else
+# return 1. TEST is the test's source. One list for both of run_test()'s
+# branches: a test that exits non-zero, and a test that exits 0 but printed a
+# failure (A123: 27 build-windows tests catch the missing-executor error and
+# print FAIL).
 missing_executor_reason() {
-    local f="$1" lang=""
+    local f="$1" src="${2:-}" lang=""
     [ -f "$f" ] || return 1
-    if grep -q "Python support not available" "$f"; then
-        # Emitted by two build-dependent paths: the tree-walker Interpreter
-        # ctor when <Python.h> was absent at compile time, and (both engines)
-        # the GenericSubprocessExecutor fallback on non-pybind11 builds when
+    if grep -q "Python support not available for expression values" "$f"; then
+        # The GenericSubprocessExecutor fallback on non-pybind11 builds, when
         # an expression-position <<python>> block yields no output (bare
-        # expressions have no value channel without the embedded executor).
+        # expressions have no value channel without the embedded executor):
+        # a Python block needed a value.
+        echo "missing executor"; return 0
+    fi
+    if grep -q "Python support not available" "$f" && [ -n "$src" ] && [ -f "$src" ] && \
+       grep -qE "<<[[:space:]]*(${PYTHON_TAGS// /|})([^A-Za-z0-9_]|\$)" "$src"; then
+        # The Interpreter constructor prints "[WARN] Python support not
+        # available (Python blocks disabled)" on EVERY run of a build without
+        # <Python.h> -- every build-windows run -- so on its own it says
+        # nothing about the test. 0cf74009 meant it for "tests that use Python
+        # polyglot blocks"; matching it alone made every failing .naab test on
+        # such a build a missing-executor XFAIL, a plain `throw` included
+        # (observed on build-windows at dd8d81b7: every planted test of
+        # test_silent_failure_guard.sh; SG-08 reproduces it on Linux by
+        # printing the warning). It counts only for a test whose source has a
+        # Python block -- a tag the language table gives Python (PYTHON_TAGS).
         echo "missing executor"; return 0
     fi
     if grep -q "python execution denied by sandbox" "$f" && \
@@ -485,7 +508,7 @@ run_test() {
         if [ -n "$marker" ] && [ -n "$known" ]; then
             KNOWN_SILENT=$((KNOWN_SILENT + 1))
             echo "  XFAIL: $test_name (prints a failure under exit 0, pinned: $known)"
-        elif [ -n "$marker" ] && reason=$(missing_executor_reason "$output_file"); then
+        elif [ -n "$marker" ] && reason=$(missing_executor_reason "$output_file" "$test_file"); then
             # The failure it printed comes from what the platform lacks -- the
             # same signatures a non-zero exit is judged by. On build-windows 27
             # tests catch the "No executor found for language: shell" error and
@@ -518,7 +541,7 @@ run_test() {
         elif [ "${NEEDS_TREE_WALK_TESTS[$test_name]}" = "1" ]; then
             NEEDS_TREE_WALK=$((NEEDS_TREE_WALK + 1))
             echo "  XFAIL: $test_name (needs --tree-walk)"
-        elif reason=$(missing_executor_reason "$output_file"); then
+        elif reason=$(missing_executor_reason "$output_file" "$test_file"); then
             # The platform lacks what the test needs (missing_executor_reason
             # says which signature matched).
             MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
