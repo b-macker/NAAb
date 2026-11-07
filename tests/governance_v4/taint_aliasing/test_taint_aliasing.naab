@@ -426,8 +426,14 @@ echo $json_str
     }
 
     // E2: json.parse of string built from tainted
+    // The value is pasted into JSON text, so it must be text JSON allows
+    // inside a string. HOME is not on Windows: `D:\a\...` made json.parse
+    // throw before taint was measured, and the run ended there (observed on
+    // build-windows, ae0364a0). A literal set here and read back with env.get
+    // -- this config's taint source -- is tainted the same way on every host.
     total = total + 1
-    let tainted2 = env.get("HOME")
+    env.set("NAAB_TAINT_ALIAS_E2", "e2-probe")
+    let tainted2 = env.get("NAAB_TAINT_ALIAS_E2")
     let built = "{\"v\": \"" + tainted2 + "\"}"
     let parsed = json.parse(built)
     let blocked2 = false
