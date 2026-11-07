@@ -4,19 +4,20 @@ The project owner's ordered plan for governance work. It was recorded on 2026-10
 
 A **bundle** is one branch, one pull request and one validated push. **Confirm a bundle's scope with the owner before starting it.** A finding made along the way is recorded in `docs/open-investigations.md` in the same pull request, and is added to a bundle only by the owner's decision.
 
-## Status (2026-11-04)
+## Status (2026-11-06)
 
 | Bundle | State | Where |
 |---|---|---|
 | 1-5 | merged | git log, CHANGELOG |
 | 6: crash-proof governor, then the planned defaults | merged | #347 (`41a3b3c3`) |
 | 7: release | merged | #348 (`ca07ae12`) tagged v2.0.0; its macOS release build failed, so #349 (`735fa217`) released 2.0.1 |
-| 8: "governance only tightens", proved | merged: PR 1 #352 (`76c871cf`), PR 2 #353 (`fc9b8099`) | Bundle 8 below |
+| 8: "governance only tightens", proved | merged: PR 1 #352 (`76c871cf`), PR 2 #353 (`fc9b8099`). Follow-up PR decided (the owner, 2026-11-06), after Bundle 16 and Bundle 12 PR 3: A95(b) and A98 | Bundle 8 below |
 | 9: adversarial inputs and concurrency | merged | #354 (`7a4c1c50`); A108-A112 |
 | 10: state machines and automata | merged | #355 (`f9337bdf`); A113 |
 | 11: contracts and manifests for LLM-written code | merged, two PRs by the owner's decision (2026-11-01). PR 1 #356 (`703fa6c4`): requires/ensures as NAAb expressions checked by the VM at the call boundary, and the opt-in counterexample search `naab-gov contracts` in a worker; A114. PR 2 #357 (`528fbb59`): the signed capability manifest; A115, A116 | Bundle 11 below |
-| 12: taint as information flow | in progress, two PRs by the owner's decision (2026-11-04). PR 1 (merged, #358): one taint semantics -- one static rule both AST walks share, unknown kinds fail closed, a suite generated from the semantics table; A117. PR 2 (merged, #360): the static noninterference check, an opt-in report, `naab-gov taint`; measured, A120-A122. Follow-up PR 1: A120 and A121(d) fixed, A122(b) and A123 recorded | Bundle 12 below |
-| 13-15 | not started | |
+| 12: taint as information flow | in progress, two PRs by the owner's decision (2026-11-04). PR 1 (merged, #358): one taint semantics -- one static rule both AST walks share, unknown kinds fail closed, a suite generated from the semantics table; A117. PR 2 (merged, #360): the static noninterference check, an opt-in report, `naab-gov taint`; measured, A120-A122. Follow-up PR 1 (merged, #361, `01fb3552`): A120 and A121(d) fixed, A122(b), A123 and A124 recorded. PR 3 decided (the owner, 2026-11-06), after Bundle 16: A121(a)-(c), A124. The control-flow bar waits on Bundle 13 | Bundle 12 below |
+| 16: honest tests and the engine's own child processes | built (2026-11-06), one PR: A123 (13 of 14 tests and the guard; one pinned for Bundle 12 PR 3), A125, A122, A99, A100 fixed; A126 recorded for the owner | Bundle 16 below |
+| 13-15 | not started; Bundle 16 runs first | |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). The bundle plan itself was recorded in #351 (`86fc33c9`).
 
@@ -103,6 +104,11 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
   - A100: whether a non-object `agents` block should be refused (exit 4) instead of warned about;
   - A99: embedded Python's allowlist scrub keeps `LD_LIBRARY_PATH`, which every other child's scrub withholds. It is traced, not measured. Removing it could break Python's own subprocesses on Termux, so it waits for a measurement there.
 
+**Follow-up decided (the owner, 2026-11-06)**, as its own PR after Bundle 16 and Bundle 12 PR 3. It completes the part this bundle left measured but not asserted, "the same property for `extends` merge":
+- **A95(b): an environment may raise the mode, never lower it.** A lower mode in an environment is ignored, with a load warning that names it. Over an enforce file nothing changes (the run still blocks); over an audit file the run gets audit, instead of today's accidental blocking. No tracked config sets an environment's mode below its file's (observed 2026-11-06: none of 404 tracked JSON files sets one to `off`).
+- **A98: the `extends` floor holds for security settings under both strategies**, `parent_wins` and `child_wins`: blocked lists unioned, allowlists intersected (an empty intersection refused at load, never read as unrestricted), switches allowed only when both allow, the stricter level by refusal rank. A child may still tighten, and still change settings that are not security settings. The property harness then ASSERTS the `extends` property instead of measuring it. All 6 tracked `extends` configs use `child_wins` with `replace` (observed 2026-11-06), so this is the case that changes them.
+- A99 and A100 moved to Bundle 16.
+
 **What PR 2 found.** Each finding has a row in `docs/open-investigations.md`.
 - **Fixed in PR 2**, each tightening only:
   - A103: the codegen ratchet read 0 (no cap) as the tightest value of five caps, and the 0 timeout as 0 s instead of the 15 s fallback;
@@ -179,6 +185,39 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
 
 **Progress (2026-11-05, after #360).** The owner's direction: "Do what's decided and let's revisit the others after". Follow-up PR 1: A120 fixed in the VM (a callback gets its call's data taint; a struct field store taints the struct), A121(d) fixed as the wider class it turned out to be (every operator, literal, member access and subscript had no source location, and the VM read a call's line three instructions back), the two tests that carried A120(b) made to fail their run, A122(b) (hooks inherit stdin too) and A123 (sixteen `.naab` tests print failures and exit 0) recorded. For the revisit: A122's fix, A121(a)-(c) (each loosens what the run flags), A123's triage and guard, the control-flow bar, the Bundle 8 leftovers (A95(b), A98, A99, A100) and Bundle 13's scope.
 
+**Decisions (the owner, 2026-11-06).** Follow-up PR 1 merged (#361, `01fb3552`). **PR 3**, after Bundle 16:
+- **A121(a): fix it.** The compiler's compile-time taint names (`tainted_vars_`) get scopes, so every declaration -- a `let`, a parameter, a catch binding, a match binding, a loop variable -- starts its own entry. It lessens what the run flags, so it lands with two rows per shape: the clean case is not flagged, and the tainted case is still refused under both taint origins.
+- **A121(b): reduce first, then decide.** The minimal forms do not reproduce it; the original program does.
+- **A121(c): keep it flagged**, pinned in the table as an accepted over-report: a nested function reads a variable whose taint at call time the compiler cannot know.
+- **A124: fix it**, so A120(a)'s callback taint also reaches callbacks inside an `async fn`.
+- `test_chaos_module_boundary.naab` (A123) is settled with A121.
+
+**The control-flow bar** stays report-only. Nothing refuses a control flow until (1) imported modules are followed (4,855 calls are not followed today); (2) it is measured against Bundle 13's labelled corpus, with a stated catch rate and none of the 23 benign decision points refused; (3) only the narrow shape is refused -- an outbound sink reached under tainted control, with arguments that differ by branch or in a loop over tainted data; (4) a declared exception comes with a ratchet entry, so none can be added mid-run; (5) the key is opt-in and defaults to report. So it follows Bundle 13.
+
+## Bundle 16 -- honest tests and the engine's own child processes (next; runs before Bundle 13)
+
+Added by the owner's decision (2026-11-06). It runs before Bundle 13 because Bundle 13 measures what governance catches, and that measurement is only as good as tests that fail when they fail.
+
+- **A123: every `.naab` test fails its run when it fails.**
+  - Fix the 14 that print a failure and exit 0. Triage (observed 2026-11-06, each run as `run-all-tests.sh` runs it): 8 expect ints from stdout-based executors, a coercion `b44018d4` removed on purpose; 1 checks a message `7b82a8d5` renamed; 1 expects module-relative paths, where the engine resolves against the working directory by design; 1 runs with no govern.json and expects a standard sandbox; 2 wait on A125; 1 (`test_chaos_module_boundary.naab`) is settled with A121 in Bundle 12 PR 3.
+  - A guard in `run_test`: a `.naab` test that exits 0 but prints a failure marker counts as a failure. Controls: a planted silent failure is caught, and a test printing `FAIL: 0` passes.
+- **A125: a JavaScript block that declares a function and ends with a call returns `null`**, on both engines. Fix the executor's wrapping.
+- **A122: the engine's own child processes.**
+  - Prerequisite commands and hooks (POSIX and Windows) start with an empty stdin. Children the program starts (`process.run`, polyglot executors) keep inheriting it: that is the program's stdin to hand on.
+  - Prerequisites run only under `naab-lang run` and its workers. The static `naab-gov` subcommands report them as not run, the rule guidance connectors already follow (`allowExternalGuidance()`). Correct the help text and CLAUDE.md, which call those subcommands static.
+- **A99: one copy of the essential child-environment names.** Embedded Python's list is generated from `essentialChildEnvVars()`, so it stops keeping `LD_LIBRARY_PATH` under the allowlist. The Termux check is for the owner's machine; a failure there fails closed.
+- **A100: a non-object `agents` block refuses the config (exit 4)**, by A111's rule for a restriction in a type its parser does not read. None of the 80 tracked configs with a roles block uses the list form.
+
+**Order** (the owner, 2026-11-06): Bundle 16, then Bundle 12 PR 3, then Bundle 8's follow-up (A95(b), A98).
+
+**Progress (2026-11-06).** Built as one PR; each item's record is in `docs/open-investigations.md`.
+- A123: the 13 tests fail their run when they fail (each made red once); `path_resolution` and `test_python_os_block` became shell suites, because a `.naab` test cannot choose its working directory or sandbox level. The `run_test` guard is live: over the whole `.naab` phase it flagged only the one pinned test, `test_chaos_module_boundary.naab`, which waits on A121.
+- A125 was two defects in one function: the split at the last statement, and declarations wrapped as expressions (a block ending in one never ran).
+- A122: the decided fix, plus the runtime-version probe (the same class: the engine's own child). The static commands that load a config -- signing, the C API, the server processes -- no longer run prerequisites either.
+- A99, A100: as decided; A100's refusal also covers the legacy `agent_roles` key.
+- **The `path` module's Windows contract (A123), decided (the owner, 2026-11-07): always `/`.** The guard's first honest build-windows run failed `tests/stdlib/test_stdlib_path.naab`, which the old Python-warning rule had excused since it was written; the module returned `std::filesystem`'s mixed native form there. Every path function now returns `/` on every host; `is_absolute()` keeps the host's meaning.
+- **Found and not decided: A126** -- `naab-gov lint` fires the project's `on_violation` hook, the hook half of A122(c). Pinned (`test_engine_child_stdin.sh` ES-07), the owner's call.
+
 ## Bundle 13 -- measure what governance catches; help operators
 
 - **A labelled corpus** of good and bad LLM-written code: llm_bridge runs plus `tools/langconform/corpus_diff.py` blocks.
@@ -207,7 +246,6 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
 
 - **Waiting on the owner:**
   - A88: codegen refusals are catchable, and `codegen.level` is inert;
-  - from Bundle 8: A98, A95(b), A100 (refuse or warn), A99 -- see Bundle 8's progress;
   - the 14 compiled-but-unrun test programs, plus the unlinked `naab_testing` library.
 - **Open:** A66, A75(a)(b), A76(e), A70(b)(c), A67, B1, A16/F11/F12, A53, A33(b), D18, and the A64 test debt.
 - **Paused:** the guidance bypass filter.

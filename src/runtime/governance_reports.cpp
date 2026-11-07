@@ -798,12 +798,18 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
                 unsetenv("NAAB_SIGNING_KEY");
             }
 
-            // Redirect stdout+stderr to /dev/null
-            int devnull = open("/dev/null", O_WRONLY);
+            // stdin, stdout and stderr all on the null device. stdin too: a
+            // hook has no use for the run's input, and an inherited pipe let a
+            // hook read what was piped to the program (A122(b)). If the null
+            // device cannot be opened, stdin is closed rather than inherited.
+            int devnull = open("/dev/null", O_RDWR);
             if (devnull >= 0) {
+                dup2(devnull, STDIN_FILENO);
                 dup2(devnull, STDOUT_FILENO);
                 dup2(devnull, STDERR_FILENO);
-                close(devnull);
+                if (devnull > STDERR_FILENO) close(devnull);
+            } else {
+                close(STDIN_FILENO);
             }
 
             // Per-call timeout via alarm (child process — no thread conflicts)
@@ -925,17 +931,21 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
         SECURITY_ATTRIBUTES sa = {};
         sa.nLength = sizeof(sa);
         sa.bInheritHandle = TRUE;
-        HANDLE hNul = ::CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_WRITE,
+        // stdin, stdout and stderr on the null device, as on POSIX: stdin was
+        // the run's own handle, so a hook could read what was piped to the
+        // program (A122(b)). Without the null device the hook still starts,
+        // with no standard handles at all -- never with the run's stdin (its
+        // output is discarded either way).
+        HANDLE hNul = ::CreateFileA("NUL", GENERIC_READ | GENERIC_WRITE,
+                                    FILE_SHARE_READ | FILE_SHARE_WRITE,
                                     &sa, OPEN_EXISTING, 0, nullptr);
 
         STARTUPINFOA si = {};
         si.cb = sizeof(si);
-        if (hNul != INVALID_HANDLE_VALUE) {
-            si.dwFlags = STARTF_USESTDHANDLES;
-            si.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
-            si.hStdOutput = hNul;
-            si.hStdError = hNul;
-        }
+        si.dwFlags = STARTF_USESTDHANDLES;
+        si.hStdInput = hNul;    // INVALID_HANDLE_VALUE when NUL did not open
+        si.hStdOutput = hNul;
+        si.hStdError = hNul;
 
         PROCESS_INFORMATION pi = {};
         std::vector<char> cmdline_buf(cmdline.begin(), cmdline.end());

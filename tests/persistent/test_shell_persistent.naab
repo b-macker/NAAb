@@ -4,6 +4,9 @@
 main {
     let passed = 0
     let total = 0
+    // A stdout-based executor hands back its output as a string: b44018d4
+    // removed the int coercion on purpose (`date +%Y` became an int and broke
+    // string.trim()), so these compare the text the block prints (A123).
 
     // Test 1: Set env var in one block, read in another
     total = total + 1
@@ -44,7 +47,7 @@ main {
     let counter = <<shell
     echo $MY_COUNTER
     >>
-    if (counter == 42) {
+    if (counter == "42") {
         passed = passed + 1
         print("  PASS: Shell variable persists between blocks")
     } else {
@@ -62,7 +65,7 @@ main {
     let accum = <<shell
     echo $ACCUM
     >>
-    if (accum == 11) {
+    if (accum == "11") {
         passed = passed + 1
         print("  PASS: Shell variable accumulation works")
     } else {
@@ -71,4 +74,8 @@ main {
 
     print("")
     print("Shell persistent state: " + ("" + passed) + "/" + ("" + total) + " passed")
+    // A failure must fail the run: run-all-tests.sh reads the exit code (A123).
+    if passed != total {
+        throw "" + (total - passed) + " of " + total + " failed"
+    }
 }

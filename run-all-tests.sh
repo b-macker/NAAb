@@ -28,6 +28,115 @@ restore_trust_store() {
   fi
 }
 trap 'restore_trust_store' EXIT
+# The silent-failure rule run_test() applies to exit-0 runs (A123).
+# shellcheck source=tests/helpers/silent_failure.sh
+source "tests/helpers/silent_failure.sh"
+
+# Every language name the language table knows (canonical names and aliases),
+# from naab-gov. "No executor found for language: X" is an environmental
+# absence only for a real language X -- a misspelled one is the test's defect.
+# No naab-gov, or a table that cannot be read: the set is empty and that rule
+# never matches (the test stays a FAIL).
+KNOWN_LANGS=" "
+# PYTHON_TAGS: the block tags that name Python (its canonical name and its
+# aliases), from the same table, for missing_executor_reason()'s warning rule.
+PYTHON_TAGS="python py"
+for _gov in ./build/naab-gov ./build/naab-gov.exe; do
+    if [ -x "$_gov" ]; then
+        _names=$("$_gov" languages 2>/dev/null | python3 -c 'import sys, json
+names = []
+py = []
+for e in json.load(sys.stdin):
+    names.append(e["canonical"]); names.extend(e.get("aliases", []))
+    if e["canonical"] == "python":
+        py = [e["canonical"]] + list(e.get("aliases", []))
+sys.stdout.write(" ".join(names) + "\n" + " ".join(py))' 2>/dev/null) || _names=""
+        _names="${_names//$'\r'/}"
+        KNOWN_LANGS=" ${_names%%$'\n'*} "
+        _py="${_names#*$'\n'}"
+        [ -n "$_py" ] && [ "$_py" != "$_names" ] && PYTHON_TAGS="$_py"
+        break
+    fi
+done
+unset _gov _names _py
+
+# missing_executor_reason OUTPUT [TEST] -- if OUTPUT (a test's output) shows
+# that the platform lacks what the test needs, print why and return 0; else
+# return 1. TEST is the test's source. One list for both of run_test()'s
+# branches: a test that exits non-zero, and a test that exits 0 but printed a
+# failure (A123: 27 build-windows tests catch the missing-executor error and
+# print FAIL).
+# fail_excerpt FILE -- what a FAIL line shows of a test's output: its first
+# line that is not the startup Python warning (a build without Python prints
+# that first on every run, so on build-windows the old first-line excerpt was
+# the warning for every failure and never the failure -- observed at
+# d0b1c20f), then up to 8 lines naming a failure.
+fail_excerpt() {
+    local f="$1"
+    [ -f "$f" ] || return 0
+    grep -av '^\[WARN\] Python support not available (Python blocks disabled)' "$f" \
+        | head -1 | sed 's/^/       /'
+    grep -aE '\[FAIL\]|FAIL:|FAILED:|Error|error:' "$f" | head -8 | sed 's/^/       | /'
+    return 0
+}
+
+missing_executor_reason() {
+    local f="$1" src="${2:-}" lang=""
+    [ -f "$f" ] || return 1
+    if grep -q "Python support not available for expression values" "$f"; then
+        # The GenericSubprocessExecutor fallback on non-pybind11 builds, when
+        # an expression-position <<python>> block yields no output (bare
+        # expressions have no value channel without the embedded executor):
+        # a Python block needed a value.
+        echo "missing executor"; return 0
+    fi
+    if grep -q "Python support not available" "$f" && [ -n "$src" ] && [ -f "$src" ] && \
+       grep -qE "<<[[:space:]]*(${PYTHON_TAGS// /|})([^A-Za-z0-9_]|\$)" "$src"; then
+        # The Interpreter constructor prints "[WARN] Python support not
+        # available (Python blocks disabled)" on EVERY run of a build without
+        # <Python.h> -- every build-windows run -- so on its own it says
+        # nothing about the test. 0cf74009 meant it for "tests that use Python
+        # polyglot blocks"; matching it alone made every failing .naab test on
+        # such a build a missing-executor XFAIL, a plain `throw` included
+        # (observed on build-windows at dd8d81b7: every planted test of
+        # test_silent_failure_guard.sh; SG-08 reproduces it on Linux by
+        # printing the warning). It counts only for a test whose source has a
+        # Python block -- a tag the language table gives Python (PYTHON_TAGS).
+        echo "missing executor"; return 0
+    fi
+    if grep -q "python execution denied by sandbox" "$f" && \
+       grep -q "governance disables running commands" "$f"; then
+        # Python refused by the shell-off gate. That happens ONLY where python
+        # is a separate process (no embedded Python: Windows, Linux without
+        # pybind11) -- embedded Python runs in-process and is never refused --
+        # and a project that disables shell refuses such runtimes by design.
+        # Platform absence of the in-process executor, the same class as the
+        # Python case above. Python ONLY: the same refusal for cpp/go/rust/...
+        # happens on every build, so a .naab test hitting it is a real change
+        # and must stay a FAIL.
+        echo "missing executor: python is a subprocess here and the shell-off config refuses it"; return 0
+    fi
+    if grep -qE "block failed(: | \(exit code 127\): )'[^']+' could not be run" "$f"; then
+        # A polyglot block whose runtime binary could not be STARTED (exit
+        # 127: not installed / not on PATH) -- the subprocess executors'
+        # environmental-absence message (GenericSubprocessExecutor: tsx,
+        # php, python3; CSharpExecutor: mcs, mono). Those blocks used to
+        # evaluate to null under exit 0, so tests using them "passed" with
+        # the language never run; failing loudly is the fix, and absence of
+        # the compiler is the same class as the Python case above.
+        echo "missing executor: runtime not installed"; return 0
+    fi
+    # No executor is registered for a real language on this build -- the
+    # shell executor on build-windows. Read the language from the first such
+    # line; only a name the language table knows counts.
+    lang=$(grep -a -m1 -oE "No executor found for language: [A-Za-z0-9_+#.-]+" "$f" 2>/dev/null) || lang=""
+    lang="${lang#No executor found for language: }"
+    lang="${lang%$'\r'}"
+    if [ -n "$lang" ] && [[ "$KNOWN_LANGS" == *" $lang "* ]]; then
+        echo "missing executor: no $lang executor on this platform"; return 0
+    fi
+    return 1
+}
 TEST_DIRS=(
     "examples"
     "tests/bugs"
@@ -40,7 +149,6 @@ TEST_DIRS=(
     "tests/fixtures"
     "tests/formatter"
     "tests/llm_patterns"
-    "tests/path_resolution"
     "tests/chapter_verification"
     "tests/governance_v3"
     "tests/governance_v4"
@@ -58,6 +166,7 @@ FAILED=0
 ERROR_BEHAVIOR=0
 MISSING_EXECUTOR=0
 NEEDS_TREE_WALK=0
+KNOWN_SILENT=0
 SKIPPED=0
 TOTAL=0
 
@@ -165,6 +274,15 @@ NEEDS_TREE_WALK_TESTS["multi_language_analytics.naab"]=1      # uses BLOCK-PY-*,
 NEEDS_TREE_WALK_TESTS["web_scraper.naab"]=1                   # uses BLOCK-JS-FORMAT
 
 # Category 3: Files that are NOT standalone tests (should not be run directly)
+# Category: tests that print a failure and exit 0, pinned while their fix is
+# scheduled (A123). run_test() turns an exit-0 run whose output reports a
+# failure (tests/helpers/silent_failure.sh) into a FAIL; an entry here keeps
+# that run out of the failures and says which record owns the fix. An entry
+# whose test stops printing a failure is itself a FAIL, so the entry is
+# removed when the fix lands. Each value names the record and who resolves it.
+declare -A KNOWN_SILENT_FAILURE_TESTS
+KNOWN_SILENT_FAILURE_TESTS["test_chaos_module_boundary.naab"]="A121: a clean value from an imported module flagged at a shell binding; Bundle 12 PR 3"
+
 declare -A SKIP_FILES
 SKIP_FILES["edge_helper_module.naab"]=1   # imported by edge tests, not standalone
 SKIP_FILES["chaos_module_taint.naab"]=1   # imported by chaos tests, not standalone
@@ -394,9 +512,37 @@ run_test() {
     # Run the test with timeout
     local output_file="$HOME/.naab_test_output_$$.txt"
     if timeout "$timeout_duration" "$NAAB_BIN" $gov_flag $sandbox_flag run "$test_file" > "$output_file" 2>&1; then
-        PASSED=$((PASSED + 1))
-        PASSED_TESTS+=("$test_name")
-        echo "  PASS: $test_name"
+        # An exit status of 0 is not a pass when the test's own output reports
+        # a failure: sixteen tests counted their failures, printed them and
+        # exited 0 (A123). The rule is silent_failure_marker().
+        local marker=""
+        marker=$(silent_failure_marker "$output_file") || marker=""
+        local known="${KNOWN_SILENT_FAILURE_TESTS[$test_name]:-}"
+        local reason=""
+        if [ -n "$marker" ] && [ -n "$known" ]; then
+            KNOWN_SILENT=$((KNOWN_SILENT + 1))
+            echo "  XFAIL: $test_name (prints a failure under exit 0, pinned: $known)"
+        elif [ -n "$marker" ] && reason=$(missing_executor_reason "$output_file" "$test_file"); then
+            # The failure it printed comes from what the platform lacks -- the
+            # same signatures a non-zero exit is judged by. On build-windows 27
+            # tests catch the "No executor found for language: shell" error and
+            # print FAIL (observed on 3d0303b7); they passed silently before.
+            MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
+            echo "  XFAIL: $test_name ($reason; it printed a failure under exit 0)"
+        elif [ -n "$marker" ]; then
+            FAILED=$((FAILED + 1))
+            FAILED_TESTS+=("$test_name (exited 0 but printed a failure: ${marker:0:120})")
+            echo "  FAIL: $test_name (exited 0 but printed a failure)"
+            echo "       ${marker:0:200}"
+        elif [ -n "$known" ]; then
+            FAILED=$((FAILED + 1))
+            FAILED_TESTS+=("$test_name (pinned as printing a failure, but printed none: remove its KNOWN_SILENT_FAILURE_TESTS entry)")
+            echo "  FAIL: $test_name (pinned as printing a failure, printed none: remove its entry)"
+        else
+            PASSED=$((PASSED + 1))
+            PASSED_TESTS+=("$test_name")
+            echo "  PASS: $test_name"
+        fi
     else
         local exit_code=$?
         # Check which category this failure belongs to
@@ -409,36 +555,11 @@ run_test() {
         elif [ "${NEEDS_TREE_WALK_TESTS[$test_name]}" = "1" ]; then
             NEEDS_TREE_WALK=$((NEEDS_TREE_WALK + 1))
             echo "  XFAIL: $test_name (needs --tree-walk)"
-        elif [ -f "$output_file" ] && grep -q "Python support not available" "$output_file"; then
-            # Emitted by two build-dependent paths: the tree-walker Interpreter
-            # ctor when <Python.h> was absent at compile time, and (both engines)
-            # the GenericSubprocessExecutor fallback on non-pybind11 builds when
-            # an expression-position <<python>> block yields no output (bare
-            # expressions have no value channel without the embedded executor).
+        elif reason=$(missing_executor_reason "$output_file" "$test_file"); then
+            # The platform lacks what the test needs (missing_executor_reason
+            # says which signature matched).
             MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
-            echo "  XFAIL: $test_name (missing executor)"
-        elif [ -f "$output_file" ] && grep -q "python execution denied by sandbox" "$output_file" && \
-             grep -q "governance disables running commands" "$output_file"; then
-            # Python refused by the shell-off gate. That happens ONLY where python
-            # is a separate process (no embedded Python: Windows, Linux without
-            # pybind11) -- embedded Python runs in-process and is never refused --
-            # and a project that disables shell refuses such runtimes by design.
-            # Platform absence of the in-process executor, the same class as the
-            # Python case above. Python ONLY: the same refusal for cpp/go/rust/...
-            # happens on every build, so a .naab test hitting it is a real change
-            # and must stay a FAIL.
-            MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
-            echo "  XFAIL: $test_name (missing executor: python is a subprocess here and the shell-off config refuses it)"
-        elif [ -f "$output_file" ] && grep -qE "block failed(: | \(exit code 127\): )'[^']+' could not be run" "$output_file"; then
-            # A polyglot block whose runtime binary could not be STARTED (exit
-            # 127: not installed / not on PATH) -- the subprocess executors'
-            # environmental-absence message (GenericSubprocessExecutor: tsx,
-            # php, python3; CSharpExecutor: mcs, mono). Those blocks used to
-            # evaluate to null under exit 0, so tests using them "passed" with
-            # the language never run; failing loudly is the fix, and absence of
-            # the compiler is the same class as the Python case above.
-            MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
-            echo "  XFAIL: $test_name (missing executor: runtime not installed)"
+            echo "  XFAIL: $test_name ($reason)"
         elif [ "${LIVE_AGENT_TESTS[$test_name]}" = "1" ] && [ -f "$output_file" ] && \
              grep -q "Agent error: API key not available" "$output_file"; then
             # Live-agent examples call agent.send() against a real provider and
@@ -465,10 +586,7 @@ run_test() {
             FAILED=$((FAILED + 1))
             FAILED_TESTS+=("$test_name")
             echo "  FAIL: $test_name"
-            # Show first line of error
-            if [ -f "$output_file" ]; then
-                head -1 "$output_file" | sed 's/^/       /'
-            fi
+            fail_excerpt "$output_file"
         fi
     fi
     rm -f "$output_file"
@@ -579,9 +697,7 @@ for f in tests/type_system/valid/*.naab; do
         FAILED=$((FAILED + 1))
         FAILED_TESTS+=("$test_name --strict-types (false positive)")
         echo "  FAIL: $test_name --strict-types — false positive"
-        if [ -f "$output_file" ]; then
-            head -1 "$output_file" | sed 's/^/       /'
-        fi
+        fail_excerpt "$output_file"
     fi
     rm -f "$output_file"
 done
@@ -669,9 +785,7 @@ if [ -d "$VM_TEST_DIR" ]; then
             FAILED=$((FAILED + 1))
             FAILED_TESTS+=("$test_name (--vm)")
             echo "  FAIL: $test_name (--vm)"
-            if [ -f "$output_file" ]; then
-                head -1 "$output_file" | sed 's/^/       /'
-            fi
+            fail_excerpt "$output_file"
         fi
         rm -f "$output_file"
     done
@@ -3116,6 +3230,79 @@ else
     echo "  test_expression_locations.sh: not found, skipping"
 fi
 
+# A JavaScript block's value is its last expression, whatever statements
+# precede it (A125, Bundle 16).
+JSLAST_SCRIPT="tests/vm/test_js_last_expression.sh"
+if [ -f "$JSLAST_SCRIPT" ]; then
+    if run_shell_test "$JSLAST_SCRIPT" 2>&1; then
+        echo "  test_js_last_expression.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_js_last_expression.sh")
+    fi
+else
+    echo "  test_js_last_expression.sh: not found, skipping"
+fi
+
+# A relative path resolves against the working directory, from the entry file
+# and from an imported module alike (A123, Bundle 16; replaced main.naab, which
+# expected module-relative paths and printed its failure under exit 0).
+PATHRES_SCRIPT="tests/path_resolution/test_path_resolution.sh"
+if [ -f "$PATHRES_SCRIPT" ]; then
+    if run_shell_test "$PATHRES_SCRIPT" 2>&1; then
+        echo "  test_path_resolution.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_path_resolution.sh")
+    fi
+else
+    echo "  test_path_resolution.sh: not found, skipping"
+fi
+
+# Embedded Python cannot start a command under a standard sandbox: os.system and
+# subprocess are refused by the audit hook (A123, Bundle 16; replaced the .naab
+# test, which ran unrestricted and printed its failure under exit 0).
+PYOS_SCRIPT="tests/security/test_python_os_block.sh"
+if [ -f "$PYOS_SCRIPT" ]; then
+    if run_shell_test "$PYOS_SCRIPT" 2>&1; then
+        echo "  test_python_os_block.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_python_os_block.sh")
+    fi
+else
+    echo "  test_python_os_block.sh: not found, skipping"
+fi
+
+# The engine's own children (prerequisite commands, hooks) start with the null
+# device as stdin, and prerequisites run only where a program runs (A122,
+# Bundle 16). Needs naab-gov for the static-command arms.
+CHILDSTDIN_SCRIPT="tests/governance_v4/test_engine_child_stdin.sh"
+if [ -f "$CHILDSTDIN_SCRIPT" ]; then
+    if run_shell_test "$CHILDSTDIN_SCRIPT" 2>&1; then
+        echo "  test_engine_child_stdin.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_engine_child_stdin.sh")
+    fi
+else
+    echo "  test_engine_child_stdin.sh: not found, skipping"
+fi
+
+# Embedded Python's allowlist scrub passes the same essential names as every
+# other child's -- essentialChildEnvVars(), one list (A99, Bundle 16).
+PYENVALLOW_SCRIPT="tests/security/test_python_env_allowlist.sh"
+if [ -f "$PYENVALLOW_SCRIPT" ]; then
+    if run_shell_test "$PYENVALLOW_SCRIPT" 2>&1; then
+        echo "  test_python_env_allowlist.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_python_env_allowlist.sh")
+    fi
+else
+    echo "  test_python_env_allowlist.sh: not found, skipping"
+fi
+
 # VM: a callback that throws through native code (sort comparators, array.map_fn,
 # agent tools) must not jump into its caller's handler or leave the VM out of step (A41).
 CBTHROW_SCRIPT="tests/vm/test_callback_throw.sh"
@@ -4569,6 +4756,21 @@ else
     echo "  test_shell_path_handoff.sh: not found, skipping"
 fi
 
+SILENT_FAIL_SCRIPT="tests/self-audit/test_silent_failure_guard.sh"
+if [ -f "$SILENT_FAIL_SCRIPT" ]; then
+    # A .naab test that exits 0 but prints a failure is a FAIL (A123): the
+    # classifier over a table, then this runner's own .naab phase over planted
+    # tests in a scratch tree, with the guard removed as the control.
+    if run_shell_test "$SILENT_FAIL_SCRIPT" 2>&1; then
+        echo "  test_silent_failure_guard.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_silent_failure_guard.sh")
+    fi
+else
+    echo "  test_silent_failure_guard.sh: not found, skipping"
+fi
+
 PIPEFAIL_GREP_SCRIPT="tests/self-audit/test_pipefail_grep.sh"
 if [ -f "$PIPEFAIL_GREP_SCRIPT" ]; then
     # Gate on `PRODUCER | grep -q` under pipefail: false when the producer
@@ -5083,11 +5285,12 @@ echo "  Passed:           $PASSED"
 echo "  Error behavior:   $ERROR_BEHAVIOR (tests designed to exit non-zero)"
 echo "  Missing executor: $MISSING_EXECUTOR (require compilers not on this platform)"
 echo "  Needs tree-walk: $NEEDS_TREE_WALK (use BLOCK-... syntax, VM unsupported)"
+echo "  Known silent:     $KNOWN_SILENT (print a failure under exit 0; pinned, fix scheduled -- KNOWN_SILENT_FAILURE_TESTS)"
 echo "  Unexpected fails: $FAILED"
 if [ $SKIPPED -gt 0 ]; then
     echo "  Skipped:          $SKIPPED (non-standalone files + excluded dirs)"
 fi
-ACCOUNTED=$((PASSED + ERROR_BEHAVIOR + MISSING_EXECUTOR + NEEDS_TREE_WALK))
+ACCOUNTED=$((PASSED + ERROR_BEHAVIOR + MISSING_EXECUTOR + NEEDS_TREE_WALK + KNOWN_SILENT))
 echo ""
 # TOTAL counts .naab programs only, so it is 0 in the shell-only phase — the
 # percentage would divide by zero. Shell suites are judged by $FAILED below,
@@ -5119,7 +5322,7 @@ if [ $FAILED -gt 0 ]; then
     echo ""
     exit 1
 elif [ "$TOTAL" -gt 0 ]; then
-    echo "ALL $TOTAL TESTS ACCOUNTED FOR ($PASSED passed + $ERROR_BEHAVIOR error behavior + $MISSING_EXECUTOR missing executor + $NEEDS_TREE_WALK needs tree-walk)"
+    echo "ALL $TOTAL TESTS ACCOUNTED FOR ($PASSED passed + $ERROR_BEHAVIOR error behavior + $MISSING_EXECUTOR missing executor + $NEEDS_TREE_WALK needs tree-walk + $KNOWN_SILENT known silent)"
     echo ""
     exit 0
 else

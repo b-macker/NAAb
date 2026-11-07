@@ -4,13 +4,16 @@
 main {
     let passed = 0
     let total = 0
+    // A stdout-based executor hands back its output as a string: b44018d4
+    // removed the int coercion on purpose (`date +%Y` became an int and broke
+    // string.trim()), so these compare the text the block prints (A123).
 
     // Test 1: Normal execution works
     total = total + 1
     let a = <<shell
     echo 42
     >>
-    if (a == 42) {
+    if (a == "42") {
         passed = passed + 1
         print("  PASS: Normal shell execution works")
     } else {
@@ -35,7 +38,7 @@ main {
     let b = <<shell
     echo 100
     >>
-    if (b == 100) {
+    if (b == "100") {
         passed = passed + 1
         print("  PASS: Shell works after error in previous block")
     } else {
@@ -66,4 +69,8 @@ main {
 
     print("")
     print("Crash recovery: " + ("" + passed) + "/" + ("" + total) + " passed")
+    // A failure must fail the run: run-all-tests.sh reads the exit code (A123).
+    if passed != total {
+        throw "" + (total - passed) + " of " + total + " failed"
+    }
 }

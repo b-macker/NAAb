@@ -97,8 +97,8 @@ cfg() {  # cfg SINKS_JSON -> a govern.json on stdout
     printf '{"version":"5.0","mode":"enforce","security":{"sandbox_level":"elevated"},"taint_tracking":{"enabled":true,"level":"advisory","sources":["env.get"],"sinks":%s,"sanitizers":["sanitize_"]}}\n' "$1"
 }
 
-# Every naab-gov call is bounded. The report runs nothing of the program, but
-# its config load runs `prerequisites` (C-13 starts one), and an unbounded call
+# Every naab-gov call is bounded. The report runs nothing of the program (and,
+# since A122(c), none of its config's prerequisites; C-13), and an unbounded call
 # that hung would hold this suite's output pipe open after the suite's own
 # timeout killed bash -- a stalled step with no log, instead of a FAIL naming
 # the call. 124 is timeout's exit status.
@@ -317,11 +317,12 @@ out="$(cd "$C/ok" && gov taint flow.naab --bogus 2>&1)"; rc=$?
 if [ "$rc" -eq 4 ]; then ok "C-11" "an unknown option: exit 4"
 else bad "C-11" "expected exit 4, got rc=$rc" "$out"; fi
 
-# C-13: the config load runs `prerequisites`, and a `command` check starts its
-# command with this process's stdin (A122). The report never reads stdin, so the
-# command must get none of the caller's input. `tee got.txt` copies its stdin to
-# got.txt: the file existing proves the check ran (else UNMEASURABLE), and its
-# being empty proves the caller's input did not reach it.
+# C-13: a `command` prerequisite is not started by `naab-gov taint` at all
+# (A122(c), Bundle 16: prerequisites run only where a program runs), and the
+# load says so. Before, every load ran them, with this process's stdin. `tee
+# got.txt` would copy its stdin to got.txt, so got.txt not existing is the
+# claim -- meaningful only with tee on PATH (else UNMEASURABLE); its being run
+# under `naab-lang run` is test_engine_child_stdin.sh ES-04's control.
 mkdir -p "$C/pre"
 python3 -c '
 import json, sys
@@ -333,11 +334,11 @@ printf '%s\n' "$flow" > "$C/pre/p.naab"
 out="$(cd "$C/pre" && gov taint p.naab <<<"PIPED_INPUT_C13" 2>&1)"; rc=$?
 if [ "$rc" -eq 124 ]; then
     bad "C-13" "naab-gov did not finish in ${TF_GOV_TIMEOUT:-60} s with a prerequisite command configured" "$out"
-elif [ ! -f "$C/pre/got.txt" ]; then
-    skip "C-13" "the prerequisite command did not run here (no tee on PATH?) -- cannot observe its stdin"
-elif [ "$rc" -eq 1 ] && ! grep -q "PIPED_INPUT_C13" "$C/pre/got.txt"; then
-    ok "C-13" "a prerequisite command the config load starts gets none of the caller's stdin (A122)"
-else bad "C-13" "rc=$rc; the prerequisite read: [$(head -c 80 "$C/pre/got.txt")]" "$out"; fi
+elif ! command -v tee >/dev/null 2>&1; then
+    skip "C-13" "no tee on PATH -- a prerequisite that did not run cannot be told from one that could not"
+elif [ "$rc" -eq 1 ] && [ ! -e "$C/pre/got.txt" ] && grep -q 'environment prerequisite check(s) not run' <<<"$out"; then
+    ok "C-13" "naab-gov taint starts no prerequisite command, and says so (A122(c))"
+else bad "C-13" "rc=$rc; got.txt $([ -e "$C/pre/got.txt" ] && echo "exists: [$(head -c 80 "$C/pre/got.txt")]" || echo absent)" "$out"; fi
 
 echo ""
 echo "PASS=$PASS FAIL=$FAIL UNMEASURABLE=$SKIP"

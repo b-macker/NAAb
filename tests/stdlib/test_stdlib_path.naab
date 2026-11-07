@@ -1,4 +1,9 @@
+// The path module returns '/' as its separator on every host (the owner's
+// decision, 2026-11-07), so the expected strings below hold on Windows too.
+// What a path means stays the host's: is_absolute() needs a drive there, so
+// the absolute case is a path this host itself calls absolute.
 use path
+use string
 
 function test_basename() {
     let passed = 0
@@ -56,8 +61,9 @@ function test_is_absolute() {
     let total = 0
 
     total = total + 1
-    if path.is_absolute("/usr/bin") { passed = passed + 1 }
-    else { io.println("[FAIL] is_absolute /usr/bin") }
+    let here = path.resolve(".")
+    if path.is_absolute(here) { passed = passed + 1 }
+    else { io.println("[FAIL] is_absolute of resolve(.): " + here) }
 
     total = total + 1
     if path.is_absolute("relative/path") == false { passed = passed + 1 }
@@ -100,6 +106,41 @@ function test_normalize() {
     return [passed, total]
 }
 
+// Separators: what a host writes natively must not leak into the result.
+// On Windows the module used to return "/usr" + backslash + "local" from join
+// and a backslash-only form from normalize (build-windows at c71196cb).
+function test_separators() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let j = path.join("a", "b")
+    if j == "a/b" { passed = passed + 1 }
+    else { io.println("[FAIL] join relative: expected a/b, got " + j) }
+
+    total = total + 1
+    let d = path.dirname(path.join("/foo", "bar", "baz"))
+    if d == "/foo/bar" { passed = passed + 1 }
+    else { io.println("[FAIL] dirname of join: expected /foo/bar, got " + d) }
+
+    total = total + 1
+    let b = path.basename(path.join("/foo", "bar", "baz.txt"))
+    if b == "baz.txt" { passed = passed + 1 }
+    else { io.println("[FAIL] basename of join: expected baz.txt, got " + b) }
+
+    total = total + 1
+    let n = path.normalize(path.join("/a", "b", "..", "c"))
+    if n == "/a/c" { passed = passed + 1 }
+    else { io.println("[FAIL] normalize of join: expected /a/c, got " + n) }
+
+    total = total + 1
+    let r = path.resolve(".")
+    if string.contains(r, "\\") == false { passed = passed + 1 }
+    else { io.println("[FAIL] resolve(.) holds a backslash: " + r) }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -127,6 +168,10 @@ main {
     let r6 = test_normalize()
     total_passed = total_passed + r6[0]
     total_tests = total_tests + r6[1]
+
+    let r7 = test_separators()
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
 
     io.println("stdlib/path: " + ("" + total_passed) + "/" + ("" + total_tests) + " passed")
     if total_passed != total_tests { throw "stdlib test failures" }

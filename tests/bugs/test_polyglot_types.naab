@@ -49,8 +49,10 @@ main {
     let js_empty_arr = <<typescript
 []
     >>
-    if type(js_empty_arr) == "array" {
-        print("  ✅ PASS: Empty JS array converted to array")
+    // TypeScript runs as a subprocess, so its value is the text it prints
+    // (b44018d4): the array arrives as "[]", unchanged (A123).
+    if type(js_empty_arr) == "string" && js_empty_arr == "[]" {
+        print("  ✅ PASS: Empty TypeScript array arrives as its printed text")
         passed_tests = passed_tests + 1
     } else {
         print("  ❌ FAIL: Empty JS array type: ", type(js_empty_arr))
@@ -127,8 +129,8 @@ null
     let js_mixed = <<typescript
 [42, "world", 2.718, false]
     >>
-    if type(js_mixed) == "array" {
-        print("  ✅ PASS: JS mixed array converted")
+    if type(js_mixed) == "string" && js_mixed == "[ 42, 'world', 2.718, false ]" {
+        print("  ✅ PASS: TypeScript mixed array arrives as its printed text")
         passed_tests = passed_tests + 1
     } else {
         print("  ❌ FAIL: JS mixed array type: ", type(js_mixed))
@@ -370,4 +372,8 @@ float('nan')
         print("⚠️  Review failures - potential data loss or crashes!")
     }
     print("═══════════════════════════════════════════════════════════════")
+    // A failure must fail the run: run-all-tests.sh reads the exit code (A123).
+    if failed_tests != 0 {
+        throw "" + failed_tests + " type conversion tests failed"
+    }
 }

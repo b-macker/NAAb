@@ -7392,6 +7392,24 @@ std::string GovernanceEngine::checkRuntimeVersions(const std::string& language,
 // Environment Attestation (Prerequisites)
 // ============================================================================
 
+namespace {
+std::atomic<bool> g_prerequisites_allowed{false};
+std::atomic<bool> g_prerequisites_note_printed{false};
+}  // namespace
+
+void GovernanceEngine::allowPrerequisites(bool on) { g_prerequisites_allowed.store(on); }
+bool GovernanceEngine::prerequisitesAllowed() { return g_prerequisites_allowed.load(); }
+
+void GovernanceEngine::notePrerequisitesNotRun() const {
+    const auto& p = rules().prerequisites;
+    if (!p.enabled || p.checks.empty()) return;
+    if (g_prerequisites_note_printed.exchange(true)) return;
+    fmt::print(stderr,
+               "[governance] Note: {} environment prerequisite check(s) not run: "
+               "they run when a program runs (naab-lang run), and this command runs none.\n",
+               p.checks.size());
+}
+
 std::vector<AttestationResult> GovernanceEngine::runAttestation() {
     attestation_results_.clear();
     attestation_passed_ = true;
@@ -7420,7 +7438,9 @@ std::vector<AttestationResult> GovernanceEngine::runAttestation() {
             }
         } else if (check.type == "python_version") {
             std::string out, err;
-            int rc = naab::runtime::execute_subprocess_with_pipes("python3", {"--version"}, out, err);
+            int rc = naab::runtime::execute_subprocess_with_pipes(
+                "python3", {"--version"}, out, err, nullptr, nullptr,
+                naab::runtime::ChildStdin::Null);
             if (rc == 0) {
                 // "Python 3.11.5\n" → "3.11.5"
                 std::string ver = out;
@@ -7435,7 +7455,9 @@ std::vector<AttestationResult> GovernanceEngine::runAttestation() {
             }
         } else if (check.type == "tool") {
             std::string out, err;
-            int rc = naab::runtime::execute_subprocess_with_pipes("which", {check.name}, out, err);
+            int rc = naab::runtime::execute_subprocess_with_pipes(
+                "which", {check.name}, out, err, nullptr, nullptr,
+                naab::runtime::ChildStdin::Null);
             result.passed = (rc == 0);
             result.observed = result.passed ? "installed" : "<not found>";
         } else if (check.type == "package") {
@@ -7447,7 +7469,9 @@ std::vector<AttestationResult> GovernanceEngine::runAttestation() {
                 std::string out, err;
                 int rc = -1;
                 if (mgr == "pip") {
-                    rc = naab::runtime::execute_subprocess_with_pipes("pip", {"show", pkg}, out, err);
+                    rc = naab::runtime::execute_subprocess_with_pipes(
+                        "pip", {"show", pkg}, out, err, nullptr, nullptr,
+                        naab::runtime::ChildStdin::Null);
                     if (rc == 0) {
                         // Parse "Version: X.Y.Z" from pip show output
                         auto vpos = out.find("Version: ");
@@ -7466,7 +7490,9 @@ std::vector<AttestationResult> GovernanceEngine::runAttestation() {
                         result.passed = false;
                     }
                 } else if (mgr == "npm") {
-                    rc = naab::runtime::execute_subprocess_with_pipes("npm", {"list", pkg, "--depth=0"}, out, err);
+                    rc = naab::runtime::execute_subprocess_with_pipes(
+                        "npm", {"list", pkg, "--depth=0"}, out, err, nullptr, nullptr,
+                        naab::runtime::ChildStdin::Null);
                     result.passed = (rc == 0);
                     result.observed = result.passed ? "installed" : "<not found>";
                 } else {
@@ -7499,8 +7525,12 @@ std::vector<AttestationResult> GovernanceEngine::runAttestation() {
                     std::vector<std::string> remaining(cmd_args.begin() + 1, cmd_args.end());
                     auto containment = naab::runtime::SubprocessContainment::fromCurrentSandbox(cmd);
                     std::string out, err;
+                    // The null device as stdin: a check that a command exists
+                    // has no use for the run's input, and an inherited pipe let
+                    // a prerequisite interpreter read and run it (A122).
                     int rc = naab::runtime::execute_subprocess_with_pipes(
-                        cmd, remaining, out, err, nullptr, &containment);
+                        cmd, remaining, out, err, nullptr, &containment,
+                        naab::runtime::ChildStdin::Null);
                     result.passed = (rc == 0);
                     result.observed = result.passed ? "exit 0" : fmt::format("exit {}", rc);
                 }

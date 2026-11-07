@@ -3,12 +3,15 @@
 main {
     let pass = 0
     let fail = 0
+    // A stdout-based executor hands back its output as a string: b44018d4
+    // removed the int coercion on purpose (`date +%Y` became an int and broke
+    // string.trim()), so these compare the text the block prints (A123).
 
     // Test 1: Basic Go expression (auto-wrapped in package main)
     let r1 = <<go
     2 + 3
     >>
-    if r1 == 5 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 1: got " + r1) }
+    if r1 == "5" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 1: got " + r1) }
 
     // Test 2: Go with explicit package main
     let r2 = <<go
@@ -18,7 +21,7 @@ main {
         fmt.Println(42)
     }
     >>
-    if r2 == 42 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 2: got " + r2) }
+    if r2 == "42" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 2: got " + r2) }
 
     // Test 3: Go multi-line with variable
     let r3 = <<go
@@ -26,7 +29,7 @@ main {
     y := 20
     x + y
     >>
-    if r3 == 30 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 3: got " + r3) }
+    if r3 == "30" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 3: got " + r3) }
 
     // Test 4: Go string result
     let r4 = <<go
@@ -43,20 +46,20 @@ main {
         fmt.Println(result)
     }
     >>
-    if r5 == 56 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 5: got " + r5) }
+    if r5 == "56" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 5: got " + r5) }
 
     // Test 6: Go variable binding from NAAb
     let x = 100
     let r6 = <<go[x]
     x * 2
     >>
-    if r6 == 200 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 6: got " + r6) }
+    if r6 == "200" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 6: got " + r6) }
 
     // Test 7: Go float result
     let r7 = <<go
     3.14
     >>
-    if r7 == 3.14 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 7: got " + r7) }
+    if r7 == "3.14" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 7: got " + r7) }
 
     // Test 8: Go with loop
     let r8 = <<go
@@ -66,12 +69,16 @@ main {
     }
     sum
     >>
-    if r8 == 55 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 8: got " + r8) }
+    if r8 == "55" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 8: got " + r8) }
 
     print("=== Go Executor Tests ===")
     print("PASS: " + pass)
     print("FAIL: " + fail)
     if fail == 0 {
         print("All tests passed!")
+    }
+    // A failure must fail the run: run-all-tests.sh reads the exit code (A123).
+    if fail != 0 {
+        throw "Go executor: " + fail + " failed"
     }
 }

@@ -510,13 +510,14 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
 
         if (policy.active) {
             if (policy.mode == runtime::EnvScrubMode::ALLOWLIST) {
-                // Allowlist: remove everything except allowed + essential vars
+                // Allowlist: remove everything except allowed + essential vars.
+                // The essential names are essentialChildEnvVars(), the list every
+                // other child's scrub uses (subprocessListsScrub). This was a
+                // hand-typed copy that also kept LD_LIBRARY_PATH, which the shared
+                // list withholds as a loader hijack vector (A99).
                 scrub_code << "_naab_allowed = set([";
-                for (const char* v : {"PATH", "HOME", "LANG", "TERM", "TMPDIR",
-                        "TMP", "TEMP", "USER", "LOGNAME", "SHELL", "LC_ALL",
-                        "LC_CTYPE", "XDG_RUNTIME_DIR", "ANDROID_ROOT",
-                        "ANDROID_DATA", "PREFIX", "LD_LIBRARY_PATH"}) {
-                    scrub_code << "'" << v << "',";
+                for (const auto& v : runtime::essentialChildEnvVars()) {
+                    scrub_code << pyStr(v) << ",";
                 }
                 for (const auto& v : policy.allowed_vars) {
                     scrub_code << pyStr(v) << ",";

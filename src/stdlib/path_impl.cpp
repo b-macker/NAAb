@@ -16,6 +16,19 @@ namespace fs = std::filesystem;
 namespace naab {
 namespace stdlib {
 
+// Every path this module returns uses '/' as its separator, on every host
+// (the owner's decision, 2026-11-07). std::filesystem's native form is
+// mixed on Windows: operator/= appends a backslash after what the caller
+// wrote, so join("/usr", "local") was "/usr" + backslash + "local", while
+// lexically_normal() turns every separator into a backslash, so one program
+// built paths that read differently on every host. generic_string() is the
+// native string on POSIX, so nothing changes there; Windows opens a path
+// written with '/'. What a path MEANS stays the host's: is_absolute() still
+// needs a drive on Windows.
+static interpreter::NaabVal pathString(const fs::path& p) {
+    return interpreter::NaabVal::makeString(p.generic_string());
+}
+
 static std::string getString(const interpreter::NaabVal& val) {
     if (!val.isString()) {
         throw std::runtime_error("Expected string value");
@@ -43,31 +56,28 @@ interpreter::NaabVal PathModule::call(
         for (size_t i = 1; i < args.size(); ++i) {
             result /= getString(args[i]);
         }
-        return interpreter::NaabVal::makeString(result.string());
+        return pathString(result);
     }
 
     if (function_name == "dirname") {
         if (args.size() != 1) {
             throw std::runtime_error("path.dirname() takes exactly 1 argument");
         }
-        return interpreter::NaabVal::makeString(
-            fs::path(getString(args[0])).parent_path().string());
+        return pathString(fs::path(getString(args[0])).parent_path());
     }
 
     if (function_name == "basename") {
         if (args.size() != 1) {
             throw std::runtime_error("path.basename() takes exactly 1 argument");
         }
-        return interpreter::NaabVal::makeString(
-            fs::path(getString(args[0])).filename().string());
+        return pathString(fs::path(getString(args[0])).filename());
     }
 
     if (function_name == "extension") {
         if (args.size() != 1) {
             throw std::runtime_error("path.extension() takes exactly 1 argument");
         }
-        return interpreter::NaabVal::makeString(
-            fs::path(getString(args[0])).extension().string());
+        return pathString(fs::path(getString(args[0])).extension());
     }
 
     if (function_name == "resolve") {
@@ -78,10 +88,9 @@ interpreter::NaabVal PathModule::call(
         auto resolved = fs::canonical(getString(args[0]), ec);
         if (ec) {
             // Fall back to absolute if canonical fails (file doesn't exist)
-            return interpreter::NaabVal::makeString(
-                fs::absolute(getString(args[0])).string());
+            return pathString(fs::absolute(getString(args[0])));
         }
-        return interpreter::NaabVal::makeString(resolved.string());
+        return pathString(resolved);
     }
 
     if (function_name == "is_absolute") {
@@ -96,8 +105,7 @@ interpreter::NaabVal PathModule::call(
         if (args.size() != 1) {
             throw std::runtime_error("path.normalize() takes exactly 1 argument");
         }
-        return interpreter::NaabVal::makeString(
-            fs::path(getString(args[0])).lexically_normal().string());
+        return pathString(fs::path(getString(args[0])).lexically_normal());
     }
 
     if (function_name == "exists") {

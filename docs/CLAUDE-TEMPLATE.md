@@ -472,7 +472,7 @@ run, exit, kill, getpid
 
 ### path
 join, dirname, basename, extension, resolve, is_absolute, normalize, exists
-- `path.join("dir", "file.txt")` — OS-aware path joining
+- `path.join("dir", "file.txt")` → `"dir/file.txt"` — every path function returns `/` separators, on Windows too (a drive stays: `"C:/dir/file.txt"`)
 - `path.dirname("/a/b/c")` → `"/a/b"`
 - `path.extension("file.txt")` → `".txt"`
 
@@ -800,13 +800,12 @@ main {
 45. **Import paths are relative to the importing file, NOT the project root.** If both
     `main.naab` and `models.naab` are in `src/`, write `import "models.naab" as models` —
     NOT `import "src/models.naab"`. The `src/` prefix would look for `src/src/models.naab`.
-46. **JavaScript polyglot: if the last expression is multi-line, assign it to a variable.**
+46. **JavaScript polyglot: the block's value is its last expression.**
     The JS executor wraps multi-line code in an IIFE and returns the last expression.
-    When the last expression spans multiple lines (e.g. JSON.stringify with a multi-line
-    object literal), the return capture can fail.
-    WRONG — last expression spans multiple lines:
-      `JSON.stringify({\n    winner: x,\n    margin: 0\n});`
-    RIGHT — assign to variable, bare name on last line:
+    A last expression over several lines (`JSON.stringify({\n    winner: x\n});`) and a
+    function declared and then called (`function f(n) { ... }\nf(21)`) both work. A block
+    whose last statement is a declaration or a loop (`const r = ...`, `for (...) {...}`)
+    has the value null, so put the name on the last line when you want its value:
       `const result = JSON.stringify({ winner: x, margin: 0 });\nresult`
 47. **No ternary operators.** Neither C-style `cond ? a : b` nor Python-style `x if cond else y`
     is valid NAAb syntax. NAAb uses `if` as an expression (prefix form):

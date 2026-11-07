@@ -1153,14 +1153,18 @@ int main(int argc, char** argv) {
             fprintf(stderr, "Approval revoked: %s\n", rule_name.c_str());
             return 0;
         } else if (arg == "--attest") {
-            // Environment Attestation: verify prerequisites from govern.json
+            // Environment Attestation: verify prerequisites from govern.json.
+            // This command exists to run them (A122(c)): the load runs them
+            // once, and this prints what it found. It used to run them a
+            // second time here, so every command started twice.
+            naab::governance::GovernanceEngine::allowPrerequisites(true);
             naab::governance::GovernanceEngine gov;
             gov.discoverAndLoad(".");
             if (!gov.isActive()) {
                 fprintf(stderr, "No govern.json found or governance is disabled\n");
                 return 4;
             }
-            auto results = gov.runAttestation();
+            const auto& results = gov.attestationResults();
             if (results.empty()) {
                 fprintf(stdout, "No prerequisites configured\n");
                 return 0;
@@ -1684,6 +1688,9 @@ int main(int argc, char** argv) {
         // the operator's, not one the program's env.set changed. A lint-only
         // run executes nothing and fetches nothing.
         if (!lint_only) naab::governance::GovernanceEngine::allowExternalGuidance(true);
+        // Prerequisite checks start commands, so they run only where a program
+        // runs, on the same terms as the guidance connectors (A122(c)).
+        if (!lint_only) naab::governance::GovernanceEngine::allowPrerequisites(true);
 
         naab::governance::GovernanceEngine shared_governance;
         auto gov_abs_file = std::filesystem::absolute(filename);

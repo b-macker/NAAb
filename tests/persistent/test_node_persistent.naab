@@ -4,6 +4,9 @@
 main {
     let passed = 0
     let total = 0
+    // A stdout-based executor hands back its output as a string: b44018d4
+    // removed the int coercion on purpose (`date +%Y` became an int and broke
+    // string.trim()), so these compare the text the block prints (A123).
 
     // Test 1: Define variable in one block, read in another
     total = total + 1
@@ -11,7 +14,7 @@ main {
     var counter = 1;
     counter
     >>
-    if (a == 1) {
+    if (a == "1") {
         passed = passed + 1
         print("  PASS: Node var defined and returned")
     } else {
@@ -24,7 +27,7 @@ main {
     counter += 10;
     counter
     >>
-    if (b == 11) {
+    if (b == "11") {
         passed = passed + 1
         print("  PASS: Node var persists between blocks")
     } else {
@@ -39,7 +42,7 @@ main {
     let c = <<node
     double(counter)
     >>
-    if (c == 22) {
+    if (c == "22") {
         passed = passed + 1
         print("  PASS: Node function persists between blocks")
     } else {
@@ -52,7 +55,7 @@ main {
     console.log("hello from node");
     42
     >>
-    if (d == 42) {
+    if (d == "42") {
         passed = passed + 1
         print("  PASS: Console.log + return value works")
     } else {
@@ -61,4 +64,8 @@ main {
 
     print("")
     print("Node persistent state: " + ("" + passed) + "/" + ("" + total) + " passed")
+    // A failure must fail the run: run-all-tests.sh reads the exit code (A123).
+    if passed != total {
+        throw "" + (total - passed) + " of " + total + " failed"
+    }
 }
