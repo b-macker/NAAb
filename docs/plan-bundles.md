@@ -215,6 +215,7 @@ Added by the owner's decision (2026-11-06). It runs before Bundle 13 because Bun
 - A125 was two defects in one function: the split at the last statement, and declarations wrapped as expressions (a block ending in one never ran).
 - A122: the decided fix, plus the runtime-version probe (the same class: the engine's own child). The static commands that load a config -- signing, the C API, the server processes -- no longer run prerequisites either.
 - A99, A100: as decided; A100's refusal also covers the legacy `agent_roles` key.
+- **The `path` module's Windows contract (A123), decided (the owner, 2026-11-07): always `/`.** The guard's first honest build-windows run failed `tests/stdlib/test_stdlib_path.naab`, which the old Python-warning rule had excused since it was written; the module returned `std::filesystem`'s mixed native form there. Every path function now returns `/` on every host; `is_absolute()` keeps the host's meaning.
 - **Found and not decided: A126** -- `naab-gov lint` fires the project's `on_violation` hook, the hook half of A122(c). Pinned (`test_engine_child_stdin.sh` ES-07), the owner's call.
 
 ## Bundle 13 -- measure what governance catches; help operators

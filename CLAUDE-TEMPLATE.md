@@ -472,7 +472,7 @@ run, exit, kill, getpid
 
 ### path
 join, dirname, basename, extension, resolve, is_absolute, normalize, exists
-- `path.join("dir", "file.txt")` — OS-aware path joining
+- `path.join("dir", "file.txt")` → `"dir/file.txt"` — every path function returns `/` separators, on Windows too (a drive stays: `"C:/dir/file.txt"`)
 - `path.dirname("/a/b/c")` → `"/a/b"`
 - `path.extension("file.txt")` → `".txt"`
 
