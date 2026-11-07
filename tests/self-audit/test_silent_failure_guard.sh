@@ -42,6 +42,9 @@
 #          build-windows, dd8d81b7)
 #   SG-08c CONTROL: the same warning for a test that has a Python block counts
 #          as missing executor (0cf74009's intent)
+#   SG-08e the FAIL line's excerpt is the failure, not the startup warning (the
+#          first-line excerpt showed only the warning for every build-windows
+#          failure, so the log never said why a test failed; observed d0b1c20f)
 #
 # Red first (observed 2026-11-06): against run-all-tests.sh as of 01fb3552
 # (no guard), SG-01, SG-03, SG-03b and SG-04 fail -- SG-05 is that run.
@@ -54,6 +57,7 @@
 #   M69 the startup-warning rule dropped                  -> SG-08c, SG-03b
 #   M70 run_test passes no test source to the classifier  -> SG-08c, SG-03b
 #   M71 the Python tags not read from the language table  -> SG-08c, SG-03b
+#   M72 the FAIL excerpt back to `head -1`                 -> SG-08e
 # Red first for SG-08 (observed 2026-11-06): HEAD bc63a462's runner reads
 # sg_warn_throw.naab as missing executor (SG-08, SG-03b fail). On build-windows,
 # where every run prints that warning, dd8d81b7's runner read every planted
@@ -187,6 +191,14 @@ if grep -q '^  FAIL: sg_warn_throw.naab$' <<<"$OUT"; then
     ok SG-08 "the build-wide Python warning does not excuse a test with no Python block"
 else
     bad SG-08 "sg_warn_throw.naab should be a FAIL" "$(line sg_warn_throw.naab)"
+fi
+# What the FAIL line shows: the old first-line excerpt was the warning itself
+# on every build-windows failure (observed at d0b1c20f), never the failure.
+EXC=$(grep -A1 '^  FAIL: sg_warn_throw.naab$' <<<"$OUT" | tail -1)
+if grep -q 'planted' <<<"$EXC" && ! grep -q 'Python support not available' <<<"$EXC"; then
+    ok SG-08e "the FAIL excerpt skips the startup warning and shows the failure"
+else
+    bad SG-08e "the FAIL excerpt should show the throw, not the warning" "$EXC"
 fi
 if grep -q '^  XFAIL: sg_warn_py_throw.naab (missing executor)$' <<<"$OUT"; then
     ok SG-08c "CONTROL: the same warning excuses a test that has a Python block"

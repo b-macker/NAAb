@@ -66,6 +66,20 @@ unset _gov _names _py
 # branches: a test that exits non-zero, and a test that exits 0 but printed a
 # failure (A123: 27 build-windows tests catch the missing-executor error and
 # print FAIL).
+# fail_excerpt FILE -- what a FAIL line shows of a test's output: its first
+# line that is not the startup Python warning (a build without Python prints
+# that first on every run, so on build-windows the old first-line excerpt was
+# the warning for every failure and never the failure -- observed at
+# d0b1c20f), then up to 8 lines naming a failure.
+fail_excerpt() {
+    local f="$1"
+    [ -f "$f" ] || return 0
+    grep -av '^\[WARN\] Python support not available (Python blocks disabled)' "$f" \
+        | head -1 | sed 's/^/       /'
+    grep -aE '\[FAIL\]|FAIL:|FAILED:|Error|error:' "$f" | head -8 | sed 's/^/       | /'
+    return 0
+}
+
 missing_executor_reason() {
     local f="$1" src="${2:-}" lang=""
     [ -f "$f" ] || return 1
@@ -572,10 +586,7 @@ run_test() {
             FAILED=$((FAILED + 1))
             FAILED_TESTS+=("$test_name")
             echo "  FAIL: $test_name"
-            # Show first line of error
-            if [ -f "$output_file" ]; then
-                head -1 "$output_file" | sed 's/^/       /'
-            fi
+            fail_excerpt "$output_file"
         fi
     fi
     rm -f "$output_file"
@@ -686,9 +697,7 @@ for f in tests/type_system/valid/*.naab; do
         FAILED=$((FAILED + 1))
         FAILED_TESTS+=("$test_name --strict-types (false positive)")
         echo "  FAIL: $test_name --strict-types — false positive"
-        if [ -f "$output_file" ]; then
-            head -1 "$output_file" | sed 's/^/       /'
-        fi
+        fail_excerpt "$output_file"
     fi
     rm -f "$output_file"
 done
@@ -776,9 +785,7 @@ if [ -d "$VM_TEST_DIR" ]; then
             FAILED=$((FAILED + 1))
             FAILED_TESTS+=("$test_name (--vm)")
             echo "  FAIL: $test_name (--vm)"
-            if [ -f "$output_file" ]; then
-                head -1 "$output_file" | sed 's/^/       /'
-            fi
+            fail_excerpt "$output_file"
         fi
         rm -f "$output_file"
     done
