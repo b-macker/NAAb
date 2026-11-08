@@ -260,6 +260,55 @@ TEST(ArrayModuleTest, Reverse) {
     EXPECT_EQ(*first, 3);
 }
 
+// A124: a comparator the module cannot call is refused, not ignored. Inside a
+// VM async fn the module had no evaluator, and sort returned the default order
+// as if the comparator had run.
+static std::vector<int> intsOf(const NaabVal& v) {
+    std::vector<int> out;
+    for (const auto& e : v.asListConst()) out.push_back(static_cast<int>(e.asInt()));
+    return out;
+}
+
+TEST(ArrayModuleTest, SortRefusesComparatorWithoutEvaluator) {
+    for (const char* fn : {"sort", "sorted"}) {
+        ArrayModule mod;  // no evaluator set
+        std::vector<NaabVal> args{NaabVal::makeList({NaabVal::makeInt(1), NaabVal::makeInt(2)}),
+                                  NaabVal::makeString("cmp")};
+        try {
+            mod.call(fn, args);
+            ADD_FAILURE() << fn << " with a comparator and no evaluator returned instead of refusing";
+        } catch (const std::runtime_error& e) {
+            EXPECT_NE(std::string(e.what()).find("requires function evaluator"), std::string::npos)
+                << fn << ": " << e.what();
+        }
+    }
+}
+
+TEST(ArrayModuleTest, SortWithoutComparatorNeedsNoEvaluator) {
+    // Control: the refusal is about the comparator, not every sort.
+    for (const char* fn : {"sort", "sorted"}) {
+        ArrayModule mod;
+        std::vector<NaabVal> args{NaabVal::makeList({NaabVal::makeInt(2), NaabVal::makeInt(1)})};
+        EXPECT_EQ(intsOf(mod.call(fn, args)), (std::vector<int>{1, 2})) << fn;
+    }
+}
+
+TEST(ArrayModuleTest, SortCallsComparatorThroughEvaluator) {
+    // Control: with an evaluator the comparator decides the order (descending).
+    for (const char* fn : {"sort", "sorted"}) {
+        ArrayModule mod;
+        int calls = 0;
+        mod.setFunctionEvaluator([&calls](NaabVal, const std::vector<NaabVal>& a) {
+            ++calls;
+            return NaabVal::makeInt(a[1].asInt() - a[0].asInt());
+        });
+        std::vector<NaabVal> args{NaabVal::makeList({NaabVal::makeInt(1), NaabVal::makeInt(2)}),
+                                  NaabVal::makeString("cmp")};
+        EXPECT_EQ(intsOf(mod.call(fn, args)), (std::vector<int>{2, 1})) << fn;
+        EXPECT_GT(calls, 0) << fn;
+    }
+}
+
 TEST(ArrayModuleTest, Contains) {
     ArrayModule mod;
     auto arr = makeArray({makeInt(1), makeInt(2), makeInt(3)});

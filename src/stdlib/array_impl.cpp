@@ -444,7 +444,17 @@ interpreter::NaabVal ArrayModule::call(
         }
         auto& arr = args[0].asList();
 
-        if (args.size() == 2 && evaluator_) {
+        // A comparator this module cannot call is refused, not ignored: the
+        // default order looked like a result (A124: inside a VM async fn the
+        // module had no evaluator, and the comparator was dropped silently).
+        if (args.size() == 2 && !evaluator_) {
+            throw std::runtime_error(
+                "Internal error: array.sort requires function evaluator to call its comparator\n\n"
+                "  This is likely a bug in the NAAb interpreter.\n"
+                "  Please report this issue.\n"
+            );
+        }
+        if (args.size() == 2) {
             // Sort with comparator function
             // V-UB-001: Wrap in try/catch to prevent UB from exceptions mid-sort,
             // and validate return type to maintain strict weak ordering.
@@ -497,7 +507,17 @@ interpreter::NaabVal ArrayModule::call(
         // Copy the array
         auto arr = getArray(args[0]);
 
-        if (args.size() == 2 && evaluator_) {
+        // A comparator this module cannot call is refused, not ignored: the
+        // default order looked like a result (A124: inside a VM async fn the
+        // module had no evaluator, and the comparator was dropped silently).
+        if (args.size() == 2 && !evaluator_) {
+            throw std::runtime_error(
+                "Internal error: array.sorted requires function evaluator to call its comparator\n\n"
+                "  This is likely a bug in the NAAb interpreter.\n"
+                "  Please report this issue.\n"
+            );
+        }
+        if (args.size() == 2) {
             auto comp_fn = args[1];
             bool sort_error = false;
             // What the comparator threw, rethrown once std::sort has returned.

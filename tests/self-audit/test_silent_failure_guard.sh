@@ -111,8 +111,10 @@ if [ ! -x "$NAAB" ] && [ ! -x "$NAAB.exe" ]; then
 fi
 
 # tree DIR GUARD(yes|no) PINNED_PRINTS(yes|no): a scratch repo root running
-# run-all-tests.sh's .naab phase. The pinned name is the real pin's, so the
-# real KNOWN_SILENT_FAILURE_TESTS entry is what is exercised.
+# run-all-tests.sh's .naab phase. The scratch copy gets a planted pin,
+# sg_pinned.naab, after the real `declare -A KNOWN_SILENT_FAILURE_TESTS`, so
+# the real lookup is what is exercised; the real map can be empty (it is since
+# Bundle 12 PR 3 removed the last pin, test_chaos_module_boundary.naab, A121).
 tree() {
     local d="$1" guard="$2" pinned="$3"
     mkdir -p "$d/build" "$d/tests/bugs" "$d/tests/helpers" "$d/home"
@@ -124,6 +126,7 @@ tree() {
     cp "$REPO/tests/helpers/silent_failure.sh" "$d/tests/helpers/"
     if [ "$guard" = yes ]; then
         cp "$REPO/run-all-tests.sh" "$d/run-all-tests.sh"
+        plant_pin "$d/run-all-tests.sh" || return 1
     else
         # The guard removed: an exit-0 run is a pass, as before A123.
         python3 - "$REPO/run-all-tests.sh" "$d/run-all-tests.sh" <<'PY' || return 1
@@ -134,6 +137,7 @@ s = s.replace('local known="${KNOWN_SILENT_FAILURE_TESTS[$test_name]:-}"', 'loca
 open(sys.argv[2], "w", encoding="utf-8").write(s)
 PY
         grep -q 'marker=""$' "$d/run-all-tests.sh" || return 1
+        plant_pin "$d/run-all-tests.sh" || return 1
     fi
     printf 'main {\n    print("PASS: 3")\n    print("FAIL: 0")\n}\n' > "$d/tests/bugs/sg_clean.naab"
     printf 'main {\n    print("FAIL: planted")\n}\n' > "$d/tests/bugs/sg_silent.naab"
@@ -145,10 +149,25 @@ PY
     printf 'main {\n    print("[WARN] Python support not available (Python blocks disabled)")\n    throw "planted"\n}\n' > "$d/tests/bugs/sg_warn_throw.naab"
     printf 'main {\n    print("[WARN] Python support not available (Python blocks disabled)")\n    if false {\n        let v = <<python\n1\n>>\n    }\n    throw "planted"\n}\n' > "$d/tests/bugs/sg_warn_py_throw.naab"
     if [ "$pinned" = yes ]; then
-        printf 'main {\n    print("FAIL: pinned")\n}\n' > "$d/tests/bugs/test_chaos_module_boundary.naab"
+        printf 'main {\n    print("FAIL: pinned")\n}\n' > "$d/tests/bugs/sg_pinned.naab"
     else
-        printf 'main {\n    print("all good")\n}\n' > "$d/tests/bugs/test_chaos_module_boundary.naab"
+        printf 'main {\n    print("all good")\n}\n' > "$d/tests/bugs/sg_pinned.naab"
     fi
+}
+# plant_pin FILE: add the planted entry right after the real declaration; a
+# copy without the declaration cannot be built (every arm reading it fails).
+plant_pin() {
+    python3 - "$1" <<'PY' || return 1
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+decl = "declare -A KNOWN_SILENT_FAILURE_TESTS\n"
+if decl not in s:
+    sys.exit(1)
+s = s.replace(decl, decl + 'KNOWN_SILENT_FAILURE_TESTS["sg_pinned.naab"]="A000: planted pin (test_silent_failure_guard.sh)"\n', 1)
+open(p, "w", encoding="utf-8").write(s)
+PY
+    grep -q '^KNOWN_SILENT_FAILURE_TESTS\["sg_pinned.naab"\]' "$1"
 }
 OUT=""; RC=0
 runner() {  # runner DIR GUARD PINNED -> OUT, RC; a tree that cannot be built
@@ -176,11 +195,11 @@ if grep -q '^  FAIL: sg_throw.naab$' <<<"$OUT"; then
 else
     bad SG-02 "sg_throw.naab should be a FAIL" "$(line sg_throw.naab)"
 fi
-if grep -q '^  XFAIL: test_chaos_module_boundary.naab (prints a failure under exit 0, pinned: A121' <<<"$OUT" \
+if grep -q '^  XFAIL: sg_pinned.naab (prints a failure under exit 0, pinned: A000' <<<"$OUT" \
    && grep -qE '^  Known silent: +1 ' <<<"$OUT"; then
     ok SG-03 "a pinned test printing a failure is counted known silent, with its record"
 else
-    bad SG-03 "the pinned test should be counted known silent" "$(line test_chaos_module_boundary.naab)"
+    bad SG-03 "the pinned test should be counted known silent" "$(line sg_pinned.naab)"
 fi
 if [ "$RC" -ne 0 ] && grep -qE '^  Unexpected fails: 4$' <<<"$OUT"; then
     ok SG-03b "the run fails on exactly the four failures (sg_silent, sg_throw, sg_noexec_typo, sg_warn_throw)"
@@ -229,10 +248,10 @@ else
 fi
 
 runner "$W/u" yes no
-if grep -q '^  FAIL: test_chaos_module_boundary.naab (pinned as printing a failure, printed none: remove its entry)$' <<<"$OUT"; then
+if grep -q '^  FAIL: sg_pinned.naab (pinned as printing a failure, printed none: remove its entry)$' <<<"$OUT"; then
     ok SG-04 "a pinned test that prints no failure is a FAIL (remove the pin)"
 else
-    bad SG-04 "the pinned test printing nothing should be a FAIL" "$(line test_chaos_module_boundary.naab)"
+    bad SG-04 "the pinned test printing nothing should be a FAIL" "$(line sg_pinned.naab)"
 fi
 
 runner "$W/n" no yes

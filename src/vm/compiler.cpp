@@ -65,6 +65,10 @@ CompiledFunction* Compiler::endFunction() {
         fn->local_names[i] = current_->locals[i].name;
     }
 
+    // The function's own locals (its parameters and slot 0 at least) give
+    // their names' compile-time taint back to the enclosing code (A121(a)).
+    while (!current_->locals.empty()) popLocal();
+
     CompilerState* old = current_;
     current_ = current_->enclosing;
     delete old;
@@ -166,7 +170,7 @@ void Compiler::releaseExprTempSlots(int n) {
     for (int i = 0; i < n; i++) {
         if (current_->locals.empty() || current_->locals.back().name != kTempSlotName)
             throw std::runtime_error("Compiler error: expression temporaries out of step");
-        current_->locals.pop_back();
+        popLocal();
     }
     current_->expr_temps = n;
 }
@@ -183,7 +187,7 @@ void Compiler::endScope() {
         } else {
             emitOp(OpCode::OP_POP, 0);
         }
-        current_->locals.pop_back();
+        popLocal();
     }
 }
 
@@ -192,8 +196,23 @@ int Compiler::addLocal(const std::string& name) {
     local.name = name;
     local.depth = -1;  // Not yet initialized
     local.is_captured = false;
+    // A121(a): a declaration is a new variable. The compile-time taint names
+    // were one flat map, written only by a `let` and an assignment, so a
+    // parameter, a catch or match binding, a loop variable or an inner `let`
+    // of a name read the state of the outer variable of that name -- a clean
+    // value flagged -- and an inner `let` wrote over it for the rest of the
+    // function. Start clean; popLocal() puts the outer state back.
+    local.outer_tainted = tainted_vars_.count(name) > 0;
+    tainted_vars_.erase(name);
     current_->locals.push_back(std::move(local));
     return static_cast<int>(current_->locals.size()) - 1;
+}
+
+void Compiler::popLocal() {
+    const auto& local = current_->locals.back();
+    if (local.outer_tainted) tainted_vars_[local.name] = true;
+    else tainted_vars_.erase(local.name);
+    current_->locals.pop_back();
 }
 
 void Compiler::markInitialized() {
@@ -681,14 +700,12 @@ void Compiler::visit(ast::VarDeclStmt& node) {
         // Finding G: check tainted RHS against sink policy at assignment point
         int tca_idx = identifierConstant(node.getName());
         emitWide(OpCode::OP_GOV_TAINT_CHECK_ASSIGN, static_cast<uint32_t>(tca_idx), line);
-        markVarTainted(node.getName());
     } else if (governance_ && governance_->isActive()) {
         // Emit OP_GOV_TAINT_CLEAR to clear runtime taint on TOS when RHS is a
         // sanitizer call. This mirrors the tree-walker's clearTaint() behavior.
         if (rhs_is_sanitizer) {
             emitOp(OpCode::OP_GOV_TAINT_CLEAR, line);
         }
-        clearVarTaint(node.getName());
     }
 
     if (current_->scope_depth > 0) {
@@ -699,6 +716,13 @@ void Compiler::visit(ast::VarDeclStmt& node) {
         // Global variable
         int name_idx = identifierConstant(node.getName());
         emitWide(OpCode::OP_DEFINE_GLOBAL, static_cast<uint32_t>(name_idx), line);
+    }
+    // The new variable's compile-time taint, written after addLocal() has
+    // recorded the outer variable's (A121(a)).
+    if (rhs_tainted) {
+        markVarTainted(node.getName());
+    } else if (governance_ && governance_->isActive()) {
+        clearVarTaint(node.getName());
     }
 }
 
@@ -1618,8 +1642,8 @@ void Compiler::visit(ast::ForStmt& node) {
     emitOp(OpCode::OP_POP, line);
     emitOp(OpCode::OP_POP, line);
     // Remove the anonymous iterator locals
-    current_->locals.pop_back(); // __iter_idx__
-    current_->locals.pop_back(); // __iter_list__
+    popLocal(); // __iter_idx__
+    popLocal(); // __iter_list__
 }
 
 void Compiler::visit(ast::ImportStmt& node) {
@@ -2139,7 +2163,7 @@ void Compiler::visit(ast::MatchExpr& node) {
 
                 // Compile-time: remove all bindings from compiler locals (once)
                 for (int i = 0; i < num_elems; i++) {
-                    current_->locals.pop_back();
+                    popLocal();
                 }
             } else if (is_binding) {
                 // Variable binding: bind subject to name, then optionally check guard
@@ -2174,7 +2198,7 @@ void Compiler::visit(ast::MatchExpr& node) {
                 }
 
                 // Single compile-time cleanup of binding local
-                current_->locals.pop_back();
+                popLocal();
             } else {
                 // Compare subject == pattern
                 emitWide(OpCode::OP_GET_LOCAL, static_cast<uint32_t>(subject_slot), line);
@@ -2244,7 +2268,7 @@ void Compiler::visit(ast::MatchExpr& node) {
     emitOp(OpCode::OP_POP, line);
     // Stack: [..., result@N] — subject slot now holds the match result
     emitCondTaint(2, line);
-    current_->locals.pop_back();
+    popLocal();
     releaseExprTempSlots(temp_slots);
 }
 

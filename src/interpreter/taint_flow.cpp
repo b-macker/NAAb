@@ -678,10 +678,22 @@ private:
                     st_.scopes.emplace_back();
                     Label here = armpc;
                     if (arm.pattern) {
-                        if (auto* id = dynamic_cast<ast::IdentifierExpr*>(arm.pattern.get()))
+                        if (auto* id = dynamic_cast<ast::IdentifierExpr*>(arm.pattern.get())) {
                             declare(id->getName(), s);  // a bare name binds the subject
-                        else
+                        } else if (auto* lp = dynamic_cast<ast::ListExpr*>(arm.pattern.get())) {
+                            // A list pattern binds each bare-name element to an element
+                            // of the subject, and compares the others with it; it used
+                            // to be read as an expression, so `[a, b]` read the OUTER a
+                            // (A121(a), as the shared rule's matchPatternBinders()).
+                            for (const auto& el : lp->getElements()) {
+                                if (auto* eid = dynamic_cast<ast::IdentifierExpr*>(el.get()))
+                                    declare(eid->getName(), s);
+                                else
+                                    here = controlFrom(here, eval(el.get(), armpc), "a match pattern", line);
+                            }
+                        } else {
                             here = controlFrom(here, eval(arm.pattern.get(), armpc), "a match pattern", line);
+                        }
                     }
                     if (arm.guard) {
                         Label g = eval(arm.guard.get(), here);

@@ -7904,20 +7904,28 @@ void GovernanceEngine::addPolyglotExecution(const PolyglotExecutionRecord& recor
     if (polyglot_executions_.size() > 1) {
         for (size_t prev = 0; prev < polyglot_executions_.size() - 1; ++prev) {
             const auto& prev_rec = polyglot_executions_[prev];
-            for (const auto& var : record.bound_vars) {
-                // If this var was output by a previous block, record a cross-block flow
-                if (!prev_rec.captured_output.empty()) {
-                    CrossBlockFlow flow;
-                    flow.from_block_line = prev_rec.source_line;
-                    flow.from_language = prev_rec.language;
-                    flow.to_block_line = record.source_line;
-                    flow.to_language = record.language;
-                    flow.vars.push_back(var);
-                    flow.sanitized = !isTainted(var);
-                    cross_block_flows_.push_back(flow);
-                    break;  // One flow record per previous block
-                }
+            // One flow record per previous block that produced output, carrying
+            // every bound variable. It is unsanitized when ANY of them is
+            // tainted: it used to be judged by the first bound variable alone,
+            // so binding [clean, tainted] passed a gate that refused [tainted,
+            // clean] (A127; written that way when the audit was advisory only,
+            // 56f25210, and made blocking by gate_cross_block, 3e3013dd).
+            if (prev_rec.captured_output.empty() || record.bound_vars.empty()) continue;
+            CrossBlockFlow flow;
+            flow.from_block_line = prev_rec.source_line;
+            flow.from_language = prev_rec.language;
+            flow.to_block_line = record.source_line;
+            flow.to_language = record.language;
+            flow.vars = record.bound_vars;
+            flow.sanitized = true;
+            for (size_t vi = 0; vi < record.bound_vars.size(); ++vi) {
+                // The value's own taint where the engine knows it (the VM); the
+                // name is a different binding's state for a local (A121(b))
+                const bool tainted = vi < record.bound_tainted.size()
+                    ? record.bound_tainted[vi] : isTainted(record.bound_vars[vi]);
+                if (tainted) { flow.sanitized = false; break; }
             }
+            cross_block_flows_.push_back(flow);
         }
     }
 }

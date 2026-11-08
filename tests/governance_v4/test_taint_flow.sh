@@ -66,6 +66,37 @@
 # return, push, a function value made there and called later) already joins
 # that control; B/c_lambda_made_under is the closest probe and stays green.
 # Measured against no earlier binary: the command is new.
+# Bundle 12 PR 3 (A121, A129), each applied alone, built and run (observed
+# 2026-11-08); the rows it turned red, in this suite unless named:
+#   MA1 addLocal does not start a declaration clean B/n_shadow_catch, _loop,
+#       _param, _lambda_param, _destructure (R2, R3)
+#   MA2 popLocal does not restore the outer state  B/n_shadow_block_let (R2, R3)
+#   MA3 a let records no compile-time taint        B/o_nested_reassigned,
+#       o_nested_reassigned_after_param (R2). Before A129 it also turned
+#       v_nested_async red: the compile-time mark was then the only thing
+#       carrying an async capture. Now only the accepted over-report shows it.
+#   MA4 endFunction does not restore its locals    B/o_nested_reassigned_after_param (R2)
+#   MR1 rule: catch binding not shadowed           A/try_catch_shadow, B/n_shadow_catch_expr
+#       (R1, R2), test_taint_semantics.sh try_catch_shadow
+#   MR2 rule: match binders not shadowed           A/match_bind_shadow, match_list_shadow,
+#       B/n_shadow_match, n_shadow_match_list (R1, R2), and both rows in test_taint_semantics.sh
+#   MR3 rule: list-pattern binders not collected   A/match_list_shadow, B/n_shadow_match_list (R1, R2)
+#   MT1 report: a list pattern read as an expression B/n_shadow_match_list_arm,
+#       v_shadow_match_list_arm (R1). It survived the first rows: the shared rule
+#       already decides the match's value, so only a sink INSIDE the arm shows it.
+#   MB1 bound check: the name lookup and mark back B/v_bound_name_stale (R2, R2cb, R3)
+#   MV1 the async copy reads uv->tainted only (A129) B/v_async_capture (R2cb)
+#   MP1 the print check reads the next instruction's line B/v_shadow_match_list_arm (R2),
+#       test_taint_report_line.sh TL-06
+#   MC2 the array evaluator gives callbacks no taint B/v_callback, v_callback_restore (R2, R2cb)
+# MB2, MX1, MX2 are killed in test_cross_block_gate.sh, MC1 in test_async_array_callbacks.sh.
+# Red first (observed, master 977e7a40): every n_shadow_* row and n_fn_local_leak
+# fails R2 (n_shadow_catch_expr, n_shadow_match, n_shadow_match_list and
+# n_shadow_match_list_arm fail R1 too: the report had the rule's over-report),
+# v_bound_name_stale refuses p10 beside p3, v_shadow_match_list_arm is reported
+# a control flow only (R1) and refused at the match's line (R2), and
+# v_async_capture is not refused under the callback origin; every v_ twin
+# otherwise passes, so nothing the run refused is refused less.
 #
 # Usage: bash tests/governance_v4/test_taint_flow.sh [path/to/naab-lang]
 set -uo pipefail
@@ -181,7 +212,7 @@ while IFS='|' read -r id prelude setup expect run why; do
     case "$id" in ''|\#*) continue ;; esac
     NB=$((NB+1))
     d="$T/b/$id"; mkdir -p "$d"
-    cfg '["print", "shell_exec"]' > "$d/govern.json"
+    cfg '["print", "shell_exec", "javascript_exec"]' > "$d/govern.json"
     [ "$prelude" = "-" ] && prelude=""
     pre="${prelude//@@/$'\n'}"
     set_="${setup//@@/$'\n    '}"
@@ -200,10 +231,20 @@ while IFS='|' read -r id prelude setup expect run why; do
     else bad "B/$id/R1" "report [$got], expected [$want] -- $why" "$RAW"; fi
 
     [ "$run" = "-" ] && continue
+    # R2 under both origins of t (A121): the source call itself, which the VM
+    # compiler's names see, and a callback's result, which only the run-time
+    # taint carries. A row's pinned lines hold for both. R3 compares the
+    # source origin's run with the report.
+    for origin in source callback; do
+    ov="ORIGIN_EXPR_$origin"
+    { printf 'use env\nuse string\nuse array\n'
+      [ -n "$pre" ] && printf '%s\n' "$pre"
+      printf 'main {\n    let t = %s\n    %s\n    print("DONE")\n}\n' "${!ov}" "$set_"; } > "$d/p.naab"
+    rid="B/$id/R2"; [ "$origin" = callback ] && rid="B/$id/R2cb"
     rm -f "$d/rep.json"
     (cd "$d" && timeout 30 "$NAAB" p.naab --governance-report rep.json >"$d/run.out" 2>&1)
     if ! grep -qx "DONE" "$d/run.out" || [ ! -s "$d/rep.json" ]; then
-        bad "B/$id/R2" "the program did not run to its end, or wrote no report" "$(tail -5 "$d/run.out")"; continue
+        bad "$rid" "the program did not run to its end, or wrote no report" "$(tail -5 "$d/run.out")"; continue
     fi
     flagged=""
     while read -r l; do [ -n "$l" ] && flagged="$flagged s$(( l - 3 - P - 2 ))"; done < <(python3 -c '
@@ -221,15 +262,27 @@ for r in d.get("results", []):
         if [ "$n" -le 0 ]; then fixed="$fixed p$((n + P + 2))"; else fixed="$fixed $f"; fi
     done
     flagged="$(canon "$fixed")"; [ -z "$flagged" ] && flagged="none"
-    if [ "${TF_MEASURE:-}" = 1 ]; then echo "  MEASURE [$id] run=$flagged"; fi
-    if [ "$flagged" = "$(canon "$run")" ]; then ok "B/$id/R2" "the run refuses [$flagged] (pinned)"
-    else bad "B/$id/R2" "the run refuses [$flagged], pinned [$run]" "$(grep -i violation "$d/run.out" | head -4)"; fi
+    if [ "${TF_MEASURE:-}" = 1 ]; then echo "  MEASURE [$id/$origin] run=$flagged"; fi
+    # `run` may pin the callback origin apart: "X cb:Y" (an over-report only the
+    # compiler's names make, which a callback's result does not reach).
+    pin="${run% cb:*}"
+    if [ "$origin" = callback ] && [ "$pin" != "$run" ]; then pin="${run##* cb:}"; fi
+    if [ "$flagged" = "$(canon "$pin")" ]; then ok "$rid" "the run refuses [$flagged] (pinned, t from $origin)"
+    else bad "$rid" "the run refuses [$flagged], pinned [$pin] (t from $origin)" "$(grep -i violation "$d/run.out" | head -4)"; fi
+    [ "$origin" = callback ] && continue
     if [ "$flagged" != "none" ]; then
         miss=""
         for f in $flagged; do grep -qw "value@$f" <<<"$got" || miss="$miss $f"; done
+        # Accepted over-reports of the run (the owner's decision), pinned so a
+        # change in either direction shows: o_ rows only, and only these lines.
+        case "$id" in
+            o_nested_reassigned) [ "$(canon "$miss")" = "s6" ] && miss="" ;;  # A121(c)
+            o_nested_reassigned_after_param) [ "$(canon "$miss")" = "s9" ] && miss="" ;;  # A121(c)
+        esac
         if [ -z "$miss" ]; then ok "B/$id/R3" "every line the run refuses is a value flow in the report"
         else bad "B/$id/R3" "the run refuses [$miss] but the report has no value flow there: [$got]"; fi
     fi
+    done
 done < <(grep -v '^#' "$TABLE" | tr -d '\r')
 [ "$NB" -ge 30 ] || bad "B-N" "only $NB statement rows read from $TABLE"
 

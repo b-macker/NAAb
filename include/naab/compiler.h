@@ -64,6 +64,9 @@ private:
             std::string name;
             int depth = -1;         // Scope depth (-1 = uninitialized)
             bool is_captured = false;
+            // A121(a): the name's compile-time taint (tainted_vars_) before this
+            // local was declared, put back when it goes out of scope.
+            bool outer_tainted = false;
         };
         std::vector<Local> locals;
         std::vector<UpvalueDesc> upvalues;
@@ -134,6 +137,10 @@ private:
     void releaseExprTempSlots(int n);
     void markVarTainted(const std::string& name) { tainted_vars_[name] = true; }
     void clearVarTaint(const std::string& name) { tainted_vars_.erase(name); }
+    // A121(a): tainted_vars_ is scoped like the locals. addLocal() starts each
+    // declaration clean, remembering the outer state of its name; popLocal()
+    // (every place a local goes out of scope) puts it back.
+    void popLocal();
 
     // Scope management
     void beginScope();
