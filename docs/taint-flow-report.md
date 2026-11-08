@@ -173,6 +173,13 @@ report's value flows. Observed:
     the report has both as value flows at their real lines;
   - 3 are the run flagging a clean value by name (A121(a)(b)): a `catch (e)`
     that shadows a tainted `e`, and a same-named variable in another function.
+  - **Corrected 2026-11-08 (Bundle 12 PR 3):** two of the four "through an
+    imported module" were not the import. `test_chaos_module_boundary.naab`
+    41 and 61 bind clean values named `val` after line 17 refused a tainted
+    `val`, and the VM's bound-variable check had written that name into the
+    engine's run-wide taint set, never clearing it (A121(b), traced and
+    reproduced); both run clean once the check judges the value. So the split
+    is 2 through an import (17, `test_edge_18` 63), 2 at `:0`, 5 by name.
 - The report's **275 value flows** in those programs: 270 flagged by the run,
   2 the `:0` pair, and 3 more:
   - `test_taint_aliasing.naab:334` and `test_subscript_taint.naab:139`, each a

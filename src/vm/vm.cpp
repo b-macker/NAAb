@@ -4024,9 +4024,25 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                 new_uv->closed = uv->location->deepCopy();
                 new_uv->location = &new_uv->closed;  // self-referencing
                 new_uv->is_open = false;              // Mark as closed!
-                new_uv->tainted = uv->tainted;
+                // The captured value's taint, read as OP_GET_UPVALUE reads it.
+                // A variable still live on this stack keeps its taint in
+                // taint_stack_ (uv->tainted is written only when it closes), so
+                // copying uv->tainted alone handed the async fn a clean copy of
+                // a tainted local -- only the compiler's mark of the source
+                // call caught it, never a value only the run knew (A129). The
+                // deep copy is a new container, so a container's own mark is
+                // read from the original here too.
+                bool uv_tainted = uv->tainted;
+                if (governance_) {
+                    if (uv->is_open) {
+                        size_t uv_offset = static_cast<size_t>(uv->location - stack_.get());
+                        uv_tainted = taint_stack_[uv_offset];
+                    }
+                    uv_tainted = uv_tainted || containerTainted(*uv->location);
+                }
+                new_uv->tainted = uv_tainted;
                 // Copy lineage for tainted upvalues
-                if (uv->tainted) {
+                if (uv_tainted) {
                     if (uv->is_open) {
                         size_t uv_offset = static_cast<size_t>(uv->location - stack_.get());
                         auto lit = taint_lineage_map_.find(uv_offset);
@@ -4202,8 +4218,11 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
         if (any_arg_tainted && governance_ && governance_->isActive() &&
             (name == "print" || name == "println")) {
             auto& cf = frames_[frame_count_-1];
+            // The call instruction, one word back, as every other site reads
+            // since A121(d); this one read the NEXT instruction, so a print in
+            // a match arm was reported at the match's line (its jump).
             int gov_line = cf.function->chunk.getLine(
-                static_cast<int>(cf.ip - cf.function->chunk.code.data()));
+                static_cast<int>(cf.ip - cf.function->chunk.code.data()) - 1);
             // checkTaintedSink looks the NAME up in the taint set, so a lookup of
             // an unmarked label could never fire: "print" listed as a sink was
             // enforced by the tree-walker and silently ignored by the VM. The

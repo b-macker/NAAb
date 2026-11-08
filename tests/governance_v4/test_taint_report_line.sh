@@ -30,12 +30,18 @@
 #   TL-05  a call spread over four lines names the line of its '(' (6), and so
 #          does naab-gov taint. The VM named line 9, the `s` argument's line
 #          (which instruction sits four back was inferred, not dumped)
+#   TL-06  a print inside a match arm names its own line (6), in the run and in
+#          naab-gov taint. The VM's print check read the NEXT instruction's
+#          line -- the match's jump, line 5 -- the one site A121(d)'s `- 1`
+#          sweep missed (found by taint_flow.psv v_shadow_match_list_arm)
 #   TL-TW  under the enforce config --tree-walk is refused before it runs
 #
 # Red first (observed 2026-11-05, the pre-change parser and VM): TL-04 named
 # line 0, TL-05 line 9 (naab-gov taint already named 6); TL-00..TL-03c pass
 # on both builds. Mutant: the VM's sink check reading `- 4` again turns TL-05
-# red (TL-04 stays green, since `??` now carries its line too).
+# red (TL-04 stays green, since `??` now carries its line too). TL-06 (observed,
+# master 977e7a40): the run named line 5; the print check reading `ip - code`
+# again (no `- 1`) turns it red.
 # ============================================================
 set -uo pipefail
 
@@ -187,6 +193,29 @@ if [ "$RC" -eq 3 ] && [ "$L_run" = "6" ] && [ "$L_rep" = "6" ]; then
     ok "TL-05" "a call over four lines names its '(' line (6) in the run and in naab-gov taint"
 else
     bad "TL-05" "expected the run and the report at line 6" "rc=$RC run=${L_run:-none} report=${L_rep:-none}"
+fi
+
+# --- TL-06: a print inside a match arm --------------------------------------------
+# The VM's print check read the line of the NEXT instruction (`ip - code`, no
+# `- 1`) -- the one site A121(d) missed -- which beside a plain print statement
+# is on the same line, and inside a match arm is the match's own jump.
+printf 'use env\nmain {\n    let s = env.get("TL_SECRET")\n    let k = "x"\n    let r = match k {\n        _ => print(s)\n    }\n}\n' > "$W/p/arm.naab"
+line_of "$W/p" arm.naab ""
+L_run="$LINE"
+L_rep="$( (cd "$W/p" && timeout 60 "$GOV" taint arm.naab --json 2>/dev/null) | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except ValueError:
+    sys.exit(0)
+for f in d.get("flows", []):
+    if f.get("kind") == "value":
+        print(f["line"]); break
+' | tr -d '\r')"
+if [ "$RC" -eq 3 ] && [ "$L_run" = "6" ] && [ "$L_rep" = "6" ]; then
+    ok "TL-06" "a print inside a match arm names its own line (6) in the run and in naab-gov taint"
+else
+    bad "TL-06" "expected the run and the report at line 6" "rc=$RC run=${L_run:-none} report=${L_rep:-none}"
 fi
 
 out=$(cd "$W/p" && TL_SECRET=x timeout 20 "$NAAB" tainted.naab --tree-walk 2>&1); rc=$?

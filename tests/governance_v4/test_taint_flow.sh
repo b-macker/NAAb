@@ -246,6 +246,7 @@ for r in d.get("results", []):
         # change in either direction shows: o_ rows only, and only these lines.
         case "$id" in
             o_nested_reassigned) [ "$(canon "$miss")" = "s6" ] && miss="" ;;  # A121(c)
+            o_nested_reassigned_after_param) [ "$(canon "$miss")" = "s9" ] && miss="" ;;  # A121(c)
         esac
         if [ -z "$miss" ]; then ok "B/$id/R3" "every line the run refuses is a value flow in the report"
         else bad "B/$id/R3" "the run refuses [$miss] but the report has no value flow there: [$got]"; fi
