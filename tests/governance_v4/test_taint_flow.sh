@@ -181,7 +181,7 @@ while IFS='|' read -r id prelude setup expect run why; do
     case "$id" in ''|\#*) continue ;; esac
     NB=$((NB+1))
     d="$T/b/$id"; mkdir -p "$d"
-    cfg '["print", "shell_exec"]' > "$d/govern.json"
+    cfg '["print", "shell_exec", "javascript_exec"]' > "$d/govern.json"
     [ "$prelude" = "-" ] && prelude=""
     pre="${prelude//@@/$'\n'}"
     set_="${setup//@@/$'\n    '}"
@@ -200,10 +200,20 @@ while IFS='|' read -r id prelude setup expect run why; do
     else bad "B/$id/R1" "report [$got], expected [$want] -- $why" "$RAW"; fi
 
     [ "$run" = "-" ] && continue
+    # R2 under both origins of t (A121): the source call itself, which the VM
+    # compiler's names see, and a callback's result, which only the run-time
+    # taint carries. A row's pinned lines hold for both. R3 compares the
+    # source origin's run with the report.
+    for origin in source callback; do
+    ov="ORIGIN_EXPR_$origin"
+    { printf 'use env\nuse string\nuse array\n'
+      [ -n "$pre" ] && printf '%s\n' "$pre"
+      printf 'main {\n    let t = %s\n    %s\n    print("DONE")\n}\n' "${!ov}" "$set_"; } > "$d/p.naab"
+    rid="B/$id/R2"; [ "$origin" = callback ] && rid="B/$id/R2cb"
     rm -f "$d/rep.json"
     (cd "$d" && timeout 30 "$NAAB" p.naab --governance-report rep.json >"$d/run.out" 2>&1)
     if ! grep -qx "DONE" "$d/run.out" || [ ! -s "$d/rep.json" ]; then
-        bad "B/$id/R2" "the program did not run to its end, or wrote no report" "$(tail -5 "$d/run.out")"; continue
+        bad "$rid" "the program did not run to its end, or wrote no report" "$(tail -5 "$d/run.out")"; continue
     fi
     flagged=""
     while read -r l; do [ -n "$l" ] && flagged="$flagged s$(( l - 3 - P - 2 ))"; done < <(python3 -c '
@@ -221,15 +231,26 @@ for r in d.get("results", []):
         if [ "$n" -le 0 ]; then fixed="$fixed p$((n + P + 2))"; else fixed="$fixed $f"; fi
     done
     flagged="$(canon "$fixed")"; [ -z "$flagged" ] && flagged="none"
-    if [ "${TF_MEASURE:-}" = 1 ]; then echo "  MEASURE [$id] run=$flagged"; fi
-    if [ "$flagged" = "$(canon "$run")" ]; then ok "B/$id/R2" "the run refuses [$flagged] (pinned)"
-    else bad "B/$id/R2" "the run refuses [$flagged], pinned [$run]" "$(grep -i violation "$d/run.out" | head -4)"; fi
+    if [ "${TF_MEASURE:-}" = 1 ]; then echo "  MEASURE [$id/$origin] run=$flagged"; fi
+    # `run` may pin the callback origin apart: "X cb:Y" (an over-report only the
+    # compiler's names make, which a callback's result does not reach).
+    pin="${run% cb:*}"
+    if [ "$origin" = callback ] && [ "$pin" != "$run" ]; then pin="${run##* cb:}"; fi
+    if [ "$flagged" = "$(canon "$pin")" ]; then ok "$rid" "the run refuses [$flagged] (pinned, t from $origin)"
+    else bad "$rid" "the run refuses [$flagged], pinned [$pin] (t from $origin)" "$(grep -i violation "$d/run.out" | head -4)"; fi
+    [ "$origin" = callback ] && continue
     if [ "$flagged" != "none" ]; then
         miss=""
         for f in $flagged; do grep -qw "value@$f" <<<"$got" || miss="$miss $f"; done
+        # Accepted over-reports of the run (the owner's decision), pinned so a
+        # change in either direction shows: o_ rows only, and only these lines.
+        case "$id" in
+            o_nested_reassigned) [ "$(canon "$miss")" = "s6" ] && miss="" ;;  # A121(c)
+        esac
         if [ -z "$miss" ]; then ok "B/$id/R3" "every line the run refuses is a value flow in the report"
         else bad "B/$id/R3" "the run refuses [$miss] but the report has no value flow there: [$got]"; fi
     fi
+    done
 done < <(grep -v '^#' "$TABLE" | tr -d '\r')
 [ "$NB" -ge 30 ] || bad "B-N" "only $NB statement rows read from $TABLE"
 

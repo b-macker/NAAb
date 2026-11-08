@@ -26,7 +26,11 @@
 #            kind: value | control. pos: sN (setup line N), pN (prelude line N),
 #            done (the closing print)
 #   run      the lines the VM refuses, the same positions, or none; - means not
-#            cross-checked (polyglot rows: the executor may be absent)
+#            cross-checked (polyglot rows: the executor may be absent). The run
+#            is checked twice, with t from the source call and with t a
+#            callback's result (which only the run-time taint carries); both
+#            must refuse these lines, unless the column reads "X cb:Y" (Y for
+#            the callback origin).
 #   why      what the row pins
 #
 # id|prelude|setup|expect|run|why
@@ -91,3 +95,35 @@ c_lambda_made_under|-|let g = fn() { return "p" }@@if t == "/x" {@@    let a = "
 v_nested_capture|fn f() {@@    let c = env.get("HOME")@@    fn inner() {@@        return c@@    }@@    print(inner())@@}|f()|value@p6|p6|a function declared inside another reads the enclosing names (found by the measurement: test_concurrent_async.naab)
 v_nested_async|fn f() {@@    let c = env.get("HOME")@@    async fn ac() {@@        return c@@    }@@    let r = await ac()@@    print(r)@@}|f()|value@p7|p7|the same through an async fn and await
 v_nested_late|fn f() {@@    let c = "k"@@    fn inner() {@@        return c@@    }@@    c = env.get("HOME")@@    print(inner())@@}|f()|value@p7|p7|a nested function reads the variable when it is called, not when it was declared (the VM prints the later value)
+# A121 (Bundle 12 PR 3): a declaration is a new variable. The VM compiler's
+# compile-time taint names were one flat map, and the bound-variable check read
+# a run-wide name set, so a clean value was flagged for the NAME of a tainted
+# one. Each n_ row is a clean case the run used to refuse; its v_ twin is the
+# same shape with tainted data, still refused under both origins.
+n_shadow_catch|-|let e = t@@try {@@    throw "boom"@@} catch (e) {@@    print(e)@@}|none|none|a catch binding is the thrown value, not the outer tainted variable of its name (A121(a))
+v_shadow_catch|-|let e = "c"@@try {@@    throw t@@} catch (e) {@@    print(e)@@}|value@s5|s5|a catch binding of thrown tainted data (the tainted twin)
+n_shadow_catch_expr|-|let e = t@@let r = try { "a" } catch (e) { e }@@print(r)|none|none|a try expression's catch binding, in the shared expression rule (A121(a))
+v_shadow_catch_expr|-|let e = "c"@@let r = try { throw t } catch (e) { e }@@print(r)|value@s3|s3|a try expression that throws tainted data (the tainted twin)
+n_shadow_match|-|let v = t@@let r = match "s" {@@    v => v@@}@@print(r)|none|none|a match arm's binding is the subject, not the outer tainted variable of its name (A121(a))
+v_shadow_match|-|let v = "c"@@let r = match t {@@    v => v@@}@@print(r)|value@s5|s5|a match binding of a tainted subject (the tainted twin)
+n_shadow_match_list|-|let a = t@@let r = match ["s", "q"] {@@    [a, b] => a@@    _ => "z"@@}@@print(r)|none|none|a list pattern's names bind the subject's elements (A121(a); the report read the pattern as an expression)
+v_shadow_match_list|-|let a = "c"@@let r = match [t, "q"] {@@    [a, b] => a@@    _ => "z"@@}@@print(r)|value@s6|s6|a list pattern over a tainted subject (the tainted twin)
+n_shadow_loop|-|let x = t@@for x in ["s"] {@@    print(x)@@}|none|none|a loop variable is the element, not the outer tainted variable of its name (A121(a))
+v_shadow_loop|-|let x = "c"@@for x in [t] {@@    print(x)@@}|value@s3|s3|a loop variable over tainted data (the tainted twin)
+v_shadow_loop_after|-|let x = t@@for x in ["s"] {@@    print("i")@@}@@print(x)|value@s5|s5|the outer tainted variable is tainted again after a loop variable of its name ends
+c_shadow_loop_after|-|let x = "c"@@for x in [t] {@@    print("i")@@}@@print(x)|control@s3|none|the outer clean variable is clean again after a tainted loop variable of its name ends
+n_shadow_block_let|-|let e = "c"@@if true {@@    let e = t@@}@@print(e)|none|none|an inner block's let does not taint the outer variable of its name after the block (A121(a))
+v_shadow_block_let|-|let e = t@@if true {@@    let e = "c"@@}@@print(e)|value@s5|s5|nor clean it: the outer tainted variable after a clean inner let of its name
+n_shadow_param|-|let p = t@@fn f(p) {@@    print(p)@@    return 1@@}@@f("c")|none|none|a nested function's parameter is its argument, not the enclosing tainted variable of its name (A121(a))
+v_shadow_param|-|let p = "c"@@fn f(p) {@@    print(p)@@    return 1@@}@@f(t)|value@s3|s3|the parameter given tainted data (the tainted twin)
+n_shadow_lambda_param|-|let p = t@@let f = fn(p) {@@    print(p)@@    return 1@@}@@f("c")|none|none|a lambda's parameter, the same (A121(a))
+v_shadow_lambda_param|-|let p = "c"@@let f = fn(p) {@@    print(p)@@    return 1@@}@@f(t)|value@s3|s3|the lambda given tainted data (the tainted twin)
+n_fn_local_leak|fn g() {@@    let e = env.get("HOME")@@    return 1@@}@@fn f(e) {@@    print(e)@@    return 1@@}|g()@@f("c")|none|none|a function's local does not reach another function's parameter of its name (A121(a))
+v_fn_local_leak|fn g() {@@    let e = env.get("HOME")@@    return 1@@}@@fn f(e) {@@    print(e)@@    return 1@@}|g()@@f(t)|value@p6|p6|the parameter given tainted data (the tainted twin)
+n_shadow_destructure|-|let q = t@@if true {@@    let [q, z] = ["s", "a"]@@    print(q)@@}|none|none|a destructured name is the new element, not the outer tainted variable of its name (A121(a))
+v_shadow_destructure|-|let q = "c"@@if true {@@    let [q, z] = [t, "a"]@@    print(q)@@}|value@s4|s4|a destructured tainted element (the tainted twin)
+v_bound_name_stale|fn g() {@@    let clean = env.get("HOME")@@    <<javascript[clean]@@clean.length@@    >>@@    return 1@@}@@fn f() {@@    let clean = "literal"@@    <<javascript[clean]@@clean.length@@    >>@@    return 1@@}|g()@@f()|value@p3|p3|a refused binding leaves nothing behind: f's clean variable of the same name is not flagged (A121(b))
+v_bound_local|-|let s = t@@<<javascript[s]@@s.length@@>>|value@s2|s2|a tainted local bound into a block is refused by its value
+v_bound_captured|-|let s = t@@let f = fn() {@@    <<javascript[s]@@    s.length@@    >>@@    return 1@@}@@f()|value@s3|s3|a tainted captured variable bound into a block is refused by its value
+n_bound_local|-|let s = "c"@@<<javascript[s]@@s.length@@>>|none|none|a clean local bound into a block (control)
+o_nested_reassigned|-|let c = t@@fn inner() {@@    return c@@}@@c = "k"@@print(inner())|none|s6 cb:none|ACCEPTED over-report (A121(c), the owner's decision): the compiler marks inner() as returning tainted data and cannot know c is reassigned before the call; the report and the callback origin see the clean value

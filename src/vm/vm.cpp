@@ -233,20 +233,7 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
     }
 
     // Wire up function evaluator for array.map_fn/filter_fn/reduce_fn callbacks
-    if (stdlib_) {
-        auto array_module = stdlib_->getModule("array");
-        if (array_module) {
-            auto* array_mod = dynamic_cast<stdlib::ArrayModule*>(array_module.get());
-            if (array_mod) {
-                array_mod->setFunctionEvaluator(
-                    [this](interpreter::NaabVal fn,
-                           const std::vector<interpreter::NaabVal>& args) -> interpreter::NaabVal {
-                        return this->callNaabFunction(fn, args, callback_args_tainted_);
-                    }
-                );
-            }
-        }
-    }
+    wireArrayEvaluator();
 
     // Pre-execution governance: fire pre_check hook, validate scope patterns, require main block
     if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
@@ -697,6 +684,20 @@ size_t VM::gcCollectionsDeferred() const {
 }
 size_t VM::gcValuesCollected() const {
     return gc_detector_ ? gc_detector_->getTotalCollected() : 0;
+}
+
+void VM::wireArrayEvaluator() {
+    if (!stdlib_) return;
+    auto array_module = stdlib_->getModule("array");
+    if (!array_module) return;
+    auto* array_mod = dynamic_cast<stdlib::ArrayModule*>(array_module.get());
+    if (!array_mod) return;
+    array_mod->setFunctionEvaluator(
+        [this](interpreter::NaabVal fn,
+               const std::vector<interpreter::NaabVal>& args) -> interpreter::NaabVal {
+            return this->callNaabFunction(fn, args, callback_args_tainted_);
+        }
+    );
 }
 
 interpreter::NaabVal VM::run() {
@@ -3107,14 +3108,18 @@ interpreter::NaabVal VM::run() {
                             "  Reduce execution frequency or restructure code to batch polyglot calls.\n");
                     }
 
-                    // Taint sink check: block tainted variables from reaching polyglot blocks
-                    // Use shadow taint stack data (bound_taints) for locals, AND governance taint set for globals
+                    // Taint sink check: block tainted variables from reaching polyglot blocks.
+                    // Judged by each bound VALUE's own taint, which every read route sets
+                    // (OP_GET_LOCAL and OP_GET_UPVALUE from the slot, OP_GET_GLOBAL from the
+                    // global's name at read time). It also looked the variable's NAME up in
+                    // the engine's run-wide set and wrote it there when it flagged one,
+                    // never clearing it (f6e5f3b8, "temporarily"), so after one refused and
+                    // caught binding every later variable of that name was flagged, a clean
+                    // local included (A121(b); the owner's decision 2026-11-08).
                     if (governance_->isActive()) {
                         const std::string sink_type = taint::polyglotSinkType(language);
                         for (size_t bi = 0; bi < bound_var_names.size(); bi++) {
-                            // Check both shadow taint stack AND governance taint set
-                            bool is_tainted = (bi < bound_taints.size() && bound_taints[bi])
-                                              || governance_->isTainted(bound_var_names[bi]);
+                            bool is_tainted = bi < bound_taints.size() && bound_taints[bi];
                             if (is_tainted) {
                                 // Look up lineage from the bound variable's stack offset
                                 std::string origin_func;
@@ -3134,12 +3139,6 @@ interpreter::NaabVal VM::run() {
                                         origin_arg = lit->second.source_arg;
                                     }
                                 }
-                                // The mark keeps the engine-wide name state as it was; the
-                                // decision does not read it back. Between a mark and a
-                                // name lookup, another async fn assigning a clean value to
-                                // a same-named global could clear it (A65 follow-up).
-                                governance_->markTainted(bound_var_names[bi],
-                                    origin_func, origin_arg, current_file_, gov_line);
                                 std::string terr = governance_->checkTaintedValueAtSink(
                                     bound_var_names[bi], sink_type, current_file_, gov_line,
                                     origin_func, origin_arg);
@@ -3451,6 +3450,7 @@ interpreter::NaabVal VM::run() {
                         rec.duration_us = duration_us;
                         rec.file = current_file_;
                         rec.bound_vars = bound_var_names;
+                        rec.bound_tainted = bound_taints;
                         rec.captured_output = captured;
                         rec.final_code = final_code;
                         rec.contract_verified = json_parsed;
@@ -3609,20 +3609,7 @@ interpreter::NaabVal VM::run() {
                 // Re-register function evaluator — module VM may have overwritten it
                 // (module VM shares stdlib_ and its execute() sets the evaluator to
                 //  capture module VM's 'this', which becomes dangling after module VM dies)
-                if (stdlib_) {
-                    auto array_module = stdlib_->getModule("array");
-                    if (array_module) {
-                        auto* array_mod = dynamic_cast<stdlib::ArrayModule*>(array_module.get());
-                        if (array_mod) {
-                            array_mod->setFunctionEvaluator(
-                                [this](interpreter::NaabVal fn,
-                                       const std::vector<interpreter::NaabVal>& args) -> interpreter::NaabVal {
-                                    return this->callNaabFunction(fn, args, callback_args_tainted_);
-                                }
-                            );
-                        }
-                    }
-                }
+                wireArrayEvaluator();
 
                 // Merge ALL module globals into caller (exported functions need helpers, imports, etc.)
                 for (auto& [ename, eval] : *all_globals) {
@@ -4132,6 +4119,12 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                     {
                         VM async_vm;
                         async_vm.setStdlib(async_stdlib.get());
+                        // Its callbacks run on this VM, with the call's argument
+                        // taint (A120(a)), as they do in main. Without it every
+                        // callback function stopped the call and sort ignored its
+                        // comparator (A124). The evaluator is not called after this
+                        // block: async_stdlib is this worker's alone.
+                        async_vm.wireArrayEvaluator();
                         async_vm.setGovernance(async_vm_governance);
                         async_vm.setCurrentFile(file);
                         async_vm.setGlobals(globals_copy);

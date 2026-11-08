@@ -281,7 +281,6 @@ NEEDS_TREE_WALK_TESTS["web_scraper.naab"]=1                   # uses BLOCK-JS-FO
 # whose test stops printing a failure is itself a FAIL, so the entry is
 # removed when the fix lands. Each value names the record and who resolves it.
 declare -A KNOWN_SILENT_FAILURE_TESTS
-KNOWN_SILENT_FAILURE_TESTS["test_chaos_module_boundary.naab"]="A121: a clean value from an imported module flagged at a shell binding; Bundle 12 PR 3"
 
 declare -A SKIP_FILES
 SKIP_FILES["edge_helper_module.naab"]=1   # imported by edge tests, not standalone
@@ -3330,6 +3329,20 @@ else
     echo "  test_async_javascript.sh: not found, skipping"
 fi
 
+# VM: the array module's callbacks inside an async fn run on the async VM, with
+# the call's argument taint; sort/sorted refuse a comparator they cannot call (A124).
+ASYNCARR_SCRIPT="tests/vm/test_async_array_callbacks.sh"
+if [ -f "$ASYNCARR_SCRIPT" ]; then
+    if run_shell_test "$ASYNCARR_SCRIPT" 2>&1; then
+        echo "  test_async_array_callbacks.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_async_array_callbacks.sh")
+    fi
+else
+    echo "  test_async_array_callbacks.sh: not found, skipping"
+fi
+
 # VM: a value thrown in an async fn reaches the await's catch as that value, with its taint;
 # a closure returned or thrown out of an async fn stays callable (A59(a)).
 ASYNCTHROW_SCRIPT="tests/vm/test_async_throw.sh"
@@ -3536,6 +3549,20 @@ if [ -f "$TAINT_FLOW_SCRIPT" ]; then
     fi
 else
     echo "  test_taint_flow.sh: not found, skipping"
+fi
+
+# The post-run cross-block audit (gate_cross_block): a flow is unsanitized when
+# any bound value is tainted, judged by the value (A127, A121(b)).
+XBLOCK_SCRIPT="tests/governance_v4/test_cross_block_gate.sh"
+if [ -f "$XBLOCK_SCRIPT" ]; then
+    if run_shell_test "$XBLOCK_SCRIPT" 2>&1; then
+        echo "  test_cross_block_gate.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_cross_block_gate.sh")
+    fi
+else
+    echo "  test_cross_block_gate.sh: not found, skipping"
 fi
 
 # Module governance: full body checks skip during module loading, behavioral

@@ -504,6 +504,12 @@ private:
     // callback clean: `array.map_fn([t], fn(v) { sink(v) })` was not flagged
     // (A120(a)). Coarse by design: every parameter, every element.
     bool callback_args_tainted_ = false;
+    // Points the stdlib's array module at this VM for its callbacks
+    // (map_fn, filter_fn, reduce_fn, find, sort/sorted with a comparator).
+    // execute(), importModule() and an async fn's worker each call it; the
+    // worker never ran execute(), so inside an async fn the module had no
+    // evaluator at all (A124).
+    void wireArrayEvaluator();
     // The taint of each if-condition and match subject/pattern/guard being
     // decided (OP_COND_TAINT). A branch is one expression, so only an exception
     // leaves it early: each handler records the depth and delivery restores it,

@@ -3106,6 +3106,10 @@ struct PolyglotExecutionRecord {
     int64_t duration_us = 0;
     std::string file;
     std::vector<std::string> bound_vars;
+    // Each bound value's own taint, beside bound_vars (the VM fills it). Empty:
+    // unknown, and the audit falls back to the variable's name (the
+    // tree-walker, whose taint is kept by name). A121(b)
+    std::vector<bool> bound_tainted;
     std::string captured_output;
     std::string captured_stderr;
     std::string final_code;         // actual code sent to executor

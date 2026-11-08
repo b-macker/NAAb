@@ -30,13 +30,16 @@
 //     runtimes already treat it;
 //   - a lambda's value is clean: a function holds no data until it is called,
 //     and the call is judged by what it returns;
-//   - throw carries its operand's taint (the catch binding receives the value).
+//   - throw carries its operand's taint (the catch binding receives the value);
+//   - a name a catch or a match arm binds is that new binding inside it, not the
+//     variable of that name outside (A121(a)).
 #pragma once
 
 #include "naab/ast.h"
 #include "naab/string_interpolation.h"
 
 #include <string>
+#include <vector>
 
 namespace naab {
 namespace taint {
@@ -54,6 +57,39 @@ struct RuleHooks {
     // Runtime knowledge an awaited call's return value carries (the
     // tree-walker's return flag); a compile-time walk knows none.
     virtual bool awaitResultTainted(ast::AwaitExpr&) { return false; }
+};
+
+// The names a match arm's pattern binds: a bare name binds the subject, and a
+// list pattern binds each of its bare-name elements -- the binding both engines
+// make (Compiler::visit(MatchExpr), Interpreter::visit(MatchExpr)).
+inline void matchPatternBinders(ast::Expr* pattern, std::vector<std::string>& out) {
+    if (!pattern) return;
+    if (auto* id = dynamic_cast<ast::IdentifierExpr*>(pattern)) {
+        out.push_back(id->getName());
+    } else if (auto* list = dynamic_cast<ast::ListExpr*>(pattern)) {
+        for (const auto& e : list->getElements())
+            if (auto* eid = dynamic_cast<ast::IdentifierExpr*>(e.get()))
+                out.push_back(eid->getName());
+    }
+}
+
+// A walker's lookups with some names shadowed: inside a catch expression or a
+// match arm, the names it binds are the new bindings, not the variables of
+// those names outside it. Their values are judged where they come from (the
+// try's value, the match subject), which the rule counts already. Before,
+// `let e = env.get(..)` made `catch (e) { e }` tainted whatever was thrown
+// (A121(a)).
+struct ShadowedHooks : RuleHooks {
+    RuleHooks& base;
+    const std::vector<std::string>& shadowed;
+    ShadowedHooks(RuleHooks& b, const std::vector<std::string>& s) : base(b), shadowed(s) {}
+    bool nameTainted(const std::string& name) override {
+        for (const auto& s : shadowed)
+            if (s == name) return false;
+        return base.nameTainted(name);
+    }
+    CallVerdict call(ast::CallExpr& c) override { return base.call(c); }
+    bool awaitResultTainted(ast::AwaitExpr& a) override { return base.awaitResultTainted(a); }
 };
 
 // The sink a variable bound into a polyglot block reaches, as
@@ -155,11 +191,15 @@ inline bool expressionTainted(ast::Expr* expr, RuleHooks& h) {
         case K::MatchExpr: {  // conditions count: subject, patterns, guards
             auto* m = static_cast<ast::MatchExpr*>(expr);
             if (expressionTainted(m->getSubject(), h)) return true;
-            for (auto& arm : m->getArms())
-                if (expressionTainted(arm.pattern.get(), h) ||
-                    expressionTainted(arm.guard.get(), h) ||
-                    expressionTainted(arm.body.get(), h))
+            for (auto& arm : m->getArms()) {
+                std::vector<std::string> bound;
+                matchPatternBinders(arm.pattern.get(), bound);
+                ShadowedHooks in_arm(h, bound);
+                if (expressionTainted(arm.pattern.get(), in_arm) ||
+                    expressionTainted(arm.guard.get(), in_arm) ||
+                    expressionTainted(arm.body.get(), in_arm))
                     return true;
+            }
             return false;
         }
 
@@ -173,7 +213,11 @@ inline bool expressionTainted(ast::Expr* expr, RuleHooks& h) {
 
         case K::TryCatchExpr: {
             auto* tc = static_cast<ast::TryCatchExpr*>(expr);
-            return expressionTainted(tc->getTryExpr(), h) || expressionTainted(tc->getCatchExpr(), h);
+            if (expressionTainted(tc->getTryExpr(), h)) return true;
+            // The binding holds what was thrown, which the try's own walk judged.
+            const std::vector<std::string> bound{tc->getErrorName()};
+            ShadowedHooks in_catch(h, bound);
+            return expressionTainted(tc->getCatchExpr(), in_catch);
         }
 
         case K::ThrowExpr:

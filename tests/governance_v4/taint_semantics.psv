@@ -82,6 +82,12 @@ match_subject_sink|MatchExpr|-|-|match t { "x" => "a", _ => "b" }|sink|tainted|t
 match_guard|MatchExpr|-|-|match 1 { n if t == "x" => "a", _ => "b" }|assign|tainted|conditions count: a guard
 match_clean|MatchExpr|-|-|match 1 { 1 => "a", _ => "b" }|assign|clean|a clean match (control)
 match_list_guard|MatchExpr|-|-|match [1] { [n] if t == "x" => "a", _ => "b" }|assign|tainted|a guard on a list pattern
+match_bind_shadow|MatchExpr|-|let v = t|match "s" { v => v }|assign|clean|a bound name is the subject inside its arm, not the outer tainted variable of that name (A121(a))
+match_bind_shadow_tainted|MatchExpr|-|let v = "c"|match t { v => v }|assign|tainted|the same binding of a tainted subject (the tainted twin)
+match_list_shadow|MatchExpr|-|let a = t|match ["s", "q"] { [a, b] => a, _ => "z" }|assign|clean|a list pattern's names bind the subject's elements (A121(a))
+match_list_shadow_tainted|MatchExpr|-|let a = "c"|match [t, "q"] { [a, b] => a, _ => "z" }|assign|tainted|the same over a tainted subject (the tainted twin)
+try_catch_shadow|TryCatchExpr|-|let e = t|try { "a" } catch (e) { e }|assign|clean|a catch binding is what was thrown, not the outer tainted variable of that name (A121(a))
+try_catch_shadow_tainted|TryCatchExpr|-|let e = "c"|try { throw t } catch (e) { e }|assign|tainted|a catch binding of thrown tainted data (the tainted twin)
 await_arg|AwaitExpr|async fn ag(v) { return v }|-|await ag(t)|assign|tainted|an awaited call's argument
 await_ret|AwaitExpr|async fn ah() { return env.get("HOME") }|-|await ah()|assign|tainted|an awaited call's return
 await_ignores|AwaitExpr|async fn ak(v) { return "c" }|-|await ak(t)|assign|tainted|an async call is a call: its argument taints the result
