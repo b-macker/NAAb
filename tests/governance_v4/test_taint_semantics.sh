@@ -62,6 +62,13 @@
 #   R13 null result ignores argument taint      call_userfn_null
 #   R14 tw yield taint not recorded             yield_captured (tw, both origins)
 #   R15 if-expression emits no condition op     if_cond, if_cond_sink, if_nested, if_inner_cond
+#   Bundle 12 PR 3 (A121(a)), the shared rule's binders (observed 2026-11-08):
+#   MR1 a catch binding not shadowed            try_catch_shadow (both engines)
+#   MR2 match binders not shadowed              match_bind_shadow, match_list_shadow
+#   MR3 list-pattern binders not collected      match_list_shadow
+#   Red first: on master 977e7a40 the three clean *_shadow rows fail on both
+#   engines under the source origin, and on the tree-walker under the callback
+#   origin; their tainted twins pass there too.
 #   R16 callNaabFunction() condition restore    SURVIVES: every throw a NAAb catch receives also passes a
 #                                               handler restore (R6/R6b); it alone matters for a native
 #                                               caller that survives a callback's throw -- an agent tool

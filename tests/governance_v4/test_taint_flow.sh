@@ -66,6 +66,37 @@
 # return, push, a function value made there and called later) already joins
 # that control; B/c_lambda_made_under is the closest probe and stays green.
 # Measured against no earlier binary: the command is new.
+# Bundle 12 PR 3 (A121, A129), each applied alone, built and run (observed
+# 2026-11-08); the rows it turned red, in this suite unless named:
+#   MA1 addLocal does not start a declaration clean B/n_shadow_catch, _loop,
+#       _param, _lambda_param, _destructure (R2, R3)
+#   MA2 popLocal does not restore the outer state  B/n_shadow_block_let (R2, R3)
+#   MA3 a let records no compile-time taint        B/o_nested_reassigned,
+#       o_nested_reassigned_after_param (R2). Before A129 it also turned
+#       v_nested_async red: the compile-time mark was then the only thing
+#       carrying an async capture. Now only the accepted over-report shows it.
+#   MA4 endFunction does not restore its locals    B/o_nested_reassigned_after_param (R2)
+#   MR1 rule: catch binding not shadowed           A/try_catch_shadow, B/n_shadow_catch_expr
+#       (R1, R2), test_taint_semantics.sh try_catch_shadow
+#   MR2 rule: match binders not shadowed           A/match_bind_shadow, match_list_shadow,
+#       B/n_shadow_match, n_shadow_match_list (R1, R2), and both rows in test_taint_semantics.sh
+#   MR3 rule: list-pattern binders not collected   A/match_list_shadow, B/n_shadow_match_list (R1, R2)
+#   MT1 report: a list pattern read as an expression B/n_shadow_match_list_arm,
+#       v_shadow_match_list_arm (R1). It survived the first rows: the shared rule
+#       already decides the match's value, so only a sink INSIDE the arm shows it.
+#   MB1 bound check: the name lookup and mark back B/v_bound_name_stale (R2, R2cb, R3)
+#   MV1 the async copy reads uv->tainted only (A129) B/v_async_capture (R2cb)
+#   MP1 the print check reads the next instruction's line B/v_shadow_match_list_arm (R2),
+#       test_taint_report_line.sh TL-06
+#   MC2 the array evaluator gives callbacks no taint B/v_callback, v_callback_restore (R2, R2cb)
+# MB2, MX1, MX2 are killed in test_cross_block_gate.sh, MC1 in test_async_array_callbacks.sh.
+# Red first (observed, master 977e7a40): every n_shadow_* row and n_fn_local_leak
+# fails R2 (n_shadow_catch_expr, n_shadow_match, n_shadow_match_list and
+# n_shadow_match_list_arm fail R1 too: the report had the rule's over-report),
+# v_bound_name_stale refuses p10 beside p3, v_shadow_match_list_arm is reported
+# a control flow only (R1) and refused at the match's line (R2), and
+# v_async_capture is not refused under the callback origin; every v_ twin
+# otherwise passes, so nothing the run refused is refused less.
 #
 # Usage: bash tests/governance_v4/test_taint_flow.sh [path/to/naab-lang]
 set -uo pipefail

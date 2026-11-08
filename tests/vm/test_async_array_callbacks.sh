@@ -34,9 +34,10 @@
 #   AC-09   CONTROL: the same tainted callback in main{} is flagged (the
 #           detector sees this shape at all)
 #
-# Kill table (each mutant rebuilt, suite re-run):
-#   the worker does not call wireArrayEvaluator()     -> AC-01..AC-08 red
-#   the evaluator passes no callback taint (false)    -> AC-08, AC-09 red
+# Kill table (each mutant rebuilt, suite re-run; observed 2026-11-08):
+#   the worker does not call wireArrayEvaluator()     -> AC-01..AC-08c red
+#   the evaluator passes no callback taint (false)    -> AC-08, AC-09 red (and
+#       test_taint_flow.sh v_callback, v_callback_restore)
 # Red first (observed): on master 977e7a40, AC-01..AC-08c fail (map_fn and the
 # others stop the async fn, so AC-08's run never finishes; sort and sorted
 # return [1, 2]; the callback's throw is replaced by the evaluator error); the

@@ -20,6 +20,8 @@
 # executor captures what a block writes to stderr. A block's value is tainted
 # whatever its inputs (V-GOV-006), so `a` below is tainted data.
 #
+#   XB-N    CONTROL: the interpreter runs a plain program (a dead one FAILS here,
+#           rather than reading as "no Ruby")
 #   XB-V    viability: a Ruby block runs here (else every arm is UNMEASURABLE)
 #   XB-00   CONTROL: [a] -- the tainted output alone -- is refused at the end of
 #           the run (exit 3, after RAN), as on master
@@ -28,7 +30,7 @@
 #   XB-03c  CONTROL: [b] -- clean only -- passes (exit 0): the gate does not
 #           refuse every flow
 #
-# Kill table (each mutant rebuilt, suite re-run):
+# Kill table (each mutant rebuilt, suite re-run; observed 2026-11-08):
 #   judge the first bound variable only (the pre-A127 loop)  -> XB-01 red
 #   the audit reads the variable's name, not the value         -> XB-00, XB-01, XB-02 red
 #   every flow unsanitized                                     -> XB-03c red
@@ -79,6 +81,19 @@ has() { grep -q -F -- "$1" <<<"$OUT"; }
 refused() { [ "$RC" -eq 3 ] && has "RAN" && has "unsanitized cross-block data flow"; }
 
 echo "=== the cross-block gate (A127, A121(b)) ==="
+
+# XB-N: the interpreter runs a program at all. Without it a dead interpreter
+# would read as "no Ruby here" below, every arm UNMEASURABLE.
+d="$W/n"; mkdir -p "$d"
+printf '{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"}}\n' > "$d/govern.json"
+printf 'main {\n    print("XB" + "-ALIVE")\n}\n' > "$d/p.naab"
+NOUT=$(cd "$d" && timeout 60s "$NAAB" run p.naab 2>&1); NRC=$?
+if [ "$NRC" -eq 0 ] && grep -q -F "XB-ALIVE" <<<"$NOUT"; then
+    pass XB-N "CONTROL: the interpreter runs a plain program"
+else
+    fail XB-N "the interpreter did not run a plain program (rc=$NRC)" "$NOUT"
+    echo ""; echo "PASS=$PASS FAIL=$FAIL UNMEASURABLE=$UNM"; exit 1
+fi
 
 d="$W/v"; mkdir -p "$d"
 printf '{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"}, "languages": {"allowed": ["ruby"]}}\n' > "$d/govern.json"
