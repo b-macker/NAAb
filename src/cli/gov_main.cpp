@@ -783,6 +783,7 @@ static int cmdRatchet(const std::vector<std::string>& args) {
         case Outcome::SignatureRefused: outcome = "signature_refused"; rc = 1; break;
         case Outcome::Unreadable:       outcome = "unreadable"; rc = 4; break;
         case Outcome::TooWide:          outcome = "too_wide"; rc = 4; break;
+        case Outcome::ExtendsRefused:   outcome = "extends_refused"; rc = 1; break;
     }
     if (as_json) {
         json out = {
@@ -813,6 +814,9 @@ static int cmdRatchet(const std::vector<std::string>& args) {
             break;
         case Outcome::TooWide:
             std::cout << "ERROR: a JSON array in " << files[1] << " exceeds the loader's cap\n";
+            break;
+        case Outcome::ExtendsRefused:
+            std::cout << "REFUSED: " << files[1] << "'s extends chain does not load\n";
             break;
     }
     for (const auto& n : ev.notices) std::cout << "  notice: " << n << "\n";

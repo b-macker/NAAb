@@ -7188,6 +7188,21 @@ bool GovernanceEngine::applyEnvironmentTo(GovernanceRules& r, const std::string&
     auto it = r.environments.find(env_name);
     if (it == r.environments.end()) return false;
     const auto overrides = it->second;  // r is written below
+    // A gate switch an environment may turn ON, never off (A130, the owner's
+    // decision of 2026-11-09, as for the mode in A95(b)). Each used to be
+    // `value == "true"`, so an environment's "false" -- or any other word --
+    // switched off a gate the file turned on: the template's own
+    // `development` environment turned the quality gate off.
+    auto raiseGate = [&](bool& field, const std::string& key, const std::string& value) {
+        if (value == "true") { field = true; return; }
+        if (field) {
+            fprintf(stderr,
+                "[governance] WARNING: environment '%s' sets %s to \"%s\", but this "
+                "govern.json turns it on. An environment can only turn a gate on, so "
+                "the value is ignored.\n",
+                env_name.c_str(), key.c_str(), value.c_str());
+        }
+    };
     for (const auto& [key, value] : overrides) {
         if (key == "mode") {
             const GovernanceMode file_mode = r.mode;
@@ -7202,11 +7217,11 @@ bool GovernanceEngine::applyEnvironmentTo(GovernanceRules& r, const std::string&
                     env_name.c_str(), modeWord(env_mode), modeWord(file_mode));
             }
         } else if (key == "quality_gate.enabled") {
-            r.quality_gate.enabled = (value == "true");
+            raiseGate(r.quality_gate.enabled, key, value);
         } else if (key == "governance_baseline.enabled") {
-            r.governance_baseline.enabled = (value == "true");
+            raiseGate(r.governance_baseline.enabled, key, value);
         } else if (key == "governance_baseline.fail_on_regression") {
-            r.governance_baseline.fail_on_regression = (value == "true");
+            raiseGate(r.governance_baseline.fail_on_regression, key, value);
         } else if (key == "output.file_output.report_sarif") {
             r.output.file_output.report_sarif = value;
         } else if (key == "output.file_output.report_json") {
@@ -7849,7 +7864,42 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
             !fs_cfg.allowed_paths.empty() || !fs_cfg.blocked_paths.empty();
         // Empty means unset, which enforce mode resolves to "standard" — still a
         // level where a subprocess language (PHP, measured) reads through it.
-        const bool polyglot_reachable = rules().sandbox_level_config != "restricted";
+        //
+        // And only while a separate-process language can run at all. Written
+        // (#226) before the shell-off gate (#298, ffadc5f8), this fired under
+        // configs that refuse every one, and its own remedy ("block the
+        // subprocess languages in languages.blocked") did not silence it (F-03,
+        // observed). Judged by the gates' own rules: shell disabled refuses
+        // every separate-process executor; otherwise a runtime runs when the
+        // language lists admit it (languageListBlocks/Admits). In-process:
+        // QuickJS, SQLite, and Python where this build embeds it -- without
+        // pybind11 a <<python>> block is a separate process.
+        auto subprocessLanguageRunnable = [&]() -> bool {
+            const auto& r = rules();
+            if (!r.shell_allowed || !r.capabilities.shell.enabled) return false;
+            auto inProcess = [](const std::string& rt) {
+                if (rt == "javascript" || rt == "sql") return true;
+#ifdef HAVE_PYBIND11
+                if (rt == "python") return true;
+#endif
+                return false;
+            };
+            for (const auto& d : naab::lang::allLanguages()) {
+                if (d.governance_only) continue;
+                std::vector<std::string> runtimes{d.canonical};
+                for (const auto& v : d.runtime_variants) runtimes.push_back(v);
+                for (const auto& rt : runtimes) {
+                    if (inProcess(rt)) continue;
+                    if (naab::lang::languageListBlocks(r.languages.blocked, rt)) continue;
+                    if (!r.languages.allowed.empty() &&
+                        !naab::lang::languageListAdmits(r.languages.allowed, rt)) continue;
+                    return true;
+                }
+            }
+            return false;
+        };
+        const bool polyglot_reachable = rules().sandbox_level_config != "restricted" &&
+                                        subprocessLanguageRunnable();
 
         if (has_path_policy && polyglot_reachable) {
             ContradictionResult c;

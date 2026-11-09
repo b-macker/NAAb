@@ -996,6 +996,7 @@ void Compiler::visit(ast::BinaryExpr& node) {
                 emitStaticTaintMark(arg.get(), line);
             }
             int argc = 1 + static_cast<int>(call->getArgs().size());
+            recordCallName(call->getCallee());
             emit3(OpCode::OP_CALL, static_cast<uint8_t>(argc), 0, 0, line);
         } else {
             // Right side is identifier: x |> fn → fn(x)
@@ -1003,6 +1004,7 @@ void Compiler::visit(ast::BinaryExpr& node) {
             TempHold hold(current_->expr_temps, 1);
             node.getLeft()->accept(*this);   // push x
             emitStaticTaintMark(node.getLeft(), line);
+            recordCallName(node.getRight());
             emit3(OpCode::OP_CALL, 1, 0, 0, line);
         }
         return;
@@ -1842,6 +1844,7 @@ void Compiler::visit(ast::CallExpr& node) {
             int name_idx = identifierConstant(member->getMember());
             uint32_t packed = (static_cast<uint32_t>(name_idx) << 8) |
                               (static_cast<uint32_t>(node.getArgs().size()) & 0xFF);
+            recordCallName(member);
             emitWide(OpCode::OP_CALL_METHOD, packed, line);
             int end = emitJump(OpCode::OP_JUMP, line);
             // Null path: OP_JUMP_IF_NULL consumed the dup when it jumped, so
@@ -1866,6 +1869,7 @@ void Compiler::visit(ast::CallExpr& node) {
         int name_idx = identifierConstant(member->getMember());
         uint32_t packed = (static_cast<uint32_t>(name_idx) << 8) |
                           (static_cast<uint32_t>(node.getArgs().size()) & 0xFF);
+        recordCallName(member);
         emitWide(OpCode::OP_CALL_METHOD, packed, line);
         return;
     }
@@ -1880,7 +1884,17 @@ void Compiler::visit(ast::CallExpr& node) {
             hold.add();
         }
     }
+    recordCallName(node.getCallee());
     emit3(OpCode::OP_CALL, static_cast<uint8_t>(node.getArgs().size()), 0, 0, line);
+}
+
+// The name the next instruction -- a call -- is written by, for the sink check
+// a call into a NAAb function makes (VM::checkNaabFunctionSink, F-33).
+// calleeName() is the shared rule's, so the run and `naab-gov taint` judge the
+// same text.
+void Compiler::recordCallName(ast::Expr* callee) {
+    std::string name = taint::calleeName(callee);
+    if (!name.empty()) currentChunk().call_names[currentChunk().codeSize()] = std::move(name);
 }
 
 void Compiler::visit(ast::MemberExpr& node) {

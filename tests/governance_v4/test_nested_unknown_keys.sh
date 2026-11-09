@@ -20,6 +20,16 @@
 #          without it NK-01..04 pass for a validator that reports every key
 #   NK-06  CONTROL: both shipped templates load, run, and report nothing
 #   NK-07  more than 25 findings are summarised, not printed one per line
+#   NK-08  both shipped templates load with NO config warning of any kind
+#          (Bundle 17, F-01/F-02/F-06: the template loaded with 14 -- reserved
+#          keys, "enabled": false on presence-enabled checks, and a sequence
+#          pattern whose steps match no event, so enabling detection from the
+#          template detected nothing). Red first: 14 warnings on master 314bccfd.
+#          A build without command/MCP guidance sources (Windows) also warns
+#          that the template's two example sources are ignored -- true of that
+#          platform, and said in the template's comments; those two lines are
+#          set aside and counted, nothing else is.
+#   NK-08f CONTROL the platform-limit filter takes exactly those two lines
 # ============================================================
 set -uo pipefail
 
@@ -152,6 +162,40 @@ case "$out" in
         else bad NK-07 "the summary appeared but $listed findings were listed (want 25)"; fi ;;
     *) bad NK-07 "30 findings were not summarised" "listed=$listed" ;;
 esac
+
+# --- NK-08: the shipped templates load with no config warning --------------
+# NK-06 counts only unread keys. A reference config people copy must also not
+# carry keys the engine warns do nothing, or a pattern that can never fire.
+# One class of warning is a statement about the platform, not the template:
+# a build without command and MCP guidance sources (Windows) says the
+# template's two example sources are ignored, which the template's own
+# comments say too. Those lines, and only those, are set aside and counted;
+# NK-08f checks the filter on a line of each kind.
+platform_limit_line() {
+    [[ "${1//$'\r'/}" =~ ^\[governance\]\ Warning:\ guidance:\ source\ \"[^\"]*\":\ (command|MCP)\ sources\ are\ not\ supported\ on\ Windows\ in\ this\ build\;\ ignored$ ]]
+}
+if platform_limit_line '[governance] Warning: guidance: source "exported": command sources are not supported on Windows in this build; ignored'$'\r' \
+   && platform_limit_line '[governance] Warning: guidance: source "mcp1": MCP sources are not supported on Windows in this build; ignored' \
+   && ! platform_limit_line '[governance] Warning: guidance: source "x" has no path; ignored' \
+   && ! platform_limit_line '[governance] Warning: unknown key "orchestra"'; then
+    ok NK-08f "CONTROL: the platform-limit filter takes exactly the two Windows source lines"
+else bad NK-08f "the platform-limit filter is wrong"; fi
+nk8=""; nk8_platform=0
+for t in "$REPO/govern-template.json" "$REPO/docs/govern-template.json"; do
+    sed 's#"extends"[[:space:]]*:[[:space:]]*"[^"]*",##' "$t" > "$W/govern.json"
+    out="$(cd "$W" && timeout 60 "$NAAB" p.naab 2>&1)"
+    case "$out" in *PROGRAM_RAN*) ;; *) nk8="$nk8 ${t#$REPO/}:did-not-run"; continue ;; esac
+    w=""
+    while IFS= read -r line; do
+        case "$line" in "[governance] Warning"*) ;; *) continue ;; esac
+        if platform_limit_line "$line"; then nk8_platform=$((nk8_platform+1)); continue; fi
+        w="$w${line//$'\r'/}"$'\n'
+    done <<<"$out"
+    [ -z "$w" ] || nk8="$nk8 ${t#$REPO/}:$(grep -c . <<<"$w")-warnings[$(head -1 <<<"$w" | cut -c1-90)]"
+done
+[ "$nk8_platform" -eq 0 ] || echo "  note [NK-08] $nk8_platform platform-limit line(s) set aside (guidance sources this build cannot run)"
+if [ -z "$nk8" ]; then ok NK-08 "both templates load with no config warning"
+else bad NK-08 "a shipped template loads with config warnings" "$nk8"; fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"

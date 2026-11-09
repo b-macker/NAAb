@@ -22,6 +22,8 @@
 #include <functional>
 #include <unordered_map>
 #include <unordered_set>
+#include "naab/lexer.h"
+#include "naab/string_interpolation.h"
 #ifndef _WIN32
 #  include <sys/file.h>
 #endif
@@ -3911,42 +3913,76 @@ std::string GovernanceEngine::checkFunctionBehavioralContract(
             inner_body = func_body;
         }
     }
+    // Only code counts: a parameter named in a comment or a string literal
+    // satisfied the contract (F-42, observed: a HARD contract passed with the
+    // names only in a comment, and with one in a string). The body is read
+    // by the lexer: an identifier token is code, a comment is no token, and
+    // a string token contributes only the identifiers of its ${...}
+    // expressions, through the one interpolation splitter. A body the lexer
+    // refuses falls back to the text with comments and strings removed.
+    std::unordered_set<std::string> code_names;
+    bool lexed = false;
+    if (!contract.must_derive_from.empty()) {
+        try {
+            naab::lexer::Lexer lx(inner_body);
+            for (const auto& t : lx.tokenize()) {
+                if (t.type == naab::lexer::TokenType::IDENTIFIER) {
+                    code_names.insert(t.value);
+                } else if (t.type == naab::lexer::TokenType::STRING) {
+                    for (const auto& id : naab::interp::interpolatedIdentifiers(t.value))
+                        code_names.insert(id);
+                }
+            }
+            lexed = true;
+        } catch (const std::exception&) {
+            inner_body = naab::lang::stripComments(
+                stripStringLiterals(inner_body, naab::lang::findLanguage("naab")), "naab");
+        }
+    }
     for (const auto& spec : contract.must_derive_from) {
-        bool param_found = false;
+        // EVERY listed parameter must appear (the owner's decision of
+        // 2026-11-09: the key's documented meaning is "computed from the named
+        // parameters"; 9c398ccc built it as any one of them).
+        std::vector<std::string> missing;
         for (const auto& param : spec.params) {
+            bool param_found = false;
+            if (lexed) {
+                if (!code_names.count(param)) missing.push_back(param);
+                continue;
+            }
             try {
                 naab::rx::regex param_pat("\\b" + param + "\\b");
-                if (naab::rx::regex_search(inner_body, param_pat)) {
-                    param_found = true;
-                    break;
-                }
+                param_found = naab::rx::regex_search(inner_body, param_pat);
             } catch (const naab::rx::resource_error&) {
                 throw;  // a scan that did not finish decided nothing (A89)
             } catch (...) {
-                // Invalid regex — fall back to literal search
-                if (inner_body.find(param) != std::string::npos) {
-                    param_found = true;
-                    break;
-                }
+                // Invalid regex -- fall back to literal search
+                param_found = inner_body.find(param) != std::string::npos;
             }
+            if (!param_found) missing.push_back(param);
         }
-        if (!param_found) {
+        if (!missing.empty()) {
             std::string params_list;
             for (size_t pi = 0; pi < spec.params.size(); ++pi) {
                 if (pi > 0) params_list += ", ";
                 params_list += spec.params[pi];
             }
-            addTrace(fmt::format("function '{}' return key '{}' must derive from [{}] but none referenced",
-                func_name, spec.return_key, params_list));
+            std::string missing_list;
+            for (size_t mi = 0; mi < missing.size(); ++mi) {
+                if (mi > 0) missing_list += ", ";
+                missing_list += missing[mi];
+            }
+            addTrace(fmt::format("function '{}' return key '{}' must derive from [{}]; not referenced: [{}]",
+                func_name, spec.return_key, params_list, missing_list));
             return enforce("contracts." + func_name + ".must_derive_from", level,
                 formatError(level,
                     fmt::format("Derivation contract: '{}' key '{}' must use parameter '{}'",
-                        func_name, spec.return_key, spec.params[0]),
+                        func_name, spec.return_key, missing[0]),
                     line > 0 ? fmt::format("line {}", line) : "",
                     "contracts.must_derive_from",
                     fmt::format("Function '{}' return key '{}' must be computed from parameter(s) [{}] "
-                        "but none of those parameters appear in the function body.",
-                        func_name, spec.return_key, params_list),
+                        "but [{}] do not appear in the function's code (comments and strings do not count).",
+                        func_name, spec.return_key, params_list, missing_list),
                     "fn " + func_name + "(...) { return {\"" + spec.return_key + "\": 0.1} }",
                     "fn " + func_name + "(" + spec.params[0] + ") { return {\"" + spec.return_key
                         + "\": compute(" + spec.params[0] + ")} }"));
@@ -4017,59 +4053,40 @@ interpreter::NaabVal GovernanceEngine::jsonStringToNaabVal(const std::string& js
     return interpreter::NaabVal::makeNull();
 }
 
-interpreter::NaabVal GovernanceEngine::callContractTestFunction(
-    const std::string& func_name,
-    const std::vector<interpreter::NaabVal>& args) {
+// The function an execution contract names, as the program has it: a global,
+// an export of an imported module (a module dict, or "alias.name"). Null when
+// the program neither defines nor imports it; throws only when no engine is
+// running to ask.
+interpreter::NaabVal GovernanceEngine::resolveContractTestFunction(
+    const std::string& func_name) {
+    auto isCallable = [](const interpreter::NaabVal& v) {
+        return v.isFunction() || v.isVMClosure();
+    };
+    auto searchValues = [&](const auto& values) -> interpreter::NaabVal {
+        // Module dicts: an import stores a dict under its alias.
+        for (const auto& [name, val] : values) {
+            if (val.isDict()) {
+                const auto& dict = val.asDictConst();
+                auto dit = dict.find(func_name);
+                if (dit != dict.end() && isCallable(dit->second)) return dit->second;
+            }
+        }
+        // "alias.func" defined directly in the globals.
+        const std::string suffix = "." + func_name;
+        for (const auto& [name, val] : values) {
+            if (name.size() > suffix.size() &&
+                name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0 &&
+                isCallable(val)) return val;
+        }
+        return interpreter::NaabVal();
+    };
 
     // --- VM path (via type-erased callbacks to avoid link dependency) ---
     if (vm_call_fn_ && vm_globals_fn_) {
         const auto& globals = vm_globals_fn_();
-        interpreter::NaabVal fn;
-
-        // Phase 1: bare name lookup
         auto it = globals.find(func_name);
-        if (it != globals.end()) {
-            fn = it->second;
-        }
-        // Phase 2: search module dicts
-        if (fn.isNull()) {
-            for (const auto& [name, val] : globals) {
-                if (val.isDict()) {
-                    const auto& dict = val.asDictConst();
-                    auto dit = dict.find(func_name);
-                    if (dit != dict.end() && (dit->second.isFunction() || dit->second.isVMClosure())) {
-                        fn = dit->second;
-                        break;
-                    }
-                }
-            }
-        }
-        // Phase 3: dotted name lookup
-        if (fn.isNull()) {
-            std::string suffix = "." + func_name;
-            for (const auto& [name, val] : globals) {
-                if (name.size() > suffix.size() &&
-                    name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0 &&
-                    (val.isFunction() || val.isVMClosure())) {
-                    fn = val;
-                    break;
-                }
-            }
-        }
-        if (fn.isNull()) {
-            throw std::runtime_error(
-                fmt::format("Contract test: function '{}' not found in global scope", func_name));
-        }
-        // Pad args to match function arity (contracts may supply fewer args
-        // than the function requires — e.g., must_vary supplies 1 arg for a 2-param fn)
-        auto padded_args = args;
-        if (fn.isVMClosure()) {
-            int arity = fn.asVMClosureConst()->function->arity;
-            while (static_cast<int>(padded_args.size()) < arity) {
-                padded_args.push_back(interpreter::NaabVal::makeList({}));  // empty list
-            }
-        }
-        return vm_call_fn_(fn, padded_args, false);  // contract test args — not tainted
+        if (it != globals.end() && !it->second.isNull()) return it->second;
+        return searchValues(globals);
     }
 
     // --- Tree-walker path ---
@@ -4078,62 +4095,65 @@ interpreter::NaabVal GovernanceEngine::callContractTestFunction(
         throw std::runtime_error(
             "Execution-based contracts require an active execution engine");
     }
-
-    interpreter::NaabVal fn;
     auto env = interp->getGlobalEnv();
-    // Try bare name first (global functions)
-    if (env->has(func_name)) {
-        fn = env->get(func_name);
-    } else {
-        // Search module dicts: wildcard imports store a dict under the alias,
-        // e.g. env["helper"] = {"normalize_severity": <fn>, ...}
-        for (const auto& [name, val] : env->getValues()) {
-            if (val.isDict()) {
-                const auto& dict = val.asDictConst();
-                auto it = dict.find(func_name);
-                if (it != dict.end() && (it->second.isFunction() || it->second.isVMClosure())) {
-                    fn = it->second;
-                    break;
-                }
-            }
-        }
-        // Also try module-qualified names: "alias.func" defined directly in global env
-        if (fn.isNull()) {
-            std::string suffix = "." + func_name;
-            for (const auto& [name, val] : env->getValues()) {
-                if (name.size() > suffix.size() &&
-                    name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0 &&
-                    (val.isFunction() || val.isVMClosure())) {
-                    fn = val;
-                    break;
-                }
-            }
-        }
-        if (fn.isNull()) {
-            throw std::runtime_error(
-                fmt::format("Contract test: function '{}' not found in global scope", func_name));
-        }
+    if (env->has(func_name)) return env->get(func_name);
+    return searchValues(env->getValues());
+}
+
+namespace {
+// The value a missing argument is padded with. A position the contract's
+// "params" types ("name:type") gets an empty value of that type, so
+// contracts.validate_inputs accepts it (F-41: padding every parameter with an
+// empty list refused every typed multi-parameter function). Untyped, or "any",
+// keeps the empty list f7dec793 chose (a None would raise in Python loops).
+interpreter::NaabVal contractPadding(const FunctionContract* contract, size_t index) {
+    std::string type;
+    if (contract && index < contract->params.size()) {
+        const auto& spec = contract->params[index];
+        auto colon = spec.find(':');
+        if (colon != std::string::npos) type = spec.substr(colon + 1);
     }
+    if (type == "int") return interpreter::NaabVal::makeInt(0);
+    if (type == "float") return interpreter::NaabVal::makeDouble(0.0);
+    if (type == "string") return interpreter::NaabVal::makeString("");
+    if (type == "bool") return interpreter::NaabVal::makeBool(false);
+    if (type == "dict") return interpreter::NaabVal::makeDict({});
+    return interpreter::NaabVal::makeList({});
+}
+}  // namespace
+
+interpreter::NaabVal GovernanceEngine::callContractTestFunction(
+    const std::string& func_name,
+    const std::vector<interpreter::NaabVal>& args) {
+
+    interpreter::NaabVal fn = resolveContractTestFunction(func_name);
     if (fn.isNull()) {
         throw std::runtime_error(
-            fmt::format("Contract test: function '{}' is null", func_name));
+            fmt::format("Contract test: function '{}' not found in global scope", func_name));
     }
 
-    // Pad args to match function arity (same as VM path above)
+    // Pad args to match function arity (contracts may supply fewer args
+    // than the function requires -- e.g., must_vary supplies 1 arg for a 2-param fn)
+    const FunctionContract* contract = nullptr;
+    {
+        auto cit = rules().contracts.functions.find(func_name);
+        if (cit != rules().contracts.functions.end()) contract = &cit->second;
+    }
+    size_t arity = args.size();
+    if (fn.isVMClosure()) {
+        arity = static_cast<size_t>(std::max(0, fn.asVMClosureConst()->function->arity));
+    } else if (fn.isFunction()) {
+        arity = fn.asFunctionConst()->params.size();
+    }
     auto padded_args = args;
-    if (fn.isFunction()) {
-        size_t arity = fn.asFunctionConst()->params.size();
-        while (padded_args.size() < arity) {
-            padded_args.push_back(interpreter::NaabVal::makeList({}));  // empty list
-        }
-    } else if (fn.isVMClosure()) {
-        int arity = fn.asVMClosureConst()->function->arity;
-        while (static_cast<int>(padded_args.size()) < arity) {
-            padded_args.push_back(interpreter::NaabVal::makeList({}));  // empty list
-        }
+    while (padded_args.size() < arity) {
+        padded_args.push_back(contractPadding(contract, padded_args.size()));
     }
 
-    return interp->callFunction(fn, padded_args);
+    if (vm_call_fn_ && vm_globals_fn_) {
+        return vm_call_fn_(fn, padded_args, false);  // contract test args -- not tainted
+    }
+    return interpreter::g_current_interpreter->callFunction(fn, padded_args);
 }
 
 std::string GovernanceEngine::checkMustProduce(
@@ -4661,7 +4681,29 @@ std::string GovernanceEngine::runExecutionContracts() {
     if (!isActive()) return "";
     if (in_contract_test_) return "";  // Re-entrancy guard
 
+    // A function the program neither defines nor imports is skipped and named
+    // (the owner's decision of 2026-11-09). Its contract threw "not found",
+    // which blocked every program of a multi-program project AFTER it had run
+    // (F-32, observed: a program with no double_it exited 3 for double_it's
+    // must_produce). Like every name-keyed contract (requires/ensures, the
+    // static checks), it cannot see a rename.
+    std::vector<std::string> skipped;
     for (const auto& [func_name, contract] : rules().contracts.functions) {
+        const bool has_execution_contract =
+            !contract.must_produce.empty() || !contract.must_vary.empty() ||
+            !contract.must_differentiate.empty() || !contract.must_handle_case.empty() ||
+            !contract.must_satisfy.empty();
+        if (!has_execution_contract) continue;
+        bool present = true;
+        try {
+            present = !resolveContractTestFunction(func_name).isNull();
+        } catch (const std::exception&) {
+            present = true;  // no engine to ask: run it, and let it fail as before
+        }
+        if (!present) {
+            skipped.push_back(func_name);
+            continue;
+        }
         if (!contract.must_produce.empty()) {
             std::string err = checkMustProduce(func_name, contract, 0);
             if (!err.empty()) return err;
@@ -4684,10 +4726,79 @@ std::string GovernanceEngine::runExecutionContracts() {
         }
     }
 
+    if (!skipped.empty()) {
+        std::sort(skipped.begin(), skipped.end());
+        std::string names;
+        for (size_t i = 0; i < skipped.size(); ++i) {
+            if (i > 0) names += ", ";
+            names += skipped[i];
+        }
+        fmt::print(stderr,
+            "[governance] Execution contracts not run: {} -- not defined or imported "
+            "by this program.\n", names);
+    }
     return "";
 }
 
 // --- NAAb Function Body Quality Check ---
+
+namespace {
+// The source with the BODY lines of each polyglot block blanked, every line
+// kept so a finding names the line it is on. A custom rule the whole-file scan
+// applies for "naab" must read NAAb code: a block's body is foreign code, and
+// checkPolyglotBlock() already applies the custom rules to it in its own
+// language, so reading it here as well counted each match twice (an advisory
+// reached advisory_escalation's threshold at half the occurrences) and fired a
+// DETECT rule at load, where no try/catch can catch it (A131).
+//
+// What a block is comes from the lexer the run uses, never a line heuristic: a
+// `<<x` inside a NAAb string or comment is not a block, so it masks nothing. The
+// header line (`<<lang[vars] -> TYPE`) and the closing line (`>>` and whatever
+// NAAb code follows it) stay, because they are NAAb syntax a rule may name. A
+// block ends on the first later line whose text, after spaces, tabs and CRs,
+// starts with `>>` -- readInlineCode()'s own rule. If the source does not lex,
+// nothing is masked: the scan then over-reports, it never misses NAAb code.
+std::string naabTextWithoutBlockBodies(const std::string& source) {
+    std::vector<int> header_lines;
+    try {
+        naab::lexer::Lexer lx(source);
+        for (const auto& t : lx.tokenize()) {
+            if (t.type == naab::lexer::TokenType::INLINE_CODE) header_lines.push_back(t.line);
+        }
+    } catch (...) {
+        return source;
+    }
+    if (header_lines.empty()) return source;
+
+    std::vector<std::pair<size_t, size_t>> lines;  // [begin, end) of each line, '\n' excluded
+    size_t begin = 0;
+    for (size_t i = 0; i <= source.size(); ++i) {
+        if (i == source.size() || source[i] == '\n') {
+            lines.emplace_back(begin, i);
+            begin = i + 1;
+        }
+    }
+    std::vector<bool> body(lines.size(), false);
+    for (int header : header_lines) {
+        // Line numbers are 1-based, so index `header` is the line after the header.
+        for (size_t ln = static_cast<size_t>(header); ln < lines.size(); ++ln) {
+            const auto [b, e] = lines[ln];
+            size_t first = b;
+            while (first < e && (source[first] == ' ' || source[first] == '\t' || source[first] == '\r')) ++first;
+            if (first + 1 < e && source[first] == '>' && source[first + 1] == '>') break;
+            body[ln] = true;
+        }
+    }
+    std::string out;
+    out.reserve(source.size());
+    for (size_t ln = 0; ln < lines.size(); ++ln) {
+        if (ln > 0) out += '\n';
+        if (!body[ln]) out.append(source, lines[ln].first, lines[ln].second - lines[ln].first);
+    }
+    return out;
+}
+}  // namespace
+
 
 std::string GovernanceEngine::checkNaabSourceText(const std::string& source,
                                                   const std::string& source_file) {
@@ -4705,6 +4816,17 @@ std::string GovernanceEngine::checkNaabSourceText(const std::string& source,
         std::string err = checkSecrets(source, 1, /*code_starts_at_line=*/true);
         if (!err.empty()) return err;
         err = checkPii(source, 1, /*code_starts_at_line=*/true);
+        if (!err.empty()) return err;
+        // custom_rules written for "naab" (or for every language): naab-gov
+        // lint and polyglot blocks applied them and a run did not, so a HARD
+        // rule for NAAb code was checked in CI and passed at run time (F-34,
+        // observed: lint exit 3, run exit 0 "Governance: PASS").
+        // The bodies of polyglot blocks are masked: they are checked in their
+        // own language, block by block (A131, see naabTextWithoutBlockBodies).
+        if (!rules().custom_rules.empty()) {
+            err = checkCustomRules("naab", naabTextWithoutBlockBodies(source), 1,
+                                   /*code_starts_at_line=*/true);
+        }
         if (!err.empty()) return err;
         return checkIncompleteLogic(source, 1, source_file, /*code_starts_at_line=*/true);
     });
@@ -6763,7 +6885,8 @@ std::string GovernanceEngine::checkCodeSize(const std::string& language,
 
 // --- Custom Rules ---
 std::string GovernanceEngine::checkCustomRules(const std::string& language,
-                                                const std::string& code, int line) {
+                                                const std::string& code, int line,
+                                                bool code_starts_at_line) {
     clearTrace();
     for (const auto& rule : rules().custom_rules) {
         if (!rule.enabled || !rule.pattern_valid) continue;
@@ -6773,7 +6896,13 @@ std::string GovernanceEngine::checkCustomRules(const std::string& language,
             if (!matches) continue;
         }
         try {
-            if (naab::rx::regex_search(code, rule.compiled_pattern)) {
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(code, m, rule.compiled_pattern)) {
+                if (code_starts_at_line) {
+                    const auto pos = static_cast<std::size_t>(m.position(0));
+                    line += static_cast<int>(std::count(code.begin(),
+                        code.begin() + static_cast<std::ptrdiff_t>(std::min(pos, code.size())), '\n'));
+                }
                 std::string msg = rule.message.empty()
                     ? fmt::format("Custom rule '{}' violated", rule.name)
                     : rule.message;
@@ -6946,16 +7075,40 @@ std::string GovernanceEngine::checkDictSize(size_t size) {
 }
 
 // --- Rate Limiting ---
-bool GovernanceEngine::checkPolyglotRate() {
-    return polyglot_rate_.check(rules().limits.rate.max_polyglot_per_second);
+std::string GovernanceEngine::checkPolyglotRate() {
+    if (polyglot_rate_.check(rules().limits.rate.max_polyglot_per_second)) return "";
+    clearTrace();
+    const int max = rules().limits.rate.max_polyglot_per_second;
+    return enforce("limits.rate.max_polyglot_per_second", EnforcementLevel::HARD,
+        formatError(EnforcementLevel::HARD,
+            fmt::format("Polyglot execution rate limit exceeded ({} per second)", max), "",
+            fmt::format("limits.rate.max_polyglot_per_second = {}", max),
+            "Too many polyglot blocks executed per second.\n"
+            "Reduce execution frequency or restructure code to batch polyglot calls.", "", ""));
 }
 
-bool GovernanceEngine::checkStdlibRate() {
-    return stdlib_rate_.check(rules().limits.rate.max_stdlib_calls_per_second);
+std::string GovernanceEngine::checkStdlibRate() {
+    if (stdlib_rate_.check(rules().limits.rate.max_stdlib_calls_per_second)) return "";
+    clearTrace();
+    const int max = rules().limits.rate.max_stdlib_calls_per_second;
+    return enforce("limits.rate.max_stdlib_calls_per_second", EnforcementLevel::HARD,
+        formatError(EnforcementLevel::HARD,
+            fmt::format("Stdlib call rate limit exceeded ({} per second)", max), "",
+            fmt::format("limits.rate.max_stdlib_calls_per_second = {}", max),
+            "Too many stdlib function calls per second.\n"
+            "Reduce call frequency or restructure code to batch operations.", "", ""));
 }
 
-bool GovernanceEngine::checkFileOpsRate() {
-    return file_ops_rate_.check(rules().limits.rate.max_file_ops_per_second);
+std::string GovernanceEngine::checkFileOpsRate() {
+    if (file_ops_rate_.check(rules().limits.rate.max_file_ops_per_second)) return "";
+    clearTrace();
+    const int max = rules().limits.rate.max_file_ops_per_second;
+    return enforce("limits.rate.max_file_ops_per_second", EnforcementLevel::HARD,
+        formatError(EnforcementLevel::HARD,
+            fmt::format("File operation rate limit exceeded ({} per second)", max), "",
+            fmt::format("limits.rate.max_file_ops_per_second = {}", max),
+            "Too many file operations per second.\n"
+            "Reduce file I/O frequency or restructure code to batch file operations.", "", ""));
 }
 
 // --- Per-Language Getters ---

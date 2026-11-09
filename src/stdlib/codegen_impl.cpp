@@ -357,13 +357,9 @@ interpreter::NaabVal CodegenModule::call(
             if (!rate_err.empty()) {
                 throw std::runtime_error(rate_err);
             }
-            bool rate_ok = gov_engine->checkPolyglotRate();
-            if (!rate_ok) {
-                throw std::runtime_error(
-                    "Codegen error: polyglot rate limit exceeded\n\n"
-                    "  Dynamic code execution shares the polyglot rate limiter.\n"
-                    "  Try again after the rate window resets.\n");
-            }
+            // Dynamic code shares the polyglot rate limit, decided as it is.
+            std::string rate_limit_err = gov_engine->checkPolyglotRate();
+            if (!rate_limit_err.empty()) throw std::runtime_error(rate_limit_err);
         }
 
         // Step 10: BSD event emission (pre-execution)

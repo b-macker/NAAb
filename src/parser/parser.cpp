@@ -1013,6 +1013,13 @@ std::unique_ptr<ast::ExportStmt> Parser::parseExportStmt() {
     // export function
     if (check(lexer::TokenType::FUNCTION)) {
         auto func = parseFunctionDecl();
+        // A /// @intent above `export fn` belongs to the function, as above a
+        // plain `fn` (parseProgram): it was dropped here, so intent validation
+        // asked every exported function for the @intent it already had (F-36).
+        if (!pending_intent_.empty()) {
+            func->setIntent(pending_intent_);
+            pending_intent_.clear();
+        }
         return std::make_unique<ast::ExportStmt>(
             std::move(func),
             ast::SourceLocation(start.line, start.column)

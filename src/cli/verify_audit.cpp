@@ -11,10 +11,94 @@
 // break was invisible: a declared executable that nothing compiles reads as a
 // shipped feature. The target is now in the Build & Test workflow.
 #include <filesystem>
+#include <fstream>
 #include <fmt/core.h>
 #include <fmt/color.h>
+#include <nlohmann/json.hpp>
+#include "naab/crypto_utils.h"
 
 using namespace naab::security;
+
+// The engine's audit trail (GovernanceEngine::logAuditEvent, audit.output_file)
+// is not this tool's original format: each line is a JSON object chained by
+// "prev_hash" -> "hash", where "hash" is SHA-256 (HMAC-SHA256 when
+// audit.tamper_evidence has a key) of the entry WITHOUT "hash", and the first
+// entry's "prev_hash" is the configured chain_genesis. The tool read every
+// such log as tampered -- 100% of entries, observed on master 314bccfd -- so
+// it could not tell a tampered audit trail from an intact one (F-27, Bundle
+// 17). Returns -1 when the file is not in the engine's format.
+static int verifyEngineAuditTrail(const std::string& path, const std::string& hmac_key) {
+    std::ifstream in(path);
+    std::string line;
+    std::vector<std::string> lines;
+    while (std::getline(in, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (!line.empty()) lines.push_back(line);
+    }
+    if (lines.empty()) return -1;
+    nlohmann::json first;
+    try { first = nlohmann::json::parse(lines[0]); } catch (...) { return -1; }
+    if (!first.is_object() || first.contains("sequence") ||
+        !first.contains("event") || !first.contains("rule")) return -1;
+
+    fmt::print("Format: NAAb governance audit trail (audit.output_file)\n");
+    if (!first.contains("hash") || !first.contains("prev_hash")) {
+        fmt::print("Status: NOT VERIFIABLE -- these entries carry no hash chain "
+                   "(audit.tamper_evidence is off), so nothing can be verified.\n");
+        return 3;
+    }
+
+    uint64_t verified = 0;
+    std::vector<std::string> errors;
+    std::string prev;
+    for (size_t i = 0; i < lines.size(); ++i) {
+        const size_t n = i + 1;
+        nlohmann::json e;
+        try { e = nlohmann::json::parse(lines[i]); }
+        catch (...) { errors.push_back(fmt::format("line {}: not valid JSON", n)); prev.clear(); continue; }
+        if (!e.is_object() || !e.contains("hash") || !e["hash"].is_string() ||
+            !e.contains("prev_hash") || !e["prev_hash"].is_string()) {
+            errors.push_back(fmt::format("line {}: no hash chain fields", n));
+            prev.clear();
+            continue;
+        }
+        const std::string hash = e["hash"].get<std::string>();
+        const std::string prev_hash = e["prev_hash"].get<std::string>();
+        e.erase("hash");
+        const std::string body = e.dump();
+        const std::string recomputed = hmac_key.empty()
+            ? CryptoUtils::sha256(body) : CryptoUtils::hmacSha256(body, hmac_key);
+        bool ok = true;
+        if (recomputed != hash) {
+            errors.push_back(fmt::format("line {}: its hash does not match its content", n));
+            ok = false;
+        }
+        if (i == 0) {
+            fmt::print("Chain starts at: {}\n", prev_hash);
+        } else if (prev_hash != prev) {
+            errors.push_back(fmt::format("line {}: prev_hash does not link to line {} "
+                                         "(an entry was removed, inserted or reordered)", n, n - 1));
+            ok = false;
+        }
+        if (ok) ++verified;
+        prev = hash;
+    }
+
+    fmt::print("Total Entries:     {}\n", lines.size());
+    fmt::print("Verified Entries:  {}\n", verified);
+    if (errors.empty()) {
+        fmt::print("Status:            VALID\n");
+        fmt::print("Every entry's hash matches its content and links to the one before.\n"
+                   "Entries removed from the END of the file cannot be detected from the file alone.\n");
+        return 0;
+    }
+    fmt::print("Status:            TAMPERED\n");
+    for (const auto& err : errors) fmt::print("  - {}\n", err);
+    if (hmac_key.empty() && verified == 0) {
+        fmt::print("If audit.tamper_evidence signs with an HMAC key, pass it with --hmac-key.\n");
+    }
+    return 2;
+}
 
 void printUsage(const char* program_name) {
     fmt::print("Usage: {} <log-file> [options]\n\n", program_name);
@@ -175,6 +259,11 @@ int main(int argc, char* argv[]) {
 
     // Create temporary logger instance for verification
     fmt::print("Verifying log integrity...\n\n");
+
+    {
+        const int engine_rc = verifyEngineAuditTrail(log_file, hmac_key);
+        if (engine_rc >= 0) return engine_rc;
+    }
 
     try {
         // Create a temporary TamperEvidenceLogger to use its verification method

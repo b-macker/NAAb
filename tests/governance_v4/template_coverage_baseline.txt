@@ -127,6 +127,23 @@ code_quality.no_hardcoded_ips.custom_patterns
 code_quality.no_hardcoded_ips.patterns
 code_quality.no_hardcoded_urls.custom_patterns
 code_quality.no_hardcoded_urls.patterns
+# Parsed, and the loader WARNS that nothing enforces them; removed from the
+# template in Bundle 17 because the shipped template loaded with those warnings
+# (Gemini's SentinelGrid report, F-06). Described in the template's _comments.
+capabilities.filesystem.blocked_extensions
+capabilities.process.allow_daemon
+capabilities.process.max_processes
+capabilities.process.signals
+capabilities.process.spawn
+limits.data.nesting_depth
+limits.data.string_length
+requirements.error_handling.enabled
+requirements.error_handling.require_catch_body
+requirements.error_handling.require_try_catch
+# Parsed into NoMockDataConfig and read by no check (traced, Bundle 17): no
+# check has a test-context exemption, and one decided by the program's own
+# function names would be a way to switch a check off.
+code_quality.no_mock_data.ignore_in_test_context
 # S6 is detection-only; governance.h marks the weight INERT ("kept for config
 # compatibility"). No reader of weights.coherence_velocity exists.
 context_drift.weights.coherence_velocity
@@ -136,6 +153,15 @@ context_drift.weights.coherence_velocity
 scorers.<name>.green_threshold
 
 # --- WARN-ONLY: read solely to warn that the key has no effect.
+# The four checks below are switched on by their block's presence; the
+# template used to write "enabled": false in each, which turned nothing off.
+code_quality.max_complexity.enabled
+code_quality.no_apologetic_language.enabled
+code_quality.no_hardcoded_ips.enabled
+code_quality.no_hardcoded_urls.enabled
 code_quality.complexity_floor.enabled
+# A top-level "scopes" block (per-file overrides) is read only to warn that it
+# exempts nothing (F-26, Bundle 17); init and the template no longer write one.
+scopes
 security.blocked_commands
 security.blocked_paths

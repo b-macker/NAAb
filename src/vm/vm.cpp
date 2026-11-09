@@ -1913,6 +1913,10 @@ interpreter::NaabVal VM::run() {
             VM_CASE(OP_CALL): {
                 uint8_t argc = decodeA(instruction);
                 interpreter::NaabVal& callee = peek(argc);
+                if (callee.isVMClosure()) {
+                    checkNaabFunctionSink(CURRENT_CHUNK(),
+                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1, argc);
+                }
                 if (!callValue(callee, argc)) {
                     runtimeError("Value is not callable");
                 }
@@ -2240,6 +2244,8 @@ interpreter::NaabVal VM::run() {
                     auto& dict = obj.asDict();
                     auto it = dict.find(method);
                     if (it != dict.end() && it->second.isVMClosure()) {
+                        checkNaabFunctionSink(CURRENT_CHUNK(),
+                            static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1, argc);
                         // Replace obj on stack with the function, then call
                         peek(argc) = it->second;
                         if (!callValue(it->second, argc)) {
@@ -2254,6 +2260,9 @@ interpreter::NaabVal VM::run() {
                         std::string qualified = sn_it->second.asString() + "." + method;
                         auto git = globals_.find(qualified);
                         if (git != globals_.end() && git->second.isVMClosure()) {
+                            checkNaabFunctionSink(CURRENT_CHUNK(),
+                                static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1, argc,
+                                qualified);
                             peek(argc) = git->second;
                             if (!callValue(git->second, argc)) {
                                 runtimeError("Struct method '%s' is not callable", qualified.c_str());
@@ -3102,10 +3111,9 @@ interpreter::NaabVal VM::run() {
 
                     // Rate limiting for polyglot execution
                     // Gates: limits.rate.max_polyglot_per_second.
-                    if (governance_->isActive() && !governance_->checkPolyglotRate()) {
-                        runtimeError("Governance: polyglot execution rate limit exceeded.\n\n"
-                            "  Too many polyglot blocks executed per second.\n"
-                            "  Reduce execution frequency or restructure code to batch polyglot calls.\n");
+                    if (governance_->isActive()) {
+                        std::string rate_err = governance_->checkPolyglotRate();
+                        if (!rate_err.empty()) runtimeError("%s", rate_err.c_str());
                     }
 
                     // Taint sink check: block tainted variables from reaching polyglot blocks.
@@ -5192,6 +5200,43 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
 // gate added to one route cannot miss the other -- the second route had only the
 // checks someone remembered to copy (A51). args[0..argc) are the call's
 // arguments; refusal is a runtimeError, as at the call site.
+// A taint sink can name a NAAb function -- `post`, or `net.post` from an
+// imported module (F-33). sinks used to match only the names the engine passes
+// at its own check sites (a stdlib call's module.method, <lang>_exec, print,
+// variable assignment), so a sink naming a NAAb function loaded without a word
+// and was never checked. The call is judged by the name it is WRITTEN under
+// (chunk.call_names, recorded by the compiler from calleeName(), the text the
+// static report judges too) against the live rules, so a sink a reload adds
+// applies. Only a call about to enter a NAAb function comes here: a stdlib call
+// has its own check under its module name, and checking it twice would record
+// two violations for one call.
+void VM::checkNaabFunctionSink(const Chunk& chunk, int offset, int argc,
+                               const std::string& resolved) {
+    if (!governance_ || !governance_->isActive()) return;
+    if (!governance_->getRules().taint_tracking.enabled) return;
+    bool any_tainted = false;
+    for (int ai = 0; ai < argc && !any_tainted; ai++) {
+        ptrdiff_t arg_offset = (stack_top_ - argc + ai) - stack_.get();
+        any_tainted = taint_stack_[arg_offset];
+    }
+    if (!any_tainted) return;
+    // The written name first; a sink written as the resolved name (the type's
+    // method, `Client.send`) must hold for the instance form too.
+    std::string name;
+    auto it = chunk.call_names.find(offset);
+    if (it != chunk.call_names.end() && governance_->isTaintSink(it->second)) name = it->second;
+    else if (!resolved.empty() && governance_->isTaintSink(resolved)) name = resolved;
+    if (name.empty()) return;
+    const int line = chunk.getLine(offset);
+    for (int ai = 0; ai < argc; ai++) {
+        ptrdiff_t arg_offset = (stack_top_ - argc + ai) - stack_.get();
+        if (!taint_stack_[arg_offset]) continue;
+        std::string arg_label = "argument " + std::to_string(ai) + " of '" + name + "()'";
+        std::string terr = governance_->checkTaintedValueAtSink(arg_label, name, current_file_, line);
+        if (!terr.empty()) runtimeError("%s", terr.c_str());
+    }
+}
+
 void VM::stdlibCallGates(const std::string& mod, const std::string& method,
                          int argc, interpreter::NaabVal* args, int line) {
     if (!governance_) return;
@@ -5277,15 +5322,13 @@ interpreter::NaabVal VM::callStdlibMethod(const std::string& module, const std::
 
     // Rate limiting for stdlib calls
     if (governance_ && governance_->isActive()) {
-        if (!governance_->checkStdlibRate()) {
-            runtimeError("Governance: stdlib call rate limit exceeded.\n\n"
-                "  Too many stdlib function calls per second.\n"
-                "  Reduce call frequency or restructure code to batch operations.\n");
+        {
+            std::string rate_err = governance_->checkStdlibRate();
+            if (!rate_err.empty()) runtimeError("%s", rate_err.c_str());
         }
-        if (module == "file" && !governance_->checkFileOpsRate()) {
-            runtimeError("Governance: file operation rate limit exceeded.\n\n"
-                "  Too many file operations per second.\n"
-                "  Reduce file I/O frequency or restructure code to batch file operations.\n");
+        if (module == "file") {
+            std::string rate_err = governance_->checkFileOpsRate();
+            if (!rate_err.empty()) runtimeError("%s", rate_err.c_str());
         }
     }
 

@@ -875,8 +875,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"enabled", !is_test && isEnabled(s, 1)},
             {"level", mock_level},
             {"variable_prefixes", json::array({"mock_", "fake_", "dummy_", "test_"})},
-            {"function_prefixes", json::array({"mock_", "fake_", "stub_"})},
-            {"ignore_in_test_context", true}
+            {"function_prefixes", json::array({"mock_", "fake_", "stub_"})}
         };
     }
     // no_apologetic_language
@@ -1100,30 +1099,10 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["governance_plugins"] = json::array();
     }
 
-    // ── scopes ─────────────────────────────────────────────────────
-    {
-        json scopes = json::array();
-        // tests scope — relax quality checks
-        json test_scope;
-        test_scope["glob"] = "tests/**";
-        test_scope["overrides"] = {
-            {"code_quality.no_placeholders", "false"},
-            {"code_quality.no_mock_data", "false"},
-            {"code_quality.no_oversimplification.level", "advisory"}
-        };
-        scopes.push_back(test_scope);
-
-        // examples scope — relax hardcoded results
-        json example_scope;
-        example_scope["glob"] = "examples/**";
-        example_scope["overrides"] = {
-            {"code_quality.no_hardcoded_results", "false"},
-            {"requirements.documentation.enabled", "true"}
-        };
-        scopes.push_back(example_scope);
-
-        root["scopes"] = scopes;
-    }
+    // No "scopes" block: a top-level scopes array is read by nothing, so the
+    // test and example exemptions init used to write here exempted nothing
+    // (Gemini's SentinelGrid report F-26, Bundle 17). Every check applies to
+    // every file; the loader warns on a scopes block.
 
     // ── output ─────────────────────────────────────────────────────
     {

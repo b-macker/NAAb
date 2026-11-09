@@ -128,6 +128,7 @@ private:
     std::unordered_map<std::string, bool> tainted_functions_;  // functions that return tainted data
     bool exprContainsTaint(ast::Expr* expr);
     void emitStaticTaintMark(ast::Expr* expr, int line);  // OP_GOV_TAINT_MARK when the static rule says tainted
+    void recordCallName(ast::Expr* callee);  // chunk.call_names for the next (call) instruction (F-33)
     // OP_COND_TAINT (0 save, 1 add, 2 apply), only when taint tracking is on.
     void emitCondTaint(uint32_t mode, int line);
     // A118: placeholder slots for the temporaries beneath a local an

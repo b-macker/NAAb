@@ -1402,19 +1402,15 @@ void Interpreter::visit(ast::CallExpr& node) {
                     // Governance: Check capability restrictions on stdlib calls
                     if (governance_ && governance_->isActive()) {
                         // Rate limiting for stdlib calls
-                        if (!governance_->checkStdlibRate()) {
-                            throw std::runtime_error(
-                                "Governance: stdlib call rate limit exceeded.\n\n"
-                                "  Too many stdlib function calls per second.\n"
-                                "  Reduce call frequency or restructure code to batch operations.\n");
+                        {
+                            std::string rate_err = governance_->checkStdlibRate();
+                            if (!rate_err.empty()) throw std::runtime_error(rate_err);
                         }
 
                         // File ops rate limiting
-                        if (module_alias == "file" && !governance_->checkFileOpsRate()) {
-                            throw std::runtime_error(
-                                "Governance: file operation rate limit exceeded.\n\n"
-                                "  Too many file operations per second.\n"
-                                "  Reduce file I/O frequency or restructure code to batch file operations.\n");
+                        if (module_alias == "file") {
+                            std::string rate_err = governance_->checkFileOpsRate();
+                            if (!rate_err.empty()) throw std::runtime_error(rate_err);
                         }
 
                         // Network check for http module
