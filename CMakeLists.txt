@@ -1161,6 +1161,9 @@ message(STATUS "  ✓ Documentation generator tool (naab-doc)")
 add_executable(naab-verify-audit
     src/cli/verify_audit.cpp
 )
+target_include_directories(naab-verify-audit PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
+)
 target_link_libraries(naab-verify-audit
     naab_security
     fmt::fmt

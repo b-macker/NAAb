@@ -51,9 +51,13 @@ cd "$TEST_DIR" && rm -f govern.json
 echo "" | "$NAAB_BIN" init --governance --governance-preset standard --taint --force > /dev/null 2>&1
 
 # Check all required top-level keys
-for key in version mode languages capabilities taint_tracking limits requirements restrictions code_quality contracts baselines custom_rules scopes output audit meta hooks polyglot polyglot_optimization scanner project_context; do
+for key in version mode languages capabilities taint_tracking limits requirements restrictions code_quality contracts baselines custom_rules output audit meta hooks polyglot polyglot_optimization scanner project_context; do
     check "Has top-level '$key'" "python3 -c 'import json; d=json.load(open(\"govern.json\")); assert \"$key\" in d' 2>/dev/null"
 done
+# Bundle 17 (F-26): a top-level "scopes" block is read by nothing, so the test
+# and example exemptions init wrote there exempted nothing. Init no longer
+# writes one.
+check "Has no top-level 'scopes' (read by nothing)" "python3 -c 'import json; d=json.load(open(\"govern.json\")); assert \"scopes\" not in d' 2>/dev/null"
 
 # --- Test 4: capabilities has 7 sub-sections ---
 echo ""

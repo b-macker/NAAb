@@ -3590,6 +3590,113 @@ else
     echo "  test_extends_floor.sh: not found, skipping"
 fi
 
+# Bundle 17: Gemini SentinelGrid findings (custom rules at run, rate limits as
+# HARD blocks, environment gates raise-only, execution contracts, reload extends,
+# the audit verifier, export fn tooling, CONTRA-013 reach)
+B17ENVGATE_SCRIPT="tests/governance_v4/test_env_gate_floor.sh"
+if [ -f "$B17ENVGATE_SCRIPT" ]; then
+    if run_shell_test "$B17ENVGATE_SCRIPT" 2>&1; then
+        echo "  test_env_gate_floor.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_env_gate_floor.sh")
+    fi
+else
+    echo "  test_env_gate_floor.sh: not found, skipping"
+fi
+B17CUSTOM_SCRIPT="tests/governance_v4/test_custom_rules_run.sh"
+if [ -f "$B17CUSTOM_SCRIPT" ]; then
+    if run_shell_test "$B17CUSTOM_SCRIPT" 2>&1; then
+        echo "  test_custom_rules_run.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_custom_rules_run.sh")
+    fi
+else
+    echo "  test_custom_rules_run.sh: not found, skipping"
+fi
+B17RATE_SCRIPT="tests/governance_v4/test_rate_limit_enforce.sh"
+if [ -f "$B17RATE_SCRIPT" ]; then
+    if run_shell_test "$B17RATE_SCRIPT" 2>&1; then
+        echo "  test_rate_limit_enforce.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_rate_limit_enforce.sh")
+    fi
+else
+    echo "  test_rate_limit_enforce.sh: not found, skipping"
+fi
+B17EXECCTR_SCRIPT="tests/governance_v4/test_exec_contract_scope.sh"
+if [ -f "$B17EXECCTR_SCRIPT" ]; then
+    if run_shell_test "$B17EXECCTR_SCRIPT" 2>&1; then
+        echo "  test_exec_contract_scope.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_exec_contract_scope.sh")
+    fi
+else
+    echo "  test_exec_contract_scope.sh: not found, skipping"
+fi
+B17RELOADX_SCRIPT="tests/governance_v4/test_reload_extends.sh"
+if [ -f "$B17RELOADX_SCRIPT" ]; then
+    if run_shell_test "$B17RELOADX_SCRIPT" 2>&1; then
+        echo "  test_reload_extends.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_reload_extends.sh")
+    fi
+else
+    echo "  test_reload_extends.sh: not found, skipping"
+fi
+B17AUDITV_SCRIPT="tests/security/test_audit_verify_engine.sh"
+if [ -f "$B17AUDITV_SCRIPT" ]; then
+    if run_shell_test "$B17AUDITV_SCRIPT" 2>&1; then
+        echo "  test_audit_verify_engine.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_audit_verify_engine.sh")
+    fi
+else
+    echo "  test_audit_verify_engine.sh: not found, skipping"
+fi
+B17EXPORTFN_SCRIPT="tests/governance_v4/test_export_fn_tooling.sh"
+if [ -f "$B17EXPORTFN_SCRIPT" ]; then
+    if run_shell_test "$B17EXPORTFN_SCRIPT" 2>&1; then
+        echo "  test_export_fn_tooling.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_export_fn_tooling.sh")
+    fi
+else
+    echo "  test_export_fn_tooling.sh: not found, skipping"
+fi
+B17CONTRA13_SCRIPT="tests/governance_v4/test_contra013_reach.sh"
+if [ -f "$B17CONTRA13_SCRIPT" ]; then
+    if run_shell_test "$B17CONTRA13_SCRIPT" 2>&1; then
+        echo "  test_contra013_reach.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_contra013_reach.sh")
+    fi
+else
+    echo "  test_contra013_reach.sh: not found, skipping"
+fi
+
+# A taint sink can name a NAAb function, local or imported (A141, Gemini F-33,
+# Bundle 17): the VM checks the call under its written name; naab-gov taint
+# reports it.
+B17FNSINK_SCRIPT="tests/governance_v4/test_naab_fn_sink.sh"
+if [ -f "$B17FNSINK_SCRIPT" ]; then
+    if run_shell_test "$B17FNSINK_SCRIPT" 2>&1; then
+        echo "  test_naab_fn_sink.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_naab_fn_sink.sh")
+    fi
+else
+    echo "  test_naab_fn_sink.sh: not found, skipping"
+fi
+
 # Module governance: full body checks skip during module loading, behavioral
 # contracts still fire. Verifies skip_main_ (VM) agrees with
 # module_loading_depth_ (tree-walker).

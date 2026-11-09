@@ -52,7 +52,7 @@ namespace {
 struct Target {
     std::string name;
     std::vector<std::string> params;
-    std::vector<std::string> types;  // contract "params" ("name:type"), else "any"
+    std::vector<std::string> types;  // contract "params" ("name:type"), else the source annotation, else "any"
     std::vector<std::string> requires_clauses, ensures_clauses;
 };
 
@@ -76,6 +76,12 @@ std::vector<json> pool(const std::string& type, const std::vector<long long>& li
     std::vector<json> dicts = {json::object(), json{{"k", 1}}, json{{"a", 1}, {"b", 2}}};
     std::vector<json> out;
     auto add = [&](const std::vector<json>& v) { out.insert(out.end(), v.begin(), v.end()); };
+    // `string?` (a nullable annotation): the type's values and null.
+    if (type.size() > 1 && type.back() == '?') {
+        out = pool(type.substr(0, type.size() - 1), literals);
+        out.push_back(nullptr);
+        return out;
+    }
     if (type == "int") add(ints);
     else if (type == "float") { add(floats); add(ints); }
     else if (type == "string") add(strings);
@@ -93,6 +99,60 @@ std::vector<json> pool(const std::string& type, const std::vector<long long>& li
         if (seen.insert(v.dump()).second) uniq.push_back(v);
     }
     return uniq;
+}
+
+// A fresh random value of a declared type, for the random half of the cases.
+// A typed parameter only ever gets values of its type (F-09): the search used
+// to put a fresh integer in any parameter, so a string parameter's cases were
+// mostly integers -- 192 of 200 threw before reaching the code under test, and
+// "no counterexample" rested on the 8 strings in its pool. An untyped parameter
+// keeps the old draw: any value, fresh integers included.
+// The pool name an annotation gives (`fn f(s: string)`); an unannotated
+// parameter parses as any. A nullable annotation adds "?".
+std::string annotatedType(const naab::ast::Type& t) {
+    using K = naab::ast::TypeKind;
+    std::string base;
+    switch (t.kind) {
+        case K::Int: base = "int"; break;
+        case K::Float: base = "float"; break;
+        case K::String: base = "string"; break;
+        case K::Bool: base = "bool"; break;
+        case K::List: base = "list"; break;
+        case K::Dict: base = "dict"; break;
+        default: return "any";
+    }
+    return t.is_nullable ? base + "?" : base;
+}
+
+json freshValue(const std::string& declared, std::mt19937& rng) {
+    std::string type = declared;
+    if (type.size() > 1 && type.back() == '?') {
+        if (rng() % 8 == 0) return nullptr;
+        type.pop_back();
+    }
+    auto fresh_int = [&]() { return static_cast<long long>(rng() % 2001) - 1000; };
+    if (type == "float") return static_cast<double>(static_cast<long long>(rng() % 200001) - 100000) / 100.0;
+    if (type == "string") {
+        static const char kChars[] = "abcxyzABC019 -_.";
+        std::string out;
+        const size_t len = rng() % 13;
+        for (size_t k = 0; k < len; ++k) out.push_back(kChars[rng() % (sizeof(kChars) - 1)]);
+        return out;
+    }
+    if (type == "bool") return (rng() % 2) == 0;
+    if (type == "array" || type == "list") {
+        json out = json::array();
+        const size_t len = rng() % 5;
+        for (size_t k = 0; k < len; ++k) out.push_back(fresh_int());
+        return out;
+    }
+    if (type == "dict") {
+        json out = json::object();
+        const size_t len = rng() % 4;
+        for (size_t k = 0; k < len; ++k) out["k" + std::to_string(k)] = fresh_int();
+        return out;
+    }
+    return fresh_int();  // int, and an untyped parameter
 }
 
 std::vector<json> generateCases(const Target& t, int count, uint32_t seed) {
@@ -136,11 +196,11 @@ std::vector<json> generateCases(const Target& t, int count, uint32_t seed) {
     while (static_cast<int>(cases.size()) < count && attempts < count * 20) {
         ++attempts;
         json args = json::array();
-        for (const auto& p : pools) {
+        for (size_t i = 0; i < pools.size(); ++i) {
+            const auto& p = pools[i];
             uint32_t r = rng();
             if (r % 4 == 0) {
-                // a fresh integer in [-1000, 1000]
-                args.push_back(static_cast<long long>(rng() % 2001) - 1000);
+                args.push_back(freshValue(t.types[i], rng));
             } else {
                 args.push_back(p[r % p.size()]);
             }
@@ -217,17 +277,28 @@ int cmdContracts(const std::vector<std::string>& args, const char* argv0) {
         ss << f.rdbuf();
         source = ss.str();
     }
-    std::map<std::string, std::vector<std::string>> declared;
+    // Each declared function's parameters: name and the type its annotation gives.
+    std::map<std::string, std::vector<std::pair<std::string, std::string>>> declared;
     try {
         naab::lexer::Lexer lex(source);
         auto tokens = lex.tokenize();
         naab::parser::Parser parser(tokens);
         parser.setSource(source, abs.string());
         auto program = parser.parseProgram();
-        for (const auto& fn : program->getFunctions()) {
-            std::vector<std::string> ps;
-            for (const auto& p : fn->getParams()) ps.push_back(p.name);
+        auto declare = [&](const naab::ast::FunctionDecl* fn) {
+            std::vector<std::pair<std::string, std::string>> ps;
+            for (const auto& p : fn->getParams()) ps.emplace_back(p.name, annotatedType(p.type));
             declared[fn->getName()] = ps;
+        };
+        for (const auto& fn : program->getFunctions()) declare(fn.get());
+        // `export fn` is a declaration of this file too: a module's contracted
+        // functions are usually exported, and read as "not declared in this
+        // file" (F-08), although their clauses are enforced at every call.
+        for (const auto& ex : program->getExports()) {
+            if (ex && ex->getKind() == naab::ast::ExportStmt::ExportKind::Function &&
+                ex->getFunctionDecl()) {
+                declare(ex->getFunctionDecl());
+            }
         }
     } catch (const std::exception& e) {
         std::cerr << "naab-gov contracts: " << abs.string() << " does not parse: " << e.what() << "\n";
@@ -253,11 +324,13 @@ int cmdContracts(const std::vector<std::string>& args, const char* argv0) {
         if (it == declared.end()) { not_declared.push_back(name); continue; }
         Target t;
         t.name = name;
-        t.params = it->second;
         t.requires_clauses = contract.requires_clauses;
         t.ensures_clauses = contract.ensures_clauses;
-        for (const auto& p : t.params) {
-            std::string type = "any";
+        // A parameter's type: the contract's `params` hint ("name:type"), else
+        // the program's own annotation (`fn f(s: string)`), else any.
+        for (const auto& [p, annotated] : it->second) {
+            t.params.push_back(p);
+            std::string type = annotated;
             for (const auto& spec : contract.params) {
                 auto colon = spec.find(':');
                 if (colon != std::string::npos && spec.substr(0, colon) == p) type = spec.substr(colon + 1);

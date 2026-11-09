@@ -919,6 +919,15 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
 }
 
 static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
+    // A top-level "scopes" block (per-file overrides) is read by nothing: the
+    // exemptions it lists exempt no file. `naab-gov init` and the template
+    // used to write one, so a project believed its tests were exempt while
+    // every check still applied (F-26). Not built: per-file switch-offs would
+    // be a way out of a check; this says so instead of staying silent.
+    if (j.contains("scopes")) {
+        fprintf(stderr, "[governance] Warning: \"scopes\" is not applied -- no check reads "
+                "it, so nothing listed there is exempted. Every check applies to every file.\n");
+    }
     // Mode
     if (j.contains("mode") && j["mode"].is_string()) {
         std::string mode = j["mode"].get<std::string>();
@@ -2396,36 +2405,37 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (cr.contains("case_sensitive") && cr["case_sensitive"].is_boolean()) rule.case_sensitive = cr["case_sensitive"].get<bool>();
             if (cr.contains("tags")) for (auto& t : cr["tags"]) if (t.is_string()) rule.tags.push_back(t.get<std::string>());
             parseRationale(cr, rule.rationale);
-            // Compile regex
+            // Compile regex. An enabled rule is either enforced or refuses the
+            // config: it is never dropped. V-GOV-010 (436e0e12) SKIPPED a
+            // pattern its ReDoS heuristic called unsafe, and an invalid one was
+            // skipped too, each with only a warning -- so a heuristic false
+            // alarm switched a HARD rule off (F-05, observed: a rule
+            // forbidding require("fs") was skipped as "overlapping
+            // alternatives" and the JavaScript ran, exit 0). V-GOV-010's
+            // concern is met by the engine since A89: naab::rx runs a pattern
+            // on RE2 in linear time, and one RE2 cannot take falls back to a
+            // step-budgeted matcher that refuses (scan limit, HARD) rather
+            // than hangs.
             if (!rule.pattern.empty() && rule.enabled) {
-                // V-GOV-010: validate pattern complexity before compiling to prevent ReDoS
-                bool pattern_safe = true;
-                if (rule.pattern.size() > 1000) {
-                    fprintf(stderr, "[governance] Warning: Unsafe regex in custom rule '%s' — skipped: "
-                            "pattern exceeds 1000 character limit (%zu chars)\n",
-                            rule.id.c_str(), rule.pattern.size());
-                    pattern_safe = false;
-                } else {
-                    naab::regex_safety::SafeRegex safe_re;
-                    auto complexity = safe_re.analyzePattern(rule.pattern);
-                    if (!complexity.is_safe) {
-                        fprintf(stderr, "[governance] Warning: Unsafe regex in custom rule '%s' — skipped: %s\n",
-                                rule.id.c_str(), complexity.warning.c_str());
-                        pattern_safe = false;
-                    }
-                }
-                if (!pattern_safe) {
-                    rules_.custom_rules.push_back(std::move(rule));
-                    continue;
-                }
                 try {
                     auto flags = naab::rx::regex::ECMAScript;
                     if (!rule.case_sensitive) flags |= naab::rx::regex::icase;
                     rule.compiled_pattern = naab::rx::regex(rule.pattern, flags);
                     rule.pattern_valid = true;
-                } catch (const std::regex_error&) {
-                    fprintf(stderr, "[governance] Warning: Invalid regex in custom rule '%s': %s\n",
-                            rule.id.c_str(), rule.pattern.c_str());
+                } catch (const std::exception& e) {
+                    throw std::runtime_error(
+                        "custom_rules[\"" + rule.id + "\"].pattern does not compile as a regular "
+                        "expression.\n"
+                        "  A rule the loader cannot compile would not be applied, so the\n"
+                        "  config is refused rather than loaded without it. Fix the pattern,\n"
+                        "  or set \"enabled\": false on the rule.");
+                }
+                if (!rule.compiled_pattern.linear_time()) {
+                    fprintf(stderr,
+                        "[governance] Note: custom rule '%s' uses a construct the linear-time "
+                        "matcher does not support (lookaround or a backreference); it runs on "
+                        "the bounded matcher, and a text too long for it is refused.\n",
+                        rule.id.c_str());
                 }
             }
             rules_.custom_rules.push_back(std::move(rule));
@@ -6867,6 +6877,40 @@ GovernanceEngine::ReloadEvaluation GovernanceEngine::evaluateReload(
         }
     }
 
+    // Resolve the extends chain as startup does (loadFromFile): merged with
+    // every parent and floored (A98), so the ratchet compares the rules the
+    // run would have, not the child's own keys. A reload parsed the child
+    // alone, so an extends project could not reload at all: even the same
+    // file again was refused, every inherited setting reading as loosened
+    // (F-04 / F-21 / F-28, observed on master 314bccfd: 5 violations for a
+    // reload of a file by itself). A parent that does not load refuses the
+    // reload only: loadWithExtends() marks a parent signature failure as a
+    // startup INTEGRITY BLOCK, which a running process must not inherit.
+    if (!ev.rules.extends_path.empty()) {
+        const auto config_dir = std::filesystem::path(path).parent_path().string();
+        const auto resolved = resolveExtendsPath(ev.rules.extends_path, config_dir);
+        bool chain_ok = !resolved.empty();
+        if (!chain_ok) {
+            fmt::print(stderr, "[governance] Cannot resolve extends: {}\n",
+                       ev.rules.extends_path);
+        } else {
+            std::set<std::string> visited;
+            visited.insert(std::filesystem::weakly_canonical(path).string());
+            int max_depth = ev.rules.meta.inheritance.max_depth;
+            if (max_depth <= 0) max_depth = 5;
+            // Relative policy entries resolve against the loaded project, as
+            // the ratchet resolves them (resolvePolicyPath).
+            const std::string run_dir = govern_json_dir_.empty() ? config_dir : govern_json_dir_;
+            const bool hard_block_before = g_governance_hard_block.load();
+            chain_ok = loadWithExtends(resolved, 1, max_depth, visited, ev.rules, run_dir);
+            g_governance_hard_block = hard_block_before;
+        }
+        if (!chain_ok) {
+            ev.outcome = Outcome::ExtendsRefused;
+            return ev;
+        }
+    }
+
     // Apply minimum enforcement levels to new rules -- the SAME function
     // the load path calls (loadFromFile, applyEnvironment). This used to
     // call enforceMinimumLevelsOnRules() alone, which skips the F3 rule
@@ -7015,6 +7059,25 @@ bool GovernanceEngine::reloadIfChanged() {
 
         // Signature verified — clear the failure tracker
         last_sig_fail_mtime_ = 0;
+
+        if (ev.outcome == Outcome::ExtendsRefused) {
+            // Reported once per mtime, and the mtime is not cached: a parent
+            // can be fixed or re-signed without the child changing.
+            if (current_mtime != last_extends_fail_mtime_) {
+                fmt::print(stderr,
+                    "[governance] Reload rejected: the extends chain does not load.\n"
+                    "  The run continues under the configuration already loaded.\n");
+                logAuditEvent("governance_reload_rejected", "governance_config",
+                    "Extends chain did not load on govern.json reload");
+                writeAgentTelemetry("CONFIG_ADJUSTMENT", {
+                    {"accepted", "false"},
+                    {"reason", "extends"},
+                });
+                last_extends_fail_mtime_ = current_mtime;
+            }
+            return false;
+        }
+        last_extends_fail_mtime_ = 0;
 
         if (ev.outcome == Outcome::RatchetRefused) {
             std::string detail;

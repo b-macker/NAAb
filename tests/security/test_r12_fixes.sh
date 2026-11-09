@@ -106,6 +106,15 @@ fi
 
 # ============================================================================
 # T-GOV — V-GOV-010: ReDoS protection for custom rule patterns
+#
+# V-GOV-010 (436e0e12) SKIPPED a custom-rule pattern its ReDoS heuristic called
+# unsafe. Since A89 the patterns compile with naab::rx (RE2, linear time; a
+# pattern RE2 cannot take falls back to a step-budgeted matcher), so the skip
+# protected nothing the engine does not, and it switched rules off (Bundle 17,
+# F-05). The threat stays measured here: a catastrophic-backtracking pattern
+# over a long input must finish, and the rule must be ENFORCED, not skipped.
+# T-GOV-1/-3 used to read $? after `$(... || true)`, which is always 0, so a
+# hang could never be seen; each now records its own exit status.
 # ============================================================================
 
 echo ""
@@ -115,12 +124,10 @@ if [ ! -x "$NAAB_GOV" ]; then
     skip "naab-gov not built — skipping T-GOV"
 else
     WORK_DIR="$(mktemp -d)"
-
-    # Write a govern.json with a ReDoS-prone custom rule pattern
-    cat > "$WORK_DIR/govern.json" << 'EOF'
+    cat > "$WORK_DIR/govern.json" << 'GOVEOF'
 {
     "version": "4.0",
-    "mode": "advisory",
+    "mode": "enforce",
     "custom_rules": [
         {
             "id": "REDOS-TEST",
@@ -128,41 +135,43 @@ else
             "pattern": "(a+)+$",
             "enabled": true,
             "case_sensitive": true,
-            "level": "advisory",
+            "level": "hard",
+            "languages": ["naab"],
             "message": "ReDoS test"
         }
     ]
 }
-EOF
+GOVEOF
+    # 30,000 a's then a b: the classic input that makes a backtracking
+    # matcher take exponential time on (a+)+$, which it does not match.
+    python3 -c 'import sys; open(sys.argv[1],"w").write("main {\n    let s = \"" + "a"*30000 + "b\"\n    print(s)\n}\n")' "$WORK_DIR/test.naab"
 
-    cat > "$WORK_DIR/test.naab" << 'EOF'
-main {
-    let x = 1
-}
-EOF
-
-    # Run naab-gov lint with a 5-second timeout — should not hang
-    GOV_OUT=$(cd "$WORK_DIR" && timeout 5 "$NAAB_GOV" lint "$WORK_DIR/test.naab" 2>&1 || true)
-    GOV_CODE=$?
-
-    if [ "$GOV_CODE" -eq 124 ]; then
-        fail "T-GOV-1: naab-gov HUNG on ReDoS pattern (timeout after 5s)"
+    GOV_CODE=0
+    GOV_OUT=$(cd "$WORK_DIR" && timeout 20 "$NAAB_GOV" lint "$WORK_DIR/test.naab" 2>&1) || GOV_CODE=$?
+    if [ "$GOV_CODE" -eq 124 ] || [ "$GOV_CODE" -gt 128 ]; then
+        fail "T-GOV-1: naab-gov hung or crashed on a ReDoS pattern over a long line (exit=$GOV_CODE)"
+    elif [ "$GOV_CODE" -eq 0 ]; then
+        pass "T-GOV-1: naab-gov finished on a ReDoS pattern over a 30,000-character line (exit=0, no match)"
     else
-        pass "T-GOV-1: naab-gov completed within 5s on ReDoS pattern (exit=$GOV_CODE)"
+        fail "T-GOV-1: naab-gov refused a file the pattern does not match (exit=$GOV_CODE, out=$GOV_OUT)"
     fi
 
-    # Verify it logged a warning about the unsafe pattern
-    if grep <<<"$GOV_OUT" -qi "Unsafe regex\|unsafe.*regex\|skipped"; then
-        pass "T-GOV-2: naab-gov warned about unsafe/skipped ReDoS pattern"
+    # T-GOV-2: the same rule is enforced, not skipped: a file ending in a's
+    # (no trailing newline) matches (a+)+$ and is blocked.
+    printf 'main {\n    print("x")\n}\n// aaaa' > "$WORK_DIR/test.naab"
+    GOV_CODE=0
+    GOV_OUT=$(cd "$WORK_DIR" && timeout 20 "$NAAB_GOV" lint "$WORK_DIR/test.naab" 2>&1) || GOV_CODE=$?
+    if [ "$GOV_CODE" -eq 3 ] && grep <<<"$GOV_OUT" -q "REDOS-TEST" && ! grep <<<"$GOV_OUT" -qi "skipped"; then
+        pass "T-GOV-2: the ReDoS-shaped rule is enforced, not skipped (exit 3)"
     else
-        fail "T-GOV-2: no unsafe regex warning found (output: $GOV_OUT)"
+        fail "T-GOV-2: the ReDoS-shaped rule was skipped or not enforced (exit=$GOV_CODE, out=$GOV_OUT)"
     fi
 
-    # T-GOV-3: a safe pattern should still compile and work
-    cat > "$WORK_DIR/govern.json" << 'EOF'
+    # T-GOV-3: a safe pattern compiles without a warning and is enforced
+    cat > "$WORK_DIR/govern.json" << 'GOVEOF'
 {
     "version": "4.0",
-    "mode": "advisory",
+    "mode": "enforce",
     "custom_rules": [
         {
             "id": "SAFE-PATTERN",
@@ -170,19 +179,20 @@ EOF
             "pattern": "eval\\s*\\(",
             "enabled": true,
             "case_sensitive": false,
-            "level": "advisory",
+            "level": "hard",
+            "languages": ["naab"],
             "message": "Avoid eval"
         }
     ]
 }
-EOF
-
-    SAFE_OUT=$(cd "$WORK_DIR" && timeout 5 "$NAAB_GOV" lint "$WORK_DIR/test.naab" 2>&1 || true)
-    SAFE_CODE=$?
-    if [ "$SAFE_CODE" -ne 124 ] && ! grep <<<"$SAFE_OUT" -qi "Unsafe regex"; then
-        pass "T-GOV-3: safe pattern accepted without warning"
+GOVEOF
+    printf 'main {\n    let code = "eval (1)"\n    print(code)\n}\n' > "$WORK_DIR/test.naab"
+    SAFE_CODE=0
+    SAFE_OUT=$(cd "$WORK_DIR" && timeout 20 "$NAAB_GOV" lint "$WORK_DIR/test.naab" 2>&1) || SAFE_CODE=$?
+    if [ "$SAFE_CODE" -eq 3 ] && grep <<<"$SAFE_OUT" -q "SAFE-PATTERN" && ! grep <<<"$SAFE_OUT" -qi "Unsafe regex"; then
+        pass "T-GOV-3: a safe pattern compiles, without a warning, and is enforced"
     else
-        fail "T-GOV-3: safe pattern rejected or timed out (exit=$SAFE_CODE, out=$SAFE_OUT)"
+        fail "T-GOV-3: safe pattern rejected, warned or not enforced (exit=$SAFE_CODE, out=$SAFE_OUT)"
     fi
 
     rm -rf "$WORK_DIR"

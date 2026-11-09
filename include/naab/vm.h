@@ -223,6 +223,11 @@ struct Chunk {
     std::vector<interpreter::NaabVal> constants;
     std::vector<LineInfo> lines;
     std::string source_file;
+    // The name each call instruction was written by (calleeName(): `post`,
+    // `net.post`), keyed by its code offset. A taint sink can name a NAAb
+    // function, and a call is judged by the name it is written under (F-33):
+    // the bytecode carries only the callee value.
+    std::unordered_map<int, std::string> call_names;
 
     // Add a constant, return its index
     int addConstant(interpreter::NaabVal value);
@@ -670,6 +675,13 @@ private:
                                            int argc, interpreter::NaabVal* args);
     interpreter::NaabVal callStdlibMethod(const std::string& module, const std::string& method,
                                           int argc, interpreter::NaabVal* args);
+    // A call about to enter a NAAb function: when taint_tracking.sinks names it
+    // (as written at the call, chunk.call_names) and an argument is tainted, the
+    // sink's check runs, as at a stdlib sink (F-33). `resolved` is the name the
+    // call resolved to when it differs from the written one (a struct method
+    // called on an instance, `c.send(x)`, runs `Client.send`).
+    void checkNaabFunctionSink(const Chunk& chunk, int offset, int argc,
+                               const std::string& resolved = "");
     // The module gates every VM route runs before calling a stdlib function.
     void stdlibCallGates(const std::string& mod, const std::string& method,
                          int argc, interpreter::NaabVal* args, int line);

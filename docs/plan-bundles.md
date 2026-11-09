@@ -4,20 +4,21 @@ The project owner's ordered plan for governance work. It was recorded on 2026-10
 
 A **bundle** is one branch, one pull request and one validated push. **Confirm a bundle's scope with the owner before starting it.** A finding made along the way is recorded in `docs/open-investigations.md` in the same pull request, and is added to a bundle only by the owner's decision.
 
-## Status (2026-11-06)
+## Status (2026-11-09)
 
 | Bundle | State | Where |
 |---|---|---|
 | 1-5 | merged | git log, CHANGELOG |
 | 6: crash-proof governor, then the planned defaults | merged | #347 (`41a3b3c3`) |
 | 7: release | merged | #348 (`ca07ae12`) tagged v2.0.0; its macOS release build failed, so #349 (`735fa217`) released 2.0.1 |
-| 8: "governance only tightens", proved | merged: PR 1 #352 (`76c871cf`), PR 2 #353 (`fc9b8099`). Follow-up PR (A95(b), A98) built 2026-11-09, in review | Bundle 8 below |
+| 8: "governance only tightens", proved | merged: PR 1 #352 (`76c871cf`), PR 2 #353 (`fc9b8099`). Follow-up merged, #364 (`314bccfd`): A95(b), A98 | Bundle 8 below |
 | 9: adversarial inputs and concurrency | merged | #354 (`7a4c1c50`); A108-A112 |
 | 10: state machines and automata | merged | #355 (`f9337bdf`); A113 |
 | 11: contracts and manifests for LLM-written code | merged, two PRs by the owner's decision (2026-11-01). PR 1 #356 (`703fa6c4`): requires/ensures as NAAb expressions checked by the VM at the call boundary, and the opt-in counterexample search `naab-gov contracts` in a worker; A114. PR 2 #357 (`528fbb59`): the signed capability manifest; A115, A116 | Bundle 11 below |
-| 12: taint as information flow | in progress, two PRs by the owner's decision (2026-11-04). PR 1 (merged, #358): one taint semantics -- one static rule both AST walks share, unknown kinds fail closed, a suite generated from the semantics table; A117. PR 2 (merged, #360): the static noninterference check, an opt-in report, `naab-gov taint`; measured, A120-A122. Follow-up PR 1 (merged, #361, `01fb3552`): A120 and A121(d) fixed, A122(b), A123 and A124 recorded. PR 3 decided (the owner, 2026-11-06), after Bundle 16: A121(a)-(c), A124. The control-flow bar waits on Bundle 13 | Bundle 12 below |
-| 16: honest tests and the engine's own child processes | built (2026-11-06), one PR: A123 (13 of 14 tests and the guard; one pinned for Bundle 12 PR 3), A125, A122, A99, A100 fixed; A126 recorded for the owner | Bundle 16 below |
-| 13-15 | not started; Bundle 16 runs first | |
+| 12: taint as information flow | merged (the control-flow bar waits on Bundle 13); two PRs by the owner's decision (2026-11-04), then follow-ups. PR 1 (merged, #358): one taint semantics -- one static rule both AST walks share, unknown kinds fail closed, a suite generated from the semantics table; A117. PR 2 (merged, #360): the static noninterference check, an opt-in report, `naab-gov taint`; measured, A120-A122. Follow-up PR 1 (merged, #361, `01fb3552`): A120 and A121(d) fixed, A122(b), A123 and A124 recorded. PR 3 merged, #363 (`169d6600`): A121(a)-(c), A124, A127, A129. The control-flow bar waits on Bundle 13 | Bundle 12 below |
+| 16: honest tests and the engine's own child processes | merged, #362 (`977e7a40`): A123 (13 of 14 tests and the guard; one pinned for Bundle 12 PR 3), A125, A122, A99, A100 fixed; A126 recorded for the owner | Bundle 16 below |
+| 17: what Gemini's SentinelGrid report found | built (2026-11-09), one PR, scope by the owner's decisions of 2026-11-09: A130, A131, A133-A139, A141, A142 fixed; A132, A140, A143, A144 and F-14 recorded | Bundle 17 below |
+| 13-15 | not started; order 17, 13, 14, 15 (the owner, 2026-11-09) | |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). The bundle plan itself was recorded in #351 (`86fc33c9`).
 
@@ -198,7 +199,7 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
 
 **The control-flow bar** stays report-only. Nothing refuses a control flow until (1) imported modules are followed (4,855 calls are not followed today); (2) it is measured against Bundle 13's labelled corpus, with a stated catch rate and none of the 23 benign decision points refused; (3) only the narrow shape is refused -- an outbound sink reached under tainted control, with arguments that differ by branch or in a loop over tainted data; (4) a declared exception comes with a ratchet entry, so none can be added mid-run; (5) the key is opt-in and defaults to report. So it follows Bundle 13.
 
-## Bundle 16 -- honest tests and the engine's own child processes (next; runs before Bundle 13)
+## Bundle 16 -- honest tests and the engine's own child processes (merged, #362)
 
 Added by the owner's decision (2026-11-06). It runs before Bundle 13 because Bundle 13 measures what governance catches, and that measurement is only as good as tests that fail when they fail.
 
@@ -221,6 +222,24 @@ Added by the owner's decision (2026-11-06). It runs before Bundle 13 because Bun
 - A99, A100: as decided; A100's refusal also covers the legacy `agent_roles` key.
 - **The `path` module's Windows contract (A123), decided (the owner, 2026-11-07): always `/`.** The guard's first honest build-windows run failed `tests/stdlib/test_stdlib_path.naab`, which the old Python-warning rule had excused since it was written; the module returned `std::filesystem`'s mixed native form there. Every path function now returns `/` on every host; `is_absolute()` keeps the host's meaning.
 - **Found and not decided: A126** -- `naab-gov lint` fires the project's `on_violation` hook, the hook half of A122(c). Pinned (`test_engine_child_stdin.sh` ES-07), the owner's call.
+
+## Bundle 17 -- what Gemini's SentinelGrid report found (built 2026-11-09; runs before Bundle 13)
+
+Added by the owner's decision (2026-11-09: "Ok bundle 17 first"). Gemini built a project on NAAb and reported 42 findings; all 42 were checked on master `314bccfd`, twice (26 reproduced by running, 12 confirmed in code, 2 do not reproduce, 2 checked in part). This bundle takes the holes and the bugs; the precision findings wait for Bundle 13, which measures them.
+
+- **A130: an environment only turns a gate on.** The owner (2026-11-09): "only raise govern.json's mode, never lower it", applied to `quality_gate.enabled`, `governance_baseline.enabled` and `governance_baseline.fail_on_regression`.
+- **A131 (F-34, F-05): custom rules.** Applied to NAAb code at run time, not only by lint; a pattern compiles with the crash-proof matcher and is enforced, or refuses the config.
+- **A133: rate limits are HARD**, through `enforce()` (the owner: "HARD, like other limits"). F-14 (string methods not counted as stdlib calls) recorded open.
+- **A134 (F-32, F-41, F-42): contracts.** A contract for a function the program does not have is skipped and named (the owner); typed padding; `must_derive_from` needs every listed parameter, in code (the owner).
+- **A135 (F-04, F-21, F-28): a reload resolves `extends`.**
+- **A136 (F-27): `naab-verify-audit` verifies the engine's audit trail.**
+- **A137 (F-36, F-08): `export fn`** for `@intent` and `naab-gov contracts`.
+- **A138 (F-03): CONTRA-013** fires only while a separate-process language can run.
+- **A139 (F-01, F-02, F-06, F-26): template and `init` drift**, including the unused `scopes` block (warned at load, not built).
+
+**Added from Gemini's updated report (the owner, 2026-11-09):** A141 (F-33, wider than reported: a sink naming a NAAb function was never checked by the run either -- now enforced at the call and reported) and A142 (F-09: the contract search keeps a typed parameter's cases in its type). Recorded, not built: A143 (F-35, output baselines; a design call) and A144 (`must_derive_from` checks presence, not derivation into `return_key`).
+
+**Not taken, recorded:** A132 -- `naab-gov lint` applies 15 whole-file checks a run does not (the owner: custom rules now, the rest after Bundle 13 measures their precision); A140 -- the rest of the report, and the remedies in it that would loosen governance (a test-context exemption, per-file scopes, crediting `let` names to intent, not scanning comments for secrets), which are not to be taken as written.
 
 ## Bundle 13 -- measure what governance catches; help operators
 

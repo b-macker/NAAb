@@ -20,6 +20,9 @@
 #   S3 naab-gov does not check the number of reports         -> CS-09
 #   S4 main is compiled in search mode                       -> CS-04 CS-07
 #   S5 the random part ignores --seed                        -> CS-02b
+#   S6 a fresh integer in any parameter again (F-09)         -> CS-13 CS-14
+#   S7 the source annotation not read (F-09)                 -> CS-14
+#   (CS-14c is a control: it passes on master too)
 #   (CS-12's subject, the ScopedTempDir, is covered by TD-00's prefix list)
 #   (the clause suite's M1 and M2 also turn CS-01/CS-03..05 red: no clause, no
 #   counterexample)
@@ -240,6 +243,35 @@ if [ -n "$(find "$TD" -maxdepth 1 -name 'naab_contracts_*' -type d)" ]; then
 else
     skip "CS-12 the probe cannot see a planted directory"
 fi
+
+# F-09 (Bundle 17): the random half of a TYPED parameter's cases stays in its
+# type. It used to put a fresh integer in any parameter and drop repeats, so a
+# string parameter got its 8 pool strings and then only integers: the strings
+# longer than the pool's longest ("hello") were never tried. Each arm needs one.
+# The type comes from the contract's params hint, else the source annotation.
+TIDY_CFG_HINT=$(cfg '{"tidy":{"params":["s:string"],"ensures":["len(result) <= 5"]}}')
+search ty_hint "$TIDY_CFG_HINT" 'fn tidy(s) {
+    return s
+}
+main { print(tidy("a")) }' --cases 200
+if [ "$RC" -eq 1 ] && has "COUNTEREXAMPLE"; then pass "CS-13 a params type hint keeps the random cases in type (a long string is found)"
+else fail "CS-13 the search found no in-type counterexample (rc=$RC)" "$OUT"; fi
+
+TIDY_CFG_ANN=$(cfg '{"tidy":{"ensures":["len(result) <= 5"]}}')
+search ty_ann "$TIDY_CFG_ANN" 'fn tidy(s: string) {
+    return s
+}
+main { print(tidy("a")) }' --cases 200
+if [ "$RC" -eq 1 ] && has "COUNTEREXAMPLE"; then pass "CS-14 a source annotation types the parameter the same way"
+else fail "CS-14 the annotation did not type the search (rc=$RC)" "$OUT"; fi
+
+TIDY_CFG_LOOSE=$(cfg '{"tidy":{"ensures":["len(result) <= 12"]}}')
+search ty_loose "$TIDY_CFG_LOOSE" 'fn tidy(s: string) {
+    return s
+}
+main { print(tidy("a")) }' --cases 200
+if [ "$RC" -eq 0 ] && has "no counterexample" && has " 0 threw"; then pass "CS-14c CONTROL: an ensures every in-type input meets reads none found, and nothing threw"
+else fail "CS-14c CONTROL: the typed search did not read none found (rc=$RC)" "$OUT"; fi
 
 echo
 echo "contract search: $PASS passed, $FAIL failed, $SKIP unmeasurable"

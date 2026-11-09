@@ -3311,6 +3311,9 @@ public:
             SignatureRefused,  // `signature_diag` holds the verifier's reason
             Unreadable,        // the file could not be opened
             TooWide,           // a JSON array exceeds the loader's cap
+            ExtendsRefused,    // the extends chain does not load (a parent
+                               // missing, unsigned, unreadable, or refused
+                               // by the A98 floor); its diagnostics went to stderr
         };
         Outcome outcome = Outcome::Unreadable;
         std::vector<std::string> violations;
@@ -3741,9 +3744,11 @@ public:
     std::string checkCodeSize(const std::string& language,
                                const std::string& code, int line = 0);
 
-    // Custom rules
+    // Custom rules. With code_starts_at_line, `code` is a whole file whose
+    // first line is `line`, and a finding names the line the match is on.
     std::string checkCustomRules(const std::string& language,
-                                  const std::string& code, int line = 0);
+                                  const std::string& code, int line = 0,
+                                  bool code_starts_at_line = false);
 
     // Governance plugins (NAAb-based custom checks)
     std::string checkPluginRules(const std::string& trigger,
@@ -3778,6 +3783,14 @@ public:
     bool checkPolyglotRate();
     bool checkStdlibRate();
     bool checkFileOpsRate();
+    // The rate limits as governance decisions: "" within the limit, else a
+    // HARD block through enforce() -- uncatchable and recorded, as every other
+    // limit is. The bool checks above only count; every call site uses these
+    // (Bundle 17: a refused call was a plain runtime error a NAAb try/catch
+    // swallowed, and the run ended "Governance: PASS (0 violations)").
+    std::string checkPolyglotRateLimit();
+    std::string checkStdlibRateLimit();
+    std::string checkFileOpsRateLimit();
 
     // Comprehensive check (runs all applicable checks on a polyglot block)
     std::string checkPolyglotBlock(const std::string& language,
@@ -4449,6 +4462,9 @@ private:
     interpreter::NaabVal jsonStringToNaabVal(const std::string& json_str);
     interpreter::NaabVal callContractTestFunction(
         const std::string& func_name, const std::vector<interpreter::NaabVal>& args);
+    // The contracted function as the program has it; null when it neither
+    // defines nor imports it (runExecutionContracts skips and names those).
+    interpreter::NaabVal resolveContractTestFunction(const std::string& func_name);
     std::string checkMustProduce(const std::string& func_name,
                                   const FunctionContract& contract, int line);
     std::string checkMustVary(const std::string& func_name,
@@ -4679,6 +4695,7 @@ private:
     // --- Mid-run reload state (Governance Under Survivability) ---
     int64_t loaded_mtime_ns_ = 0;                 // govern.json mtime as nanoseconds (fs clock epoch)
     int64_t last_sig_fail_mtime_ = 0;             // mtime of last signature-failed reload (suppress duplicate logs)
+    int64_t last_extends_fail_mtime_ = 0;         // mtime of last reload whose extends chain did not load
     // Atomic because agent worker threads read it via getReloadCount() while
     // reloadIfChanged() writes it under reload_mutex_ — a different lock, so the
     // mutex does not order the read. Mirrors governance_epoch_ above.

@@ -311,6 +311,7 @@ runtime.timeout                                  startup -- traced: applied by a
 security.allow_network                           startup -- traced: read by main.cpp at startup into the sandbox's network switch; the reload sync only removes capabilities
 security.strict_types                            startup -- traced: read by main.cpp at startup (strict_types_config)
 security.blocked_commands                        inert -- traced: the loader warns it has no effect and stores nothing (governance_config.cpp naab-46)
+scopes                                           inert -- traced: the loader only warns that a top-level scopes block exempts nothing, and stores nothing (Bundle 17, F-26)
 security.blocked_paths                           inert -- traced: the loader warns it has no effect and stores nothing (governance_config.cpp naab-46)
 
 # trust

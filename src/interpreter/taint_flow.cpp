@@ -912,7 +912,17 @@ private:
         if (imported) blind("a call into an imported NAAb module (the callee is not followed)");
         if (on_value && runtimes_.count(recv_var)) blind("a method of a polyglot runtime handle (its code is not analysed)");
 
-        if (!user && !via_value && !on_value && !imported) sinkCheck(name, data, pc, line);
+        if (!user && !via_value && !on_value && !imported) {
+            sinkCheck(name, data, pc, line);
+        } else {
+            // A sink can name a NAAb function, local or imported (F-33): the run
+            // checks a call into one under the name it is written by
+            // (VM::checkNaabFunctionSink), so the report does too -- over the
+            // arguments, which is what the run checks, not the receiver.
+            Label arg_data;
+            for (const auto& l : args) arg_data = join(arg_data, l);
+            sinkCheck(name, arg_data, pc, line);
+        }
 
         // A mutating method on a variable: it now holds what was put in it.
         if (on_value && !recv_var.empty() && isMutatingMethod(method)) {

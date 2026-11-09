@@ -20,6 +20,11 @@
 #          without it NK-01..04 pass for a validator that reports every key
 #   NK-06  CONTROL: both shipped templates load, run, and report nothing
 #   NK-07  more than 25 findings are summarised, not printed one per line
+#   NK-08  both shipped templates load with NO config warning of any kind
+#          (Bundle 17, F-01/F-02/F-06: the template loaded with 14 -- reserved
+#          keys, "enabled": false on presence-enabled checks, and a sequence
+#          pattern whose steps match no event, so enabling detection from the
+#          template detected nothing). Red first: 14 warnings on master 314bccfd.
 # ============================================================
 set -uo pipefail
 
@@ -152,6 +157,20 @@ case "$out" in
         else bad NK-07 "the summary appeared but $listed findings were listed (want 25)"; fi ;;
     *) bad NK-07 "30 findings were not summarised" "listed=$listed" ;;
 esac
+
+# --- NK-08: the shipped templates load with no config warning --------------
+# NK-06 counts only unread keys. A reference config people copy must also not
+# carry keys the engine warns do nothing, or a pattern that can never fire.
+nk8=""
+for t in "$REPO/govern-template.json" "$REPO/docs/govern-template.json"; do
+    sed 's#"extends"[[:space:]]*:[[:space:]]*"[^"]*",##' "$t" > "$W/govern.json"
+    out="$(cd "$W" && timeout 60 "$NAAB" p.naab 2>&1)"
+    case "$out" in *PROGRAM_RAN*) ;; *) nk8="$nk8 ${t#$REPO/}:did-not-run"; continue ;; esac
+    w="$(grep '^\[governance\] Warning' <<<"$out")"
+    [ -z "$w" ] || nk8="$nk8 ${t#$REPO/}:$(grep -c . <<<"$w")-warnings[$(head -1 <<<"$w" | cut -c1-90)]"
+done
+if [ -z "$nk8" ]; then ok NK-08 "both templates load with no config warning"
+else bad NK-08 "a shipped template loads with config warnings" "$nk8"; fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"
