@@ -8137,10 +8137,383 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
     reconcileCapabilityMirrors(child);
 }
 
+// ============================================================================
+// The extends floor (A98, the owner's decision of 2026-11-06)
+// ============================================================================
+//
+// mergeRules() above decides each setting by the strategy: under child_wins a
+// child's explicit value replaces the parent's, and under parent_wins a
+// child's non-empty list still replaced the parent's (merge_arrays: replace)
+// or widened it (append). So a child could allow what its parent refused under
+// either strategy -- environment reads and writes, child-process withholding,
+// file reads and writes, languages, hosts and the response scans (measured by
+// tests/property/ratchet_property.cpp --extends; A98). Only the mode was a
+// floor. This runs after the merge and makes every SECURITY setting at least
+// as strict as the parent's, under both strategies:
+//   - a switch is allowed only when both allow it (shell, network, env read and
+//     write, the filesystem mode by rank, https_only, the subprocess scrub
+//     mode, the model-output secret scan);
+//   - a blocked list is the union of both;
+//   - an allow list -- where EMPTY means unrestricted -- is what both admit,
+//     judged by the gate's own matching rule (path prefix, host suffix, env
+//     name, runtime name); two non-empty lists that admit nothing in common
+//     refuse the config at load, never read as unrestricted;
+//   - an exemption list -- where empty is the strictest (sanitizers, PII
+//     allowlist patterns, the scrub allowlist) -- is what both grant;
+//   - every check's switch is on when either turns it on, at the stricter
+//     level by what it refuses (levelLoosens).
+// A child may still tighten, and still change what is not a security setting
+// (limits -- an inherited limit applies like a configured one and a child's
+// own limit is kept, the owner's decision of 2026-10-25 -- outputs, telemetry,
+// agents, and a check's parameters other than its switch and level).
+namespace {
+
+EnforcementLevel stricterLevel(EnforcementLevel a, EnforcementLevel b) {
+    if (!levelLoosens(a, b)) return b;   // b refuses at least as much as a
+    if (!levelLoosens(b, a)) return a;
+    // Neither refuses at least as much as the other in both runs (detect
+    // vs soft: soft refuses more without --governance-override, detect more
+    // with it). HARD refuses as much as both in either run.
+    return EnforcementLevel::HARD;
+}
+
+// A check's switch and level: on when either config turns it on.
+template <class C>
+void floorCheck(const C& parent, C& merged) {
+    if (!parent.enabled) return;
+    if (!merged.enabled) { merged = parent; return; }
+    merged.level = stricterLevel(parent.level, merged.level);
+}
+
+// A check with a switch and no level (duplicate_calls, polyglot_try_catch).
+template <class C>
+void floorSwitch(const C& parent, C& merged) {
+    if (parent.enabled && !merged.enabled) merged = parent;
+}
+
+void addOnce(std::vector<std::string>& v, const std::string& s) {
+    if (std::find(v.begin(), v.end(), s) == v.end()) v.push_back(s);
+}
+
+void unionInto(std::vector<std::string>& dst, const std::vector<std::string>& src) {
+    for (const auto& s : src) addOnce(dst, s);
+}
+
+using Admits = std::function<bool(const std::string& entry, const std::vector<std::string>& list)>;
+
+// What both lists admit: an entry of either side that the other side admits.
+std::vector<std::string> admittedByBoth(const std::vector<std::string>& a,
+                                        const std::vector<std::string>& b, const Admits& admits) {
+    std::vector<std::string> out;
+    for (const auto& e : a) if (admits(e, b)) addOnce(out, e);
+    for (const auto& e : b) if (admits(e, a)) addOnce(out, e);
+    return out;
+}
+
+// An allow list where EMPTY means unrestricted. false when both are non-empty
+// and nothing is admitted by both.
+bool meetAllowlist(std::vector<std::string>& merged, const std::vector<std::string>& parent,
+                   const Admits& admits) {
+    if (parent.empty()) return true;
+    if (merged.empty()) { merged = parent; return true; }
+    merged = admittedByBoth(merged, parent, admits);
+    return !merged.empty();
+}
+
+// An exemption list, where empty is the strictest value: only what both grant.
+void meetExemptions(std::vector<std::string>& merged, const std::vector<std::string>& parent,
+                    const Admits& admits) {
+    merged = admittedByBoth(merged, parent, admits);
+}
+
+bool exactAdmits(const std::string& e, const std::vector<std::string>& list) {
+    return std::find(list.begin(), list.end(), e) != list.end();
+}
+
+// The prefix rule isTaintSource()/isSanitizer() match by: an entry covers
+// every name that starts with it, so `e` is admitted by an entry it starts with.
+bool prefixAdmits(const std::string& e, const std::vector<std::string>& list) {
+    for (const auto& l : list)
+        if (!l.empty() && e.size() >= l.size() && e.compare(0, l.size(), l) == 0) return true;
+    return false;
+}
+
+int fsModeStrictnessRank(const std::string& m) {
+    if (m == "none") return 0;
+    if (m == "read") return 1;
+    return 2;  // "write", the only other value normalizeFilesystemMode() admits
+}
+
+// taint_tracking.level is a string ("hard", "soft", "advisory", "detect").
+bool taintLevelValue(const std::string& s, EnforcementLevel& out) {
+    if (s == "hard") { out = EnforcementLevel::HARD; return true; }
+    if (s == "soft") { out = EnforcementLevel::SOFT; return true; }
+    if (s == "advisory") { out = EnforcementLevel::ADVISORY; return true; }
+    if (s == "detect") { out = EnforcementLevel::DETECT; return true; }
+    return false;
+}
+const char* taintLevelWord(EnforcementLevel l) {
+    switch (l) {
+        case EnforcementLevel::SOFT: return "soft";
+        case EnforcementLevel::ADVISORY: return "advisory";
+        case EnforcementLevel::DETECT: return "detect";
+        default: return "hard";
+    }
+}
+
+}  // namespace
+
+bool GovernanceEngine::applyExtendsFloor(const GovernanceRules& parent, GovernanceRules& child,
+                                         const std::string& run_dir, std::string& error) {
+    // The parent as it is ENFORCED: the minimum-level rule raises an advisory
+    // no_secrets or no_pii (and four heuristics) to soft on every load, so a
+    // parent's advisory is a soft block, and a child's detect must not be
+    // compared with the advisory it was written as.
+    GovernanceRules effective = parent;
+    enforceMinimumLevelsOnRules(effective);
+    const GovernanceRules& base = effective;
+    std::vector<std::string> disjoint;  // allow lists that admit nothing in common
+    auto& cc = child.capabilities;
+    const auto& bc = base.capabilities;
+
+    // --- Switches: allowed only when both allow. Both mirror copies are
+    // written (reconcileCapabilityMirrors reads either way).
+    cc.shell.enabled = cc.shell.enabled && bc.shell.enabled;
+    child.shell_allowed = child.shell_allowed && base.shell_allowed;
+    cc.network.enabled = cc.network.enabled && bc.network.enabled;
+    child.network_allowed = child.network_allowed && base.network_allowed;
+    for (std::string* m : {&cc.filesystem.mode, &child.filesystem_mode}) {
+        for (const std::string* p : {&bc.filesystem.mode, &base.filesystem_mode}) {
+            if (!p->empty() && fsModeStrictnessRank(*p) < fsModeStrictnessRank(*m)) *m = *p;
+        }
+    }
+    cc.env_vars.read = cc.env_vars.read && bc.env_vars.read;
+    cc.env_vars.write = cc.env_vars.write && bc.env_vars.write;
+    if (bc.network.https_only) cc.network.https_only = true;
+    if (base.manifest.required) child.manifest.required = true;
+    if (base.scansModelOutputForSecrets()) {
+        // On, and at the parent's level at least: the scan enforces at the
+        // flat no_secrets_level whether or not no_secrets itself is on, so a
+        // child's `"no_secrets": "detect"` made a parent's hard scan catchable.
+        child.model_output_scan_inherited = true;
+        const EnforcementLevel lvl = stricterLevel(base.no_secrets_level, child.no_secrets_level);
+        child.no_secrets_level = lvl;
+        child.code_quality.no_secrets.level =
+            stricterLevel(lvl, child.code_quality.no_secrets.level);
+    }
+
+    // --- Blocked lists: the union.
+    unionInto(cc.shell.blocked_commands, bc.shell.blocked_commands);
+    unionInto(cc.env_vars.blocked_read, bc.env_vars.blocked_read);
+    unionInto(cc.env_vars.blocked_write, bc.env_vars.blocked_write);
+    unionInto(cc.env_vars.blocked_subprocess_vars, bc.env_vars.blocked_subprocess_vars);
+    unionInto(cc.env_vars.blocked_subprocess_prefixes, bc.env_vars.blocked_subprocess_prefixes);
+    unionInto(cc.filesystem.blocked_paths, bc.filesystem.blocked_paths);
+    unionInto(cc.network.blocked_hosts, bc.network.blocked_hosts);
+    child.blocked_languages.insert(base.blocked_languages.begin(), base.blocked_languages.end());
+    for (const auto& [lang, mods] : base.restrictions.imports.blocked) {
+        unionInto(child.restrictions.imports.blocked[lang], mods);
+    }
+
+    // --- Allow lists: what both admit, by each gate's own matching rule.
+    const Admits env_admits = [](const std::string& e, const std::vector<std::string>& list) {
+        for (const auto& l : list) if (envNameEquals(e, l)) return true;
+        return false;
+    };
+    if (!meetAllowlist(cc.env_vars.allowed_read, bc.env_vars.allowed_read, env_admits))
+        disjoint.push_back("capabilities.env_vars.allowed_read");
+    if (!meetAllowlist(cc.env_vars.allowed_write, bc.env_vars.allowed_write, env_admits))
+        disjoint.push_back("capabilities.env_vars.allowed_write");
+
+    // Path entries resolve against the directory of the config the program
+    // runs under, as resolvePolicyPath() resolves them at the gate.
+    auto resolve = [&run_dir](const std::string& p) -> std::string {
+        if (p.empty()) return "";   // names no path (pathPrefixMatch)
+        try {
+            std::filesystem::path pp(p);
+            if (pp.is_relative() && !run_dir.empty()) pp = std::filesystem::path(run_dir) / pp;
+            std::string s = std::filesystem::weakly_canonical(pp).string();
+            std::replace(s.begin(), s.end(), '\\', '/');
+            return s;
+        } catch (...) {
+            return "";
+        }
+    };
+    const Admits path_admits = [&resolve](const std::string& e, const std::vector<std::string>& list) {
+        const std::string re = resolve(e);
+        if (re.empty()) return false;
+        for (const auto& l : list) if (pathPrefixMatch(re, resolve(l))) return true;
+        return false;
+    };
+    if (!meetAllowlist(cc.filesystem.allowed_paths, bc.filesystem.allowed_paths, path_admits))
+        disjoint.push_back("capabilities.filesystem.allowed_paths");
+    // The longest matching entry wins (decidePathAccess), so an allowed entry
+    // more specific than a blocked one is an exception to it: a child's
+    // `allowed_paths: ["vault/inner/"]` under its parent's `blocked_paths:
+    // ["vault/"]` opened vault/inner/ (measured by the property harness). An
+    // allowed entry the PARENT's own rule refuses is blocked here too, at the
+    // same specificity, where ties deny; an exception the parent itself made
+    // (its own allowed entry inside its own blocked one) is kept.
+    for (const auto& a : std::vector<std::string>(cc.filesystem.allowed_paths)) {
+        const std::string ra = resolve(a);
+        if (ra.empty()) continue;
+        const PathVerdict v = decidePathAccess(ra, bc.filesystem.allowed_paths,
+                                               bc.filesystem.blocked_paths,
+                                               PathPrecedence::LongestPrefixWins, resolve);
+        if (v.result != PathVerdict::Result::Allow) addOnce(cc.filesystem.blocked_paths, a);
+    }
+
+    const Admits host_admits = [](const std::string& e, const std::vector<std::string>& list) {
+        return naab::net::hostMatchesAny(e, list);
+    };
+    if (!meetAllowlist(cc.network.allowed_hosts, bc.network.allowed_hosts, host_admits))
+        disjoint.push_back("capabilities.network.allowed_hosts");
+
+    if (!base.allowed_languages.empty()) {
+        if (child.allowed_languages.empty()) {
+            child.allowed_languages = base.allowed_languages;
+        } else {
+            std::unordered_set<std::string> kept;
+            for (const auto& l : child.allowed_languages)
+                if (naab::lang::languageListAdmits(base.allowed_languages, l)) kept.insert(l);
+            child.allowed_languages = kept;
+            if (kept.empty()) disjoint.push_back("languages.allowed");
+        }
+    }
+    child.languages.allowed = child.allowed_languages;   // the mirror the loader keeps
+    child.languages.blocked = child.blocked_languages;
+
+    // --- The subprocess scrub: allowlist mode is the stricter, and its pass
+    // list (where empty passes only the essential names) is what both grant.
+    const bool parent_allowlist = bc.env_vars.subprocess_scrub_mode == "allowlist";
+    const bool child_allowlist = cc.env_vars.subprocess_scrub_mode == "allowlist";
+    if (parent_allowlist && child_allowlist) {
+        meetExemptions(cc.env_vars.allowed_subprocess_vars, bc.env_vars.allowed_subprocess_vars,
+                       exactAdmits);
+    } else if (parent_allowlist) {
+        cc.env_vars.subprocess_scrub_mode = "allowlist";
+        cc.env_vars.allowed_subprocess_vars = bc.env_vars.allowed_subprocess_vars;
+    }
+
+    // --- Checks: each switch on when either turns it on, the stricter level.
+    auto& q = child.code_quality;
+    const auto& bq = base.code_quality;
+    const bool pii_both = bq.no_pii.enabled && q.no_pii.enabled;
+    floorCheck(bq.no_secrets, q.no_secrets);
+    floorCheck(bq.no_placeholders, q.no_placeholders);
+    floorCheck(bq.no_hardcoded_results, q.no_hardcoded_results);
+    floorCheck(bq.no_pii, q.no_pii);
+    floorCheck(bq.no_temporary_code, q.no_temporary_code);
+    floorCheck(bq.no_simulation_markers, q.no_simulation_markers);
+    floorCheck(bq.no_mock_data, q.no_mock_data);
+    floorCheck(bq.no_apologetic_language, q.no_apologetic_language);
+    floorCheck(bq.no_dead_code, q.no_dead_code);
+    floorCheck(bq.no_debug_artifacts, q.no_debug_artifacts);
+    floorCheck(bq.no_unsafe_deserialization, q.no_unsafe_deserialization);
+    floorCheck(bq.no_sql_injection, q.no_sql_injection);
+    floorCheck(bq.no_path_traversal, q.no_path_traversal);
+    floorCheck(bq.no_hardcoded_urls, q.no_hardcoded_urls);
+    floorCheck(bq.no_hardcoded_ips, q.no_hardcoded_ips);
+    floorCheck(bq.max_complexity, q.max_complexity);
+    floorCheck(bq.encoding, q.encoding);
+    floorCheck(bq.no_oversimplification, q.no_oversimplification);
+    floorCheck(bq.no_incomplete_logic, q.no_incomplete_logic);
+    floorCheck(bq.no_hallucinated_apis, q.no_hallucinated_apis);
+    floorCheck(bq.complexity_floor, q.complexity_floor);
+    floorSwitch(bq.duplicate_calls, q.duplicate_calls);
+    floorSwitch(bq.polyglot_try_catch, q.polyglot_try_catch);
+    floorCheck(bq.semantic_checks, q.semantic_checks);
+    floorCheck(bq.intent_validation, q.intent_validation);
+    floorCheck(bq.drift_detection, q.drift_detection);
+    if (pii_both) {
+        // Which PII kinds are looked for are switches too; the allowlist is
+        // an exemption list (regexes, compared as written).
+        q.no_pii.detect_ssn = q.no_pii.detect_ssn || bq.no_pii.detect_ssn;
+        q.no_pii.detect_credit_card = q.no_pii.detect_credit_card || bq.no_pii.detect_credit_card;
+        q.no_pii.detect_email = q.no_pii.detect_email || bq.no_pii.detect_email;
+        q.no_pii.detect_phone = q.no_pii.detect_phone || bq.no_pii.detect_phone;
+        q.no_pii.detect_ip_address = q.no_pii.detect_ip_address || bq.no_pii.detect_ip_address;
+        q.no_pii.detect_drivers_license = q.no_pii.detect_drivers_license || bq.no_pii.detect_drivers_license;
+        q.no_pii.detect_passport = q.no_pii.detect_passport || bq.no_pii.detect_passport;
+        q.no_pii.detect_iban = q.no_pii.detect_iban || bq.no_pii.detect_iban;
+        q.no_pii.detect_medical_record = q.no_pii.detect_medical_record || bq.no_pii.detect_medical_record;
+        meetExemptions(q.no_pii.allowlist_patterns, bq.no_pii.allowlist_patterns, exactAdmits);
+    }
+    // The flat copies the shorthand writes (reconcileCodeQualityMirrors makes
+    // the pairs agree after enforceMinimumLevels()).
+    if (base.no_secrets) child.no_secrets = true;
+    if (base.no_placeholders) child.no_placeholders = true;
+    if (base.no_hardcoded_results) child.no_hardcoded_results = true;
+    if (base.restrict_dangerous_calls) child.restrict_dangerous_calls = true;
+    if (base.require_error_handling) child.require_error_handling = true;
+    if (base.require_main_block) child.require_main_block = true;
+
+    auto& r = child.restrictions;
+    const auto& br = base.restrictions;
+    floorCheck(br.dangerous_calls, r.dangerous_calls);
+    floorCheck(br.shell_injection, r.shell_injection);
+    floorCheck(br.imports, r.imports);
+    floorCheck(br.data_exfiltration, r.data_exfiltration);
+    floorCheck(br.resource_abuse, r.resource_abuse);
+    floorCheck(br.privilege_escalation, r.privilege_escalation);
+    floorCheck(br.information_disclosure, r.information_disclosure);
+    floorCheck(br.code_injection, r.code_injection);
+    floorCheck(br.crypto, r.crypto);
+    floorCheck(br.vcs_secret_extraction, r.vcs_secret_extraction);
+    floorCheck(br.obfuscation, r.obfuscation);
+    if (r.polyglot_output.format.empty() && !br.polyglot_output.format.empty())
+        r.polyglot_output.format = br.polyglot_output.format;
+
+    auto& rq = child.requirements;
+    const auto& brq = base.requirements;
+    floorCheck(brq.main_block, rq.main_block);
+    floorCheck(brq.error_handling, rq.error_handling);
+    floorCheck(brq.strict_types, rq.strict_types);
+    floorCheck(brq.no_global_state, rq.no_global_state);
+    floorCheck(brq.naming_conventions, rq.naming_conventions);
+    floorCheck(brq.documentation, rq.documentation);
+    floorCheck(brq.version_pinning, rq.version_pinning);
+
+    // --- Taint tracking: on when either turns it on; sources and sinks the
+    // union, sanitizers (each launders taint) what both grant, by the prefix
+    // rule isSanitizer() matches with; the stricter levels.
+    auto& t = child.taint_tracking;
+    const auto& bt = base.taint_tracking;
+    if (bt.enabled) {
+        if (!t.enabled) {
+            t = bt;
+        } else {
+            unionInto(t.sources, bt.sources);
+            unionInto(t.sinks, bt.sinks);
+            meetExemptions(t.sanitizers, bt.sanitizers, prefixAdmits);
+            EnforcementLevel pl, cl;
+            if (taintLevelValue(bt.level, pl)) {
+                t.level = taintLevelValue(t.level, cl) ? taintLevelWord(stricterLevel(pl, cl))
+                                                        : bt.level;
+            }
+            if (bt.gate_cross_block) t.gate_cross_block = true;
+            t.cross_block_level = stricterLevel(bt.cross_block_level, t.cross_block_level);
+        }
+    }
+
+    if (!disjoint.empty()) {
+        std::string keys;
+        for (const auto& k : disjoint) keys += (keys.empty() ? "" : ", ") + k;
+        error = fmt::format(
+            "the parent and this config each allow a list of entries, and no entry is "
+            "allowed by both: {}. Under `extends` a child can only narrow its parent's "
+            "allow lists, and an empty list would mean unrestricted.", keys);
+        return false;
+    }
+    reconcileCapabilityMirrors(child);
+    return true;
+}
+
 bool GovernanceEngine::loadWithExtends(const std::string& path, int depth,
                                         int max_depth,
                                         std::set<std::string>& visited,
-                                        GovernanceRules& child_rules) {
+                                        GovernanceRules& child_rules,
+                                        const std::string& run_dir) {
     // Circular detection
     auto canonical = std::filesystem::weakly_canonical(path).string();
     if (visited.count(canonical)) {
@@ -8198,13 +8571,19 @@ bool GovernanceEngine::loadWithExtends(const std::string& path, int depth,
         }
 
         // Recursively resolve grandparent — pass base_rules as the child
-        if (!loadWithExtends(resolved, depth + 1, max_depth, visited, base_rules)) {
+        if (!loadWithExtends(resolved, depth + 1, max_depth, visited, base_rules, run_dir)) {
             return false;
         }
     }
 
     // Merge: base fills gaps in child
     mergeRules(base_rules, child_rules, child_rules.meta.inheritance);
+    // Then the floor: no security setting looser than the parent's (A98).
+    std::string floor_error;
+    if (!applyExtendsFloor(base_rules, child_rules, run_dir, floor_error)) {
+        fmt::print(stderr, "[governance] Config error in extends ({}): {}\n", path, floor_error);
+        return false;
+    }
 
     return true;
 }
@@ -8255,7 +8634,7 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
             visited.insert(std::filesystem::weakly_canonical(path).string());
             int max_depth = new_rules->meta.inheritance.max_depth;
             if (max_depth <= 0) max_depth = 5;
-            if (!loadWithExtends(resolved, 1, max_depth, visited, *new_rules)) {
+            if (!loadWithExtends(resolved, 1, max_depth, visited, *new_rules, config_dir)) {
                 return false;
             }
             chain_files = visited;   // every file that took part

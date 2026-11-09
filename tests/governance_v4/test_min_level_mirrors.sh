@@ -53,13 +53,16 @@
 #   XE-03  a parent's SHORTHAND "hard" no_placeholders is HARD in the child --
 #          the merge copies the structured struct only, so this needs the
 #          copies reconciled when the parent is parsed
-#   XC-01  CONTROL: under child_wins a child that sets its own level in the
-#          shorthand keeps it. The shorthand was never marked explicitly set,
-#          so a reconcile alone handed the child its parent's hard level here
-#          while the object form (XC-02) kept the child's. The first version
-#          of this change had exactly that defect; an adversarial pass found
-#          it, no failing test did
-#   XC-02  CONTROL: the same in the object form (passes before and after)
+#   XC-01  under child_wins a child's own LOWER level (shorthand) no longer
+#          replaces its parent's: the stricter level holds (A98, 2026-11-08).
+#          Until A98 this arm was a control that the child's advisory won
+#   XC-02  the same in the object form
+#   XC-03  CONTROL: a child that sets a STRICTER level than its parent keeps
+#          it, in the shorthand. This is what the old XC-01 guarded: the
+#          shorthand was never marked explicitly set, so a reconcile alone
+#          handed a child its parent's level while the object form kept the
+#          child's; an adversarial pass found that, no failing test did
+#   XC-04  CONTROL: the same in the object form
 # Model responses (loopback agent stub; the response carries an SSN):
 #   MR-00  CONTROL: with no no_pii key the response reaches the script
 #   MR-01  no_pii {} blocks the response (was: a warning, response returned)
@@ -232,23 +235,43 @@ xe XE-02 "a parent's hard no_hardcoded_results is HARD in the child" \
 xe XE-03 "a parent's shorthand \"hard\" no_placeholders is HARD in the child" \
     '{ "no_placeholders": "hard" }' "$P_PH_SRC" --governance-override
 
-# xc ID DESC PARENT_CQ CHILD_CQ -- under child_wins (the default) a child that
-# sets its own level keeps it. PASS iff the child's advisory fired and the
-# program ran.
+# xc ID DESC PARENT_CQ CHILD_CQ -- under child_wins (the default) the child's
+# placeholder check, with the parent's level and its own. PASS iff the
+# program was refused at the stricter level (exit 3), where the parent used
+# directly (XC-03/04's control) or the child's own level (XC-01/02) runs it.
 xc() {
     local id="$1" desc="$2" pcq="$3" ccq="$4"
-    local d="$W/$id"; mkdir -p "$d/child"
+    local d="$W/$id"; mkdir -p "$d/child" "$d/direct"
     printf '{ "version": "4.0", "mode": "enforce", "code_quality": %s }\n' "$pcq" > "$d/parent.json"
     printf '{ "version": "4.0", "mode": "enforce", "extends": "../parent.json", "code_quality": %s }\n' "$ccq" > "$d/child/govern.json"
     printf '%s\n' "$P_PH_SRC" > "$d/child/p.naab"
     OUT="$(cd "$d/child" && timeout 60 "$NAAB" p.naab 2>&1)"; RC=$?
-    if ran && [ "$RC" -eq 0 ] && grep -q 'ADVISORY' <<<"$OUT"; then ok "$id" "$desc"
-    else bad "$id" "$desc -- the parent's level replaced the child's (rc=$RC)" "$OUT"; fi
+    blocked "$id" "$desc" 3
 }
-xc XC-01 "control: a child's own shorthand level wins over its parent (child_wins)" \
+xc XC-01 "a child's own lower shorthand level does not replace its parent's hard (A98)" \
     '{ "no_placeholders": { "level": "hard" } }' '{ "no_placeholders": "advisory" }'
-xc XC-02 "control: a child's own object-form level wins over its parent (child_wins)" \
+xc XC-02 "a child's own lower object-form level does not replace its parent's hard (A98)" \
     '{ "no_placeholders": { "level": "hard" } }' '{ "no_placeholders": { "level": "advisory" } }'
+# XC-03/04: the parent alone at advisory runs the program (the control), and
+# the child's stricter level refuses it.
+xs() {
+    local id="$1" desc="$2" ccq="$3"
+    local d="$W/$id"; mkdir -p "$d/child" "$d/direct"
+    printf '{ "version": "4.0", "mode": "enforce", "code_quality": { "no_placeholders": { "level": "advisory" } } }\n' > "$d/parent.json"
+    cp "$d/parent.json" "$d/direct/govern.json"
+    printf '{ "version": "4.0", "mode": "enforce", "extends": "../parent.json", "code_quality": %s }\n' "$ccq" > "$d/child/govern.json"
+    printf '%s\n' "$P_PH_SRC" > "$d/child/p.naab"; cp "$d/child/p.naab" "$d/direct/p.naab"
+    OUT="$(cd "$d/direct" && timeout 60 "$NAAB" p.naab 2>&1)"; RC=$?
+    if ! ran || [ "$RC" -ne 0 ]; then
+        skip "$id" "control failed: the advisory parent used directly did not run the program (rc=$RC) -- UNMEASURABLE"; return
+    fi
+    OUT="$(cd "$d/child" && timeout 60 "$NAAB" p.naab 2>&1)"; RC=$?
+    blocked "$id" "$desc" 3
+}
+xs XC-03 "control: a child's own stricter shorthand level holds over its advisory parent" \
+    '{ "no_placeholders": "hard" }'
+xs XC-04 "control: a child's own stricter object-form level holds over its advisory parent" \
+    '{ "no_placeholders": { "level": "hard" } }'
 
 # ---- model responses ----------------------------------------------------------
 # The same rule on the agent path: agentSend() scans every response with

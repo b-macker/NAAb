@@ -23,7 +23,10 @@
 //            without --governance-override; refused => nothing changed
 //   overlay  an agent role and a capability lease each narrow the config they
 //            are laid over: every probe at least as strict as without them
-//   extends  measured, not asserted, except the mode floor (see --extends)
+//   extends  a child that extends a parent allows no request the parent
+//            refuses, under either merge strategy and array mode (the extends
+//            floor, A98; --extends N). Until the floor it was measured, not
+//            asserted: every strategy let a child loosen its parent.
 //
 // Verdicts, ordered: 0 allowed, 1 warned (advisory), 2 blocked but catchable
 // (detect), 3 blocked. A gate whose caller checks isActive() first is allowed
@@ -36,6 +39,9 @@
 //     one value is a broken instrument, reported UNMEASURABLE)
 //   - planted loosening: the comparator, given a fresh engine loaded with a
 //     NEW that drops a blocked variable (the ratchet bypassed), must report it
+//   - with --extends: some child must refuse something its parent allowed (a
+//     child that never tightens would make "extends" vacuous), and some child
+//     must load (a floor that refused every child would pass it too)
 //
 // Each case runs in its own forked process: the lease is process-wide state
 // with no way to withdraw it, and a crash in one case must be a finding about
@@ -669,6 +675,9 @@ int main(int argc, char** argv) {
         else if (a == "--quiet") quiet = true;
         else { std::cerr << "ratchet_property: unknown option " << a << "\n"; return 2; }
     }
+    // --extends-show predates the extends property; its counterexamples are
+    // now printed like every other property's, up to --show.
+    if (extends_show > show) show = extends_show;
 #ifdef _WIN32
     std::cout << "UNMEASURABLE: the harness forks each case; POSIX only\n";
     return 2;
@@ -767,12 +776,11 @@ int main(int argc, char** argv) {
         }
     }
 
-    // extends: measured. Reported as a table of which requests a child can
-    // loosen relative to its parent, per merge strategy; only the mode floor
-    // is a property here (mergeRules: "Mode is a security floor").
+    // extends: asserted (A98). Every loosening is a counterexample, and the
+    // table says which requests loosened under which strategy.
     std::map<std::string, std::map<std::string, size_t>> extends_loosened;  // strategy -> probe -> count
     std::map<std::string, size_t> extends_examples;
-    size_t extends_run = 0;
+    size_t extends_run = 0, extends_tightened = 0, extends_child_refused = 0;
     for (size_t i = 0; i < extends_cases; ++i) {
         Knobs pk = randomKnobs(rng);
         Knobs ck = mutate(rng, pk);
@@ -782,22 +790,25 @@ int main(int argc, char** argv) {
         child["extends"] = "./parent.json";
         child["meta"] = {{"inheritance", {{"merge_strategy", strategy}, {"merge_arrays", arrays}}}};
         json res = inChild([&] { return runExtendsCase(dir, parent, child); });
-        if (res.contains("invalid")) { ++invalid; continue; }
+        if (res.contains("invalid")) {
+            // A child refused at load (two allow lists with nothing in
+            // common) loosens nothing; a parent that does not load is a
+            // generator case, like an invalid reload pair.
+            if (res["invalid"] == "child did not load") ++extends_child_refused;
+            ++invalid;
+            continue;
+        }
         if (!res.contains("child")) { ++errors; continue; }
         ++extends_run;
         note(res["parent"]); note(res["child"]);
+        if (!loosened(res["child"], res["parent"]).empty()) ++extends_tightened;
         for (size_t p : loosened(res["parent"], res["child"])) {
             if (p == SIZE_MAX) continue;
             extends_loosened[strategy + "/" + arrays][probes()[p].id]++;
-            if (extends_examples[strategy + "/" + arrays]++ < extends_show)
-                printFinding(Finding{"extends(" + strategy + "/" + arrays + ", measured)", seed, i, "-",
-                                     probes()[p].id, res["parent"][p].get<int>(), res["child"][p].get<int>(),
-                                     false, parent, child});
-            if (probes()[p].id == "mode") {
-                Finding f{"extends-mode-floor", seed, i, "-", "mode", res["parent"][p].get<int>(),
-                          res["child"][p].get<int>(), false, parent, child};
-                findings.push_back(f);
-            }
+            extends_examples[strategy + "/" + arrays]++;
+            findings.push_back(Finding{"extends(" + strategy + "/" + arrays + ")", seed, i, "-",
+                                       probes()[p].id, res["parent"][p].get<int>(),
+                                       res["child"][p].get<int>(), false, parent, child});
         }
     }
 
@@ -827,10 +838,10 @@ int main(int argc, char** argv) {
     }
     for (const auto& [p, c] : by_prop) std::cout << "  property " << p << ": " << c << " counterexample(s)\n";
     if (extends_cases) {
-        std::cout << "extends (measured; a child loosening its parent is reported, not failed):"
-                  << " cases=" << extends_run << "\n";
+        std::cout << "extends: cases=" << extends_run << " tightened=" << extends_tightened
+                  << " child_refused_at_load=" << extends_child_refused << "\n";
         for (const auto& [strat, m] : extends_loosened) {
-            std::cout << "  " << strat << ":";
+            std::cout << "  loosened under " << strat << ":";
             for (const auto& [probe, c] : m) std::cout << " " << probe << "=" << c;
             std::cout << "\n";
         }
@@ -865,6 +876,11 @@ int main(int argc, char** argv) {
         std::cout << "control FAILED: an overlay never changed a verdict (role " << role_live << "/"
                   << role_cases << ", lease " << lease_live << "/" << lease_cases
                   << ") -- its property would be vacuous\n";
+        control_failed = true;
+    }
+    if (extends_cases && (extends_run == 0 || extends_tightened == 0)) {
+        std::cout << "control FAILED: extends ran " << extends_run << " case(s), " << extends_tightened
+                  << " with a child stricter than its parent -- the extends property would be vacuous\n";
         control_failed = true;
     }
     if (disagree) {

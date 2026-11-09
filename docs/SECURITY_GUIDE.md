@@ -256,11 +256,11 @@ to cover all scripts in the project.
 
   "environments": {
     "production": {
-      "mode": "HARD",
-      "banned_functions": ["eval", "exec"]
+      "mode": "enforce",
+      "quality_gate.enabled": "true"
     },
-    "development": {
-      "mode": "ADVISORY"
+    "ci": {
+      "output.file_output.report_sarif": "governance.sarif"
     }
   },
 
@@ -301,8 +301,10 @@ findings exceed any threshold, execution fails with exit code 2.
 findings that are *new* relative to the baseline cause failures. Use
 `--governance-baseline-save` to create or update the baseline.
 
-**`environments`** — Named overlays applied with `--env <name>`. Keys override the
-top-level `govern.json` values for the named environment.
+**`environments`** — Named overlays applied with `--env <name>` (or
+`governance.default_env`). Keys override the top-level `govern.json` values for the
+named environment. An environment's `mode` (`enforce`, `audit`, `off`) can only raise
+the top-level mode: a lower one is ignored, with a warning that names it.
 
 **`agent_roles`** — Per-agent-id restrictions applied when `--agent-id` is specified.
 Each role can restrict `allowed_languages`, `allowed_paths`, and `blocked_paths`.
@@ -412,7 +414,7 @@ naab-lang \
   script.naab
 ```
 
-- `--env production`: apply the production governance overlay (typically mode=HARD)
+- `--env production`: apply the production governance overlay (typically `"mode": "enforce"`)
 - `--governance-sarif`: upload SARIF to your security dashboard
 
 ### Detect governance regressions

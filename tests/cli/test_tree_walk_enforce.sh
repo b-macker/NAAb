@@ -30,13 +30,17 @@
 #   TW-06   audit base, --env prod (enforce): refused
 #   TW-07   audit base, governance.default_env prod (enforce): refused
 #   TW-08   enforce base, governance.default_env dev (audit): refused
-#   TW-09   CONTROL enforce base, --env dev (audit): runs (the operator's
-#           environment sets the mode for both engines)
+#   TW-09   enforce base, --env dev (audit): refused -- an environment can
+#           only raise the mode (A95(b)), so the run is under enforce. Until
+#           A95(b) the audit environment replaced the file's mode and this
+#           arm was a control that the tree-walker ran
+#   TW-09c  CONTROL off base, --env dev (audit): runs (an audit run)
 #   TW-10   the refusal names the flag and gives the remedy
 #
 # Kill table (each mutant rebuilt, this suite run):
 #   refusal removed                         TW-01/01b/06/07/08 (and TW-10)
-#   only the base mode consulted            TW-06/07/09
+#   only the base mode consulted            TW-06/07
+#   an environment lowers the mode again    TW-09 (test_env_mode_floor.sh EM-05 too)
 #   only the --env/default_env mode         TW-08
 # ============================================================
 set -uo pipefail
@@ -79,6 +83,7 @@ mk envprod '{"version":"5.0","mode":"audit","environments":{"prod":{"mode":"enfo
 mk defprod '{"version":"5.0","mode":"audit","governance":{"default_env":"prod"},"environments":{"prod":{"mode":"enforce"}}}'
 mk defdev  '{"version":"5.0","mode":"enforce","governance":{"default_env":"dev"},"environments":{"dev":{"mode":"audit"}}}'
 mk envdev  '{"version":"5.0","mode":"enforce","environments":{"dev":{"mode":"audit"}}}'
+mk offdev  '{"version":"5.0","mode":"off","environments":{"dev":{"mode":"audit"}}}'
 
 # run DIR ARGS... -> OUT, RC (from inside DIR, so discovery finds its config)
 run() {
@@ -126,8 +131,12 @@ if refused; then ok "TW-08" "enforce base with default_env dev (audit) is refuse
 else bad "TW-08" "an enforce base should refuse the tree-walker whatever default_env says" "rc=$RC $OUT"; fi
 
 run envdev p.naab --env dev --tree-walk
-if [ "$RC" = 0 ] && ran; then ok "TW-09" "control: --env dev (audit) over an enforce base runs the tree-walker"
-else bad "TW-09" "--env dev (audit) should run the tree-walker" "rc=$RC $OUT"; fi
+if refused; then ok "TW-09" "--env dev (audit) over an enforce base is refused (an environment cannot lower the mode)"
+else bad "TW-09" "an audit environment over an enforce base should not let the tree-walker run" "rc=$RC $OUT"; fi
+
+run offdev p.naab --env dev --tree-walk
+if [ "$RC" = 0 ] && ran; then ok "TW-09c" "control: --env dev (audit) over an off base runs the tree-walker"
+else bad "TW-09c" "--env dev (audit) over an off base should run the tree-walker" "rc=$RC $OUT"; fi
 
 if grep -q -- '--tree-walk' <<<"$TW01_OUT" && grep -qi 'enforce' <<<"$TW01_OUT" && grep -q 'Help:' <<<"$TW01_OUT"; then
     ok "TW-10" "the refusal names --tree-walk, the mode, and a Help section"

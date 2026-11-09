@@ -7135,8 +7135,40 @@ void GovernanceEngine::setStartupOutputs(const StartupOutputs& o) {
     addGovernanceProtectedPaths(mr);
 }
 
-// The mode applyEnvironmentTo() would leave: an environment's "mode" key read
-// as it reads it, else the loaded mode.
+namespace {
+// off < audit < enforce. The enum's order is the reverse (ENFORCE is 0), so
+// the comparison is spelled out rather than read from the values.
+int modeStrictness(GovernanceMode m) {
+    return m == GovernanceMode::ENFORCE ? 2 : m == GovernanceMode::AUDIT ? 1 : 0;
+}
+const char* modeWord(GovernanceMode m) {
+    return m == GovernanceMode::ENFORCE ? "enforce" : m == GovernanceMode::AUDIT ? "audit" : "off";
+}
+// An environment's "mode" value, if it names a mode.
+bool environmentModeValue(const std::string& v, GovernanceMode& out) {
+    if (v == "enforce") { out = GovernanceMode::ENFORCE; return true; }
+    if (v == "audit") { out = GovernanceMode::AUDIT; return true; }
+    if (v == "off") { out = GovernanceMode::OFF; return true; }
+    return false;
+}
+}  // namespace
+
+// The mode an environment leaves over `file_mode`: its own when it is
+// stricter, else the file's. An environment may raise the mode, never lower it
+// (A95(b), the owner's decision of 2026-11-06): before, a lower mode replaced
+// the file's -- `--env dev` ({"mode": "audit"}) over an enforce file ran as an
+// audit run, reading what the file refused, and {"mode": "off"} over an audit
+// file left an active engine whose rules said off, which blocked (observed).
+// The one rule for startup, every reload and modeUnderEnvironment().
+GovernanceMode GovernanceEngine::modeAfterEnvironment(GovernanceMode file_mode,
+                                                      const std::string& env_value) {
+    GovernanceMode env_mode;
+    if (!environmentModeValue(env_value, env_mode)) return file_mode;
+    return modeStrictness(env_mode) > modeStrictness(file_mode) ? env_mode : file_mode;
+}
+
+// The mode applyEnvironmentTo() would leave: the stricter of the loaded mode
+// and the environment's "mode" key.
 GovernanceMode GovernanceEngine::modeUnderEnvironment(const std::string& env_name) const {
     const auto& r = rules();
     GovernanceMode m = r.mode;
@@ -7145,10 +7177,7 @@ GovernanceMode GovernanceEngine::modeUnderEnvironment(const std::string& env_nam
     if (it == r.environments.end()) return m;
     auto mk = it->second.find("mode");
     if (mk == it->second.end()) return m;
-    if (mk->second == "enforce") m = GovernanceMode::ENFORCE;
-    else if (mk->second == "audit") m = GovernanceMode::AUDIT;
-    else if (mk->second == "off") m = GovernanceMode::OFF;
-    return m;
+    return modeAfterEnvironment(m, mk->second);
 }
 
 // Lays the environment env_name over target_rules. Returns false when the
@@ -7161,9 +7190,17 @@ bool GovernanceEngine::applyEnvironmentTo(GovernanceRules& r, const std::string&
     const auto overrides = it->second;  // r is written below
     for (const auto& [key, value] : overrides) {
         if (key == "mode") {
-            if (value == "enforce") r.mode = GovernanceMode::ENFORCE;
-            else if (value == "audit") r.mode = GovernanceMode::AUDIT;
-            else if (value == "off") r.mode = GovernanceMode::OFF;
+            const GovernanceMode file_mode = r.mode;
+            r.mode = modeAfterEnvironment(file_mode, value);
+            GovernanceMode env_mode;
+            if (environmentModeValue(value, env_mode) &&
+                modeStrictness(env_mode) < modeStrictness(file_mode)) {
+                fprintf(stderr,
+                    "[governance] WARNING: environment '%s' sets mode %s, below this "
+                    "govern.json's mode %s. An environment can only raise the mode, so "
+                    "its mode is ignored.\n",
+                    env_name.c_str(), modeWord(env_mode), modeWord(file_mode));
+            }
         } else if (key == "quality_gate.enabled") {
             r.quality_gate.enabled = (value == "true");
         } else if (key == "governance_baseline.enabled") {
@@ -7201,9 +7238,9 @@ void GovernanceEngine::applyEnvironment(const std::string& env_name) {
     // loadFromFile() decided active_ from the file's own mode, so `--env prod`
     // ({"mode": "enforce"}) over a file in mode off enforced nothing: the rules
     // said enforce and every gate whose caller checks isActive() was skipped
-    // (A95, measured). Raised only: an environment whose mode is off leaves an
-    // active engine active, as it always has -- whether it should switch
-    // governance off is an open decision (A95), and doing so here would loosen.
+    // (A95(a), measured). Raised only, and an environment can no longer lower
+    // the rules' mode either (A95(b), modeAfterEnvironment), so an active
+    // engine's rules never say off.
     if (rules().mode != GovernanceMode::OFF) active_.store(true);
     fprintf(stderr, "[governance] Applied environment: %s\n", env_name.c_str());
     if (rules().verbose) {
