@@ -41,9 +41,12 @@
 #   EP-c   base mode audit, no --env: a protected read is allowed
 #   EP-01  --env prod (enforce): the reload is accepted and the read refused
 #          (before: refused, "governance mode: enforce -> audit")
-#   ED-c   --env dev (audit), no reload: the read is allowed
-#   ED-01  --env dev, no-op reload: still allowed (before: the run silently
-#          returned to enforce and the read ended it)
+#   ED-c   base mode off, --env dev (audit), no reload: the read is allowed
+#          (an audit run). The base is off because an environment can only
+#          RAISE the mode (A95(b)): over an enforce base, as this arm first
+#          had it, dev's audit is ignored
+#   ED-01  --env dev, no-op reload: still audit (before A37: the reload dropped
+#          the environment and the run returned to the file's own mode)
 #   ED-02  a reload that sets environments.dev.mode to enforce is accepted
 #          and applied -- the environment is re-read from the new file
 #   ER-01  --env setting a report path: after a reload the report is written
@@ -354,7 +357,7 @@ if expect_reload "EP-01" "--env prod"; then
     else bad "EP-01" "--env prod: rc=$RC" "$OUT"; fi
 fi
 
-ENV_D='"mode": "enforce", "environments": { "dev": { "mode": "audit" } }'
+ENV_D='"mode": "off", "environments": { "dev": { "mode": "audit" } }'
 setup ed_c "$ENV_D" "" "$READ_TAIL"
 go ed_c --env dev
 if [[ "$OUT" == *READ_OK* ]] && [[ "$OUT" == *"Applied environment: dev"* ]]; then
@@ -366,7 +369,7 @@ if expect_reload "ED-01" "--env dev"; then
     if [[ "$OUT" == *READ_OK* ]] && [ "$RC" -eq 0 ]; then ok "ED-01" "--env dev: still audit after the reload"
     else bad "ED-01" "--env dev: the reload changed the mode (rc=$RC)" "$OUT"; fi
 fi
-ENV_D2='"mode": "enforce", "environments": { "dev": { "mode": "enforce" } }'
+ENV_D2='"mode": "off", "environments": { "dev": { "mode": "enforce" } }'
 setup ed_2 "$ENV_D" "$ENV_D2" "$READ_TAIL"
 go ed_2 --env dev
 if expect_reload "ED-02" "dev -> enforce"; then

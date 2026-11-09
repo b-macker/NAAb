@@ -2074,14 +2074,13 @@
     "level": "soft"
   },
 
-  "_comment_environments": "Environment Selector — use --env <name> to apply overrides. Values override top-level settings.",
+  "_comment_environments": "Environment Selector — use --env <name> to apply overrides. Values override top-level settings. An environment's mode can only raise the top-level mode (off < audit < enforce): a lower one is ignored, with a warning.",
   "environments": {
     "production": {
       "mode": "enforce",
       "quality_gate.enabled": "true"
     },
     "development": {
-      "mode": "audit",
       "quality_gate.enabled": "false"
     },
     "ci": {

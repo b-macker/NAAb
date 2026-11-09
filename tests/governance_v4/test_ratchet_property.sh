@@ -34,7 +34,8 @@
 #          ratchet alone; a signed NEW is accepted
 #   RG-07  the startup overlays reach the decision: a loosening the overlay
 #          already excludes is accepted under it and refused without it --
-#          --agent-id (a role's languages), --env (an environment's mode; and
+#          --agent-id (a role's languages), --env (an environment that raises
+#          an audit file to enforce masks the file going to off; and
 #          governance.default_env with no --env, as a run applies it),
 #          --lease-grant (a lease without NET_CONNECT). The generated cases
 #          cannot show this: in 96 dumped role cases the role never changed a
@@ -45,10 +46,13 @@
 #          sandbox); CONTROLS: "elevated" reads, no level is clamped
 #   A95a   an environment whose mode is enforce enforces over a file in mode
 #          off; CONTROL: the same file without --env reads the variable
-#   A95b   a reload that stops an active engine enforcing is refused, under an
-#          environment whose mode is off (file enforce -> off; environment
-#          off -> audit); CONTROL: a tightening under that environment is
-#          accepted
+#   A95b   under an environment whose mode is lower than the file's, a reload
+#          is judged by the file's own mode, since the environment's is
+#          ignored (A95(b), 2026-11-08): the file going enforce -> off is
+#          refused and named as the ENFORCED mode; the environment going
+#          off -> audit over an enforce file changes nothing and is accepted
+#          (until A95(b) it was applied, and refused as enforce -> audit);
+#          CONTROL: a tightening is accepted
 #   A96a   with env_vars.read false, dropping a blocked_read name (which is
 #          still withheld from child processes) is refused; CONTROL: adding
 #          one is accepted
@@ -228,18 +232,20 @@ cfg govern.json '{"version":"5.0","mode":"enforce","languages":{"allowed":["pyth
 cfg morelang.json '{"version":"5.0","mode":"enforce","languages":{"allowed":["python","ruby","php"]},"agents":{"worker":{"allowed_languages":["python"]}}}'
 ratchet govern.json morelang.json --agent-id worker; role_on=$RC
 ratchet govern.json morelang.json;                   role_off=$RC
-cfg govern.json '{"version":"5.0","mode":"enforce","environments":{"dev":{"mode":"audit"}}}'
-cfg toaudit.json '{"version":"5.0","mode":"audit","environments":{"dev":{"mode":"audit"}}}'
-ratchet govern.json toaudit.json --env dev; env_on=$RC
-ratchet govern.json toaudit.json;           env_off=$RC
+# An environment can only raise the mode (A95(b)), so the loosening it masks is
+# the FILE's: audit -> off, which an environment at enforce leaves enforced.
+cfg govern.json '{"version":"5.0","mode":"audit","environments":{"prod":{"mode":"enforce"}}}'
+cfg tooff.json '{"version":"5.0","mode":"off","environments":{"prod":{"mode":"enforce"}}}'
+ratchet govern.json tooff.json --env prod; env_on=$RC
+ratchet govern.json tooff.json;            env_off=$RC
 cfg govern.json '{"version":"5.0","mode":"enforce","capabilities":{"network":{"enabled":false}}}'
 cfg neton.json  '{"version":"5.0","mode":"enforce","capabilities":{"network":{"enabled":true}}}'
 ratchet govern.json neton.json --lease-grant FS_READ; lease_on=$RC
 ratchet govern.json neton.json;                       lease_off=$RC
 # governance.default_env applies with no --env, as in a run.
-cfg govern.json '{"version":"5.0","mode":"enforce","governance":{"default_env":"dev"},"environments":{"dev":{"mode":"audit"}}}'
-cfg toaudit.json '{"version":"5.0","mode":"audit","governance":{"default_env":"dev"},"environments":{"dev":{"mode":"audit"}}}'
-ratchet govern.json toaudit.json; denv=$RC
+cfg govern.json '{"version":"5.0","mode":"audit","governance":{"default_env":"prod"},"environments":{"prod":{"mode":"enforce"}}}'
+cfg tooff.json '{"version":"5.0","mode":"off","governance":{"default_env":"prod"},"environments":{"prod":{"mode":"enforce"}}}'
+ratchet govern.json tooff.json; denv=$RC
 if [ "$role_on" -eq 0 ] && [ "$role_off" -eq 1 ] && [ "$env_on" -eq 0 ] && [ "$env_off" -eq 1 ] \
    && [ "$lease_on" -eq 0 ] && [ "$lease_off" -eq 1 ] && [ "$denv" -eq 0 ]; then
     pass RG-07 "the role, the environment (flag or default_env) and the lease each reach the decision (masked loosening accepted under it, refused without)"
@@ -286,12 +292,12 @@ cfg off.json    '{"version":"5.0","mode":"off","environments":{"dev":{"mode":"of
 cfg audit.json  '{"version":"5.0","mode":"enforce","environments":{"dev":{"mode":"audit"}}}'
 cfg more.json   '{"version":"5.0","mode":"enforce","capabilities":{"env_vars":{"blocked_read":["NAAB_RP_SECRET"]}},"environments":{"dev":{"mode":"off"}}}'
 ratchet govern.json off.json --env dev;   off_rc=$RC;   off_named=$(grep -c "mode: enforced enforce -> off" <<<"$OUT")
-ratchet govern.json audit.json --env dev; aud_rc=$RC;   aud_named=$(grep -c "mode: enforced enforce -> audit" <<<"$OUT")
+ratchet govern.json audit.json --env dev; aud_rc=$RC;   aud_loose=$(grep -c "loosened" <<<"$OUT")
 ratchet govern.json more.json --env dev;  more_rc=$RC
-if [ "$off_rc" -eq 1 ] && [ "$off_named" -eq 1 ] && [ "$aud_rc" -eq 1 ] && [ "$aud_named" -eq 1 ] && [ "$more_rc" -eq 0 ]; then
-    pass A95b "reloads that stop an active engine enforcing are refused (control: a tightening is accepted)"
+if [ "$off_rc" -eq 1 ] && [ "$off_named" -eq 1 ] && [ "$aud_rc" -eq 0 ] && [ "$aud_loose" -eq 0 ] && [ "$more_rc" -eq 0 ]; then
+    pass A95b "under a lower environment a reload is judged by the file's mode: enforce -> off refused, the environment's own change ignored (control: a tightening is accepted)"
 else
-    fail A95b "reload under an environment whose mode is off" "off: rc=$off_rc named=$off_named; audit: rc=$aud_rc named=$aud_named; tightening: rc=$more_rc"
+    fail A95b "reload under an environment whose mode is off" "off: rc=$off_rc named=$off_named; audit: rc=$aud_rc loosened=$aud_loose (want 0/0); tightening: rc=$more_rc"
 fi
 
 # A96a: env_vars.read false, blocked_read dropped / added.

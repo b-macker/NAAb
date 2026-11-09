@@ -97,10 +97,15 @@
 #   XE-10  merge_arrays append: a child's own blocked_paths is ADDED to the
 #          parent's (fails before the fix, which merged no path list at all)
 #   XC-01  CONTROL: blocked_read was already inherited (extends is resolved)
-#   XC-02  CONTROL: child_wins -- a child that sets read:true explicitly reads
-#   XC-03  CONTROL: merge_arrays replace -- a child's own blocked_paths
-#          replaces the parent's (passes before and after: the documented
-#          replace semantics are unchanged)
+#   XC-02  a child that sets read:true explicitly does NOT switch a parent's
+#          read:false back on: under `extends` a switch is allowed only when
+#          both allow it (A98, 2026-11-08). Until A98 this arm was a control
+#          that child_wins let the child read
+#   XC-03  merge_arrays replace -- a child's own blocked_paths no longer
+#          replaces the parent's: blocked lists are the union (A98). Until A98
+#          this arm was a control that replace let the child read vault/
+#   XC-04  CONTROL: the child's own blocked_paths entry applies beside the
+#          parent's -- a child may still tighten
 # ============================================================
 set -uo pipefail
 
@@ -241,6 +246,7 @@ echo "SUB=[${NAAB_LR_SUB}][${NAAB_LRP_VAR}]"
 >>
     print(sub)'
 P_VAULT='    print("VAULT=" + file.read("vault/x.txt"))'
+P_DATA='    print("DATA=" + file.read("data/y.txt"))'
 P_CMD='    let c = <<shell
 true naab_lr_cmd_marker
 echo "RAN-$((6*7))"
@@ -514,8 +520,9 @@ accepted MO-03 "governance mode off -> enforce is accepted and enforced" "is blo
 ext_run() {
     local name="$1" parent="$2" child="$3" probe="$4"
     local p="$W/x_$name/base" c="$W/x_$name/child"
-    mkdir -p "$p/vault" "$c/vault"
+    mkdir -p "$p/vault" "$c/vault" "$p/data" "$c/data"
     echo "$VAULT" > "$p/vault/x.txt"; echo "$VAULT" > "$c/vault/x.txt"
+    echo "$VAULT" > "$p/data/y.txt"; echo "$VAULT" > "$c/data/y.txt"
     printf '{ %s,\n  %s }\n' "$HDR" "$parent" > "$p/govern.json"
     if [ -n "$child" ]; then
         printf '{ %s, "extends": "../base/govern.json",\n  %s }\n' "$HDR" "$child" > "$c/govern.json"
@@ -564,19 +571,22 @@ ext_run XC01 "$(caps '"env_vars": { "blocked_read": ["NAAB_LR_SECRET"] }')" "" "
 inherited XC-01 "control: blocked_read (merged before this change) is inherited" "$NAAB_LR_SECRET" "is blocked by policy"
 
 ext_run XC02 "$(caps '"env_vars": { "read": false }')" "$(caps '"env_vars": { "read": true }')" "$P_READ"
-case "$PO" in
-    *"$NAAB_LR_SECRET"*) skip "XC-02" "control failed: parent itself read the variable -- UNMEASURABLE" ;;
-    *) case "$CO" in
-           *"READ=$NAAB_LR_SECRET"*) ok "XC-02" "control: a child that sets read:true explicitly keeps it (child_wins)" ;;
-           *) bad "XC-02" "control: child_wins child could not read" "$CO" ;;
-       esac ;;
-esac
+inherited XC-02 "a child's explicit read:true does not switch the parent's read:false back on (A98)" \
+    "$NAAB_LR_SECRET" "denied by sandbox"
 
 ext_run XC03 "$(caps '"filesystem": { "blocked_paths": ["vault/"] }')" \
     "$(caps '"filesystem": { "blocked_paths": ["data/"] }')" "$P_VAULT"
-case "$CO" in
-    *"VAULT=$VAULT"*) ok "XC-03" "control: merge_arrays replace -- the child's own blocked_paths replaces the parent's" ;;
-    *) bad "XC-03" "control: replace semantics changed -- child could not read vault/" "$CO" ;;
+inherited XC-03 "merge_arrays replace: the parent's blocked_paths still applies beside the child's (A98)" \
+    "$VAULT" "File path blocked by governance"
+
+ext_run XC04 "$(caps '"filesystem": { "blocked_paths": ["vault/"] }')" \
+    "$(caps '"filesystem": { "blocked_paths": ["data/"] }')" "$P_DATA"
+case "$PO" in
+    *"DATA=$VAULT"*) case "$CO" in
+           *"File path blocked by governance"*) ok "XC-04" "control: the child's own blocked_paths entry applies too (a child may still tighten)" ;;
+           *) bad "XC-04" "the child's own blocked_paths entry did not apply" "$CO" ;;
+       esac ;;
+    *) skip "XC-04" "control failed: the parent itself could not read data/ -- UNMEASURABLE" ;;
 esac
 
 ext_run XE10 "$(caps '"filesystem": { "blocked_paths": ["vault/"] }')" \

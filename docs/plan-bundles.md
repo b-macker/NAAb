@@ -11,7 +11,7 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 1-5 | merged | git log, CHANGELOG |
 | 6: crash-proof governor, then the planned defaults | merged | #347 (`41a3b3c3`) |
 | 7: release | merged | #348 (`ca07ae12`) tagged v2.0.0; its macOS release build failed, so #349 (`735fa217`) released 2.0.1 |
-| 8: "governance only tightens", proved | merged: PR 1 #352 (`76c871cf`), PR 2 #353 (`fc9b8099`). Follow-up PR decided (the owner, 2026-11-06), after Bundle 16 and Bundle 12 PR 3: A95(b) and A98 | Bundle 8 below |
+| 8: "governance only tightens", proved | merged: PR 1 #352 (`76c871cf`), PR 2 #353 (`fc9b8099`). Follow-up PR (A95(b), A98) built 2026-11-09, in review | Bundle 8 below |
 | 9: adversarial inputs and concurrency | merged | #354 (`7a4c1c50`); A108-A112 |
 | 10: state machines and automata | merged | #355 (`f9337bdf`); A113 |
 | 11: contracts and manifests for LLM-written code | merged, two PRs by the owner's decision (2026-11-01). PR 1 #356 (`703fa6c4`): requires/ensures as NAAb expressions checked by the VM at the call boundary, and the opt-in counterexample search `naab-gov contracts` in a worker; A114. PR 2 #357 (`528fbb59`): the signed capability manifest; A115, A116 | Bundle 11 below |
@@ -108,6 +108,8 @@ Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 a
 - **A95(b): an environment may raise the mode, never lower it.** A lower mode in an environment is ignored, with a load warning that names it. Over an enforce file nothing changes (the run still blocks); over an audit file the run gets audit, instead of today's accidental blocking. No tracked config sets an environment's mode below its file's (observed 2026-11-06: none of 404 tracked JSON files sets one to `off`).
 - **A98: the `extends` floor holds for security settings under both strategies**, `parent_wins` and `child_wins`: blocked lists unioned, allowlists intersected (an empty intersection refused at load, never read as unrestricted), switches allowed only when both allow, the stricter level by refusal rank. A child may still tighten, and still change settings that are not security settings. The property harness then ASSERTS the `extends` property instead of measuring it. All 6 tracked `extends` configs use `child_wins` with `replace` (observed 2026-11-06), so this is the case that changes them.
 - A99 and A100 moved to Bundle 16.
+
+**Progress (2026-11-09).** The follow-up is built. A95(b): an environment's mode applies only when stricter than the file's, one rule (`modeAfterEnvironment()`) for startup, every reload, the `--tree-walk` refusal and the REPL gate. Wider than the decision's note said: an environment at `audit` over an enforce file DID lower it (observed), and is now refused too. A98: `applyExtendsFloor()` after every merge; the property harness found two loosenings the first version left (a child's allowed path inside its parent's blocked path; a parent's advisory PII check raised to soft at load, compared as advisory) and asserts `extends` now. One finding on the way, recorded for the owner's decision: A130 (an environment can still switch the quality gate and the governance baseline off).
 
 **What PR 2 found.** Each finding has a row in `docs/open-investigations.md`.
 - **Fixed in PR 2**, each tightening only:

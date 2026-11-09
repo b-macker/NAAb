@@ -2851,9 +2851,13 @@ struct GovernanceRules {
     // keys: an extends parent's `false` is not inherited, because absent here
     // means the default. The reload ratchet compares it (on -> off loosens).
     bool scansModelOutputForSecrets() const {
-        return no_secrets || !(explicitly_set.count("no_secrets") ||
-                               explicitly_set.count("code_quality.no_secrets"));
+        return no_secrets || model_output_scan_inherited ||
+               !(explicitly_set.count("no_secrets") ||
+                 explicitly_set.count("code_quality.no_secrets"));
     }
+    // Set by the `extends` floor (A98) when a parent scans model output: a
+    // child's own `no_secrets: false` does not switch it off.
+    bool model_output_scan_inherited = false;
 
     LanguagesConfig languages;
     CapabilitiesConfig capabilities;
@@ -4366,9 +4370,16 @@ private:
     // --- extends / policy distribution ---
     bool loadWithExtends(const std::string& path, int depth,
                          int max_depth, std::set<std::string>& visited,
-                         GovernanceRules& child_rules);
+                         GovernanceRules& child_rules, const std::string& run_dir);
     static void mergeRules(const GovernanceRules& base, GovernanceRules& child,
                            const InheritanceConfig& cfg);
+    // The extends floor (A98): after the merge, every security setting is at
+    // least as strict as the parent's, whatever the merge strategy. false (and
+    // `error`) when two allow lists admit nothing in common. run_dir is the
+    // directory of the config the program runs under, against which relative
+    // path entries resolve.
+    static bool applyExtendsFloor(const GovernanceRules& base, GovernanceRules& child,
+                                  const std::string& run_dir, std::string& error);
     static std::string resolveExtendsPath(const std::string& extends_val,
                                           const std::string& config_dir);
 
@@ -4694,6 +4705,8 @@ private:
     void applyStartupOverlays(GovernanceRules& target_rules);
     static bool applyAgentRoleTo(GovernanceRules& target_rules, const std::string& agent_id);
     static bool applyEnvironmentTo(GovernanceRules& target_rules, const std::string& env_name);
+    // The stricter of file_mode and an environment's "mode" value (A95(b)).
+    static GovernanceMode modeAfterEnvironment(GovernanceMode file_mode, const std::string& env_value);
     static void applyBaselineFlags(GovernanceRules& target_rules, bool record, bool check);
 
     // --- Guidance state (defined in governance_guidance.cpp) ---
