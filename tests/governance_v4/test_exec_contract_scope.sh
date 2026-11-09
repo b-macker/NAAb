@@ -99,7 +99,11 @@ if [ -x "$GOV" ] || [ -x "$GOV.exe" ]; then
     proj ec03 '{"double_it": {"must_produce": [{"args": [2], "expect": 4}]}, "clamp": {"requires": ["n >= 0"], "ensures": ["result <= 10"]}}'
     printf 'fn clamp(n) {\n    if n > 10 { return 10 }\n    return n\n}\nmain {\n    print(string(clamp(3)))\n}\n' > "$D/m.naab"
     RC=0; OUT=$(cd "$D" && timeout 120s "$GOV" contracts m.naab 2>&1) || RC=$?
-    if [ "$RC" -eq 0 ] && grep -q "no counterexample" <<<"$OUT" && ! grep -q "BLOCKED" <<<"$OUT"; then
+    if [ "$RC" -eq 4 ] && grep -q "which this platform does not support" <<<"$OUT"; then
+        # The search runs in a POSIX worker process; on Windows naab-gov says so
+        # and exits 4 (test_contract_search.sh is UNMEASURABLE there too).
+        unm EC-03 "the contract search runs in a worker process this platform does not support"
+    elif [ "$RC" -eq 0 ] && grep -q "no counterexample" <<<"$OUT" && ! grep -q "BLOCKED" <<<"$OUT"; then
         pass EC-03 "naab-gov contracts on one module is not blocked by another's must_produce"
     else fail EC-03 "the search was blocked by a contract on an absent function (rc=$RC)" "$OUT"; fi
 else unm EC-03 "naab-gov not built"; fi

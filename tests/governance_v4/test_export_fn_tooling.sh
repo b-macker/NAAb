@@ -31,7 +31,8 @@ setup_isolated_trust
 W=$(mktemp -d "${TMPDIR:-/tmp}/naab_exportfn_XXXXXX")
 trap 'teardown_isolated_trust; rm -rf "$W"' EXIT
 
-PASS=0; FAIL=0
+PASS=0; FAIL=0; UNM=0
+unm()  { UNM=$((UNM+1));  echo "  UNMEASURABLE [$1] $2"; }
 pass() { PASS=$((PASS+1)); echo "  PASS [$1] $2"; }
 fail() { FAIL=$((FAIL+1)); echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && printf '%s\n' "$3" | head -8 | sed 's/^/       -> /'; }
 
@@ -66,16 +67,22 @@ contracts_case() {   # contracts_case ID KEYWORD
     printf '%sfn clamp(n) {\n    if n > 10 { return 10 }\n    return n\n}\nmain {\n    print(string(clamp(3)))\n}\n' "$2" > "$d/m.naab"
     RC=0; OUT=$(cd "$d" && timeout 120s "$GOV" contracts m.naab 2>&1) || RC=$?
 }
+# The search runs in a POSIX worker process; on Windows naab-gov says so and
+# exits 4 (test_contract_search.sh is UNMEASURABLE there too).
+search_unsupported() { [ "$RC" -eq 4 ] && grep -q "which this platform does not support" <<<"$OUT"; }
+
 contracts_case ix02c ""
-if [ "$RC" -eq 0 ] && grep -qE "clamp: [1-9][0-9]* cases" <<<"$OUT"; then pass IX-02c "CONTROL: a plain fn is searched"
+if search_unsupported; then unm IX-02c "the contract search runs in a worker process this platform does not support"
+elif [ "$RC" -eq 0 ] && grep -qE "clamp: [1-9][0-9]* cases" <<<"$OUT"; then pass IX-02c "CONTROL: a plain fn is searched"
 else fail IX-02c "a plain fn was not searched (rc=$RC)" "$OUT"; fi
 
 contracts_case ix02 "export "
-if [ "$RC" -eq 0 ] && grep -qE "clamp: [1-9][0-9]* cases" <<<"$OUT" && ! grep -q "not declared" <<<"$OUT"; then
+if search_unsupported; then unm IX-02 "the contract search runs in a worker process this platform does not support"
+elif [ "$RC" -eq 0 ] && grep -qE "clamp: [1-9][0-9]* cases" <<<"$OUT" && ! grep -q "not declared" <<<"$OUT"; then
     pass IX-02 "an export fn is searched"
 else fail IX-02 "an export fn was not found by naab-gov contracts (rc=$RC)" "$OUT"; fi
 
 echo ""
-echo "PASS=$PASS FAIL=$FAIL"
+echo "PASS=$PASS FAIL=$FAIL UNMEASURABLE=$UNM"
 [ "$FAIL" -eq 0 ] || exit 1
 exit 0
