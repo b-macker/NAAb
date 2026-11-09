@@ -8,7 +8,7 @@
 # (merge_arrays: replace) or widened it (append). Measured by
 # tests/property/ratchet_property.cpp --extends on master: every strategy and
 # array mode had pairs where the child allowed a request the parent refused
-# (about 280 loosened probes in 1,918 pairs at seed 3). The extends floor
+# (179 loosened request verdicts in 1,918 pairs at seed 3, observed). The extends floor
 # (applyExtendsFloor) now makes every security setting at least as strict as
 # the parent's: switches allowed only when both allow, blocked lists unioned,
 # allow lists narrowed to what both admit (two that admit nothing in common
