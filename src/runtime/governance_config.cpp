@@ -8474,6 +8474,75 @@ bool GovernanceEngine::applyExtendsFloor(const GovernanceRules& parent, Governan
     floorCheck(brq.documentation, rq.documentation);
     floorCheck(brq.version_pinning, rq.version_pinning);
 
+    // --- The sandbox level: the stricter (restricted < standard < elevated <
+    // unrestricted). The merge never read it, so a child neither inherited
+    // its parent's level nor was held to it: a parent's `restricted` (no
+    // polyglot at all) ran polyglot blocks through a child that set
+    // `elevated`, or set nothing. A child's level the table does not know is
+    // replaced by a parent's restricted or standard one (under enforce an
+    // unknown level runs at standard, A94); against a parent's elevated or
+    // unrestricted it is kept, which is never looser than the parent.
+    {
+        auto rank = [](const std::string& l) {
+            if (l == "restricted") return 0;
+            if (l == "standard") return 1;
+            if (l == "elevated") return 2;
+            if (l == "unrestricted") return 3;
+            return -1;
+        };
+        const int pr = rank(base.sandbox_level_config);
+        const int cr = rank(child.sandbox_level_config);
+        if (pr >= 0 && (child.sandbox_level_config.empty() || (cr < 0 && pr <= 1) ||
+                        (cr >= 0 && pr < cr))) {
+            child.sandbox_level_config = base.sandbox_level_config;
+        }
+    }
+    // --- Flags the parent refuses stay refused.
+    unionInto(child.integrity.blocked_flags, base.integrity.blocked_flags);
+    // --- Codegen (runtime-generated code): allowed only when both allow it;
+    // its language lists as the global ones (an empty allowed list means the
+    // global policy, so it is an allow list where empty is unrestricted).
+    if (!base.codegen.enabled) {
+        child.codegen.enabled = false;
+    } else if (child.codegen.enabled) {
+        child.codegen.level = stricterLevel(base.codegen.level, child.codegen.level);
+        if (!meetAllowlist(child.codegen.allowed_languages, base.codegen.allowed_languages,
+                           exactAdmits))
+            disjoint.push_back("codegen.allowed_languages");
+        unionInto(child.codegen.blocked_languages, base.codegen.blocked_languages);
+        if (!base.codegen.allow_tainted_code) child.codegen.allow_tainted_code = false;
+    }
+    // --- Per-language banned lists (the polyglot text checks): the union, for
+    // every language the parent lists. The merge copied a parent's entry only
+    // when the child had none, so any child entry for a language dropped the
+    // parent's banned imports, functions and commands for it.
+    for (const auto& [lang, pl] : base.languages.per_language) {
+        auto& cl = child.languages.per_language[lang];
+        unionInto(cl.imports.blocked, pl.imports.blocked);
+        unionInto(cl.imports.blocked_from, pl.imports.blocked_from);
+        unionInto(cl.banned_functions, pl.banned_functions);
+        unionInto(cl.banned_globals, pl.banned_globals);
+        unionInto(cl.banned_keywords, pl.banned_keywords);
+        unionInto(cl.banned_imports, pl.banned_imports);
+        unionInto(cl.banned_namespaces, pl.banned_namespaces);
+        unionInto(cl.banned_includes, pl.banned_includes);
+        unionInto(cl.banned_commands, pl.banned_commands);
+        if (pl.dangerous_calls_enabled) {
+            if (!cl.dangerous_calls_enabled) {
+                cl.dangerous_calls_enabled = true;
+                cl.dangerous_calls = pl.dangerous_calls;
+            } else {
+                cl.dangerous_calls = stricterLevel(pl.dangerous_calls, cl.dangerous_calls);
+            }
+        }
+        if (pl.shell_injection) {
+            cl.shell_injection_level = cl.shell_injection
+                ? stricterLevel(pl.shell_injection_level, cl.shell_injection_level)
+                : pl.shell_injection_level;
+            cl.shell_injection = true;
+        }
+    }
+
     // --- Taint tracking: on when either turns it on; sources and sinks the
     // union, sanitizers (each launders taint) what both grant, by the prefix
     // rule isSanitizer() matches with; the stricter levels.

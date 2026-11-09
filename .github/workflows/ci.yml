@@ -53,7 +53,8 @@ jobs:
       # "Governance only tightens", checked over generated config pairs (Bundle
       # 8): every accepted reload, startup overlay and CLI overlay must leave
       # each probe request at least as refused as before, judged by the
-      # engine's own gates. run-all-tests.sh runs it at its default budget
+      # engine's own gates, and (since A98) so must every `extends` child
+      # against its parent. run-all-tests.sh runs it at its default budget
       # (test_ratchet_property.sh); this runs a larger one under a seed that
       # changes per run, printed so a counterexample can be reproduced:
       #   build/naab_ratchet_property --cases N --seed S

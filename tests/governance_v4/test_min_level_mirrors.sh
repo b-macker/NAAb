@@ -241,7 +241,7 @@ xe XE-03 "a parent's shorthand \"hard\" no_placeholders is HARD in the child" \
 # directly (XC-03/04's control) or the child's own level (XC-01/02) runs it.
 xc() {
     local id="$1" desc="$2" pcq="$3" ccq="$4"
-    local d="$W/$id"; mkdir -p "$d/child" "$d/direct"
+    local d="$W/$id"; mkdir -p "$d/child"
     printf '{ "version": "4.0", "mode": "enforce", "code_quality": %s }\n' "$pcq" > "$d/parent.json"
     printf '{ "version": "4.0", "mode": "enforce", "extends": "../parent.json", "code_quality": %s }\n' "$ccq" > "$d/child/govern.json"
     printf '%s\n' "$P_PH_SRC" > "$d/child/p.naab"

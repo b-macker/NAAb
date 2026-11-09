@@ -3565,6 +3565,31 @@ else
     echo "  test_cross_block_gate.sh: not found, skipping"
 fi
 
+# An environment may raise the mode, never lower it (A95(b)); under `extends` a
+# child cannot loosen its parent's security settings (A98).
+ENVFLOOR_SCRIPT="tests/governance_v4/test_env_mode_floor.sh"
+if [ -f "$ENVFLOOR_SCRIPT" ]; then
+    if run_shell_test "$ENVFLOOR_SCRIPT" 2>&1; then
+        echo "  test_env_mode_floor.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_env_mode_floor.sh")
+    fi
+else
+    echo "  test_env_mode_floor.sh: not found, skipping"
+fi
+XFLOOR_SCRIPT="tests/governance_v4/test_extends_floor.sh"
+if [ -f "$XFLOOR_SCRIPT" ]; then
+    if run_shell_test "$XFLOOR_SCRIPT" 2>&1; then
+        echo "  test_extends_floor.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_extends_floor.sh")
+    fi
+else
+    echo "  test_extends_floor.sh: not found, skipping"
+fi
+
 # Module governance: full body checks skip during module loading, behavioral
 # contracts still fire. Verifies skip_main_ (VM) agrees with
 # module_loading_depth_ (tree-walker).

@@ -35,11 +35,13 @@
 #   EM-09c  CONTROL off file, --env (audit): an audit run
 #   EM-10c  CONTROL an environment at the file's own mode: no warning
 #
-# Kill table (each mutant rebuilt, this suite run; observed 2026-11-08):
-#   applyEnvironmentTo applies a lower mode again        EM-01, EM-02, EM-03, EM-04, EM-06
-#   modeUnderEnvironment returns the environment's mode  EM-05
-#   the warning removed                                   EM-01, EM-04
-#   an environment's mode ignored altogether             EM-07c, EM-08c, EM-09c
+# Kill table (each mutant applied alone, rebuilt, this suite and
+# test_tree_walk_enforce.sh run; observed 2026-11-09):
+#   applyEnvironmentTo applies a lower mode again        EM-01, EM-02, EM-03, EM-06
+#   modeUnderEnvironment returns the environment's mode  EM-05 (and TW-09)
+#   the warning removed                                   EM-01, EM-03, EM-04
+#   an environment's mode ignored altogether             EM-06, EM-07c, EM-08c, EM-09c
+#                                                         (and TW-06, TW-07)
 # Red first (observed, master 169d6600): EM-01, EM-02, EM-03, EM-05 and EM-06
 # fail (EM-06 on the wording: master named enforce -> off); EM-04's block
 # holds but its warning is missing; the controls pass.

@@ -39,22 +39,37 @@
 #           XF-08c CONTROL: overlapping lists load and run
 #   XF-09   a child's `"no_pii": false` does not switch off the parent's PII
 #           check (the value is built from fragments at run time)
+#   XF-12   the sandbox level: a parent's `restricted` (no polyglot) holds in a
+#           child that sets `elevated`, and XF-12b in one that sets no level --
+#           the merge never read it, so neither was held (observed on master);
+#           XF-12c CONTROL: a child stricter than its parent keeps its level
+#   XF-13   codegen: a child cannot enable runtime code generation its parent
+#           does not; XF-13c CONTROL: enabled in both, it runs
+#   XF-14   a child's own per_language entry for a language does not drop the
+#           parent's banned imports for it
+#   XF-15   integrity.blocked_flags: a child's own list does not drop a flag
+#           its parent locks
 #   XF-10c  CONTROL: a child still tightens -- its own blocked_read entry is
 #           refused beside the parent's
 #   XF-11c  CONTROL: a child still sets what is not a security setting -- its
 #           own report path is written
 #
-# Kill table (each mutant rebuilt, this suite run; observed 2026-11-09):
-#   applyExtendsFloor not called                  XF-01..XF-09 (XF-03c,
-#                                                 XF-05c, XF-06c, XF-08c,
-#                                                 XF-10c, XF-11c pass)
-#   the path-hole step removed                    XF-05
-#   meetAllowlist keeps the child's list          XF-03, XF-06, XF-08
-#   the disjoint refusal removed (empty = allowed) XF-08
-#   the parent's effective levels not used        tests/property/ratchet_property.cpp
-#                                                 --extends (scan.pii); no arm
-#                                                 here builds that pair
-# Red first (observed, master's binary): XF-01..XF-09 fail; the controls pass.
+# Kill table (each mutant applied alone, rebuilt, this suite and
+# naab_ratchet_property --extends 800 --seed 3 run; observed 2026-11-09):
+#   applyExtendsFloor not called                   XF-01..XF-09 (+ the harness)
+#   the path-hole step removed                     XF-05 (+ the harness)
+#   meetAllowlist keeps the child's list           XF-03, XF-08 (+ the harness)
+#   the language allow list keeps the child's      XF-06 (+ the harness)
+#   the disjoint refusal removed                   XF-08
+#   the parent's raw levels, not its effective     the harness only (scan.pii)
+#   the model-output scan level not floored        the harness only (scan.model_secret)
+#   the sandbox level not floored                  XF-12, XF-12b
+#   integrity.blocked_flags not unioned            XF-15
+#   codegen not floored                            XF-13
+#   per_language banned lists not unioned          XF-14
+# Red first (observed, master's binary): the 14 subject arms fail; the 8
+# controls pass. (The binary is from 977e7a40; governance_config.cpp is
+# identical between it and master 169d6600.)
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="${1:-$SCRIPT_DIR/../../build/naab-lang}"
@@ -202,6 +217,79 @@ P_PII="main {
 }"
 xrun xf09 '"code_quality": {"no_pii": "hard"}' '"code_quality": {"no_pii": false}' child_wins replace "$P_PII"
 refused_both XF-09 "a child's no_pii: false does not switch off the parent's PII check" "ID $SSN"
+
+# The sandbox level is the arm's subject, so these configs set their own
+# security section instead of the header's elevated one.
+xsbx() {
+    local id="$1" plevel="$2" cbody="$3" prog="$4"
+    local d="$W/$id"; mkdir -p "$d/base" "$d/child"
+    printf '%s\n' "$prog" > "$d/base/p.naab"; cp "$d/base/p.naab" "$d/child/p.naab"
+    printf '{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "%s"}}\n' "$plevel" > "$d/base/govern.json"
+    printf '{"version": "5.0", "mode": "enforce", "extends": "../base/govern.json"%s}\n' "${cbody:+, $cbody}" > "$d/child/govern.json"
+    PRC=0; PO=$(cd "$d/base" && timeout 60 "$NAAB" p.naab 2>&1) || PRC=$?
+    CRC=0; CO=$(cd "$d/child" && timeout 60 "$NAAB" p.naab 2>&1) || CRC=$?
+}
+# blocked_js ID DESC: the parent used directly refuses the javascript block
+# (UNMEASURABLE otherwise), and so does the child.
+blocked_js() {
+    if [ "$PRC" -eq 0 ] || grep -q "JS=42" <<<"$PO"; then
+        unm "$1" "control failed: the parent used directly ran the block (rc=$PRC)"; return
+    fi
+    if [ "$CRC" -ne 0 ] && ! grep -q "JS=42" <<<"$CO"; then pass "$1" "$2"
+    else fail "$1" "$2 -- the child ran the block (rc=$CRC)" "$CO"; fi
+}
+xsbx xf12 restricted '"security": {"sandbox_level": "elevated"}' "$P_JS"
+blocked_js XF-12 "a parent's restricted sandbox holds in a child that sets elevated"
+xsbx xf12b restricted '' "$P_JS"
+blocked_js XF-12b "a parent's restricted sandbox holds in a child that sets no level"
+xsbx xf12c elevated '"security": {"sandbox_level": "restricted"}' "$P_JS"
+if [ "$PRC" -eq 0 ] && grep -q "JS=42" <<<"$PO"; then
+    if [ "$CRC" -ne 0 ] && ! grep -q "JS=42" <<<"$CO"; then
+        pass XF-12c "CONTROL: a child stricter than its parent keeps its own level"
+    else fail XF-12c "the child's restricted level did not apply (rc=$CRC)" "$CO"; fi
+else unm XF-12c "control failed: the elevated parent did not run the block (rc=$PRC)"; fi
+
+P_CG='use codegen
+main {
+    let r = codegen.run("javascript", "6 * 7")
+    print("CG=" + string(r))
+}'
+xrun xf13 '' '"codegen": {"enabled": true}' child_wins replace "$P_CG"
+if ! grep -q '"output"' <<<"$PO" && grep -qi 'not enabled' <<<"$PO"; then
+    if ! grep -q '"output"' <<<"$CO" && grep -qi 'not enabled' <<<"$CO"; then
+        pass XF-13 "a child cannot enable codegen its parent does not"
+    else fail XF-13 "the child ran codegen its parent does not enable (rc=$CRC)" "$CO"; fi
+else unm XF-13 "control failed: the parent used directly did not refuse codegen (rc=$PRC)"; fi
+xrun xf13c '"codegen": {"enabled": true}' '"codegen": {"enabled": true}' child_wins replace "$P_CG"
+ran_child XF-13c "CONTROL: codegen enabled in both runs in the child" '"output"'
+
+P_JSIMP='main {
+    let j = <<javascript
+const f = require("fs")
+1
+>>
+    print("JSIMP=" + string(j))
+}'
+xrun xf14 '"languages": {"per_language": {"javascript": {"imports": {"blocked": ["fs"]}}}}' \
+          '"languages": {"per_language": {"javascript": {"max_lines": 100}}}' child_wins replace "$P_JSIMP"
+if [ "$PRC" -eq 3 ] && grep -q 'Blocked import' <<<"$PO"; then
+    if [ "$CRC" -eq 3 ] && grep -q 'Blocked import' <<<"$CO"; then
+        pass XF-14 "a child's own per_language entry does not drop the parent's banned imports"
+    else fail XF-14 "the child's per_language entry dropped the parent's banned import (rc=$CRC)" "$CO"; fi
+else unm XF-14 "control failed: the parent used directly did not refuse the import (rc=$PRC)"; fi
+
+P_PLAIN='main {
+    print("PLAIN-OK")
+}'
+xrun xf15 '"integrity": {"blocked_flags": ["--governance-override"]}' \
+          '"integrity": {"blocked_flags": ["--sandbox-level"]}' child_wins replace "$P_PLAIN"
+PRC=0; PO=$(cd "$W/xf15/base" && timeout 60 "$NAAB" --governance-override p.naab 2>&1) || PRC=$?
+CRC=0; CO=$(cd "$W/xf15/child" && timeout 60 "$NAAB" --governance-override p.naab 2>&1) || CRC=$?
+if [ "$PRC" -eq 3 ] && ! grep -q PLAIN-OK <<<"$PO"; then
+    if [ "$CRC" -eq 3 ] && ! grep -q PLAIN-OK <<<"$CO"; then
+        pass XF-15 "a child's own blocked_flags does not drop a flag its parent locks"
+    else fail XF-15 "the child ran with the flag its parent locks (rc=$CRC)" "$CO"; fi
+else unm XF-15 "control failed: the parent used directly did not refuse the flag (rc=$PRC)"; fi
 
 xrun xf10 '"capabilities": {"env_vars": {"blocked_read": ["NAAB_XF_A"]}}' \
           '"capabilities": {"env_vars": {"blocked_read": ["NAAB_XF_B"]}}' child_wins replace "$P_READ_B"
