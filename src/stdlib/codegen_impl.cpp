@@ -358,7 +358,7 @@ interpreter::NaabVal CodegenModule::call(
                 throw std::runtime_error(rate_err);
             }
             // Dynamic code shares the polyglot rate limit, decided as it is.
-            std::string rate_limit_err = gov_engine->checkPolyglotRateLimit();
+            std::string rate_limit_err = gov_engine->checkPolyglotRate();
             if (!rate_limit_err.empty()) throw std::runtime_error(rate_limit_err);
         }
 

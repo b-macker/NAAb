@@ -4742,6 +4742,64 @@ std::string GovernanceEngine::runExecutionContracts() {
 
 // --- NAAb Function Body Quality Check ---
 
+namespace {
+// The source with the BODY lines of each polyglot block blanked, every line
+// kept so a finding names the line it is on. A custom rule the whole-file scan
+// applies for "naab" must read NAAb code: a block's body is foreign code, and
+// checkPolyglotBlock() already applies the custom rules to it in its own
+// language, so reading it here as well counted each match twice (an advisory
+// reached advisory_escalation's threshold at half the occurrences) and fired a
+// DETECT rule at load, where no try/catch can catch it (A131).
+//
+// What a block is comes from the lexer the run uses, never a line heuristic: a
+// `<<x` inside a NAAb string or comment is not a block, so it masks nothing. The
+// header line (`<<lang[vars] -> TYPE`) and the closing line (`>>` and whatever
+// NAAb code follows it) stay, because they are NAAb syntax a rule may name. A
+// block ends on the first later line whose text, after spaces, tabs and CRs,
+// starts with `>>` -- readInlineCode()'s own rule. If the source does not lex,
+// nothing is masked: the scan then over-reports, it never misses NAAb code.
+std::string naabTextWithoutBlockBodies(const std::string& source) {
+    std::vector<int> header_lines;
+    try {
+        naab::lexer::Lexer lx(source);
+        for (const auto& t : lx.tokenize()) {
+            if (t.type == naab::lexer::TokenType::INLINE_CODE) header_lines.push_back(t.line);
+        }
+    } catch (...) {
+        return source;
+    }
+    if (header_lines.empty()) return source;
+
+    std::vector<std::pair<size_t, size_t>> lines;  // [begin, end) of each line, '\n' excluded
+    size_t begin = 0;
+    for (size_t i = 0; i <= source.size(); ++i) {
+        if (i == source.size() || source[i] == '\n') {
+            lines.emplace_back(begin, i);
+            begin = i + 1;
+        }
+    }
+    std::vector<bool> body(lines.size(), false);
+    for (int header : header_lines) {
+        // Line numbers are 1-based, so index `header` is the line after the header.
+        for (size_t ln = static_cast<size_t>(header); ln < lines.size(); ++ln) {
+            const auto [b, e] = lines[ln];
+            size_t first = b;
+            while (first < e && (source[first] == ' ' || source[first] == '\t' || source[first] == '\r')) ++first;
+            if (first + 1 < e && source[first] == '>' && source[first + 1] == '>') break;
+            body[ln] = true;
+        }
+    }
+    std::string out;
+    out.reserve(source.size());
+    for (size_t ln = 0; ln < lines.size(); ++ln) {
+        if (ln > 0) out += '\n';
+        if (!body[ln]) out.append(source, lines[ln].first, lines[ln].second - lines[ln].first);
+    }
+    return out;
+}
+}  // namespace
+
+
 std::string GovernanceEngine::checkNaabSourceText(const std::string& source,
                                                   const std::string& source_file) {
     // What the VM ran on the entry source in main.cpp before compiling, now
@@ -4763,7 +4821,12 @@ std::string GovernanceEngine::checkNaabSourceText(const std::string& source,
         // lint and polyglot blocks applied them and a run did not, so a HARD
         // rule for NAAb code was checked in CI and passed at run time (F-34,
         // observed: lint exit 3, run exit 0 "Governance: PASS").
-        err = checkCustomRules("naab", source, 1, /*code_starts_at_line=*/true);
+        // The bodies of polyglot blocks are masked: they are checked in their
+        // own language, block by block (A131, see naabTextWithoutBlockBodies).
+        if (!rules().custom_rules.empty()) {
+            err = checkCustomRules("naab", naabTextWithoutBlockBodies(source), 1,
+                                   /*code_starts_at_line=*/true);
+        }
         if (!err.empty()) return err;
         return checkIncompleteLogic(source, 1, source_file, /*code_starts_at_line=*/true);
     });
@@ -7012,20 +7075,8 @@ std::string GovernanceEngine::checkDictSize(size_t size) {
 }
 
 // --- Rate Limiting ---
-bool GovernanceEngine::checkPolyglotRate() {
-    return polyglot_rate_.check(rules().limits.rate.max_polyglot_per_second);
-}
-
-bool GovernanceEngine::checkStdlibRate() {
-    return stdlib_rate_.check(rules().limits.rate.max_stdlib_calls_per_second);
-}
-
-bool GovernanceEngine::checkFileOpsRate() {
-    return file_ops_rate_.check(rules().limits.rate.max_file_ops_per_second);
-}
-
-std::string GovernanceEngine::checkPolyglotRateLimit() {
-    if (checkPolyglotRate()) return "";
+std::string GovernanceEngine::checkPolyglotRate() {
+    if (polyglot_rate_.check(rules().limits.rate.max_polyglot_per_second)) return "";
     clearTrace();
     const int max = rules().limits.rate.max_polyglot_per_second;
     return enforce("limits.rate.max_polyglot_per_second", EnforcementLevel::HARD,
@@ -7036,8 +7087,8 @@ std::string GovernanceEngine::checkPolyglotRateLimit() {
             "Reduce execution frequency or restructure code to batch polyglot calls.", "", ""));
 }
 
-std::string GovernanceEngine::checkStdlibRateLimit() {
-    if (checkStdlibRate()) return "";
+std::string GovernanceEngine::checkStdlibRate() {
+    if (stdlib_rate_.check(rules().limits.rate.max_stdlib_calls_per_second)) return "";
     clearTrace();
     const int max = rules().limits.rate.max_stdlib_calls_per_second;
     return enforce("limits.rate.max_stdlib_calls_per_second", EnforcementLevel::HARD,
@@ -7048,8 +7099,8 @@ std::string GovernanceEngine::checkStdlibRateLimit() {
             "Reduce call frequency or restructure code to batch operations.", "", ""));
 }
 
-std::string GovernanceEngine::checkFileOpsRateLimit() {
-    if (checkFileOpsRate()) return "";
+std::string GovernanceEngine::checkFileOpsRate() {
+    if (file_ops_rate_.check(rules().limits.rate.max_file_ops_per_second)) return "";
     clearTrace();
     const int max = rules().limits.rate.max_file_ops_per_second;
     return enforce("limits.rate.max_file_ops_per_second", EnforcementLevel::HARD,

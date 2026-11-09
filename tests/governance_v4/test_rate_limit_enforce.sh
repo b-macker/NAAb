@@ -12,7 +12,7 @@
 # limit (array size, polyglot block count, loop iterations) blocks at HARD
 # through enforce(): uncatchable, recorded, exit 3. The rate limits now do the
 # same, at each call site on both engines and in codegen.run(), through
-# GovernanceEngine::check{Stdlib,FileOps,Polyglot}RateLimit().
+# GovernanceEngine::check{Stdlib,FileOps,Polyglot}Rate().
 #
 #   RL-00c  CONTROL under the limit: the calls run (exit 0)
 #   RL-01   stdlib limit crossed inside try/catch: exit 3, the catch never runs,
@@ -23,12 +23,14 @@
 #   RL-05   codegen.run() shares the polyglot limit: exit 3
 #   RL-06c  CONTROL no limit configured: 200 calls run (exit 0)
 #
-# Kill table (each mutant applied alone, rebuilt, this suite run; observed
-# 2026-11-09):
-#   the stdlib site back to a catchable runtime error      RL-01, RL-02
-#   the file-op site back to a catchable runtime error     RL-03
-#   the VM polyglot site back to a catchable runtime error RL-04
-#   codegen back to its own catchable error                RL-05
+# Kill table (each mutant applied alone, rebuilt -- the binary's checksum
+# confirmed changed -- and this suite run; observed 2026-11-09):
+#   checkStdlibRate refuses with a plain throw, not enforce()    RL-01, RL-02
+#   checkFileOpsRate refuses with a plain throw                  RL-03
+#   checkPolyglotRate refuses with a plain throw                 RL-04, RL-05
+#   codegen.run() asks no rate check                             RL-05
+# (An earlier table named call-site mutants against the bool checks these
+# replaced; the checks now decide themselves, so the mutants are theirs.)
 # Red first (observed, master 314bccfd): RL-01..RL-05 fail; the controls pass.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

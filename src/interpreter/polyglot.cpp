@@ -172,7 +172,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
 
         // Rate limiting for polyglot execution
         {
-            std::string rate_err = governance_->checkPolyglotRateLimit();
+            std::string rate_err = governance_->checkPolyglotRate();
             if (!rate_err.empty()) throw std::runtime_error(rate_err);
         }
 

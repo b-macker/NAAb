@@ -3779,18 +3779,15 @@ public:
     std::string checkForeignResult(const std::string& language, const std::string& output);
     std::string checkDictSize(size_t size);
 
-    // Rate limiting
-    bool checkPolyglotRate();
-    bool checkStdlibRate();
-    bool checkFileOpsRate();
-    // The rate limits as governance decisions: "" within the limit, else a
-    // HARD block through enforce() -- uncatchable and recorded, as every other
-    // limit is. The bool checks above only count; every call site uses these
-    // (Bundle 17: a refused call was a plain runtime error a NAAb try/catch
-    // swallowed, and the run ended "Governance: PASS (0 violations)").
-    std::string checkPolyglotRateLimit();
-    std::string checkStdlibRateLimit();
-    std::string checkFileOpsRateLimit();
+    // Rate limiting, as governance decisions: "" within the limit, else a HARD
+    // block through enforce() -- uncatchable and recorded, as every other limit
+    // is (A133, Bundle 17: they returned a bool, and every call site turned a
+    // refusal into a plain runtime error a NAAb try/catch swallowed, so the run
+    // ended "Governance: PASS (0 violations)"). The names are the ones the code
+    // map's pre-dispatch model and classified list read (tools/codemap).
+    std::string checkPolyglotRate();
+    std::string checkStdlibRate();
+    std::string checkFileOpsRate();
 
     // Comprehensive check (runs all applicable checks on a polyglot block)
     std::string checkPolyglotBlock(const std::string& language,

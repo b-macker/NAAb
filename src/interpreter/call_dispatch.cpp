@@ -1403,13 +1403,13 @@ void Interpreter::visit(ast::CallExpr& node) {
                     if (governance_ && governance_->isActive()) {
                         // Rate limiting for stdlib calls
                         {
-                            std::string rate_err = governance_->checkStdlibRateLimit();
+                            std::string rate_err = governance_->checkStdlibRate();
                             if (!rate_err.empty()) throw std::runtime_error(rate_err);
                         }
 
                         // File ops rate limiting
                         if (module_alias == "file") {
-                            std::string rate_err = governance_->checkFileOpsRateLimit();
+                            std::string rate_err = governance_->checkFileOpsRate();
                             if (!rate_err.empty()) throw std::runtime_error(rate_err);
                         }
 

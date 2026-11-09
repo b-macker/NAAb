@@ -3112,7 +3112,7 @@ interpreter::NaabVal VM::run() {
                     // Rate limiting for polyglot execution
                     // Gates: limits.rate.max_polyglot_per_second.
                     if (governance_->isActive()) {
-                        std::string rate_err = governance_->checkPolyglotRateLimit();
+                        std::string rate_err = governance_->checkPolyglotRate();
                         if (!rate_err.empty()) runtimeError("%s", rate_err.c_str());
                     }
 
@@ -5323,11 +5323,11 @@ interpreter::NaabVal VM::callStdlibMethod(const std::string& module, const std::
     // Rate limiting for stdlib calls
     if (governance_ && governance_->isActive()) {
         {
-            std::string rate_err = governance_->checkStdlibRateLimit();
+            std::string rate_err = governance_->checkStdlibRate();
             if (!rate_err.empty()) runtimeError("%s", rate_err.c_str());
         }
         if (module == "file") {
-            std::string rate_err = governance_->checkFileOpsRateLimit();
+            std::string rate_err = governance_->checkFileOpsRate();
             if (!rate_err.empty()) runtimeError("%s", rate_err.c_str());
         }
     }

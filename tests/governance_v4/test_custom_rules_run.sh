@@ -33,6 +33,13 @@
 #   CR-09   a rule that needs the fallback matcher (backreference) is enforced
 #   CR-10   a pattern that does not compile refuses the config (exit 4), naming it
 #   CR-10c  CONTROL the same rule with "enabled": false loads and runs
+#   CR-11   a DETECT rule matching only a polyglot block's body fires at the
+#           block, inside the try (the whole-file scan masks block bodies)
+#   CR-12   one match in one block counts once (advisory soft_after 2 is not
+#           reached); its control, two blocks, reaches it
+#   CR-13   a block header inside a NAAb string or comment masks nothing
+#   CR-14   NAAb code after a block's closing >> is read, on its own line
+#   CR-14b  a block's header line is read (a rule can name `<<javascript`)
 #
 # Kill table (each mutant applied alone, rebuilt, this suite run; observed
 # 2026-11-09):
@@ -40,9 +47,18 @@
 #   the matched line not computed                       CR-04
 #   the V-GOV-010 skip restored                         CR-07, CR-08
 #   an invalid pattern skipped with a warning again     CR-10
+#   block bodies not masked (the whole source scanned)  CR-11, CR-12
+#   the mask does not stop at the closing >>            CR-14
+#   the mask starts on the header line                  CR-14b
+#   blocks found by a line heuristic, not the lexer     CR-13
+#   (the last four: each binary's checksum confirmed changed before its run;
+#   a first pass without that check read the header mutant as surviving,
+#   because the binary had not been rebuilt)
 # Red first (observed, master 314bccfd): CR-01, CR-02, CR-03, CR-04, CR-07,
 # CR-08 and CR-10 fail; CR-01b, CR-09 (master's heuristic let that pattern
-# through) and the controls pass.
+# through) and the controls pass. CR-11..CR-14b pass on master (it applied no
+# custom rule to NAAb code at run); CR-11 and CR-12 fail on this branch's first
+# commit 03437b74, which scanned the block bodies too.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="${1:-$SCRIPT_DIR/../../build/naab-lang}"
@@ -60,17 +76,17 @@ unm()  { UNM=$((UNM+1));  echo "  UNMEASURABLE [$1] $2"; }
 
 if [ ! -x "$NAAB" ] && [ ! -x "$NAAB.exe" ]; then echo "UNMEASURABLE: naab-lang not built"; exit 1; fi
 
-# rule ID PATTERN LANGS [ENABLED]  -> one custom_rules entry (JSON)
+# rule ID PATTERN LANGS [ENABLED [LEVEL]]  -> one custom_rules entry (JSON)
 rule() {
     python3 -c 'import json,sys
-r={"id":sys.argv[1],"pattern":sys.argv[2],"level":"hard","enabled":sys.argv[4]=="true","message":"custom rule hit"}
+r={"id":sys.argv[1],"pattern":sys.argv[2],"level":sys.argv[5],"enabled":sys.argv[4]=="true","message":"custom rule hit"}
 if sys.argv[3]!="-": r["languages"]=sys.argv[3].split(",")
-print(json.dumps(r))' "$1" "$2" "$3" "${4:-true}"
+print(json.dumps(r))' "$1" "$2" "$3" "${4:-true}" "${5:-hard}"
 }
-# setup ID RULE_JSON -> a project dir with govern.json
+# setup ID RULE_JSON [EXTRA_JSON] -> a project dir with govern.json
 setup() {
     D="$W/$1"; mkdir -p "$D"
-    printf '{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"}, "custom_rules": [%s]}\n' "$2" > "$D/govern.json"
+    printf '{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"}, "custom_rules": [%s]%s}\n' "$2" "${3:-}" > "$D/govern.json"
 }
 run() { RC=0; OUT=$(cd "$D" && timeout 60s "$NAAB" "$@" 2>&1) || RC=$?; }
 refused() { [ "$RC" -eq 3 ] && ! grep -q "RAN=" <<<"$OUT" && grep -q 'custom_rules' <<<"$OUT"; }
@@ -164,6 +180,79 @@ else fail CR-10 "an invalid pattern did not refuse the config (rc=$RC)" "$OUT"; 
 setup cr10c "$(rule CR-10c '([unclosed' naab false)"; printf '%s\n' "$NAAB_CLEAN" > "$D/p.naab"; run p.naab
 if [ "$RC" -eq 0 ] && grep -q "RAN=clean" <<<"$OUT"; then pass CR-10c "CONTROL: the same rule disabled loads and runs"
 else fail CR-10c "a disabled invalid rule refused the config (rc=$RC)" "$OUT"; fi
+
+# CR-11..CR-14: the whole-file scan reads NAAb code only. A polyglot block's
+# body is checked block by block in its own language; reading it in the
+# whole-file scan as well counted each match twice and fired a DETECT rule at
+# load, outside any try (A131's own regression, found by the full suite:
+# test_escalation_message.sh EM-04, I-ESC-04, naab-40 D1/D3-D5). The masking
+# decides what a block is with the lexer the run uses, so no NAAb text --
+# a string or comment that looks like a block header, the header line itself,
+# code after the closing `>>` -- is ever hidden from the rule.
+JS_ONLY_TRY='main {
+    try {
+        let r = <<javascript
+"MARKER_42"
+>>
+        print("RAN=" + string(r))
+    } catch (e) {
+        print("CAUGHT")
+    }
+    print("AFTER")
+}'
+setup cr11 "$(rule CR-11 "$M" - true detect)"; printf '%s\n' "$JS_ONLY_TRY" > "$D/p.naab"; run p.naab
+if [ "$RC" -eq 0 ] && grep -q "CAUGHT" <<<"$OUT" && grep -q "AFTER" <<<"$OUT" && ! grep -q "RAN=" <<<"$OUT"; then
+    pass CR-11 "a DETECT rule matching only a block body fires at the block, inside the try"
+else fail CR-11 "a DETECT rule on a block body did not stay catchable (rc=$RC)" "$OUT"; fi
+
+ESC=', "advisory_escalation": {"enabled": true, "soft_after": 2}'
+JS_ONE='main {
+    let r = <<javascript
+"MARKER_42"
+>>
+    print("RAN=" + string(r))
+}'
+JS_TWO='main {
+    let r = <<javascript
+"MARKER_42"
+>>
+    let q = <<javascript
+"MARKER_43"
+>>
+    print("RAN=" + string(r) + string(q))
+}'
+setup cr12 "$(rule CR-12 "$M" - true advisory)" "$ESC"; printf '%s\n' "$JS_ONE" > "$D/p.naab"; run p.naab
+if [ "$RC" -eq 0 ] && grep -q "RAN=MARKER_42" <<<"$OUT"; then
+    setup cr12c "$(rule CR-12c "$M" - true advisory)" "$ESC"; printf '%s\n' "$JS_TWO" > "$D/p.naab"; run p.naab
+    if [ "$RC" -eq 3 ] && ! grep -q "RAN=" <<<"$OUT"; then
+        pass CR-12 "one match in one block counts once (soft_after 2 not reached), two blocks count twice"
+    else fail CR-12 "CONTROL failed: two matches did not reach soft_after 2 (rc=$RC)" "$OUT"; fi
+else fail CR-12 "one match in one block was counted twice and escalated (rc=$RC)" "$OUT"; fi
+
+LOOKALIKE='main {
+    let h = "<<javascript"
+    // <<javascript
+    let tok = "MARKER_42"
+    print("RAN=" + tok + h)
+}'
+setup cr13 "$(rule CR-13 "$M" naab)"; printf '%s\n' "$LOOKALIKE" > "$D/p.naab"; run p.naab
+if refused && grep -qE 'line 4\b' <<<"$OUT"; then pass CR-13 "a block header in a string or comment masks no NAAb code (line 4 refused)"
+else fail CR-13 "NAAb code after a lookalike block header was not read (rc=$RC)" "$OUT"; fi
+
+AFTER_BLOCK='main {
+    let r = <<javascript
+"clean"
+>>
+    let tok = "MARKER_42"
+    print("RAN=" + tok + string(r))
+}'
+setup cr14 "$(rule CR-14 "$M" naab)"; printf '%s\n' "$AFTER_BLOCK" > "$D/p.naab"; run p.naab
+if refused && grep -qE 'line 5\b' <<<"$OUT"; then pass CR-14 "NAAb code after a block's closing >> is read (line 5 refused)"
+else fail CR-14 "NAAb code after a block was hidden from the rule (rc=$RC)" "$OUT"; fi
+
+setup cr14b "$(rule CR-14b '<<\s*javascript' naab)"; printf '%s\n' "$AFTER_BLOCK" > "$D/p.naab"; run p.naab
+if refused && grep -qE 'line 2\b' <<<"$OUT"; then pass CR-14b "a block's header line is NAAb code the rule reads (line 2 refused)"
+else fail CR-14b "a rule naming the block header did not apply (rc=$RC)" "$OUT"; fi
 
 echo ""
 echo "PASS=$PASS FAIL=$FAIL UNMEASURABLE=$UNM"
