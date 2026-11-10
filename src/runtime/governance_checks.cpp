@@ -7367,9 +7367,17 @@ std::string GovernanceEngine::checkPolyglotBlockScan(
         auto& registry = runtime::LanguageRegistry::instance();
         runtime::ScopedRuntimeVersionProbe probing;
         std::string version = registry.runtimeVersion(language);
-        if (version.empty())
+        std::string probe_failure = version.empty() ? runtime::lastRuntimeVersionProbeFailure() : "";
+        if (version.empty()) {
             version = registry.runtimeVersion(naab::lang::runtimeLanguage(language));
-        err = checkRuntimeVersions(language, version);
+            if (version.empty()) {
+                const std::string again = runtime::lastRuntimeVersionProbeFailure();
+                if (!again.empty()) probe_failure = again;
+            } else {
+                probe_failure.clear();
+            }
+        }
+        err = checkRuntimeVersions(language, version, probe_failure);
         if (!err.empty()) return err;
     }
 

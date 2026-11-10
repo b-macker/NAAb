@@ -973,7 +973,29 @@ int execute_subprocess_with_pipes(
 
 namespace {
 thread_local int t_version_probe_depth = 0;
+thread_local std::string t_last_probe_failure;
+
+// The first line of a failed probe's output that has a letter in it, trimmed
+// and bounded: V8's fatal banner opens with blank lines and a bare "#".
+std::string firstWordedLine(const std::string& text) {
+    std::istringstream lines(text);
+    std::string line;
+    while (std::getline(lines, line)) {
+        while (!line.empty() && (line.back() == '\r' || line.back() == ' ' || line.back() == '\t'))
+            line.pop_back();
+        bool has_letter = false;
+        for (unsigned char ch : line) {
+            if (std::isalpha(ch)) { has_letter = true; break; }
+        }
+        if (!has_letter) continue;
+        size_t b = line.find_first_not_of(" \t#");
+        if (b == std::string::npos) continue;
+        return line.substr(b, 160);
+    }
+    return "";
 }
+}
+std::string lastRuntimeVersionProbeFailure() { return t_last_probe_failure; }
 ScopedRuntimeVersionProbe::ScopedRuntimeVersionProbe() { ++t_version_probe_depth; }
 ScopedRuntimeVersionProbe::~ScopedRuntimeVersionProbe() { --t_version_probe_depth; }
 bool ScopedRuntimeVersionProbe::active() { return t_version_probe_depth > 0; }
@@ -984,6 +1006,7 @@ std::string probeRuntimeVersion(const std::string& binary,
     static std::map<std::string, std::string> cache;
     std::string key = binary;
     for (const auto& a : args) key += '\x1f' + a;
+    t_last_probe_failure.clear();
     {
         std::lock_guard<std::mutex> lock(mu);
         auto it = cache.find(key);
@@ -1004,9 +1027,16 @@ std::string probeRuntimeVersion(const std::string& binary,
         rc = execute_subprocess_with_pipes(binary, args, out, err, nullptr, &c,
                                            ChildStdin::Null);
     } catch (const std::exception&) {
+        t_last_probe_failure = "it could not be started";
         return "";
     }
-    if (rc != 0) return "";
+    if (rc != 0) {
+        const std::string said = firstWordedLine(err.empty() ? out : err);
+        t_last_probe_failure = (rc > 0 ? fmt::format("it exited with status {}", rc)
+                                        : std::string("it ended abnormally")) +
+                               (said.empty() ? std::string() : ": " + said);
+        return "";
+    }
     const std::string& text = out.find_first_not_of(" \t\r\n") != std::string::npos ? out : err;
     std::istringstream lines(text);
     std::string line;
@@ -1020,6 +1050,7 @@ std::string probeRuntimeVersion(const std::string& binary,
         cache[key] = line;
         return line;
     }
+    t_last_probe_failure = "it printed no version";
     return "";
 }
 

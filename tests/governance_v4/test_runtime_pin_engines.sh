@@ -50,6 +50,19 @@
 #   RP-11  every executor class main.cpp registers overrides
 #          getRuntimeVersion() (itself or via its base) -- an executor added
 #          without one would leave its pins permanently unverifiable
+#   RP-13  a version check that RAN and failed says so (A145): node 24 under
+#          the 512 MB child budget dies before printing its version, and the
+#          refusal used to say the pin "can never be satisfied as written",
+#          which invites deleting the pin. A stub `tsx` that dies the way
+#          node 24 does must be refused (exit 3, still) with "version check
+#          did not complete" and the runtime's own line; RP-13b: a stub that
+#          prints nothing says so. Controls: RP-13c, a stub that prints a
+#          version, is read (the stubs are reached); RP-13d, with shell off no
+#          check is started, and the old wording stays.
+#          Kill table (rebuilt, re-run; observed 2026-11-10):
+#            failure not passed to the pin check   -> RP-13, RP-13b red
+#            the runtime's line not quoted         -> RP-13 red
+#            the new wording used when no check ran -> RP-13d red
 # ============================================================
 set -uo pipefail
 
@@ -307,6 +320,55 @@ else
         fi
     else
         bad RP-12c "a pinned block never asked node for its version (exit $RC2) -- RP-12 would prove nothing" "calls: $pin_calls"$'\n'"$OUT2"
+    fi
+fi
+
+# --- RP-13: a version check that ran and failed says so (A145) ---
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) win13=1 ;; *) win13=0 ;; esac
+if [ "$win13" -eq 1 ] || ! registered typescript; then
+    for a in RP-13 RP-13b RP-13c RP-13d; do skip "$a" "needs POSIX stubs and a typescript executor -- UNMEASURABLE"; done
+else
+    mkdir -p "$W/stub_crash" "$W/stub_silent" "$W/stub_version"
+    # Dies as node 24 does under the budget: V8's banner (blank lines, a bare
+    # "#"), then SIGTRAP.
+    printf '#!/bin/sh\nprintf "\\n\\n#\\n# Fatal process out of memory: Failed to reserve virtual memory for CodeRange\\n#\\n" >&2\nkill -TRAP $$\n' > "$W/stub_crash/tsx"
+    printf '#!/bin/sh\nexit 0\n' > "$W/stub_silent/tsx"
+    printf '#!/bin/sh\necho "tsx v9.9.9"\n' > "$W/stub_version/tsx"
+    chmod +x "$W/stub_crash/tsx" "$W/stub_silent/tsx" "$W/stub_version/tsx"
+    PROG_T=$'main {\n    let r = <<typescript\n\n>>\n    print("RAN")\n}'
+    OFF13='"security":{"sandbox_level":"elevated"},"capabilities":{"shell":{"enabled":false}}'
+    mk t13 "$(pin typescript '>=1' hard)" "$PROG_T" "$ELEV"
+    mk t13c "$(pin typescript '>=99999' hard)" "$PROG_T" "$ELEV"
+    mk t13d "$(pin typescript '>=1' hard)" "$PROG_T" "$OFF13"
+    old13="can never be satisfied as written"
+    new13="version check did not complete"
+
+    OUT="$(cd "$W/t13c" && PATH="$W/stub_version:$PATH" "$NAAB" p.naab --timeout 20 2>&1)"; RC=$?
+    if [ $RC -eq 3 ] && [[ "$OUT" == *"got 'tsx v9.9.9'"* ]]; then
+        ok RP-13c "control: the stub tsx is the one asked, and its version is read"
+        OUT="$(cd "$W/t13" && PATH="$W/stub_crash:$PATH" "$NAAB" p.naab --timeout 20 2>&1)"; RC=$?
+        if [ $RC -eq 3 ] && [[ "$OUT" == *"$new13"* ]] \
+           && [[ "$OUT" == *"Failed to reserve virtual memory for CodeRange"* ]] \
+           && [[ "$OUT" != *"$old13"* ]] && [[ "$OUT" != *RAN* ]]; then
+            ok RP-13 "a crashed version check is refused, named, and quotes the runtime's own line"
+        else
+            bad RP-13 "a crashed version check should be refused as 'did not complete', quoting the runtime (exit $RC)" "$OUT"
+        fi
+        OUT="$(cd "$W/t13" && PATH="$W/stub_silent:$PATH" "$NAAB" p.naab --timeout 20 2>&1)"; RC=$?
+        if [ $RC -eq 3 ] && [[ "$OUT" == *"printed no version"* ]] && [[ "$OUT" != *"$old13"* ]]; then
+            ok RP-13b "a version check that printed nothing is refused and says so"
+        else
+            bad RP-13b "a silent version check should be refused as 'printed no version' (exit $RC)" "$OUT"
+        fi
+    else
+        bad RP-13c "the stub tsx was not asked for its version -- RP-13/RP-13b would prove nothing (exit $RC)" "$OUT"
+        skip RP-13 "control RP-13c failed -- UNMEASURABLE"; skip RP-13b "control RP-13c failed -- UNMEASURABLE"
+    fi
+    OUT="$(cd "$W/t13d" && PATH="$W/stub_crash:$PATH" "$NAAB" p.naab --timeout 20 2>&1)"; RC=$?
+    if [ $RC -eq 3 ] && [[ "$OUT" == *"reports no version"* ]] && [[ "$OUT" != *"$new13"* ]]; then
+        ok RP-13d "control: with no check started (shell off) the original wording stays"
+    else
+        bad RP-13d "with shell off no version check runs; the original wording should stay (exit $RC)" "$OUT"
     fi
 fi
 

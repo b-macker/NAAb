@@ -7387,7 +7387,8 @@ static bool versionSatisfies(const std::string& observed_raw,
 }
 
 std::string GovernanceEngine::checkRuntimeVersions(const std::string& language,
-                                                    const std::string& observed_version) {
+                                                    const std::string& observed_version,
+                                                    const std::string& probe_failure) {
     if (!active_) return "";
     if (rules().runtime_versions.empty()) return "";
 
@@ -7405,6 +7406,31 @@ std::string GovernanceEngine::checkRuntimeVersions(const std::string& language,
         // An executor that reports no version cannot satisfy a pin. This used
         // to return early -- a pin on any runtime but Python or SQL passed
         // silently on every run. It is reported at the pin's own level.
+        if (observed_version.empty() && !probe_failure.empty()) {
+            // The version check ran and failed. The pin is not unsatisfiable:
+            // the runtime did not start here -- node 24 under a 512 MB child
+            // budget dies before printing its version (A145) -- so say what
+            // happened, quoting the runtime, rather than tell the reader the
+            // pin can never be met (which invites deleting it). Still refused
+            // at the pin's level.
+            addTrace("runtime_version: " + runtime + " version check failed -> unverifiable");
+            std::string said = probe_failure;
+            if (!secretFinding(said).empty() || !piiFinding(said).empty())
+                said = "it failed; its output is withheld";
+            return enforce(rule_name, pin.level,
+                formatError(pin.level,
+                    pin.message.empty()
+                        ? fmt::format("Runtime version for {} cannot be determined: its version "
+                              "check did not complete ({}), so the pin '{}' cannot be verified",
+                              runtime, said, pin.required_version)
+                        : pin.message,
+                    "", pin_text,
+                    fmt::format("NAAb asks the runtime that runs {} blocks for its version, "
+                        "and that command failed here. A block would start the same runtime "
+                        "the same way, so the pin cannot be checked until that runtime "
+                        "starts here.", runtime),
+                    "", ""));
+        }
         if (observed_version.empty()) {
             addTrace("runtime_version: " + runtime + " reports no version -> unverifiable");
             return enforce(rule_name, pin.level,
