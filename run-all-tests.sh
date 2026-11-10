@@ -2565,6 +2565,21 @@ else
     echo "  test_ratchet_property.sh: not found, skipping"
 fi
 
+# naab-gov diff (Bundle 13): which requests a govern.json edit newly allows or
+# refuses, judged by the engine's gates; DF-03 checks the report against real
+# runs, DF-00/DF-05c are the nothing-differs controls.
+GOV_DIFF_SCRIPT="tests/governance_v4/test_gov_diff.sh"
+if [ -f "$GOV_DIFF_SCRIPT" ]; then
+    if run_shell_test "$GOV_DIFF_SCRIPT" 2>&1; then
+        echo "  test_gov_diff.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_gov_diff.sh")
+    fi
+else
+    echo "  test_gov_diff.sh: not found, skipping"
+fi
+
 UNCATCHABLE_SCRIPT="tests/governance_v4/test_uncatchable.sh"
 if [ -f "$UNCATCHABLE_SCRIPT" ]; then
     if run_shell_test "$UNCATCHABLE_SCRIPT" 2>&1; then

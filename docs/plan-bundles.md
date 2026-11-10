@@ -4,7 +4,7 @@ The project owner's ordered plan for governance work. It was recorded on 2026-10
 
 A **bundle** is one branch, one pull request and one validated push. **Confirm a bundle's scope with the owner before starting it.** A finding made along the way is recorded in `docs/open-investigations.md` in the same pull request, and is added to a bundle only by the owner's decision.
 
-## Status (2026-11-09)
+## Status (2026-11-10)
 
 | Bundle | State | Where |
 |---|---|---|
@@ -17,10 +17,11 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 11: contracts and manifests for LLM-written code | merged, two PRs by the owner's decision (2026-11-01). PR 1 #356 (`703fa6c4`): requires/ensures as NAAb expressions checked by the VM at the call boundary, and the opt-in counterexample search `naab-gov contracts` in a worker; A114. PR 2 #357 (`528fbb59`): the signed capability manifest; A115, A116 | Bundle 11 below |
 | 12: taint as information flow | merged (the control-flow bar waits on Bundle 13); two PRs by the owner's decision (2026-11-04), then follow-ups. PR 1 (merged, #358): one taint semantics -- one static rule both AST walks share, unknown kinds fail closed, a suite generated from the semantics table; A117. PR 2 (merged, #360): the static noninterference check, an opt-in report, `naab-gov taint`; measured, A120-A122. Follow-up PR 1 (merged, #361, `01fb3552`): A120 and A121(d) fixed, A122(b), A123 and A124 recorded. PR 3 merged, #363 (`169d6600`): A121(a)-(c), A124, A127, A129. The control-flow bar waits on Bundle 13 | Bundle 12 below |
 | 16: honest tests and the engine's own child processes | merged, #362 (`977e7a40`): A123 (13 of 14 tests and the guard; one pinned for Bundle 12 PR 3), A125, A122, A99, A100 fixed; A126 recorded for the owner | Bundle 16 below |
-| 17: what Gemini's SentinelGrid report found | built (2026-11-09), one PR, scope by the owner's decisions of 2026-11-09: A130, A131, A133-A139, A141, A142 fixed; A132, A140, A143, A144 and F-14 recorded | Bundle 17 below |
-| 13-15 | not started; order 17, 13, 14, 15 (the owner, 2026-11-09) | |
+| 17: what Gemini's SentinelGrid report found | merged, #365 (`795b5885`), one PR, scope by the owner's decisions of 2026-11-09: A130, A131, A133-A139, A141, A142 fixed; A132, A140, A143, A144 and F-14 recorded | Bundle 17 below |
+| 13: measure what governance catches; help operators | in progress, three PRs by the owner's decision (2026-11-10). PR 1 built: `naab-gov diff`; A147 recorded | Bundle 13 below |
+| 14-15 | not started; order 17, 13, 14, 15 (the owner, 2026-11-09) | |
 
-Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). The bundle plan itself was recorded in #351 (`86fc33c9`).
+Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). A145 and A146 (node 24: the child memory budget, TypeScript's flags, and the runtime-pin message) were fixed in #366 (`97dab417`). The bundle plan itself was recorded in #351 (`86fc33c9`).
 
 Bundle 8 is two PRs, by the owner's decision of 2026-10-31: PR 1 holds parts 1 and 2 (the `naab-gov ratchet` seam, the property harness, the same property for the overlays, and the CI job); PR 2 classifies the unclassified ratchet keys. The harness measures `extends` without asserting it, because a child can loosen its parent under both merge strategies today: A98 is the owner's decision. Progress and findings are under Bundle 8 below.
 
@@ -223,7 +224,7 @@ Added by the owner's decision (2026-11-06). It runs before Bundle 13 because Bun
 - **The `path` module's Windows contract (A123), decided (the owner, 2026-11-07): always `/`.** The guard's first honest build-windows run failed `tests/stdlib/test_stdlib_path.naab`, which the old Python-warning rule had excused since it was written; the module returned `std::filesystem`'s mixed native form there. Every path function now returns `/` on every host; `is_absolute()` keeps the host's meaning.
 - **Found and not decided: A126** -- `naab-gov lint` fires the project's `on_violation` hook, the hook half of A122(c). Pinned (`test_engine_child_stdin.sh` ES-07), the owner's call.
 
-## Bundle 17 -- what Gemini's SentinelGrid report found (built 2026-11-09; runs before Bundle 13)
+## Bundle 17 -- what Gemini's SentinelGrid report found (merged, #365; ran before Bundle 13)
 
 Added by the owner's decision (2026-11-09: "Ok bundle 17 first"). Gemini built a project on NAAb and reported 42 findings; all 42 were checked on master `314bccfd`, twice (26 reproduced by running, 12 confirmed in code, 2 do not reproduce, 2 checked in part). This bundle takes the holes and the bugs; the precision findings wait for Bundle 13, which measures them.
 
@@ -248,6 +249,19 @@ Added by the owner's decision (2026-11-09: "Ok bundle 17 first"). Gemini built a
 - **`naab-gov diff OLD NEW`:** which requests a config edit newly allows or refuses (built on Bundle 8).
 - **Settings liveness follow-up:** 747 settings survive removal, and 538 are untested.
 
+**Decisions (the owner, 2026-11-10).**
+
+- **The corpus is redefined.** Neither source above comes with labels: `corpus_diff.py`'s blocks carry no verdicts, and the llm_bridge replies were directed by us. Labels come from outside instead:
+  - security labels from benchmarks other people built (NIST Juliet, OWASP Benchmark, PrimeVul; SecretBench needs an access request);
+  - gaming labels from executed tests (LLM-written solutions judged by EvalPlus's hidden tests, plus llm_bridge runs that recorded a validation result);
+  - the `corpus_diff.py` blocks stay as the false-alarm baseline.
+  - The security benchmarks are human-written code; the LLM-written part is EvalPlus's published outputs and our llm_bridge runs.
+- **The measurement runs nightly, report-only**, not on every PR. Datasets are downloaded at run time and pinned by hash, never committed.
+- **Three PRs:** PR 1 `naab-gov diff`; PR 2 the scorer with its controls and a pilot on Juliet and EvalPlus; PR 3 the A132 decision from PR 2's numbers, the other benchmarks, and the settings follow-up if wanted.
+- **Not answered by the external benchmarks:** Bundle 12's control-flow bar. It needs measurement on NAAb programs (`tools/taintflow`) and stays its own item.
+
+**Progress.** PR 1 (built 2026-11-10): `naab-gov diff OLD NEW` judges each request under both files with the engine's own gates, through the probes the Bundle 8 harness uses (now shared, `include/naab/policy_probes.h`), and reports the settings as the reload decision does (`evaluateReload()`). Report only. Its first trial run found A147 (a `*.name` host entry matches nothing), recorded for the owner.
+
 ## Bundle 14 -- replay and provenance
 
 - **Deterministic replay:** rebuild a run's governance decisions from the transcript, telemetry and decision snapshots (`naab-gov replay`).
@@ -268,6 +282,7 @@ Added by the owner's decision (2026-11-09: "Ok bundle 17 first"). Gemini built a
 ## Not bundled (open, the owner's call)
 
 - **Waiting on the owner:**
+  - A147: a `blocked_hosts` or `allowed_hosts` entry written `*.name` matches no host;
   - A88: codegen refusals are catchable, and `codegen.level` is inert;
   - the 14 compiled-but-unrun test programs, plus the unlinked `naab_testing` library.
 - **Open:** A66, A75(a)(b), A76(e), A70(b)(c), A67, B1, A16/F11/F12, A53, A33(b), D18, and the A64 test debt.

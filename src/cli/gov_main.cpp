@@ -72,6 +72,9 @@ static void printHelp() {
         "  naab-gov languages                     Print the language table (JSON)\n"
         "  naab-gov ratchet <old> <new> [options] Would a mid-run reload of <old> by <new>\n"
         "                                         be accepted? (the reload ratchet)\n"
+        "  naab-gov diff <old> <new> [options]    Which requests an edit of govern.json\n"
+        "                                         newly allows or refuses, and which\n"
+        "                                         settings it changes (report only)\n"
         "  naab-gov contracts <file.naab> [opts]  Search for inputs that meet a function's\n"
         "                                         requires and break a clause (RUNS the\n"
         "                                         functions, in a naab-lang worker)\n"
@@ -83,6 +86,13 @@ static void printHelp() {
         "                                         nothing, refuses nothing)\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
+        "\n"
+        "diff OPTIONS:\n"
+        "  --env <name>            Apply this environment to both files (default: each\n"
+        "                          file's governance.default_env)\n"
+        "  --agent-id <name>       Apply this agent role to both files\n"
+        "  --json                  Print the report as JSON\n"
+        "  Exit: 0 nothing differs, 1 something differs, 4 usage or a file that does not load\n"
         "\n"
         "taint OPTIONS:\n"
         "  --config <govern.json>  Use this govern.json (default: the one a run of the\n"
@@ -679,6 +689,8 @@ static int cmdLanguages() {
 // gov_contracts.cpp (Bundle 11)
 int cmdContracts(const std::vector<std::string>& args, const char* argv0);
 int cmdTaint(const std::vector<std::string>& args);
+// gov_diff.cpp (Bundle 13)
+int cmdDiff(const std::vector<std::string>& args);
 // gov_manifest.cpp (Bundle 11 PR 2)
 int cmdManifest(const std::vector<std::string>& args, const char* argv0);
 
@@ -872,6 +884,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "ratchet") {
             return cmdRatchet(rest);
+        }
+
+        if (cmd == "diff") {
+            return cmdDiff(rest);
         }
 
         if (cmd == "contracts") {
