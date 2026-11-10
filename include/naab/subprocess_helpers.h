@@ -210,6 +210,15 @@ std::vector<std::string> execCandidates(const std::string& command,
 std::string probeRuntimeVersion(const std::string& binary,
                                 const std::vector<std::string>& args);
 
+// Why the last probeRuntimeVersion() on this thread that STARTED a process
+// returned "": it could not be started, it exited non-zero (with the first
+// line of its stderr that has a letter in it), or it printed no version. ""
+// when the last call answered, or started nothing (no probe scope, process
+// execution not permitted). The pin check reads it to say why a version could
+// not be read instead of calling the pin unsatisfiable: node 24 under a 512 MB
+// child budget dies before printing its version (A145).
+std::string lastRuntimeVersionProbeFailure();
+
 class ScopedRuntimeVersionProbe {
 public:
     ScopedRuntimeVersionProbe();

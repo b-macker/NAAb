@@ -2929,7 +2929,7 @@ struct GovernanceRules {
         // extends parent's applies. The CLI reads it to tell "configured 30"
         // from the built-in default: a flag may only lower a configured limit.
         bool timeout_configured = false;
-        size_t memory_limit = 0;     // 0 = unlimited
+        size_t memory_limit = 0;     // MB; 0 = the run's default budget (512 MB), not unlimited
         size_t gc_threshold = 5000;
         bool gc_stats = false;
     };
@@ -4090,9 +4090,13 @@ public:
     // for every block about to run, on both engines and every entry point;
     // returns the enforce() verdict ("" = pass or advisory). An observed
     // version of "" means the executor reports none: that is reported at the
-    // pin's level as unverifiable, never treated as a pass.
+    // pin's level as unverifiable, never treated as a pass. probe_failure is
+    // why the version check that ran failed (lastRuntimeVersionProbeFailure()),
+    // "" when none ran: the message then says the check failed instead of
+    // calling the pin unsatisfiable (A145).
     std::string checkRuntimeVersions(const std::string& language,
-                                      const std::string& observed_version);
+                                      const std::string& observed_version,
+                                      const std::string& probe_failure = "");
 
     // --- Advisory Output Control ---
     void emitAdvisory(const std::string& msg);

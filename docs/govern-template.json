@@ -2088,7 +2088,7 @@
     "default_expiry_hours": 24
   },
 
-  "_comment_runtime": "Runtime limits — apply to all execution paths (VM and tree-walker). CLI flags (--timeout, --memory-limit, --gc-threshold, --gc-stats) override when present.",
+  "_comment_runtime": "Runtime limits — apply to all execution paths (VM and tree-walker). --timeout and --memory-limit may lower a configured limit, never raise it; --gc-threshold and --gc-stats override when present. memory_limit (MB) is the data limit of each contained child process (process.run and the subprocess languages; 0 = the 512 MB default). node 24 needs about 600 to start, because it maps its JIT code range writable; a 512 MB budget refuses it with 'Failed to reserve virtual memory for CodeRange'.",
   "runtime": {
     "timeout": 30,
     "memory_limit": 0,
