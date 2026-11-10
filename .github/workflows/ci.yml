@@ -35,6 +35,12 @@ jobs:
             python3-clang \
             valgrind
           pip3 install pybind11
+          # tsx, pinned, so test_typescript_memory_ceiling.sh runs here: without
+          # it every TM arm SKIPs, and A146 (node 24 refusing a flag the
+          # executor passed to tsx) reached no CI job. The runner's node is
+          # whatever the image ships (node 24 since 2026-11-09, A145).
+          sudo npm install -g tsx@4.23.15
+          tsx --version
 
       - name: Build
         run: |
@@ -202,6 +208,12 @@ jobs:
             libssl-dev libffi-dev libcurl4-openssl-dev pkg-config \
             python3-clang valgrind
           pip3 install pybind11
+          # tsx, pinned, so test_typescript_memory_ceiling.sh runs here: without
+          # it every TM arm SKIPs, and A146 (node 24 refusing a flag the
+          # executor passed to tsx) reached no CI job. The runner's node is
+          # whatever the image ships (node 24 since 2026-11-09, A145).
+          sudo npm install -g tsx@4.23.15
+          tsx --version
 
       - name: Build
         run: |

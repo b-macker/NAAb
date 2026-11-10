@@ -221,7 +221,12 @@ fi
 # --- RP-09: subprocess runtimes report their own binary's version line ---
 # tag|binary|args : the binary each executor runs (an independent oracle --
 # written here, not read from the code under test).
-ELEV='"security":{"sandbox_level":"elevated"}'
+# The budget is set because RP-09 is about the version line, not memory: the
+# probe runs the toolchain under the child budget, and under the 512 MB default
+# node 24 -- and tsx, whose launcher is node -- dies before printing a version
+# (A145, kept by the owner's decision; the pin then fails closed, "cannot be
+# determined"). test_child_memory_limit.sh measures the default.
+ELEV='"security":{"sandbox_level":"elevated"},"runtime":{"memory_limit":1024}'
 measured=0
 for spec in "node|node|--version" "ruby|ruby|--version" "shell|bash|--version" \
             "go|go|version" "rust|rustc|--version" "cpp|g++|--version" \
