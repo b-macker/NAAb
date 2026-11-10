@@ -2929,7 +2929,7 @@ struct GovernanceRules {
         // extends parent's applies. The CLI reads it to tell "configured 30"
         // from the built-in default: a flag may only lower a configured limit.
         bool timeout_configured = false;
-        size_t memory_limit = 0;     // 0 = unlimited
+        size_t memory_limit = 0;     // MB; 0 = the run's default budget (512 MB), not unlimited
         size_t gc_threshold = 5000;
         bool gc_stats = false;
     };

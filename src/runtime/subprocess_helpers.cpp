@@ -217,6 +217,11 @@ static void apply_posix_containment(const SubprocessContainment& c) {
     // under the 512 MB budget process.run("node", ...) died with "Failed to
     // reserve virtual memory" before running a line. Measured: RLIMIT_DATA at
     // 256 MB lets node start and still stops it at 192 MB of real allocation.
+    // RLIMIT_DATA counts every private WRITABLE mapping, used or not: node 24
+    // maps its ~512 MB JIT code range writable (node 22 maps it with no
+    // access), so node 24 needs a data budget of about 560-600 MB just to
+    // start (A145). The budget is the run's memory limit, 512 MB by default;
+    // a project that runs node 24 sets runtime.memory_limit.
     //
     // RLIMIT_DATA does not count SHARED anonymous mappings, so an address-space
     // ceiling stays as a backstop against that route: 4x the budget, at least

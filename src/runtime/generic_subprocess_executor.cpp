@@ -44,17 +44,55 @@ namespace {
 // (tsx hands node flags to node), not into NODE_OPTIONS, so nothing the
 // environment scrub withheld is put back. Windows bounds committed memory
 // with a job object, which counts no reservation, so it is left as it is.
-void fitToMemoryCeiling(const std::string& cmd, std::vector<std::string>& args,
+//
+// Only --jitless, a flag every node since 12 accepts. --no-expose-wasm used to
+// go with it, to keep node 22's "disabling flag --expose_wasm" warning out of
+// every block's stderr, but node 24's V8 has no such flag and refuses it ("bad
+// option", exit 9), so every TypeScript block under a budget failed there
+// (A146, observed with node 24.22.2 and tsx 4.23.15). The warning is removed
+// from the child's stderr instead (dropJitlessWasmNotice()). Returns whether
+// the flag was added.
+//
+// tsx's own launcher is a plain `node` (its shebang), started without the
+// flag, so it needs room for node's JIT: node 24 maps its ~512 MB code range
+// writable, which RLIMIT_DATA counts, and does not start below a data budget
+// of about 560-600 MB (A145). The default budget is 512 MB; a project that
+// runs TypeScript on node 24 sets runtime.memory_limit.
+bool fitToMemoryCeiling(const std::string& cmd, std::vector<std::string>& args,
                         const SubprocessContainment& containment) {
 #ifndef _WIN32
-    if (containment.max_memory_bytes == 0) return;
-    // --no-expose-wasm states what --jitless implies; without it V8 prints a
-    // "disabling flag --expose_wasm" warning into every block's stderr.
-    if (std::filesystem::path(cmd).filename() == "tsx")
-        args.insert(args.begin(), {"--jitless", "--no-expose-wasm"});
+    if (containment.max_memory_bytes == 0) return false;
+    if (std::filesystem::path(cmd).filename() != "tsx") return false;
+    args.insert(args.begin(), "--jitless");
+    return true;
 #else
     (void)cmd; (void)args; (void)containment;
+    return false;
 #endif
+}
+
+// The line node 22's V8 prints when --jitless turns WebAssembly off. It is
+// removed only from the stderr of a child the engine itself started with
+// --jitless, and only as a whole line, so nothing the block wrote is touched
+// unless it wrote exactly this line.
+void dropJitlessWasmNotice(std::string& err) {
+    static const std::string kNotice =
+        "Warning: disabling flag --expose_wasm due to conflicting flags";
+    if (err.find(kNotice) == std::string::npos) return;
+    std::string kept;
+    kept.reserve(err.size());
+    size_t pos = 0;
+    while (pos < err.size()) {
+        size_t nl = err.find('\n', pos);
+        size_t end = (nl == std::string::npos) ? err.size() : nl;
+        std::string_view line(err.data() + pos, end - pos);
+        if (!line.empty() && line.back() == '\r') line.remove_suffix(1);
+        if (line != kNotice) {
+            kept.append(err, pos, (nl == std::string::npos) ? end - pos : end - pos + 1);
+        }
+        pos = (nl == std::string::npos) ? err.size() : nl + 1;
+    }
+    err.swap(kept);
 }
 
 std::string withPrelude(const std::string& language, const std::string& code) {
@@ -210,9 +248,10 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
         }
 
         auto containment = SubprocessContainment::fromCurrentSandbox(cmd);
-        fitToMemoryCeiling(cmd, args, containment);
+        const bool jitless = fitToMemoryCeiling(cmd, args, containment);
         exit_code = execute_subprocess_with_pipes(
             cmd, args, stdout_output, stderr_output, nullptr, &containment);
+        if (jitless) dropJitlessWasmNotice(stderr_output);
 
     } else {
         // Write to a file in a private directory per block and run it. The
@@ -376,9 +415,10 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
         }
 
         auto containment = SubprocessContainment::fromCurrentSandbox(cmd);
-        fitToMemoryCeiling(cmd, args, containment);
+        const bool jitless = fitToMemoryCeiling(cmd, args, containment);
         exit_code = execute_subprocess_with_pipes(
             cmd, args, stdout_output, stderr_output, nullptr, &containment);
+        if (jitless) dropJitlessWasmNotice(stderr_output);
     }
 
     // Buffer output for flushExecutorOutput (don't print raw)
@@ -503,10 +543,11 @@ bool naab::runtime::GenericSubprocessExecutor::runCommand(const std::string& com
     std::string stderr_buffer_local;
 
     auto containment = SubprocessContainment::fromCurrentSandbox(cmd_path);
-    fitToMemoryCeiling(cmd_path, args, containment);
+    const bool jitless = fitToMemoryCeiling(cmd_path, args, containment);
     int exit_code = execute_subprocess_with_pipes(
         cmd_path, args, stdout_buffer_local, stderr_buffer_local, nullptr, &containment
     );
+    if (jitless) dropJitlessWasmNotice(stderr_buffer_local);
 
     // Append to internal buffers
     stdout_buffer_.append(stdout_buffer_local);
