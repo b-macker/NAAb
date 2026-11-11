@@ -133,9 +133,19 @@ def rule_matches(rule, prefixes):
     return any(rule == p or rule.startswith(p) for p in prefixes)
 
 
-def score(cases, gov, cfg, cmap, jobs=4, plant=None, seed=1):
+def score(cases, gov, cfg, cmap, jobs=4, plant=None, seed=1, group="both"):
     """Returns (status, report). status is "ok" or "unmeasurable"."""
-    report = {"status": "ok", "reasons": [], "cases": len(cases), "plant": plant or ""}
+    report = {"status": "ok", "reasons": [], "cases": len(cases), "plant": plant or "", "group": group}
+
+    def group_key(c):
+        # "source": one group per source, every category together (no mapped
+        # row: a mapping is per category). "category": one per category,
+        # every source together.
+        if group == "source":
+            return (c["source"], "(every category)")
+        if group == "category":
+            return ("(every source)", c["category"])
+        return (c["source"], c["category"])
 
     def unmeasurable(reason):
         report["status"] = "unmeasurable"
@@ -205,7 +215,7 @@ def score(cases, gov, cfg, cmap, jobs=4, plant=None, seed=1):
     for c, f in zip(cases, fired):
         if f is None:
             continue
-        key = (c["source"], c["category"])
+        key = group_key(c)
         side = 0 if c["bad"] else 1
         totals[key][side] += 1
         if f:
@@ -229,7 +239,7 @@ def score(cases, gov, cfg, cmap, jobs=4, plant=None, seed=1):
         mb = mg = 0
         if mapped:
             for c, f in zip(cases, fired):
-                if f is None or (c["source"], c["category"]) != key:
+                if f is None or group_key(c) != key:
                     continue
                 if any(rule_matches(r, mapped) for r in f):
                     if c["bad"]:
@@ -338,7 +348,8 @@ def cmd_score(args):
     gov = [os.path.abspath(args.gov)] if not args.gov_argv else json.loads(args.gov_argv)
     cfg = config_file(args.config)
     try:
-        status, report = score(cases, gov, cfg, cmap, jobs=args.jobs, plant=args.plant, seed=args.seed)
+        status, report = score(cases, gov, cfg, cmap, jobs=args.jobs, plant=args.plant, seed=args.seed,
+                               group=args.group)
     finally:
         try:
             os.remove(cfg)
@@ -457,6 +468,15 @@ def selftest():
         status, rep = score([dict(c) for c in cases], flaky, cfg, {"categories": {}, "controls": []})
         expect("ST-08", status == "unmeasurable" and rep["unreadable"] == 11,
                "11 of 40 unreadable answers (over 1%) is UNMEASURABLE, and counted")
+        two = [dict(c, source="fake" if i % 2 else "other") for i, c in enumerate(cases)]
+        status, rep = score([dict(c) for c in two], gov, cfg, cmap, group="category")
+        g = rep["groups"]
+        status2, rep2 = score([dict(c) for c in two], gov, cfg, cmap, group="source")
+        expect("ST-10", len(g) == 1 and g[0]["source"] == "(every source)" and g[0]["mapped"]["bad_fired"] == 15
+               and len(rep2["groups"]) == 2 and all(x["mapped"] is None for x in rep2["groups"])
+               and sum(x["any_rule"]["bad"] for x in rep2["groups"]) == 20,
+               "grouped by category the sources merge (15 of 20 again); by source there are two tables "
+               "and no mapped row")
         silent = [sys.executable, "-c", "print('{\"violations\": []}')"]
         status, rep = score([dict(c) for c in cases], silent, cfg, {"categories": {}, "controls": []})
         expect("ST-09", status == "unmeasurable",
@@ -483,6 +503,8 @@ def main(argv):
     sc.add_argument("--title", default="What the block checks catch")
     sc.add_argument("--plant", choices=["dead", "shuffle"], default=None)
     sc.add_argument("--seed", type=int, default=1)
+    sc.add_argument("--group", choices=["both", "source", "category"], default="both",
+                    help="one table per source and category (default), per source, or per category")
     bl = sub.add_parser("blocks")
     bl.add_argument("--root", default=os.path.join(HERE, "..", ".."))
     bl.add_argument("--out", required=True)

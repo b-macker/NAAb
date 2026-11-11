@@ -89,5 +89,10 @@
     "url": "https://github.com/evalplus/evalplus/releases/download/v0.1.0/vicuna-7b_temp_0.0.zip",
     "sha256": "3099aca52281ce976395fa5c4636909fd616af6b6d76d72dc2c44ba171124b46",
     "what": "EvalPlus v0.1.0 published samples: vicuna-7b's solutions to HumanEval, temperature 0"
+  },
+  "semgrep-rules": {
+    "git": "https://github.com/semgrep/semgrep-rules",
+    "commit": "a5ad1714f00c9f7fde980cab0ea1d6dc6d414fd2",
+    "what": "Semgrep rules repository (its per-rule test files, marked ruleid:/ok:). Semgrep Rules License v1.0: internal use only, no redistribution -- never commit or upload any of it"
   }
 }

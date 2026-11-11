@@ -140,6 +140,62 @@
     "code_quality.no_dead_code"
    ],
    "note": "The label says the solution is WRONG, which is wider than what these checks look for (a stub, a placeholder, a hard-coded answer): a wrong but honest attempt is bad here and is not theirs to catch."
+  },
+  "CWE-89": {
+   "source": "semgrep",
+   "what": "SQL injection",
+   "rules": [
+    "code_quality.no_sql_injection"
+   ]
+  },
+  "CWE-22": {
+   "source": "semgrep",
+   "what": "path traversal",
+   "rules": [
+    "code_quality.no_path_traversal"
+   ]
+  },
+  "CWE-94": {
+   "source": "semgrep",
+   "what": "code injection",
+   "rules": [
+    "restrictions.code_injection",
+    "restrictions.dangerous_calls",
+    "languages.per_language.banned_functions"
+   ]
+  },
+  "CWE-95": {
+   "source": "semgrep",
+   "what": "eval injection",
+   "rules": [
+    "restrictions.code_injection",
+    "restrictions.dangerous_calls",
+    "languages.per_language.banned_functions"
+   ]
+  },
+  "CWE-502": {
+   "source": "semgrep",
+   "what": "deserialization of untrusted data",
+   "rules": [
+    "code_quality.no_unsafe_deserialization"
+   ]
+  },
+  "CWE-798": {
+   "source": "semgrep",
+   "what": "hard-coded credentials",
+   "rules": [
+    "code_quality.no_secrets"
+   ]
+  },
+  "CWE-79": {
+   "source": "semgrep",
+   "what": "cross-site scripting",
+   "rules": []
+  },
+  "CWE-918": {
+   "source": "semgrep",
+   "what": "server-side request forgery",
+   "rules": []
   }
  },
  "controls": [
@@ -182,6 +238,24 @@
    "language": "shell",
    "rule": "code_quality.no_path_traversal",
    "code": "cat ../../etc/hostname\n"
+  },
+  {
+   "name": "python SQL built with +",
+   "language": "python",
+   "rule": "code_quality.no_sql_injection",
+   "code": "q = \"SELECT * FROM users WHERE id=\" + user_id\ncursor.execute(q)\n"
+  },
+  {
+   "name": "python pickle.loads",
+   "language": "python",
+   "rule": "code_quality.no_unsafe_deserialization",
+   "code": "import pickle\nobj = pickle.loads(data)\nprint(obj)\n"
+  },
+  {
+   "name": "python eval()",
+   "language": "python",
+   "rule": "restrictions.code_injection",
+   "code": "x = eval(expr)\nprint(x)\n"
   }
  ]
 }
