@@ -46,12 +46,34 @@
 #   CP-10  hashes only: a token the model wrote appears in the program's
 #          output (CONTROL) and nowhere in the telemetry file
 #   CP-11  the telemetry chain still verifies with the new fields
+#   CP-13  codegen.run_with_args(): code_sha256 is the hash of the code as the
+#          caller passed it, not of the code with the engine's binding preamble
+#   CP-14  a reply that arrives after a tool loop, run as code: the model and
+#          the request hash are the loop turn's (the second request's body)
 #   CP-12  with telemetry off nothing is written and the program still runs
 #          (there is no new key: the fields follow telemetry)
 #
-# Kill table (observed 2026-11-11, each mutant built and run alone):
-#   see the table at the end of this header, filled from the revert checks.
-#KILLTABLE
+# Kill table (observed 2026-11-11, each mutant built and run alone; "unit" is
+# tests/unit/code_provenance_test.cpp):
+#   the lookup never matches                     -> CP-01 02 03 06 07 09 11, unit
+#   the code hash is of other text               -> CP-01..07 (03n too), 09, 11, unit
+#   the request hash is not set                  -> CP-01 02 03 06 07 08 09
+#   the returned (fence-stripped) text not recorded -> CP-02 09
+#   extract_code's output not recorded           -> CP-03
+#   a tool argument not recorded                 -> CP-06
+#   a proposal not recorded                      -> CP-07
+#   content_sha256 covers 500 characters         -> CP-08
+#   content_hash changed to the whole reply      -> CP-08
+#   distinct replies not counted                 -> CP-09, unit
+#   the origin's reply hash is of the matched text -> CP-02 09
+#   derived text recorded from any input         -> CP-03n, unit
+#   the code text written to the event           -> CP-10
+#   POLYGLOT_EXEC without the fields             -> CP-01 05
+#   CODEGEN_EXEC hashes code plus preamble       -> CP-13
+#   no eviction                                  -> unit only (the bound)
+#   the model not recorded for a tool-loop turn  -> CP-14
+#   the raw reply not recorded                   -> CP-01
+# CP-13 and CP-14 were added because the first run left their two mutants alive.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -375,6 +397,40 @@ else
     else fail CP-11 "chain verification: untouched rc=$VR, edited rc=$TR" "$V
 $T"; fi
 fi
+
+# ---- CP-13: bound variables are not part of the code's hash -----------------
+run_case on "" "" '    let x = codegen.run_with_args("javascript", "n + 1", {"n": 4})
+    print("END")' '{"content": "unused"}'
+arm CP-13 "run_with_args: the hash is of the code as passed, not of the engine's preamble" \
+    "CODEGEN_EXEC exit_code = 0" "CODEGEN_EXEC code_sha256 = sha:n + 1" \
+    "CODEGEN_EXEC code_attribution = unattributed"
+
+# ---- CP-14: a reply that arrives after a tool loop --------------------------
+CODE14='3 * 3'
+# Observed: a reply that follows a tool loop is tainted (the plain reply of
+# CP-01 is not), so codegen refuses it without the operator's grant (A161).
+CG_EXTRA=', "allow_tainted_code": true'
+run_case on ', "tools_enabled": true, "tools": ["note"], "max_turns": 10' 'fn note(s) {
+    print("TOOL_RAN")
+    return "noted"
+}' '    agent.register_tool("note", note,
+        {"description": "note", "parameters": {"s": {"type": "string", "description": "text"}}})
+    let h = agent.create("worker")
+    let r = agent.send(h, "go")
+    print("REPLY=" + r["content"])
+    let x = codegen.run("javascript", r["content"])
+    print("END")' '{"tool_calls": [{"name": "note", "args": {"s": "hello"}}]}' "{\"content\": \"$CODE14\"}"
+if [ "$RC" -ge 0 ] && ! { grep -q '^TOOL_RAN$' <<<"$OUT" && grep -qxF "REPLY=$CODE14" <<<"$OUT"; }; then
+    fail CP-14 "the tool loop did not run or the reply did not arrive (rc=$RC)" "$OUT"
+else
+    # The reply answers the SECOND request (the one carrying the tool result).
+    arm CP-14 "a reply after a tool loop is matched to the loop turn's model and request" \
+        "CODEGEN_EXEC code_sha256 = sha:$CODE14" "CODEGEN_EXEC $MATCH" \
+        "CODEGEN_EXEC origin_model = stub-model" \
+        "CODEGEN_EXEC origin_request_sha256 = shafile:req_2.json" \
+        "CODEGEN_EXEC origin_content_sha256 = sha:$CODE14"
+fi
+CG_EXTRA=""
 
 # ---- CP-12: telemetry off ---------------------------------------------------
 run_case off "" "" "$SEND

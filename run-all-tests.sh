@@ -2580,6 +2580,22 @@ else
     echo "  test_gov_diff.sh: not found, skipping"
 fi
 
+# Provenance for generated code (Bundle 14): an execution event carries the
+# hash of the code it ran and whether that text equals a model output of the
+# run; every expected hash is computed by the suite from the fixture and from
+# the request body the stub received. CP-04/05/03n are the negative arms.
+CODE_PROV_SCRIPT="tests/governance_v4/test_code_provenance.sh"
+if [ -f "$CODE_PROV_SCRIPT" ]; then
+    if run_shell_test "$CODE_PROV_SCRIPT" 2>&1; then
+        echo "  test_code_provenance.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_code_provenance.sh")
+    fi
+else
+    echo "  test_code_provenance.sh: not found, skipping"
+fi
+
 UNCATCHABLE_SCRIPT="tests/governance_v4/test_uncatchable.sh"
 if [ -f "$UNCATCHABLE_SCRIPT" ]; then
     if run_shell_test "$UNCATCHABLE_SCRIPT" 2>&1; then

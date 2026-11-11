@@ -19,7 +19,8 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 16: honest tests and the engine's own child processes | merged, #362 (`977e7a40`): A123 (13 of 14 tests and the guard; one pinned for Bundle 12 PR 3), A125, A122, A99, A100 fixed; A126 recorded for the owner | Bundle 16 below |
 | 17: what Gemini's SentinelGrid report found | merged, #365 (`795b5885`), one PR, scope by the owner's decisions of 2026-11-09: A130, A131, A133-A139, A141, A142 fixed; A132, A140, A143, A144 and F-14 recorded | Bundle 17 below |
 | 13: measure what governance catches; help operators | in progress, three PRs by the owner's decision (2026-11-10). PR 1 built: `naab-gov diff`; A147 recorded | Bundle 13 below |
-| 14-15 | not started; order 17, 13, 14, 15 (the owner, 2026-11-09) | |
+| 14: replay and provenance | in progress, two PRs by the owner's decision (2026-11-11). PR 1 built, #369: provenance for generated code; A160-A162 recorded | Bundle 14 below |
+| 15 | not started; order 17, 13, 14, 15 (the owner, 2026-11-09) | |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). A145 and A146 (node 24: the child memory budget, TypeScript's flags, and the runtime-pin message) were fixed in #366 (`97dab417`). The bundle plan itself was recorded in #351 (`86fc33c9`).
 
@@ -266,6 +267,13 @@ Added by the owner's decision (2026-11-09: "Ok bundle 17 first"). Gemini built a
 
 - **Deterministic replay:** rebuild a run's governance decisions from the transcript, telemetry and decision snapshots (`naab-gov replay`).
 - **Provenance for generated code:** model, prompt hash and code hash per codegen or polyglot block, chained into telemetry.
+
+**Scope (the owner, 2026-11-11), two PRs, provenance first.**
+- **PR 1, provenance** (built, #369): `CODEGEN_EXEC` and `POLYGLOT_EXEC` carry the SHA-256 of the code run and whether that exact text equals a model output of the run; on a match, the model, the hash of the full request as sent and the hash of the whole reply. Attribution is exact hash equality, otherwise `unattributed`: nothing looser, because a guess does not belong in an audit record. No new key: the fields follow telemetry, so there is nothing to switch off mid-run. `AGENT_RESPONSE.content_hash` (first 500 characters) is kept as it is; the whole reply's hash is a new field, `content_sha256` (A160). Findings recorded, not fixed: A161, A162.
+- **PR 2, `naab-gov replay FILE`**: a consistency check, not a re-execution -- the decision snapshots hold digests, not the scorer's inputs, so re-running the scorer would mean building a second one. Docs and help text say it "checks recorded decisions against their recorded evidence". Per decision MATCH / DIVERGED / UNMEASURABLE. Exit: any DIVERGED is 1; none diverged but anything UNMEASURABLE is 2, never 0; 4 a usage error. Report only: it runs no program, prerequisite or hook and fetches nothing.
+  - **Keyed chains:** it follows the existing chain verifier's path for a file sealed with an HMAC key and adds no new place that reads the key; a keyed chain it cannot verify without the key is UNMEASURABLE.
+  - **Telemetry and transcripts are untrusted input** (they carry model-written text): what it reads per line is bounded, and that text is never executed or pattern-matched without limits.
+- **Not built:** re-execution of the scorer from the transcript (decide after PR 2 measures what comes back UNMEASURABLE), any enforcement that reads replay output, provenance by taint lineage, Bundle 15's telemetry healing.
 
 ## Bundle 15 -- AI on deterministic rails (expert reviewers, patch agents, telemetry healing)
 
