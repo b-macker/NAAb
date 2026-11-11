@@ -7,6 +7,7 @@
 #include "naab/curl_egress.h"
 #include "naab/agent_provider.h"
 #include "naab/paths.h"
+#include "naab/crypto_utils.h"
 #include <curl/curl.h>
 #include <filesystem>
 #include <nlohmann/json.hpp>
@@ -74,6 +75,10 @@ struct HttpResult {
     long status_code = 0;
     std::string error;       // non-empty on curl or parse failure
     std::string error_detail; // API error message (from response body)
+    // SHA-256 of the request body exactly as it was sent (Bundle 14): what the
+    // model was given, system prompt and injected text included. The key
+    // travels in a header or the URL, never in the body.
+    std::string request_sha256;
 };
 
 // Plain http is permitted ONLY for loopback hosts — supports local test stubs
@@ -89,6 +94,7 @@ static HttpResult httpPostRaw(
     long timeout_seconds = 120L) {
 
     HttpResult result;
+    result.request_sha256 = security::CryptoUtils::sha256(body);
 
     CURL* curl = curl_easy_init();
     if (!curl) {
@@ -642,6 +648,7 @@ ProviderResult callAgentWithStatus(
         }
 
         pr.http_status = static_cast<int>(http_result.status_code);
+        pr.response.request_sha256 = http_result.request_sha256;
 
         // Network/parse error
         if (!http_result.error.empty() && http_result.status_code == 0) {
@@ -846,6 +853,7 @@ ProviderResult callAgentWithTools(
         }
 
         pr.http_status = static_cast<int>(http_result.status_code);
+        pr.response.request_sha256 = http_result.request_sha256;
 
         if (!http_result.error.empty() && http_result.status_code == 0) {
             pr.response.success = false;
