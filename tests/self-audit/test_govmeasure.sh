@@ -136,12 +136,20 @@ PY
     )
     ok=1; why=""
     (cd "$W/ds" && python3 tool/datasets.py fetch dl good >o1.txt 2>&1); r1=$?
+    if [ "$r1" = 2 ]; then
+        # The control itself could not be fetched: this curl does not read a
+        # file:// URL in the form this python writes it (a Windows runner).
+        skip GM-07 "curl could not fetch the local control file ($(head -1 "$W/ds/o1.txt"))"
+        ok=skip
+    else
     (cd "$W/ds" && python3 tool/datasets.py fetch dl changed >o2.txt 2>&1); r2=$?
     (cd "$W/ds" && python3 tool/datasets.py fetch dl gone >o3.txt 2>&1); r3=$?
     { [ "$r1" = 0 ] && grep -q '^PASS good' "$W/ds/o1.txt" && [ -f "$W/ds/dl/good.zip" ]; } || { ok=0; why="$why good(rc=$r1)"; }
     { [ "$r2" = 1 ] && grep -q '^FAIL changed' "$W/ds/o2.txt" && [ ! -e "$W/ds/dl/changed.zip" ]; } || { ok=0; why="$why changed(rc=$r2)"; }
     { [ "$r3" = 2 ] && grep -q '^UNMEASURABLE gone' "$W/ds/o3.txt" && [ ! -e "$W/ds/dl/gone.zip" ]; } || { ok=0; why="$why gone(rc=$r3)"; }
-    if [ "$ok" = 1 ]; then pass GM-07 "a matching file is kept; a pin mismatch removes it (exit 1); a failed download is UNMEASURABLE (exit 2)"
+    fi
+    if [ "$ok" = skip ]; then :
+    elif [ "$ok" = 1 ]; then pass GM-07 "a matching file is kept; a pin mismatch removes it (exit 1); a failed download is UNMEASURABLE (exit 2)"
     else fail GM-07 "datasets.py did not treat:$why" "$(cat "$W/ds"/o?.txt)"; fi
 fi
 
