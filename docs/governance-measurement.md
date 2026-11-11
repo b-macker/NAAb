@@ -96,7 +96,7 @@ Observed 2026-11-11 on `24cf9d80` plus this PR's tools; no check was changed. Ev
 | `no_sql_injection` | 6 | 4 | `"SELECT ... " + id` in NAAb (also counted under `code_injection`) |
 | `no_unsafe_deserialization` | 1 | 0 | |
 | `shell_injection` | 2 | 0 | |
-| `banned_functions` | 0 | 0 | |
+| `banned_functions` | 0 | 0 | not a result: the measurement config holds no list for NAAb. With one, lint flags a listed call in NAAb text (probed), so its false alarms are whatever the operator lists |
 
 What this says for the A132 decision, screened by the hand-read of the samples and not by a label: on NAAb text the three largest are pattern matches on names and prose (`test_`, `oops` inside `Loops`, a comment starting "Return"), and none of the hand-read flags was a defect in the program. The repository is mostly tests, which is where `test_` identifiers and deliberate literals live, so a product codebase would show fewer `no_mock_data` flags; the `oops` and comment-prose flags do not depend on that. The opposite direction is unmeasured: there are no labelled BAD NAAb programs, so this shows what these checks would refuse wrongly at run time and nothing about what they would catch.
 
@@ -128,7 +128,7 @@ The two profiles tell the same story. The init profile flags a few more Python s
 
 Juliet covers C and C++. For the languages most NAAb blocks are written in, the labels come from the Semgrep rules repository (pinned to commit `a5ad1714`): beside each rule sits a test file whose comments mark where the rule must fire (`ruleid:`) and where it must not (`ok:`). `tools/govmeasure/semgrep_tests.py` takes the rules under a `security` directory and makes one case per mark: the file's opening plus the stretch up to the next mark, with the marker comments removed; the category is the rule's first CWE. 4,206 cases, ten languages, 107 CWEs.
 
-**Licence.** Those files are under the Semgrep Rules License v1.0 (read 2026-11-11): internal use only, no redistribution. So they are fetched at run time, the cases file is written to a scratch directory, and neither is committed, uploaded as an artifact or quoted. This document carries counts only.
+**Licence.** Those files are under the Semgrep Rules License v1.0 (read 2026-11-11): internal use only, no redistribution. So they are fetched at run time, the cases file is written to a scratch directory, and neither is committed, uploaded as an artifact or quoted. By the owner's conditions (2026-11-11) the published tables and the job's log carry counts only -- no Semgrep rule id, file path or code; a case's id is an opaque hash for that reason. Whether "internal use only" covers NAAb if it is ever offered commercially is an open legal question, not settled here.
 
 Flagged by any rule, under the langconform profile (all nine controls for these languages fired):
 

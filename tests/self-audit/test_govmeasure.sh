@@ -60,6 +60,7 @@
 #   semgrep_tests: an end-of-line mark keeps its comment -> GM-11
 #   semgrep_tests: every directory read              -> GM-11
 #   semgrep_tests: todo marks taken as labels        -> GM-11
+#   semgrep_tests: a case id carries its file's path -> GM-11
 #   datasets.py: a stale checkout kept               -> GM-12
 #   datasets.py: the fetched commit not compared     -> GM-12
 #   datasets.py: verify does not compare the commit  -> GM-12
@@ -153,8 +154,8 @@ fi
 
 # --- GM-11: the Semgrep test-file adapter --------------------------------
 run python3 "$T/semgrep_tests.py" selftest
-if [ "$RC" = 0 ] && has "$OUT" "selftest: 0 failed" && [ "$(grep -c '  PASS \[SG-' <<<"$OUT")" = 7 ]; then
-    pass GM-11 "the Semgrep adapter's self-test: 7 arms"
+if [ "$RC" = 0 ] && has "$OUT" "selftest: 0 failed" && [ "$(grep -c '  PASS \[SG-' <<<"$OUT")" = 8 ]; then
+    pass GM-11 "the Semgrep adapter's self-test: 8 arms"
 else fail GM-11 "the Semgrep adapter's self-test" "$OUT"; fi
 
 # --- GM-12: a git source pinned to a commit ---------------------------------

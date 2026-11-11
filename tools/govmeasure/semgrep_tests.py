@@ -31,10 +31,15 @@ your own internal business purposes", no distributing the rules or making
 them available to others as a service. So: the checkout is fetched at run
 time (datasets.py, pinned to a commit), the cases file is written to a
 scratch directory, and NEITHER is ever committed, uploaded as a build
-artifact or quoted in a report. Reports carry counts and rule names only.
+artifact or quoted in a report. Reports carry counts and NAAb's own rule
+names only: no Semgrep rule id, file path or code. A case's id is therefore
+opaque (a hash of its file's path, the mark's number and its kind), because
+the scorer lists a few ids in its report when cases give no readable answer;
+and this tool prints counts per language, never a file or rule name.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -151,7 +156,8 @@ def cmd_cases(args):
                         if not cwe:
                             no_cwe += 1
                             continue
-                        f.write(json.dumps({"id": "%s#%d:%s" % (rel, n, kind), "source": "semgrep/" + lang,
+                        opaque = hashlib.sha256(rel.encode("utf-8")).hexdigest()[:12]
+                        f.write(json.dumps({"id": "sg-%s-%d:%s" % (opaque, n, kind), "source": "semgrep/" + lang,
                                             "language": naab_lang, "category": cwe, "bad": kind == "ruleid",
                                             "code": snippet}) + "\n")
                         written += 1
@@ -233,8 +239,23 @@ def selftest():
 
         class A:
             repo, out, languages = root, outp, "python"
-        rc = cmd_cases(A)
+        import io
+        cap = io.BytesIO()
+        real = sys.stdout
+
+        class Out:
+            buffer = cap
+        sys.stdout = Out()
+        try:
+            rc = cmd_cases(A)
+        finally:
+            sys.stdout = real
+        printed = cap.getvalue().decode("ascii", "replace").replace(outp, "")
         rows = [json.loads(l) for l in open(outp, encoding="utf-8")]
+        expect("SG-08", rows and all("demo" not in r["id"] and "/" not in r["id"] and "security" not in r["id"]
+                                     for r in rows) and len({r["id"] for r in rows}) == len(rows)
+               and "demo" not in printed and "os.system" not in printed,
+               "a case's id is opaque and unique, and what the tool prints names no file, rule or code")
         expect("SG-07", rc == 0 and len(rows) == 3 and [r["bad"] for r in rows] == [False, True, True]
                and all(r["category"] == "CWE-78" and r["source"] == "semgrep/python"
                        and r["language"] == "python" for r in rows),

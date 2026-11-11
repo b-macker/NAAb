@@ -12,7 +12,11 @@ name: Governance measurement (nightly, report only)
 # under the Semgrep Rules License v1.0 -- internal use only, no
 # redistribution. Its checkout and the cases built from it stay under
 # $RUNNER_TEMP. Nothing from them may be written under measure/, which is
-# uploaded: reports there carry counts and NAAb's own rule names only.
+# uploaded: reports there carry counts and NAAb's own rule names only -- no
+# Semgrep rule id, file path or code. The job log is a second channel: the
+# tools print counts only (semgrep_tests.py SG-08), case ids are opaque, and
+# no step may cat, head or echo anything under $RUNNER_TEMP/datasets/semgrep-rules
+# or the semgrep*.jsonl files.
 
 on:
   schedule:
@@ -120,6 +124,11 @@ jobs:
             exit 1
           fi
           ! ls measure/ | grep -E 'semgrep.*\.jsonl$'
+          # No Semgrep file path either (a case id used to be one).
+          if grep -rlE '(lang|contrib)/security/|\.fixed\.' measure/ ; then
+            echo "a file under measure/ names a path in the Semgrep checkout: refusing to upload" >&2
+            exit 1
+          fi
 
       - name: Upload the report
         if: always()
