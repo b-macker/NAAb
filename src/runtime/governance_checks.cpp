@@ -4,6 +4,7 @@
 #include <optional>
 #include "naab/governance.h"
 #include "naab/language_registry.h"
+#include "naab/code_provenance.h"
 #include "naab/subprocess_helpers.h"  // ScopedRuntimeVersionProbe (runtime pins)
 #include "naab/interpreter.h"
 #include "naab/vm.h"
@@ -7520,13 +7521,19 @@ std::string GovernanceEngine::checkPolyglotBlockScan(
 
     // Telemetry: record successful polyglot governance pass
     if (rules().telemetry_output.enabled) {
-        writeAgentTelemetry("POLYGLOT_EXEC", {
+        std::unordered_map<std::string, std::string> exec_fields = {
             {"language", lang},
             {"code_size", std::to_string(code.size())},
             {"source_file", source_file},
             {"line", std::to_string(line)},
             {"governance_epoch", std::to_string(getGovernanceEpoch())}
-        });
+        };
+        // Bundle 14: the hash of the text these checks passed, and whether it
+        // equals something a model wrote in this run. A block written in the
+        // program's source reads "unattributed"; source_file and line say
+        // where it is.
+        addCodeProvenanceFields(exec_fields, code);
+        writeAgentTelemetry("POLYGLOT_EXEC", exec_fields);
     }
 
     return "";
