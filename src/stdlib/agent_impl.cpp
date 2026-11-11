@@ -9,6 +9,7 @@
 #include "naab/naab_val.h"
 #include "naab/governance.h"
 #include "naab/agent_provider.h"
+#include "naab/code_provenance.h"
 #include "naab/keyword_extract.h"
 #include "naab/thread_pool.h"
 #include "naab/sandbox.h"
@@ -432,6 +433,24 @@ static bool effectiveSignal(const governance::AgentConfig* config,
 // which breaks json.parse() downstream. Only strips when the fence spans
 // the whole response (optional surrounding whitespace); partial fences and
 // multiple fence blocks are left untouched. Shared by send and propose paths.
+// Bundle 14: record text a model wrote, so an execution event can say whether
+// the code it ran equals it (include/naab/code_provenance.h). Hashes only.
+static void recordModelOutput(const std::string& text,
+                              const runtime::AgentResponse& resp,
+                              const std::string& config_name, int handle_id,
+                              int turn_at_request, const char* derivation) {
+    if (text.empty()) return;
+    governance::ModelOutputOrigin o;
+    o.model = resp.answered_by_model;
+    o.request_sha256 = resp.request_sha256;
+    o.content_sha256 = security::CryptoUtils::sha256(resp.content);
+    o.config_name = config_name;
+    o.handle_id = handle_id;
+    o.turn_at_request = turn_at_request;
+    o.derivation = derivation;
+    governance::CodeProvenanceLedger::instance().record(text, o);
+}
+
 static std::string stripMarkdownFences(const std::string& input) {
     std::string content = input;
     if (content.empty()) return content;
@@ -1618,6 +1637,9 @@ static NaabVal agentExtractCode(std::vector<NaabVal>& args) {
         }
     }
 
+    // Bundle 14: what was taken out of a model's reply is still the model's text.
+    governance::CodeProvenanceLedger::instance().recordDerived(
+        response, best->body, "extract_code");
     return NaabVal::makeString(best->body);
 }
 
@@ -3076,6 +3098,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
             agent_resp = result.response;
             agent_resp.actual_model = current_model;
+            agent_resp.answered_by_model = current_model;
             agent_resp.actual_provider = config->provider;
             agent_resp.actual_api_key_env = key_env;
             agent_resp.latency_ms = attempt_ms;
@@ -3118,6 +3141,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"attempts", std::to_string(attempts_made)},
                     {"fallback_used", agent_resp.fallback_used ? "true" : "false"},
                     {"content_hash", content_hash},
+                    // Bundle 14 (A160): content_hash covers the first 500
+                    // characters only and is kept as it was for readers that
+                    // compare it across versions. content_sha256 is the whole
+                    // reply; request_sha256 the request body as sent.
+                    {"content_sha256", agent_resp.content.empty() ? std::string()
+                        : security::CryptoUtils::sha256(agent_resp.content)},
+                    {"request_sha256", agent_resp.request_sha256},
                     {"content_length", std::to_string(agent_resp.content.size())}
                 });
             }
@@ -3470,6 +3500,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 // refuse, which ends the loop as a hard stop.
                 chargeTimeBudget(hs_tool, msSince(call_start));
                 if (out.response.success) {
+                    out.response.answered_by_model = loop_config.model;
                     // A46: the loop's later calls and the final tool-less turn
                     // spend tokens too; the run total used to see the first only.
                     chargeTokenBudget(hs_tool, out.response.input_tokens,
@@ -3681,6 +3712,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         for (auto& [key, schema] : snap_it->second.input_schema["properties"].items()) {
                             if (tool_args.contains(key)) {
                                 auto& val = tool_args[key];
+                                // Bundle 14: a string the model passes to a tool
+                                // is model-written text a tool may execute.
+                                if (val.is_string())
+                                    recordModelOutput(val.get<std::string>(), agent_resp,
+                                                      config_name, handle_id,
+                                                      turn_at_request, "tool_argument");
                                 if (val.is_string()) naab_args.push_back(NaabVal::makeString(val.get<std::string>()));
                                 else if (val.is_number_integer()) naab_args.push_back(NaabVal::makeInt(val.get<int>()));
                                 else if (val.is_number_float()) naab_args.push_back(NaabVal::makeDouble(val.get<double>()));
@@ -5333,6 +5370,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // Bundle 14: the reply as the model wrote it and as the script receives it.
+    recordModelOutput(agent_resp.content, agent_resp, config_name, handle_id,
+                      turn_at_request, "response");
+    recordModelOutput(content, agent_resp, config_name, handle_id,
+                      turn_at_request, "returned_content");
+
     // Build response dict
     std::unordered_map<std::string, NaabVal> result;
     result["success"] = NaabVal::makeBool(true);
@@ -5920,6 +5963,7 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
             chargeTimeBudget(prop_hs, msSince(call_start));
             if (result.response.success) {
                 resp = result.response;
+                resp.answered_by_model = call_config.model;
                 got_response = true;
                 break;
             }
@@ -5960,6 +6004,11 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
         total_prop_tokens_out += resp.output_tokens;
 
         std::string content = stripMarkdownFences(resp.content);
+        // Bundle 14: a candidate reaches the script before any commit.
+        recordModelOutput(resp.content, resp, config_name, handle_id,
+                          current_turn, "proposal");
+        recordModelOutput(content, resp, config_name, handle_id,
+                          current_turn, "proposal");
 
         // Stateless per-candidate governance: response scan + contract format.
         // A contract failure marks the candidate inadmissible. A secret or PII

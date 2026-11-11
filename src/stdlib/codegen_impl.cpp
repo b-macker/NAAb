@@ -8,6 +8,7 @@
 #include "naab/stdlib_new_modules.h"
 #include "naab/language_registry.h"
 #include "naab/governance.h"
+#include "naab/code_provenance.h"
 #include "naab/sandbox.h"
 #include "naab/resource_limits.h"
 #include "naab/naab_val.h"
@@ -562,13 +563,18 @@ interpreter::NaabVal CodegenModule::call(
 
         // Step 16: Telemetry
         if (gov_engine && gov_engine->isActive()) {
-            gov_engine->writeAgentTelemetry("CODEGEN_EXEC", {
+            std::unordered_map<std::string, std::string> exec_fields = {
                 {"language", language},
                 {"code_size", std::to_string(code.size())},
                 {"duration_ms", std::to_string(duration_ms)},
                 {"exit_code", std::to_string(exit_code)},
                 {"cumulative_calls", std::to_string(t_codegen_call_count)}
-            });
+            };
+            // Bundle 14: the hash of the code AS THE CALLER PASSED IT (bound
+            // variables are a preamble the engine writes), and whether that
+            // text equals something a model wrote in this run.
+            governance::addCodeProvenanceFields(exec_fields, code);
+            gov_engine->writeAgentTelemetry("CODEGEN_EXEC", exec_fields);
         }
 
         // Step 17: run_strict variant — throw on non-zero exit

@@ -44,6 +44,14 @@ struct AgentResponse {
     int attempts = 1;              // total attempts made
     bool fallback_used = false;    // true if non-primary model responded
     std::string original_model;    // primary model (if fallback_used)
+
+    // SHA-256 of the request body this response answers, exactly as sent
+    // (set by the provider; empty for the callAgentSimple route).
+    std::string request_sha256;
+    // The model this reply came from, set at every call site that receives one
+    // (the send's own call, a tool-loop turn, a proposal). Separate from
+    // actual_model, which only the send's own call sets.
+    std::string answered_by_model;
 };
 
 // Resolve API key: checks env var first, then falls back to ~/.naab/keys/<varname>.
