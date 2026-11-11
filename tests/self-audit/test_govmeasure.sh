@@ -64,6 +64,8 @@
 #   datasets.py: the fetched commit not compared     -> GM-12
 #   datasets.py: verify does not compare the commit  -> GM-12
 #   scorer: --group ignored                          -> GM-01
+#   scorer: any-rule mode still prints per-rule rows -> GM-01
+#   scorer: any-rule mode demands the named rule     -> GM-01
 # Red first: every arm fails on master, which has no tools/govmeasure.
 
 set -uo pipefail
@@ -90,8 +92,8 @@ run() { OUT="$("$@" 2>"$W/err.txt")"; RC=$?; OUT="${OUT//$'\r'/}"; ERR="$(cat "$
 
 # --- GM-01..03: the tools' own self-tests --------------------------------
 run python3 "$T/govmeasure.py" selftest
-if [ "$RC" = 0 ] && has "$OUT" "selftest: 0 failed" && [ "$(grep -c '  PASS \[ST-' <<<"$OUT")" = 11 ]; then
-    pass GM-01 "the scorer's self-test: 11 arms"
+if [ "$RC" = 0 ] && has "$OUT" "selftest: 0 failed" && [ "$(grep -c '  PASS \[ST-' <<<"$OUT")" = 12 ]; then
+    pass GM-01 "the scorer's self-test: 12 arms"
 else fail GM-01 "the scorer's self-test" "$OUT"; fi
 
 run python3 "$T/juliet.py" selftest

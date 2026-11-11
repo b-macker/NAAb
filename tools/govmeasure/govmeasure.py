@@ -133,9 +133,16 @@ def rule_matches(rule, prefixes):
     return any(rule == p or rule.startswith(p) for p in prefixes)
 
 
-def score(cases, gov, cfg, cmap, jobs=4, plant=None, seed=1, group="both"):
-    """Returns (status, report). status is "ok" or "unmeasurable"."""
-    report = {"status": "ok", "reasons": [], "cases": len(cases), "plant": plant or "", "group": group}
+def score(cases, gov, cfg, cmap, jobs=4, plant=None, seed=1, group="both", any_rule_only=False):
+    """Returns (status, report). status is "ok" or "unmeasurable".
+
+    any_rule_only: for a config with HARD-level checks. A hard block ends the
+    scan, so the checks after it never run and a per-rule count would say
+    which check comes FIRST, not which checks see the code. Only "(any
+    rule)" is reported, and a control passes when any rule that is not
+    background flags its planted block."""
+    report = {"status": "ok", "reasons": [], "cases": len(cases), "plant": plant or "", "group": group,
+              "any_rule_only": any_rule_only}
 
     def group_key(c):
         # "source": one group per source, every category together (no mapped
@@ -185,11 +192,16 @@ def score(cases, gov, cfg, cmap, jobs=4, plant=None, seed=1, group="both"):
             continue                      # no case in that language this run
         code = ctl["code"] if isinstance(ctl["code"], str) else "".join(ctl["code"])
         got = check(gov, cfg, ctl["language"], code)
-        fired = got is not None and any(rule_matches(r, [ctl["rule"]]) for r in got)
-        controls.append({"name": ctl["name"], "rule": ctl["rule"], "fired": fired})
+        if any_rule_only:
+            by = [r for r in (got or []) if r not in background.get(ctl["language"], [])]
+            fired = bool(by)
+        else:
+            by = [r for r in (got or []) if rule_matches(r, [ctl["rule"]])]
+            fired = bool(by)
+        controls.append({"name": ctl["name"], "rule": ctl["rule"], "fired": fired, "by": sorted(by)})
         if not fired:
             unmeasurable("control \"%s\": the checker does not flag the planted block with %s"
-                         % (ctl["name"], ctl["rule"]))
+                         % (ctl["name"], "any rule" if any_rule_only else ctl["rule"]))
     report["controls"] = controls
 
     def one(c):
@@ -231,9 +243,9 @@ def score(cases, gov, cfg, cmap, jobs=4, plant=None, seed=1, group="both"):
     for key in sorted(totals):
         source, category = key
         nbad, ngood = totals[key]
-        mapped = mapping.get(category, {}).get("rules", [])
+        mapped = [] if any_rule_only else mapping.get(category, {}).get("rules", [])
         rows = []
-        for rule in sorted(counts[key]):
+        for rule in ([] if any_rule_only else sorted(counts[key])):
             b, g = counts[key][rule]
             rows.append(rate_row(rule, b, nbad, g, ngood, rule_matches(rule, mapped)))
         mb = mg = 0
@@ -292,8 +304,16 @@ def render_md(report, title):
     lines.append("%d cases; %d gave no readable answer and are left out." %
                  (report["cases"], report.get("unreadable", 0)))
     lines.append("")
-    lines.append("Controls: " + (", ".join("%s (%s)" % (c["name"], "fired" if c["fired"] else "NOT fired")
-                                           for c in report.get("controls", [])) or "none"))
+    if report.get("any_rule_only"):
+        lines.append("Any-rule mode: this config has hard-level checks, and a hard block ends the scan, so "
+                     "only the total is reported -- a per-rule count would say which check runs first.")
+        lines.append("")
+        lines.append("Controls (flagged by): " + (", ".join(
+            "%s (%s)" % (c["name"], ", ".join(c.get("by", [])) or "NOT flagged")
+            for c in report.get("controls", [])) or "none"))
+    else:
+        lines.append("Controls: " + (", ".join("%s (%s)" % (c["name"], "fired" if c["fired"] else "NOT fired")
+                                               for c in report.get("controls", [])) or "none"))
     lines.append("")
     for lang, rules in sorted(report.get("background", {}).items()):
         lines.append("Background rules for %s (fire on a block that only assigns a number; "
@@ -349,7 +369,7 @@ def cmd_score(args):
     cfg = config_file(args.config)
     try:
         status, report = score(cases, gov, cfg, cmap, jobs=args.jobs, plant=args.plant, seed=args.seed,
-                               group=args.group)
+                               group=args.group, any_rule_only=args.any_rule_only)
     finally:
         try:
             os.remove(cfg)
@@ -477,6 +497,20 @@ def selftest():
                and sum(x["any_rule"]["bad"] for x in rep2["groups"]) == 20,
                "grouped by category the sources merge (15 of 20 again); by source there are two tables "
                "and no mapped row")
+        # A checker that stops at its first finding, as naab-gov does at a
+        # hard block: rule.always hides rule.marker.
+        first = [sys.executable, "-c",
+                 "import sys\ncode=sys.stdin.read()\n"
+                 "print('{\"violations\": []}' if code.strip()=='x = 1' else "
+                 "'{\"violations\": [{\"rule\": \"rule.always\"}]}')"]
+        s_plain, rep_plain = score([dict(c) for c in cases], first, cfg, cmap)
+        s_any, rep_any = score([dict(c) for c in cases], first, cfg, cmap, any_rule_only=True)
+        ga = rep_any["groups"][0] if rep_any.get("groups") else None
+        expect("ST-11", s_plain == "unmeasurable" and s_any == "ok" and ga is not None and ga["rules"] == []
+               and ga["mapped"] is None and ga["any_rule"]["bad_fired"] == 20
+               and rep_any["controls"][0]["by"] == ["rule.always"],
+               "a checker that stops at its first finding: per-rule scoring is UNMEASURABLE (the control's "
+               "rule is hidden); any-rule mode reports the total only and says which rule flagged the control")
         silent = [sys.executable, "-c", "print('{\"violations\": []}')"]
         status, rep = score([dict(c) for c in cases], silent, cfg, {"categories": {}, "controls": []})
         expect("ST-09", status == "unmeasurable",
@@ -503,6 +537,8 @@ def main(argv):
     sc.add_argument("--title", default="What the block checks catch")
     sc.add_argument("--plant", choices=["dead", "shuffle"], default=None)
     sc.add_argument("--seed", type=int, default=1)
+    sc.add_argument("--any-rule-only", action="store_true",
+                    help="for a config with hard-level checks: report only the any-rule total")
     sc.add_argument("--group", choices=["both", "source", "category"], default="both",
                     help="one table per source and category (default), per source, or per category")
     bl = sub.add_parser("blocks")
