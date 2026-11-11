@@ -39,11 +39,24 @@
 #   DF-10   usage errors exit 4: one file, a missing file, a file that is not
 #           JSON, an unknown option
 #   DF-11   the report prints what it does not judge as requests
-#   A147    PINNED, open: a blocked_hosts entry written "*.name" matches no
-#           host (the matcher compares the entry as a suffix, star included),
-#           so the sub-domain it names is not refused; A147c CONTROL: the
-#           plain entry refuses it. Found by DF's first trial run. This arm
-#           flips when A147 is decided.
+#   A147    a host entry holding '*' refuses the config (the owner's decision
+#           of 2026-11-11, option b): the matcher compares an entry as the
+#           host or a dot-boundary suffix, so such an entry matched no host
+#           and, in blocked_hosts, blocked nothing. Exit 4, the plain form
+#           named, the program not run. A147 "*.name" in blocked_hosts, A147b
+#           in allowed_hosts, A147d "name.*" beside a plain entry, A147e a
+#           star inside a label, A147f the one-string form, A147g a bare "*";
+#           A147x through an extends parent, A147r a reload (naab-gov
+#           ratchet), A147s this command. A147c CONTROL: the plain entry
+#           loads, the program runs and the sub-domain is refused.
+#           Red first (observed on master 6e2ce08b): this arm was a pin there
+#           and passed as "the entry does not refuse sub.blocked.invalid".
+#           Mutants (each rebuilt, this suite re-run; observed 2026-11-11):
+#             the refusal removed          -> A147, A147b, A147d-g, A147x,
+#                                             A147r, A147s
+#             the one-string form unchecked -> A147f
+#             only a leading "*." refused   -> A147d, A147e, A147g
+#             only blocked_hosts checked    -> A147b
 #
 # Kill table (each mutant rebuilt, this suite re-run; observed 2026-11-10):
 #   the working directory is not changed per file      -> DF-02, DF-05, DF-09
@@ -358,17 +371,15 @@ else
     fail DF-11 "the report does not say what it leaves out"
 fi
 
-# --- A147 (pinned, open) ---------------------------------------------------
+# --- A147: a host entry holding '*' refuses the config ---------------------
 mkdir -p wild plain
-cat > wild/govern.json <<EOF
-{$BASE,"capabilities":{"network":{"enabled":true,"blocked_hosts":["*.blocked.invalid"]}}}
-EOF
 cat > plain/govern.json <<EOF
 {$BASE,"capabilities":{"network":{"enabled":true,"blocked_hosts":["blocked.invalid"]}}}
 EOF
 cat > host.naab <<'EOF'
 use http
 main {
+    print("PROGRAM_RAN")
     try {
         let r = http.get("http://sub.blocked.invalid/")
         print("ANSWERED")
@@ -377,19 +388,61 @@ main {
     }
 }
 EOF
-run_in wild host.naab;  w_out="$ROUT"
 run_in plain host.naab; p_out="$ROUT"
-if has "$p_out" "SANDBOX VIOLATION" && has "$p_out" "CAUGHT"; then
-    pass A147c "CONTROL: the plain entry blocked.invalid refuses sub.blocked.invalid"
-    if has "$w_out" "CAUGHT" && ! has "$w_out" "SANDBOX VIOLATION"; then
-        pass A147 "PINNED (open): the entry *.blocked.invalid does not refuse sub.blocked.invalid"
-    else
-        fail A147 "the wildcard entry no longer behaves as pinned -- update the A147 record and this arm" \
-            "$(grep -E 'SANDBOX|CAUGHT|ANSWERED' <<<"$w_out" | head -3)"
-    fi
+if has "$p_out" "SANDBOX VIOLATION" && has "$p_out" "CAUGHT" && has "$p_out" "PROGRAM_RAN"; then
+    pass A147c "CONTROL: the plain entry blocked.invalid loads and refuses sub.blocked.invalid"
+    plain_ok=1
 else
-    skip A147c "the plain entry's refusal was not observed, so the wildcard arm has no control"
-    skip A147 "no control"
+    skip A147c "the plain entry's refusal was not observed, so the wildcard arms have no control"
+    plain_ok=0
+fi
+# wild_arm ID LABEL NETWORK-JSON EXPECTED-TEXT
+wild_arm() {
+    if [ "$plain_ok" != 1 ]; then skip "$1" "no control"; return; fi
+    cat > wild/govern.json <<EOF
+{$BASE,"capabilities":{"network":$3}}
+EOF
+    run_in wild host.naab
+    if [ "$RRC" = 4 ] && has "$ROUT" "matches no host" && has "$ROUT" "$4" &&
+       ! has "$ROUT" "PROGRAM_RAN"; then
+        pass "$1" "$2 -> the config is refused (exit 4), the program did not run"
+    else
+        fail "$1" "$2 should refuse the config" "rc=$RRC $(grep -E 'matches no host|PROGRAM_RAN|SANDBOX|Write' <<<"$ROUT" | head -3)"
+    fi
+}
+wild_arm A147  'blocked_hosts ["*.blocked.invalid"]' '{"enabled":true,"blocked_hosts":["*.blocked.invalid"]}' 'Write "blocked.invalid"'
+wild_arm A147b 'allowed_hosts ["*.blocked.invalid"]' '{"enabled":true,"allowed_hosts":["*.blocked.invalid"]}' 'capabilities.network.allowed_hosts'
+wild_arm A147d 'blocked_hosts ["ok.invalid","blocked.*"]' '{"enabled":true,"blocked_hosts":["ok.invalid","blocked.*"]}' 'Write "blocked"'
+wild_arm A147e 'blocked_hosts ["bl*cked.invalid"]' '{"enabled":true,"blocked_hosts":["bl*cked.invalid"]}' 'matches no host'
+wild_arm A147f 'blocked_hosts "*.blocked.invalid" (one string)' '{"enabled":true,"blocked_hosts":"*.blocked.invalid"}' 'Write "blocked.invalid"'
+wild_arm A147g 'blocked_hosts ["*"]' '{"enabled":true,"blocked_hosts":["*"]}' 'Write the host name itself'
+
+# The same entry through extends, a reload and this command.
+if [ "$plain_ok" = 1 ]; then
+    mkdir -p wildx
+    cat > wildx/parent.json <<EOF
+{$BASE,"capabilities":{"network":{"enabled":true,"blocked_hosts":["*.blocked.invalid"]}}}
+EOF
+    cat > wildx/govern.json <<EOF
+{$BASE,"extends":"./parent.json"}
+EOF
+    run_in wildx host.naab
+    if [ "$RRC" != 0 ] && ! has "$ROUT" "PROGRAM_RAN"; then
+        pass A147x "an extends parent holding the entry refuses the child (rc=$RRC), the program did not run"
+    else
+        fail A147x "a child of a parent holding the entry should not run" "rc=$RRC $(head -3 <<<"$ROUT")"
+    fi
+    cat > wild/govern.json <<EOF
+{$BASE,"capabilities":{"network":{"enabled":true,"blocked_hosts":["*.blocked.invalid"]}}}
+EOF
+    RAT="$("$GOV" ratchet plain/govern.json wild/govern.json --ratchet-only 2>&1)"; rrc=$?
+    if [ "$rrc" = 4 ]; then pass A147r "a reload to a file holding the entry is a config error (naab-gov ratchet exit 4)"
+    else fail A147r "a reload to a file holding the entry should be a config error" "rc=$rrc $(head -2 <<<"$RAT")"; fi
+    diff_run plain/govern.json wild/govern.json
+    if [ "$RC" = 4 ]; then pass A147s "naab-gov diff refuses a file holding the entry (exit 4)"
+    else fail A147s "naab-gov diff should refuse a file holding the entry" "rc=$RC"; fi
+else
+    skip A147x "no control"; skip A147r "no control"; skip A147s "no control"
 fi
 
 echo ""

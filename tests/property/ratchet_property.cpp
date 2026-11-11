@@ -100,7 +100,7 @@ const std::vector<std::string> kPathProbes = {"vault/x.txt", "vault/inner/y.txt"
 const std::vector<std::string> kEnvEntries = {"API_KEY", "api_key", "TOKEN", "HOME", "AWS_SECRET", "PATH"};
 const std::vector<std::string> kEnvProbes = {"API_KEY", "TOKEN", "HOME", "AWS_SECRET", "OTHER_VAR"};
 const std::vector<std::string> kEnvPrefixes = {"AWS_", "API_"};
-const std::vector<std::string> kHostEntries = {"example.com", "api.example.com", "*.example.com",
+const std::vector<std::string> kHostEntries = {"example.com", "api.example.com", "sub.api.example.com",
                                                "evil.test", "10.0.0.1"};
 const std::vector<std::string> kHostProbes = {"example.com", "api.example.com", "evil.test",
                                               "10.0.0.1", "other.org"};
