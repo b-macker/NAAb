@@ -68,14 +68,16 @@
    "what": "relative path traversal",
    "rules": [
     "code_quality.no_path_traversal"
-   ]
+   ],
+   "note": "The check looks for a literal ../ outside string literals; Juliet's flaw is input reaching fopen(), and none of these cases contains a literal ../ at all."
   },
   "CWE-36": {
    "source": "juliet",
    "what": "absolute path traversal",
    "rules": [
     "code_quality.no_path_traversal"
-   ]
+   ],
+   "note": "The check looks for a literal ../ outside string literals; Juliet's flaw is input reaching fopen(), and none of these cases contains a literal ../ at all."
   },
   "CWE-506": {
    "source": "juliet",
@@ -174,6 +176,12 @@
    "language": "python",
    "rule": "code_quality.no_oversimplification",
    "code": "def f(x):\n    raise NotImplementedError\nprint(f(1))\n"
+  },
+  {
+   "name": "shell bare ../",
+   "language": "shell",
+   "rule": "code_quality.no_path_traversal",
+   "code": "cat ../../etc/hostname\n"
   }
  ]
 }

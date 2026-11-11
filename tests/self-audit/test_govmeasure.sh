@@ -29,6 +29,12 @@
 #   GM-08   usage: no cases file, a file that is not JSON lines -> exit 4
 #   GM-09   the nightly workflow runs on a schedule or by hand, never on a
 #           pull request, and fetches through datasets.py (structural)
+#   GM-10   naab_lint.py (A132: what the lint-only checks flag in NAAb
+#           code): its self-test against the real naab-gov -- a flaw in NAAb
+#           text counts both ways, one inside a polyglot block counts for the
+#           whole file only, a file lint cannot parse is left out and
+#           counted, and a lint that prints nothing or never flags the
+#           planted file is UNMEASURABLE
 #
 # Kill table (each mutant applied to tools/govmeasure, this suite re-run;
 # observed 2026-11-11):
@@ -41,6 +47,9 @@
 #   the hash comparison skipped in datasets.py      -> GM-07
 #   a child with no verdict counted as PASS         -> GM-03 (ET-07)
 #   comments kept in Juliet variants                -> GM-02 (JT-03)
+#   naab_lint: block bodies not emptied              -> GM-10 (NL-01, NL-05, NL-06)
+#   naab_lint: an unparseable file counted           -> GM-10 (NL-03)
+#   naab_lint: the two controls skipped              -> GM-10 (NL-08)
 # Red first: every arm fails on master, which has no tools/govmeasure.
 
 set -uo pipefail
@@ -114,6 +123,16 @@ $ERR"; fi
     if [ "$RC" = 2 ] && has "$OUT" "plain block" && ! has "$OUT" "| rule |"; then
         pass GM-06 "a control the checker does not flag: exit 2, the control named, no table"
     else fail GM-06 "a failed control should be UNMEASURABLE (rc=$RC)" "$OUT"; fi
+fi
+
+# --- GM-10: the A132 measurement tool ------------------------------------
+if [ ! -x "$GOV" ] && [ ! -x "$GOV.exe" ]; then
+    skip GM-10 "naab-gov is not built"
+else
+    run python3 "$T/naab_lint.py" selftest --gov "$GOV"
+    if [ "$RC" = 0 ] && has "$OUT" "selftest: 0 failed" && [ "$(grep -c '  PASS \[NL-' <<<"$OUT")" = 8 ]; then
+        pass GM-10 "the A132 tool's self-test against the real naab-gov: 8 arms"
+    else fail GM-10 "the A132 tool's self-test" "$OUT"; fi
 fi
 
 # --- GM-07: datasets pinned by hash ---------------------------------------
