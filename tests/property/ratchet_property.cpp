@@ -53,6 +53,7 @@
 // failed or the harness could not run (UNMEASURABLE).
 
 #include "naab/governance.h"
+#include "naab/policy_probes.h"
 #include "naab/run_limits.h"
 #include "naab/subprocess_helpers.h"
 
@@ -285,121 +286,31 @@ json toConfig(const Knobs& k) {
 }
 
 // ---------------------------------------------------------------------------
-// Probes: one request each, judged by the gate a program's call reaches.
+// Probes: one request each, judged by the gate a program's call reaches. The
+// probes and their verdicts are include/naab/policy_probes.h, shared with
+// `naab-gov diff` (Bundle 13); this harness supplies its fixed alphabets.
 // ---------------------------------------------------------------------------
-enum Verdict { kAllow = 0, kWarn = 1, kCatchable = 2, kBlock = 3 };
-const char* verdictName(int v) {
-    switch (v) {
-        case kAllow: return "allowed";
-        case kWarn: return "warned";
-        case kCatchable: return "blocked(catchable)";
-        case kBlock: return "blocked";
-        default: return "?";
-    }
-}
+using naab::governance::PolicyProbe;
+constexpr int kAllow = naab::governance::kProbeAllow;
+constexpr int kWarn = naab::governance::kProbeWarn;
+const char* verdictName(int v) { return naab::governance::probeVerdictName(v); }
 
-int gateVerdict(const std::function<std::string()>& gate) {
-    try {
-        return gate().empty() ? kAllow : kWarn;
-    } catch (const GovernanceHardError&) {
-        return kBlock;
-    } catch (const std::exception&) {
-        return kCatchable;
-    }
-}
-
-// Built at run time from fragments: the scanners must see a credential-shaped
-// and an SSN-shaped value, and the source must hold neither.
-std::string secretText() {
-    std::string key = std::string("AK") + "IA";
-    for (char c : std::string("QWERTYUIOPASDFGH")) key += c;
-    return "let k = \"" + key + "\"\n";
-}
-std::string piiText() {
-    return "ssn: " + std::to_string(100 + 23) + "-" + std::to_string(40 + 5) + "-" +
-           std::to_string(6000 + 789) + "\n";
-}
-
-struct Probe {
-    std::string id;
-    bool gated_by_active;  // its call sites skip it when the engine is inactive
-    std::function<int(GovernanceEngine&)> run;
-};
-
-const std::vector<Probe>& probes() {
-    static const std::vector<Probe> p = [] {
-        std::vector<Probe> v;
-        v.push_back({"mode", false, [](GovernanceEngine& e) {
-            switch (e.getMode()) {
-                case GovernanceMode::ENFORCE: return 2;
-                case GovernanceMode::AUDIT: return 1;
-                default: return 0;
-            }
-        }});
-        for (const auto& n : kEnvProbes) {
-            v.push_back({"env.read:" + n, true,
-                         [n](GovernanceEngine& e) { return gateVerdict([&] { return e.checkEnvVarRead(n); }); }});
-            v.push_back({"env.write:" + n, true,
-                         [n](GovernanceEngine& e) { return gateVerdict([&] { return e.checkEnvVarWrite(n); }); }});
-        }
-        for (const auto& n : std::vector<std::string>{"API_KEY", "TOKEN", "AWS_SECRET", "OTHER_VAR", "PATH"}) {
-            // What a child the program starts receives: the parent's own
-            // decision (buildChildEnvironment's policy), read from the engine
-            // bound to the thread, as at every spawn.
-            v.push_back({"env.child:" + n, false, [n](GovernanceEngine& e) {
-                GovernanceEngine* prev = GovernanceEngine::getCurrent();
-                GovernanceEngine::setCurrent(&e);
-                const bool withheld = naab::runtime::shouldScrubEnvVar(naab::runtime::currentEnvScrubPolicy(), n);
-                GovernanceEngine::setCurrent(prev);
-                return withheld ? kBlock : kAllow;
-            }});
-        }
-        for (const auto& p : kPathProbes) {
-            for (const char* mode : {"read", "write"}) {
-                const std::string m = mode;
-                v.push_back({std::string("fs.") + m + ":" + p, true, [p, m](GovernanceEngine& e) {
-                    // As VM::stdlibCallGates: the mode gate, then the path gate.
-                    int a = gateVerdict([&] { return e.checkFilesystemAllowed(m); });
-                    if (a == kBlock || a == kCatchable) return a;
-                    return std::max(a, gateVerdict([&] { return e.checkPathAccess(p, m); }));
-                }});
-            }
-        }
-        v.push_back({"net", true,
-                     [](GovernanceEngine& e) { return gateVerdict([&] { return e.checkNetworkAllowed(); }); }});
-        for (const auto& h : kHostProbes) {
-            v.push_back({"net.host:" + h, false, [h](GovernanceEngine& e) {
-                return e.networkPolicyDenial(h, 443, true).empty() ? kAllow : kBlock;
-            }});
-        }
-        v.push_back({"net.plain_http:example.com", false, [](GovernanceEngine& e) {
-            return e.networkPolicyDenial("example.com", 80, false).empty() ? kAllow : kBlock;
-        }});
-        v.push_back({"shell", true,
-                     [](GovernanceEngine& e) { return gateVerdict([&] { return e.checkShellAllowed(); }); }});
-        for (const auto& l : kLangs) {
-            v.push_back({"lang:" + l, true,
-                         [l](GovernanceEngine& e) { return gateVerdict([&] { return e.checkLanguageAllowed(l); }); }});
-        }
-        v.push_back({"scan.secret", true,
-                     [](GovernanceEngine& e) { return gateVerdict([&] { return e.checkSecrets(secretText()); }); }});
-        v.push_back({"scan.model_secret", true, [](GovernanceEngine& e) {
-            return gateVerdict([&] { return e.checkModelOutputSecrets(secretText()); });
-        }});
-        v.push_back({"scan.pii", true,
-                     [](GovernanceEngine& e) { return gateVerdict([&] { return e.checkPii(piiText()); }); }});
-        return v;
+const std::vector<PolicyProbe>& probes() {
+    static const std::vector<PolicyProbe> p = [] {
+        naab::governance::ProbeAlphabet a;
+        a.env_names = kEnvProbes;
+        a.child_env_names = {"API_KEY", "TOKEN", "AWS_SECRET", "OTHER_VAR", "PATH"};
+        a.paths = kPathProbes;
+        a.hosts = kHostProbes;
+        a.plain_http_hosts = {"example.com"};
+        a.languages = kLangs;
+        return naab::governance::buildPolicyProbes(a);
     }();
     return p;
 }
 
 std::vector<int> judge(GovernanceEngine& e) {
-    std::vector<int> out;
-    for (const auto& p : probes()) {
-        if (p.gated_by_active && !e.isActive()) { out.push_back(kAllow); continue; }
-        out.push_back(p.run(e));
-    }
-    return out;
+    return naab::governance::judgePolicyProbes(e, probes());
 }
 
 // ---------------------------------------------------------------------------
