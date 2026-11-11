@@ -18,7 +18,7 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 12: taint as information flow | merged (the control-flow bar waits on Bundle 13); two PRs by the owner's decision (2026-11-04), then follow-ups. PR 1 (merged, #358): one taint semantics -- one static rule both AST walks share, unknown kinds fail closed, a suite generated from the semantics table; A117. PR 2 (merged, #360): the static noninterference check, an opt-in report, `naab-gov taint`; measured, A120-A122. Follow-up PR 1 (merged, #361, `01fb3552`): A120 and A121(d) fixed, A122(b), A123 and A124 recorded. PR 3 merged, #363 (`169d6600`): A121(a)-(c), A124, A127, A129. The control-flow bar waits on Bundle 13 | Bundle 12 below |
 | 16: honest tests and the engine's own child processes | merged, #362 (`977e7a40`): A123 (13 of 14 tests and the guard; one pinned for Bundle 12 PR 3), A125, A122, A99, A100 fixed; A126 recorded for the owner | Bundle 16 below |
 | 17: what Gemini's SentinelGrid report found | merged, #365 (`795b5885`), one PR, scope by the owner's decisions of 2026-11-09: A130, A131, A133-A139, A141, A142 fixed; A132, A140, A143, A144 and F-14 recorded | Bundle 17 below |
-| 13: measure what governance catches; help operators | in progress, three PRs by the owner's decision (2026-11-10). PR 1 built: `naab-gov diff`; A147 recorded | Bundle 13 below |
+| 13: measure what governance catches; help operators | in progress, three PRs by the owner's decision (2026-11-10). PR 1 merged, #367 (`6e2ce08b`): `naab-gov diff`. PR 2 built: the scorer, its controls, the Juliet and EvalPlus pilot, and A147 fixed (refuse) | Bundle 13 below |
 | 14: replay and provenance | in progress, two PRs by the owner's decision (2026-11-11). PR 1 built, #369: provenance for generated code; A160-A162 recorded | Bundle 14 below |
 | 15 | not started; order 17, 13, 14, 15 (the owner, 2026-11-09) | |
 
@@ -263,6 +263,8 @@ Added by the owner's decision (2026-11-09: "Ok bundle 17 first"). Gemini built a
 
 **Progress.** PR 1 (built 2026-11-10): `naab-gov diff OLD NEW` judges each request under both files with the engine's own gates, through the probes the Bundle 8 harness uses (now shared, `include/naab/policy_probes.h`), and reports the settings as the reload decision does (`evaluateReload()`). Report only. Its first trial run found A147 (a `*.name` host entry matches nothing), recorded for the owner.
 
+PR 1 merged as #367 (`6e2ce08b`). **PR 2 (built 2026-11-11):** `tools/govmeasure` -- `datasets.py` (downloads pinned by SHA-256, a mismatch refused), `juliet.py` (each NIST file split into its flawed and fixed variant, comments removed), `evalplus.py` (labels 16 models' published solutions by running EvalPlus's inputs against the reference, each in a limited child process), `govmeasure.py` (per source, category and rule: flagged bad, flagged good, Wilson intervals; UNMEASURABLE when a control fails or the checker cannot be read; the exit status never depends on a rate). First results in `docs/governance-measurement.md`, recorded as A148. The nightly job `governance-measure.yml` repeats it, report only. A147 was fixed in the same PR by the owner's decision (option b: a host entry holding `*` refuses the config). **For PR 3, from these numbers:** Juliet gives no labels for Python, JavaScript or shell, the languages most NAAb blocks are written in, and neither OWASP Benchmark (Java) nor PrimeVul (C/C++) does either; the EvalPlus label is "wrong", which is wider than "gamed".
+
 ## Bundle 14 -- replay and provenance
 
 - **Deterministic replay:** rebuild a run's governance decisions from the transcript, telemetry and decision snapshots (`naab-gov replay`).
@@ -290,7 +292,6 @@ Added by the owner's decision (2026-11-09: "Ok bundle 17 first"). Gemini built a
 ## Not bundled (open, the owner's call)
 
 - **Waiting on the owner:**
-  - A147: a `blocked_hosts` or `allowed_hosts` entry written `*.name` matches no host;
   - A88: codegen refusals are catchable, and `codegen.level` is inert;
   - the 14 compiled-but-unrun test programs, plus the unlinked `naab_testing` library.
 - **Open:** A66, A75(a)(b), A76(e), A70(b)(c), A67, B1, A16/F11/F12, A53, A33(b), D18, and the A64 test debt.

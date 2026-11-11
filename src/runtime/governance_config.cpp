@@ -850,7 +850,36 @@ static void checkRestrictionTypes(const nlohmann::json& j) {
         }
         if (cap.contains("network") && cap["network"].is_object()) {
             const auto& net = cap["network"];
-            for (const char* k : {"allowed_hosts", "blocked_hosts"}) strList(net, "capabilities.network", k);
+            for (const char* k : {"allowed_hosts", "blocked_hosts"}) {
+                strList(net, "capabilities.network", k);
+                // A147: a host entry is compared as the host itself or as a
+                // dot-boundary suffix (host_match.h), so an entry holding '*'
+                // matches no host: in blocked_hosts it blocked nothing. Refused
+                // rather than loaded as a restriction that restricts nothing.
+                if (!net.contains(k)) continue;
+                const auto& v = net[k];
+                auto check = [&](const nlohmann::json& e) {
+                    if (!e.is_string()) return;
+                    const std::string entry = e.get<std::string>();
+                    if (entry.find('*') == std::string::npos) return;
+                    std::string plain = entry;
+                    plain.erase(std::remove(plain.begin(), plain.end(), '*'), plain.end());
+                    while (!plain.empty() && plain.front() == '.') plain.erase(plain.begin());
+                    while (!plain.empty() && plain.back() == '.') plain.pop_back();
+                    throw std::runtime_error(
+                        std::string("\"capabilities.network.") + k + "\" has the entry \"" + entry +
+                        "\", which matches no host.\n"
+                        "  A host entry is a name, not a pattern: it covers that host and every\n"
+                        "  sub-domain of it, and a '*' is compared as written, which no host name\n"
+                        "  contains. The config is refused rather than loaded with an entry that\n"
+                        "  restricts nothing." +
+                        (plain.empty() ? std::string("\n  Write the host name itself.")
+                                       : "\n  Write \"" + plain + "\" to cover " + plain +
+                                         " and its sub-domains."));
+                };
+                if (v.is_string()) check(v);
+                else if (v.is_array()) for (const auto& e : v) check(e);
+            }
             for (const char* k : {"enabled", "https_only", "allow_websockets", "allow_raw_sockets"})
                 boolean(net, "capabilities.network", k);
             if (net.contains("allowed_ports")) {

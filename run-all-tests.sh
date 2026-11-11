@@ -5210,6 +5210,23 @@ else
     echo "  test_codemap_usage.sh: not found, skipping"
 fi
 
+GOVMEASURE_SCRIPT="tests/self-audit/test_govmeasure.sh"
+if [ -f "$GOVMEASURE_SCRIPT" ]; then
+    # tools/govmeasure scores what the block checks catch against labels made
+    # outside this repository (Bundle 13). This suite tests the instrument, with
+    # no network: a stand-in checker of known behaviour, the real naab-gov on
+    # six fixture blocks, and the UNMEASURABLE outcomes (GM-05, GM-06). GM-04c
+    # is the control that the exit status never depends on a rate.
+    if run_shell_test "$GOVMEASURE_SCRIPT" 2>&1; then
+        echo "  test_govmeasure.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_govmeasure.sh")
+    fi
+else
+    echo "  test_govmeasure.sh: not found, skipping"
+fi
+
 PREDISPATCH_ENUM_SCRIPT="tests/self-audit/test_predispatch_enumeration.sh"
 if [ -f "$PREDISPATCH_ENUM_SCRIPT" ]; then
     # Every engine check the VM and tree-walker stdlib dispatchers make is listed

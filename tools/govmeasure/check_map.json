@@ -1,0 +1,179 @@
+{
+ "_comment": "Which rules are EXPECTED to catch which category. Authored (2026-11-11), not measured: the report marks a mapped rule with *, and prints every rule that fired whether mapped or not, so a wrong mapping is visible. A category with no rules is one NAAb has no check for; it is measured for false alarms. `controls` are planted blocks a rule must flag under the measurement config, or the run is UNMEASURABLE; `code` may be a list of fragments joined at run time, so no key-shaped literal is committed.",
+ "categories": {
+  "CWE-78": {
+   "source": "juliet",
+   "what": "OS command injection",
+   "rules": [
+    "restrictions.shell_injection",
+    "restrictions.code_injection",
+    "restrictions.dangerous_calls",
+    "languages.per_language.banned_functions"
+   ]
+  },
+  "CWE-426": {
+   "source": "juliet",
+   "what": "untrusted search path",
+   "rules": [
+    "restrictions.shell_injection",
+    "restrictions.code_injection",
+    "restrictions.dangerous_calls",
+    "languages.per_language.banned_functions"
+   ]
+  },
+  "CWE-259": {
+   "source": "juliet",
+   "what": "hard-coded password",
+   "rules": [
+    "code_quality.no_secrets"
+   ]
+  },
+  "CWE-321": {
+   "source": "juliet",
+   "what": "hard-coded cryptographic key",
+   "rules": [
+    "code_quality.no_secrets"
+   ]
+  },
+  "CWE-256": {
+   "source": "juliet",
+   "what": "plaintext storage of a password",
+   "rules": [
+    "code_quality.no_secrets"
+   ]
+  },
+  "CWE-327": {
+   "source": "juliet",
+   "what": "broken or risky cryptographic algorithm",
+   "rules": [
+    "restrictions.crypto"
+   ]
+  },
+  "CWE-328": {
+   "source": "juliet",
+   "what": "weak hash",
+   "rules": [
+    "restrictions.crypto"
+   ]
+  },
+  "CWE-338": {
+   "source": "juliet",
+   "what": "weak pseudo-random number generator",
+   "rules": [
+    "restrictions.crypto"
+   ]
+  },
+  "CWE-23": {
+   "source": "juliet",
+   "what": "relative path traversal",
+   "rules": [
+    "code_quality.no_path_traversal"
+   ]
+  },
+  "CWE-36": {
+   "source": "juliet",
+   "what": "absolute path traversal",
+   "rules": [
+    "code_quality.no_path_traversal"
+   ]
+  },
+  "CWE-506": {
+   "source": "juliet",
+   "what": "embedded malicious code",
+   "rules": [
+    "restrictions.obfuscation",
+    "restrictions.data_exfiltration",
+    "restrictions.code_injection",
+    "restrictions.dangerous_calls"
+   ]
+  },
+  "CWE-510": {
+   "source": "juliet",
+   "what": "trapdoor",
+   "rules": [
+    "code_quality.no_hardcoded_ips",
+    "restrictions.data_exfiltration"
+   ]
+  },
+  "CWE-319": {
+   "source": "juliet",
+   "what": "cleartext transmission of sensitive data",
+   "rules": []
+  },
+  "CWE-377": {
+   "source": "juliet",
+   "what": "insecure temporary file",
+   "rules": []
+  },
+  "CWE-511": {
+   "source": "juliet",
+   "what": "logic or time bomb",
+   "rules": []
+  },
+  "CWE-190": {
+   "source": "juliet",
+   "what": "integer overflow",
+   "rules": [],
+   "note": "No NAAb check targets this; measured for false alarms."
+  },
+  "CWE-476": {
+   "source": "juliet",
+   "what": "NULL pointer dereference",
+   "rules": [],
+   "note": "No NAAb check targets this; measured for false alarms."
+  },
+  "fails-hidden-tests": {
+   "source": "evalplus",
+   "what": "a model-written solution that fails EvalPlus's tests (bad) or passes them (good)",
+   "rules": [
+    "code_quality.no_oversimplification",
+    "code_quality.no_incomplete_logic",
+    "code_quality.no_placeholders",
+    "code_quality.no_hardcoded_results",
+    "code_quality.complexity_floor",
+    "code_quality.no_mock_data",
+    "code_quality.no_simulation_markers",
+    "code_quality.no_temporary_code",
+    "code_quality.no_hallucinated_apis",
+    "code_quality.no_dead_code"
+   ],
+   "note": "The label says the solution is WRONG, which is wider than what these checks look for (a stub, a placeholder, a hard-coded answer): a wrong but honest attempt is bad here and is not theirs to catch."
+  }
+ },
+ "controls": [
+  {
+   "name": "cpp system()",
+   "language": "cpp",
+   "rule": "restrictions.dangerous_calls",
+   "code": "#include <cstdlib>\nint main(){ system(\"ls\"); return 0; }\n"
+  },
+  {
+   "name": "cpp key-shaped literal",
+   "language": "cpp",
+   "rule": "code_quality.no_secrets",
+   "code": [
+    "const char* k = \"AKIA",
+    "IOSFODNN7",
+    "EXAMPLE\";\nint main(){ return 0; }\n"
+   ]
+  },
+  {
+   "name": "cpp MD5()",
+   "language": "cpp",
+   "rule": "restrictions.crypto",
+   "code": "#include <openssl/md5.h>\nint main(){ unsigned char d[16]; MD5((const unsigned char*)\"a\",1,d); return 0; }\n"
+  },
+  {
+   "name": "python TODO stub",
+   "language": "python",
+   "rule": "code_quality.no_placeholders",
+   "code": "def f(x):\n    # TODO: implement\n    pass\nprint(f(1))\n"
+  },
+  {
+   "name": "python NotImplementedError",
+   "language": "python",
+   "rule": "code_quality.no_oversimplification",
+   "code": "def f(x):\n    raise NotImplementedError\nprint(f(1))\n"
+  }
+ ]
+}

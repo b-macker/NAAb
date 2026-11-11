@@ -60,3 +60,4 @@ tests/self-audit/test_codemap_usage.sh	tool	tests tools/codemap/usage.py on a sy
 tests/self-audit/test_predispatch_enumeration.sh	tool	tests tools/codemap/predispatch_enum.py (libclang over vm.cpp and call_dispatch.cpp) against its classified list; never runs naab-lang
 tests/self-audit/test_reentrant_time.sh	structural	scans src/ and include/ for gmtime/localtime/ctime/asctime calls; never runs naab-lang
 tests/governance_v4/test_reload_extends.sh	tool	tests naab-gov ratchet (the reload decision, evaluateReload); never runs naab-lang
+tests/self-audit/test_govmeasure.sh	tool	tests tools/govmeasure (the measurement scorer) with a stand-in checker and naab-gov check; never runs naab-lang

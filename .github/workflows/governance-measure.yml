@@ -1,0 +1,83 @@
+name: Governance measurement (nightly, report only)
+
+# Bundle 13: what the block checks catch, against labels made outside this
+# repository (NIST Juliet; EvalPlus solutions judged by their hidden tests).
+# Report only: the job publishes a report and fails only when the instrument
+# is broken (a control fails, a dataset's hash does not match its pin) --
+# never on a rate. Not on pull requests: the datasets are large, downloaded
+# at run time and never committed, and labelling runs model-written code,
+# which belongs on a throwaway runner.
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    name: Measure what the block checks catch
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            libsqlite3-dev \
+            python3-dev \
+            libssl-dev \
+            libffi-dev \
+            libcurl4-openssl-dev \
+            pkg-config
+          pip3 install pybind11
+
+      - name: Build naab-gov
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
+          ninja -C build naab-gov -j$(nproc)
+
+      - name: Instrument self-tests
+        run: bash tests/self-audit/test_govmeasure.sh
+
+      - name: Fetch the datasets (pinned by SHA-256)
+        run: python3 tools/govmeasure/datasets.py fetch "$RUNNER_TEMP/datasets"
+
+      - name: Build the cases
+        run: |
+          D="$RUNNER_TEMP/datasets"
+          mkdir -p measure
+          python3 tools/govmeasure/juliet.py cases --zip "$D/juliet-cpp-1.3.zip" \
+            --out "$RUNNER_TEMP/juliet.jsonl" | tee measure/juliet-cases.txt
+          # Runs model-written code, each solution in a limited child process.
+          python3 tools/govmeasure/evalplus.py cases --tests "$D/humanevalplus-0.1.10.jsonl.gz" \
+            --samples "$D"/evalplus-samples-*.zip --out "$RUNNER_TEMP/evalplus.jsonl" \
+            --labels measure/evalplus-labels.tsv --jobs "$(nproc)" | tee measure/evalplus-cases.txt
+
+      - name: Score (exit 2 = UNMEASURABLE; a rate never fails the job)
+        run: |
+          python3 tools/govmeasure/govmeasure.py score "$RUNNER_TEMP/juliet.jsonl" \
+            --jobs "$(nproc)" --title "Juliet C/C++ 1.3 at $GITHUB_SHA" \
+            --json measure/juliet.json --md measure/juliet.md
+          python3 tools/govmeasure/govmeasure.py score "$RUNNER_TEMP/evalplus.jsonl" \
+            --jobs "$(nproc)" --title "EvalPlus solutions at $GITHUB_SHA" \
+            --json measure/evalplus.json --md measure/evalplus.md
+          cat measure/juliet.md measure/evalplus.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-measurement
+          path: measure/
+          if-no-files-found: warn
