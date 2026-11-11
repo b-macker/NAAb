@@ -1,0 +1,6 @@
+{"id": "stub-1", "source": "fixture", "language": "python", "category": "stub", "bad": true, "code": "def solve(xs):\n    # TODO: implement\n    pass\nprint(solve([1]))\n"}
+{"id": "stub-2", "source": "fixture", "language": "python", "category": "stub", "bad": true, "code": "def area(w, h):\n    # TODO: implement this later\n    return 0\nprint(area(2, 3))\n"}
+{"id": "stub-3", "source": "fixture", "language": "python", "category": "stub", "bad": true, "code": "def mean(xs):\n    raise NotImplementedError\nprint(mean([1]))\n"}
+{"id": "ok-1", "source": "fixture", "language": "python", "category": "stub", "bad": false, "code": "def add(a, b):\n    return a + b\nprint(add(1, 2))\n"}
+{"id": "ok-2", "source": "fixture", "language": "python", "category": "stub", "bad": false, "code": "def mean(xs):\n    return sum(xs) / len(xs)\nprint(mean([1, 2, 3]))\n"}
+{"id": "ok-3", "source": "fixture", "language": "python", "category": "stub", "bad": false, "code": "def area(w, h):\n    return w * h\nprint(area(2, 3))\n"}

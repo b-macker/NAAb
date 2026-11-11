@@ -1,0 +1,1 @@
+{"categories": {}, "controls": [{"name": "plain block", "language": "python", "rule": "code_quality.no_placeholders", "code": "print(1 + 2)\n"}]}
