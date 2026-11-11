@@ -24,6 +24,8 @@
 #          is the hash of the FENCED reply, which differs from code_sha256
 #   CP-03  prose around a fenced block, taken out with agent.extract_code():
 #          matched, derivation extract_code
+#   CP-03n NEGATIVE: agent.extract_code() on text the program wrote itself:
+#          unattributed (extraction does not make text a model's)
 #   CP-04  NEGATIVE: the program appends one character to the reply before
 #          running it: unattributed, and code_sha256 is the edited text's hash.
 #          Without it CP-01..03 pass for a build that matches everything
@@ -246,6 +248,20 @@ arm CP-03 "code taken out of a reply with agent.extract_code() is matched" \
     "CODEGEN_EXEC origin_content_sha256 = sha:$PROSE" \
     "CODEGEN_EXEC code_sha256 != sha:$PROSE" \
     "CODEGEN_EXEC origin_request_sha256 = shafile:req_1.json"
+
+# ---- CP-03n: NEGATIVE, extract_code() on the program's own text -------------
+run_case on "" "" '    let own = "Some text.\n\n```javascript\n4 + 4\n```\n"
+    let code = agent.extract_code(own, "javascript")
+    print("CODE=" + code)
+    let x = codegen.run("javascript", code)
+    print("END")' '{"content": "unused"}'
+if [ "$RC" -ge 0 ] && ! grep -qxF "CODE=4 + 4" <<<"$OUT"; then
+    fail CP-03n "extract_code did not return the block, so the arm has no subject (rc=$RC)" "$OUT"
+else
+    arm CP-03n "code taken out of the program's own text is unattributed" \
+        "CODEGEN_EXEC code_sha256 = sha:4 + 4" "CODEGEN_EXEC code_attribution = unattributed" \
+        "CODEGEN_EXEC origin_derivation absent"
+fi
 
 # ---- CP-04: NEGATIVE, the program edits the reply ---------------------------
 run_case on "" "" "$SEND"'
