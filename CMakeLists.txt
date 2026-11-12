@@ -957,7 +957,7 @@ install(TARGETS libnaab
 message(STATUS "  ✓ libnaab shared library (Phase 8.1)")
 
 # naab-gov — Standalone governance + scanning CLI (Phase 8.2)
-add_executable(naab-gov src/cli/gov_main.cpp src/cli/gov_contracts.cpp src/cli/gov_manifest.cpp src/cli/gov_taint.cpp src/cli/gov_diff.cpp)
+add_executable(naab-gov src/cli/gov_main.cpp src/cli/gov_contracts.cpp src/cli/gov_manifest.cpp src/cli/gov_taint.cpp src/cli/gov_diff.cpp src/cli/gov_replay.cpp)
 target_include_directories(naab-gov PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -1665,6 +1665,7 @@ if(HAVE_GOOGLETEST)
         tests/unit/thread_vm_test.cpp           # which VM a tool runs on; a lent VM entered one at a time (A93)
         tests/unit/report_snapshot_test.cpp     # a report written while other threads record (A86)
         tests/unit/code_provenance_test.cpp     # the provenance ledger: bound, eviction, derived text (Bundle 14)
+        tests/unit/bounded_jsonl_test.cpp       # the bounded line reader for untrusted evidence files (Bundle 14)
         tests/unit/contract_expr_test.cpp       # requires/ensures clauses: the purity whitelist (Bundle 11)
         tests/unit/capability_manifest_test.cpp # the capability manifest's file format (Bundle 11 PR 2)
         tests/unit/taint_rule_test.cpp          # the static taint rule: an unknown kind is tainted (Bundle 12)

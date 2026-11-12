@@ -85,6 +85,9 @@ static void printHelp() {
         "  naab-gov taint <file.naab> [opts]      Report flows of tainted data to sinks,\n"
         "                                         implicit ones included (static: runs\n"
         "                                         nothing, refuses nothing)\n"
+        "  naab-gov replay <telemetry> [opts]     Check recorded decisions against their\n"
+        "                                         recorded evidence (re-executes nothing;\n"
+        "                                         --transcript FILE, --hmac-key, --json)\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
         "\n"
@@ -726,6 +729,8 @@ static int cmdLanguages() {
 // gov_contracts.cpp (Bundle 11)
 int cmdContracts(const std::vector<std::string>& args, const char* argv0);
 int cmdTaint(const std::vector<std::string>& args);
+// gov_replay.cpp: recorded decisions against their recorded evidence (Bundle 14)
+int cmdReplay(const std::vector<std::string>& args);
 // gov_diff.cpp (Bundle 13)
 int cmdDiff(const std::vector<std::string>& args);
 // gov_manifest.cpp (Bundle 11 PR 2)
@@ -937,6 +942,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "taint") {
             return cmdTaint(rest);
+        }
+
+        if (cmd == "replay") {
+            return cmdReplay(rest);
         }
     } catch (const naab::governance::GovernanceHardError& e) {
         std::cerr << e.what() << "\n";
