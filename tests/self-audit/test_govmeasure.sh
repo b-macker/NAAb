@@ -29,6 +29,19 @@
 #   GM-08   usage: no cases file, a file that is not JSON lines -> exit 4
 #   GM-09   the nightly workflow runs on a schedule or by hand, never on a
 #           pull request, and fetches through datasets.py (structural)
+#   GM-10   naab_lint.py (A132: what the lint-only checks flag in NAAb
+#           code): its self-test against the real naab-gov -- a flaw in NAAb
+#           text counts both ways, one inside a polyglot block counts for the
+#           whole file only, a file lint cannot parse is left out and
+#           counted, and a lint that prints nothing or never flags the
+#           planted file is UNMEASURABLE
+#   GM-11   semgrep_tests.py: its self-test on a test file written here in
+#           Semgrep's marking -- one case per marked place, marker comments
+#           removed, each case its own stretch, todo marks left out, only
+#           `security` directories read, a rule with no CWE left out
+#   GM-12   datasets.py, a git source: a repository at its pinned commit is
+#           kept; a pin that is not the checkout's commit is UNMEASURABLE
+#           (git cannot fetch it) and leaves nothing behind
 #
 # Kill table (each mutant applied to tools/govmeasure, this suite re-run;
 # observed 2026-11-11):
@@ -41,6 +54,19 @@
 #   the hash comparison skipped in datasets.py      -> GM-07
 #   a child with no verdict counted as PASS         -> GM-03 (ET-07)
 #   comments kept in Juliet variants                -> GM-02 (JT-03)
+#   naab_lint: block bodies not emptied              -> GM-10 (NL-01, NL-05, NL-06)
+#   naab_lint: an unparseable file counted           -> GM-10 (NL-03)
+#   naab_lint: the two controls skipped              -> GM-10 (NL-08)
+#   semgrep_tests: an end-of-line mark keeps its comment -> GM-11
+#   semgrep_tests: every directory read              -> GM-11
+#   semgrep_tests: todo marks taken as labels        -> GM-11
+#   semgrep_tests: a case id carries its file's path -> GM-11
+#   datasets.py: a stale checkout kept               -> GM-12
+#   datasets.py: the fetched commit not compared     -> GM-12
+#   datasets.py: verify does not compare the commit  -> GM-12
+#   scorer: --group ignored                          -> GM-01
+#   scorer: any-rule mode still prints per-rule rows -> GM-01
+#   scorer: any-rule mode demands the named rule     -> GM-01
 # Red first: every arm fails on master, which has no tools/govmeasure.
 
 set -uo pipefail
@@ -67,8 +93,8 @@ run() { OUT="$("$@" 2>"$W/err.txt")"; RC=$?; OUT="${OUT//$'\r'/}"; ERR="$(cat "$
 
 # --- GM-01..03: the tools' own self-tests --------------------------------
 run python3 "$T/govmeasure.py" selftest
-if [ "$RC" = 0 ] && has "$OUT" "selftest: 0 failed" && [ "$(grep -c '  PASS \[ST-' <<<"$OUT")" = 10 ]; then
-    pass GM-01 "the scorer's self-test: 10 arms"
+if [ "$RC" = 0 ] && has "$OUT" "selftest: 0 failed" && [ "$(grep -c '  PASS \[ST-' <<<"$OUT")" = 12 ]; then
+    pass GM-01 "the scorer's self-test: 12 arms"
 else fail GM-01 "the scorer's self-test" "$OUT"; fi
 
 run python3 "$T/juliet.py" selftest
@@ -114,6 +140,75 @@ $ERR"; fi
     if [ "$RC" = 2 ] && has "$OUT" "plain block" && ! has "$OUT" "| rule |"; then
         pass GM-06 "a control the checker does not flag: exit 2, the control named, no table"
     else fail GM-06 "a failed control should be UNMEASURABLE (rc=$RC)" "$OUT"; fi
+fi
+
+# --- GM-10: the A132 measurement tool ------------------------------------
+if [ ! -x "$GOV" ] && [ ! -x "$GOV.exe" ]; then
+    skip GM-10 "naab-gov is not built"
+else
+    run python3 "$T/naab_lint.py" selftest --gov "$GOV"
+    if [ "$RC" = 0 ] && has "$OUT" "selftest: 0 failed" && [ "$(grep -c '  PASS \[NL-' <<<"$OUT")" = 8 ]; then
+        pass GM-10 "the A132 tool's self-test against the real naab-gov: 8 arms"
+    else fail GM-10 "the A132 tool's self-test" "$OUT"; fi
+fi
+
+# --- GM-11: the Semgrep test-file adapter --------------------------------
+run python3 "$T/semgrep_tests.py" selftest
+if [ "$RC" = 0 ] && has "$OUT" "selftest: 0 failed" && [ "$(grep -c '  PASS \[SG-' <<<"$OUT")" = 8 ]; then
+    pass GM-11 "the Semgrep adapter's self-test: 8 arms"
+else fail GM-11 "the Semgrep adapter's self-test" "$OUT"; fi
+
+# --- GM-12: a git source pinned to a commit ---------------------------------
+if ! command -v git >/dev/null 2>&1; then
+    skip GM-12 "git not found"
+else
+    mkdir -p "$W/gs/tool" "$W/gs/origin" "$W/gs/dl"
+    cp "$T/datasets.py" "$W/gs/tool/"
+    ( cd "$W/gs/origin" && git init -q && git config user.email t@example.invalid && git config user.name t &&
+      git config uploadpack.allowAnySHA1InWant true &&
+      printf 'one\n' > a.txt && git add a.txt && git commit -q -m one ) >/dev/null 2>&1
+    C1="$(git -C "$W/gs/origin" rev-parse HEAD 2>/dev/null)"
+    if [ -z "$C1" ]; then
+        skip GM-12 "could not build the local repository"
+    else
+        BR="$(git -C "$W/gs/origin" symbolic-ref --short HEAD 2>/dev/null)"
+        ( cd "$W/gs" && python3 - "$C1" "${BR:-master}" <<'PY'
+import json, pathlib, sys
+origin = pathlib.Path("origin").resolve().as_uri()
+json.dump({"good": {"git": origin, "commit": sys.argv[1], "what": "the pinned commit"},
+           "wrong": {"git": origin, "commit": "0" * 40, "what": "a commit the repository does not have"},
+           "branch": {"git": origin, "commit": sys.argv[2], "what": "a branch name, which moves, in place of a commit"}},
+          open("tool/datasets.json", "w"))
+PY
+        )
+        (cd "$W/gs" && python3 tool/datasets.py fetch dl good >g1.txt 2>&1); g1=$?
+        (cd "$W/gs" && python3 tool/datasets.py fetch dl wrong >g2.txt 2>&1); g2=$?
+        (cd "$W/gs" && python3 tool/datasets.py fetch dl branch >g5.txt 2>&1); g5=$?
+        # The pin moves to a second commit: the stale checkout must be
+        # replaced by it, and `verify` against a pin the checkout is not at
+        # must not pass.
+        ( cd "$W/gs/origin" && printf 'two\n' > b.txt && git add b.txt && git commit -q -m two ) >/dev/null 2>&1
+        C2="$(git -C "$W/gs/origin" rev-parse HEAD 2>/dev/null)"
+        ( cd "$W/gs" && python3 - "$C2" <<'PY'
+import json, pathlib, sys
+origin = pathlib.Path("origin").resolve().as_uri()
+json.dump({"good": {"git": origin, "commit": sys.argv[1], "what": "the pin, moved"}}, open("tool/datasets.json", "w"))
+PY
+        )
+        (cd "$W/gs" && python3 tool/datasets.py verify dl good >g3.txt 2>&1); g3=$?
+        (cd "$W/gs" && python3 tool/datasets.py fetch dl good >g4.txt 2>&1); g4=$?
+        if [ "$g1" = 2 ]; then
+            skip GM-12 "git could not fetch the local control repository ($(head -1 "$W/gs/g1.txt"))"
+        elif [ "$g1" = 0 ] && grep -q '^PASS good' "$W/gs/g1.txt" &&
+             [ "$g2" != 0 ] && ! grep -q '^PASS' "$W/gs/g2.txt" && [ ! -e "$W/gs/dl/wrong/a.txt" ] &&
+             [ "$g5" != 0 ] && ! grep -q '^PASS' "$W/gs/g5.txt" && [ ! -e "$W/gs/dl/branch/a.txt" ] &&
+             [ "$g3" != 0 ] && ! grep -q '^PASS' "$W/gs/g3.txt" &&
+             [ "$g4" = 0 ] && [ -f "$W/gs/dl/good/b.txt" ]; then
+            pass GM-12 "a repository at its pinned commit is kept; a commit it does not have is not; a stale checkout fails verify and is replaced on fetch"
+        else
+            fail GM-12 "the git source was not handled as pinned (good rc=$g1, wrong rc=$g2, branch rc=$g5, verify-stale rc=$g3, refetch rc=$g4)" "$(cat "$W/gs"/g?.txt)"
+        fi
+    fi
 fi
 
 # --- GM-07: datasets pinned by hash ---------------------------------------
