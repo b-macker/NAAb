@@ -37,8 +37,8 @@
 #   CRY-00   control: the checker flags hashlib.md5
 #   CRY-01   each named CryptoAPI constant is flagged (12)
 #   CRY-02   not flagged: CALG_SHA_256, CALG_SHA_512, CALG_AES_256,
-#            CALG_RSA_SIGN, a longer identifier holding a constant's name, a
-#            constant inside a string literal
+#            CALG_RSA_SIGN, longer identifiers that hold a constant's name at
+#            their start, middle or end, a constant inside a string literal
 #   CRY-03   a config listing weak_hashes ["md5"]: CALG_MD5 flagged, CALG_SHA1
 #            and CALG_MD2 not
 #   CRY-04   a config listing weak_ciphers ["rc4"]: CALG_RC4 flagged, CALG_DES
@@ -48,7 +48,19 @@
 #   CRY-05   control: with restrictions.crypto absent CALG_MD5 is not flagged
 #
 # Kill table (each mutant observed to turn its arm red; run by hand)
-#   KILL_TABLE
+#   the macro pattern removed                      -> SEC-01, SEC-03
+#   the macro's name need not end in the word      -> SEC-02
+#   the macro's value may hold whitespace          -> SEC-02
+#   no minimum length for the value                -> SEC-02
+#   the wide-literal prefix dropped                -> SEC-01
+#   hash constants not added                       -> CRY-01, CRY-03
+#   cipher constants not added                     -> CRY-01, CRY-04, CRY-06
+#   a config's own list ignored                    -> CRY-03, CRY-04, CRY-06
+#   the des family not followed                    -> CRY-06
+#   list names compared with case                  -> CRY-06
+#   no boundary after a constant                   -> CRY-02
+#   no boundary before a constant                  -> CRY-02 (survived the first
+#       draft: the only longer identifier also had a suffix; MY_CALG_MD5 added)
 #
 # Red first (observed, master 9b616789): SEC-01, SEC-03, CRY-01, CRY-03 and
 # CRY-04 fail; the controls and SEC-02, CRY-02 pass.
@@ -194,11 +206,11 @@ else
     else fail CRY-01 "not flagged:$missed" ""; fi
 
     wrong=""
-    for c in CALG_SHA_256 CALG_SHA_512 CALG_AES_256 CALG_RSA_SIGN MY_CALG_MD5_SLOT CALG_MD5X; do
+    for c in CALG_SHA_256 CALG_SHA_512 CALG_AES_256 CALG_RSA_SIGN MY_CALG_MD5_SLOT MY_CALG_MD5 CALG_MD5X; do
         use_c "$c" | flagged cry cpp "$CRY_RULE" && wrong="$wrong $c"
     done
     printf 'const char *name(void) { return "CALG_MD5"; }\n' | flagged cry cpp "$CRY_RULE" && wrong="$wrong [in a string]"
-    if [ -z "$wrong" ]; then pass CRY-02 "strong constants, longer identifiers and a constant inside a string are not flagged (7)"
+    if [ -z "$wrong" ]; then pass CRY-02 "strong constants, longer identifiers and a constant inside a string are not flagged (8)"
     else fail CRY-02 "flagged though it names no weak algorithm:$wrong" ""; fi
 
     r=""
