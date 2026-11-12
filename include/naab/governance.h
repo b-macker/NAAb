@@ -4154,7 +4154,44 @@ public:
     int getDeescalateCalmTurns() const;
     int getDeescalatePressureHandle() const;
     static int verifyTelemetryChain(const std::string& filepath,
-        const std::string& hmac_key = "");            // CLI: --verify-telemetry-chain
+        const std::string& hmac_key = "");
+
+    // What the chain verification found, for a caller that reports it itself
+    // (naab-gov replay). One implementation: verifyTelemetryChain() is
+    // analyzeTelemetryChain() with no bounds, printing as it always has.
+    struct TelemetryChainRun {
+        std::string run_id;
+        long long chained = 0;
+        long long hash_mismatches = 0;   // TAMPER
+        long long link_breaks = 0;       // BREAK: prev_hash mismatch
+        long long legacy_restarts = 0;
+        bool has_start = false;
+        bool has_end = false;
+        long long declared = -1;         // RunEnd's chained_events, -1 if none
+        bool count_mismatch = false;     // RunEnd declares another count
+    };
+    struct TelemetryChainReport {
+        bool opened = false;
+        long long lines = 0;
+        long long chained = 0;
+        long long unchained = 0;
+        long long corrupt = 0;           // not JSON, or a hash field of the wrong type
+        long long skipped = 0;           // over the byte or nesting bound: not read
+        long long breaks = 0;            // everything verifyTelemetryChain counts
+        long long warnings = 0;
+        std::vector<TelemetryChainRun> runs;   // in file order
+    };
+    // max_line_bytes / max_depth of 0 mean unbounded. A line over a bound is
+    // not parsed: it is counted in `skipped`, and the link to the event after
+    // it is not judged (what it should have been is unknown).
+    static int analyzeTelemetryChain(const std::string& filepath,
+        const std::string& hmac_key, size_t max_line_bytes, int max_depth,
+        bool print, TelemetryChainReport& report);
+
+    // The key a chain verification uses when none is given on the command
+    // line: the one place that reads it (--verify-telemetry-chain and
+    // naab-gov replay both call this).
+    static std::string telemetryChainKeyFromEnvironment();            // CLI: --verify-telemetry-chain
     int checkDecisionTraceCoherence(const std::string& agent_config);  // F17: contradictions in traces
     std::string checkTemporalCoupling();  // F10: inter-agent timing correlation
     std::string checkAdmission(const std::string& agent_config);
