@@ -100,7 +100,7 @@ Observed 2026-11-11 on `24cf9d80` plus this PR's tools; no check was changed. Ev
 
 What this says for the A132 decision, screened by the hand-read of the samples and not by a label: on NAAb text the three largest are pattern matches on names and prose (`test_`, `oops` inside `Loops`, a comment starting "Return"), and none of the hand-read flags was a defect in the program. The repository is mostly tests, which is where `test_` identifiers and deliberate literals live, so a product codebase would show fewer `no_mock_data` flags; the `oops` and comment-prose flags do not depend on that. The opposite direction is unmeasured: there are no labelled BAD NAAb programs, so this shows what these checks would refuse wrongly at run time and nothing about what they would catch.
 
-One of these is a defect a run already has (A149): `code_quality.no_apologetic_language` refuses a Python block whose only comment is `# Loops over the items` (SOFT, verified beside a control that says "Iterate"), because the same pattern list is applied to polyglot blocks.
+(A149 was fixed on 2026-11-12: with word boundaries on the patterns this row falls from 29 files to 4, and the total on NAAb text from 344 to 336. The table above is the measurement as it was taken.) One of these is a defect a run already had (A149): `code_quality.no_apologetic_language` refuses a Python block whose only comment is `# Loops over the items` (SOFT, verified beside a control that says "Iterate"), because the same pattern list is applied to polyglot blocks.
 
 ### The path-traversal zero
 

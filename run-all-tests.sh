@@ -2580,6 +2580,21 @@ else
     echo "  test_gov_diff.sh: not found, skipping"
 fi
 
+# A149 and A132's follow-up: the apologetic-language patterns match words, not
+# pieces of words ("Loops" is not "oops"), and naab-gov lint names the findings
+# a run does not enforce. AB-00 and AB-02 are the still-flagged controls.
+APOLOGY_BOUNDARY_SCRIPT="tests/governance_v4/test_apology_boundary.sh"
+if [ -f "$APOLOGY_BOUNDARY_SCRIPT" ]; then
+    if run_shell_test "$APOLOGY_BOUNDARY_SCRIPT" 2>&1; then
+        echo "  test_apology_boundary.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_apology_boundary.sh")
+    fi
+else
+    echo "  test_apology_boundary.sh: not found, skipping"
+fi
+
 # Provenance for generated code (Bundle 14): an execution event carries the
 # hash of the code it ran and whether that text equals a model output of the
 # run; every expected hash is computed by the suite from the fixture and from
