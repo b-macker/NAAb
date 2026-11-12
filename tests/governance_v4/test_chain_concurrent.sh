@@ -19,13 +19,28 @@
 # break on a file with a line removed, so its "verified" means something),
 # CV-00 (an untouched file and an empty one still exit 0).
 #
-# Mutants (each applied, built, the suite run, the tree restored):
-#   the deleters unlock before flushing, the chain lock    -> CC-01 02 04
-#     released before the write (the pre-fix shape)
-#   the forward left outside the chain lock                 -> CC-03 (see note)
+# Mutants (each applied, built, the suite run with CC_ROUNDS=8, the tree
+# restored):
+#   the deleters unlock before flushing AND the agent      -> CC-01 02 03
+#     writer releases the chain lock before its write
+#     (the pre-fix shape)
 #   the verifier unbounded (0, 0)                           -> CV-01 02
 #   a line not read is not counted                          -> CV-01 02
 #   unreadable-only file exits 0                            -> CV-03
+# Three single mutants SURVIVE on POSIX, and are expected to: the fix has two
+# layers and either one closes the window here, because flock already makes
+# writers of one file take turns.
+#   only the deleters unlock before flushing   (the line is flushed under the
+#                                               chain lock anyway)
+#   only the chain lock released before the write   (the deleter flushes
+#                                               before it unlocks)
+#   only the forward made after the chain lock (the file lock is still held)
+# The chain-lock layer is what orders threads where there is no flock
+# (Windows); no arm runs there (the agent stub does not), so that layer is
+# traced, not tested.
+#
+# CC-04 (four processes, one file) passed on the unfixed build too: it is a
+# guard, not a regression arm.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
