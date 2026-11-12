@@ -387,6 +387,7 @@
       "block_ldap_injection": true,
       "block_command_injection": true
     },
+    "_comment_crypto": "Reads a block's code for a weak algorithm's name as a whole word (md5, sha1; des, rc4, blowfish when no list is given) and for the Windows CryptoAPI constants that name one (CALG_MD2, CALG_MD4, CALG_MD5, CALG_SHA, CALG_SHA1; CALG_DES, CALG_3DES, CALG_3DES_112, CALG_DESX, CALG_RC2, CALG_RC4, CALG_RC5). When weak_hashes or weak_ciphers is set, a constant fires only for an algorithm that list names (des covers the 3DES and DESX constants). Not read: rand() and other weak random sources.",
     "crypto": {
       "enabled": true,
       "level": "advisory",
@@ -408,7 +409,7 @@
   },
 
   "code_quality": {
-    "_comment_no_secrets": "Secret scanning of the program's text, its prompts and tool results. What a MODEL writes -- an agent reply, a propose candidate, a tool call's arguments -- is scanned even with no_secrets absent; only \"no_secrets\": false turns that off, and a reload that writes it mid-run is refused.",
+    "_comment_no_secrets": "Secret scanning of the program's text, its prompts and tool results. What a MODEL writes -- an agent reply, a propose candidate, a tool call's arguments -- is scanned even with no_secrets absent; only \"no_secrets\": false turns that off, and a reload that writes it mid-run is refused. Recognised shapes: known key formats, name = \"value\" assignments, unquoted NAME=value lines, and a C macro whose name ends in a credential word and whose value is one string literal of 8 or more characters with no whitespace (#define DB_PASSWORD \"...\").",
     "no_secrets": {
       "enabled": true,
       "level": "hard",
@@ -538,6 +539,7 @@
       "patterns": [],
       "custom_patterns": []
     },
+    "_comment_no_path_traversal": "A text check with a narrow reach: it looks for a literal ../ OUTSIDE string literals (a shell block's cat ../../x). It does not read a path inside a string (open(\"../../x\")) or one built at run time, so it is not what keeps a program inside its directory: capabilities.filesystem's allowed_paths and blocked_paths are.",
     "no_path_traversal": {
       "enabled": true,
       "level": "hard",
