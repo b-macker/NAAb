@@ -39,8 +39,12 @@
 # (Windows); no arm runs there (the agent stub does not), so that layer is
 # traced, not tested.
 #
-# CC-04 (four processes, one file) passed on the unfixed build too: it is a
-# guard, not a regression arm.
+# CC-04 (four processes, one file) is the cross-process lock's arm (A165).
+# On POSIX it passed before the A164 fix too (flock took turns for the
+# processes); on build-windows, where no file lock existed, it failed 2 of 5
+# rounds on its first run. Mutant: the file lock not taken (the Windows shape
+# before A165, applied on Linux) -> CC-04, 10 of 10 rounds. The Windows lock
+# itself (LockFileEx) only build-windows runs.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"

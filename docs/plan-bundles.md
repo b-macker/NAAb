@@ -296,6 +296,7 @@ PR 1 merged as #367 (`6e2ce08b`). **PR 2 (built 2026-11-11):** `tools/govmeasure
 
 **PR 1 (the owner's decision, 2026-11-12): the chain reads true before anything heals on it.** Telemetry healing is built on `naab-gov replay`, which reported every honest `agent.batch` run DIVERGED on the chain (A164), and the verifier was the one reader of telemetry still unbounded (A163).
 - **A164, fixed:** a sealed line is written and flushed before the chain lock and the file lock are released, at every site that seals one; what the webhook receives is in the file's order.
+- **A165, found by this PR's build-windows run and fixed in it:** Windows had no cross-process lock on the evidence files; the writers now take one (`LockFileEx`). The owner has not been asked to add it to the bundle: it is the root cause of the PR's own red check, and is reported for their say.
 - **A163, fixed, both changes agreed by the owner:** `--verify-telemetry-chain` reads through the same bounds as `naab-gov replay` (1 MiB a line, 64 levels) and reports a line over them `NOT READ`, exit 1; a file whose lines cannot be read exits 1, not 0.
 - **Not in PR 1:** reviewers, patch agents and healing themselves; their scope is still to be agreed.
 
