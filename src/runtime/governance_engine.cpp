@@ -9250,8 +9250,12 @@ void GovernanceEngine::emitEndOfRunHealthWarnings(FILE* fp, const std::string& t
         // declare a total the verifier can reproduce — writing into the chain
         // without incrementing made --verify-telemetry-chain report
         // "RunEnd declares N but M observed" on files nobody had touched.
+        // Held until the line is written and flushed: the next writer seeds its
+        // prev_hash from the file's tail, so a sealed line that is not in the
+        // file yet gives two events the same predecessor (A164).
+        std::unique_lock<std::mutex> hlock(telemetry_hash_mutex_, std::defer_lock);
         if (rules().telemetry_output.tamper_evidence.enabled) {
-            std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
+            hlock.lock();
             ev["prev_hash"] = chainPrevLocked(fp);
             last_telemetry_hash_ = computeHash(ev.dump(),
                 rules().telemetry_output.tamper_evidence);
@@ -9265,6 +9269,7 @@ void GovernanceEngine::emitEndOfRunHealthWarnings(FILE* fp, const std::string& t
         } else {
             agent_events_written_.fetch_add(1, std::memory_order_relaxed);
         }
+        fflush(fp);
         forwardTelemetry(ev.dump());
     };
 
