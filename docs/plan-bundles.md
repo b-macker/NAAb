@@ -19,8 +19,8 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 16: honest tests and the engine's own child processes | merged, #362 (`977e7a40`): A123 (13 of 14 tests and the guard; one pinned for Bundle 12 PR 3), A125, A122, A99, A100 fixed; A126 recorded for the owner | Bundle 16 below |
 | 17: what Gemini's SentinelGrid report found | merged, #365 (`795b5885`), one PR, scope by the owner's decisions of 2026-11-09: A130, A131, A133-A139, A141, A142 fixed; A132, A140, A143, A144 and F-14 recorded | Bundle 17 below |
 | 13: measure what governance catches; help operators | in progress, three PRs by the owner's decision (2026-11-10). PR 1 merged, #367 (`6e2ce08b`): `naab-gov diff`. PR 2 merged, #368 (`24cf9d80`), PR 3 built (2026-11-11: the A132 measurement, the path-traversal answer, a second profile, Semgrep labels for ten languages; A149 recorded). PR 2: the scorer, its controls, the Juliet and EvalPlus pilot, and A147 fixed (refuse) | Bundle 13 below |
-| 14: replay and provenance | two PRs by the owner's decision (2026-11-11). PR 1 merged, #369: provenance for generated code; A160-A162 recorded. PR 2 built: `naab-gov replay`; A163, A164 recorded | Bundle 14 below |
-| 15 | not started; order 17, 13, 14, 15 (the owner, 2026-11-09) | |
+| 14: replay and provenance | two PRs by the owner's decision (2026-11-11). PR 1 merged, #369: provenance for generated code; A160-A162 recorded. PR 2 merged, #372 (`7f1db67e`): `naab-gov replay`; A163, A164 recorded | Bundle 14 below |
+| 15: AI on deterministic rails | started. PR 1 built (the owner's decision, 2026-11-12: A163 and A164 first, inside this bundle): the telemetry chain verifies under concurrent writers, and `--verify-telemetry-chain` is bounded and exits 1 on a file it cannot read. The feature work has no agreed scope yet | Bundle 15 below |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). A145 and A146 (node 24: the child memory budget, TypeScript's flags, and the runtime-pin message) were fixed in #366 (`97dab417`). The bundle plan itself was recorded in #351 (`86fc33c9`).
 
@@ -293,6 +293,11 @@ PR 1 merged as #367 (`6e2ce08b`). **PR 2 (built 2026-11-11):** `tools/govmeasure
   - log content is untrusted data, because it carries model text;
   - mitigations only tighten;
   - built on Bundle 14 replay.
+
+**PR 1 (the owner's decision, 2026-11-12): the chain reads true before anything heals on it.** Telemetry healing is built on `naab-gov replay`, which reported every honest `agent.batch` run DIVERGED on the chain (A164), and the verifier was the one reader of telemetry still unbounded (A163).
+- **A164, fixed:** a sealed line is written and flushed before the chain lock and the file lock are released, at every site that seals one; what the webhook receives is in the file's order.
+- **A163, fixed, both changes agreed by the owner:** `--verify-telemetry-chain` reads through the same bounds as `naab-gov replay` (1 MiB a line, 64 levels) and reports a line over them `NOT READ`, exit 1; a file whose lines cannot be read exits 1, not 0.
+- **Not in PR 1:** reviewers, patch agents and healing themselves; their scope is still to be agreed.
 
 ## Not bundled (open, the owner's call)
 

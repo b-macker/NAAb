@@ -2611,6 +2611,21 @@ else
     echo "  test_gov_replay.sh: not found, skipping"
 fi
 
+# The telemetry chain under concurrent writers (A164) and the verifier on lines
+# it will not read (A163). CC-00 is the sequential control; the batch arms were
+# red 4 of 5 runs before the fix.
+CHAIN_CONC_SCRIPT="tests/governance_v4/test_chain_concurrent.sh"
+if [ -f "$CHAIN_CONC_SCRIPT" ]; then
+    if run_shell_test "$CHAIN_CONC_SCRIPT" 2>&1; then
+        echo "  test_chain_concurrent.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_chain_concurrent.sh")
+    fi
+else
+    echo "  test_chain_concurrent.sh: not found, skipping"
+fi
+
 UNCATCHABLE_SCRIPT="tests/governance_v4/test_uncatchable.sh"
 if [ -f "$UNCATCHABLE_SCRIPT" ]; then
     if run_shell_test "$UNCATCHABLE_SCRIPT" 2>&1; then
