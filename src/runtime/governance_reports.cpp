@@ -346,6 +346,7 @@ void GovernanceEngine::emitRunEnd(FILE* fp, const std::string& timestamp) const 
     if (checkedWrite(fp, re.dump() + "\n", telemetry_write_failures_))
         agent_events_written_.fetch_add(1, std::memory_order_relaxed);
     // The forwarded stream settles a run the same way the file does (F53).
+    fflush(fp);
     forwardTelemetry(re.dump());
     chained_events_this_run_++;
     run_end_declared_ = chained_events_this_run_;
@@ -353,8 +354,11 @@ void GovernanceEngine::emitRunEnd(FILE* fp, const std::string& timestamp) const 
 
 int GovernanceEngine::verifyTelemetryChain(const std::string& filepath,
     const std::string& hmac_key) {
+    // Bounded like every reader of this file (A163): a line it will not read
+    // is reported and fails the verification, it is never skipped silently.
     TelemetryChainReport report;
-    return analyzeTelemetryChain(filepath, hmac_key, 0, 0, true, report);
+    return analyzeTelemetryChain(filepath, hmac_key,
+        evidence::kMaxTelemetryLineBytes, evidence::kMaxJsonDepth, true, report);
 }
 
 std::string GovernanceEngine::telemetryChainKeyFromEnvironment() {
@@ -402,7 +406,10 @@ int GovernanceEngine::analyzeTelemetryChain(const std::string& filepath,
         event_num++;
         if (oversized || (max_depth > 0 && !evidence::jsonNestingWithin(line, max_depth))) {
             // Not read. What the next event's prev_hash should be is unknown.
+            if (print) fprintf(stderr, "NOT READ at event %d: the line is over the "
+                "size or nesting bound\n", event_num);
             report.skipped++;
+            breaks++;
             expected_prev_hash.clear();
             continue;
         }
@@ -511,7 +518,10 @@ int GovernanceEngine::analyzeTelemetryChain(const std::string& filepath,
     if (chained_events == 0) {
         if (print) fprintf(stdout, "No chained events found in %s (%d lines read)\n",
                 filepath.c_str(), event_num);
-        return 0;
+        // A file of lines that could not be read is not a verified file (A163).
+        if (breaks > 0 && print)
+            fprintf(stderr, "Chain NOT VERIFIED: %d line(s) could not be read\n", breaks);
+        return breaks == 0 ? 0 : 1;
     }
     if (print) fprintf(stdout, "Scanned %d lines: %d chained events across %zu run(s), "
             "%lld unchained line(s)\n",
@@ -583,6 +593,7 @@ void GovernanceEngine::emitRefusalAttestation(
     // File open with flock (same RAII pattern as writeAgentTelemetry)
     auto fp_deleter = [](FILE* f) {
 #ifndef _WIN32
+        fflush(f);   // before the lock goes: the next writer reads the tail (A164)
         ::flock(fileno(f), LOCK_UN);
 #endif
         fclose(f);
@@ -661,8 +672,12 @@ void GovernanceEngine::emitRefusalAttestation(
     }
 
     // Tamper-evident hash chain (shared with writeTelemetry/writeAgentTelemetry)
+    // Held until the line is written and flushed: the next writer seeds its
+    // prev_hash from the file's tail, so a sealed line that is not in the
+    // file yet gives two events the same predecessor (A164).
+    std::unique_lock<std::mutex> hlock(telemetry_hash_mutex_, std::defer_lock);
     if (rules().telemetry_output.tamper_evidence.enabled) {
-        std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
+        hlock.lock();
         ev["prev_hash"] = chainPrevLocked(fp.get());
         last_telemetry_hash_ = computeHash(ev.dump(),
             rules().telemetry_output.tamper_evidence);
@@ -674,6 +689,7 @@ void GovernanceEngine::emitRefusalAttestation(
     if (checkedWrite(fp.get(), line, telemetry_write_failures_))
         agent_events_written_.fetch_add(1, std::memory_order_relaxed);
 
+    fflush(fp.get());
     forwardTelemetry(ev.dump());
 }
 
@@ -690,6 +706,7 @@ void GovernanceEngine::emitOutputAdmissibilityAttestation(
     // File open with flock (same RAII pattern as emitRefusalAttestation)
     auto fp_deleter = [](FILE* f) {
 #ifndef _WIN32
+        fflush(f);   // before the lock goes: the next writer reads the tail (A164)
         ::flock(fileno(f), LOCK_UN);
 #endif
         fclose(f);
@@ -745,8 +762,12 @@ void GovernanceEngine::emitOutputAdmissibilityAttestation(
     }
 
     // Tamper-evident hash chain
+    // Held until the line is written and flushed: the next writer seeds its
+    // prev_hash from the file's tail, so a sealed line that is not in the
+    // file yet gives two events the same predecessor (A164).
+    std::unique_lock<std::mutex> hlock(telemetry_hash_mutex_, std::defer_lock);
     if (rules().telemetry_output.tamper_evidence.enabled) {
-        std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
+        hlock.lock();
         ev["prev_hash"] = chainPrevLocked(fp.get());
         last_telemetry_hash_ = computeHash(ev.dump(),
             rules().telemetry_output.tamper_evidence);
@@ -758,6 +779,7 @@ void GovernanceEngine::emitOutputAdmissibilityAttestation(
     if (checkedWrite(fp.get(), line, telemetry_write_failures_))
         agent_events_written_.fetch_add(1, std::memory_order_relaxed);
 
+    fflush(fp.get());
     forwardTelemetry(ev.dump());
 }
 
@@ -1553,6 +1575,7 @@ void GovernanceEngine::writeTelemetry() const {
     // RAII wrapper ensures fclose+unlock even if json serialization throws.
     auto fp_deleter = [](FILE* f) {
 #ifndef _WIN32
+        fflush(f);   // before the lock goes: the next writer reads the tail (A164)
         ::flock(fileno(f), LOCK_UN);
 #endif
         fclose(f);
@@ -1669,8 +1692,12 @@ void GovernanceEngine::writeTelemetry() const {
             for (const auto& o : r.owasp_ids) ev["owasp"].push_back(o);
         }
         // Tamper-evident hash chain for telemetry entries
+        // Held until the line is written and flushed: the next writer seeds its
+        // prev_hash from the file's tail, so a sealed line that is not in the
+        // file yet gives two events the same predecessor (A164).
+        std::unique_lock<std::mutex> hlock(telemetry_hash_mutex_, std::defer_lock);
         if (rules().telemetry_output.tamper_evidence.enabled) {
-            std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
+            hlock.lock();
             ev["prev_hash"] = chainPrevLocked(fp.get());
             last_telemetry_hash_ = computeHash(ev.dump(),
                 rules().telemetry_output.tamper_evidence);
@@ -1682,6 +1709,7 @@ void GovernanceEngine::writeTelemetry() const {
         if (checkedWrite(fp.get(), line, telemetry_write_failures_))
             events_written++;
 
+        fflush(fp.get());
         forwardTelemetry(ev.dump());
     }
 
@@ -1699,8 +1727,12 @@ void GovernanceEngine::writeTelemetry() const {
         // dedup guard above. Reported so "deduplicated" cannot be read as
         // "everything repeated was collapsed".
         summary["runtime_exempt"] = runtime_exempt_count;
+        // Held until the line is written and flushed: the next writer seeds its
+        // prev_hash from the file's tail, so a sealed line that is not in the
+        // file yet gives two events the same predecessor (A164).
+        std::unique_lock<std::mutex> hlock(telemetry_hash_mutex_, std::defer_lock);
         if (rules().telemetry_output.tamper_evidence.enabled) {
-            std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
+            hlock.lock();
             summary["prev_hash"] = chainPrevLocked(fp.get());
             last_telemetry_hash_ = computeHash(summary.dump(),
                 rules().telemetry_output.tamper_evidence);
@@ -1710,6 +1742,7 @@ void GovernanceEngine::writeTelemetry() const {
         std::string sline = summary.dump() + "\n";
         if (checkedWrite(fp.get(), sline, telemetry_write_failures_))
             events_written++;
+        fflush(fp.get());
         forwardTelemetry(summary.dump());
     }
 
@@ -1739,8 +1772,12 @@ void GovernanceEngine::writeTelemetry() const {
             breakdown[rule] = total;
         }
         snap["score_breakdown"] = breakdown;
+        // Held until the line is written and flushed: the next writer seeds its
+        // prev_hash from the file's tail, so a sealed line that is not in the
+        // file yet gives two events the same predecessor (A164).
+        std::unique_lock<std::mutex> hlock(telemetry_hash_mutex_, std::defer_lock);
         if (rules().telemetry_output.tamper_evidence.enabled) {
-            std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
+            hlock.lock();
             snap["prev_hash"] = chainPrevLocked(fp.get());
             last_telemetry_hash_ = computeHash(snap.dump(),
                 rules().telemetry_output.tamper_evidence);
@@ -1750,6 +1787,7 @@ void GovernanceEngine::writeTelemetry() const {
         std::string sline = snap.dump() + "\n";
         if (checkedWrite(fp.get(), sline, telemetry_write_failures_))
             events_written++;
+        fflush(fp.get());
         forwardTelemetry(snap.dump());
     }
 
@@ -1793,6 +1831,7 @@ void GovernanceEngine::writeAgentTelemetry(
 
     auto fp_deleter = [](FILE* f) {
 #ifndef _WIN32
+        fflush(f);   // before the lock goes: the next writer reads the tail (A164)
         ::flock(fileno(f), LOCK_UN);
 #endif
         fclose(f);
@@ -1837,8 +1876,12 @@ void GovernanceEngine::writeAgentTelemetry(
     }
 
     // Tamper-evident hash chain
+    // Held until the line is written and flushed: the next writer seeds its
+    // prev_hash from the file's tail, so a sealed line that is not in the
+    // file yet gives two events the same predecessor (A164).
+    std::unique_lock<std::mutex> hlock(telemetry_hash_mutex_, std::defer_lock);
     if (rules().telemetry_output.tamper_evidence.enabled) {
-        std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
+        hlock.lock();
         ev["prev_hash"] = chainPrevLocked(fp.get());
         last_telemetry_hash_ = computeHash(ev.dump(),
             rules().telemetry_output.tamper_evidence);
@@ -1850,6 +1893,7 @@ void GovernanceEngine::writeAgentTelemetry(
     if (checkedWrite(fp.get(), line, telemetry_write_failures_))
         agent_events_written_.fetch_add(1, std::memory_order_relaxed);
 
+    fflush(fp.get());
     forwardTelemetry(ev.dump());
 }
 
@@ -1887,6 +1931,7 @@ void GovernanceEngine::writeAgentTranscript(const std::string& json_line) {
 
     auto fp_deleter = [](FILE* f) {
 #ifndef _WIN32
+        fflush(f);   // before the lock goes: the next writer reads the tail (A164)
         ::flock(fileno(f), LOCK_UN);
 #endif
         fclose(f);
