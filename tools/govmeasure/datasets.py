@@ -5,6 +5,10 @@
     datasets.py verify DIR [NAME...]    check what is already there
     datasets.py list
 
+An entry with "git" and "commit" instead of "url" is a repository: that one
+commit is fetched (depth 1) into DIR/NAME/ and kept only when the checkout's
+HEAD is exactly the pinned commit.
+
 Nothing is committed: a dataset is downloaded at run time from the URL in
 datasets.json and kept only when its hash matches the pin; a mismatch deletes
 the file and fails (exit 1), so a changed upstream file is never measured as
@@ -33,7 +37,43 @@ def load():
 
 
 def filename(name, entry):
+    if "git" in entry:
+        return name
     return name + os.path.splitext(entry["url"])[1].replace(".gz", ".jsonl.gz")
+
+
+def git_head(directory):
+    try:
+        p = subprocess.run(["git", "-C", directory, "rev-parse", "HEAD"], stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL)
+    except OSError:
+        return ""
+    return p.stdout.decode("ascii", "replace").strip() if p.returncode == 0 else ""
+
+
+def fetch_git(name, entry, dest):
+    """"pass", "fail" (a checkout that is not the pinned commit: removed) or
+    "unmeasurable" (it could not be fetched)."""
+    import shutil
+    if git_head(dest) != entry["commit"]:
+        shutil.rmtree(dest, ignore_errors=True)
+        os.makedirs(dest)
+        steps = [["git", "-C", dest, "init", "-q"],
+                 ["git", "-C", dest, "remote", "add", "origin", entry["git"]],
+                 ["git", "-C", dest, "fetch", "-q", "--depth", "1", "origin", entry["commit"]],
+                 ["git", "-C", dest, "checkout", "-q", "FETCH_HEAD"]]
+        for step in steps:
+            try:
+                rc = subprocess.call(step, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=900)
+            except (OSError, subprocess.TimeoutExpired):
+                rc = 1
+            if rc != 0:
+                shutil.rmtree(dest, ignore_errors=True)
+                return "unmeasurable"
+    if git_head(dest) != entry["commit"]:
+        shutil.rmtree(dest, ignore_errors=True)
+        return "fail"
+    return "pass"
 
 
 def sha256(path):
@@ -72,6 +112,20 @@ def main(argv):
     for name in names:
         entry = sets[name]
         dest = os.path.join(directory, filename(name, entry))
+        if "git" in entry:
+            if argv[0] == "fetch":
+                got = fetch_git(name, entry, dest)
+            else:
+                got = "pass" if git_head(dest) == entry["commit"] else "unmeasurable"
+            if got == "pass":
+                out("PASS %s: %s" % (name, dest))
+            elif got == "fail":
+                out("FAIL %s: the checkout is not the pinned commit %s -- removed" % (name, entry["commit"]))
+                failed = True
+            else:
+                out("UNMEASURABLE %s: could not fetch commit %s" % (name, entry["commit"]))
+                worst = max(worst, 2)
+            continue
         if argv[0] == "fetch" and not (os.path.exists(dest) and sha256(dest) == entry["sha256"]):
             rc = subprocess.call(["curl", "-sS", "-L", "--fail", "--max-time", "1800",
                                   "-o", dest + ".part", entry["url"]])

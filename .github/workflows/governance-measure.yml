@@ -7,6 +7,16 @@ name: Governance measurement (nightly, report only)
 # never on a rate. Not on pull requests: the datasets are large, downloaded
 # at run time and never committed, and labelling runs model-written code,
 # which belongs on a throwaway runner.
+#
+# LICENCE: the Semgrep rules repository (fetched below, pinned to a commit) is
+# under the Semgrep Rules License v1.0 -- internal use only, no
+# redistribution. Its checkout and the cases built from it stay under
+# $RUNNER_TEMP. Nothing from them may be written under measure/, which is
+# uploaded: reports there carry counts and NAAb's own rule names only -- no
+# Semgrep rule id, file path or code. The job log is a second channel: the
+# tools print counts only (semgrep_tests.py SG-08), case ids are opaque, and
+# no step may cat, head or echo anything under $RUNNER_TEMP/datasets/semgrep-rules
+# or the semgrep*.jsonl files.
 
 on:
   schedule:
@@ -42,15 +52,15 @@ jobs:
             pkg-config
           pip3 install pybind11
 
-      - name: Build naab-gov
+      - name: Build naab-gov and naab-lang
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
-          ninja -C build naab-gov -j$(nproc)
+          ninja -C build naab-gov naab-lang -j$(nproc)
 
       - name: Instrument self-tests
         run: bash tests/self-audit/test_govmeasure.sh
 
-      - name: Fetch the datasets (pinned by SHA-256)
+      - name: Fetch the datasets (pinned by SHA-256, or by commit)
         run: python3 tools/govmeasure/datasets.py fetch "$RUNNER_TEMP/datasets"
 
       - name: Build the cases
@@ -63,6 +73,19 @@ jobs:
           python3 tools/govmeasure/evalplus.py cases --tests "$D/humanevalplus-0.1.10.jsonl.gz" \
             --samples "$D"/evalplus-samples-*.zip --out "$RUNNER_TEMP/evalplus.jsonl" \
             --labels measure/evalplus-labels.tsv --jobs "$(nproc)" | tee measure/evalplus-cases.txt
+          # Counts per language only; the cases file stays in RUNNER_TEMP (licence, above).
+          python3 tools/govmeasure/semgrep_tests.py cases --repo "$D/semgrep-rules" \
+            --out "$RUNNER_TEMP/semgrep.jsonl" | grep -v '^wrote ' | tee measure/semgrep-cases.txt
+          # The second profile: the config a new project starts with.
+          mkdir -p "$RUNNER_TEMP/init" && (cd "$RUNNER_TEMP/init" && "$GITHUB_WORKSPACE/build/naab-lang" init >/dev/null)
+          test -s "$RUNNER_TEMP/init/govern.json"
+          python3 - "$RUNNER_TEMP/semgrep.jsonl" "$RUNNER_TEMP/semgrep-pysh.jsonl" <<'PYEOF'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as src, open(sys.argv[2], "w", encoding="utf-8", newline="\n") as dst:
+              for line in src:
+                  if json.loads(line)["language"] in ("python", "shell"):
+                      dst.write(line)
+          PYEOF
 
       - name: Score (exit 2 = UNMEASURABLE; a rate never fails the job)
         run: |
@@ -72,7 +95,40 @@ jobs:
           python3 tools/govmeasure/govmeasure.py score "$RUNNER_TEMP/evalplus.jsonl" \
             --jobs "$(nproc)" --title "EvalPlus solutions at $GITHUB_SHA" \
             --json measure/evalplus.json --md measure/evalplus.md
-          cat measure/juliet.md measure/evalplus.md >> "$GITHUB_STEP_SUMMARY"
+          python3 tools/govmeasure/govmeasure.py score "$RUNNER_TEMP/semgrep.jsonl" --group source \
+            --jobs "$(nproc)" --title "Semgrep test files by language at $GITHUB_SHA" \
+            --json measure/semgrep-by-language.json --md measure/semgrep-by-language.md
+          python3 tools/govmeasure/govmeasure.py score "$RUNNER_TEMP/semgrep.jsonl" --group category \
+            --jobs "$(nproc)" --title "Semgrep test files by CWE at $GITHUB_SHA" \
+            --json measure/semgrep-by-cwe.json --md measure/semgrep-by-cwe.md
+          # The init profile has hard-level checks (a hard block ends the scan)
+          # and allows only Python and shell: any-rule totals, those languages.
+          I="$RUNNER_TEMP/init/govern.json"
+          python3 tools/govmeasure/govmeasure.py score "$RUNNER_TEMP/evalplus.jsonl" --config "$I" --any-rule-only \
+            --jobs "$(nproc)" --title "EvalPlus solutions, init profile, at $GITHUB_SHA" \
+            --json measure/evalplus-init.json --md measure/evalplus-init.md
+          python3 tools/govmeasure/govmeasure.py score "$RUNNER_TEMP/semgrep-pysh.jsonl" --config "$I" --any-rule-only \
+            --group source --jobs "$(nproc)" --title "Semgrep Python and shell, init profile, at $GITHUB_SHA" \
+            --json measure/semgrep-init.json --md measure/semgrep-init.md
+          python3 tools/govmeasure/naab_lint.py measure --jobs "$(nproc)" \
+            --title "The lint-only checks on NAAb text at $GITHUB_SHA" \
+            --json measure/naab-lint.json --md measure/naab-lint.md
+          cat measure/juliet.md measure/evalplus.md measure/semgrep-by-language.md measure/naab-lint.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Nothing from the Semgrep checkout is in the upload
+        run: |
+          # The cases carry Semgrep's code under a "code" key; no file under
+          # measure/ may hold one, and none may be a cases file.
+          if grep -rlE '"code"[[:space:]]*:' measure/ ; then
+            echo "a file under measure/ holds case code: refusing to upload" >&2
+            exit 1
+          fi
+          ! ls measure/ | grep -E 'semgrep.*\.jsonl$'
+          # No Semgrep file path either (a case id used to be one).
+          if grep -rlE '(lang|contrib)/security/|\.fixed\.' measure/ ; then
+            echo "a file under measure/ names a path in the Semgrep checkout: refusing to upload" >&2
+            exit 1
+          fi
 
       - name: Upload the report
         if: always()

@@ -72,9 +72,103 @@ The label says a solution is WRONG. That is wider than what the gaming checks lo
 
 Pass rates by model, as this labeller judged them (163 tasks): gpt-4 81.6%, chatgpt 65.6%, starcoder 29.4%, codegen-16b 27.6%, down to stablelm-7b 2.5%. **Not checked against EvalPlus's own published figures in this session** (they are for 164 tasks and an earlier input set); a labeller that disagreed with them by more than a few points would be the observation that shows these labels wrong. What was checked: nine planted solutions with known verdicts (`evalplus.py selftest`), the two per-task controls, and two labelled solutions read by hand.
 
+## PR 3: the NAAb-text checks, the path-traversal zero, a second profile, and Python/JavaScript/shell labels
+
+Observed 2026-11-11 on `24cf9d80` plus this PR's tools; no check was changed. Everything here goes through `naab-gov check` or `naab-gov lint`, which read text.
+
+### The 15 checks lint applies to NAAb code and a run does not (A132)
+
+`tools/govmeasure/naab_lint.py measure` lints every tracked `.naab` file twice: whole, and with each polyglot block's body emptied (the header and closing lines kept), so what still fires is firing on NAAb text -- the part a run does not check. Of 1,283 files, 1,252 were measured (30 do not parse; one more does not parse once its block bodies are emptied); 422 hold polyglot blocks. The labels are the repository's own: these are programs the project wrote and runs, so a flag on NAAb text is a false alarm unless a hand-read says otherwise. Flagged by at least one of the 15: 387 files whole, 344 on NAAb text alone (27% of the measured files).
+
+| check | files flagged, whole | files flagged, NAAb text only | what the NAAb-text flags are (hand-read) |
+|---|---|---|---|
+| `no_mock_data` | 256 | 250 | 241 of 250 are an identifier starting `test_` (a test's own function); 7 `mock`/`fake`/`dummy`; 2 `foo`/`bar` |
+| `no_simulation_markers` | 46 | 36 | prose in strings and comments ("simulate", "pretend") in tests that are about those words |
+| `no_apologetic_language` | 29 | 29 | the pattern `oops` has no word boundary: 57 occurrences inside another word (`Loops`, `loops`) against 4 as a word; 25 of the 29 files have it only inside a word |
+| `no_dead_code` | 26 | 22 | prose comments that start `// Return the ...` |
+| `no_hardcoded_results` | 26 | 22 | test functions that return a literal on purpose |
+| `code_injection` | 39 | 19 | prose: `eval(` inside a prompt string, "Function (" in a comment, a string ending in `for " +`, a variable named `py_rt.exec(` |
+| `no_temporary_code` | 16 | 13 | comments |
+| `no_hardcoded_urls` | 20 | 12 | example URLs in tests of the http module |
+| `no_debug_artifacts` | 11 | 11 | `print` of a debug-looking label |
+| `no_path_traversal` | 13 | 11 | `"../` inside a NAAb string literal (lint does not strip NAAb strings) |
+| `no_hardcoded_ips` | 11 | 11 | addresses in SSRF tests |
+| `no_sql_injection` | 6 | 4 | `"SELECT ... " + id` in NAAb (also counted under `code_injection`) |
+| `no_unsafe_deserialization` | 1 | 0 | |
+| `shell_injection` | 2 | 0 | |
+| `banned_functions` | 0 | 0 | not a result: the measurement config holds no list for NAAb. With one, lint flags a listed call in NAAb text (probed), so its false alarms are whatever the operator lists |
+
+What this says for the A132 decision, screened by the hand-read of the samples and not by a label: on NAAb text the three largest are pattern matches on names and prose (`test_`, `oops` inside `Loops`, a comment starting "Return"), and none of the hand-read flags was a defect in the program. The repository is mostly tests, which is where `test_` identifiers and deliberate literals live, so a product codebase would show fewer `no_mock_data` flags; the `oops` and comment-prose flags do not depend on that. The opposite direction is unmeasured: there are no labelled BAD NAAb programs, so this shows what these checks would refuse wrongly at run time and nothing about what they would catch.
+
+One of these is a defect a run already has (A149): `code_quality.no_apologetic_language` refuses a Python block whose only comment is `# Loops over the items` (SOFT, verified beside a control that says "Iterate"), because the same pattern list is applied to polyglot blocks.
+
+### The path-traversal zero
+
+Settled: it is the check's reach, not the config. `no_path_traversal` reads the block with string literals removed and looks for a literal `../` (or its URL-encoded form). It fires on a shell block's bare `cat ../../etc/hostname` and on a comment holding the sequence; it does not fire on `open("../../etc/hostname")`, where the sequence is inside a string. None of Juliet's 5,600 path-traversal cases holds a literal `../` or `..\` at all (counted): the tainted path arrives from a socket, a file or the environment. A planted shell block is now one of the controls, so the rule is shown firing in every run.
+
+### A second profile: the config `naab-lang init` writes
+
+A bare `{"mode": "enforce"}` flags nothing in `naab-gov check`, so the second profile is what a new project starts with (`naab-lang init`, the standard preset). Two things about it had to be found before any number could be read:
+
+- **It allows only Python and shell.** Every Juliet case is C or C++, so each is refused as a language and nothing else is judged: Juliet under this profile is UNMEASURABLE, by the profile's design.
+- **It sets checks to `hard`, and a hard block ends the scan.** The checks after the first hard finding never run, so a per-rule count says which check comes first, not which checks see the code. `eval(` is reported by `dangerous_calls` and never reaches `code_injection`. The scorer has an any-rule mode for such a config (`--any-rule-only`): only the total is reported, and a control passes when any rule flags its planted block.
+
+| cases | profile | flawed/wrong flagged | sound/right flagged |
+|---|---|---|---|
+| EvalPlus, 2,608 solutions | langconform | 218/2016 (10.8%) | 11/592 (1.9%) |
+| EvalPlus, 2,608 solutions | init | 202/2016 (10.0%) | 8/592 (1.4%) |
+| Semgrep Python, 1,588 cases | langconform | 626/978 (64.0%) | 378/610 (62.0%) |
+| Semgrep Python, 1,588 cases | init | 649/978 (66.4%) | 389/610 (63.8%) |
+| Semgrep shell, 13 cases | langconform | 10/10 | 3/3 |
+| Semgrep shell, 13 cases | init | 7/10 | 2/3 |
+
+The two profiles tell the same story. The init profile flags a few more Python security cases because it switches the network off (`capabilities.network` fires on 146 flawed and 108 sound cases there).
+
+### Python, JavaScript, shell and seven more languages: Semgrep's own test files
+
+Juliet covers C and C++. For the languages most NAAb blocks are written in, the labels come from the Semgrep rules repository (pinned to commit `a5ad1714`): beside each rule sits a test file whose comments mark where the rule must fire (`ruleid:`) and where it must not (`ok:`). `tools/govmeasure/semgrep_tests.py` takes the rules under a `security` directory and makes one case per mark: the file's opening plus the stretch up to the next mark, with the marker comments removed; the category is the rule's first CWE. 4,206 cases, ten languages, 107 CWEs.
+
+**Licence.** Those files are under the Semgrep Rules License v1.0 (read 2026-11-11): internal use only, no redistribution. So they are fetched at run time, the cases file is written to a scratch directory, and neither is committed, uploaded as an artifact or quoted. By the owner's conditions (2026-11-11) the published tables and the job's log carry counts only -- no Semgrep rule id, file path or code; a case's id is an opaque hash for that reason. Whether "internal use only" covers NAAb if it is ever offered commercially is an open legal question, not settled here.
+
+Flagged by any rule, under the langconform profile (all nine controls for these languages fired):
+
+| language | flawed stretches flagged | "must not fire" stretches flagged |
+|---|---|---|
+| python | 626/978 (64%) | 378/610 (62%) |
+| javascript | 213/448 (48%) | 121/292 (41%) |
+| ruby | 192/366 (52%) | 161/300 (54%) |
+| go | 111/194 (57%) | 82/145 (57%) |
+| php | 66/230 (29%) | 49/174 (28%) |
+| csharp | 18/138 (13%) | 8/90 (9%) |
+| typescript | 12/69 (17%) | 11/72 (15%) |
+| c | 1/33 | 0/28 |
+| rust | 6/20 | 3/6 |
+| shell | 10/10 | 3/3 |
+| **all** | **1,255/2,486 (50%)** | **816/1,720 (47%)** |
+
+By weakness, every language together (any rule; then the rules the map names for it):
+
+| CWE | flawed flagged | "must not fire" flagged | mapped rules: flawed / "must not fire" |
+|---|---|---|---|
+| 89 SQL injection | 223/297 | 156/212 | 133 / 74 |
+| 79 cross-site scripting | 125/281 | 93/218 | none mapped |
+| 78 command injection | 212/224 | 117/128 | 206 / 108 |
+| 918 server-side request forgery | 44/162 | 24/76 | none mapped |
+| 22 path traversal | 16/120 | 10/95 | 0 / 0 |
+| 94 code injection | 71/114 | 53/86 | 48 / 38 |
+| 95 eval injection | 75/92 | 50/60 | 64 / 47 |
+| 327 broken cryptography | 59/76 | 44/61 | 39 / 28 |
+| 502 unsafe deserialization | 38/75 | 24/49 | 30 / 22 |
+| 798 hard-coded credentials | 49/55 | 17/25 | 11 / 3 |
+| 328 weak hash | 48/60 | 7/10 | 28 / 1 |
+
+How to read it. The text checks flag the flawed stretch and the "must not fire" stretch at nearly the same rate, in every language with enough cases to say. That is the Juliet command-injection result again, and for the same reason: `ok:` means "this rule must not fire here", usually because the argument is a constant or was sanitised, and a check that reads for the call (`os.system(`, `eval(`, `pickle.loads(`) flags the call whatever is passed to it. So this is not a count of mistakes about what the code is; it is a measurement that these checks answer "does this block use the sink", not "is this use of the sink unsafe". Three things blur it further, all in the direction of making the two columns look alike: every case carries its file's opening (the imports, which `restrictions.imports` and the URL check read), a stretch can hold more than its marked line, and 35 marks were left out (20 that Semgrep itself marks as known gaps or that label nothing, 15 whose rule names no CWE). The rows where the columns differ are the ones where the sink itself is the flaw: weak hashes (48/60 against 7/10) and hard-coded credentials. Path traversal is caught in none of the ten languages by its own rule (0 of 120), as on Juliet. Cross-site scripting and request forgery have no check that targets them; what fires there is incidental.
+
 ## The adversarial pass
 
 The claim most likely to be wrong was the row of zeros: secrets, cryptography and path traversal catching nothing on Juliet looks like a broken instrument. What would show that: the same rules firing when the idiom is sent alone. Looked: the three controls fire in the same run (so the checker and config are live for `no_secrets`, `restrictions.crypto` and `dangerous_calls`); the `#define` form, `CALG_3DES`/`CALG_MD5` and `rand()` sent alone fire nothing; the assignment form and `MD5()` fire. So the zeros are the checks' reach, for those two. For `no_path_traversal` it stays **undetermined**: nothing I planted fires it under this config, and the observation that would settle it is one block that does. Two re-tracings changed the text: the first draft said `dangerous_calls` separated the path-traversal variants on `fopen`, and the checker's own message says `socket(`; and it counted CWE-256 as a hard-coded credential, which it is not. A third reading changed nothing.
+
+**PR 3's pass.** The claim most likely to be wrong: "the checks flag flawed and sound Semgrep stretches alike" could be the adapter's doing -- if the cutting put the flawed line into its neighbours' cases, both columns would be the same code. What would show that: a case holding its neighbour's marked line. Looked: the adapter's self-test checks each case holds its own stretch and not the next (SG-04, SG-05), and the columns do separate where the sink is the flaw (CWE-328: 48/60 against 7/10), which a cutting error would flatten too. What the cutting cannot remove is the shared file opening, and that is stated above. A second: the A132 table's "NAAb text only" column depends on emptying block bodies correctly; a mutant that leaves them in turns three arms red (NL-01, NL-05, NL-06), and one file that stops parsing once emptied is counted as unparseable, not as clean. A re-tracing changed the write-up twice: the init profile's per-rule rows were first read as that profile's rule mix, until two controls failed and showed a hard block ends the scan; and Juliet under the init profile was first read as "0 flagged of 18,288", which is the language gate, not a result. The last reading changed nothing.
 
 ## The repository's own blocks
 
@@ -82,9 +176,10 @@ The claim most likely to be wrong was the row of zeros: secrets, cryptography an
 
 ## What this does not show
 
-- **One config.** Every rate is under `tools/langconform/config.json`. A project's own config can switch a check off or add banned functions; nothing here is a rate for that project.
+- **Two configs, not yours.** The rates are under `tools/langconform/config.json`, with the `naab-lang init` profile beside it for Python and shell. A project's own config can switch a check off or add banned functions; nothing here is a rate for that project.
 - **Text in, verdict out.** The cases go through `naab-gov check`, which reads a block's text. What the runtime stops (the sandbox, path policy, taint) is not measured here; `docs/protection-map.md` measures that.
-- **C and C++ only for the security labels**, and Juliet's code is synthetic and Windows-heavy. Python, JavaScript and shell, which most NAAb blocks are written in, have no security-labelled cases yet (PR 3: OWASP Benchmark is Java, PrimeVul is C/C++; neither fills that gap, which is itself a finding for the owner).
+- **The security labels are narrow in two different ways.** Juliet's (C and C++) are synthetic and Windows-heavy. Semgrep's (ten languages) say where one rule must and must not fire, on a stretch cut from a test file: `ok:` is not "safe code", and a stretch is not a program. Neither is LLM-written. OWASP Benchmark (Java) and PrimeVul (C/C++) were not built, by the owner's decision.
+- **No labelled bad NAAb programs.** The A132 table shows what the 15 checks would refuse wrongly on the repository's own programs, and nothing about what they would catch.
 - **The mapping is mine.** A rule not mapped to a category is still printed when it fires, so a wrong mapping shows (CWE-23 above), but "mapped rules caught 0" is only as good as the map.
 - **Direction of error.** A zero on the bad side can be the config's doing; the report names each mapped rule that no planted block showed firing. A low rate on the good side can hide a rule that never fires at all; the bad side and the controls are what show it does. The error checked harder was false reassurance: a run that scores a dead checker as "nothing flagged" (it is UNMEASURABLE instead: `test_govmeasure.sh` GM-05, and ST-09 for a checker that answers but never flags).
 - **Bundle 12's control-flow bar is not answered here.** It needs NAAb programs (`tools/taintflow`).
@@ -99,6 +194,13 @@ python3 tools/govmeasure/evalplus.py cases --tests $D/humanevalplus-0.1.10.jsonl
     --samples $D/evalplus-samples-*.zip --out $D/evalplus.jsonl   # RUNS model-written code, in limited children
 python3 tools/govmeasure/govmeasure.py blocks --out $D/blocks.jsonl
 python3 tools/govmeasure/govmeasure.py score $D/juliet.jsonl --md juliet.md --json juliet.json
+# PR 3
+python3 tools/govmeasure/naab_lint.py measure --md naab-lint.md              # the A132 table
+python3 tools/govmeasure/semgrep_tests.py cases --repo $D/semgrep-rules --out $D/semgrep.jsonl   # never commit or upload
+python3 tools/govmeasure/govmeasure.py score $D/semgrep.jsonl --group source --md semgrep-by-language.md
+python3 tools/govmeasure/govmeasure.py score $D/semgrep.jsonl --group category --md semgrep-by-cwe.md
+(mkdir $D/init && cd $D/init && naab-lang init)                              # the second profile
+python3 tools/govmeasure/govmeasure.py score $D/evalplus.jsonl --config $D/init/govern.json --any-rule-only
 ```
 
 Timings here (4 cores, the unoptimised default build): labelling 2,608 solutions 3 min 58 s; scoring 18,288 Juliet cases 4 min 16 s; scoring the EvalPlus cases 36 s.
