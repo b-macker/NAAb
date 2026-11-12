@@ -21,6 +21,9 @@
 # RP-09 reports), RP-12 (the config beside the telemetry is one a loader
 # refuses).
 #
+# Arm labels write "unmeasurable" in lower case: run-all-tests.sh lists every
+# output line holding the upper-case word as a skip.
+#
 # The first mutant run (34) left three alive. Two led to RP-03i/03j and RP-14c;
 # the third ("a file with nothing to check exits 0") was code no input reaches,
 # and was removed.
@@ -323,7 +326,7 @@ else fail "RP-01c" "the text report (rc=$TRC)" "$TOUT"; fi
 # --- RP-02: evidence not given is UNMEASURABLE, exit 2 ----------------------
 rp "$A"
 if [ "$RC" = 2 ] && [ "$(cnt transcript unmeasurable)" = "$REFS" ] && [ "$(cnt transcript match)" = 0 ] && [ "$(total diverged)" = 0 ]; then
-    pass "RP-02" "no transcript given: every reference UNMEASURABLE, exit 2, nothing diverged"
+    pass "RP-02" "no transcript given: every reference unmeasurable, exit 2, nothing diverged"
 else fail "RP-02" "no transcript given (rc=$RC, refs=$REFS)" "$OUT"; fi
 
 # --- RP-03: admissibility ---------------------------------------------------
@@ -379,7 +382,7 @@ PY
 edit "$A" "$W/3g" "del:OUTPUT_ADMISSIBILITY_EVAL#0:cdd_snapshot" "dropwhere:CDD_TURN:turn=$T0"
 rp "$W/3g" --transcript tr.jsonl
 if [ "$(cnt admissibility unmeasurable)" = 1 ] && [ "$(cnt admissibility diverged)" = 0 ]; then
-    pass "RP-03g" "a decision with no snapshot and no CDD_TURN is UNMEASURABLE, not MATCH"
+    pass "RP-03g" "a decision with no snapshot and no CDD_TURN is unmeasurable, not MATCH"
 else fail "RP-03g" "a decision without evidence" "$OUT"; fi
 
 # an undetermined decision's disposition follows on_undetermined
@@ -416,7 +419,7 @@ expect RP-04b "a coherence the listed penalties do not give" 1 coherence diverge
 edit "$A" "$W/4c" "delwhere:CDD_TURN:turn=$PEN_TURN:coherence_adjustments"
 rp "$W/4c" --transcript tr.jsonl
 if [ "$(cnt coherence unmeasurable)" = 1 ] && [ "$(cnt coherence diverged)" = 0 ]; then
-    pass "RP-04c" "a row that does not record its adjustments is UNMEASURABLE, not DIVERGED"
+    pass "RP-04c" "a row that does not record its adjustments is unmeasurable, not DIVERGED"
 else fail "RP-04c" "a row without coherence_adjustments" "$OUT"; fi
 
 # an adjustment is part of the sum: a healing credit nothing else accounts for
@@ -455,7 +458,7 @@ expect RP-06a "an origin no AGENT_RESPONSE recorded under that request" 1 proven
 edit "$A" "$W/6b" "drop:AGENT_RESPONSE#0"
 rp "$W/6b" --transcript tr.jsonl
 if [ "$(cnt provenance unmeasurable)" -ge 1 ] 2>/dev/null && [ "$(cnt provenance diverged)" = 0 ] && [ "$(cnt provenance match)" = 0 ]; then
-    pass "RP-06b" "the reply's AGENT_RESPONSE missing: UNMEASURABLE, not MATCH"
+    pass "RP-06b" "the reply's AGENT_RESPONSE missing: unmeasurable, not MATCH"
 else fail "RP-06b" "a missing AGENT_RESPONSE" "$OUT"; fi
 
 edit "$A" "$W/6c" "set:CODEGEN_EXEC#0:code_sha256=$ZERO"
@@ -465,13 +468,13 @@ expect RP-06c "code recorded as the whole reply under another hash" 1 provenance
 # --- RP-07: DIVERGED outranks UNMEASURABLE ----------------------------------
 rp "$W/3a"
 if [ "$RC" = 1 ] && [ "$(total unmeasurable)" -ge 1 ] && [ "$(total diverged)" -ge 1 ]; then
-    pass "RP-07" "something DIVERGED and something UNMEASURABLE: exit 1"
+    pass "RP-07" "something DIVERGED and something unmeasurable: exit 1"
 else fail "RP-07" "exit precedence (rc=$RC)" "$OUT"; fi
 
 # --- RP-08: a chain sealed with a key ---------------------------------------
 rp "$B" --transcript tr.jsonl
 if [ "$RC" = 2 ] && [ "$(cnt chain unmeasurable)" = 1 ] && [ "$(cnt chain diverged)" = 0 ] && [ "$(cnt chain match)" = 0 ]; then
-    pass "RP-08a" "a keyed chain without its key: UNMEASURABLE, exit 2"
+    pass "RP-08a" "a keyed chain without its key: unmeasurable, exit 2"
 else fail "RP-08a" "a keyed chain without its key (rc=$RC)" "$OUT"; fi
 
 OUT=$(cd "$B" && NAAB_TELEMETRY_HMAC_KEY="$SEAL" timeout 120 "$GOV" replay tel.jsonl --json --transcript tr.jsonl 2>&1 </dev/null); RC=$?
@@ -484,7 +487,7 @@ else fail "RP-08b2" "the chain verifier with the key (rc=$VRC)" "$VOUT"; fi
 
 rp "$B" --transcript tr.jsonl --hmac-key "not-$SEAL"
 if [ "$RC" = 2 ] && [ "$(cnt chain unmeasurable)" = 1 ] && [ "$(cnt chain match)" = 0 ]; then
-    pass "RP-08c" "with another key: UNMEASURABLE, exit 2"
+    pass "RP-08c" "with another key: unmeasurable, exit 2"
 else fail "RP-08c" "a wrong key (rc=$RC)" "$OUT"; fi
 
 rp "$B" --transcript tr.jsonl --hmac-key "$SEAL"
@@ -505,7 +508,7 @@ NR=$(python3 -c 'import json,sys
 try: print(json.load(sys.stdin).get("lines_not_read"))
 except ValueError: print("?")' <<<"$OUT")
 if [ "$RC" = 2 ] && [ "$NR" = 1 ] && [ "$(total diverged)" = 0 ]; then
-    pass "RP-09" "a 3 MiB line is not read: counted, UNMEASURABLE, exit 2"
+    pass "RP-09" "a 3 MiB line is not read: counted, unmeasurable, exit 2"
 else fail "RP-09" "an oversized line (rc=$RC, not read=$NR)" "$(head -c 600 <<<"$OUT")"; fi
 
 edit "$A" "$W/9c" 'raw:{"event_type":"X","pad":"aaaa"}'
@@ -540,7 +543,7 @@ with open(sys.argv[2], "wb") as out:
 PY
 rp "$W/11b" --transcript tr.jsonl
 if [ "$RC" = 2 ] && [ "$(cnt chain unmeasurable)" = 1 ] && [ "$(cnt chain match)" = 0 ]; then
-    pass "RP-11b" "telemetry with no chain: the chain is UNMEASURABLE, exit 2"
+    pass "RP-11b" "telemetry with no chain: the chain is unmeasurable, exit 2"
 else fail "RP-11b" "unsealed telemetry (rc=$RC)" "$OUT"; fi
 
 (cd "$W/11" && "$GOV" replay no-such-file.jsonl >/dev/null 2>&1); r1=$?
@@ -582,7 +585,7 @@ else fail "RP-13" "untrusted text in the report (rc=$TRC, Result lines=$NRES)" "
 edit "$A" "$W/14a" "drop:RunEnd#0"
 rp "$W/14a" --transcript tr.jsonl
 if [ "$RC" = 2 ] && [ "$(cnt chain unmeasurable)" = 1 ] && [ "$(cnt chain match)" = 0 ]; then
-    pass "RP-14a" "a run with no RunEnd: UNMEASURABLE, exit 2"
+    pass "RP-14a" "a run with no RunEnd: unmeasurable, exit 2"
 else fail "RP-14a" "a run with no RunEnd (rc=$RC)" "$OUT"; fi
 
 edit "$A" "$W/14b" "drop:PROMPT_SCAN#0"
