@@ -2596,6 +2596,21 @@ else
     echo "  test_code_provenance.sh: not found, skipping"
 fi
 
+# naab-gov replay (Bundle 14 PR 2): recorded decisions against their recorded
+# evidence. Two real stub runs make the evidence; every other arm is a copy
+# with one thing changed, never re-sealed. RP-00/01/09c/12 are the controls.
+GOV_REPLAY_SCRIPT="tests/governance_v4/test_gov_replay.sh"
+if [ -f "$GOV_REPLAY_SCRIPT" ]; then
+    if run_shell_test "$GOV_REPLAY_SCRIPT" 2>&1; then
+        echo "  test_gov_replay.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_gov_replay.sh")
+    fi
+else
+    echo "  test_gov_replay.sh: not found, skipping"
+fi
+
 UNCATCHABLE_SCRIPT="tests/governance_v4/test_uncatchable.sh"
 if [ -f "$UNCATCHABLE_SCRIPT" ]; then
     if run_shell_test "$UNCATCHABLE_SCRIPT" 2>&1; then

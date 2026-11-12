@@ -1,6 +1,7 @@
 // governance_reports.cpp — GovernanceEngine report generation, audit, plugins
 // Extracted from governance.cpp lines 5603-7484
 
+#include "naab/bounded_jsonl.h"
 #include "naab/governance.h"
 #include "naab/paths.h"
 #include "naab/telemetry_forwarder.h"
@@ -352,27 +353,37 @@ void GovernanceEngine::emitRunEnd(FILE* fp, const std::string& timestamp) const 
 
 int GovernanceEngine::verifyTelemetryChain(const std::string& filepath,
     const std::string& hmac_key) {
-    std::ifstream ifs(filepath);
+    TelemetryChainReport report;
+    return analyzeTelemetryChain(filepath, hmac_key, 0, 0, true, report);
+}
+
+std::string GovernanceEngine::telemetryChainKeyFromEnvironment() {
+    const char* env_key = std::getenv("NAAB_TELEMETRY_HMAC_KEY");
+    return env_key ? std::string(env_key) : std::string();
+}
+
+int GovernanceEngine::analyzeTelemetryChain(const std::string& filepath,
+    const std::string& hmac_key, size_t max_line_bytes, int max_depth,
+    bool print, TelemetryChainReport& report) {
+    report = TelemetryChainReport{};
+    std::ifstream ifs(filepath, std::ios::binary);
     if (!ifs.is_open()) {
-        fprintf(stderr, "Error: cannot open %s\n", filepath.c_str());
+        if (print) fprintf(stderr, "Error: cannot open %s\n", filepath.c_str());
         return 1;
     }
+    report.opened = true;
 
     // Per-run accounting: RunStart/RunEnd anchors + chained event counts.
-    struct RunInfo {
-        long long chained = 0;
-        bool has_start = false;
-        bool has_end = false;
-        long long declared = -1;   // RunEnd's chained_events field
-        int last_event_num = 0;    // file position of the run's last chained event
-    };
-    std::vector<std::pair<std::string, RunInfo>> runs;  // insertion-ordered
-    auto runFor = [&runs](const std::string& rid) -> RunInfo& {
-        for (auto& [id, info] : runs) {
-            if (id == rid) return info;
+    std::vector<int> last_event_nums;  // file position of each run's last chained event
+    auto runFor = [&report, &last_event_nums](const std::string& rid) -> size_t {
+        for (size_t i = 0; i < report.runs.size(); ++i) {
+            if (report.runs[i].run_id == rid) return i;
         }
-        runs.emplace_back(rid, RunInfo{});
-        return runs.back().second;
+        TelemetryChainRun r;
+        r.run_id = rid;
+        report.runs.push_back(r);
+        last_event_nums.push_back(0);
+        return report.runs.size() - 1;
     };
 
     std::string line;
@@ -385,33 +396,45 @@ int GovernanceEngine::verifyTelemetryChain(const std::string& filepath,
     int legacy_restarts = 0;
     int warnings = 0;
 
-    while (std::getline(ifs, line)) {
-        if (line.empty()) continue;
+    bool oversized = false;
+    while (evidence::readBoundedLine(ifs, line, max_line_bytes, oversized)) {
+        if (!oversized && line.empty()) continue;
         event_num++;
+        if (oversized || (max_depth > 0 && !evidence::jsonNestingWithin(line, max_depth))) {
+            // Not read. What the next event's prev_hash should be is unknown.
+            report.skipped++;
+            expected_prev_hash.clear();
+            continue;
+        }
         try {
             auto ev = nlohmann::json::parse(line);
-            if (!ev.contains("hash") || !ev.contains("prev_hash")) {
+            if (!ev.is_object() || !ev.contains("hash") || !ev.contains("prev_hash")) {
                 unchained_lines++;
                 continue;
             }
-            chained_events++;
             std::string stored_hash = ev["hash"].get<std::string>();
             std::string prev_hash = ev["prev_hash"].get<std::string>();
+            std::string rid = ev.contains("run_id") && ev["run_id"].is_string()
+                ? ev["run_id"].get<std::string>() : std::string();
+            chained_events++;
+            size_t run_index = runFor(rid);
             if (file_genesis.empty()) file_genesis = prev_hash;
             if (!expected_prev_hash.empty() && prev_hash != expected_prev_hash) {
                 // Pre-continuity writers restarted the chain at genesis every
                 // run. The file's first prev_hash IS its genesis value, so a
                 // mismatch that re-uses it is a legacy restart, not tampering.
                 if (prev_hash == file_genesis) {
-                    fprintf(stderr, "LEGACY RESTART at event %d: chain re-seeded "
+                    if (print) fprintf(stderr, "LEGACY RESTART at event %d: chain re-seeded "
                         "from genesis (pre-continuity writer)\n", event_num);
                     legacy_restarts++;
                     warnings++;
+                    report.runs[run_index].legacy_restarts++;
                 } else {
-                    fprintf(stderr, "BREAK at event %d: prev_hash mismatch\n"
+                    if (print) fprintf(stderr, "BREAK at event %d: prev_hash mismatch\n"
                         "  expected: %s\n  got:      %s\n", event_num,
                         expected_prev_hash.c_str(), prev_hash.c_str());
                     breaks++;
+                    report.runs[run_index].link_breaks++;
                 }
             }
             auto ev_copy = ev;
@@ -422,19 +445,20 @@ int GovernanceEngine::verifyTelemetryChain(const std::string& filepath,
             else
                 recomputed = security::CryptoUtils::sha256(ev_copy.dump());
             if (recomputed != stored_hash) {
-                fprintf(stderr, "TAMPER at event %d: hash mismatch\n"
+                if (print) fprintf(stderr, "TAMPER at event %d: hash mismatch\n"
                     "  stored:     %s\n  recomputed: %s\n", event_num,
                     stored_hash.c_str(), recomputed.c_str());
                 breaks++;
+                report.runs[run_index].hash_mismatches++;
             }
             expected_prev_hash = stored_hash;
 
             // Run accounting
-            std::string rid = ev.value("run_id", std::string());
-            RunInfo& info = runFor(rid);
+            TelemetryChainRun& info = report.runs[run_index];
             info.chained++;
-            info.last_event_num = event_num;
-            std::string etype = ev.value("event_type", std::string());
+            last_event_nums[run_index] = event_num;
+            std::string etype = ev.contains("event_type") && ev["event_type"].is_string()
+                ? ev["event_type"].get<std::string>() : std::string();
             if (etype == "RunStart") info.has_start = true;
             if (etype == "RunEnd") {
                 info.has_end = true;
@@ -443,9 +467,12 @@ int GovernanceEngine::verifyTelemetryChain(const std::string& filepath,
                     info.declared = ev["chained_events"].get<long long>();
                 }
             }
-        } catch (const nlohmann::json::parse_error&) {
-            fprintf(stderr, "CORRUPT at event %d: invalid JSON\n", event_num);
+        } catch (const nlohmann::json::exception&) {
+            // Not JSON, or a hash field that is not a string (which used to
+            // leave this function as an uncaught exception: A163).
+            if (print) fprintf(stderr, "CORRUPT at event %d: invalid JSON\n", event_num);
             breaks++;
+            report.corrupt++;
         }
     }
 
@@ -455,40 +482,47 @@ int GovernanceEngine::verifyTelemetryChain(const std::string& filepath,
     // run's missing RunEnd is indistinguishable from a crash, so it warns
     // rather than breaks.
     int last_chained_event = 0;
-    for (const auto& [rid, info] : runs) {
-        if (info.last_event_num > last_chained_event)
-            last_chained_event = info.last_event_num;
+    for (int n : last_event_nums) {
+        if (n > last_chained_event) last_chained_event = n;
     }
-    for (const auto& [rid, info] : runs) {
-        const char* rid_str = rid.empty() ? "(no run_id)" : rid.c_str();
+    for (size_t i = 0; i < report.runs.size(); ++i) {
+        TelemetryChainRun& info = report.runs[i];
+        const char* rid_str = info.run_id.empty() ? "(no run_id)" : info.run_id.c_str();
         if (info.has_end && info.declared >= 0 && info.declared != info.chained) {
-            fprintf(stderr, "BREAK in run %s: RunEnd declares %lld chained "
+            if (print) fprintf(stderr, "BREAK in run %s: RunEnd declares %lld chained "
                 "events but %lld observed\n", rid_str, info.declared, info.chained);
             breaks++;
+            info.count_mismatch = true;
         } else if (info.has_start && !info.has_end) {
-            bool is_final = (info.last_event_num == last_chained_event);
-            fprintf(stderr, "WARNING: run %s has no RunEnd (%s)\n", rid_str,
+            bool is_final = (last_event_nums[i] == last_chained_event);
+            if (print) fprintf(stderr, "WARNING: run %s has no RunEnd (%s)\n", rid_str,
                 is_final ? "final run — possibly crashed or still running"
                          : "possibly crashed; chain continuity above is authoritative");
             warnings++;
         }
     }
 
+    report.lines = event_num;
+    report.chained = chained_events;
+    report.unchained = unchained_lines;
+    report.breaks = breaks;
+    report.warnings = warnings;
+
     if (chained_events == 0) {
-        fprintf(stdout, "No chained events found in %s (%d lines read)\n",
+        if (print) fprintf(stdout, "No chained events found in %s (%d lines read)\n",
                 filepath.c_str(), event_num);
         return 0;
     }
-    fprintf(stdout, "Scanned %d lines: %d chained events across %zu run(s), "
+    if (print) fprintf(stdout, "Scanned %d lines: %d chained events across %zu run(s), "
             "%lld unchained line(s)\n",
-            event_num, chained_events, runs.size(), unchained_lines);
+            event_num, chained_events, report.runs.size(), unchained_lines);
     if (breaks == 0) {
-        fprintf(stdout, "Chain verified: %d chained events, no breaks"
+        if (print) fprintf(stdout, "Chain verified: %d chained events, no breaks"
                 " (%d warning(s), %d legacy restart(s))\n",
                 chained_events, warnings, legacy_restarts);
         return 0;
     } else {
-        fprintf(stderr, "Chain BROKEN: %d break(s) in %d chained events (%d total lines)\n",
+        if (print) fprintf(stderr, "Chain BROKEN: %d break(s) in %d chained events (%d total lines)\n",
                 breaks, chained_events, event_num);
         return 1;
     }

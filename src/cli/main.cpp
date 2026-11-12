@@ -1005,8 +1005,8 @@ int main(int argc, char** argv) {
                 hmac_key = argv[command_arg_index + 2];
                 command_arg_index += 2;
             } else {
-                const char* env_key = std::getenv("NAAB_TELEMETRY_HMAC_KEY");
-                if (env_key) hmac_key = env_key;
+                hmac_key = naab::governance::GovernanceEngine::
+                    telemetryChainKeyFromEnvironment();
             }
             return naab::governance::GovernanceEngine::verifyTelemetryChain(
                 chain_file, hmac_key);
