@@ -6334,6 +6334,36 @@ std::string GovernanceEngine::checkCryptoWeakness(const std::string& code,
         auto& ciphers = cfg.weak_ciphers.empty() ? (const std::vector<std::string>&)(std::vector<std::string>{"des", "rc4", "blowfish"}) : cfg.weak_ciphers;
         for (const auto& c : ciphers) pats.push_back("\\b" + c + "\\b");
     }
+    // The Windows CryptoAPI names an algorithm by a constant, and `\bmd5\b`
+    // does not match inside CALG_MD5 ('_' is a word character), so a block
+    // choosing its hash or cipher that way passed (A148: 0 of 126 Juliet
+    // files flagged). The named constants only. A config that lists its own
+    // algorithms gets a constant only for one it lists: its list is a choice,
+    // and a constant outside it would overrule that choice.
+    struct CryptoApiConstant { const char* suffix; const char* algorithm; const char* family; };
+    static const CryptoApiConstant kWeakHashConstants[] = {
+        {"MD2", "md2", "md2"}, {"MD4", "md4", "md4"}, {"MD5", "md5", "md5"},
+        {"SHA", "sha1", "sha1"}, {"SHA1", "sha1", "sha1"},
+    };
+    static const CryptoApiConstant kWeakCipherConstants[] = {
+        {"DES", "des", "des"}, {"3DES", "3des", "des"}, {"3DES_112", "3des", "des"},
+        {"DESX", "desx", "des"}, {"RC2", "rc2", "rc2"}, {"RC4", "rc4", "rc4"}, {"RC5", "rc5", "rc5"},
+    };
+    auto listed = [](const std::vector<std::string>& names, const CryptoApiConstant& c) {
+        if (names.empty()) return true;  // the defaults: every named constant
+        for (const auto& n : names) {
+            std::string lower = n;
+            std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+            if (lower == c.algorithm || lower == c.family) return true;
+        }
+        return false;
+    };
+    if (cfg.block_weak_hashing)
+        for (const auto& c : kWeakHashConstants)
+            if (listed(cfg.weak_hashes, c)) pats.push_back(std::string("\\bCALG_") + c.suffix + "\\b");
+    if (cfg.block_weak_encryption)
+        for (const auto& c : kWeakCipherConstants)
+            if (listed(cfg.weak_ciphers, c)) pats.push_back(std::string("\\bCALG_") + c.suffix + "\\b");
     // Weak hash/cipher patterns search stripped code (avoid false positives from strings)
     std::string found = searchPatterns(code, pats);
     // Hardcoded key pattern needs normalized code — quotes are stripped out

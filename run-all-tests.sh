@@ -2595,6 +2595,21 @@ else
     echo "  test_apology_boundary.sh: not found, skipping"
 fi
 
+# A148: no_secrets reads a credential held in a C macro, and restrictions.crypto
+# the named CryptoAPI constants. Both are tightenings, so SEC-02 and CRY-02 are
+# the not-flagged controls, and CRY-03/CRY-04 a config's own algorithm lists.
+A148_WIDENINGS_SCRIPT="tests/governance_v4/test_a148_widenings.sh"
+if [ -f "$A148_WIDENINGS_SCRIPT" ]; then
+    if run_shell_test "$A148_WIDENINGS_SCRIPT" 2>&1; then
+        echo "  test_a148_widenings.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_a148_widenings.sh")
+    fi
+else
+    echo "  test_a148_widenings.sh: not found, skipping"
+fi
+
 # Provenance for generated code (Bundle 14): an execution event carries the
 # hash of the code it ran and whether that text equals a model output of the
 # run; every expected hash is computed by the suite from the fixture and from

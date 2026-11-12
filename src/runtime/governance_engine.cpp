@@ -370,7 +370,17 @@ static const std::vector<SecretPattern> SECRET_PATTERNS = {
     // Regression: tests/security/test_secret_dotenv.sh
     {"\\b[A-Z0-9_]{0,40}(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|PRIVATE_KEY|ACCESS_KEY)[A-Z0-9_]{0,40}="
      "(?!your|xxx|changeme|example|placeholder|redacted|\\*)"
-     "[^\\s'\"()\\[\\]{}<>$,;.]{8,200}(?=[\\s'\"]|$)", "Unquoted Secret Assignment", "high"},
+     "[^\\s'\"()\\[\\]{}<>$,;.]{8,200}(?=[\\s'\"]|$)", "Unquoted Secret Assignment", "high"},    // A credential held in a C macro: `#define DB_PASSWORD "..."`. Every pattern
+    // above wants `name = value`, so a macro passed (A148: 0 of 112 Juliet
+    // files flagged). Narrow on purpose, because this table also reads model
+    // output: the macro's name must END in a credential word (PASSWORD_PROMPT
+    // and TOKEN_FILE do not), and the value must be one string literal of
+    // 8..200 characters with no whitespace (a prompt or a sentence has some).
+    // Bounded, and no lookaround, so it stays on the linear-time matcher.
+    // Regression: tests/governance_v4/test_a148_widenings.sh
+    {"#[ \\t]*define[ \\t]+[A-Z0-9_]{0,40}"
+     "(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|PRIVATE_KEY|ACCESS_KEY|SECRET_KEY|CRYPTO_KEY|ENCRYPTION_KEY|SIGNING_KEY)"
+     "[ \\t]+L?\"[^\"\\s]{8,200}\"", "Credential In A Macro", "high"},
 };
 
 static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
