@@ -612,9 +612,9 @@ int cmdReplay(const std::vector<std::string>& args) {
     for (const auto& kv : rp.totals.match) matched += kv.second;
     for (const auto& kv : rp.totals.diverged) diverged += kv.second;
     for (const auto& kv : rp.totals.unmeasurable) unmeasurable += kv.second;
-    // A file with nothing to check has not been checked.
-    const bool nothing = (matched + diverged + unmeasurable) == 0;
-    const int rc = diverged > 0 ? 1 : (unmeasurable > 0 || nothing) ? 2 : 0;
+    // A file with nothing to check is never a MATCH: chain() records a file
+    // with no chained event as UNMEASURABLE, so the counts are never all zero.
+    const int rc = diverged > 0 ? 1 : unmeasurable > 0 ? 2 : 0;
     const char* overall = rc == 1 ? "DIVERGED" : rc == 2 ? "UNMEASURABLE" : "MATCH";
 
     static const char* kChecks[] = {"chain", "admissibility", "coherence", "transcript",
@@ -676,7 +676,6 @@ int cmdReplay(const std::vector<std::string>& args) {
     if (diverged + unmeasurable > static_cast<long long>(rp.findings.size()))
         std::cout << "  ... " << (diverged + unmeasurable - rp.findings.size())
                   << " more not listed\n";
-    if (nothing) std::cout << "\n  The file holds nothing this command checks.\n";
     std::cout << "\n  " << kNotChecked << "\n\n  Result: " << overall << "\n";
     return rc;
 }

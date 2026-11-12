@@ -18,19 +18,27 @@
 # Controls: RP-00 (the runs happened and hold every kind of event the arms
 # edit), RP-01 (the untouched files MATCH on every check -- each DIVERGED arm
 # below is that same file with one edit), RP-09c (a short junk line is not what
-# RP-09 reports), RP-12c (the config beside the telemetry is one a loader
+# RP-09 reports), RP-12 (the config beside the telemetry is one a loader
 # refuses).
+#
+# The first mutant run (34) left three alive. Two led to RP-03i/03j and RP-14c;
+# the third ("a file with nothing to check exits 0") was code no input reaches,
+# and was removed.
 #
 # Mutants (each applied to the tree, the suite run, the tree restored; a
 # mutant that leaves the suite green is a missing arm):
 #   exit 0 when only UNMEASURABLE                    -> RP-02 08a 08c 09 11a 14a
-#   exit 2 when DIVERGED and UNMEASURABLE both       -> RP-07
-#   a file with nothing to check exits 0             -> RP-11a
+#   exit 2 when DIVERGED and UNMEASURABLE both       -> RP-07 13 15
 #   keyed-without-key reads DIVERGED                 -> RP-08a 08c
 #   keyed-without-key reads MATCH                    -> RP-08a 08c
 #   the key not taken from the environment           -> RP-08b
 #   --hmac-key ignored                               -> RP-08d
 #   admissibility: disposition not checked           -> RP-03a
+#   admissibility: on_undetermined not applied       -> RP-03i
+#   chain: a link break not reported                 -> RP-14c
+#   chain: a hash mismatch not reported              -> RP-08e
+#   chain: unreadable lines not reported             -> RP-15
+#   chain: lines not read not reported               -> RP-09 10
 #   admissibility: result vs threshold not checked   -> RP-03b 03c
 #   admissibility: baseline state not checked        -> RP-03f
 #   admissibility: snapshot not compared             -> RP-03d
@@ -185,6 +193,7 @@ print(sum(v.get(sys.argv[1], 0) for v in j.get("checks", {}).values()))' "$1" <<
 #   setwhere:EVENT:f=v:field=value   ... of the first EVENT whose f is v
 #   del:EVENT#k:field           remove a field
 #   drop:EVENT#k                remove the line
+#   swap:EVENT#k                exchange the line with the one after it
 #   dropwhere:EVENT:f=v         remove every EVENT line whose f is v
 #   raw:TEXT                    append TEXT as a line
 #   tr-set:k:field=value        set a field of the k-th transcript line
@@ -218,6 +227,10 @@ for op in ops:
         elif kind == "del": e.pop(arg, None); tel[i] = enc(e)
         else:
             f, _, v = arg.partition("="); e[f] = v; tel[i] = enc(e)
+    elif kind == "swap":
+        ev, _, k = rest.partition("#")
+        i, e = index(ev, lambda e, n: n == int(k or 0))
+        tel[i], tel[i + 1] = tel[i + 1], tel[i]
     elif kind == "setwhere":
         ev, cond, arg = rest.split(":", 2)
         cf, _, cv = cond.partition("=")
@@ -368,6 +381,14 @@ rp "$W/3g" --transcript tr.jsonl
 if [ "$(cnt admissibility unmeasurable)" = 1 ] && [ "$(cnt admissibility diverged)" = 0 ]; then
     pass "RP-03g" "a decision with no snapshot and no CDD_TURN is UNMEASURABLE, not MATCH"
 else fail "RP-03g" "a decision without evidence" "$OUT"; fi
+
+# an undetermined decision's disposition follows on_undetermined
+edit "$A" "$W/3i" "set:OUTPUT_ADMISSIBILITY_EVAL#0:on_undetermined=quarantine"
+rp "$W/3i" --transcript tr.jsonl
+expect RP-03i "undetermined under a quarantine policy, recorded as admitted" 1 admissibility diverged eq 1
+edit "$A" "$W/3j" "set:OUTPUT_ADMISSIBILITY_EVAL#0:on_undetermined=block" "set:OUTPUT_ADMISSIBILITY_EVAL#0:disposition=quarantined"
+rp "$W/3j" --transcript tr.jsonl
+expect RP-03j "undetermined under a block policy, recorded as quarantined" 1 admissibility diverged eq 1
 
 rp "$B" --transcript tr.jsonl --hmac-key "$SEAL"
 PASSES=$(sed -n 's/.* oa_pass=\([0-9]*\).*/\1/p' <<<" $KB ")
@@ -567,6 +588,12 @@ else fail "RP-14a" "a run with no RunEnd (rc=$RC)" "$OUT"; fi
 edit "$A" "$W/14b" "drop:PROMPT_SCAN#0"
 rp "$W/14b" --transcript tr.jsonl
 expect RP-14b "an event removed from the middle of the chain" 1 chain diverged eq 1
+
+# two events exchanged: every hash still verifies and the count is right, so
+# only the links can notice
+edit "$A" "$W/14c" "swap:PROMPT_SCAN#0"
+rp "$W/14c" --transcript tr.jsonl
+expect RP-14c "two events exchanged in place" 1 chain diverged eq 1
 
 # --- RP-15: a hash field of the wrong type (A163) ----------------------------
 mkdir -p "$W/15"
