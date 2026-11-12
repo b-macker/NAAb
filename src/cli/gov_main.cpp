@@ -28,6 +28,7 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <functional>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -269,28 +270,56 @@ static int cmdLint(const std::vector<std::string>& args) {
         if (!result.empty()) errors.push_back(result);
     };
 
+    // A132: the checks below marked lintOnly are applied here to the whole
+    // file, and by a run inside polyglot blocks only -- kept that way by the
+    // owner's decision (2026-11-11), because on NAAb text they flag names and
+    // prose. So a finding of one of them is named in a note after the
+    // summary: a run that passes is not lint-clean for these. The note
+    // changes no verdict and no exit code. A finding is taken from the
+    // results the call itself recorded, including when it throws at HARD.
+    std::vector<std::string> lint_only_found;
+    auto lintOnly = [&](const std::function<std::string()>& check) {
+        size_t before = engine.getCheckResults().size();
+        auto collect = [&]() {
+            auto results = engine.getCheckResults();
+            for (size_t i = before; i < results.size(); ++i) {
+                if (results[i].passed) continue;
+                const std::string& rule = results[i].rule_name;
+                if (std::find(lint_only_found.begin(), lint_only_found.end(), rule) == lint_only_found.end())
+                    lint_only_found.push_back(rule);
+            }
+        };
+        try {
+            runCheck(check());
+        } catch (...) {
+            collect();
+            throw;
+        }
+        collect();
+    };
+
     // A HARD finding throws GovernanceHardError. It is caught here rather than
     // in main() so the SARIF/JUnit reports below are still written: CI lints
     // module files and uploads those reports, and a report that goes missing
     // exactly when a file is blocked drops the finding it was written for.
     try {
-        runCheck(engine.checkBannedFunctions("naab", source));
+        lintOnly([&] { return engine.checkBannedFunctions("naab", source); });
         runCheck(engine.checkPlaceholders(source));
         runCheck(engine.checkSecrets(source));
-        runCheck(engine.checkTemporaryCode(source));
-        runCheck(engine.checkSimulationMarkers(source));
-        runCheck(engine.checkMockData(source));
-        runCheck(engine.checkApologeticLanguage(source));
-        runCheck(engine.checkDeadCode(source));
-        runCheck(engine.checkDebugArtifacts("naab", source));
-        runCheck(engine.checkUnsafeDeserialization(source));
-        runCheck(engine.checkSqlInjection(source));
-        runCheck(engine.checkPathTraversal(source));
-        runCheck(engine.checkShellInjection(source));
-        runCheck(engine.checkCodeInjection("naab", source, source));
-        runCheck(engine.checkHardcodedUrls(source));
-        runCheck(engine.checkHardcodedIps(source));
-        runCheck(engine.checkHardcodedResults(source));
+        lintOnly([&] { return engine.checkTemporaryCode(source); });
+        lintOnly([&] { return engine.checkSimulationMarkers(source); });
+        lintOnly([&] { return engine.checkMockData(source); });
+        lintOnly([&] { return engine.checkApologeticLanguage(source); });
+        lintOnly([&] { return engine.checkDeadCode(source); });
+        lintOnly([&] { return engine.checkDebugArtifacts("naab", source); });
+        lintOnly([&] { return engine.checkUnsafeDeserialization(source); });
+        lintOnly([&] { return engine.checkSqlInjection(source); });
+        lintOnly([&] { return engine.checkPathTraversal(source); });
+        lintOnly([&] { return engine.checkShellInjection(source); });
+        lintOnly([&] { return engine.checkCodeInjection("naab", source, source); });
+        lintOnly([&] { return engine.checkHardcodedUrls(source); });
+        lintOnly([&] { return engine.checkHardcodedIps(source); });
+        lintOnly([&] { return engine.checkHardcodedResults(source); });
         runCheck(engine.checkCustomRules("naab", source));
 
         // What a run checks before it executes anything, and lint used to skip:
@@ -343,6 +372,14 @@ static int cmdLint(const std::vector<std::string>& args) {
     std::string summary = engine.formatSummary();
     if (!summary.empty()) {
         std::cerr << summary << "\n";
+    }
+
+    if (!lint_only_found.empty()) {
+        std::cerr << "naab-gov lint: note: " << lint_only_found.size()
+                  << (lint_only_found.size() == 1 ? " rule above is" : " rules above are")
+                  << " not enforced when the program runs, except inside its polyglot blocks:\n";
+        for (const auto& rule : lint_only_found) std::cerr << "  " << rule << "\n";
+        std::cerr << "  A run that passes is not lint-clean for these.\n";
     }
 
     // Write SARIF if requested

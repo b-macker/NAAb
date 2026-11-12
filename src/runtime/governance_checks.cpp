@@ -1349,12 +1349,16 @@ std::string GovernanceEngine::checkApologeticLanguage(const std::string& code, i
     if (!cfg.enabled) return "";
     clearTrace();
 
+    // A149: every pattern starts and ends at a word boundary. Without one,
+    // "oops" matched inside "Loops" and the leading "I" inside "API" / "UI",
+    // so a comment like "# Loops over the items" refused a block. "whoops" is
+    // its own word and stays flagged.
     static const std::vector<std::string> default_apology_patterns = {
-        "[Ii]'?m\\s+(?:very\\s+)?sorry", "[Ii]\\s+apologize", "[Mm]y\\s+apologies",
-        "[Oo]ops!?", "[Yy]ikes!?", "[Uu]h\\s+oh!?",
-        "[Ii]'?ll\\s+fix\\s+(?:it|this)\\s+(?:immediately|right\\s+away)",
-        "[Ii]\\s+didn'?t\\s+(?:check|verify|test)",
-        "[Ii]\\s+should\\s+have\\s+(?:checked|verified|tested)",
+        "\\b[Ii]'?m\\s+(?:very\\s+)?sorry\\b", "\\b[Ii]\\s+apologize\\b", "\\b[Mm]y\\s+apologies\\b",
+        "\\b(?:[Ww]h)?[Oo]ops\\b!?", "\\b[Yy]ikes\\b!?", "\\b[Uu]h\\s+oh\\b!?",
+        "\\b[Ii]'?ll\\s+fix\\s+(?:it|this)\\s+(?:immediately|right\\s+away)\\b",
+        "\\b[Ii]\\s+didn'?t\\s+(?:check|verify|test)",
+        "\\b[Ii]\\s+should\\s+have\\s+(?:checked|verified|tested)\\b",
     };
 
     std::string found = searchPatterns(code, default_apology_patterns);
