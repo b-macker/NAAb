@@ -92,6 +92,9 @@ static void printHelp() {
         "                                         findings, then a model's explanation of\n"
         "                                         them (the model decides nothing;\n"
         "                                         --telemetry FILE, --no-model, --json)\n"
+        "  naab-gov patch-check <base> <patched>  Gate a patch an agent wrote: refuses a\n"
+        "                                         change to a governance file or to an\n"
+        "                                         existing test (--run-contracts, --json)\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
         "\n"
@@ -737,6 +740,8 @@ int cmdTaint(const std::vector<std::string>& args);
 int cmdReplay(const std::vector<std::string>& args);
 // gov_explain.cpp: deterministic findings, then a model's explanation of them.
 int cmdExplain(const std::vector<std::string>& args, const char* argv0);
+// gov_patch_check.cpp: the deterministic gate for a patch an agent wrote.
+int cmdPatchCheck(const std::vector<std::string>& args, const char* argv0);
 // gov_diff.cpp (Bundle 13)
 int cmdDiff(const std::vector<std::string>& args);
 // gov_manifest.cpp (Bundle 11 PR 2)
@@ -956,6 +961,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "explain") {
             return cmdExplain(rest, argv[0]);
+        }
+
+        if (cmd == "patch-check") {
+            return cmdPatchCheck(rest, argv[0]);
         }
     } catch (const naab::governance::GovernanceHardError& e) {
         std::cerr << e.what() << "\n";

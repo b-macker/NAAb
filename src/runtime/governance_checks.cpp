@@ -7606,7 +7606,7 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "restrictions", "code_quality", "custom_rules", "scopes",
         "output", "audit", "meta", "hooks", "polyglot", "polyglot_optimization",
         "contracts", "manifest", "baselines", "project_context", "guidance", "scanner",
-        "governance_plugins", "governance",
+        "governance_plugins", "governance", "patch_check",
         "taint_tracking", "quality_gate", "governance_baseline",
         "environments", "runtime_versions", "agent_roles", "agents", "telemetry", "scoring",
         "runtime", "security", "api", "integrity", "project_name", "scorers",

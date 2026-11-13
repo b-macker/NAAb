@@ -2471,6 +2471,17 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         }
     }
 
+    // naab-gov patch-check's two lists (read by that command only).
+    if (j.contains("patch_check") && j["patch_check"].is_object()) {
+        const auto& pc = j["patch_check"];
+        if (pc.contains("test_paths") && pc["test_paths"].is_array())
+            for (const auto& v : pc["test_paths"])
+                if (v.is_string()) rules_.patch_check.test_paths.push_back(v.get<std::string>());
+        if (pc.contains("protected_paths") && pc["protected_paths"].is_array())
+            for (const auto& v : pc["protected_paths"])
+                if (v.is_string()) rules_.patch_check.protected_paths.push_back(v.get<std::string>());
+    }
+
     // Governance plugins (NAAb-based custom checks)
     if (j.contains("governance_plugins") && j["governance_plugins"].is_array()) {
         for (auto& gp : j["governance_plugins"]) {

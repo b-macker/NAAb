@@ -1822,6 +1822,12 @@
   "_comment_governance_plugins_entry": "Entry shape: {\"file\": \"checks.naab\" (required; an entry without it is skipped), \"rules\": [{\"id\", \"function\" (required), \"trigger\" (required), \"description\", \"level\", \"languages\": [], \"message\", \"help\", \"good_example\", \"bad_example\", \"enabled\": true}]}. A rule missing function or trigger is skipped with a warning.",
   "governance_plugins": [],
 
+  "_comment_patch_check": "Read only by `naab-gov patch-check BASE PATCHED`, the gate for a patch an agent wrote. test_paths: directories (relative to the project root) whose EXISTING files a patch may not change or remove; empty = tests/ and test/. protected_paths: extra paths a patch may not touch at all, beside the built-in governance files (govern.json, *.sig, *.manifest.json, trusted keys, the extends chain, governance plugins, project context files).",
+  "patch_check": {
+    "test_paths": [],
+    "protected_paths": []
+  },
+
   "_comment_behavioral_sequences": "Behavioral Sequence Detection (BSD) — FSM-based multi-step attack pattern matching. Records runtime events (env reads, file I/O, network, shell exec, encoding, tool calls) into a ring buffer and advances per-pattern state machines. When all steps of a pattern match within the window, enforcement fires. wouldMatch() enables pre-execution blocking. Write a step as its event name: env.get, env.set_var, file.read, file.write, net_connect, shell_exec, agent.send, agent.response, taint_violation, taint_sanitized, encode, decode, process.exec, config_reload, check_failed, tool_call, tool_result, tool_error, tool_blocked, codegen_exec, codegen_blocked, pulse_degraded, pulse_impaired, refusal_attestation (a step the matcher cannot match is reported at load). The built-in patterns (credential harvesting, credential exfiltration, sandbox probe, config tampering, progressive escalation, data staging, taint bypass, tool data exfil, tool env harvest, tool shell escape, tool rapid fire) apply only when no patterns are listed: listing ANY pattern replaces all of them.",
   "behavioral_sequences": {
     "enabled": false,
