@@ -5,10 +5,100 @@ of each *setting* in `govern-template.json`: drop it, so the engine falls back
 to its default, and see whether any test that uses it notices.
 
 First measured 2026-10-03 ([`settings-liveness/results-2026-10-03.json`](settings-liveness/results-2026-10-03.json));
-re-measured 2026-11-13 ([`settings-liveness/results-2026-11-13.json`](settings-liveness/results-2026-11-13.json)).
-The re-measurement is the next section; everything after it describes the first run.
+re-measured 2026-11-13 ([`settings-liveness/results-2026-11-13.json`](settings-liveness/results-2026-11-13.json)),
+and again the same day with the tool fixed ([`settings-liveness/results-2026-11-13-after-tool-fix.json`](settings-liveness/results-2026-11-13-after-tool-fix.json)).
+The run with the fixed tool is the next section, the first re-measurement the
+one after it; everything after those describes the first run.
 
-## Re-measured 2026-11-13
+## Re-measured with the tool fixed (2026-11-13, #378)
+
+The first re-measurement named three ways the tool read "no test notices"
+when it could not tell. This run closes two and labels the third. Master
+`084ea160` plus the tool changes; no engine check, test assertion or
+template file differs. Every count is **observed** on this run.
+
+What changed in the tool:
+
+- **One removal hook, both readers.** `include/naab/testing/config_mutation.h`
+  is called by `loadFromJson()` and by the scanner's own
+  `ScannerEngine::loadConfigFromPath()`, so a removal now reaches the
+  `scanner` section. `tests/security/test_setting_drop_compiled_out.sh`
+  checks the shipped `naab-lang` and `naab-gov` carry neither.
+- **Helpers come from the test build.** `naab-gov` is built in `build-mut`
+  with the hook. `libnaab.a`, `naab-lsp` and `naab-verify-audit` are still
+  the ordinary build; the tool prints that on every run.
+- **broad-only is its own status.** A suite that loads 100 or more template
+  settings (a whole template or example config; `--broad N`) cannot say a
+  setting is tested. A survivor only such suites load is `broad-only`, the
+  count October called "untested".
+- `probe --settings a.b,c.d` (or `@FILE`) re-probes named settings alone,
+  which removes group masking for them.
+- `probe --resume` continues a stopped sweep from a checkpoint written after
+  every group. This run needed it: with `naab-gov` carrying the hook,
+  `test_langconform.sh` went from 0 removable settings to 1,238, and
+  background work here is stopped after two hours. The sweep ran in three
+  slices.
+
+| | first run today | with the tool fixed |
+|---|---:|---:|
+| Units mapped / probed | 411 / 328 | 413 / 336 |
+| Template settings (enforcement) | 1,534 | 1,535 |
+| **live** | 310 | **318** |
+| survives (a narrow suite loads it, none noticed) | 1,223 together | **268** |
+| broad-only (only whole-config suites load it) | | **948** |
+| unmeasurable | 1 | 1 |
+| Probe runs | 1,409 | 1,558 |
+
+- **Every setting live before is live now** (310 of 310). Eight more are:
+  `codegen.max_code_lines` and `codegen.timeout_seconds` (noticed by
+  `test_declared_order_ratchet.sh`, which checks them through `naab-gov`),
+  `banned_functions` for cpp, javascript, php and ruby (`test_langconform.sh`,
+  also through `naab-gov`), `restrictions.crypto.weak_ciphers`
+  (`test_a148_widenings.sh`), and `output.explainer`, new in the template
+  since (#377).
+- **The scanner section is measured now, and no test notices any of it.**
+  All 310 scanner settings were removed in some run: 257 are broad-only and
+  53 survive (50 of them loaded by one narrow suite, 3 by two). Before, these
+  rows were not evidence either way.
+- **The 268 survivors are the list to work from**: a suite written for the
+  area loads the setting and does not notice it gone. By section: scanner 53,
+  context_drift 51, code_quality 48, restrictions 17, languages 10, agents 8,
+  audit 7, circuit_breaker 7, exposure_tracking 7, taint_tracking 7,
+  limits 6, governance_health 5, others 42.
+- **Unmeasurable: 1**, `environments.*.quality_gate.enabled`, as before. Four
+  more removals were asked for and not performed in SOME run (`version`,
+  `scanner.version`, `scanner.mode`, `scanner.code_quality.empty_catch.enabled`)
+  and performed in another, so they are counted as survivors.
+
+Limits of this run:
+
+- A survivor is still screened, not traced: group masking, a setting at its
+  default, and a suite that loads a setting without asserting on it all read
+  the same. `probe --settings` settles the first.
+- Settings a suite checks only through `naab-lsp`, `naab-verify-audit` or
+  `libnaab.a` still read as survivors (the false-"no test notices"
+  direction). No known suite checks a setting only that way; that is traced
+  for the three binaries' call sites, not measured.
+- The 100-setting line for "broad" is authored. Eight suites are over it
+  (listed in the results file). A narrow suite that loads 99 settings and
+  asserts on two still makes the other 97 "survives", not "broad-only".
+- The run was three slices, not one process. The checkpoint is refused for
+  another map or group size (`test_setting_drop_tool.sh` ST-09, ST-10), and
+  the 310 previously live settings all reappearing is the control that the
+  joined result is whole.
+- **Adversarial pass.** The claim judged most likely wrong was "no test
+  notices any scanner setting", because the same claim was withdrawn once
+  already. Looked: all 310 rows carry the value that was removed
+  (`values_dropped`), so the removals were performed by the scanner's
+  reader, and `test_setting_drop_compiled_out.sh` SD-05 is the arm in which a
+  scanner removal on the test build changes a scan's result. One re-tracing; it changed nothing.
+- **Direction of error**: unchanged. What the tool gets wrong, it gets wrong
+  toward "no test notices".
+
+## Re-measured 2026-11-13 (first run, before the tool fix)
+
+The scanner and `naab-gov` limits this section describes are closed by the
+run above.
 
 Master `09e633e2`, the same three commands as below, 4 jobs. Every count is
 **observed** on that run unless it says otherwise. Report only: no engine,
@@ -220,11 +310,17 @@ cannot run on build-windows at all.)
 
 ```bash
 cmake -S . -B build-mut -DCMAKE_BUILD_TYPE=Release -DNAAB_CONFIG_MUTATION=ON
-cmake --build build-mut --target naab-lang -j4
+cmake --build build-mut --target naab-lang naab-gov -j4
 python3 tools/testrunner/setting_drop.py map   --mut-binary build-mut/naab-lang --jobs 4
 python3 tools/testrunner/setting_drop.py probe --mut-binary build-mut/naab-lang --jobs 4
+python3 tools/testrunner/setting_drop.py probe --resume --mut-binary build-mut/naab-lang --jobs 4   # after a stopped sweep
+python3 tools/testrunner/setting_drop.py probe --settings a.b,c.d --mut-binary build-mut/naab-lang  # named settings alone
 python3 tools/testrunner/setting_drop.py report
 ```
+
+Since #378 the hook is `include/naab/testing/config_mutation.h`, called by
+`loadFromJson()` and by the scanner's own reader, and `naab-gov` is built
+with it (see the top section).
 
 `map` took 15 min and `probe` 39 min (940 runs) on 4 cores.
 
