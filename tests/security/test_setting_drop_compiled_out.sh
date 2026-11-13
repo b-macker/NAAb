@@ -24,6 +24,25 @@
 #          same drop lets the read through and logs one drop. Proves the
 #          harness's probe is real. UNMEASURABLE without a test build (normal
 #          on CI). Give one with NAAB_MUT_BINARY=/path/to/naab-lang.
+#
+# govern.json has a SECOND reader: the scanner (naab-lang --scan) opens the file
+# itself and reads its "scanner" section, never passing loadFromJson. The hook
+# is one header both readers call (include/naab/testing/config_mutation.h), so
+# the same check is made on that path, and on naab-gov, which shares the
+# governance loader:
+#
+#   SD-01g normal build: the variable's name is not in naab-gov either
+#   SD-04  normal build: a scanner check switched off in govern.json + the drop
+#          naming exactly that key -> still off, nothing dropped
+#   SD-04c CONTROL: with the key absent the scanner reports the finding, so
+#          SD-04's silence is the setting's doing and a drop would be visible
+#   SD-05  test build (when given): the scanner DOES honour the drop -- the
+#          finding comes back and one drop is logged. UNMEASURABLE without one.
+#
+# Kill table (each mutant run 2026-11-13, each turns the arm red):
+#   M1 normal build compiled with -DNAAB_CONFIG_MUTATION=ON ..... SD-01 SD-01g SD-02 SD-04
+#   M2 scanner.cpp without its applySettingDrop call ............ SD-05
+#   M3 SD-04's config without the "enabled": false key ......... SD-04 (harness)
 # ============================================================
 set -uo pipefail
 
@@ -39,7 +58,7 @@ skip() { SKIP=$((SKIP+1)); echo "  SKIP [$1] $2"; }
 echo "=== NAAB_DROP_SETTING is compiled out of normal builds ==="
 
 if [ ! -x "$NAAB" ]; then
-    for id in SD-01 SD-02 SD-02c SD-03; do skip "$id" "naab-lang not built (UNMEASURABLE)"; done
+    for id in SD-01 SD-01g SD-02 SD-02c SD-03 SD-04 SD-04c SD-05; do skip "$id" "naab-lang not built (UNMEASURABLE)"; done
     echo ""; echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"; exit 0
 fi
 
@@ -100,6 +119,59 @@ else
                                                || bad "SD-03" "the file was read but no drop was logged" ;;
         *) bad "SD-03" "the test build did not honour NAAB_DROP_SETTING" "rc=$RC drops=${drops:-0}" ;;
     esac
+fi
+
+# --- SD-01g ----------------------------------------------------------------------
+GOV="$SCRIPT_DIR/../../build/naab-gov"
+[ -x "$GOV" ] || GOV="$GOV.exe"
+if [ ! -x "$GOV" ]; then
+    skip "SD-01g" "naab-gov not built (UNMEASURABLE)"
+elif LC_ALL=C grep -q 'NAAB_DROP_SETTING' "$GOV"; then
+    bad "SD-01g" "the normal naab-gov contains the string NAAB_DROP_SETTING -- the hook is compiled in"
+else
+    ok "SD-01g" "the variable's name is not in the normal naab-gov"
+fi
+
+# --- SD-04 / SD-04c / SD-05: the scanner's own reader ------------------------------
+# soff = the empty_catch check switched off, son = the key absent (default: on)
+for d in soff son; do
+    mkdir -p "$W/$d"
+    cq='{"empty_catch":{"enabled":false}}'; [ "$d" = son ] && cq='{}'
+    printf '{"version":"4.0","mode":"audit","scanner":{"version":"1.0","mode":"enforce","code_quality":%s}}\n' "$cq" > "$W/$d/govern.json"
+    printf 'fn risky(a) {\n  try {\n    return a + 1\n  } catch (err) {\n  }\n  return 0\n}\nmain {\n  print(risky(1))\n}\n' > "$W/$d/p.naab"
+done
+SDROP=scanner.code_quality.empty_catch.enabled
+# scan <binary> <dir> [drop] -> sets HITS (report lines naming the check), OUT
+scan() {
+    local bin="$1" dir="$2" drop="${3:-}"
+    rm -f "$W/$dir.drop"
+    OUT=$(cd "$W/$dir" && NAAB_DROP_SETTING="$drop" NAAB_DROP_LOG="$W/$dir.drop" "$bin" --scan p.naab naab 2>&1)
+    HITS=$(grep -c 'code_quality\.empty_catch' <<<"$OUT")
+    SCANNED=no; grep -q 'Scanned: 1 files' <<<"$OUT" && SCANNED=yes
+}
+scan "$NAAB" son
+if [ "$SCANNED" = yes ] && [ "$HITS" -ge 1 ]; then
+    ok "SD-04c" "CONTROL: with the key absent the scanner reports the empty catch"
+    scan "$NAAB" soff "$SDROP"
+    if [ "$SCANNED" = yes ] && [ "$HITS" -eq 0 ] && [ ! -s "$W/soff.drop" ]; then
+        ok "SD-04" "with the drop requested, the scanner check stays off and nothing was dropped"
+    else
+        bad "SD-04" "the normal build's scanner honoured NAAB_DROP_SETTING" "scanned=$SCANNED hits=$HITS drops=$(wc -l < "$W/soff.drop" 2>/dev/null || echo 0)"
+    fi
+else
+    bad "SD-04c" "the scanner did not report the empty catch with the key absent -- SD-04 cannot tell a drop from a scanner that reports nothing" "scanned=$SCANNED hits=$HITS"
+    skip "SD-04" "its control failed (UNMEASURABLE)"
+fi
+if [ -z "$MUT" ] || [ ! -x "$MUT" ]; then
+    skip "SD-05" "no test build given (NAAB_MUT_BINARY) -- UNMEASURABLE, expected on CI"
+else
+    scan "$MUT" soff "$SDROP"
+    drops=$(wc -l < "$W/soff.drop" 2>/dev/null | tr -d ' ')
+    if [ "$SCANNED" = yes ] && [ "$HITS" -ge 1 ] && [ "${drops:-0}" -ge 1 ]; then
+        ok "SD-05" "the test build's scanner honours the drop: the finding is back and $drops drop(s) logged"
+    else
+        bad "SD-05" "the test build's scanner did not honour NAAB_DROP_SETTING" "scanned=$SCANNED hits=$HITS drops=${drops:-0}"
+    fi
 fi
 
 echo ""
