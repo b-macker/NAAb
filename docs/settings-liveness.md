@@ -77,8 +77,8 @@ Limits of this run:
   the same. `probe --settings` settles the first.
 - Settings a suite checks only through `naab-lsp`, `naab-verify-audit` or
   `libnaab.a` still read as survivors (the false-"no test notices"
-  direction). No known suite checks a setting only that way; that is traced
-  for the three binaries' call sites, not measured.
+  direction). Nineteen suites name one of the three; which of them check a
+  setting only through one was not traced.
 - The 100-setting line for "broad" is authored. Eight suites are over it
   (listed in the results file). A narrow suite that loads 99 settings and
   asserts on two still makes the other 97 "survives", not "broad-only".
