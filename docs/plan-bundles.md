@@ -248,7 +248,7 @@ Added by the owner's decision (2026-11-09: "Ok bundle 17 first"). Gemini built a
 - **A labelled corpus** of good and bad LLM-written code: llm_bridge runs plus `tools/langconform/corpus_diff.py` blocks.
 - **Per-check precision and recall**, report-only in CI first.
 - **`naab-gov diff OLD NEW`:** which requests a config edit newly allows or refuses (built on Bundle 8).
-- **Settings liveness follow-up:** 747 settings survive removal, and 538 are untested.
+- **Settings liveness follow-up:** 747 settings survive removal, and 538 are untested. **Re-measured 2026-11-13** (report only, `docs/settings-liveness.md`): 310 of 1,534 live (189 of 1,474 in October), 1,223 survive -- 453 loaded only by the whole-template loader, 47 inert by trace, 414 at the template's value, 309 at another value; 120 of the last group have a security direction in the ratchet table. The scanner's 310 settings are outside the instrument (the scanner reads govern.json itself): unmeasurable, not untested. Which get tests, and whether any inert key leaves the template, is the owner's call.
 
 **Decisions (the owner, 2026-11-10).**
 
