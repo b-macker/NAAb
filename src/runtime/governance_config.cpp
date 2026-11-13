@@ -2550,6 +2550,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         if (out.contains("no_color") && out["no_color"].is_boolean()) rules_.no_color_config = out["no_color"].get<bool>();
         if (out.contains("voice") && out["voice"].is_string()) rules_.output.voice = out["voice"].get<std::string>();
         if (out.contains("voice_cache") && out["voice_cache"].is_boolean()) rules_.output.voice_cache = out["voice_cache"].get<bool>();
+        if (out.contains("explainer") && out["explainer"].is_string()) rules_.output.explainer = out["explainer"].get<std::string>();
     }
 
     // V3 Audit (expanded)

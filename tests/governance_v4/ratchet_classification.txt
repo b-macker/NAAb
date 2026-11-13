@@ -355,6 +355,7 @@ output.summary.enabled                           inert -- screened: no reader of
 output.summary.format                            inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)
 output.voice                                     fixed -- traced: names the agent the end-of-run remediation guide is sent to (runGovernanceVoice), an egress of the script and its findings; any mid-run change refused
 output.voice_cache                               fixed -- untraced: caches the voice's guide; any mid-run change refused
+output.explainer                                 neutral -- traced: read only by `naab-gov explain` (cmdExplain), a separate command; no run and no reload reads it, and the reply it names an agent for decides nothing
 
 # meta
 meta.environment.allow_cli_override              inert -- screened: no reader of the field outside the loader and naab-lang init's generator (grep of its struct path)

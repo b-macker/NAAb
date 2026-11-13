@@ -1006,7 +1006,9 @@
     "max_advisories": 15,
     "advisory_summary": true,
     "voice": "",
-    "voice_cache": false
+    "voice_cache": false,
+    "_comment_explainer": "Agent (an entry of agents) that `naab-gov explain` asks to word its findings. It is sent the filtered findings only, never the program; its reply decides nothing. Empty = no model is asked.",
+    "explainer": ""
   },
 
   "audit": {

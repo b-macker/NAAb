@@ -1,8 +1,9 @@
 // naab-gov manifest infer|sign|check -- the signed capability manifest
 // (Bundle 11 PR 2, include/naab/capability_manifest.h).
 //
-//   infer PROGRAM [--output PATH] [--force]
-//       Draft <stem>.manifest.json from what the program shows statically.
+//   infer PROGRAM [--output PATH] [--force] [--stdout]
+//       Draft <stem>.manifest.json from what the program shows statically
+//       (--stdout: print the draft and write nothing).
 //   sign MANIFEST
 //       Sign it with the approver's Ed25519 key (NAAB_SIGNING_KEY).
 //   check PROGRAM
@@ -428,7 +429,7 @@ private:
 int usage() {
     std::cerr <<
         "Usage:\n"
-        "  naab-gov manifest infer PROGRAM [--output PATH] [--force]\n"
+        "  naab-gov manifest infer PROGRAM [--output PATH] [--force] [--stdout]\n"
         "  naab-gov manifest sign MANIFEST\n"
         "  naab-gov manifest check PROGRAM\n";
     return 4;
@@ -437,9 +438,11 @@ int usage() {
 int cmdInfer(const std::vector<std::string>& args) {
     std::string program_path, output;
     bool force = false;
+    bool to_stdout = false;   // print the draft and write nothing (naab-gov explain reads it)
     for (size_t i = 0; i < args.size(); ++i) {
         if (args[i] == "--output" && i + 1 < args.size()) output = args[++i];
         else if (args[i] == "--force") force = true;
+        else if (args[i] == "--stdout") to_stdout = true;
         else if (!args[i].empty() && args[i][0] == '-') return usage();
         else if (program_path.empty()) program_path = args[i];
         else return usage();
@@ -494,6 +497,10 @@ int cmdInfer(const std::vector<std::string>& args) {
     m.files_write.assign(inf.files_write.begin(), inf.files_write.end());
     m.agents.assign(inf.agents.begin(), inf.agents.end());
 
+    if (to_stdout) {
+        std::cout << governance::serializeCapabilityManifest(m, inf.notes);
+        return 0;
+    }
     if (output.empty()) output = governance::capabilityManifestPathFor(abs.string());
     std::error_code ec;
     if (fs::exists(output, ec) && !force) {
