@@ -2641,6 +2641,21 @@ else
     echo "  test_gov_replay.sh: not found, skipping"
 fi
 
+# naab-gov explain (Bundle 15 PR 2): the deterministic findings, then a model's
+# explanation that decides nothing. The stub plays the explainer and keeps what
+# it was sent; EX-00 is a real run's BSD_MATCH, EX-03c/05c/06c/08c/14c controls.
+GOV_EXPLAIN_SCRIPT="tests/governance_v4/test_gov_explain.sh"
+if [ -f "$GOV_EXPLAIN_SCRIPT" ]; then
+    if run_shell_test "$GOV_EXPLAIN_SCRIPT" 2>&1; then
+        echo "  test_gov_explain.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_gov_explain.sh")
+    fi
+else
+    echo "  test_gov_explain.sh: not found, skipping"
+fi
+
 # The telemetry chain under concurrent writers (A164) and the verifier on lines
 # it will not read (A163). CC-00 is the sequential control; the batch arms were
 # red 4 of 5 runs before the fix.

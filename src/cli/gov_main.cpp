@@ -88,6 +88,10 @@ static void printHelp() {
         "  naab-gov replay <telemetry> [opts]     Check recorded decisions against their\n"
         "                                         recorded evidence (re-executes nothing;\n"
         "                                         --transcript FILE, --hmac-key, --json)\n"
+        "  naab-gov explain <file.naab> [opts]    Print the manifest, taint and sequence\n"
+        "                                         findings, then a model's explanation of\n"
+        "                                         them (the model decides nothing;\n"
+        "                                         --telemetry FILE, --no-model, --json)\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
         "\n"
@@ -731,6 +735,8 @@ int cmdContracts(const std::vector<std::string>& args, const char* argv0);
 int cmdTaint(const std::vector<std::string>& args);
 // gov_replay.cpp: recorded decisions against their recorded evidence (Bundle 14)
 int cmdReplay(const std::vector<std::string>& args);
+// gov_explain.cpp: deterministic findings, then a model's explanation of them.
+int cmdExplain(const std::vector<std::string>& args, const char* argv0);
 // gov_diff.cpp (Bundle 13)
 int cmdDiff(const std::vector<std::string>& args);
 // gov_manifest.cpp (Bundle 11 PR 2)
@@ -946,6 +952,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "replay") {
             return cmdReplay(rest);
+        }
+
+        if (cmd == "explain") {
+            return cmdExplain(rest, argv[0]);
         }
     } catch (const naab::governance::GovernanceHardError& e) {
         std::cerr << e.what() << "\n";

@@ -3457,8 +3457,17 @@ static const std::vector<std::pair<size_t, naab::rx::regex>>& compiledSecretPatt
 // The description of the first secret checkSecrets() would act on, or "".
 // Never enforces and records nothing: for callers that WITHHOLD content rather
 // than block the run (guidance text). Same switch as checkSecrets().
+std::string GovernanceEngine::modelOutputSecretFinding(const std::string& text) const {
+    if (!rules().scansModelOutputForSecrets()) return "";
+    return firstSecretPattern(text);
+}
+
 std::string GovernanceEngine::secretFinding(const std::string& text) const {
     if (!rules().no_secrets) return "";
+    return firstSecretPattern(text);
+}
+
+std::string GovernanceEngine::firstSecretPattern(const std::string& text) const {
     for (const auto& [pat_idx, compiled_re] : compiledSecretPatterns()) {
         try {
             if (naab::rx::regex_search(text, compiled_re)) return SECRET_PATTERNS[pat_idx].description;

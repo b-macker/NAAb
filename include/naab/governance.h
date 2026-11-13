@@ -1063,6 +1063,7 @@ struct OutputConfig {
     bool advisory_summary = true;  // Show "... and N more" when capped
     std::string voice;             // Agent name for voice synthesis of violations
     bool voice_cache = false;      // Cache voice synthesis results
+    std::string explainer;         // Agent name `naab-gov explain` asks to word its findings (decides nothing)
 };
 
 // ============================================================================
@@ -3669,6 +3670,10 @@ public:
     // description, or "". Same switches and patterns; never enforce, never
     // record -- for content that is WITHHELD rather than blocked (guidance).
     std::string secretFinding(const std::string& text) const;
+    // The same for what a model wrote: decides as checkModelOutputSecrets()
+    // does (on unless the config set no_secrets false), never enforces.
+    std::string modelOutputSecretFinding(const std::string& text) const;
+    std::string firstSecretPattern(const std::string& text) const;  // the match both share; no switch
     std::string piiFinding(const std::string& text) const;
     std::string checkPlaceholders(const std::string& code, int line = 0, bool code_starts_at_line = false);
     std::string checkHardcodedResults(const std::string& code, int line = 0);
