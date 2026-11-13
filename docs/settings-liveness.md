@@ -46,9 +46,12 @@ How far each group can be trusted (all **screened**, none traced per key):
 - **at the template's value is not "at its default".** The template writes
   `enabled: true` for checks whose built-in default is off, so removing such
   a key does change the rules; the group says only that no test noticed.
-- **another value** is the strongest lead that a test is missing: a suite
-  bothered to set the key, and its verdict did not depend on it. It can also
-  be a key another key in the same removed group masks.
+- **another value** says a config some suite loads sets the key to something
+  other than the template's value. It does NOT say a suite set the key on
+  purpose (corrected 2026-11-13, see "Follow-up checks" below): most of the
+  keys checked are loaded only by suites that load a large example config
+  and assert on none of them. It can also be a key another key in the same
+  removed group masks.
 - **inert by trace** covers only keys the ratchet table names; a key outside
   that table can be inert too.
 - The ratchet table matched 359 of the survivors (kinds `ratchet`, `order`,
@@ -115,6 +118,72 @@ How far each group can be trusted (all **screened**, none traced per key):
 - **Direction of error.** Everything this tool can get wrong, it gets wrong
   toward "no test notices" (the scanner, `naab-gov`, masking). A setting it
   calls live was noticed by a named suite on a real run.
+
+### Follow-up checks (2026-11-13, after the first write-up)
+
+Made to answer what to do with the survivors. Each is **observed** unless
+it says traced or undetermined; master `09e633e2`.
+
+**The first write-up was wrong about the "another value" group.** It called
+the group "the strongest lead that a test is missing: a suite bothered to
+set the key". Of the 120 with a security direction, the 47 under
+`capabilities`, `exposure_tracking`, `hooks`, `agents`, `codegen`, `trust`,
+`governance`, `restrictions`, `languages`, `audit` and `agent_dispatch`
+were listed with the suites that load them. Most are loaded only by suites
+that load a whole example config and assert on none of these keys:
+`test_agent_harness_example.sh`, `test_init_governance.sh`,
+`test_readme_claims.sh`, `test_govern_json_fuzz.sh` and
+`test_protection_map.sh`. Those keys are untested, not "tested and
+unnoticed". The other 73 of the 120 were not listed.
+
+The three groups the first write-up named:
+
+- **`hooks.*.timeout`: no test gap.** `test_hooks.sh` sets 1 or 3 seconds;
+  the default is 5 (`HookConfig::timeout`, `governance.h`, traced). With the
+  key removed a hook that sleeps 60 seconds is still stopped, so the
+  verdict cannot change and nothing loosens.
+- **`capabilities.network.allowed_ports`: no test gap.** It binds no
+  program connection (A87).
+- **`exposure_tracking.*`: a real lead.** Every limit defaults to 0, which
+  is unlimited (`ExposureTrackingConfig`, traced), so removal loosens.
+  `tests/governance_v4/depth/test_depth_runtime.sh` loads them and did not
+  notice. **Undetermined** why; the observation that would settle it is
+  that suite run with one of these keys removed alone, which rules out
+  masking by the rest of its group.
+
+**Inert keys in the template: 54, not 47.** The 47 above is what the first
+matcher found among the survivors. Matching the ratchet table's `inert`
+lines against every template setting, with the lines that cover a whole
+block, gives 54: 53 survive and 1 reads live
+(`requirements.naming_conventions.enabled`, noticed by
+`test_nested_unknown_keys.sh`; why is undetermined, the suite's text does
+not name the key). Of the 54 lines, 18 give a trace as their reason and 36
+a grep ("screened"). Finding 1 below is a grep-built inert list that held
+live settings, so the 36 are leads until each is traced to its point of
+effect and tried set against unset.
+
+**The secrets macro pattern on ordinary C and C++** (A148(a), #374). The
+pattern was run, as a Python regular expression with the same text and
+case-insensitivity, over the C and C++ sources on this machine that hold
+no credentials: `/usr/include` (3,996 files), the repository's `src/`,
+`include/` and `external/` (2,203 files), 4,155 string-valued `#define`
+lines in all.
+
+| | Count |
+|---|---:|
+| Lines the pattern flags | 5 |
+| Files they are in | 1 (`openssl/obj_mac.h`) |
+| Of them, a credential | 0 |
+| All-capitals names ending in a credential word (`ERR_BAD_TOKEN`) | 0 |
+
+The five are object names (`LN_userPassword "userPassword"` and four like
+it), matched because the pattern table is case-insensitive. A block is
+checked by its own text, never by a header it includes, so they matter
+only pasted into a block. What this does not measure: application code,
+where a macro such as `ERR_BAD_TOKEN "bad_token"` would be flagged
+(verified in #374) and was simply not present in these sources.
+`code_quality.no_secrets.allowlist` is one of the inert keys, so the remedy
+for a false alarm is renaming the macro.
 
 ## How it is measured
 
