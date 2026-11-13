@@ -60,6 +60,7 @@ Standard library only; POSIX only.
 """
 import argparse
 import collections
+import hashlib
 import json
 import os
 import re
@@ -409,6 +410,52 @@ def reprobe_line(setting, r, nowhere):
         "; not performed in %d" % len(r["not_performed_in"]) if r["not_performed_in"] else "")
 
 
+def map_digest(path):
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def pending_groups(cand, size, start):
+    """(index, group) for every group of `cand` not yet finished. The cut is by
+    position in the list the unit started with -- never in a list filtered
+    afterwards, or a resumed run's groups would shift and the settings between
+    the old and new boundaries would be skipped and read as probed."""
+    for n, i in enumerate(range(0, len(cand), size)):
+        if n >= start:
+            yield n, cand[i:i + size]
+
+
+def save_checkpoint(path, ck):
+    """Whole file or nothing: a run stopped mid-write must not leave a
+    checkpoint that parses as an earlier, shorter state."""
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(ck, f)
+    os.replace(tmp, path)
+
+
+def load_checkpoint(path, digest, group):
+    """The checkpoint, or a string saying why it cannot be used. Never a guess:
+    a checkpoint of another map or another group size would skip groups that
+    were never run and report them as probed."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            ck = json.load(f)
+    except OSError:
+        return "no checkpoint at %s" % path
+    except ValueError:
+        return "the checkpoint at %s does not parse" % path
+    need = ("map", "group", "done_units", "cands", "groups_done", "live", "runs",
+            "performed", "asked_not_done")
+    if not isinstance(ck, dict) or any(k not in ck for k in need):
+        return "the checkpoint at %s is incomplete" % path
+    if ck["map"] != digest:
+        return "the checkpoint was made from another map.json"
+    if ck["group"] != group:
+        return "the checkpoint was made with --group %s" % ck["group"]
+    return ck
+
+
 def cmd_probe(args):
     with open(os.path.join(args.out, "map.json")) as f:
         m = json.load(f)
@@ -425,6 +472,34 @@ def cmd_probe(args):
                    if r["stable"] and k in units and any(s in tmpl for s in r["loaded"])),
                   key=lambda kr: len(kr[1]["loaded"]))
     progress = {"done": 0, "runs": 0}
+    # A sweep can outlast whatever runs it (2026-11-13: once naab-gov carried the
+    # hook, one suite alone had ~1,240 candidates at 2.5 minutes a run). The
+    # state after every finished group is kept, so --resume continues instead of
+    # starting over. A checkpoint belongs to ONE map: another map's is refused.
+    ck_path = os.path.join(args.out, "probe.partial.json")
+    ck = {"map": map_digest(os.path.join(args.out, "map.json")), "group": args.group,
+          "done_units": [], "cands": {}, "groups_done": {}}
+    if getattr(args, "resume", False):
+        prev = load_checkpoint(ck_path, ck["map"], args.group)
+        if isinstance(prev, str):
+            sys.stderr.write("setting_drop: cannot resume: %s\n" % prev)
+            return 2
+        ck = prev
+        live.update(ck["live"])
+        progress["runs"] = ck["runs"]
+        progress["done"] = len(ck["done_units"])
+        for k, v in ck["performed"].items():
+            performed[k].extend(v)
+        asked_not_done.update(ck["asked_not_done"])
+        out("resuming: %d unit(s) done, %d run(s), %d live" % (progress["done"], progress["runs"], len(live)))
+    elif os.path.exists(ck_path):
+        os.remove(ck_path)
+
+    def checkpoint():            # called with the lock held
+        ck.update(live=live, runs=progress["runs"],
+                  performed={k: sorted(set(v))[:5] for k, v in performed.items()},
+                  asked_not_done=sorted(asked_not_done))
+        save_checkpoint(ck_path, ck)
 
     def changed(u, base, group):
         res = run_unit(copy, u, drop=group)
@@ -453,10 +528,23 @@ def cmd_probe(args):
         u = units[key]
         base = tuple(r["outcome"])
         with lock:
-            cand = [s for s in r["loaded"] if s in tmpl and s not in live]
-        for i in range(0, len(cand), args.group):
-            bisect(u, base, cand[i:i + args.group])
+            if key in ck["done_units"]:
+                return
+            # The candidates are fixed when a unit starts, and kept: a resumed
+            # run must cut the same groups, whatever became live meanwhile.
+            cand = ck["cands"].setdefault(
+                key, [s for s in r["loaded"] if s in tmpl and s not in live])
+            start = ck["groups_done"].get(key, 0)
+        for n, grp in pending_groups(cand, args.group, start):
+            bisect(u, base, [s for s in grp if s not in live])
+            with lock:
+                ck["groups_done"][key] = n + 1
+                checkpoint()
         with lock:
+            ck["done_units"].append(key)
+            ck["cands"].pop(key, None)
+            ck["groups_done"].pop(key, None)
+            checkpoint()
             progress["done"] += 1
             out("[%3d/%d] %s  (%d candidates, %d runs so far, %d live)"
                 % (progress["done"], len(todo), key, len(cand), progress["runs"], len(live)))
@@ -490,6 +578,8 @@ def cmd_probe(args):
                    "helpers": helpers,
                    "dropped_values": {k: sorted(set(v))[:5] for k, v in performed.items()},
                    "asked_not_performed": sorted(asked_not_done)}, f, indent=1)
+    if os.path.exists(ck_path):
+        os.remove(ck_path)
     return cmd_report(args)
 
 
@@ -590,6 +680,8 @@ def main(argv=None):
             s.add_argument("--jobs", type=int, default=min(os.cpu_count() or 2, 8))
         if name == "probe":
             s.add_argument("--group", type=int, default=32)
+            s.add_argument("--resume", action="store_true",
+                           help="continue a probe that was stopped, from its checkpoint")
             s.add_argument("--settings", help="re-probe only these, one at a time: a.b,c.d or @FILE")
         if name != "map":
             s.add_argument("--broad", type=int, default=100,

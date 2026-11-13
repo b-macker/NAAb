@@ -26,6 +26,11 @@
 #          survives; performed nowhere -> unmeasurable; loaded nowhere -> untested
 #   ST-08  --settings parses a comma list and an @FILE with comments, in order,
 #          without duplicates
+#   ST-09  a resumed unit runs only its unfinished groups, cut by position in the
+#          list the unit started with
+#   ST-10  a checkpoint of another map, another group size, incomplete, cut
+#          short or absent is refused
+#   ST-10c CONTROL: a matching checkpoint is read back whole
 #
 # Kill table (each mutant run 2026-11-13; each turns the arm red):
 #   M1 pick_helpers prefers the ordinary build ..................... ST-01
@@ -36,6 +41,11 @@
 #   M6 broad_units ignores the threshold (always 100) ............... ST-06
 #   M7 reprobe_line: a drop performed nowhere reads "survives" ...... ST-07
 #   M8 parse_settings keeps duplicates .............................. ST-08
+#   M9  pending_groups ignores the groups already finished .......... ST-09
+#   M10 load_checkpoint accepts another map's checkpoint ............ ST-10
+#   M11 load_checkpoint accepts another group size .................. ST-10
+#   M12 load_checkpoint accepts an incomplete checkpoint ............ ST-10
+#   M13 save_checkpoint leaves its temporary file ................... ST-10c
 # ============================================================
 set -uo pipefail
 
@@ -122,13 +132,42 @@ with open(f, "w") as fh:
 got = (sd.parse_settings("b.c, a.b,b.c,"), sd.parse_settings("@" + f))
 arm("ST-08", got == (["b.c", "a.b"], ["x.y", "z.w"]),
     "--settings reads a comma list and an @FILE, in order, without duplicates", repr(got))
+
+# ---- checkpoint and resume ---------------------------------------------------------
+cand = ["k%d" % i for i in range(10)]
+got = list(sd.pending_groups(cand, 4, 0)), list(sd.pending_groups(cand, 4, 2)), list(sd.pending_groups(cand, 4, 3))
+arm("ST-09", got == ([(0, cand[0:4]), (1, cand[4:8]), (2, cand[8:10])], [(2, cand[8:10])], []),
+    "a resumed unit runs only its unfinished groups, cut where the first run cut them", repr(got))
+mp = os.path.join(W, "map.json")
+with open(mp, "w") as fh:
+    fh.write('{"units": {}}')
+dg = sd.map_digest(mp)
+good = {"map": dg, "group": 4, "done_units": ["u"], "cands": {}, "groups_done": {}, "live": {"a": "u"},
+        "runs": 3, "performed": {}, "asked_not_done": []}
+cp = os.path.join(W, "probe.partial.json")
+sd.save_checkpoint(cp, good)
+back = sd.load_checkpoint(cp, dg, 4)
+arm("ST-10c", back == good and not os.path.exists(cp + ".tmp"),
+    "CONTROL: a checkpoint of this map and group size is read back whole", repr(back)[:120])
+r1 = sd.load_checkpoint(cp, "0" * 64, 4)
+r2 = sd.load_checkpoint(cp, dg, 8)
+with open(cp, "w") as fh:
+    fh.write('{"map": "%s", "group": 4}' % dg)
+r3 = sd.load_checkpoint(cp, dg, 4)
+with open(cp, "w") as fh:
+    fh.write('{"map": ')
+r4 = sd.load_checkpoint(cp, dg, 4)
+r5 = sd.load_checkpoint(os.path.join(W, "absent.json"), dg, 4)
+arm("ST-10", all(isinstance(r, str) for r in (r1, r2, r3, r4, r5)),
+    "a checkpoint of another map, another group size, incomplete, cut short or absent is refused",
+    repr([type(r).__name__ for r in (r1, r2, r3, r4, r5)]))
 PY
 )
 printf '%s\n' "$OUT"
 
 PASS=$(grep -c '^  PASS \[' <<<"$OUT")
 FAIL=$(grep -c '^  FAIL \[' <<<"$OUT")
-EXPECTED=10
+EXPECTED=13
 if [ "$PASS" -ne "$EXPECTED" ] && [ "$FAIL" -eq 0 ]; then
     # Fewer arms than written means the driver died part-way: not a pass.
     echo "  FAIL [ST-99] $PASS of $EXPECTED arms reported (the driver stopped early)"
