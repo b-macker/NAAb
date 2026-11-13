@@ -3,6 +3,9 @@
 
 #include "naab/scanner.h"
 #include <nlohmann/json.hpp>
+#ifdef NAAB_CONFIG_MUTATION
+#include "naab/testing/config_mutation.h"
+#endif
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fstream>
@@ -346,6 +349,12 @@ bool ScannerEngine::loadConfigFromPath(const std::string& govern_json_path, bool
         if (!quiet) fmt::print("Warning: Invalid JSON in {}\n", govern_path_);
         return false;
     }
+
+#ifdef NAAB_CONFIG_MUTATION
+    // TEST BUILD ONLY: the scanner reads govern.json itself, so the removal
+    // hook must run here too (naab/testing/config_mutation.h).
+    full_cfg = naab::testing::applySettingDrop(full_cfg);
+#endif
 
     if (!full_cfg.contains("scanner") || !full_cfg["scanner"].is_object()) {
         if (!quiet) fmt::print("Note: No 'scanner' section in {}. Using defaults.\n", govern_path_);

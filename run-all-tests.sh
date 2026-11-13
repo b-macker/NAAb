@@ -5517,6 +5517,21 @@ if [ -f "$SDROP_SCRIPT" ]; then
 else
     echo "  test_setting_drop_compiled_out.sh: not found, skipping"
 fi
+
+SDTOOL_SCRIPT="tests/self-audit/test_setting_drop_tool.sh"
+if [ -f "$SDTOOL_SCRIPT" ]; then
+    # tools/testrunner/setting_drop.py's own decisions (which build a helper
+    # binary came from, broad config loaders, single-setting re-probe
+    # verdicts) on synthetic inputs: no NAAb program and no sweep.
+    if run_shell_test "$SDTOOL_SCRIPT" 2>&1; then
+        echo "  test_setting_drop_tool.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_setting_drop_tool.sh")
+    fi
+else
+    echo "  test_setting_drop_tool.sh: not found, skipping"
+fi
 fi  # phase_runs shell
 
 # Report-only: interpreters a suite left running. A python3 was still alive at

@@ -3,16 +3,21 @@
 
     python3 tools/testrunner/setting_drop.py map   --mut-binary PATH [--jobs N] [--out DIR]
     python3 tools/testrunner/setting_drop.py probe --mut-binary PATH [--jobs N] [--out DIR]
-    python3 tools/testrunner/setting_drop.py report [--out DIR]
+    python3 tools/testrunner/setting_drop.py probe --mut-binary PATH --settings a.b,c.d|@FILE
+    python3 tools/testrunner/setting_drop.py report [--out DIR] [--broad N]
 
 The dead-interpreter gate asks whether each TEST can fail. This asks the same of
 each SETTING in govern-template.json: drop it, so the engine falls back to its
 default, and see whether any test that uses it notices.
 
-It needs a TEST build of naab-lang (cmake -DNAAB_CONFIG_MUTATION=ON; never a
-build anyone runs for real). That build reads two variables in loadFromJson,
-which every config load passes through -- file, extends chain, inline string,
-mid-run reload:
+It needs a TEST build (cmake -DNAAB_CONFIG_MUTATION=ON; never a build anyone
+runs for real) of naab-lang AND of the helper binaries suites call (naab-gov
+above all): build them in the same directory as --mut-binary and they are taken
+from there. A helper taken from the ordinary build has no hook, so a setting a
+suite checks only through it reads as "survives"; map and report say which
+helpers carried the hook. The test build reads three variables wherever
+govern.json is read -- loadFromJson (file, extends chain, inline string, mid-run
+reload) and the scanner's own loader (include/naab/testing/config_mutation.h):
   NAAB_SETTINGS_LOG  append every setting path the loaded config contains
   NAAB_DROP_SETTING  comma-separated setting paths to remove before parsing
                      ('*' matches any key at that level: agents.*.model)
@@ -27,6 +32,12 @@ report Summarise per setting:
          live          dropping it changed some test's verdict
          survives      tests load it, none noticed it dropped -- dead, set to its
                        default, or no test checks its effect
+         broad-only    it survives, and every suite that loads it loads a large
+                       config (--broad N template settings or more, default
+                       100: the whole template, an example project's config).
+                       Such a suite sets hundreds of keys and asserts on few,
+                       so this is closer to "untested" than to "survives". A
+                       threshold, not a trace: read the suite before relying on it.
          untested      no test loads it at all
          unmeasurable  a drop that was asked for was never performed
 
@@ -40,6 +51,10 @@ Traps this is built around (docs/investigation-method.md):
   - Group bisection can in principle miss a setting whose effect is masked by a
     sibling dropped in the same group. That would show as "survives", so the
     survivors are a list to triage, never a verdict that a setting is dead.
+
+probe --settings re-probes the NAMED settings one at a time (no groups, so no
+masking), in every suite that loads each, and records every suite that notices
+-- not only the first. It writes reprobe.json and leaves probe.json alone.
 
 Standard library only; POSIX only.
 """
@@ -107,6 +122,40 @@ def template_settings():
 
 # ------------------------------------------------------------------ copy --
 
+HOOK_MARK = b"NAAB_DROP_SETTING"
+
+
+def carries_hook(path):
+    """True when the binary holds the removal variable's name. In a normal build
+    the name is compiled out (tests/security/test_setting_drop_compiled_out.sh)."""
+    try:
+        with open(path, "rb") as f:
+            return HOOK_MARK in f.read()
+    except OSError:
+        return False
+
+
+def pick_helpers(mut_dir, build_dir, names):
+    """Where each helper binary a suite may call comes from: the test build's
+    directory when it is built there, else the ordinary build. -> {name: (path,
+    "test build" | "ordinary build", has_hook)}; a name built in neither is left
+    out. A helper from the ordinary build has no hook, and one found in the
+    test build's directory without the hook is reported as such, not trusted."""
+    picked = {}
+    for name in names:
+        for where, d in (("test build", mut_dir), ("ordinary build", build_dir)):
+            src = os.path.join(d, name)
+            if os.path.isfile(src):
+                picked[name] = (src, where, carries_hook(src))
+                break
+    return picked
+
+
+def describe_helpers(helpers):
+    """One line per helper for the logs: {name: [where, has_hook]}."""
+    return {n: [w, h] for n, (_, w, h) in sorted(helpers.items())}
+
+
 class Copy:
     """A worktree of HEAD + the working tree's changes, with the test build as
     build/naab-lang. The real build/ is never touched."""
@@ -120,10 +169,12 @@ class Copy:
         dead_gate.overlay_working_tree(self.root)
         b = os.path.join(self.root, "build")
         os.makedirs(b, exist_ok=True)
-        for name in dead_gate.KEEP_BINARIES:
-            src = os.path.join(REPO, "build", name)
-            if os.path.isfile(src):
-                shutil.copy2(src, os.path.join(b, name))
+        self.helpers = pick_helpers(os.path.dirname(os.path.abspath(mut_binary)),
+                                    os.path.join(REPO, "build"), dead_gate.KEEP_BINARIES)
+        for name, (src, where, hook) in sorted(self.helpers.items()):
+            shutil.copy2(src, os.path.join(b, name))
+            out("helper %-18s from the %s: %s" % (name, where,
+                "carries the hook" if hook else "NO HOOK -- settings checked only through it read as survivors"))
         shutil.copy2(mut_binary, os.path.join(b, "naab-lang"))
         # Prove it is a mutation build: it must log what it loads. In its OWN
         # temp dir, never self.work: NAAb finds govern.json by walking up from
@@ -232,7 +283,7 @@ def cmd_map(args):
         copy.close()
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "map.json"), "w") as f:
-        json.dump({"seconds": round(time.time() - t0), "units": {k: {kk: vv for kk, vv in v.items() if kk != "unit"}
+        json.dump({"seconds": round(time.time() - t0), "helpers": describe_helpers(copy.helpers), "units": {k: {kk: vv for kk, vv in v.items() if kk != "unit"}
                                                                 for k, v in results.items()}},
                   f, indent=1)
     summarise_map(results)
@@ -262,9 +313,107 @@ def summarise_map(results):
 
 # ------------------------------------------------------------------ probe -
 
+def parse_settings(spec):
+    """--settings a.b,c.d or @FILE (one per line, # comments) -> ordered list."""
+    if spec.startswith("@"):
+        with open(spec[1:], encoding="utf-8", errors="replace") as f:
+            items = [l.split("#", 1)[0].strip() for l in f]
+    else:
+        items = [s.strip() for s in spec.split(",")]
+    seen, res = set(), []
+    for s in items:
+        if s and s not in seen:
+            seen.add(s)
+            res.append(s)
+    return res
+
+
+def cmd_reprobe(args, m):
+    """Each named setting alone, in every stable suite that loads it."""
+    wanted = parse_settings(args.settings)
+    units = {u["key"]: u for u in parallel.list_units()}
+    jobs = []            # (setting, unit key)
+    nowhere = []
+    for s in wanted:
+        ks = sorted(k for k, r in m["units"].items() if r["stable"] and k in units and s in r["loaded"])
+        if not ks:
+            nowhere.append(s)
+        jobs += [(s, k) for k in ks]
+    copy = Copy(args.mut_binary)
+    res = {s: {"noticed_by": [], "not_noticed_by": [], "not_performed_in": []} for s in wanted}
+    lock = threading.Lock()
+    excl = [j for j in jobs if units[j[1]]["argv"][0] in parallel.EXCLUSIVE]
+    queue = [j for j in jobs if units[j[1]]["argv"][0] not in parallel.EXCLUSIVE]
+    done = [0]
+
+    def do(s, k):
+        r = run_unit(copy, units[k], drop=[s])
+        base = tuple(m["units"][k]["outcome"])
+        with lock:
+            if not r[4]:
+                res[s]["not_performed_in"].append(k)
+            elif outcome(r) != base:
+                res[s]["noticed_by"].append(k)
+            else:
+                res[s]["not_noticed_by"].append(k)
+            done[0] += 1
+            out("[%3d/%d] %s  in %s" % (done[0], len(jobs), s, k))
+
+    def worker():
+        while True:
+            with lock:
+                if not queue:
+                    return
+                j = queue.pop(0)
+            do(*j)
+
+    t0 = time.time()
+    try:
+        ts = [threading.Thread(target=worker, daemon=True) for _ in range(args.jobs)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+        for j in excl:
+            do(*j)
+    finally:
+        helpers = describe_helpers(copy.helpers)
+        copy.close()
+    for v in res.values():
+        for key in v:
+            v[key].sort()
+    with open(os.path.join(args.out, "reprobe.json"), "w") as f:
+        json.dump({"seconds": round(time.time() - t0), "runs": len(jobs), "helpers": helpers,
+                   "loaded_by_no_stable_suite": nowhere, "settings": res}, f, indent=1)
+    out("")
+    out("## Single-setting re-probe (%d settings, %d runs)" % (len(wanted), len(jobs)))
+    out("")
+    for s in wanted:
+        out(reprobe_line(s, res[s], s in nowhere))
+    return 0
+
+
+def reprobe_line(setting, r, nowhere):
+    """One verdict per setting. A drop no run performed is UNMEASURABLE, never
+    'survives'; a setting no stable suite loads is untested."""
+    if nowhere:
+        return "  untested      %s  (no stable suite loads it)" % setting
+    if r["noticed_by"]:
+        return "  live          %s  noticed by %d of %d: %s" % (
+            setting, len(r["noticed_by"]), len(r["noticed_by"]) + len(r["not_noticed_by"]),
+            ", ".join(os.path.basename(k) for k in r["noticed_by"][:4]))
+    if not r["not_noticed_by"]:
+        return "  unmeasurable  %s  (the removal was performed in no run)" % setting
+    return "  survives      %s  alone, in %d suite(s)%s" % (
+        setting, len(r["not_noticed_by"]),
+        "; not performed in %d" % len(r["not_performed_in"]) if r["not_performed_in"] else "")
+
+
 def cmd_probe(args):
     with open(os.path.join(args.out, "map.json")) as f:
         m = json.load(f)
+    if getattr(args, "settings", None):
+        return cmd_reprobe(args, m)
     tmpl = template_settings()
     units = {u["key"]: u for u in parallel.list_units()}
     copy = Copy(args.mut_binary)
@@ -334,12 +483,54 @@ def cmd_probe(args):
         for kr in excl:
             do(*kr)
     finally:
+        helpers = describe_helpers(copy.helpers)
         copy.close()
     with open(os.path.join(args.out, "probe.json"), "w") as f:
         json.dump({"seconds": round(time.time() - t0), "runs": progress["runs"], "live": live,
+                   "helpers": helpers,
                    "dropped_values": {k: sorted(set(v))[:5] for k, v in performed.items()},
                    "asked_not_performed": sorted(asked_not_done)}, f, indent=1)
     return cmd_report(args)
+
+
+def broad_units(m, tmpl, threshold):
+    """Stable units that load `threshold` template settings or more: the whole
+    template, an example project's config. They set hundreds of keys and assert
+    on few of them."""
+    return {k for k, r in m["units"].items()
+            if r["stable"] and sum(1 for s in r["loaded"] if s in tmpl) >= threshold}
+
+
+def classify(m, p, tmpl, broad_threshold=100):
+    """-> (rows, broad unit keys). One row per template setting."""
+    loaded_by = collections.defaultdict(set)
+    for k, r in m["units"].items():
+        if r["stable"]:
+            for s in r["loaded"]:
+                loaded_by[s].add(k)
+    broad = broad_units(m, tmpl, broad_threshold)
+    live = p.get("live", {})
+    rows = []
+    for s in sorted(tmpl):
+        loaders = loaded_by.get(s, set())
+        if s.split(".")[-1] in DOC_LEAVES:
+            st = "documentation"
+        elif s in live:
+            st = "live"
+        elif not loaders:
+            st = "untested"
+        elif s in p.get("asked_not_performed", []) and s not in p.get("dropped_values", {}):
+            st = "unmeasurable"
+        elif not p:
+            st = "not probed"
+        elif loaders <= broad:
+            st = "broad-only"
+        else:
+            st = "survives"
+        rows.append({"setting": s, "status": st, "suites_loading": len(loaders),
+                     "suites_loading_not_broad": len(loaders - broad),
+                     "noticed_by": live.get(s), "values_dropped": p.get("dropped_values", {}).get(s)})
+    return rows, broad
 
 
 def cmd_report(args):
@@ -350,48 +541,41 @@ def cmd_report(args):
         with open(os.path.join(args.out, "probe.json")) as f:
             p = json.load(f)
     tmpl = template_settings()
-    loaded_by = collections.defaultdict(set)
-    for k, r in m["units"].items():
-        if r["stable"]:
-            for s in r["loaded"]:
-                loaded_by[s].add(k)
-    live = p.get("live", {})
-    rows = []
-    for s in sorted(tmpl):
-        if s.split(".")[-1] in DOC_LEAVES:
-            st = "documentation"
-        elif s in live:
-            st = "live"
-        elif s not in loaded_by:
-            st = "untested"
-        elif s in p.get("asked_not_performed", []) and s not in p.get("dropped_values", {}):
-            st = "unmeasurable"
-        elif p:
-            st = "survives"
-        else:
-            st = "not probed"
-        rows.append({"setting": s, "status": st, "suites_loading": len(loaded_by.get(s, ())),
-                     "noticed_by": live.get(s), "values_dropped": p.get("dropped_values", {}).get(s)})
+    rows, broad = classify(m, p, tmpl, getattr(args, "broad", 100))
     with open(os.path.join(args.out, "settings.json"), "w") as f:
         json.dump(rows, f, indent=1)
     c = collections.Counter(r["status"] for r in rows)
     out("## Setting liveness")
     out("")
-    for st in ("live", "survives", "untested", "unmeasurable", "not probed", "documentation"):
+    for st in ("live", "survives", "broad-only", "untested", "unmeasurable", "not probed", "documentation"):
         if c[st]:
             out("  %-13s %4d" % (st, c[st]))
+    out("")
+    out("  broad loaders (%d+ template settings each; a survivor only they load is broad-only):"
+        % getattr(args, "broad", 100))
+    for k in sorted(broad):
+        out("    %s" % k)
+    if not broad:
+        out("    (none)")
+    helpers = p.get("helpers") or m.get("helpers")
+    out("")
+    if helpers is None:
+        out("  helpers: not recorded (a run from before helpers were tracked: every helper came from the ordinary build)")
+    else:
+        for n, (where, hook) in sorted(helpers.items()):
+            out("  helper %-18s %s, %s" % (n, where, "hook" if hook else "NO HOOK"))
     by = collections.defaultdict(collections.Counter)
     for r in rows:
         by[r["setting"].split(".")[0]][r["status"]] += 1
     out("")
-    out("  %-24s %7s %8s %6s %8s %8s" % ("section", "settings", "untested", "live", "survives", "loaded"))
+    out("  %-24s %7s %8s %6s %8s %10s %8s" % ("section", "settings", "untested", "live", "survives", "broad-only", "loaded"))
     for sec in sorted(by, key=lambda s: -sum(by[s].values())):
         b = by[sec]
         n = sum(b.values()) - b["documentation"]
         if not n:
             continue
-        out("  %-24s %7d %8d %6d %8d %8s" % (sec, n, b["untested"], b["live"], b["survives"],
-                                             "%d%%" % round(100.0 * (n - b["untested"]) / n)))
+        out("  %-24s %7d %8d %6d %8d %10d %8s" % (sec, n, b["untested"], b["live"], b["survives"], b["broad-only"],
+                                                   "%d%%" % round(100.0 * (n - b["untested"]) / n)))
     return 0
 
 
@@ -406,6 +590,10 @@ def main(argv=None):
             s.add_argument("--jobs", type=int, default=min(os.cpu_count() or 2, 8))
         if name == "probe":
             s.add_argument("--group", type=int, default=32)
+            s.add_argument("--settings", help="re-probe only these, one at a time: a.b,c.d or @FILE")
+        if name != "map":
+            s.add_argument("--broad", type=int, default=100,
+                           help="a unit loading this many template settings or more is a broad loader")
     a = ap.parse_args(argv)
     a.out = os.path.abspath(a.out)
     return {"map": cmd_map, "probe": cmd_probe, "report": cmd_report}[a.cmd](a)
