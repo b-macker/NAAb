@@ -4,7 +4,117 @@ The dead-interpreter gate asks whether each *test* can fail. This asks the same
 of each *setting* in `govern-template.json`: drop it, so the engine falls back
 to its default, and see whether any test that uses it notices.
 
-Measured 2026-10-03. Full per-setting data: [`settings-liveness/results-2026-10-03.json`](settings-liveness/results-2026-10-03.json).
+First measured 2026-10-03 ([`settings-liveness/results-2026-10-03.json`](settings-liveness/results-2026-10-03.json));
+re-measured 2026-11-13 ([`settings-liveness/results-2026-11-13.json`](settings-liveness/results-2026-11-13.json)).
+The re-measurement is the next section; everything after it describes the first run.
+
+## Re-measured 2026-11-13
+
+Master `09e633e2`, the same three commands as below, 4 jobs. Every count is
+**observed** on that run unless it says otherwise. Report only: no engine,
+test or template file changed.
+
+| | 2026-10-03 | 2026-11-13 |
+|---|---:|---:|
+| Units run | 260 | 411 |
+| Template settings (enforcement) | 1,474 | 1,534 |
+| **live** (a test notices it removed) | 189 (13%) | **310 (20%)** |
+| not live | 1,285 | 1,224 |
+| Probe runs / time | 940 / 39 min | 1,409 / 45 min |
+
+Of the 189 settings live in October, 182 are still in the template and all
+182 are still live. 79 settings moved to live (46 from survives, 33 from
+untested), and 49 of the 92 settings added to the template since are live.
+
+**The tool's "untested" count is now 0, and that is an artifact.**
+`tests/governance_v4/test_nested_unknown_keys.sh` loads the whole template
+(1,775 setting paths), so every setting is "loaded by a suite". The count
+that means what "untested" meant in October is the first column below.
+
+### The 1,223 survivors, sorted
+
+| Group | Settings | What it is |
+|---|---:|---|
+| template-only | 453 | loaded only by the whole-template loader: no suite written for it loads it (October's "untested": 538) |
+| inert by trace | 47 | classified `inert` in `tests/governance_v4/ratchet_classification.txt` |
+| at the template's value | 414 | every value the probe removed equals the template's value |
+| another value | 309 | some suite sets it to a value other than the template's, and none noticed it removed |
+| unmeasurable | 1 | `environments.*.quality_gate.enabled`: the removal was requested and never performed |
+
+How far each group can be trusted (all **screened**, none traced per key):
+
+- **at the template's value is not "at its default".** The template writes
+  `enabled: true` for checks whose built-in default is off, so removing such
+  a key does change the rules; the group says only that no test noticed.
+- **another value** is the strongest lead that a test is missing: a suite
+  bothered to set the key, and its verdict did not depend on it. It can also
+  be a key another key in the same removed group masks.
+- **inert by trace** covers only keys the ratchet table names; a key outside
+  that table can be inert too.
+- The ratchet table matched 359 of the survivors (kinds `ratchet`, `order`,
+  `fixed`: settings with a security direction): 117 template-only, 122 at
+  the template's value, 120 at another value. The 120 are listed in the
+  results file (`survivor_group: "other-value"` with a `ratchet_kind`); they
+  include `capabilities.network.allowed_ports` (known: A87, binds no program
+  connection), the `context_drift.reality_checkpoint.*` keys, 12
+  `context_drift.signals.*` switches, the five `exposure_tracking.*` limits
+  and the four `hooks.*.timeout` keys.
+
+| Section | Settings | Live | Template-only | Inert | Template value | Other value |
+|---|---:|---:|---:|---:|---:|---:|
+| scanner | 310 | 0 | 116 | 0 | 106 | 88 |
+| code_quality | 228 | 26 | 81 | 1 | 76 | 44 |
+| polyglot_optimization | 169 | 2 | 119 | 0 | 39 | 9 |
+| context_drift | 120 | 35 | 34 | 0 | 10 | 41 |
+| restrictions | 80 | 18 | 0 | 6 | 40 | 16 |
+| languages | 74 | 6 | 0 | 3 | 53 | 12 |
+| agents | 54 | 30 | 11 | 0 | 3 | 10 |
+| capabilities | 43 | 21 | 9 | 0 | 10 | 3 |
+| circuit_breaker | 39 | 28 | 3 | 0 | 2 | 6 |
+| contracts | 32 | 8 | 17 | 0 | 0 | 7 |
+| output | 29 | 2 | 1 | 13 | 11 | 2 |
+| audit | 28 | 12 | 1 | 6 | 6 | 3 |
+| requirements | 26 | 3 | 7 | 0 | 8 | 8 |
+| limits | 22 | 10 | 0 | 0 | 3 | 9 |
+| polyglot | 22 | 1 | 0 | 11 | 5 | 5 |
+| governance | 21 | 6 | 11 | 0 | 1 | 3 |
+| 38 smaller sections | 237 | 102 | 43 | 7 | 41 | 43 |
+
+### Controls and limits of this run
+
+- **Positive control: PASS.** The eight settings the first run named as
+  load-bearing are all live again, each noticed by a named suite
+  (`capabilities.shell.enabled`, `mode`, `capabilities.network.enabled`,
+  `circuit_breaker.enabled`, `context_drift.enabled`,
+  `agents.*.shell_allowed`, `capabilities.filesystem.blocked_paths`,
+  `meta.inheritance.merge_arrays`).
+- **No flaky suites**: no unit's two baselines disagreed.
+- **scanner: 310 settings UNMEASURABLE by this tool, in both runs** (traced
+  2026-11-13). `ScannerEngine::loadConfigFromPath()` (`src/scanner/scanner.cpp`)
+  opens govern.json and reads its `scanner` section itself; it never passes
+  through `loadFromJson()`, where the removal hook lives. A requested removal
+  is performed and logged by the governance loader in the same process, so
+  the tool counts it as done, while the scanner still reads the key. The
+  scanner's rows in the tables above (and in October's) are not evidence
+  either way; without them, 310 of 1,224 measurable settings are live (25%)
+  and 913 survive.
+- **Only `naab-lang` carries the hook.** A setting a suite checks through
+  `naab-gov` (lint, check, diff, ratchet, taint) is loaded by a binary that
+  cannot remove it, so it reads as a survivor. This is the
+  false-"no test notices" direction, and it has grown since October with the
+  `naab-gov` suites.
+- The first run's limits (below) still apply: single `.naab` tests are not
+  covered, and group removal can mask.
+- The probe was run twice: a container restart stopped the first at suite
+  323 of 328, with 308 live at that point.
+- **Adversarial pass.** The claim judged most likely wrong was "the scanner
+  section has no live setting". Looking for the scanner's reader showed the
+  instrument does not reach it (above), so the claim was withdrawn rather
+  than confirmed. One re-tracing; it changed the reading of 310 rows. Not
+  re-traced: the per-key sorting, which is screened.
+- **Direction of error.** Everything this tool can get wrong, it gets wrong
+  toward "no test notices" (the scanner, `naab-gov`, masking). A setting it
+  calls live was noticed by a named suite on a real run.
 
 ## How it is measured
 
