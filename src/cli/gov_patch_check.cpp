@@ -247,6 +247,7 @@ void namedByConfig(const fs::path& root, const fs::path& config, std::set<std::s
 
 struct ContractVerdicts {
     int exit = -1;
+    bool reported = false;                             // the search printed its JSON report
     std::map<std::string, std::string> by_function;   // declared functions only
 };
 
@@ -258,6 +259,7 @@ ContractVerdicts contractsOf(const std::string& self, const fs::path& file, cons
     v.exit = runSelf(self, a, out);
     json j = json::parse(out, nullptr, false);
     if (j.is_object() && j.contains("functions") && j["functions"].is_array()) {
+        v.reported = true;
         for (const auto& f : j["functions"]) {
             if (!f.is_object() || !f.contains("function") || !f["function"].is_string()) continue;
             if (f.value("why", std::string()) == "not declared in this file") continue;
@@ -471,8 +473,14 @@ int cmdPatchCheck(const std::vector<std::string>& args, const char* argv0) {
                     refused.push_back(printable(rel) + ": the patched file does not parse, or its contracts cannot be read");
                 else if (after.exit == 3 && !(in_base && before.exit == 3))
                     refused.push_back(printable(rel) + ": governance blocks the contract search of the patched file");
-                else if (after.exit < 0 || after.exit > 4)
-                    unmeasurable.push_back(printable(rel) + ": the contract search did not report");
+                else if (!after.reported)
+                    // No report for the patched file and nothing new to refuse:
+                    // the same failure in both trees (a file that parses in
+                    // neither, a platform with no worker process, a config the
+                    // search does not find from the patched tree). Nothing was
+                    // checked, so it is never "accepted".
+                    unmeasurable.push_back(printable(rel) + ": the contract search gave no report for the patched file (exit " +
+                                           std::to_string(after.exit) + ")");
                 for (const auto& [fn, verdict] : after.by_function) {
                     auto b = before.by_function.find(fn);
                     const std::string was = b == before.by_function.end() ? "" : b->second;

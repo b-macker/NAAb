@@ -36,6 +36,9 @@
 #           (and so the search ran: a dead interpreter fails this arm)
 #   PC-13d  a governance file touched: the contract search is not run
 #   PC-13e  a contract search whose worker reports nothing: exit 2, not accepted
+#   PC-13f  the search fails the same way in both trees (a program that parses
+#           in neither; every program where there is no worker process): exit 2
+#   PC-13g  CONTROL: the same base, the program repaired, the clause kept -> accepted
 #   PC-14   what the patch newly needs (a manifest action, a taint flow) is
 #           printed and refuses nothing
 #   PC-15   usage errors exit 4
@@ -62,6 +65,11 @@
 #   unchecked clauses are accepted               -> PC-13 red
 #   a new counterexample is accepted             -> PC-13b red
 #   an unmeasured clause is accepted             -> PC-13e red
+#   a search with no report is accepted          -> PC-13f red (the code before
+#       the fix: build-windows at 266d1a82 accepted a patch that breaks a clause,
+#       because `contracts` exits 4 there for both trees; PC-13b PC-13e red there)
+#   the contract search answers as on Windows    -> 0 red; PC-13b/c/e/g UNMEASURABLE,
+#       PC-13f green (simulated on Linux by compiling the Windows branch)
 #   contracts run under a patched governance input -> PC-13d red
 #   tools run under a patched governance input   -> PC-13d red
 #   a new manifest action refuses                -> PC-14 red
@@ -86,6 +94,13 @@ PASS=0; FAIL=0; UNM=0
 pass() { PASS=$((PASS+1)); echo "  PASS [$1] $2"; }
 fail() { FAIL=$((FAIL+1)); echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && echo "       -> $3"; }
 unm()  { UNM=$((UNM+1));  echo "  UNMEASURABLE [$1] $2"; }
+# An arm this PLATFORM cannot measure (Windows: no worker process for the
+# contract search, no symbolic links from this shell). Counted and printed like
+# any other; it fails the suite everywhere except on that platform, so on Linux
+# a search that stops measuring is still a red suite.
+UNM_PLATFORM=0; ON_WINDOWS=0
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) ON_WINDOWS=1 ;; esac
+unm_platform() { unm "$@"; [ "$ON_WINDOWS" -eq 1 ] && UNM_PLATFORM=$((UNM_PLATFORM+1)); return 0; }
 
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust          # unsigned configs
@@ -216,7 +231,7 @@ if ln -s ../docs/design.md "$P/src/link.md" 2>/dev/null && [ -L "$P/src/link.md"
     arm pc11b; cp "$P/docs/design.md" "$P/docs/copy.md"; rm "$P/docs/design.md"; ln -s copy.md "$P/docs/design.md"; check
     refused PC-11b "changes docs/design.md: a symbolic link" "a file replaced by a link to a copy of itself"
 else
-    unm PC-11 "this platform makes no symbolic link here"; unm PC-11b "this platform makes no symbolic link here"
+    unm_platform PC-11 "this platform makes no symbolic link here"; unm_platform PC-11b "this platform makes no symbolic link here"
 fi
 
 # ---- unmeasurable ----------------------------------------------------------------
@@ -252,13 +267,25 @@ if [ "$RC" -eq 2 ] && has "--run-contracts was not given"; then
 else fail PC-13 "an unchecked clause should be UNMEASURABLE" "rc=$RC: $(grep -A3 'Not measured' <<<"$OUT" | tr '\n' ' ')"; fi
 arm pc13c; printf '%s' "$HONEST" > "$P/src/p.naab"; check --run-contracts --naab "$NAAB"
 c_rc=$RC; c_out="$OUT"
-if [ "$c_rc" -eq 0 ] && grep -q -F "result: ACCEPTED" <<<"$c_out"; then
+# The control must show the search MEASURED the function, not only that the
+# patch was accepted: on a platform with no worker process the search exits 4
+# in both trees, and an "accepted" there passed this control and let PC-13b
+# read as a broken clause accepted (build-windows, 266d1a82).
+c_measured=$("$GOV" contracts "$P/src/p.naab" --naab "$NAAB" --json 2>/dev/null | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    ok = any(f.get("function") == "absval" and f.get("verdict") == "NONE_FOUND" for f in d["functions"])
+except Exception:
+    ok = False
+sys.stdout.write("yes" if ok else "no")' || true)
+if [ "$c_rc" -eq 0 ] && [ "$c_measured" = "yes" ] && grep -q -F "result: ACCEPTED" <<<"$c_out"; then
     pass PC-13c "CONTROL: --run-contracts on a patch that keeps the clause is accepted (the search ran)"
     arm pc13b; printf '%s' "$BROKEN" > "$P/src/p.naab"; check --run-contracts --naab "$NAAB"
     refused PC-13b "src/p.naab: absval breaks a contract clause it did not break before" "a patch that breaks a contract clause"
 else
-    unm PC-13c "the contract search did not measure the honest patch (rc=$c_rc): $(grep -A3 'Not measured\|^Refused' <<<"$c_out" | tr '\n' ' ' | cut -c1-200)"
-    unm PC-13b "no working contract search to compare against"
+    unm_platform PC-13c "the contract search did not measure the honest patch (rc=$c_rc): $(grep -A3 'Not measured\|^Refused' <<<"$c_out" | tr '\n' ' ' | cut -c1-200)"
+    unm_platform PC-13b "no working contract search to compare against"
 fi
 arm pc13d; printf '%s' "$BROKEN" > "$P/src/p.naab"; echo "x" >> "$P/CLAUDE.md"; check --run-contracts --naab "$NAAB" --json
 J=$(python3 -c '
@@ -274,9 +301,28 @@ else fail PC-13d "patched code must not be run under a patched governance input"
 # the honest patch.
 printf '#!/bin/sh\nexit 0\n' > "$TMP/dead-naab"; chmod +x "$TMP/dead-naab"
 arm pc13e; printf '%s' "$BROKEN" > "$P/src/p.naab"; check --run-contracts --naab "$TMP/dead-naab"
-if [ "$RC" -eq 2 ] && has "the contract search could not measure absval in the patch"; then
+if [ "$RC" -eq 0 ] || grep -q -F "result: ACCEPTED" <<<"$OUT"; then
+    fail PC-13e "an unmeasured clause must not be accepted" "rc=$RC: $(grep -A3 'Not measured\|^Refused' <<<"$OUT" | tr '\n' ' ' | cut -c1-240)"
+elif [ "$c_measured" != "yes" ]; then
+    unm_platform PC-13e "no working contract search here, so a dead worker cannot be told from the platform (rc=$RC, not accepted)"
+elif [ "$RC" -eq 2 ] && has "the contract search could not measure absval in the patch"; then
     pass PC-13e "a contract search whose worker reports nothing: UNMEASURABLE, exit 2, never accepted"
 else fail PC-13e "an unmeasured clause must not be accepted" "rc=$RC: $(grep -A3 'Not measured\|^Refused' <<<"$OUT" | tr '\n' ' ' | cut -c1-240)"; fi
+# The search fails the SAME way in both trees (here: a program that parses in
+# neither): no report, nothing new to refuse -- and nothing checked. This is the
+# shape a platform with no worker process gives for every program.
+CONX="$TMP/base-conx"
+make_base "$CONX" '"contracts": {"level": "hard", "functions": {"absval": {"params": ["n:int"], "ensures": ["result >= 0"]}}},'
+printf 'fn absval(n) {\n    return n\n' > "$CONX/src/p.naab"
+BASE_FOR_ARM="$CONX"
+arm pc13f; printf 'fn absval(n) {\n    return 0 - n\n' > "$P/src/p.naab"; check --run-contracts --naab "$NAAB"
+if [ "$RC" -eq 2 ] && has "src/p.naab: the contract search gave no report for the patched file (exit 4)"; then
+    pass PC-13f "a search that fails the same way in both trees: UNMEASURABLE, exit 2, never accepted"
+else fail PC-13f "a search with no report in either tree must not be accepted" "rc=$RC: $(grep -A3 'Not measured\|^Refused' <<<"$OUT" | tr '\n' ' ' | cut -c1-240)"; fi
+arm pc13g; printf 'fn absval(n) {\n    if n < 0 { return 0 - n }\n    return n\n}\nmain {\n    print(absval(-3))\n}\n' > "$P/src/p.naab"; check --run-contracts --naab "$NAAB"
+if [ "$c_measured" != "yes" ]; then unm_platform PC-13g "no working contract search here"
+elif [ "$RC" -eq 0 ]; then pass PC-13g "CONTROL: the same base, a patch that repairs the program and keeps the clause, is accepted"
+else fail PC-13g "a repaired program that keeps its clause should be accepted" "rc=$RC: $(grep -A3 'Not measured\|^Refused' <<<"$OUT" | tr '\n' ' ' | cut -c1-240)"; fi
 unset BASE_FOR_ARM
 
 # ---- printed only ----------------------------------------------------------------
@@ -309,4 +355,4 @@ else fail PC-17 ".git should not be compared" "rc=$RC: $(sed -n 3p <<<"$OUT")"; 
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $UNM unmeasurable"
-[ "$FAIL" -eq 0 ] && [ "$UNM" -eq 0 ]
+[ "$FAIL" -eq 0 ] && [ "$UNM" -eq "$UNM_PLATFORM" ]
