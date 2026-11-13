@@ -1147,6 +1147,7 @@
 "output\x1f""errors\x1f""show_rule_path",
 "output\x1f""errors\x1f""truncate_long_lines",
 "output\x1f""errors\x1f""verbose",
+"output\x1f""explainer",
 "output\x1f""file_output",
 "output\x1f""file_output\x1f""report_csv",
 "output\x1f""file_output\x1f""report_html",
