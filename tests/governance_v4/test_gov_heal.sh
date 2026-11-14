@@ -19,7 +19,7 @@
 #   HL-01   two violations: below --min 3 -> exit 0, nothing proposed
 #   HL-01b  CONTROL: the same file with --min 2 -> proposed
 #   HL-02   one event edited in a copy: the chain does not verify -> exit 2,
-#           nothing proposed
+#           nothing proposed, in the text report and in --json
 #   HL-03   a run with its last line (RunEnd) cut off -> exit 2
 #   HL-04   the config given is not the one the run used -> exit 2
 #   HL-05   two runs in one file under two configs: only the run under the
@@ -40,7 +40,32 @@
 #   HL-13   three violations at "detect" are not counted or listed
 #
 # Kill table (each mutant built, suite re-run; observed 2026-11-14):
-#   see the end of this header.
+#   replay is not asked                          -> HL-02 HL-03 red
+#   a chain that DIVERGED is accepted            -> HL-02 red
+#   an unverifiable chain is accepted            -> HL-03 red
+#   proposals despite a refusal                  -> HL-02 red (its --json half;
+#       the text report hides them, and the first HL-02 read only the text)
+#   the config identity is not compared          -> HL-04 HL-05 red
+#   a reloaded run is counted                    -> HL-06 red
+#   no usable run is fine                        -> HL-04 HL-06 red
+#   --min is ignored                             -> HL-01 HL-05 red
+#   non-advisory violations are counted          -> HL-13 red
+#   an absent level key is proposed              -> HL-07 red
+#   a key the ratchet does not name is proposed  -> HL-08 red
+#   an edit the ratchet refuses is proposed      -> HL-09 red
+#   the ratchet is not asked                     -> HL-00 HL-08 HL-09 red
+#   the candidate is written beside the config   -> HL-10 red (the first HL-10
+#       measured a directory an earlier arm had already healed in)
+#   the proposed value is hard                   -> HL-00 red
+#   --config is optional                         -> HL-12 red
+#   an unknown option is ignored                 -> HL-12 red
+#   the json drops the count                     -> HL-11 red
+#   always a proposal                            -> HL-01..09 HL-13 red
+#   events of every run are pooled               -> HL-05 red
+# Not mutated: the branch for a written level that is not "advisory" while the
+# events are (no real run found that produces it), and the plain-name filter on
+# rule names and run ids (an arm for it would need an edited file, which fails
+# the chain check first).
 #
 # No secret or PII value is written here.
 
@@ -121,6 +146,7 @@ if [ "$RUN_RC" -ne 0 ] || [ "$A_N" != "3" ]; then
     unm HL-ALL "the fixture run did not record three advisory violations (rc=$RUN_RC, recorded=${A_N:-none}): $(tail -2 "$A/run.out" | tr '\n' ' ' | cut -c1-200)"
     echo ""; echo "Results: $PASS passed, $FAIL failed, $UNM unmeasurable"; exit 1
 fi
+cp -a "$A" "$TMP/z"   # HL-10's copy: taken before any heal has run in it
 heal "$A"
 if [ "$RC" -eq 1 ] && has 'taint_tracking.level: "advisory" -> "soft"' && has "taint_tracking.sink_violation" \
    && has "the ratchet accepts it as a tightening: taint_tracking.level: advisory -> soft" && has "result: PROPOSED"; then
@@ -154,8 +180,15 @@ for line in sys.stdin:
         line = line.replace("taint_tracking.sink_violation", "taint_tracking.sink_violatiox"); done = True
     out.append(line)
 sys.stdout.write("".join(out))' < "$A/tel.jsonl" > "$A/edited.jsonl"
+# --min 2: the edit leaves two events of the real rule, enough to propose from if the refusal did not stop it.
+HEAL_FILE=edited.jsonl heal "$A" --json --min 2
+e_json=$(python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+sys.stdout.write("ok" if d["result"] == "UNMEASURABLE" and d["proposals"] == [] and d["refused"] else "bad")' <<<"$OUT" 2>/dev/null || true)
+e_json_rc=$RC
 HEAL_FILE=edited.jsonl heal "$A"
-if [ "$RC" -eq 2 ] && has "the telemetry chain does not verify" && ! has "Proposed (" && has "result: UNMEASURABLE"; then
+if [ "$RC" -eq 2 ] && [ "$e_json_rc" -eq 2 ] && [ "$e_json" = "ok" ] && has "the telemetry chain does not verify" && ! has "Proposed (" && has "result: UNMEASURABLE"; then
     pass HL-02 "an edited copy: the chain does not verify, nothing is proposed, exit 2"
 else fail HL-02 "an edited telemetry file must not yield a proposal" "rc=$RC: $(grep -A3 'did not hold' <<<"$OUT" | tr '\n' ' ' | cut -c1-240)"; fi
 head -n -1 "$A/tel.jsonl" > "$A/cut.jsonl"
@@ -324,7 +357,7 @@ fi
 
 # ---- nothing is written ----------------------------------------------------------
 sum() { (cd "$1" && find . -type f ! -name run.out | LC_ALL=C sort | while read -r f; do printf '%s ' "$f"; cksum < "$f"; done) | cksum; }
-before=$(sum "$A"); heal "$A"; after=$(sum "$A")
+Z="$TMP/z"; before=$(sum "$Z"); heal "$Z"; after=$(sum "$Z")
 left=$(find "$SCRATCH" -mindepth 1 | head -3 | tr '\n' ' ')
 if [ "$RC" -eq 1 ] && [ "$before" = "$after" ] && [ -z "$left" ]; then
     pass HL-10 "nothing is written: config, telemetry and directory unchanged, the scratch directory empty"
