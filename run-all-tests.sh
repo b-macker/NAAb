@@ -2656,6 +2656,21 @@ else
     echo "  test_gov_explain.sh: not found, skipping"
 fi
 
+# naab-gov patch-check (Bundle 15 PR 3): the gate for a patch an agent wrote.
+# Each arm is one change to a copy of one base tree; PC-00/05c/07c are the
+# accepted controls, PC-13c the control that the contract search ran.
+GOV_PATCH_CHECK_SCRIPT="tests/governance_v4/test_gov_patch_check.sh"
+if [ -f "$GOV_PATCH_CHECK_SCRIPT" ]; then
+    if run_shell_test "$GOV_PATCH_CHECK_SCRIPT" 2>&1; then
+        echo "  test_gov_patch_check.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_gov_patch_check.sh")
+    fi
+else
+    echo "  test_gov_patch_check.sh: not found, skipping"
+fi
+
 # The telemetry chain under concurrent writers (A164) and the verifier on lines
 # it will not read (A163). CC-00 is the sequential control; the batch arms were
 # red 4 of 5 runs before the fix.

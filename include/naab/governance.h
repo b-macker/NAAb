@@ -2868,6 +2868,12 @@ struct GovernanceRules {
     CodeQualityConfig code_quality;
     std::vector<CustomRule> custom_rules;
     std::vector<GovernancePlugin> governance_plugins;
+    // naab-gov patch-check (Bundle 15): which paths hold tests, and which extra
+    // paths a patch may not touch. Read by that command only.
+    struct PatchCheckConfig {
+        std::vector<std::string> test_paths;        // empty = the default, tests/ and test/
+        std::vector<std::string> protected_paths;
+    } patch_check;
     std::vector<ScopeOverride> scopes;
     OutputConfig output;
     AuditConfig audit;
