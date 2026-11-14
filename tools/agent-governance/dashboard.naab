@@ -278,7 +278,6 @@ export fn trend_analysis(events, window_hours) {
     let results = <<python[events, window_hours] -> JSON
 import json
 from datetime import datetime
-
 buckets = {}
 if not events:
     res = {"periods": [], "violation_trend": "stable", "pass_rate_trend": "stable"}
@@ -290,29 +289,23 @@ else:
         start_dt = datetime.fromisoformat(start_ts.replace('Z', '+00:00'))
     except:
         start_dt = datetime.now()
-
     for ev in sorted_events:
         ts = ev.get("timestamp", "")
         try:
             dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
         except:
             continue
-        
         delta = dt - start_dt
         window_idx = int(delta.total_seconds() / (float(window_hours) * 3600.0))
-        
         if window_idx not in buckets:
             buckets[window_idx] = {"violation_count": 0, "pass_count": 0, "event_count": 0, "start": dt, "end": dt}
-        
         buckets[window_idx]["event_count"] += 1
         if ev.get("result") == "block":
             buckets[window_idx]["violation_count"] += 1
         elif ev.get("result") == "pass":
             buckets[window_idx]["pass_count"] += 1
-        
         if dt < buckets[window_idx]["start"]: buckets[window_idx]["start"] = dt
         if dt > buckets[window_idx]["end"]: buckets[window_idx]["end"] = dt
-
     periods = []
     for idx in sorted(buckets.keys()):
         b = buckets[idx]
@@ -324,18 +317,15 @@ else:
             "pass_rate": pass_rate,
             "event_count": b["event_count"]
         })
-
     v_trend = "stable"
     p_trend = "stable"
     if len(periods) >= 2:
         v_diff = periods[-1]["violation_count"] - periods[0]["violation_count"]
         if v_diff > 0: v_trend = "increasing"
         elif v_diff < 0: v_trend = "decreasing"
-        
         p_diff = periods[-1]["pass_rate"] - periods[0]["pass_rate"]
         if p_diff > 0.05: p_trend = "improving"
         elif p_diff < -0.05: p_trend = "declining"
-
     res = {"periods": periods, "violation_trend": v_trend, "pass_rate_trend": p_trend}
     json.dumps(res)
 >>
