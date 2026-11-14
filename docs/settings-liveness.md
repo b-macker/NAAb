@@ -95,6 +95,41 @@ Limits of this run:
 - **Direction of error**: unchanged. What the tool gets wrong, it gets wrong
   toward "no test notices".
 
+## Step 2: first tests for settings that refuse an action (2026-11-14)
+
+`tests/governance_v4/test_untested_limits.sh` (32 arms) pins 17 settings from
+the survivor and broad-only lists, each set against unset with the control
+run first. It changes no engine behaviour. Chosen by one rule: the setting
+refuses an action, and its default is off, unlimited or weaker.
+
+| Setting | Before | What the arm shows (observed) |
+|---|---|---|
+| `codegen.max_code_size_bytes` | survives | a longer code string is refused |
+| `codegen.max_cumulative_calls` | survives | the call past the cap is refused |
+| `codegen.max_cumulative_code_bytes` | broad-only | the call crossing it is refused |
+| `limits.execution.call_depth` | survives | HARD block on deeper recursion |
+| `languages.per_language.python.max_lines` | survives | HARD block |
+| `languages.per_language.javascript.max_lines` | survives | HARD block |
+| `restrictions.obfuscation.level` / `.enabled` | broad-only | `hard` is not passed by `--governance-override`; the default (soft) is |
+| `restrictions.vcs_secret_extraction.level` / `.enabled` | broad-only | same shape |
+| `restrictions.code_injection.block_dynamic_code_gen`, `block_command_injection`, `block_sql_injection_patterns` | survives | false opens its own pattern and no other switch's |
+| `exposure_tracking.max_autonomous_actions` | survives | the send past it makes no provider call |
+| `exposure_tracking.max_unique_agents` | survives | a second agent is refused at create (A168) |
+| `agents.*.tool_result_max_chars` | survives | the model receives the truncated result |
+| `agents.*.tool_result_max_total_chars` | broad-only | the result crossing the total is withheld |
+
+**Each of the 17 is live now** (observed on the test build, `007e8dd4`):
+with the setting removed as the config loads, its arm fails. The whole-suite
+counts above are not re-measured; a full sweep would move these 17 to live.
+
+Probed and NOT given a test, because they refuse nothing (observed; already
+under A2, for step 3): `limits.code.max_lines_per_block`,
+`limits.timeout.per_block`, `languages.per_language.<lang>.timeout`. Not
+reached for lack of a fixture: `codegen.max_nesting_depth`,
+`codegen.max_cumulative_calls_per_agent`, `exposure_tracking.max_pipeline_depth`.
+The codegen refusals are catchable errors (exit 1), which is A88 and is
+pinned as it is.
+
 ## Re-measured 2026-11-13 (first run, before the tool fix)
 
 The scanner and `naab-gov` limits this section describes are closed by the
