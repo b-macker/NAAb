@@ -38,6 +38,7 @@
 //
 // Exit: 0 accepted, 1 refused, 2 UNMEASURABLE, 4 usage or config error.
 #include "naab/crypto_utils.h"
+#include "gov_self.h"
 #include "naab/governance.h"
 #include "naab/subprocess_helpers.h"
 #include <nlohmann/json.hpp>
@@ -188,33 +189,15 @@ long assertionSites(const fs::path& file) {
     return n;
 }
 
-std::string selfPath(const char* argv0) {
-#ifdef _WIN32
-    char buf[MAX_PATH];
-    DWORD n = GetModuleFileNameA(nullptr, buf, MAX_PATH);
-    if (n > 0 && n < MAX_PATH) return std::string(buf, n);
-#else
-    std::error_code ec;
-    auto p = fs::read_symlink("/proc/self/exe", ec);
-    if (!ec && !p.empty()) return p.string();
-#endif
-    return argv0 ? std::string(argv0) : std::string("naab-gov");
-}
+
+
+
+using naab::govcli::detachStdin;
+using naab::govcli::selfPath;
 
 int runSelf(const std::string& self, const std::vector<std::string>& args, std::string& out) {
     std::string err;
-    return naab::runtime::execute_subprocess_with_pipes(
-        self, args, out, err, nullptr, nullptr, naab::runtime::ChildStdin::Null);
-}
-
-void detachStdin() {
-#ifdef _WIN32
-    int fd = _open("NUL", _O_RDONLY);
-    if (fd >= 0) { _dup2(fd, 0); if (fd != 0) _close(fd); }
-#else
-    int fd = ::open("/dev/null", O_RDONLY);
-    if (fd >= 0) { ::dup2(fd, 0); if (fd != 0) ::close(fd); }
-#endif
+    return naab::govcli::runSelf(self, args, out, err);
 }
 
 // The files BASE's config names beyond itself: each `extends` parent (followed

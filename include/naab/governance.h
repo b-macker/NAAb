@@ -3289,6 +3289,9 @@ public:
 
     // --- Loading ---
     bool loadFromFile(const std::string& path);
+    // The run identity RunStart records: a hash over the content of every file
+    // in the loaded extends chain. Empty before a file is loaded.
+    const std::string& configFingerprint() const { return config_fingerprint_; }
     bool loadFromString(const std::string& json_config);
     bool discoverAndLoad(const std::string& start_dir);
     // What discoverAndLoad() does with the govern.json it finds: load it, add

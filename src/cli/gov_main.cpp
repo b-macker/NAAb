@@ -95,6 +95,10 @@ static void printHelp() {
         "  naab-gov patch-check <base> <patched>  Gate a patch an agent wrote: refuses a\n"
         "                                         change to a governance file or to an\n"
         "                                         existing test (--run-contracts, --json)\n"
+        "  naab-gov heal <telemetry> --config F   Propose advisory -> soft for a level the\n"
+        "                                         config writes, where its rule repeated\n"
+        "                                         in a verified run (report only; --min N,\n"
+        "                                         --json)\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
         "\n"
@@ -742,6 +746,8 @@ int cmdReplay(const std::vector<std::string>& args);
 int cmdExplain(const std::vector<std::string>& args, const char* argv0);
 // gov_patch_check.cpp: the deterministic gate for a patch an agent wrote.
 int cmdPatchCheck(const std::vector<std::string>& args, const char* argv0);
+// gov_heal.cpp: a repeated advisory -> a stricter written level (report only).
+int cmdHeal(const std::vector<std::string>& args, const char* argv0);
 // gov_diff.cpp (Bundle 13)
 int cmdDiff(const std::vector<std::string>& args);
 // gov_manifest.cpp (Bundle 11 PR 2)
@@ -965,6 +971,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "patch-check") {
             return cmdPatchCheck(rest, argv[0]);
+        }
+
+        if (cmd == "heal") {
+            return cmdHeal(rest, argv[0]);
         }
     } catch (const naab::governance::GovernanceHardError& e) {
         std::cerr << e.what() << "\n";
