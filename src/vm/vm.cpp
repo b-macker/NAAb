@@ -1,3 +1,4 @@
+#include "naab/block_time_limit.h"
 #include "naab/sql_executor.h"
 #include "naab/vm.h"
 #include "naab/value_equality.h"
@@ -2197,6 +2198,7 @@ interpreter::NaabVal VM::run() {
                         // Execute on the persistent executor
                         try {
                             interpreter::NaabVal result;
+                            governance::underBlockTimeLimit(governance_, rt.language, 0, [&] {
                             bool is_js = (rt.language == "javascript" || rt.language == "js");
                             if (is_js) {
 #ifndef _WIN32
@@ -2220,6 +2222,7 @@ interpreter::NaabVal VM::run() {
                             } else {
                                 result = rt.executor->executeWithReturn(code);
                             }
+                            });
                             {
                                 std::string size_err = foreignResultError(governance_, rt.language, result);
                                 if (!size_err.empty()) throw std::runtime_error(size_err);
@@ -3371,7 +3374,10 @@ interpreter::NaabVal VM::run() {
                             sql_bindings.emplace_back(bound_var_names[bi], bound_vals[bi]);
                         runtime::setPendingSqlBindings(std::move(sql_bindings));
                     }
-                    interpreter::NaabVal result = executor->executeWithReturn(final_code);
+                    interpreter::NaabVal result;
+                    governance::underBlockTimeLimit(governance_, language,
+                        CURRENT_CHUNK().getLine(static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1),
+                        [&] { result = executor->executeWithReturn(final_code); });
                     // ShellResult: unwrap to stdout, or throw on a failed command.
                     // The VM never did -- only the tree-walker checked it.
                     runtime::unwrapShellResult(result);

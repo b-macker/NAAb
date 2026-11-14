@@ -13,7 +13,7 @@
 # platform cannot run the fixture (no Python on build-windows, no stub), so
 # both arms are UNMEASURABLE, never a failure of the setting.
 #
-#   codegen (refusals are catchable errors, exit 1 -- A88, the owner's call)
+#   codegen (a refusal is a governance block at codegen.level, exit 3 -- A88)
 #   UL-01/01c  codegen.max_code_size_bytes     a longer code string is refused
 #   UL-02/02c  codegen.max_cumulative_calls    the call past the cap is refused
 #   UL-03/03c  codegen.max_cumulative_code_bytes  the call crossing it is refused
@@ -35,7 +35,7 @@
 #   UL-10/10c  exposure_tracking.max_autonomous_actions  the send past it makes
 #              no provider call
 #   UL-11/11c  exposure_tracking.max_unique_agents       a second agent is refused
-#              (at agent.create, a catchable error, exit 1 -- A168)
+#              (at agent.create, a governance block at the configured level -- A168)
 #   UL-12/12c  agents.<n>.tool_result_max_chars          the model receives the
 #              truncated result, not the whole one
 #   UL-13/13c  agents.<n>.tool_result_max_total_chars    the result crossing the
@@ -65,8 +65,9 @@
 #   agents.*.tool_result_max_total_chars ............ UL-13
 #
 # NOT HERE, and why: limits.code.max_lines_per_block, limits.timeout.per_block
-# and languages.per_language.<lang>.timeout refuse nothing (observed: a 4 s
-# block ran under a 1 s limit; A2 has them, step 3 decides them);
+# and languages.per_language.<lang>.timeout refused nothing when this suite
+# was written; they enforce now and are pinned by test_refusals_enforced.sh,
+# with the catchability of the codegen and agent.create refusals above.
 # codegen.max_nesting_depth and max_cumulative_calls_per_agent need codegen
 # called from inside codegen or from a tool (no fixture yet);
 # exposure_tracking.max_pipeline_depth needs a pipeline fixture.
@@ -134,13 +135,13 @@ main {
 }'
 pair UL-01 "codegen.max_code_size_bytes refuses a longer code string" \
     ',"codegen":{"enabled":true}' ',"codegen":{"enabled":true,"max_code_size_bytes":10}' \
-    "$CG" 1 "code exceeds maximum size"
+    "$CG" 3 "code exceeds maximum size"
 pair UL-02 "codegen.max_cumulative_calls refuses the call past the cap" \
     ',"codegen":{"enabled":true}' ',"codegen":{"enabled":true,"max_cumulative_calls":1}' \
-    "$CG" 1 "cumulative call limit reached"
+    "$CG" 3 "cumulative call limit reached"
 pair UL-03 "codegen.max_cumulative_code_bytes refuses the call that crosses it" \
     ',"codegen":{"enabled":true}' ',"codegen":{"enabled":true,"max_cumulative_code_bytes":12}' \
-    "$CG" 1 "cumulative code size limit reached"
+    "$CG" 3 "cumulative code size limit reached"
 
 echo ""
 echo "== limits"
@@ -330,9 +331,9 @@ if [ "$AGENT_OK" = 1 ]; then
     else
         ok "UL-11c" "CONTROL: with no agent cap two agents each make a provider call"
         agent ul11 "$TEXT_FX" ',"exposure_tracking":{"enabled":true,"level":"hard","max_unique_agents":1}' '' "$TWO"
-        # Refused at agent.create as a plain error (exit 1, catchable, no check
-        # result recorded) -- pinned as it is, recorded as A168.
-        if [ "$CFG_OK" = 1 ] && [ "$RC" = 1 ] && [ "$REQS" = 1 ] && has "max agent count reached" && ! has DONE; then
+        # Refused at agent.create through the engine at exposure_tracking.level
+        # (hard here): a governance block, exit 3 (A168, fixed).
+        if [ "$CFG_OK" = 1 ] && [ "$RC" = 3 ] && [ "$REQS" = 1 ] && has "max agent count reached" && ! has DONE; then
             ok "UL-11" "exposure_tracking.max_unique_agents: the second agent is refused at create and makes no call"
         else
             bad "UL-11" "a second agent past max_unique_agents was not refused" "rc=$RC reqs=$REQS out=$(head -c 200 <<<"$OUT" | tr '\n' ' ')"

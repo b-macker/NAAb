@@ -79,9 +79,10 @@ else
     fail "F1-02" "AGENT_SEND permission check missing"
 fi
 
-# F1-03: max_unique_agents check is INSIDE existing mutex lock (not separate lock_guard)
+# F1-03: max_unique_agents check is INSIDE existing mutex lock (not separate lock_guard).
+# It is a unique_lock since A168: the lock is released before the engine is asked.
 # Verify: the max_unique_agents line is between the lock line and handle_id increment in agentCreate
-lock_line=$(grep -n 'std::lock_guard.*s_agent_mutex' "$SRC_DIR/stdlib/agent_impl.cpp" | awk -F: 'NR==2{print $1}')
+lock_line=$(grep -n 'std::\(lock_guard\|unique_lock\).*s_agent_mutex' "$SRC_DIR/stdlib/agent_impl.cpp" | awk -F: 'NR==2{print $1}')
 max_line=$(grep -n 'max_unique_agents' "$SRC_DIR/stdlib/agent_impl.cpp" | head -1 | cut -d: -f1)
 handle_line=$(grep -n 'handle_id = ++s_handle_counter' "$SRC_DIR/stdlib/agent_impl.cpp" | head -1 | cut -d: -f1)
 if [ -n "$lock_line" ] && [ -n "$max_line" ] && [ -n "$handle_line" ] && \

@@ -5,6 +5,7 @@
 // These three methods are kept together because BUG-E1 was caused by
 // callFunction and CallExpr having divergent type checking paths.
 
+#include "naab/block_time_limit.h"
 #include "naab/interpreter.h"
 #include "naab/logger.h"
 #include "naab/limits.h"
@@ -520,6 +521,7 @@ void Interpreter::visit(ast::CallExpr& node) {
 
                     // Execute on the persistent executor
                     try {
+                        governance::underBlockTimeLimit(governance_.get(), rt.language, 0, [&] {
                         bool is_js = (rt.language == "javascript" || rt.language == "js");
                         if (is_js) {
 #ifndef _WIN32
@@ -546,6 +548,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                             // Expression mode: capture return value
                             result_ = rt.executor->executeWithReturn(code);
                         }
+                        });
                     } catch (const governance::GovernanceHardError&) {
                         throw;  // uncatchable — propagate to main
                     } catch (const std::exception& e) {
