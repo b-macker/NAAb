@@ -4,6 +4,7 @@
 // static <<language ... >> blocks, with additional defenses for runtime-
 // generated code (taint, size limits, nesting, action matrix).
 
+#include "naab/block_time_limit.h"
 #include "naab/language_descriptors.h"
 #include "naab/stdlib_new_modules.h"
 #include "naab/language_registry.h"
@@ -206,6 +207,15 @@ interpreter::NaabVal CodegenModule::call(
             codegen_cfg = gov_engine->getCodegenConfig();
         }
 
+        // A88: a refusal by a codegen rule is decided by the engine, at
+        // codegen.level -- recorded, and at hard (the default) or soft it ends
+        // the run. Where enforce() returns (advisory, audit mode, an overridden
+        // soft) the call is refused all the same: the code never runs.
+        auto refuse = [&](const char* setting, const std::string& message) {
+            if (gov_engine && gov_engine->isActive()) gov_engine->refuseCodegen(setting, message);
+            throw std::runtime_error(message);
+        };
+
         // Capture and immediately reset the thread-local taint flag.
         // Must happen before any throw to prevent stale flag on next call.
         bool arg_was_tainted = t_codegen_arg_tainted;
@@ -217,7 +227,7 @@ interpreter::NaabVal CodegenModule::call(
             t_codegen_blocked_count++;
             gov_engine->emitEvent(governance::RuntimeEventType::CODEGEN_BLOCKED,
                 "codegen.run('" + language + "') blocked: not enabled", "", 0);
-            throw std::runtime_error(
+            refuse("enabled",
                 "Codegen error: dynamic code execution is not enabled\n\n"
                 "  codegen.run() requires explicit enablement in governance configuration.\n"
                 "  Use static polyglot blocks instead: <<" + language + " ... >>\n");
@@ -237,7 +247,7 @@ interpreter::NaabVal CodegenModule::call(
                         "codegen.run('" + language + "') blocked: CODEGEN_EXEC not in allowed_actions",
                         "", 0);
                 }
-                throw std::runtime_error(
+                refuse("allowed_actions",
                     "Codegen error: dynamic code execution is not permitted for this agent\n\n"
                     "  The calling agent's action restrictions do not include dynamic code execution.\n");
             }
@@ -250,7 +260,7 @@ interpreter::NaabVal CodegenModule::call(
                 gov_engine->emitEvent(governance::RuntimeEventType::CODEGEN_BLOCKED,
                     "codegen.run('" + language + "') blocked: tainted code string",
                     "", 0);
-                throw std::runtime_error(
+                refuse("allow_tainted_code",
                     "Codegen error: cannot execute tainted code string\n\n"
                     "  The code string originates from an untrusted source (LLM output,\n"
                     "  file read, or other taint source). Executing tainted code is blocked\n"
@@ -264,13 +274,13 @@ interpreter::NaabVal CodegenModule::call(
             int code_lines = countLines(code);
 
             if (codegen_cfg.max_code_size_bytes > 0 && code_size > codegen_cfg.max_code_size_bytes) {
-                throw std::runtime_error(
+                refuse("max_code_size_bytes",
                     "Codegen error: code exceeds maximum size\n\n"
                     "  Got: " + std::to_string(code_size) + " bytes\n"
                     "  Limit: " + std::to_string(codegen_cfg.max_code_size_bytes) + " bytes\n");
             }
             if (codegen_cfg.max_code_lines > 0 && code_lines > codegen_cfg.max_code_lines) {
-                throw std::runtime_error(
+                refuse("max_code_lines",
                     "Codegen error: code exceeds maximum line count\n\n"
                     "  Got: " + std::to_string(code_lines) + " lines\n"
                     "  Limit: " + std::to_string(codegen_cfg.max_code_lines) + " lines\n");
@@ -279,14 +289,14 @@ interpreter::NaabVal CodegenModule::call(
             // Cumulative checks
             if (codegen_cfg.max_cumulative_calls > 0 &&
                 t_codegen_call_count >= codegen_cfg.max_cumulative_calls) {
-                throw std::runtime_error(
+                refuse("max_cumulative_calls",
                     "Codegen error: cumulative call limit reached\n\n"
                     "  Calls made: " + std::to_string(t_codegen_call_count) + "\n"
                     "  Limit: " + std::to_string(codegen_cfg.max_cumulative_calls) + "\n");
             }
             if (codegen_cfg.max_cumulative_code_bytes > 0 &&
                 static_cast<int>(t_codegen_cumulative_bytes) + code_size > codegen_cfg.max_cumulative_code_bytes) {
-                throw std::runtime_error(
+                refuse("max_cumulative_code_bytes",
                     "Codegen error: cumulative code size limit reached\n\n"
                     "  Total bytes: " + std::to_string(t_codegen_cumulative_bytes + code.size()) + "\n"
                     "  Limit: " + std::to_string(codegen_cfg.max_cumulative_code_bytes) + "\n");
@@ -297,7 +307,7 @@ interpreter::NaabVal CodegenModule::call(
                 // Use a simple hash of agent context pointer as handle proxy
                 uintptr_t agent_key = reinterpret_cast<uintptr_t>(agent_ctx);
                 if (t_codegen_per_agent_calls[agent_key] >= codegen_cfg.max_cumulative_calls_per_agent) {
-                    throw std::runtime_error(
+                    refuse("max_cumulative_calls_per_agent",
                         "Codegen error: per-agent cumulative call limit reached\n\n"
                         "  Calls by this agent: " + std::to_string(t_codegen_per_agent_calls[agent_key]) + "\n"
                         "  Limit: " + std::to_string(codegen_cfg.max_cumulative_calls_per_agent) + "\n");
@@ -309,7 +319,7 @@ interpreter::NaabVal CodegenModule::call(
         if (gov_engine && gov_engine->isActive()) {
             int cur_depth = t_codegen_nesting_depth;
             if (cur_depth > codegen_cfg.max_nesting_depth) {
-                throw std::runtime_error(
+                refuse("max_nesting_depth",
                     "Codegen error: nesting depth exceeded\n\n"
                     "  Current depth: " + std::to_string(cur_depth) + "\n"
                     "  Maximum allowed: " + std::to_string(codegen_cfg.max_nesting_depth) + "\n");
@@ -321,7 +331,7 @@ interpreter::NaabVal CodegenModule::call(
             // Check codegen-specific language restrictions
             if (!codegen_cfg.allowed_languages.empty()) {
                 if (!naab::lang::languageListAdmits(codegen_cfg.allowed_languages, language)) {
-                    throw std::runtime_error(
+                    refuse("allowed_languages",
                         "Codegen error: language '" + language + "' is not allowed for dynamic code\n\n"
                         "  Allowed languages for codegen: " +
                         [&]() {
@@ -336,7 +346,7 @@ interpreter::NaabVal CodegenModule::call(
             }
             if (!codegen_cfg.blocked_languages.empty()) {
                 if (naab::lang::languageListBlocks(codegen_cfg.blocked_languages, language)) {
-                    throw std::runtime_error(
+                    refuse("blocked_languages",
                         "Codegen error: language '" + language + "' is blocked for dynamic code\n");
                 }
             }
@@ -491,7 +501,9 @@ interpreter::NaabVal CodegenModule::call(
         try {
             // Nested, so it cannot extend or cancel the script's own --timeout.
             security::ScopedTimeout codegen_timeout(static_cast<unsigned int>(timeout));
-            interpreter::NaabVal result = executor->executeWithReturn(final_code);
+            interpreter::NaabVal result;
+            governance::underBlockTimeLimit(gov_engine, language, 0,
+                [&] { result = executor->executeWithReturn(final_code); });
 
             output = executor->getCapturedOutput();
             exit_code = executor->getLastExitCode();

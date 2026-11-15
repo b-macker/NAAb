@@ -227,7 +227,8 @@ main {
 }'
 check "O-CAP-08" "env blocked_write → exit 3" "3" "$ORACLE_RC"
 
-# O-CAP-09: codegen disabled → block
+# O-CAP-09: codegen disabled → a governance block at codegen.level (default hard).
+# It was a plain error (exit 1) until A88: the refusal ignored the level.
 run_oracle "cap09" '{
     "mode": "enforce",
     "codegen": { "enabled": false },
@@ -237,7 +238,7 @@ main {
     let r = codegen.run("python", "print(1)")
     print(r)
 }'
-check "O-CAP-09" "codegen disabled → exit 1" "1" "$ORACLE_RC"
+check "O-CAP-09" "codegen disabled → exit 3" "3" "$ORACLE_RC"
 
 # O-CAP-10: all capabilities enabled, clean code → exit 0
 if $IS_WINDOWS; then

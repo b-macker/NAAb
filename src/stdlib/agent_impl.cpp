@@ -1415,14 +1415,20 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
     int handle_id;
     std::string nonce;
     {
-        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        std::unique_lock<std::mutex> lock(s_agent_mutex);
 
-        // Global agent count limit (existing config field, now enforced)
+        // Global agent count limit. Decided by the engine at
+        // exposure_tracking.level (A168): it used to be a plain error here, so
+        // a program could catch it and nothing was recorded. Where enforce()
+        // returns, the agent is still not created.
         int max_agents = engine->getRules().exposure_tracking.max_unique_agents;
         if (max_agents > 0 && static_cast<int>(s_trackers.size()) >= max_agents) {
+            const int active = static_cast<int>(s_trackers.size());
+            lock.unlock();  // enforce() records, reports and may run a hook
+            engine->refuseAgentCreation(active, max_agents);
             throw std::runtime_error(
                 "Agent error: agent.create denied — max agent count reached\n\n"
-                "  Active agents: " + std::to_string(s_trackers.size()) + "\n"
+                "  Active agents: " + std::to_string(active) + "\n"
                 "  Limit: " + std::to_string(max_agents) + "\n\n"
                 "  Help:\n"
                 "  - Reduce the number of concurrent agents\n");

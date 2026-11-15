@@ -122,13 +122,17 @@ refuses an action, and its default is off, unlimited or weaker.
 with the setting removed as the config loads, its arm fails. The whole-suite
 counts above are not re-measured; a full sweep would move these 17 to live.
 
-Probed and NOT given a test, because they refuse nothing (observed; already
-under A2, for step 3): `limits.code.max_lines_per_block`,
-`limits.timeout.per_block`, `languages.per_language.<lang>.timeout`. Not
-reached for lack of a fixture: `codegen.max_nesting_depth`,
-`codegen.max_cumulative_calls_per_agent`, `exposure_tracking.max_pipeline_depth`.
-The codegen refusals are catchable errors (exit 1), which is A88 and is
-pinned as it is.
+Probed and NOT given a test at the time, because they refused nothing
+(observed; under A2): `limits.code.max_lines_per_block`,
+`limits.timeout.per_block`, `languages.per_language.<lang>.timeout`. **They
+enforce since 2026-11-14** (the owner's decision: "wire up to enforce and
+tighten"), and `tests/governance_v4/test_refusals_enforced.sh` pins them:
+with each removed on the test build its arm fails (RE-31, RE-32, RE-41). The
+same change made the codegen refusals above, and the `max_unique_agents`
+refusal, governance blocks at their configured level (A88, A168); UL-01..03
+and UL-11 expect exit 3 now. Not reached for lack of a fixture:
+`codegen.max_nesting_depth`, `codegen.max_cumulative_calls_per_agent`,
+`exposure_tracking.max_pipeline_depth`.
 
 ## Re-measured 2026-11-13 (first run, before the tool fix)
 

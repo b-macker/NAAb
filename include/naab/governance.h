@@ -3593,12 +3593,23 @@ public:
     static std::pair<std::string, int> exchangeThreadCheckContext(std::string file, int line);
 
     // --- Per-language getters ---
-    int getTimeoutForLanguage(const std::string& lang) const;
-    int getMaxLinesForLanguage(const std::string& lang) const;
     const LanguageConfig* getLanguageConfig(const std::string& lang) const;
 
     // --- Codegen checks ---
-    std::string checkCodegenAllowed(const std::string& language, size_t code_size, int line = 0);
+    // A codegen rule refused a call (A88). Decided through enforce() at
+    // codegen.level, so the refusal is recorded and, at hard (the default) or
+    // soft, ends the run. It returns only where enforce() does not throw
+    // (advisory, audit mode, an overridden soft): the caller must STILL refuse
+    // -- the code is never run at any level.
+    std::string refuseCodegen(const std::string& setting, const std::string& message);
+    // agent.create() past exposure_tracking.max_unique_agents (A168): the same
+    // contract, at exposure_tracking.level.
+    std::string refuseAgentCreation(int active, int limit);
+    // The time a block of `language` may run: its per-language timeout, else
+    // limits.timeout.per_block, else 0 (no limit of its own). Seconds.
+    int blockTimeLimitSeconds(const std::string& language) const;
+    // A block ran past blockTimeLimitSeconds(): HARD, through enforce().
+    std::string checkBlockTimeLimit(const std::string& language, int limit_seconds, int line = 0);
 
     // --- Original checks (backward compatible) ---
     std::string checkLanguageAllowed(const std::string& language, int line = 0);

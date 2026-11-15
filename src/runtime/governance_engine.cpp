@@ -1918,47 +1918,26 @@ bool GovernanceEngine::hasValidApproval(const std::string& rule_name,
 // Enforcement Checks
 // ============================================================================
 
-std::string GovernanceEngine::checkCodegenAllowed(
-    const std::string& language, size_t code_size, int line) {
+std::string GovernanceEngine::refuseCodegen(const std::string& setting,
+                                            const std::string& message) {
+    // A88: every codegen rule used to refuse with a plain error the program
+    // could catch, recording nothing, and codegen.level was read by nothing.
     clearTrace();
+    addTrace("codegen." + setting + " -> refused");
+    return enforce("codegen." + setting, rules().codegen.level, message);
+}
 
-    if (!rules().codegen.enabled) {
-        addTrace("codegen.enabled = false → blocked");
-        return enforce("codegen.enabled", rules().codegen.level,
-            "Codegen error: dynamic code execution is not enabled\n\n"
-            "  codegen.run() requires explicit enablement in governance configuration.\n"
-            "  Use static polyglot blocks instead: <<" + language + " ... >>\n");
-    }
-
-    // Check codegen-specific language restrictions
-    if (!rules().codegen.allowed_languages.empty()) {
-        if (!naab::lang::languageListAdmits(rules().codegen.allowed_languages, language)) {
-            addTrace("codegen.allowed_languages does not contain '" + language + "' → blocked");
-            return enforce("codegen.allowed_languages", rules().codegen.level,
-                "Codegen error: language '" + language + "' is not allowed for dynamic code\n");
-        }
-    }
-    if (!rules().codegen.blocked_languages.empty()) {
-        if (naab::lang::languageListBlocks(rules().codegen.blocked_languages, language)) {
-            addTrace("codegen.blocked_languages contains '" + language + "' → blocked");
-            return enforce("codegen.blocked_languages", rules().codegen.level,
-                "Codegen error: language '" + language + "' is blocked for dynamic code\n");
-        }
-    }
-
-    // Check per-call size
-    if (rules().codegen.max_code_size_bytes > 0 &&
-        static_cast<int>(code_size) > rules().codegen.max_code_size_bytes) {
-        addTrace("code_size " + std::to_string(code_size) + " > max " +
-                 std::to_string(rules().codegen.max_code_size_bytes) + " → blocked");
-        return enforce("codegen.max_code_size_bytes", rules().codegen.level,
-            "Codegen error: code exceeds maximum size\n\n"
-            "  Got: " + std::to_string(code_size) + " bytes\n"
-            "  Limit: " + std::to_string(rules().codegen.max_code_size_bytes) + " bytes\n");
-    }
-
-    addTrace("codegen allowed: " + language + ", " + std::to_string(code_size) + " bytes");
-    return "";
+std::string GovernanceEngine::refuseAgentCreation(int active, int limit) {
+    // A168: the same shape at agent.create().
+    clearTrace();
+    const EnforcementLevel level = rules().exposure_tracking.level;
+    addTrace(fmt::format("admission_denied: {} agents active, limit {}", active, limit));
+    return enforce("exposure_tracking", level,
+        formatError(level,
+            fmt::format("agent.create denied - max agent count reached\n\n"
+                "  Active agents: {}\n  Limit: {}\n", active, limit),
+            "", "exposure_tracking",
+            lookupRationale("exposure_tracking"), "", ""));
 }
 
 std::string GovernanceEngine::checkLanguageAllowed(

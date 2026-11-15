@@ -308,6 +308,19 @@ interpreter::NaabVal PersistentProcessExecutor::executeWithReturn(
         timeout = sandbox->getConfig().max_cpu_seconds;
     }
     int timeout_ms = static_cast<int>(timeout) * 1000;
+    // The thread's own deadline (the run's --timeout, a block's time limit)
+    // bounds the wait too. This loop never asked for it, so a block here ran
+    // to its end however short the limit around it was.
+    {
+        std::chrono::steady_clock::time_point deadline;
+        bool script_wide = false;
+        if (security::ResourceLimiter::currentDeadline(deadline, script_wide)) {
+            const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
+                deadline - std::chrono::steady_clock::now()).count();
+            const int left_ms = left < 1 ? 1 : (left > timeout_ms ? timeout_ms : static_cast<int>(left));
+            if (left_ms < timeout_ms) timeout_ms = left_ms;
+        }
+    }
 
     // This child's environment was fixed when it was started. Both engines
     // call reloadIfChanged() before every polyglot block (f229dd9b: "so
