@@ -3433,9 +3433,11 @@ static const std::vector<std::pair<size_t, naab::rx::regex>>& compiledSecretPatt
     return compiled;
 }
 
-// The description of the first secret checkSecrets() would act on, or "".
-// Never enforces and records nothing: for callers that WITHHOLD content rather
-// than block the run (guidance text). Same switch as checkSecrets().
+// The description of the first secret checkModelOutputSecrets() would act on,
+// or "". Never enforces and records nothing: for a model's text that is
+// WITHHELD rather than blocked (naab-gov explain's reply, the governance voice,
+// agent review's findings and guide). Same switch as checkModelOutputSecrets():
+// on unless the config sets no_secrets false.
 std::string GovernanceEngine::modelOutputSecretFinding(const std::string& text) const {
     if (!rules().scansModelOutputForSecrets()) return "";
     return firstSecretPattern(text);
@@ -3931,7 +3933,16 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
         config.config_hash = security::CryptoUtils::sha256(govern_content);
     }
 
-    auto result = runtime::runAgentReview(config, rules(), source, govern_json_dir_);
+    // Every text the reviewer models wrote is a model's output, and each was
+    // shown the whole script: scanned like any model output -- secrets unless
+    // the config switches that off, PII under no_pii -- and withheld on a hit
+    // (A166). Decide-only: the findings themselves still enforce.
+    auto withheld = [this](const std::string& text) -> std::string {
+        if (!modelOutputSecretFinding(text).empty()) return "secret";
+        if (!piiFinding(text).empty()) return "PII";
+        return "";
+    };
+    auto result = runtime::runAgentReview(config, rules(), source, govern_json_dir_, withheld);
 
     if (result.cache_hit) {
         fprintf(stderr, "[governance] Agent review: cache hit (source + config unchanged)\n");
@@ -3960,6 +3971,13 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
     if (level_str == "soft") level = EnforcementLevel::SOFT;
     else if (level_str != "advisory") { level = EnforcementLevel::HARD; level_str = "hard"; }
 
+    // Said before the findings are enforced: under a hard zone the first one
+    // ends the run.
+    if (result.texts_withheld > 0) {
+        fprintf(stderr, "[governance] Agent review: %d text(s) a reviewer wrote withheld: "
+                        "they matched the secret or PII patterns\n", result.texts_withheld);
+    }
+
     // Feed deduplicated findings through enforce() (for violation counting + quality gate)
     for (const auto& f : result.findings) {
         enforce("agent_review." + f.category, level, f.message);
@@ -3972,6 +3990,10 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
         fprintf(stderr, "\n[governance] Agent Review — %zu issue(s) found (score=%d, %s/%s):\n",
                 result.findings.size(), result.score, result.zone.c_str(), level_str.c_str());
 
+        if (!result.voice_withheld.empty()) {
+            fprintf(stderr, "\n[governance] Agent review guide withheld: the guide matched the %s patterns\n",
+                    result.voice_withheld.c_str());
+        }
         if (!result.voice_summary.empty()) {
             // Voice agent produced a synthesized guide
             fprintf(stderr, "\n%s\n\n", result.voice_summary.c_str());
@@ -4133,12 +4155,14 @@ void GovernanceEngine::runGovernanceVoice() {
     if (governance_voice_summary_.empty()) return;
 
     // The guide is a model's text printed to the terminal. It passes the
-    // secret/PII patterns first -- decide-only, the twins guidance uses, under
-    // the project's own no_secrets / no_pii -- and a guide that matches is
-    // withheld: neither printed nor cached (A40). checkSecrets()/checkPii()
-    // would ENFORCE on a hit, and the run's verdict is not the guide's to make.
+    // secret/PII patterns first -- decide-only, and for secrets the model-output
+    // default (scanned unless the config sets no_secrets false, A166; it was
+    // scanned only under no_secrets), for PII under no_pii -- and a guide that
+    // matches is withheld: neither printed nor cached (A40). checkSecrets()/
+    // checkPii() would ENFORCE on a hit, and the run's verdict is not the
+    // guide's to make.
     const char* withheld = nullptr;
-    if (!secretFinding(governance_voice_summary_).empty()) withheld = "secret";
+    if (!modelOutputSecretFinding(governance_voice_summary_).empty()) withheld = "secret";
     else if (!piiFinding(governance_voice_summary_).empty()) withheld = "PII";
     if (withheld) {
         governance_voice_summary_.clear();

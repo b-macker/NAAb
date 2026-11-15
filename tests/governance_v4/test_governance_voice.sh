@@ -26,8 +26,12 @@
 #           and this pins it there
 #   VO-03   a guide carrying a secret, under no_secrets: withheld -- the value is
 #           in no output and no cache file, and the run says it was withheld
-#   VO-03c  CONTROL: without no_secrets the same guide is printed -- the stub
-#           delivers it, so VO-03's absence is the scan's
+#   VO-03d  ... and under the DEFAULT too (no `no_secrets` key at all): the guide
+#           is a model's text, scanned like every other model output unless the
+#           config switches that off (A166; it was scanned only under no_secrets)
+#   VO-03c  CONTROL: with the scan switched off (`"no_secrets": false`) the same
+#           guide is printed -- the stub delivers it, so VO-03/03d's absence is
+#           the scan's
 #   VO-04   a guide carrying PII, under no_pii: withheld likewise
 #   VO-04c  CONTROL: without no_pii it is printed
 #
@@ -37,6 +41,8 @@
 #     dropped instead -- the other way to "print once")               -> VO-02 red
 #   no secretFinding() on the guide                                   -> VO-03 red
 #   no piiFinding() on the guide                                      -> VO-04 red
+#   the guide scanned only under no_secrets (secretFinding(), the A166
+#     shape)                                                          -> VO-03d red
 # VO-05 has no mutant: it pins where main.cpp hands the voice its source.
 # Red first: on master VO-01, VO-03 and VO-04 fail (printed twice; the secret
 # and PII guides printed twice and cached), every other arm passes.
@@ -136,7 +142,8 @@ else
 fi
 
 for spec in "VO-03|secret|$KEY|{\"no_placeholders\": {\"enabled\": true, \"level\": \"advisory\"}, \"no_secrets\": {\"enabled\": true, \"level\": \"hard\"}}|1" \
-            "VO-03c|secret|$KEY|$ADVISORY_CQ|0" \
+            "VO-03d|secret|$KEY|$ADVISORY_CQ|1" \
+            "VO-03c|secret|$KEY|{\"no_placeholders\": {\"enabled\": true, \"level\": \"advisory\"}, \"no_secrets\": false}|0" \
             "VO-04|PII|$SSN|{\"no_placeholders\": {\"enabled\": true, \"level\": \"advisory\"}, \"no_pii\": {\"enabled\": true, \"level\": \"hard\"}}|1" \
             "VO-04c|PII|$SSN|$ADVISORY_CQ|0"; do
     IFS='|' read -r arm kind value cq scanned <<<"$spec"
