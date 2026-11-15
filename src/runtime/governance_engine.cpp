@@ -1136,6 +1136,28 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
             if (!ec) remember(abs.lexically_normal().string());
         }
     }
+
+    // A169: `.naab_cache/` beside govern.json is engine state too. Agent review
+    // and the governance voice write their results there and read them back on
+    // the next run, and the cache's integrity check is keyed from govern.json
+    // and the script -- inputs a program can know -- so a program that could
+    // write the directory could plant a review that found nothing. The
+    // directory itself and everything under it are refused to program writes
+    // (creating, replacing, deleting); reads stay allowed. Recorded whenever
+    // the config is a file, whether caching is on or not: the directory
+    // outlives the run, and a later run with caching on reads it. Grow-only.
+    if (!govern_json_dir_.empty()) {
+        std::error_code ec;
+        auto dir = std::filesystem::absolute(
+            std::filesystem::path(govern_json_dir_) / ".naab_cache", ec);
+        if (!ec) {
+            const std::string d = dir.lexically_normal().string();
+            std::lock_guard<std::mutex> lk(evidence_paths_mutex_);
+            if (std::find(engine_state_dirs_.begin(), engine_state_dirs_.end(), d) ==
+                engine_state_dirs_.end())
+                engine_state_dirs_.push_back(d);
+        }
+    }
 }
 
 bool GovernanceEngine::isEngineStatePath(const std::string& canon_n) const {
@@ -1145,6 +1167,46 @@ bool GovernanceEngine::isEngineStatePath(const std::string& canon_n) const {
         paths = engine_state_paths_;
     }
     return recordedPathMatches(paths, canon_n);
+}
+
+// A169: `canon_n` (canonical, '/' separators) is a recorded state directory
+// itself or lies under one. A symbolic link into the directory is resolved by
+// the caller's canonicalisation; a HARD link elsewhere to a file in it is
+// caught by asking, for a file with more than one name, whether it is one of
+// the directory's own entries (the cache is flat and small).
+bool GovernanceEngine::isEngineStateDir(const std::string& canon_n) const {
+    std::vector<std::string> dirs;
+    {
+        std::lock_guard<std::mutex> lk(evidence_paths_mutex_);
+        dirs = engine_state_dirs_;
+    }
+    if (dirs.empty()) return false;
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const bool many_names = fs::is_regular_file(canon_n, ec) && !ec &&
+                            fs::hard_link_count(canon_n, ec) > 1 && !ec;
+    for (const auto& d : dirs) {
+        std::string dir;
+        try {
+            dir = fs::weakly_canonical(fs::path(d)).string();
+        } catch (...) {
+            continue;
+        }
+        std::replace(dir.begin(), dir.end(), '\\', '/');
+        while (dir.size() > 1 && dir.back() == '/') dir.pop_back();
+        if (canon_n == dir) return true;
+        if (canon_n.size() > dir.size() && canon_n.compare(0, dir.size(), dir) == 0 &&
+            canon_n[dir.size()] == '/')
+            return true;
+        if (many_names) {
+            std::error_code ec2;
+            for (const auto& e : fs::directory_iterator(dir, ec2)) {
+                std::error_code ec3;
+                if (fs::equivalent(e.path(), canon_n, ec3) && !ec3) return true;
+            }
+        }
+    }
+    return false;
 }
 
 bool GovernanceEngine::isEvidenceLogPath(const std::string& canon_n) const {
@@ -2911,6 +2973,24 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
                 "file.write(\"" + filepath + "\", text)",
                 "file.write(\"output/notes.json\", text)"),
             "governance state file is not writable by the program: " + filepath);
+    }
+
+    // `.naab_cache/` is engine state the engine reads back: a planted entry
+    // could stand in for a review that never ran (A169). Every program write
+    // under it -- or to the directory itself -- is refused. Reads stay
+    // allowed. Subprocess languages do not reach this gate (CONTRA-013).
+    if (mode == "write" && isEngineStateDir(canon_n)) {
+        return deny("governance.state_files", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Writing into the governance cache is blocked: " + filepath,
+                currentFunction().empty() ? std::string()
+                                          : ("in function '" + currentFunction() + "'"),
+                "the engine keeps the results of earlier reviews here and reads them back",
+                "A governed program can read the cache but cannot change it.\n"
+                "Write your own output to another directory.",
+                "file.write(\".naab_cache/x.json\", text)",
+                "file.write(\"output/x.json\", text)"),
+            "governance cache is not writable by the program: " + filepath);
     }
 
     // Policy entries are resolved by resolvePolicyPath(), which the reload
