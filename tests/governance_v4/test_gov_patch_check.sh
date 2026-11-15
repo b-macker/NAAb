@@ -30,9 +30,14 @@
 #   PC-11b  an existing file replaced by a link to a copy of itself -> refused
 #   PC-12   the base holds no test file: UNMEASURABLE, exit 2
 #   PC-12b  ... and a refusal outranks it: exit 1
-#   PC-13   contract clauses in the config, no --run-contracts: exit 2
-#   PC-13b  --run-contracts, the patch breaks a clause   -> refused
-#   PC-13c  CONTROL: --run-contracts, the patch keeps the clause -> accepted
+#   PC-13   contract clauses in the config, --no-run-contracts: exit 2
+#   PC-13c  CONTROL: no flag -- the search runs by default (the owner's
+#           decision, 2026-11-15) -- the patch keeps the clause -> accepted,
+#           and the search itself reports the function measured
+#   PC-13h  no flag, the patch breaks a clause            -> refused (the search
+#           ran because nothing asked for it)
+#   PC-13b  --run-contracts (still accepted), the patch breaks a clause -> refused
+#   PC-13i  --run-contracts with --no-run-contracts: a usage error, exit 4
 #           (and so the search ran: a dead interpreter fails this arm)
 #   PC-13d  a governance file touched: the contract search is not run
 #   PC-13e  a contract search whose worker reports nothing: exit 2, not accepted
@@ -63,6 +68,9 @@
 #   no test file in the base is fine             -> PC-12 PC-12b red
 #   UNMEASURABLE outranks a refusal              -> PC-12b red
 #   unchecked clauses are accepted               -> PC-13 red
+#   the search off unless asked (the old default) -> PC-13c PC-13h red
+#   --no-run-contracts ignored                   -> PC-13 red
+#   both flags together accepted                 -> PC-13i red
 #   a new counterexample is accepted             -> PC-13b red
 #   an unmeasured clause is accepted             -> PC-13e red
 #   a search with no report is accepted          -> PC-13f red (the code before
@@ -261,11 +269,11 @@ main {
 }
 '
 BASE_FOR_ARM="$CON"
-arm pc13; printf '%s' "$HONEST" > "$P/src/p.naab"; check
-if [ "$RC" -eq 2 ] && has "--run-contracts was not given"; then
-    pass PC-13 "contract clauses and no --run-contracts: UNMEASURABLE, exit 2"
+arm pc13; printf '%s' "$HONEST" > "$P/src/p.naab"; check --no-run-contracts
+if [ "$RC" -eq 2 ] && has "--no-run-contracts was given"; then
+    pass PC-13 "contract clauses and --no-run-contracts: UNMEASURABLE, exit 2"
 else fail PC-13 "an unchecked clause should be UNMEASURABLE" "rc=$RC: $(grep -A3 'Not measured' <<<"$OUT" | tr '\n' ' ')"; fi
-arm pc13c; printf '%s' "$HONEST" > "$P/src/p.naab"; check --run-contracts --naab "$NAAB"
+arm pc13c; printf '%s' "$HONEST" > "$P/src/p.naab"; check --naab "$NAAB"
 c_rc=$RC; c_out="$OUT"
 # The control must show the search MEASURED the function, not only that the
 # patch was accepted: on a platform with no worker process the search exits 4
@@ -279,14 +287,26 @@ try:
 except Exception:
     ok = False
 sys.stdout.write("yes" if ok else "no")' || true)
-if [ "$c_rc" -eq 0 ] && [ "$c_measured" = "yes" ] && grep -q -F "result: ACCEPTED" <<<"$c_out"; then
-    pass PC-13c "CONTROL: --run-contracts on a patch that keeps the clause is accepted (the search ran)"
+if [ "$c_measured" = "yes" ]; then
+    # The search works here, so the gate's answer is the gate's: not accepting
+    # the honest patch is a FAIL, not a platform limit.
+    if [ "$c_rc" -eq 0 ] && grep -q -F "result: ACCEPTED" <<<"$c_out"; then
+        pass PC-13c "CONTROL: with no flag a patch that keeps the clause is accepted (the search ran by default)"
+    else
+        fail PC-13c "with no flag the search should run and accept the honest patch" "rc=$c_rc: $(grep -A3 'Not measured\|^Refused' <<<"$c_out" | tr '\n' ' ' | cut -c1-200)"
+    fi
+    arm pc13h; printf '%s' "$BROKEN" > "$P/src/p.naab"; check --naab "$NAAB"
+    refused PC-13h "src/p.naab: absval breaks a contract clause it did not break before" "with no flag, a patch that breaks a contract clause"
     arm pc13b; printf '%s' "$BROKEN" > "$P/src/p.naab"; check --run-contracts --naab "$NAAB"
-    refused PC-13b "src/p.naab: absval breaks a contract clause it did not break before" "a patch that breaks a contract clause"
+    refused PC-13b "src/p.naab: absval breaks a contract clause it did not break before" "with --run-contracts, a patch that breaks a contract clause"
 else
     unm_platform PC-13c "the contract search did not measure the honest patch (rc=$c_rc): $(grep -A3 'Not measured\|^Refused' <<<"$c_out" | tr '\n' ' ' | cut -c1-200)"
+    unm_platform PC-13h "no working contract search to compare against"
     unm_platform PC-13b "no working contract search to compare against"
 fi
+arm pc13i; printf '%s' "$HONEST" > "$P/src/p.naab"; check --run-contracts --no-run-contracts
+if [ "$RC" -eq 4 ] && has "together"; then pass PC-13i "--run-contracts with --no-run-contracts is a usage error, exit 4"
+else fail PC-13i "the two contract flags together should be refused" "rc=$RC"; fi
 arm pc13d; printf '%s' "$BROKEN" > "$P/src/p.naab"; echo "x" >> "$P/CLAUDE.md"; check --run-contracts --naab "$NAAB" --json
 J=$(python3 -c '
 import json, sys

@@ -18,8 +18,9 @@
 //     allowed. This is the plan's "may not touch test assertions", judged by
 //     the bytes: a count cannot tell a real assertion from `assert True`;
 //   - adds or changes a symbolic link (a link names a file by another path);
-//   - with --run-contracts: gives a function a contract counterexample, a
-//     governance block or a parse failure that BASE did not have.
+//   - gives a function a contract counterexample, a governance block or a
+//     parse failure that BASE did not have (the contract search, run by
+//     default; --no-run-contracts leaves it out).
 //
 // PRINTED, deciding nothing: the lexical assertion-site count of the test
 // paths before and after; what `naab-gov manifest infer` lists for each changed
@@ -27,14 +28,17 @@
 //
 // UNMEASURABLE (exit 2): BASE has no file under the test paths (so "tests did
 // not shrink" says nothing); a tree is too large to compare; the base config
-// has contract clauses and --run-contracts was not given (the clause check was
+// has contract clauses and --no-run-contracts was given (the clause check was
 // not made); or the contract search could not measure a contracted function of
 // a changed program (a worker that did not report included). A refusal
 // outranks it.
 //
-// --run-contracts RUNS the patched program's functions (`naab-gov contracts`,
-// in a governed worker). It is never run when the patch touched a governance
-// file: the config the worker would load is then the patch's own.
+// The contract search RUNS the patched program's functions (`naab-gov
+// contracts`, in a governed worker), by default since the owner's decision of
+// 2026-11-15 (it was opt-in, --run-contracts, which is still accepted). It runs
+// only where the base config has contract clauses and a .naab file changed,
+// and never when the patch touched a governance file: the config the worker
+// would load is then the patch's own.
 //
 // Exit: 0 accepted, 1 refused, 2 UNMEASURABLE, 4 usage or config error.
 #include "naab/crypto_utils.h"
@@ -256,11 +260,11 @@ ContractVerdicts contractsOf(const std::string& self, const fs::path& file, cons
 
 int cmdPatchCheck(const std::vector<std::string>& args, const char* argv0) {
     std::string base_arg, patched_arg, config_path, naab_path;
-    bool as_json = false, run_contracts = false;
+    bool as_json = false, run_contracts = true, asked_run = false, asked_skip = false;
     auto usage = [](const std::string& why) {
         std::cerr << "naab-gov patch-check: " << why << "\n"
                      "Usage: naab-gov patch-check <base-dir> <patched-dir> [--config <govern.json>] "
-                     "[--run-contracts [--naab <naab-lang>]] [--json]\n";
+                     "[--no-run-contracts] [--naab <naab-lang>] [--json]\n";
         return 4;
     };
     for (size_t i = 0; i < args.size(); ++i) {
@@ -274,7 +278,10 @@ int cmdPatchCheck(const std::vector<std::string>& args, const char* argv0) {
         } else if (a == "--json") {
             as_json = true;
         } else if (a == "--run-contracts") {
-            run_contracts = true;
+            asked_run = true;
+        } else if (a == "--no-run-contracts") {
+            asked_skip = true;
+            run_contracts = false;
         } else if (!a.empty() && a[0] != '-' && base_arg.empty()) {
             base_arg = a;
         } else if (!a.empty() && a[0] != '-' && patched_arg.empty()) {
@@ -284,6 +291,7 @@ int cmdPatchCheck(const std::vector<std::string>& args, const char* argv0) {
         }
     }
     if (base_arg.empty() || patched_arg.empty()) return usage("expected a base and a patched directory");
+    if (asked_run && asked_skip) return usage("--run-contracts and --no-run-contracts together");
     std::error_code ec;
     if (!fs::is_directory(base_arg, ec)) return usage("not a directory: " + base_arg);
     if (!fs::is_directory(patched_arg, ec)) return usage("not a directory: " + patched_arg);
@@ -444,7 +452,7 @@ int cmdPatchCheck(const std::vector<std::string>& args, const char* argv0) {
         if (governance_touched) {
             // Already refused; the patched code is not run under its own config.
         } else if (!run_contracts) {
-            unmeasurable.push_back("the base config has contract clauses and --run-contracts was not given, "
+            unmeasurable.push_back("the base config has contract clauses and --no-run-contracts was given, "
                                    "so the clauses were not checked on the changed programs");
         } else {
             for (const auto& rel : programs) {
