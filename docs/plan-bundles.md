@@ -319,6 +319,6 @@ PR 1 merged as #367 (`6e2ce08b`). **PR 2 (built 2026-11-11):** `tools/govmeasure
 ## Not bundled (open, the owner's call)
 
 - **Waiting on the owner:**
-  - the 14 compiled-but-unrun test programs, plus the unlinked `naab_testing` library.
+  - the compiled-but-unrun test programs (13, 12 of them built; each measured 2026-11-15, A58: delete 9, fold 3 into `naab_unit_tests` -- the recommendation), plus the unlinked `naab_testing` library.
 - **Open:** A66, A75(a)(b), A76(e), A70(b)(c), A67, B1, A16/F11/F12, A53, A33(b), D18, and the A64 test debt.
 - **Paused:** the guidance bypass filter.
