@@ -5563,6 +5563,35 @@ if [ -f "$SDTOOL_SCRIPT" ]; then
 else
     echo "  test_setting_drop_tool.sh: not found, skipping"
 fi
+
+UNTESTED_LIMITS_SCRIPT="tests/governance_v4/test_untested_limits.sh"
+if [ -f "$UNTESTED_LIMITS_SCRIPT" ]; then
+    # Limits and switches that refuse an action and that no suite noticed
+    # when removed (setting liveness, A167): each pinned set versus unset,
+    # the control first.
+    if run_shell_test "$UNTESTED_LIMITS_SCRIPT" 2>&1; then
+        echo "  test_untested_limits.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_untested_limits.sh")
+    fi
+else
+    echo "  test_untested_limits.sh: not found, skipping"
+fi
+
+REFUSALS_ENFORCED_SCRIPT="tests/governance_v4/test_refusals_enforced.sh"
+if [ -f "$REFUSALS_ENFORCED_SCRIPT" ]; then
+    # A88, A168, A2: codegen and agent.create refusals are governance blocks a
+    # try/catch does not swallow, and the block time and line limits enforce.
+    if run_shell_test "$REFUSALS_ENFORCED_SCRIPT" 2>&1; then
+        echo "  test_refusals_enforced.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_refusals_enforced.sh")
+    fi
+else
+    echo "  test_refusals_enforced.sh: not found, skipping"
+fi
 fi  # phase_runs shell
 
 # Report-only: interpreters a suite left running. A python3 was still alive at

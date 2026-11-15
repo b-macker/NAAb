@@ -5,6 +5,7 @@
 //           VariableSnapshot::capture, executePolyglotGroupParallel,
 //           serializeValueForLanguage
 
+#include "naab/block_time_limit.h"
 #include "naab/sql_executor.h"
 #include "naab/interpreter.h"
 #include "naab/governance.h"
@@ -732,7 +733,8 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             // Same thread as the call below, so the executor consumes exactly these.
             runtime::setPendingSqlBindings(std::move(sql_bindings));
         }
-        result_ = executor->executeWithReturn(final_code);
+        governance::underBlockTimeLimit(governance_.get(), language, node.getLocation().line,
+            [&] { result_ = executor->executeWithReturn(final_code); });
 
         // Finding G: limits.data.output_size and the per-language
         // max_output_size bound what the block hands back, and

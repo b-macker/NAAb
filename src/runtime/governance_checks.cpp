@@ -6898,24 +6898,33 @@ std::string GovernanceEngine::checkLanguageStyle(const std::string& language,
 // --- Per-Language: Code Size ---
 std::string GovernanceEngine::checkCodeSize(const std::string& language,
                                              const std::string& code, int line) {
-    auto it = rules().languages.per_language.find(language);
-    if (it == rules().languages.per_language.end()) return "";
-    auto& lc = it->second;
     clearTrace();
+    // The language's own max_lines, else limits.code.max_lines_per_block. The
+    // second was read by a getter with no caller and refused nothing (A2).
+    auto it = rules().languages.per_language.find(language);
+    const bool per_language = it != rules().languages.per_language.end() && it->second.max_lines > 0;
+    const int max_lines = per_language ? it->second.max_lines
+                                       : rules().limits.code.max_lines_per_block;
+    if (max_lines <= 0) return "";
 
-    if (lc.max_lines > 0) {
-        int lines = 1;
-        for (char c : code) if (c == '\n') lines++;
-        if (lines > lc.max_lines) {
-            return enforce("languages.per_language.max_lines", EnforcementLevel::HARD,
-                formatError(EnforcementLevel::HARD,
-                    fmt::format("{} block has {} lines (max: {})", language, lines, lc.max_lines),
-                    line > 0 ? fmt::format("line {}", line) : "",
-                    fmt::format("languages.per_language.{}.max_lines = {}", language, lc.max_lines),
-                    "Break large blocks into smaller functions", "", ""));
-        }
+    int lines = 1;
+    for (char c : code) if (c == '\n') lines++;
+    if (lines <= max_lines) return "";
+
+    if (per_language) {
+        return enforce("languages.per_language.max_lines", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                fmt::format("{} block has {} lines (max: {})", language, lines, max_lines),
+                line > 0 ? fmt::format("line {}", line) : "",
+                fmt::format("languages.per_language.{}.max_lines = {}", language, max_lines),
+                "Break large blocks into smaller functions", "", ""));
     }
-    return "";
+    return enforce("limits.code.max_lines_per_block", EnforcementLevel::HARD,
+        formatError(EnforcementLevel::HARD,
+            fmt::format("{} block has {} lines (max: {})", language, lines, max_lines),
+            line > 0 ? fmt::format("line {}", line) : "",
+            fmt::format("limits.code.max_lines_per_block = {}", max_lines),
+            "Break large blocks into smaller functions", "", ""));
 }
 
 // --- Custom Rules ---
@@ -7147,21 +7156,32 @@ std::string GovernanceEngine::checkFileOpsRate() {
 }
 
 // --- Per-Language Getters ---
-int GovernanceEngine::getTimeoutForLanguage(const std::string& lang) const {
-    auto it = rules().languages.per_language.find(lang);
+int GovernanceEngine::blockTimeLimitSeconds(const std::string& lang) const {
+    auto it = rules().languages.per_language.find(normalizeLanguage(lang));
     if (it != rules().languages.per_language.end() && it->second.timeout > 0)
         return it->second.timeout;
-    if (rules().limits.timeout.per_block > 0) return rules().limits.timeout.per_block;
-    return rules().timeout_seconds;
+    return rules().limits.timeout.per_block > 0 ? rules().limits.timeout.per_block : 0;
 }
 
-int GovernanceEngine::getMaxLinesForLanguage(const std::string& lang) const {
-    // FIX 18: Normalize language alias before lookup
-    std::string normalized = normalizeLanguage(lang);
+// A block ran past its configured time. Both keys were read by a getter with
+// no caller, so neither stopped anything (A2).
+std::string GovernanceEngine::checkBlockTimeLimit(const std::string& lang, int limit_seconds,
+                                                  int line) {
+    clearTrace();
+    const std::string normalized = normalizeLanguage(lang);
     auto it = rules().languages.per_language.find(normalized);
-    if (it != rules().languages.per_language.end() && it->second.max_lines > 0)
-        return it->second.max_lines;
-    return rules().limits.code.max_lines_per_block;
+    const bool per_language = it != rules().languages.per_language.end() && it->second.timeout > 0;
+    const std::string rule = per_language ? "languages.per_language.timeout"
+                                          : "limits.timeout.per_block";
+    addTrace(fmt::format("{} block ran past {}s", normalized, limit_seconds));
+    return enforce(rule, EnforcementLevel::HARD,
+        formatError(EnforcementLevel::HARD,
+            fmt::format("{} block ran past its time limit ({} seconds)", normalized, limit_seconds),
+            line > 0 ? fmt::format("line {}", line) : "",
+            per_language
+                ? fmt::format("languages.per_language.{}.timeout = {}", normalized, limit_seconds)
+                : fmt::format("limits.timeout.per_block = {}", limit_seconds),
+            "Make the block do less work, or split it into smaller blocks.", "", ""));
 }
 
 const LanguageConfig* GovernanceEngine::getLanguageConfig(const std::string& lang) const {
