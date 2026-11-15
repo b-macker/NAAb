@@ -282,6 +282,8 @@ static bool loadCache(const std::string& path, AgentReviewResult& result,
             result.zone = j.value("zone", "green");
             result.score = j.value("score", 0);
             result.voice_summary = j.value("voice_summary", "");
+            result.voice_withheld = j.value("voice_withheld", "");
+            result.texts_withheld = j.value("texts_withheld", 0);
             if (j.contains("findings") && j["findings"].is_array()) {
                 for (const auto& fj : j["findings"]) {
                     AgentReviewFinding finding;
@@ -327,6 +329,8 @@ static void saveCache(const std::string& path, const AgentReviewResult& result,
     j["zone"] = result.zone;
     j["score"] = result.score;
     j["voice_summary"] = result.voice_summary;
+    j["voice_withheld"] = result.voice_withheld;
+    j["texts_withheld"] = result.texts_withheld;
 
     json findings_arr = json::array();
     for (const auto& f : result.findings) {
@@ -385,37 +389,98 @@ static runtime::ThreadPool& getAgentThreadPool(int pool_size = 6, int queue_max 
 // Main entry point
 // ============================================================================
 
+// A166: every text a reviewer model wrote is withheld when `withheld` names a
+// reason -- each finding's category and description, the rejected findings,
+// the voice guide. Run on the result returned, after the zone and score are
+// computed, so a withheld finding still counts exactly as it did. With no
+// filter every text is withheld: nothing a model wrote is shown unscanned.
+static void withholdModelText(AgentReviewResult& r, const ModelTextWithheld& withheld) {
+    auto why = [&](const std::string& text) -> std::string {
+        if (text.empty()) return "";
+        return withheld ? withheld(text) : std::string("unscanned");
+    };
+    auto scrub = [&](AgentReviewFinding& f) {
+        const std::string in_category = why(f.category);
+        if (!in_category.empty()) {
+            f.category = "withheld";
+            ++r.texts_withheld;
+        }
+        const std::string in_message = why(f.message);
+        if (!in_message.empty()) {
+            // Worded so the error sanitizer leaves it whole: "secret" followed
+            // by a word reads to it as a key and a value.
+            f.message = in_message == "unscanned"
+                ? "(withheld: the reviewer's description was not scanned)"
+                : "(withheld: the reviewer's description looked like it held " +
+                      std::string(in_message == "PII" ? "PII)" : "a secret)");
+            ++r.texts_withheld;
+        }
+    };
+    for (auto& f : r.findings) scrub(f);
+    for (auto& f : r.rejected_findings) scrub(f);
+    const std::string in_voice = why(r.voice_summary);
+    if (!in_voice.empty()) {
+        r.voice_summary.clear();
+        r.voice_withheld = in_voice;
+    }
+}
+
+static AgentReviewResult reviewSource(const AgentReviewConfig& config,
+                                      const governance::GovernanceRules& rules,
+                                      const std::string& script_source);
+
 AgentReviewResult runAgentReview(
     const AgentReviewConfig& config,
     const governance::GovernanceRules& rules,
     const std::string& script_source,
-    const std::string& govern_dir) {
-
-    AgentReviewResult result;
+    const std::string& govern_dir,
+    const ModelTextWithheld& withheld) {
 
     if (!config.enabled) {
-        return result;
+        return AgentReviewResult{};
     }
 
     // Compute cache key: source hash + config hash
     // Config hash ensures cache invalidates when govern.json changes
-    result.source_hash = security::CryptoUtils::sha256(script_source);
-    std::string cache_key = result.source_hash;
+    const std::string source_hash = security::CryptoUtils::sha256(script_source);
+    std::string cache_key = source_hash;
     if (!config.config_hash.empty()) {
-        cache_key = security::CryptoUtils::sha256(result.source_hash + config.config_hash);
+        cache_key = security::CryptoUtils::sha256(source_hash + config.config_hash);
     }
 
-    // Cache check
+    // Cache check. A cached result is scanned as it is read, so one written by
+    // a build that did not scan is withheld too.
     if (config.cache && !govern_dir.empty()) {
         std::string cpath = cachePath(govern_dir, cache_key);
         if (fileExists(cpath)) {
             AgentReviewResult cached;
             if (loadCache(cpath, cached, config.config_hash)) {
+                withholdModelText(cached, withheld);
                 return cached;
             }
         }
     }
 
+    AgentReviewResult result = reviewSource(config, rules, script_source);
+    // A review that failed is neither cached nor shown (as before).
+    if (!result.error.empty()) return result;
+
+    // Scanned before the cache is written: the cache never holds what was withheld.
+    withholdModelText(result, withheld);
+    if (config.cache && !govern_dir.empty()) {
+        ensureDir(govern_dir + "/.naab_cache");
+        saveCache(cachePath(govern_dir, cache_key), result, config.config_hash);
+    }
+    return result;
+}
+
+// The review itself: detection, validation, deduplication, scoring, voice.
+// Caching and the A166 scan are runAgentReview()'s.
+static AgentReviewResult reviewSource(const AgentReviewConfig& config,
+                                      const governance::GovernanceRules& rules,
+                                      const std::string& script_source) {
+    AgentReviewResult result;
+    result.source_hash = security::CryptoUtils::sha256(script_source);
     result.executed = true;
 
     // Resolve scorer config for category list and scoring
@@ -551,11 +616,6 @@ AgentReviewResult runAgentReview(
     if (all_raw_findings.empty()) {
         result.zone = "green";
         result.score = 0;
-        // Cache and return
-        if (config.cache && !govern_dir.empty()) {
-            ensureDir(govern_dir + "/.naab_cache");
-            saveCache(cachePath(govern_dir, cache_key), result, config.config_hash);
-        }
         return result;
     }
 
@@ -713,12 +773,6 @@ AgentReviewResult runAgentReview(
                 }
             }
         }
-    }
-
-    // ── Cache write ──
-    if (config.cache && !govern_dir.empty()) {
-        ensureDir(govern_dir + "/.naab_cache");
-        saveCache(cachePath(govern_dir, cache_key), result, config.config_hash);
     }
 
     return result;

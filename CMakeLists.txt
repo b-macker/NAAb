@@ -828,16 +828,7 @@ target_link_libraries(naab_rest_api
 )
 message(STATUS "  ✓ REST API library (Phase 4.7)")
 
-# Testing framework
-add_library(naab_testing
-    src/testing/block_tester.cpp
-)
-target_link_libraries(naab_testing
-    naab_runtime
-    naab_interpreter
-    fmt::fmt
-)
-message(STATUS "  ✓ Testing framework")
+# (naab_testing, the BlockTester library, was linked into no binary and is gone: A58.)
 
 # Profiling framework
 add_library(naab_profiling
@@ -1313,70 +1304,11 @@ target_include_directories(enrich_tool PRIVATE
 )
 message(STATUS "  ✓ Block enrichment tool (enrich_tool)")
 
-# Profiler Test
-add_executable(test_profiler
-    tests/unit/test_profiler.cpp
-)
-target_link_libraries(test_profiler
-    naab_profiling
-    fmt::fmt
-)
-message(STATUS "  ✓ Profiler test")
-
-# Block Registry Test
-add_executable(test_block_registry
-    tests/unit/test_block_registry.cpp
-)
-target_link_libraries(test_block_registry
-    naab_runtime
-    fmt::fmt
-)
-message(STATUS "  ✓ Block registry test")
-
-# Enhanced Metadata Test (Phase 1.4)
-add_executable(test_enhanced_metadata
-    tests/unit/test_enhanced_metadata.cpp
-)
-target_link_libraries(test_enhanced_metadata
-    naab_runtime
-    fmt::fmt
-)
-message(STATUS "  ✓ Enhanced metadata test (Phase 1.4)")
-
-# Search Index Test (Phase 1.5)
-add_executable(test_search_index
-    tests/unit/test_search_index.cpp
-)
-target_link_libraries(test_search_index
-    naab_runtime
-    fmt::fmt
-    SQLite3::SQLite3
-)
-message(STATUS "  ✓ Search index test (Phase 1.5)")
-
-# Error Reporting Test (Phase 1.3)
-add_executable(test_error_reporting
-    tests/unit/test_error_reporting.cpp
-)
-target_link_libraries(test_error_reporting
-    naab_lexer
-    naab_parser
-    naab_semantic
-    fmt::fmt
-)
-message(STATUS "  ✓ Error reporting test (Phase 1.3)")
-
-# Example Programs Parse Test
-add_executable(test_examples
-    tests/unit/test_examples.cpp
-)
-target_link_libraries(test_examples
-    naab_lexer
-    naab_parser
-    naab_semantic
-    fmt::fmt
-)
-message(STATUS "  ✓ Example programs test")
+# A58: test_profiler, test_block_registry, test_enhanced_metadata,
+# test_search_index, test_error_reporting and test_examples were standalone
+# programs nothing ran. The profiler, registry and search index checks are
+# GoogleTest cases in naab_unit_tests now; the rest tested missing fixtures,
+# a stub or pre-main-block syntax, and are gone.
 
 # LSP Integration Test (Phase 4.1 - Week 1)
 # M1 fix: guard with GoogleTest availability check
@@ -1421,62 +1353,9 @@ endif()
 # )
 message(STATUS "  ⚠ Composition validator test (Phase 2.4) - DISABLED (needs refactoring)")
 
-if(HAVE_QUICKJS)
-# Cross-Language Integration Test (Simple - QuickJS only)
-add_executable(test_cross_language_simple
-    tests/test_cross_language_simple.cpp
-)
-target_link_libraries(test_cross_language_simple
-    quickjs
-    fmt::fmt
-    pthread
-    m
-)
-target_include_directories(test_cross_language_simple PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/quickjs-2021-03-27
-)
-message(STATUS "  ✓ Cross-language integration test (simple)")
-
-# Cross-Language Bridge Direct Tests
-add_executable(test_cross_language_bridge
-    tests/test_cross_language_bridge.cpp
-)
-target_link_libraries(test_cross_language_bridge
-    quickjs
-    fmt::fmt
-    pthread
-    m
-)
-if(HAVE_PYBIND11)
-    target_link_libraries(test_cross_language_bridge ${Python3_LIBRARIES})
-    target_include_directories(test_cross_language_bridge PRIVATE ${Python3_INCLUDE_DIRS})
-    target_compile_definitions(test_cross_language_bridge PRIVATE HAVE_PYBIND11=1)
-endif()
-target_include_directories(test_cross_language_bridge PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/quickjs-2021-03-27
-)
-message(STATUS "  ✓ Cross-language bridge tests")
-
-# Cross-Language Performance Benchmarks
-add_executable(test_cross_language_performance
-    tests/test_cross_language_performance.cpp
-)
-target_link_libraries(test_cross_language_performance
-    quickjs
-    fmt::fmt
-    pthread
-    m
-)
-if(HAVE_PYBIND11)
-    target_link_libraries(test_cross_language_performance ${Python3_LIBRARIES})
-    target_include_directories(test_cross_language_performance PRIVATE ${Python3_INCLUDE_DIRS})
-    target_compile_definitions(test_cross_language_performance PRIVATE HAVE_PYBIND11=1)
-endif()
-target_include_directories(test_cross_language_performance PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/quickjs-2021-03-27
-)
-message(STATUS "  ✓ Cross-language performance benchmarks")
-endif() # HAVE_QUICKJS
+# A58: the four cross-language test programs were placeholders
+# (int main() { return 0; }) after their code was deleted as stale (7e52ae7e),
+# and are gone.
 
 # End-to-End Example 1: Web Scraper (Disabled - file missing)
 # add_executable(example_web_scraper
@@ -1542,22 +1421,6 @@ endif() # HAVE_QUICKJS
 # endif()
 # message(STATUS "  ✓ Simple Pipeline Example (Working)")
 
-# Cross-Language Integration Test (Original - all executors)
-add_executable(test_cross_language
-    tests/test_cross_language.cpp
-)
-target_link_libraries(test_cross_language
-    naab_runtime
-    naab_interpreter
-    fmt::fmt
-)
-if(HAVE_PYBIND11)
-    target_link_libraries(test_cross_language ${Python3_LIBRARIES})
-    target_include_directories(test_cross_language PRIVATE ${Python3_INCLUDE_DIRS})
-    target_compile_definitions(test_cross_language PRIVATE HAVE_PYBIND11=1)
-endif()
-message(STATUS "  ✓ Cross-language integration test (original)")
-
 # Tests
 enable_testing()
 
@@ -1577,32 +1440,8 @@ message(STATUS "  ./naab-lang run ../examples/hello_world.naab")
 message(STATUS "  ./naab-repl")
 message(STATUS "======================================")
 
-# Library Detection Test
-add_executable(test_library_detection
-    tests/unit/test_library_detection.cpp
-)
-target_link_libraries(test_library_detection
-    naab_block_enricher
-    fmt::fmt
-)
-target_include_directories(test_library_detection PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
-)
-message(STATUS "  ✓ Library detection test")
-
-# Phase 4.1: Exception handling test
-add_executable(test_exception_handling
-    tests/unit/test_exception_handling.cpp
-)
-target_link_libraries(test_exception_handling
-    naab_runtime
-    naab_interpreter
-    naab_parser
-    naab_lexer
-    fmt::fmt
-)
-message(STATUS "  ✓ Exception handling test")
+# A58: test_library_detection (a missing fixture and a stubbed subject) and
+# test_exception_handling (pre-main-block syntax) are gone.
 
 # ============================================================================
 # GoogleTest Integration
@@ -1630,6 +1469,9 @@ if(HAVE_GOOGLETEST)
 
     # Create test executable
     add_executable(naab_unit_tests
+        # FIRST: the block registry is a singleton other tests can initialise
+        # lazily; its test asserts it runs before them (A58).
+        tests/unit/block_library_test.cpp       # BlockRegistry and BlockSearchIndex on the fixture (A58)
         tests/unit/lexer_test.cpp
         tests/unit/parser_test.cpp
         tests/unit/interpreter_test.cpp
@@ -1669,6 +1511,7 @@ if(HAVE_GOOGLETEST)
         tests/unit/contract_expr_test.cpp       # requires/ensures clauses: the purity whitelist (Bundle 11)
         tests/unit/capability_manifest_test.cpp # the capability manifest's file format (Bundle 11 PR 2)
         tests/unit/taint_rule_test.cpp          # the static taint rule: an unknown kind is tainted (Bundle 12)
+        tests/unit/profiler_test.cpp            # the profiler behind --profile (A58)
     )
 
     # Link GoogleTest and NAAb libraries
@@ -1685,6 +1528,7 @@ if(HAVE_GOOGLETEST)
         naab_security  # For SafeRegex tests
         naab_manifest  # For manifest loader
         naab_block_enricher  # BlockEnricher library detection: cpp_executor_test
+        naab_profiling       # profiler_test
         fmt::fmt
         spdlog::spdlog
     )

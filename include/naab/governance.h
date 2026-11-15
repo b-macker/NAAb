@@ -3531,6 +3531,10 @@ public:
     // write it (checkPathAccessImpl).
     bool isEvidenceLogPath(const std::string& canon_n) const;
     bool isEngineStatePath(const std::string& canon_n) const;  // scoring calibration file (A60)
+    // True when `canon_n` is a directory the engine keeps state in and reads
+    // back -- `.naab_cache/` beside govern.json, where agent review and the
+    // governance voice cache their results -- or anything under it (A169).
+    bool isEngineStateDir(const std::string& canon_n) const;
     // The agent-channel text for a set of deliveries ("" for none).
     static std::string formatGuidance(const std::vector<GuidanceDelivery>& items);
     // Opaque outside governance_guidance.cpp.
@@ -4815,6 +4819,7 @@ private:
     // worker threads while a reload appends on the main thread.
     std::vector<std::string> evidence_log_paths_;
     std::vector<std::string> engine_state_paths_;  // same mutex; writes refused, reads allowed
+    std::vector<std::string> engine_state_dirs_;   // same mutex; the dir and all under it (A169)
     mutable std::mutex evidence_paths_mutex_;
     // Terminal channel: the guidance section appended to a block message in
     // enforce(). Computed without telemetry (enforce()'s advisory branch holds

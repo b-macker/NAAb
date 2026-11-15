@@ -6,7 +6,7 @@
   "category": "testing",
   "subcategory": "metadata",
   "code": "function test() { return 'Enhanced metadata test'; }",
-  "code_hash": "abc123def456",
+  "code_hash": "b24e7c56b8efa75eb2ccbd635be2949615c36b534f8008babe7cb3c3ee4a7e81",
   "token_count": 42,
   "times_used": 100,
   "is_active": true,
