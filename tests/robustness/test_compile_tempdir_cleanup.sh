@@ -162,7 +162,9 @@ shape_info() {
 # Prefixes with no shape above, each with where its cleanup IS checked.
 #   naab_contracts_  naab-gov contracts' cases file: not an executor, nothing
 #                    to stub; tests/governance_v4/test_contract_search.sh CS-12.
-UNCOVERED_PREFIXES="naab_contracts_"
+#   naab_heal_       naab-gov heal's candidate config for the ratchet: not an
+#                    executor; tests/governance_v4/test_gov_heal.sh HL-10.
+UNCOVERED_PREFIXES="naab_contracts_ naab_heal_"
 
 # ---- the probe -----------------------------------------------------------
 leftovers() {  # $1 = TMPDIR of the run -> every naab_* directory still in it

@@ -957,7 +957,7 @@ install(TARGETS libnaab
 message(STATUS "  ✓ libnaab shared library (Phase 8.1)")
 
 # naab-gov — Standalone governance + scanning CLI (Phase 8.2)
-add_executable(naab-gov src/cli/gov_main.cpp src/cli/gov_contracts.cpp src/cli/gov_manifest.cpp src/cli/gov_taint.cpp src/cli/gov_diff.cpp src/cli/gov_replay.cpp src/cli/gov_explain.cpp src/cli/gov_patch_check.cpp)
+add_executable(naab-gov src/cli/gov_main.cpp src/cli/gov_contracts.cpp src/cli/gov_manifest.cpp src/cli/gov_taint.cpp src/cli/gov_diff.cpp src/cli/gov_replay.cpp src/cli/gov_explain.cpp src/cli/gov_patch_check.cpp src/cli/gov_heal.cpp)
 target_include_directories(naab-gov PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
     ${CMAKE_CURRENT_SOURCE_DIR}/include

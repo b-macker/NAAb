@@ -40,6 +40,7 @@
 // Exit: 0 every section was gathered (whatever it found, whatever the model
 // said or failed to say); 2 UNMEASURABLE -- a section could not be gathered
 // (named in the report); 4 usage, parse or config error.
+#include "gov_self.h"
 #include "naab/agent_provider.h"
 #include "naab/bounded_jsonl.h"
 #include "naab/governance.h"
@@ -116,18 +117,6 @@ std::string phrase(const std::string& s) {
 
 // ---- running this binary's own subcommands ----------------------------------
 
-std::string selfPath(const char* argv0) {
-#ifdef _WIN32
-    char buf[MAX_PATH];
-    DWORD n = GetModuleFileNameA(nullptr, buf, MAX_PATH);
-    if (n > 0 && n < MAX_PATH) return std::string(buf, n);
-#else
-    std::error_code ec;
-    auto p = fs::read_symlink("/proc/self/exe", ec);
-    if (!ec && !p.empty()) return p.string();
-#endif
-    return argv0 ? std::string(argv0) : std::string("naab-gov");
-}
 
 struct Section {
     std::string state = "absent";  // gathered | unmeasurable | absent (not asked for)
@@ -135,11 +124,8 @@ struct Section {
     json data = json::object();    // the finding, as the tool gave it
 };
 
-int runSelf(const std::string& self, const std::vector<std::string>& args,
-            std::string& out, std::string& err) {
-    return naab::runtime::execute_subprocess_with_pipes(
-        self, args, out, err, nullptr, nullptr, naab::runtime::ChildStdin::Null);
-}
+using naab::govcli::runSelf;
+using naab::govcli::selfPath;
 
 Section gatherTaint(const std::string& self, const std::string& file, const std::string& config) {
     Section s;
@@ -345,15 +331,7 @@ void sequenceLines(const Section& s, Lines& L) {
     }
 }
 
-void detachStdin() {
-#ifdef _WIN32
-    int fd = _open("NUL", _O_RDONLY);
-    if (fd >= 0) { _dup2(fd, 0); if (fd != 0) _close(fd); }
-#else
-    int fd = ::open("/dev/null", O_RDONLY);
-    if (fd >= 0) { ::dup2(fd, 0); if (fd != 0) ::close(fd); }
-#endif
-}
+using naab::govcli::detachStdin;
 
 const char* kPromptHead =
     "You are explaining the output of deterministic governance tools to the person "

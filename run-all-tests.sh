@@ -2671,6 +2671,22 @@ else
     echo "  test_gov_patch_check.sh: not found, skipping"
 fi
 
+# naab-gov heal (Bundle 15 PR 4): a repeated advisory -> a stricter written
+# level, proposed only from a verified run of the given config. Every telemetry
+# file is written by a real run; HL-00/01b/06c/08c are the proposing controls,
+# HL-00e the control that the proposed key governs its rule.
+GOV_HEAL_SCRIPT="tests/governance_v4/test_gov_heal.sh"
+if [ -f "$GOV_HEAL_SCRIPT" ]; then
+    if run_shell_test "$GOV_HEAL_SCRIPT" 2>&1; then
+        echo "  test_gov_heal.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_gov_heal.sh")
+    fi
+else
+    echo "  test_gov_heal.sh: not found, skipping"
+fi
+
 # The telemetry chain under concurrent writers (A164) and the verifier on lines
 # it will not read (A163). CC-00 is the sequential control; the batch arms were
 # red 4 of 5 runs before the fix.
