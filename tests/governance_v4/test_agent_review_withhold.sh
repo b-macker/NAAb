@@ -39,19 +39,30 @@
 #           it is what shows (and it must survive the error sanitizer whole)
 #   AW-07   a cache hit: the reviewer is asked once over two runs, and neither
 #           run nor the cache file carries the key
+#   AW-08   a result read FROM the cache is scanned too: run 1 caches a PII
+#           description that its policy allows (no_pii off), then the `extends`
+#           parent turns no_pii on -- the child file, and so the cache key, is
+#           unchanged -- and run 2's cache hit must withhold it. This is the
+#           read path a cache from an older build also takes, made without
+#           sealing a cache entry by hand
+#   AW-08c  CONTROL: run 1 printed the description, and run 2 was a cache hit
 #
-# Kill table (each mutant rebuilt, suite re-run):
-#   no scan of descriptions                        -> AW-01 AW-06 AW-07 red
-#   no scan of categories                          -> AW-02 red
-#   no scan of the guide                           -> AW-03 red
-#   no scan of rejected findings                   -> AW-04 red
-#   no PII scan                                    -> AW-05 red
-#   secrets scanned only under no_secrets          -> AW-01 AW-02 AW-03 AW-04 AW-06 AW-07 red
-#   the cache written before the scan              -> AW-07 red
-#   a withheld finding dropped instead of kept     -> AW-01 AW-02 AW-06 red
-#   every text withheld                            -> AW-00 AW-01c AW-03c AW-05c red
-# Red first: on master AW-01, AW-02, AW-03, AW-04, AW-05, AW-06 and AW-07
-# fail, and every control passes.
+# Kill table (each mutant rebuilt, suite re-run; observed 2026-11-15 -- AW-08
+# was added after the first pass, and only its own mutant was re-run with it):
+#   no scan of descriptions                   -> AW-01 AW-04 AW-05 AW-06 AW-07 red
+#   no scan of categories                     -> AW-02 red
+#   no scan of the guide                      -> AW-03 red
+#   no scan of rejected findings              -> AW-04 red
+#   no PII scan                               -> AW-05 red
+#   secrets scanned only under no_secrets
+#     (secretFinding(), the A166 shape)       -> AW-01 AW-02 AW-03 AW-04 AW-06 AW-07 red
+#   the cache written before the scan         -> AW-01 .. AW-07 red (each checks the cache)
+#   a withheld finding dropped instead of kept -> AW-01 AW-02 AW-05 AW-06 AW-07 red
+#   every text withheld                       -> AW-00 AW-01 AW-01c AW-03 AW-03c AW-04
+#                                                AW-05 AW-05c AW-07 red
+#   no scan of a result read from the cache   -> AW-08 red (it survived every other arm)
+# Red first (observed on 743e4ee7): AW-01 .. AW-08 fail, and every control
+# (AW-00, AW-01c, AW-03c, AW-05c, AW-08c) passes.
 # Secret and PII values are assembled from fragments at run time.
 
 set -uo pipefail
@@ -230,6 +241,42 @@ elif [ "$REQS" -eq 1 ] && ls "$D"/.naab_cache/*.review.json >/dev/null 2>&1 \
     pass AW-07 "a cache hit: one review over two runs, and neither run nor the cache carries the key"
 else
     fail AW-07 "the cached review should carry no key" "asked=$REQS printed=$(has "$KEY" && echo yes || echo no) cached=$(cached "$KEY" && echo yes || echo no) enforced=$(grep -c 'agent_review.cat_alpha' <<<"$OUT")"
+fi
+
+# AW-08: the same child file over two runs; only the parent changes.
+D="$TEST_TMP/aw08"; mkdir -p "$D"
+fixture 'FINDING|cat_alpha|the SSN @SSN@ is printed' > "$D/fixture.json"
+if ! start_stub "$D/fixture.json" "$D"; then unm AW-08 "the stub did not start"; unm AW-08c "the stub did not start"
+else
+    cat > "$D/govern.json" <<EOF
+{
+  "extends": "./parent.json",
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "agents": {
+    $(agent_json det_a), $(agent_json analyst), $(agent_json voicer)
+  },
+  "agent_review": $AR
+}
+EOF
+    printf 'main {\n    print("PROGRAM_RAN")\n}\n' > "$D/p.naab"
+    echo '{"mode": "enforce"}' > "$D/parent.json"
+    RC1=0; OUT1=$(cd "$D" && timeout 60 "$NAAB" run p.naab 2>&1) || RC1=$?
+    echo '{"mode": "enforce", "code_quality": {"no_pii": {"enabled": true, "level": "hard"}}}' > "$D/parent.json"
+    RC2=0; OUT2=$(cd "$D" && timeout 60 "$NAAB" run p.naab 2>&1) || RC2=$?
+    stop_stub
+    REQS=$(grep -c ' TOKEN_det_a$' "$D/routes.log" 2>/dev/null || true); REQS=${REQS:-0}
+    if [ "$RC1" -eq 0 ] && grep -q -F -- "$SSN" <<<"$OUT1" && [ "$REQS" -eq 1 ] && grep -q 'cache hit' <<<"$OUT2"; then
+        pass AW-08c "CONTROL: run 1 printed the PII description (no_pii off), run 2 was a cache hit"
+        if [ "$RC2" -eq 0 ] && ! grep -q -F -- "$SSN" <<<"$OUT2" && grep -q 'withheld' <<<"$OUT2" && grep -q 'agent_review.cat_alpha' <<<"$OUT2"; then
+            pass AW-08 "a result read from the cache is scanned under the policy of the run reading it"
+        else
+            fail AW-08 "a cached PII description should be withheld once no_pii is on" "rc=$RC2 printed=$(grep -q -F -- "$SSN" <<<"$OUT2" && echo yes || echo no): $(tail -3 <<<"$OUT2" | tr '\n' ' ' | cut -c1-300)"
+        fi
+    else
+        fail AW-08c "the cache-read arm did not set up" "rc1=$RC1 printed1=$(grep -q -F -- "$SSN" <<<"$OUT1" && echo yes || echo no) asked=$REQS hit=$(grep -q 'cache hit' <<<"$OUT2" && echo yes || echo no): $(tail -3 <<<"$OUT2" | tr '\n' ' ' | cut -c1-300)"
+        unm AW-08 "no cache hit to read"
+    fi
 fi
 
 echo ""
