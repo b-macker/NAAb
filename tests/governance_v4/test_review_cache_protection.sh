@@ -37,13 +37,13 @@
 #   RC-12   PINNED, not endorsed: a <<sh>> block's write lands -- subprocess
 #           languages are outside path policy (CONTRA-013)
 #
-# Kill table (each mutant rebuilt, suite re-run):
+# Kill table (each mutant rebuilt, suite re-run; observed 2026-11-15):
 #   the write check removed                        -> RC-01 .. RC-09 red
 #   only paths UNDER the directory (not the dir)   -> RC-02 red
 #   prefix match without the '/' boundary          -> RC-00 red
 #   no hard-link check                             -> RC-07 red
 #   reads refused too (mode check dropped)         -> RC-10 red
-#   any ".naab_cache" component protected          -> RC-11 red
+#   any ".naab_cache" component protected          -> RC-00 RC-11 red
 # Red first: on 743e4ee7 RC-01 .. RC-09 fail and every control passes.
 
 set -u
