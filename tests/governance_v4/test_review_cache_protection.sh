@@ -58,6 +58,7 @@ fail() { FAIL=$((FAIL+1)); echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && echo "     
 unm()  { UNM=$((UNM+1));  echo "  UNMEASURABLE [$1] $2"; }
 
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+source "$SCRIPT_DIR/../helpers/native_path.sh"   # RC-04 hands the binary an absolute path
 setup_isolated_trust          # unsigned configs; exit 3 must mean the gate
 cleanup() { teardown_isolated_trust; [ -n "${RC_KEEP:-}" ] || rm -rf "$TEST_TMP"; }
 trap cleanup EXIT
@@ -128,8 +129,11 @@ main { io.write_file(".naab_cache/io.review.json", "{}") }'
 refused RC-03 "io.write_file into .naab_cache/" "$([ -e "$d/.naab_cache/io.review.json" ] && echo 1 || echo 0)" ""
 
 d="$TEST_TMP/c04"; mk "$d"; mkdir -p "$d/.naab_cache"
+# The path is written INTO the program, so it must be in the binary's
+# vocabulary: under MSYS2 the shell's /tmp/... names another file to a native
+# naab-lang, and the write landed there (build-windows, rc=0).
 run "$d" "use file
-main { file.write(\"$d/.naab_cache/abs.review.json\", \"{}\") }"
+main { file.write(\"$(native_path "$d")/.naab_cache/abs.review.json\", \"{}\") }"
 refused RC-04 "an absolute-path write into .naab_cache/" "$([ -e "$d/.naab_cache/abs.review.json" ] && echo 1 || echo 0)" ""
 
 d="$TEST_TMP/c05"; mk "$d"; mkdir -p "$d/.naab_cache"; echo '{}' > "$d/copied.review.json"
