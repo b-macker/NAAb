@@ -68,7 +68,8 @@
 #   no test file in the base is fine             -> PC-12 PC-12b red
 #   UNMEASURABLE outranks a refusal              -> PC-12b red
 #   unchecked clauses are accepted               -> PC-13 red
-#   the search off unless asked (the old default) -> PC-13c PC-13h red
+#   the search off unless asked (the old default) -> PC-13c PC-13h red (and,
+#       --run-contracts setting nothing then, PC-13b PC-13e PC-13f PC-13g)
 #   --no-run-contracts ignored                   -> PC-13 red
 #   both flags together accepted                 -> PC-13i red
 #   a new counterexample is accepted             -> PC-13b red
