@@ -144,15 +144,8 @@ improvement: +43%
       "enabled": true
     },
 
-    "language_diversity": {
-      "enabled": true,
-      "min_languages": 2,
-      "max_single_language_percent": 70
-    },
-
     "helper_errors": {
       "enabled": true,
-      "show_alternative_language": true,
       "show_example_code": true
     }
   }
@@ -387,16 +380,9 @@ Adjust scores based on your needs:
 
 ### Step 4: Set Thresholds
 
-Adjust when suggestions trigger:
-
-```json
-{
-  "language_diversity": {
-    "min_languages": 3,              // Require 3+ languages
-    "max_single_language_percent": 60 // No single lang > 60%
-  }
-}
-```
+There is no language-diversity threshold to set: `language_diversity.min_languages`
+and `max_single_language_percent` are accepted and read by nothing (settings-liveness
+step 3), so no run requires more languages or caps a single one.
 
 ### Step 5: Gradual Enforcement
 
@@ -749,8 +735,7 @@ Different rules for different contexts:
       "paths": ["src/prod/**"],
       "overrides": {
         "polyglot_optimization": {
-          "enforcement_level": "hard",
-          "language_diversity": {"min_languages": 3}
+          "enforcement_level": "hard"
         }
       }
     },

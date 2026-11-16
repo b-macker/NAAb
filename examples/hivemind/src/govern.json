@@ -86,8 +86,7 @@
       "enabled": true
     },
     "code_injection": {
-      "block_dynamic_code_gen": true,
-      "block_template_injection": true
+      "block_dynamic_code_gen": true
     },
     "resource_abuse": {
       "block_fork_bomb": true,
@@ -109,8 +108,7 @@
     },
     "execution": {
       "call_depth": 50,
-      "loop_iterations": 100000,
-      "total_executions": 500
+      "loop_iterations": 100000
     },
     "data": {
       "string_length": 200000,
@@ -149,8 +147,6 @@
     "output_file": "hivemind-audit.jsonl",
     "tamper_evidence": { "enabled": true },
     "log_events": {
-      "checks_passed": true,
-      "checks_failed": true,
       "checks_warned": true,
       "overrides": true,
       "config_loaded": true,

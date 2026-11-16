@@ -283,7 +283,7 @@ agents.<name>.retry.throttle_cooldown_seconds    fixed -- untraced: retry and ke
 agents.<name>.retry.throttle_key_on              fixed -- untraced: retry and key-rotation tuning; no single tighter direction established
 agents.<name>.tool_result_max_chars              order lower -- traced: a tool result longer than it is truncated (agent_impl.cpp, no zero guard: 0 truncates everything)
 agents.<name>.tool_result_max_total_chars        order lower -- traced: tool output beyond the turn's total is truncated (agent_impl.cpp, no zero guard)
-agents.<name>.tool_timeout_seconds               order lower -- traced: a tool call's time limit; the loader clamps it to at least 1
+agents.<name>.tool_timeout_seconds               order lower -- NOT YET: no reader, no tool call is timed (step 3 trace, A175; the earlier "traced: a tool call's time limit" was wrong); the owner decided on 2026-11-16 to wire it. The loader clamps it to at least 1
 
 # api
 api.key                                          startup -- traced: read when `naab-lang api` / `naab-lang mcp` starts (main.cpp setApiKeys, mcp loadPolicy); a running program's reload is not read by the server
@@ -317,7 +317,7 @@ security.blocked_paths                           inert -- traced: the loader war
 # trust
 trust.check_key_expiry                           order true -- traced: signature verification refuses an expired key while true; a reload is verified with these rules
 trust.check_revocation                           order true -- traced: signature verification refuses a revoked key while true
-trust.require_fresh_signature                    order true -- traced: refuses a signature older than max_signature_age_days while true
+trust.require_fresh_signature                    order true -- NOT YET: no reader (step 3 trace, A175; the earlier "traced: refuses a signature older than max_signature_age_days" was wrong); the owner decided on 2026-11-16 to wire it. The order is kept, so a reload cannot move it the looser way
 trust.max_signature_age_days                     order lower0 -- struct: 0 = no staleness check
 trust.stale_signature_level                      order level -- rule: the level a stale signature is reported at
 
@@ -847,10 +847,10 @@ manifest.required                                startup -- traced: read once, b
 # restrictions
 restrictions.code_injection.block_command_injection  order true -- traced: each enables one code-injection refusal (loader block_* flags)
 restrictions.code_injection.block_dynamic_code_gen  order true -- traced: each enables one code-injection refusal (loader block_* flags)
-restrictions.code_injection.block_ldap_injection  order true -- traced: each enables one code-injection refusal (loader block_* flags)
+restrictions.code_injection.block_ldap_injection  order true -- enforces nothing: no check detects this injection and the loader warns (step 3, A175; the earlier "traced: enables one code-injection refusal" was wrong). The order is kept: it refuses only a reload that changes the switch the looser way
 restrictions.code_injection.block_sql_injection_patterns  order true -- traced: each enables one code-injection refusal (loader block_* flags)
-restrictions.code_injection.block_template_injection  order true -- traced: each enables one code-injection refusal (loader block_* flags)
-restrictions.code_injection.block_xpath_injection  order true -- traced: each enables one code-injection refusal (loader block_* flags)
+restrictions.code_injection.block_template_injection  order true -- enforces nothing: no check detects this injection and the loader warns (step 3, A175; the earlier "traced: enables one code-injection refusal" was wrong). The order is kept: it refuses only a reload that changes the switch the looser way
+restrictions.code_injection.block_xpath_injection  order true -- enforces nothing: no check detects this injection and the loader warns (step 3, A175; the earlier "traced: enables one code-injection refusal" was wrong). The order is kept: it refuses only a reload that changes the switch the looser way
 restrictions.data_exfiltration.block_base64_encode_secrets  order true -- traced: each enables one exfiltration refusal
 restrictions.data_exfiltration.block_encoding_chains  order true -- traced: each enables one exfiltration refusal
 restrictions.data_exfiltration.block_hex_encode_secrets  order true -- traced: each enables one exfiltration refusal

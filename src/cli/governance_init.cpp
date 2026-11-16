@@ -618,23 +618,19 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         };
     }
     {
-        int per_block_mb = strict_plus ? 128 : 256;
         int total_mb = strict_plus ? 512 : 1024;
         root["limits"]["memory"] = {
-            {"per_block_mb", per_block_mb},
             {"total_mb", total_mb}
         };
     }
     {
         int poly_blocks = is_lib ? 30 : (is_script || is_test) ? 100 : 50;
         int loop_iter = (is_script || is_test) ? 10000000 : 1000000;
-        int total_exec = is_lib ? 100 : (is_script || is_test) ? 500 : 200;
         root["limits"]["execution"] = {
             {"call_depth", 100},
             {"loop_iterations", loop_iter},
             {"polyglot_blocks", poly_blocks},
-            {"parallel_blocks", 4},
-            {"total_executions", total_exec}
+            {"parallel_blocks", 4}
         };
     }
     {
@@ -642,8 +638,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["limits"]["data"] = {
             {"array_size", arr_size},
             {"dict_size", 50000},
-            {"output_size", 1000000},
-            {"input_size", 1000000}
+            {"output_size", 1000000}
         };
     }
     {
@@ -658,8 +653,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["limits"]["rate"] = {
             {"max_polyglot_per_second", strict_plus ? 5 : 10},
             {"max_stdlib_calls_per_second", 100},
-            {"max_file_ops_per_second", 20},
-            {"cooldown_on_limit_ms", 100}
+            {"max_file_ops_per_second", 20}
         };
     }
 
@@ -777,7 +771,6 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"enabled", isEnabled(s, 1)},
             {"level", fixedLevel(s, "off", "soft", "hard", "hard")},
             {"block_dynamic_code_gen", true},
-            {"block_template_injection", strict_plus},
             {"block_sql_injection_patterns", true},
             {"block_command_injection", true}
         };
@@ -794,10 +787,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
     }
     {
         root["restrictions"]["polyglot_output"] = {
-            {"format", "any"},
-            {"max_size", 0},
-            {"require_structured", paranoid},
-            {"validate_json", paranoid}
+            {"format", "any"}
         };
     }
 
@@ -815,8 +805,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"suspicious_variable_names", {
                 {"enabled", true},
                 {"names", json::array({"password", "secret", "api_key", "token", "private_key"})}
-            }},
-            {"allowlist", json::array({"example.com", "localhost", "127.0.0.1"})}
+            }}
         };
     }
     // no_placeholders
@@ -832,10 +821,8 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["code_quality"]["no_hardcoded_results"] = {
             {"enabled", isEnabled(s, 1)},
             {"level", fixedLevel(s, "off", "advisory", "soft", "hard")},
-            {"check_return_true_false", true},
             {"check_return_none_null", true},
             {"check_return_empty_collections", true},
-            {"check_dict_success_fields", true},
             {"check_dict_status_fields", true},
             {"check_perfect_scores", true}
         };
@@ -882,8 +869,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
     {
         root["code_quality"]["no_apologetic_language"] = {
             {"enabled", strict_plus},
-            {"level", fixedLevel(s, "off", "off", "advisory", "soft")},
-            {"scan_comments_only", true}
+            {"level", fixedLevel(s, "off", "off", "advisory", "soft")}
         };
     }
     // no_dead_code
@@ -950,7 +936,6 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"level", fixedLevel(s, "off", "off", "advisory", "soft")},
             {"max_lines_per_block", 100},
             {"max_nesting_depth", 5},
-            {"max_parameters", 6},
             {"max_cyclomatic_complexity", 10},
             {"max_cognitive_complexity", 15}
         };
@@ -1107,28 +1092,15 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
     // ── output ─────────────────────────────────────────────────────
     {
         root["output"]["summary"] = {
-            {"enabled", true},
-            {"format", "detailed"},
-            {"show_passing", true},
             {"show_skipped", false},
-            {"group_by", "category"},
             {"sort_by", "severity"}
         };
         root["output"]["errors"] = {
-            {"verbose", true},
             {"show_line_preview", true},
-            {"show_code_context", 3},
-            {"show_help", true},
-            {"show_examples", true},
             {"show_rule_path", true},
-            {"show_fix_suggestions", true},
-            {"max_errors_per_rule", 5},
-            {"max_total_errors", 50}
+            {"show_fix_suggestions", true}
         };
         root["output"]["formatting"] = {
-            {"color", true},
-            {"unicode_symbols", true},
-            {"width", 80},
             {"indent", 2}
         };
         root["output"]["file_output"] = {
@@ -1150,14 +1122,10 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["audit"]["output_file"] = ".governance-audit.jsonl";
         root["audit"]["tamper_evidence"] = {
             {"enabled", paranoid},
-            {"algorithm", "sha256"},
             {"chain_genesis", "NAAB-GOVERNANCE-GENESIS"}
         };
         root["audit"]["log_events"] = {
-            {"checks_passed", strict_plus},
-            {"checks_failed", true},
             {"checks_warned", true},
-            {"overrides", true},
             {"config_loaded", true},
             {"execution_start", strict_plus},
             {"execution_end", strict_plus},
@@ -1173,9 +1141,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         };
         root["audit"]["provenance"] = {
             {"enabled", paranoid},
-            {"record_proof_objects", paranoid},
             {"record_attestations", paranoid},
-            {"record_decisions", paranoid},
             {"sign_records", paranoid},
             {"signing_key_env", "NAAB_SIGNING_KEY"}
         };
@@ -1187,7 +1153,6 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["telemetry"]["output_file"] = "telemetry.jsonl";
         root["telemetry"]["tamper_evidence"] = {
             {"enabled", paranoid},
-            {"algorithm", "sha256"},
             {"chain_genesis", "NAAB-TELEMETRY-GENESIS"}
         };
     }
@@ -1195,8 +1160,6 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
     // ── meta ───────────────────────────────────────────────────────
     {
         root["meta"]["schema_validation"] = {
-            {"warn_unknown_keys", true},
-            {"suggest_corrections", true},
             {"strict_types", true}
         };
         root["meta"]["config_immutability"] = {
@@ -1211,14 +1174,10 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"allow_circular", false}
         };
         root["meta"]["feature_flags"] = {
-            {"experimental_checks", false},
-            {"legacy_compatibility", true},
-            {"verbose_parsing", false}
+            {"legacy_compatibility", true}
         };
         root["meta"]["environment"] = {
-            {"allow_env_var_substitution", false},
-            {"env_prefix", "NAAB_GOV_"},
-            {"allow_cli_override", true}
+            {"allow_env_var_substitution", false}
         };
     }
 
@@ -1237,15 +1196,10 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["polyglot"]["variable_binding"] = {
             {"require_explicit", strict_plus},
             {"require_explicit_level", strict_plus ? "soft" : "advisory"},
-            {"max_bound_variables", 0},
             {"validate_types", paranoid}
         };
         root["polyglot"]["output"] = {
-            {"require_json_pipe", false},
-            {"require_naab_return", false},
-            {"max_output_lines", 0},
-            {"strip_whitespace", false},
-            {"validate_encoding", true}
+            {"strip_whitespace", false}
         };
         root["polyglot"]["context_isolation"] = {
             {"enabled", strict_plus},
@@ -1255,15 +1209,9 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"clean_temp_files", true}
         };
         root["polyglot"]["parallel"] = {
-            {"max_parallel_blocks", 4},
-            {"timeout_per_block", 30},
-            {"fail_strategy", "fail_fast"},
             {"allow_shared_variables", false}
         };
         root["polyglot"]["persistent_runtime"] = {
-            {"max_sessions", 5},
-            {"session_timeout", 300},
-            {"max_memory_per_session_mb", 256},
             {"allow_state_persistence", true}
         };
     }
@@ -1338,20 +1286,14 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"enforcement_level", "advisory"}
         };
         po["language_diversity"] = {
-            {"enabled", true},
-            {"min_languages", 2},
-            {"max_single_language_percent", 80}
+            {"enabled", true}
         };
         po["helper_errors"] = {
             {"enabled", true},
-            {"show_alternative_language", true},
             {"show_example_code", true}
         };
         po["ai_guidance"] = {
-            {"enabled", true},
-            {"include_in_errors", true},
-            {"suggest_refactoring", true},
-            {"show_benchmarks", false}
+            {"enabled", true}
         };
 
         root["polyglot_optimization"] = po;

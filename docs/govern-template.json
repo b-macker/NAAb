@@ -188,7 +188,7 @@
       "max_sleep_seconds": 10,
       "allow_timers": true
     },
-    "_comment_memory": "RESERVED: memory sub-keys are not yet enforced. Memory limits use limits.memory.per_block_mb and limits.memory.total_mb instead.",
+    "_comment_memory": "RESERVED: memory sub-keys are not yet enforced. runtime.memory_limit bounds what a child process may allocate.",
     "memory": {
       "max_allocation_mb": 512,
       "allow_mmap": false,
@@ -223,24 +223,23 @@
       "total_polyglot": 120
     },
     "memory": {
-      "per_block_mb": 256,
+      "_comment_reserved": "RESERVED, not in this template: limits.memory.per_block_mb is parsed and enforced by nothing (the loader warns); in-process code cannot be held to a per-block memory cap. runtime.memory_limit bounds what a child process may allocate.",
       "total_mb": 1024
     },
     "execution": {
+      "_comment_reserved": "RESERVED, not in this template: limits.execution.total_executions is parsed and enforced by nothing (the loader warns). polyglot_blocks caps how many polyglot blocks a run executes.",
       "call_depth": 100,
       "loop_iterations": 1000000,
       "polyglot_blocks": 50,
-      "parallel_blocks": 4,
-      "total_executions": 200
+      "parallel_blocks": 4
     },
     "data": {
       "array_size": 100000,
       "dict_size": 50000,
-      "_comment_unenforced": "RESERVED, not in this template: string_length and nesting_depth are parsed and enforced by nothing (the loader warns). max_json_depth bounds JSON parse depth.",
+      "_comment_unenforced": "RESERVED, not in this template: string_length, nesting_depth and input_size are parsed and enforced by nothing (the loader warns). max_json_depth bounds JSON parse depth.",
       "max_json_depth": 20,
       "_comment_output_size": "Cap, in bytes, on what foreign code hands back to the program: an inline block's value, a persistent runtime's .exec(), a block-library call, codegen.run()'s output. A list or dict counts what it holds. HARD and uncatchable on both engines; 0 = no limit. languages.per_language.<lang>.max_output_size sets a per-language cap the same way.",
-      "output_size": 1000000,
-      "input_size": 1000000
+      "output_size": 1000000
     },
     "code": {
       "max_lines_per_block": 500,
@@ -250,8 +249,7 @@
     "rate": {
       "max_polyglot_per_second": 10,
       "max_stdlib_calls_per_second": 100,
-      "max_file_ops_per_second": 20,
-      "cooldown_on_limit_ms": 100
+      "max_file_ops_per_second": 20
     }
   },
 
@@ -274,15 +272,6 @@
       "allow_global_functions": true,
       "block_global_variables": true
     },
-    "naming_conventions": {
-      "enabled": false,
-      "level": "advisory",
-      "variables": "snake_case",
-      "functions": "snake_case",
-      "constants": "UPPER_SNAKE_CASE",
-      "check_naab_code": true,
-      "check_polyglot_code": false
-    },
     "documentation": {
       "enabled": false,
       "level": "advisory",
@@ -301,7 +290,6 @@
     "dangerous_calls": {
       "enabled": true,
       "level": "hard",
-      "allowlist": [],
       "blocklist_extra": [],
       "check_chained_calls": false,
       "check_string_formatting": false
@@ -378,13 +366,11 @@
       "suppressions": []
     },
     "code_injection": {
+      "_comment_reserved": "RESERVED, not in this template: block_template_injection, block_xpath_injection and block_ldap_injection are parsed and enforced by nothing -- no check detects those injections (the loader warns).",
       "enabled": true,
       "level": "hard",
       "block_dynamic_code_gen": true,
-      "block_template_injection": true,
       "block_sql_injection_patterns": true,
-      "block_xpath_injection": true,
-      "block_ldap_injection": true,
       "block_command_injection": true
     },
     "_comment_crypto": "Reads a block's code for a weak algorithm's name as a whole word (md5, sha1; des, rc4, blowfish when no list is given) and for the Windows CryptoAPI constants that name one (CALG_MD2, CALG_MD4, CALG_MD5, CALG_SHA, CALG_SHA1; CALG_DES, CALG_3DES, CALG_3DES_112, CALG_DESX, CALG_RC2, CALG_RC4, CALG_RC5). When weak_hashes or weak_ciphers is set, a constant fires only for an algorithm that list names (des covers the 3DES and DESX constants). Not read: rand() and other weak random sources.",
@@ -401,10 +387,8 @@
       "secure_random_level": "advisory"
     },
     "polyglot_output": {
-      "format": "any",
-      "max_size": 0,
-      "require_structured": false,
-      "validate_json": false
+      "_comment_reserved": "RESERVED, not in this template: max_size, require_structured and validate_json are parsed and enforced by nothing (the loader warns). limits.data.output_size caps what a block hands back; \"polyglot_output\": \"json\" requires a string result to be JSON.",
+      "format": "any"
     }
   },
 
@@ -429,7 +413,6 @@
         "enabled": true,
         "names": ["password", "secret", "api_key", "token", "private_key"]
       },
-      "allowlist": ["example.com", "localhost", "127.0.0.1"],
       "custom_patterns": []
     },
     "no_placeholders": {
@@ -445,10 +428,8 @@
     "no_hardcoded_results": {
       "enabled": true,
       "level": "advisory",
-      "check_return_true_false": true,
       "check_return_none_null": true,
       "check_return_empty_collections": true,
-      "check_dict_success_fields": true,
       "check_dict_status_fields": true,
       "check_perfect_scores": true,
       "check_zero_counts": true,
@@ -498,9 +479,7 @@
     "no_apologetic_language": {
       "level": "advisory",
       "categories": {},
-      "custom_patterns": [],
-      "scan_comments_only": true,
-      "scan_strings": false
+      "custom_patterns": []
     },
     "no_dead_code": {
       "enabled": true,
@@ -565,7 +544,6 @@
       "level": "advisory",
       "max_lines_per_block": 100,
       "max_nesting_depth": 5,
-      "max_parameters": 6,
       "max_local_variables": 15,
       "max_cyclomatic_complexity": 10,
       "max_cognitive_complexity": 15
@@ -756,13 +734,11 @@
     "blocked_flags": ["--drift-baseline-save", "--governance-override"]
   },
 
-  "_comment_trust": "Authority Decay: signature staleness and key lifecycle. max_signature_age_days=0 disables staleness check. check_key_expiry/check_revocation skip expired/revoked keys at load time.",
+  "_comment_trust": "Authority Decay: signature staleness and key lifecycle. max_signature_age_days=0 disables staleness check. Revoked and expired trusted keys are always skipped at load time; check_key_expiry and check_revocation are accepted and switch nothing off.",
   "trust": {
     "max_signature_age_days": 90,
     "require_fresh_signature": false,
-    "stale_signature_level": "advisory",
-    "check_key_expiry": true,
-    "check_revocation": true
+    "stale_signature_level": "advisory"
   },
 
   "_comment_prerequisites": "Environment Attestation: verify prerequisites before execution. Types: python_version, package (pip:pkg or npm:pkg), tool, env_var, command. Set enabled:true to activate.",
@@ -968,31 +944,18 @@
   "output": {
     "_comment_summary_reserved": "show_skipped and sort_by are RESERVED — not yet enforced.",
     "summary": {
-      "enabled": true,
-      "format": "detailed",
-      "show_passing": true,
       "show_skipped": false,
-      "group_by": "category",
       "sort_by": "severity"
     },
     "_comment_errors_reserved": "show_line_preview, show_rule_path, show_fix_suggestions, truncate_long_lines are RESERVED — not yet enforced.",
     "errors": {
-      "verbose": true,
       "show_line_preview": true,
-      "show_code_context": 3,
-      "show_help": true,
-      "show_examples": true,
       "show_rule_path": true,
       "show_fix_suggestions": true,
-      "max_errors_per_rule": 5,
-      "max_total_errors": 50,
       "truncate_long_lines": 120
     },
     "_comment_formatting_reserved": "indent is RESERVED — not yet enforced. color, unicode_symbols, width are active.",
     "formatting": {
-      "color": true,
-      "unicode_symbols": true,
-      "width": 80,
       "indent": 2
     },
     "_comment_file_output_reserved": "report_csv and report_html are RESERVED — not yet implemented. Use report_json, report_sarif, or report_junit.",
@@ -1016,16 +979,13 @@
     "output_file": ".governance-audit.jsonl",
     "tamper_evidence": {
       "enabled": false,
-      "algorithm": "sha256",
       "chain_genesis": "NAAB-GOVERNANCE-GENESIS",
       "hmac_key": "",
       "hmac_key_env": "NAAB_AUDIT_HMAC_KEY"
     },
     "log_events": {
-      "checks_passed": true,
-      "checks_failed": true,
+      "_comment_reserved": "RESERVED, not in this template: checks_passed and checks_failed are parsed and recorded by nothing (the loader warns) -- the audit trail holds no check results. The telemetry file records each one.",
       "checks_warned": true,
-      "overrides": true,
       "config_loaded": true,
       "execution_start": true,
       "execution_end": true,
@@ -1040,10 +1000,9 @@
       "keep_rotated": 5
     },
     "provenance": {
+      "_comment_reserved": "RESERVED, not in this template: record_decisions and record_proof_objects are parsed and recorded by nothing (the loader warns).",
       "enabled": false,
-      "record_proof_objects": false,
       "record_attestations": false,
-      "record_decisions": false,
       "sign_records": false,
       "signing_key": "",
       "signing_key_env": ""
@@ -1056,7 +1015,6 @@
     "output_file": "telemetry.jsonl",
     "tamper_evidence": {
       "enabled": false,
-      "algorithm": "hmac-sha256",
       "chain_genesis": "",
       "hmac_key": "",
       "hmac_key_env": "NAAB_TELEMETRY_HMAC_KEY"
@@ -1195,8 +1153,6 @@
 
   "meta": {
     "schema_validation": {
-      "warn_unknown_keys": true,
-      "suggest_corrections": true,
       "strict_types": true
     },
     "config_immutability": {
@@ -1212,14 +1168,10 @@
       "allow_circular": false
     },
     "feature_flags": {
-      "experimental_checks": false,
-      "legacy_compatibility": true,
-      "verbose_parsing": false
+      "legacy_compatibility": true
     },
     "environment": {
-      "allow_env_var_substitution": false,
-      "env_prefix": "NAAB_GOV_",
-      "allow_cli_override": true
+      "allow_env_var_substitution": false
     },
     "_comment_allow_agent_addition_mid_run": "false (default): a mid-run reload that ADDS an agent not present at startup is a ratchet violation, so a withdrawn restriction cannot be re-granted under a new name. Enabling it mid-run is itself a violation.",
     "allow_agent_addition_mid_run": false
@@ -1279,18 +1231,14 @@
   },
 
   "polyglot": {
+    "_comment_reserved": "RESERVED, not in this template: polyglot.variable_binding.max_bound_variables, polyglot.output.max_output_lines / require_json_pipe / require_naab_return / validate_encoding, polyglot.parallel.max_parallel_blocks / timeout_per_block and every polyglot.persistent_runtime limit are parsed and enforced by nothing (the loader warns). limits.timeout.per_block bounds one block's time; limits.data.output_size what it returns.",
     "variable_binding": {
       "require_explicit": false,
       "require_explicit_level": "advisory",
-      "max_bound_variables": 0,
       "validate_types": false
     },
     "output": {
-      "require_json_pipe": false,
-      "require_naab_return": false,
-      "max_output_lines": 0,
-      "strip_whitespace": false,
-      "validate_encoding": true
+      "strip_whitespace": false
     },
     "context_isolation": {
       "enabled": false,
@@ -1300,15 +1248,9 @@
       "clean_temp_files": true
     },
     "parallel": {
-      "max_parallel_blocks": 4,
-      "timeout_per_block": 30,
-      "fail_strategy": "fail_fast",
       "allow_shared_variables": false
     },
     "persistent_runtime": {
-      "max_sessions": 5,
-      "session_timeout": 300,
-      "max_memory_per_session_mb": 256,
       "allow_state_persistence": true
     }
   },
@@ -1382,8 +1324,7 @@
       "enabled": true,
       "calibration_path": "~/.naab/calibration.json",
       "max_age_days": 30,
-      "iterations": 3,
-      "auto_calibrate": false
+      "iterations": 3
     },
 
     "confidence": {
@@ -1408,7 +1349,6 @@
         "systems_programming"
       ],
       "min_consensus": 2,
-      "max_verification_time_ms": 5000,
       "show_drift_details": true,
       "drift_tracking": {
         "enabled": false,
@@ -1422,23 +1362,16 @@
 
     "language_diversity": {
       "enabled": true,
-      "min_languages": 2,
-      "max_single_language_percent": 80,
       "message": "Consider using specialized languages for different task types"
     },
 
     "helper_errors": {
       "enabled": true,
-      "show_alternative_language": true,
-      "show_example_code": true,
-      "fuzzy_match_threshold": 0.7
+      "show_example_code": true
     },
 
     "ai_guidance": {
-      "enabled": true,
-      "include_in_errors": true,
-      "suggest_refactoring": true,
-      "show_benchmarks": false
+      "enabled": true
     },
 
     "task_language_matrix": {
@@ -2113,7 +2046,7 @@
     "strict_types": false
   },
 
-  "_comment_api": "REST API server settings (naab-lang api). Single key via 'key' or multi-key via 'keys' array with scoped permissions (scopes: 'execute' (/api/v1/execute), 'check', 'blocks', 'stats'; a scoped key is refused every other endpoint). TLS: set tls_cert and tls_key for HTTPS. CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
+  "_comment_api": "REST API server settings (naab-lang api). Single key via 'key' or multi-key via 'keys' array with scoped permissions (scopes: 'execute' (/api/v1/execute), 'check', 'blocks', 'stats'; a scoped key is refused every other endpoint). The server speaks plain HTTP and has no TLS: tls_cert and tls_key are accepted and read by nothing (the loader warns), so put it behind a TLS-terminating proxy if it leaves the machine. CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
   "api": {
     "key": "",
     "keys": [
@@ -2124,9 +2057,7 @@
     "rate_limit": 0,
     "max_body": 1048576,
     "_comment_max_concurrent": "naab-lang mcp: worker processes running at once (0 = one per CPU core). Concurrency only -- commits from one caller still run one at a time, in arrival order, while behavioral_sequences is enabled, so a sequence split across concurrent calls is still seen.",
-    "max_concurrent": 0,
-    "tls_cert": "",
-    "tls_key": ""
+    "max_concurrent": 0
   },
 
   "_comment_runtime_versions": "Runtime version pinning — advisory/soft/hard when version doesn't match, checked for every block that runs on either engine (and codegen). Each executor reports the version of what actually runs the block: embedded python and in-process javascript (QuickJS, a date such as 2021-03-27) and sql their linked library, every subprocess runtime its own binary's version line (node, ruby, bash, go, rustc, g++, php, tsx, nim, zig, julia, mcs). A version that cannot be read (toolchain absent, or the sandbox forbids starting processes) is reported at the pin's level as unverifiable, never a pass. The javascript 18 entry below is a Node version and does not match QuickJS -- pin node for Node.js. Optional per-entry message: custom mismatch text (empty = auto-generated).",

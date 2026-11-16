@@ -117,7 +117,6 @@
     "data_exfiltration": { "enabled": true },
     "code_injection": {
       "block_dynamic_code_gen": true,
-      "block_template_injection": true,
       "block_command_injection": true,
       "rationale": "NOT a repair — corrected after the claim failed verification. This was written up as fixing contradiction.CONTRA-010, which fired as an ADVISORY on parent runs 1788615440875 and 1788616335353. It does not. CONTRA-010 tests restrictions.code_injection.ENABLED (governance_engine.cpp), and governance_config.cpp sets that true unconditionally whenever a code_injection object is present, whatever it contains — so the parent config already silenced the advisory by having the section at all, and the two runs that fired it predate that section. Verified both directions on this config: 0 CONTRA-010 lines with block_command_injection present AND with it removed. block_command_injection also already defaults true (governance.h), so setting it changes nothing; it is kept only as an explicit statement of intent, matching what governance_init.cpp writes into a fresh config. The trap worth naming: CONTRA-010 resolution text says \"Enable restrictions.code_injection with block_command_injection: true\", which points at the wrong key — tracing to that sentence instead of to the condition is what produced the wrong claim."
     },
@@ -136,7 +135,7 @@
 
   "limits": {
     "timeout": { "global": 1800, "per_block": 300, "total_polyglot": 1800 },
-    "execution": { "call_depth": 50, "loop_iterations": 100000, "total_executions": 500 },
+    "execution": { "call_depth": 50, "loop_iterations": 100000 },
     "data": { "string_length": 200000, "nesting_depth": 15, "output_size": 500000 }
   },
 
@@ -169,8 +168,6 @@
     "output_file": "hivemind-governed-audit.jsonl",
     "tamper_evidence": { "enabled": true },
     "log_events": {
-      "checks_passed": true,
-      "checks_failed": true,
       "checks_warned": true,
       "overrides": true,
       "config_loaded": true,

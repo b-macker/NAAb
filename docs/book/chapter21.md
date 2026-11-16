@@ -252,24 +252,25 @@ See section 21.8 for the full custom rules reference.
 
 ### 21.3.9 Output
 
-Control how governance results are displayed:
+Control how governance results are displayed and where reports go:
 
 ```json
 {
   "output": {
-    "summary": {
-      "enabled": true,
-      "format": "detailed",
-      "show_passing": true
-    },
-    "errors": {
-      "verbose": true,
-      "show_help": true,
-      "max_errors_per_rule": 3
+    "max_advisories": 15,
+    "advisory_summary": true,
+    "file_output": {
+      "report_json": "governance-report.json",
+      "report_sarif": "governance.sarif"
     }
   }
 }
 ```
+
+`max_advisories` caps how many advisory messages are printed and
+`advisory_summary` adds the "... and N more" line. The `output.summary`,
+`output.errors` and `output.formatting` switches are accepted and read by
+nothing.
 
 ### 21.3.10 Audit
 
@@ -280,27 +281,24 @@ Configure audit logging:
   "audit": {
     "level": "basic",
     "log_events": {
-      "checks_passed": true,
-      "checks_failed": true
+      "polyglot_executed": true,
+      "taint_decisions": true
     }
   }
 }
 ```
+
+The audit trail records overrides, reloads, polyglot executions, taint decisions
+and contract checks. It records no check results: each check result is in the
+telemetry file (`telemetry.output_file`). `checks_passed` and `checks_failed`
+are accepted and recorded by nothing, so the loader warns when a config sets one.
 
 ### 21.3.11 Meta
 
-Schema validation settings:
-
-```json
-{
-  "meta": {
-    "schema_validation": {
-      "warn_unknown_keys": true,
-      "suggest_corrections": true
-    }
-  }
-}
-```
+Unknown keys are always reported at load, with a suggested correction where one
+is close (`Unknown key "limit" -- did you mean "limits"?`). The
+`meta.schema_validation` switches do not change that: they are accepted and read
+by nothing.
 
 ## 21.4 Code Quality Checks
 
@@ -1038,9 +1036,7 @@ Governance v4 provides JSONL audit logging with tamper-evident hash chains:
     "log_events": {
       "polyglot_timing": true,
       "taint_decisions": true,
-      "contract_checks": true,
-      "checks_passed": true,
-      "checks_failed": true
+      "contract_checks": true
     }
   }
 }

@@ -1323,7 +1323,6 @@
 "requirements\x1f""naming_conventions",
 "requirements\x1f""naming_conventions\x1f""check_naab_code",
 "requirements\x1f""naming_conventions\x1f""check_polyglot_code",
-"requirements\x1f""naming_conventions\x1f""constants",
 "requirements\x1f""naming_conventions\x1f""enabled",
 "requirements\x1f""naming_conventions\x1f""functions",
 "requirements\x1f""naming_conventions\x1f""level",
