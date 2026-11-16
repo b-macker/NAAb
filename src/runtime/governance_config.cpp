@@ -250,8 +250,26 @@ std::string GovernanceEngine::formatError(
         oss << msg::kErrorHeader << what << " [" << levelToTag(level) << "]\n\n";
     }
 
-    if (!location.empty()) {
-        oss << msg::kAtLabel << location << "\n";
+    // A171: a refusal while the program runs names the line it happened on.
+    // The caller gives no line for a runtime gate (at most "in function 'f'"),
+    // so the running VM's current instruction supplies it -- only when no
+    // explicit location is in force, so a static finding's own "line N: ..."
+    // and an agent check's location are never touched.
+    std::string at = location;
+    {
+        std::string live_file, live_fn;
+        int live_line = 0;
+        const bool function_only = at.rfind("in function '", 0) == 0;
+        if ((at.empty() || function_only) &&
+            liveCheckLocation(live_file, live_line, live_fn) && live_line > 0) {
+            std::string line_part = "line " + std::to_string(live_line);
+            if (function_only) at = line_part + ", " + at;
+            else if (!live_fn.empty()) at = line_part + ", in function '" + live_fn + "'";
+            else at = line_part;
+        }
+    }
+    if (!at.empty()) {
+        oss << msg::kAtLabel << at << "\n";
     }
     oss << msg::kRuleLabel << rule << "\n\n";
 

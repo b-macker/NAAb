@@ -7,7 +7,8 @@ program on the VM under that config and compares, line by line:
 
   - the lines the run's taint check flags (taint_tracking.* results that did
     not pass, located by the file:line in the result's MESSAGE -- the result's
-    own file/line fields can be a stale check location, observed), with
+    own file/line fields were a stale check location until A171, observed;
+    the message is still read, as the measurement was made), with
   - the report's VALUE flows (the explicit flows a run's check exists to judge).
 
     python3 tools/taintflow/crosscheck.py [--naab build/naab-lang] [--gov build/naab-gov] [--out DIR] ROOT...

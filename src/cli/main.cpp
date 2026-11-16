@@ -572,6 +572,31 @@ static bool verifyKeyAuthorization(const std::string& pub_pem,
     return false;
 }
 
+// A174: a refused run ends with its summary and "-- Governance: REFUSED (rule) --"
+// on stderr, after the error on stdout, as a finished run ends with its summary
+// and the PASS line. The engine prints it once, whichever exit gets there first.
+// A refusal that unwinds past the scope owning its engine is captured by the
+// wrapper that writes the reports (the engine is alive there) and printed by
+// the outer catch, after the error.
+static std::string g_refusal_closing;
+static void captureRefusalClosing(naab::governance::GovernanceEngine* gov) {
+    if (gov && gov->isActive() && naab::governance::g_governance_hard_block &&
+        g_refusal_closing.empty()) {
+        g_refusal_closing = gov->refusalClosingText();
+    }
+}
+static void printRefusalClosingIfGoverned() {
+    if (!g_refusal_closing.empty()) {
+        fputs(g_refusal_closing.c_str(), stderr);
+        g_refusal_closing.clear();
+        fflush(stderr);
+        return;
+    }
+    if (auto* gov = naab::governance::GovernanceEngine::getCurrent()) {
+        if (gov->isActive()) gov->printRefusalClosing();
+    }
+}
+
 int main(int argc, char** argv) {
     // Enable ANSI colours + UTF-8 console on Windows; no-op on POSIX.
     naab::platform::enableAnsiConsole();
@@ -1924,6 +1949,7 @@ int main(int argc, char** argv) {
                     shared_governance.requireCapabilityManifest(filename, source);
                 } catch (const naab::governance::GovernanceHardError&) {
                     shared_governance.writeReports();
+                    captureRefusalClosing(&shared_governance);   // A174
                     throw;
                 }
             }
@@ -2534,7 +2560,10 @@ int main(int argc, char** argv) {
                     }
 
                     if (naab::governance::g_governance_hard_block) {
-                        if (vm_governance.isActive()) vm_governance.writeReports();
+                        if (vm_governance.isActive()) {
+                            vm_governance.writeReports();
+                            vm_governance.printRefusalClosing();   // A174
+                        }
                         fflush(stdout); fflush(stderr);
                         naab::exitProcess(3);
                     }
@@ -2677,6 +2706,7 @@ int main(int argc, char** argv) {
                         if (vm_governance.isActive()) {
                             vm_governance.runGovernanceVoice();
                             vm_governance.writeReports();
+                            vm_governance.printRefusalClosing();   // A174
                         }
                         fflush(stdout); fflush(stderr);
                         naab::exitProcess(3);
@@ -2691,6 +2721,7 @@ int main(int argc, char** argv) {
                     if (vm_governance.isActive()) {
                         vm_governance.runGovernanceVoice();
                         vm_governance.writeReports();
+                        captureRefusalClosing(&vm_governance);   // A174
                     }
                     throw;
                 }
@@ -2955,6 +2986,7 @@ int main(int argc, char** argv) {
                     if (vm_governance.isActive()) {
                         vm_governance.runGovernanceVoice();
                         vm_governance.writeReports();
+                        captureRefusalClosing(&vm_governance);   // A174
                     }
                     throw;
                 }
@@ -2985,6 +3017,7 @@ int main(int argc, char** argv) {
                     if (!contract_err.empty()) {
                         fprintf(stderr, "Error: %s\n", contract_err.c_str());
                         vm_governance.writeReports();
+                        vm_governance.printRefusalClosing();   // A174
                         fflush(stdout); fflush(stderr);
                         naab::exitProcess(3);
                     }
@@ -3113,6 +3146,7 @@ int main(int argc, char** argv) {
                     if (gov) {
                         gov->runGovernanceVoice();
                         gov->writeReports();
+                        gov->printRefusalClosing();   // A174
                     }
                     fflush(stdout); fflush(stderr);
                     naab::exitProcess(3);
@@ -3132,6 +3166,7 @@ int main(int argc, char** argv) {
                     if (gov) {
                         gov->runGovernanceVoice();
                         gov->writeReports();
+                        captureRefusalClosing(gov);   // A174
                     }
                     throw;  // Re-throw to outer catch
                 }
@@ -3162,6 +3197,7 @@ int main(int argc, char** argv) {
                         if (!contract_err.empty()) {
                             fprintf(stderr, "Error: %s\n", contract_err.c_str());
                             gov->writeReports();
+                            gov->printRefusalClosing();   // A174
                             fflush(stdout); fflush(stderr);
                             naab::exitProcess(3);
                         }
@@ -3285,6 +3321,7 @@ int main(int argc, char** argv) {
             std::string msg = naab::error::ErrorSanitizer::sanitize(e.what());
             fmt::print("Error: {}\n", msg);
             fflush(stdout);
+            printRefusalClosingIfGoverned();   // A174
             fflush(stderr);
             naab::exitProcess(3);
         } catch (const naab::limits::ExitException& e) {
@@ -3302,7 +3339,10 @@ int main(int argc, char** argv) {
             fflush(stdout);
             fflush(stderr);
             // naab-29 L-02: governance hard block overrides process.exit()
-            if (naab::governance::g_governance_hard_block) naab::exitProcess(3);
+            if (naab::governance::g_governance_hard_block) {
+                printRefusalClosingIfGoverned();   // A174
+                naab::exitProcess(3);
+            }
             naab::exitProcess(e.exit_code);
         } catch (const naab::interpreter::NaabError& e) {
             // NaabError has full stack trace - print it
@@ -3320,7 +3360,10 @@ int main(int argc, char** argv) {
             fmt::print("{}\n", naab::error::ErrorSanitizer::sanitize(e.formatError()));
             fflush(stdout);
             fflush(stderr);
-            if (naab::governance::g_governance_hard_block) naab::exitProcess(3);
+            if (naab::governance::g_governance_hard_block) {
+                printRefusalClosingIfGoverned();   // A174
+                naab::exitProcess(3);
+            }
             naab::exitProcess(1);
         } catch (const std::exception& e) {
             // V-ERR-002: keep raw_msg for exit-code detection; display sanitized version
@@ -3339,7 +3382,10 @@ int main(int argc, char** argv) {
             fmt::print("Error: {}\n", msg);
             fflush(stdout);
             fflush(stderr);
-            if (naab::governance::g_governance_hard_block) naab::exitProcess(3);
+            if (naab::governance::g_governance_hard_block) {
+                printRefusalClosingIfGoverned();   // A174
+                naab::exitProcess(3);
+            }
             if (raw_msg.find("Governance config error:") == 0) naab::exitProcess(4);
             naab::exitProcess(1);
         }

@@ -3111,7 +3111,9 @@ std::string GovernanceEngine::checkFunctionContract(
     int line,
     const std::string& source_file) {
 
-    setCheckContext(source_file, line);
+    // Scoped (A171): this runs at every function return, contract or not, and
+    // an unscoped location stamped the return's line on every later check.
+    ScopedCheckContext check_loc(source_file, line);
 
     clearTrace();
     auto it = rules().contracts.functions.find(func_name);
@@ -4887,12 +4889,10 @@ std::string GovernanceEngine::checkNaabFunctionBodyScan(
     // Scope the location to these checks, or every runtime check after the
     // import inherits the module's file and line -- and deduplicate_checks
     // then collapses runtime rows it must keep (test_dedup_runtime.sh).
+    // The entry file's functions are scoped the same way (A171: no location
+    // is left behind for whatever is checked next).
     std::optional<ScopedCheckContext> module_ctx;
-    if (imported_module) {
-        module_ctx.emplace(source_file, line);
-    } else {
-        setCheckContext(source_file, line);
-    }
+    module_ctx.emplace(source_file, line);
 
     auto& os_cfg = rules().code_quality.no_oversimplification;
     auto& il_cfg = rules().code_quality.no_incomplete_logic;
@@ -7386,8 +7386,10 @@ std::string GovernanceEngine::checkPolyglotBlockScan(
     const std::string& language, const std::string& code,
     const std::string& source_file, int line) {
 
-    // Set check context for report tracking (file + line propagate to enforce/recordPass)
-    setCheckContext(source_file, line);
+    // The block's location for its checks (file + line propagate to
+    // enforce/recordPass), put back when they return (A171): what runs after
+    // the block takes the running program's own location.
+    ScopedCheckContext check_loc(source_file, line);
 
     // The texts the checks read (makeBlockViews above): the language name
     // normalized (FIX 18: bash→shell, js→javascript), and the block

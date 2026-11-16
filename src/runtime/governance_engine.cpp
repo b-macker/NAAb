@@ -1231,23 +1231,70 @@ bool GovernanceEngine::isEvidenceLogPath(const std::string& canon_n) const {
 // (rule, file, line) key with an earlier pass and was dropped from telemetry
 // entirely (repo-sentinel round 6). Agent code now scopes its own location with
 // ScopedCheckContext("<agent:NAME>"); see agentSend().
-static thread_local std::string t_check_file;
-static thread_local int t_check_line = 0;
+//
+// A171: the same leak survived for the script itself. The output-contract
+// check every function return runs, and the polyglot-block check, SET the
+// location and never put it back, while the runtime gates (filesystem,
+// environment, network, a taint sink) set none -- so a refusal recorded the
+// last return's or block's line. There is no unscoped setter any more: an
+// explicit location is a ScopedCheckContext, and with none in force the VM
+// running on this thread is asked for its current instruction.
+static thread_local GovernanceEngine::ThreadCheckContext t_check_ctx;
+static thread_local GovernanceEngine::CheckLocationSource t_location_source;
+static thread_local std::string t_live_file;   // backs checkFile()'s reference
 
-void GovernanceEngine::setCheckContext(const std::string& file, int line) {
-    t_check_file = file;
-    t_check_line = line;
+static bool readLiveLocation(std::string& file, int& line, std::string& function) {
+    if (t_check_ctx.explicit_set) {
+        if (!t_check_ctx.live || t_check_ctx.line <= 0) return false;
+        file = t_check_ctx.file; line = t_check_ctx.line; function.clear();
+        return true;
+    }
+    if (!t_location_source.fn) return false;
+    file.clear(); line = 0; function.clear();
+    return t_location_source.fn(t_location_source.self, file, line, function);
 }
 
-const std::string& GovernanceEngine::checkFile() const { return t_check_file; }
-int GovernanceEngine::checkLine() const { return t_check_line; }
+const std::string& GovernanceEngine::checkFile() const {
+    if (t_check_ctx.explicit_set) return t_check_ctx.file;
+    std::string fn; int line = 0;
+    if (readLiveLocation(t_live_file, line, fn)) return t_live_file;
+    return t_check_ctx.file;   // unlocated: ""
+}
 
-std::pair<std::string, int> GovernanceEngine::exchangeThreadCheckContext(
-        std::string file, int line) {
-    std::pair<std::string, int> prev{std::move(t_check_file), t_check_line};
-    t_check_file = std::move(file);
-    t_check_line = line;
+int GovernanceEngine::checkLine() const {
+    if (t_check_ctx.explicit_set) return t_check_ctx.line;
+    std::string file, fn; int line = 0;
+    if (readLiveLocation(file, line, fn)) return line;
+    return t_check_ctx.line;   // unlocated: 0
+}
+
+bool GovernanceEngine::checkLocationIsLive() {
+    std::string file, fn; int line = 0;
+    return readLiveLocation(file, line, fn);
+}
+
+bool GovernanceEngine::liveCheckLocation(std::string& file, int& line, std::string& function) {
+    return readLiveLocation(file, line, function);
+}
+
+GovernanceEngine::ThreadCheckContext GovernanceEngine::exchangeThreadCheckContext(
+        ThreadCheckContext next) {
+    ThreadCheckContext prev = std::move(t_check_ctx);
+    t_check_ctx = std::move(next);
     return prev;
+}
+
+GovernanceEngine::CheckLocationSource GovernanceEngine::exchangeCheckLocationSource(
+        CheckLocationSource next) {
+    CheckLocationSource prev = t_location_source;
+    t_location_source = next;
+    return prev;
+}
+
+std::string GovernanceEngine::dispositionOf(const CheckResult& r) {
+    if (!r.disposition.empty()) return r.disposition;
+    if (r.passed) return "passed";
+    return r.level == EnforcementLevel::ADVISORY && !r.escalated ? "warned" : "refused";
 }
 
 // --- Decision trace accumulator ---
@@ -1375,11 +1422,14 @@ void GovernanceEngine::recordPass(const std::string& rule_name,
     std::string cat = rule_name.substr(0, rule_name.find('.'));
     auto [cwes, owasps] = lookupCweOwasp(rule_name);
     std::string rationale = lookupRationale(rule_name);
+    const bool live_location = checkLocationIsLive();   // A171
     // V-CONC-007: mutex-guard concurrent access from async threads
     std::lock_guard<std::mutex> lock(results_mutex_);
     check_results_.push_back({rule_name, level, true, "", cat, "",
                               checkLine(), checkFile(), cwes, owasps,
                               false, rationale, std::move(t_current_decision_trace), ""});
+    check_results_.back().live_location = live_location;
+    check_results_.back().disposition = "passed";   // A172
     t_current_decision_trace.clear();
     // V-GOV-024: cap telemetry to prevent unbounded memory growth
     capCheckResultsLocked();
@@ -1477,6 +1527,7 @@ std::string GovernanceEngine::enforce(
         loadScoringCalibration();
     }
     uint64_t my_record = 0;   // this call's CheckResult, found again by the escalation branch
+    const bool live_location = checkLocationIsLive();   // A171: a runtime event
     {
         // V-CONC-007: mutex-guard concurrent access from async threads
         std::lock_guard<std::mutex> lock(results_mutex_);
@@ -1485,6 +1536,13 @@ std::string GovernanceEngine::enforce(
                                   preflight_mode_, rationale, std::move(t_current_decision_trace),
                                   explanation});
         check_results_.back().record_id = my_record = ++check_record_seq_;
+        check_results_.back().live_location = live_location;
+        // A172: what happens to the action. A refusal unless a branch below
+        // lets it run (audit, approval, override); an advisory warns unless
+        // escalation turns it into a refusal.
+        check_results_.back().disposition =
+            (level == EnforcementLevel::ADVISORY || level == EnforcementLevel::NONE)
+                ? "warned" : "refused";
         t_current_decision_trace.clear();
         // V-GOV-024: cap telemetry — F8: skip preflight entries during eviction
         capCheckResultsLocked();
@@ -1579,11 +1637,21 @@ std::string GovernanceEngine::enforce(
         }
     }
 
+    // A172: a branch that lets the action run says so on this call's record.
+    // Not for the ADVISORY branch, which holds results_mutex_ itself.
+    auto setDisposition = [&](const char* disposition) {
+        std::lock_guard<std::mutex> lk(results_mutex_);
+        for (auto it = check_results_.rbegin(); it != check_results_.rend(); ++it) {
+            if (it->record_id == my_record) { it->disposition = disposition; break; }
+        }
+    };
+
     // Audit mode: never block, just log — except safety-critical checks
     if (rules().mode == GovernanceMode::AUDIT) {
         // F3: no_secrets and no_pii always enforce, even in AUDIT mode
         if (rule_name != "code_quality.no_secrets" &&
             rule_name != "code_quality.no_pii") {
+            setDisposition("audit_only");
             fprintf(stderr, "[governance] AUDIT %s: %s\n",
                     rule_name.c_str(),
                     violation_message.substr(0, violation_message.find('\n')).c_str());
@@ -1641,6 +1709,7 @@ std::string GovernanceEngine::enforce(
         case EnforcementLevel::APPROVAL_REQUIRED: {
             std::string approver_id;
             if (hasValidApproval(rule_name, approver_id)) {
+                setDisposition("approved");
                 addTrace("approval_required: valid token found — permitted");
                 logAuditEvent("approval_used", rule_name,
                     fmt::format("approved by '{}'", approver_id));
@@ -1676,6 +1745,7 @@ std::string GovernanceEngine::enforce(
                         fmt::format("agent='{}'", agent_id_));
                 }
                 override_counts_[agent_id_]++;
+                setDisposition("overridden");
                 fireHook(rules().hooks.on_override, {
                     {"rule_name", rule_name},
                     {"agent_id", agent_id_},
@@ -1746,7 +1816,10 @@ std::string GovernanceEngine::enforce(
                 for (auto it = check_results_.rbegin(); it != check_results_.rend(); ++it) {
                     if (it->record_id == my_record) { mine = &*it; break; }
                 }
-                if (mine) mine->escalated = true;
+                if (mine) {
+                    mine->escalated = true;
+                    mine->disposition = "refused";   // A172
+                }
                 // violation_message was formatted at ADVISORY and so ends
                 // "execution will continue" -- the opposite of what the throw
                 // below does. Say so plainly, as the level-promotion path above
@@ -3909,20 +3982,58 @@ void GovernanceEngine::flushGroupedAdvisories() {
 // Execution Summary
 // ============================================================================
 
+// A172/A174/A39(c): every closing line counts results by what happened to the
+// action, so the summary, the dashboard and the PASS line cannot disagree. An
+// overridden refusal ran; it used to be counted "blocked" beside a PASS line
+// reporting "0 violations".
+namespace {
+struct DispositionCounts {
+    int passed = 0, warned = 0, overridden = 0, approved = 0, audit_only = 0, refused = 0;
+    int nonPassing() const { return warned + overridden + approved + audit_only + refused; }
+};
+
+template <typename Range>
+DispositionCounts countDispositions(const Range& results) {
+    DispositionCounts c;
+    for (const auto& r : results) {
+        const std::string d = GovernanceEngine::dispositionOf(r);
+        if (d == "passed") c.passed++;
+        else if (d == "warned") c.warned++;
+        else if (d == "overridden") c.overridden++;
+        else if (d == "approved") c.approved++;
+        else if (d == "audit_only") c.audit_only++;
+        else c.refused++;
+    }
+    return c;
+}
+
+// "P passed, W warned, [O overridden, ][A approved, ][U audit-only, ]R refused"
+std::string summaryCountsText(const DispositionCounts& c) {
+    std::string out = fmt::format("{} passed, {} warned, ", c.passed, c.warned);
+    if (c.overridden) out += fmt::format("{} overridden, ", c.overridden);
+    if (c.approved) out += fmt::format("{} approved, ", c.approved);
+    if (c.audit_only) out += fmt::format("{} audit-only, ", c.audit_only);
+    out += fmt::format("{} refused", c.refused);
+    return out;
+}
+
+std::string dispositionRow(const std::string& name, const std::string& level,
+                           const std::string& disposition) {
+    const char* mark = disposition == "passed" ? "✓" : disposition == "refused" ? "✗" : "⚠";
+    std::string label = disposition == "passed" ? "PASS"
+                      : disposition == "warned" ? "WARN"
+                      : disposition == "overridden" ? "OVERRIDDEN"
+                      : disposition == "approved" ? "APPROVED"
+                      : disposition == "audit_only" ? "AUDIT ONLY" : "REFUSED";
+    return fmt::format("  {} {:<35} [{}]  {}\n", mark, name, level, label);
+}
+}  // namespace
+
 std::string GovernanceEngine::formatSummary() const {
     std::lock_guard<std::mutex> lock(results_mutex_);
     if (check_results_.empty()) return "";
 
-    int passed = 0, warned = 0, blocked = 0;
-    for (const auto& r : check_results_) {
-        if (r.passed) {
-            passed++;
-        } else if (r.level == EnforcementLevel::ADVISORY) {
-            warned++;
-        } else {
-            blocked++;
-        }
-    }
+    const DispositionCounts counts = countDispositions(check_results_);
 
     std::ostringstream oss;
     std::string mode_str = "enforce";
@@ -3930,9 +4041,7 @@ std::string GovernanceEngine::formatSummary() const {
     else if (rules().mode == GovernanceMode::OFF) mode_str = "off";
 
     oss << "[governance] Summary (mode: " << mode_str << "): "
-        << passed << " passed, "
-        << warned << " warning" << (warned != 1 ? "s" : "") << ", "
-        << blocked << " blocked\n";
+        << summaryCountsText(counts) << "\n";
 
     // Voice summary replaces individual violation details. runGovernanceVoice()
     // printed it already; repeating it here printed every guide twice (A40).
@@ -3959,19 +4068,7 @@ std::string GovernanceEngine::formatSummary() const {
     }
 
     for (const auto& [name, r] : unique_results) {
-        if (r->passed) {
-            oss << fmt::format("  ✓ {:<35} [{}]  PASS\n",
-                name, levelToString(r->level));
-        } else if (r->level == EnforcementLevel::ADVISORY) {
-            // Extract first line of message
-            std::string first_line = r->message.substr(
-                0, r->message.find('\n'));
-            oss << fmt::format("  ⚠ {:<35} [{}]  WARN\n",
-                name, levelToString(r->level));
-        } else {
-            oss << fmt::format("  ✗ {:<35} [{}]  BLOCKED\n",
-                name, levelToString(r->level));
-        }
+        oss << dispositionRow(name, levelToString(r->level), dispositionOf(*r));
     }
 
     if (rules().scoring.enabled && cumulative_score_ > 0) {
@@ -4306,15 +4403,10 @@ std::string GovernanceEngine::formatSummaryOneLine() const {
     std::lock_guard<std::mutex> lock(results_mutex_);
     if (check_results_.empty()) return "";
 
-    int passed = 0, warned = 0, blocked = 0;
-    for (const auto& r : check_results_) {
-        if (r.passed) passed++;
-        else if (r.level == EnforcementLevel::ADVISORY) warned++;
-        else blocked++;
-    }
+    const DispositionCounts counts = countDispositions(check_results_);
 
     // Silent when all passed — clean output
-    if (warned == 0 && blocked == 0) return "";
+    if (counts.nonPassing() == 0) return "";
 
     std::ostringstream oss;
     std::string mode_str = "enforce";
@@ -4322,9 +4414,7 @@ std::string GovernanceEngine::formatSummaryOneLine() const {
     else if (rules().mode == GovernanceMode::OFF) mode_str = "off";
 
     oss << "[governance] Summary (mode: " << mode_str << "): "
-        << passed << " passed, "
-        << warned << " warning" << (warned != 1 ? "s" : "") << ", "
-        << blocked << " blocked\n";
+        << summaryCountsText(counts) << "\n";
 
     // Voice summary replaces individual violation details; it was printed
     // where it was made (runGovernanceVoice), not again here (A40).
@@ -4344,11 +4434,7 @@ std::string GovernanceEngine::formatSummaryOneLine() const {
         else if (!r.passed) unique_results[r.rule_name] = &r;
     }
     for (const auto& [name, r] : unique_results) {
-        if (r->level == EnforcementLevel::ADVISORY) {
-            oss << fmt::format("  ⚠ {:<35} [{}]  WARN\n", name, levelToString(r->level));
-        } else {
-            oss << fmt::format("  ✗ {:<35} [{}]  BLOCKED\n", name, levelToString(r->level));
-        }
+        oss << dispositionRow(name, levelToString(r->level), dispositionOf(*r));
     }
     return oss.str();
 }
@@ -4359,17 +4445,12 @@ std::string GovernanceEngine::formatSummaryOneLine() const {
 
 void GovernanceEngine::printDashboard() const {
     std::lock_guard<std::mutex> lock(results_mutex_);
-    int passed = 0, blocked = 0, warned = 0;
+    // Counted by disposition (A172): an overridden or audit-only refusal ran,
+    // so it is not counted as blocked.
+    const DispositionCounts counts = countDispositions(check_results_);
     std::map<std::string, int> block_counts;
     for (const auto& r : check_results_) {
-        if (r.passed) {
-            passed++;
-        } else if (r.level == EnforcementLevel::ADVISORY) {
-            warned++;
-        } else {
-            blocked++;
-            block_counts[r.rule_name]++;
-        }
+        if (!r.passed && dispositionOf(r) == "refused") block_counts[r.rule_name]++;
     }
 
     // Find top violation
@@ -4395,10 +4476,7 @@ void GovernanceEngine::printDashboard() const {
     int reload_count_snapshot = reload_count_.load(std::memory_order_relaxed);
     if (reload_count_snapshot > 0)
         fprintf(stderr, "Reloads:    %d mid-run reload(s) applied\n", reload_count_snapshot);
-    if (warned > 0)
-        fprintf(stderr, "Checks:     %d passed, %d blocked, %d advisory\n", passed, blocked, warned);
-    else
-        fprintf(stderr, "Checks:     %d passed, %d blocked\n", passed, blocked);
+    fprintf(stderr, "Checks:     %s\n", summaryCountsText(counts).c_str());
     if (pulse_.refusal_count > 0)
         fprintf(stderr, "Refusals:   %d attested\n", pulse_.refusal_count);
     if (!top_rule.empty())
@@ -8346,6 +8424,33 @@ std::string GovernanceEngine::computeCoverageReport() const {
            ", pass 2: " + std::to_string(pass2) + ")";
 }
 
+// A174: a refused run ends with the same closing a finished run gets -- the
+// summary, then the verdict -- instead of stopping at the error. Called on the
+// CLI's refusal exits; prints once (a refusal can pass two exits).
+void GovernanceEngine::printRefusalClosing() {
+    std::string text = refusalClosingText();
+    if (text.empty()) return;
+    fputs(text.c_str(), stderr);
+    fflush(stderr);
+}
+
+std::string GovernanceEngine::refusalClosingText() {
+    if (refusal_closing_printed_.exchange(true)) return "";
+    std::string summary = formatSummaryOneLine();
+    std::string rule;
+    {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        for (auto it = check_results_.rbegin(); it != check_results_.rend(); ++it) {
+            if (!it->passed && dispositionOf(*it) == "refused") { rule = it->rule_name; break; }
+        }
+    }
+    std::string out;
+    if (!summary.empty()) out += "\n" + summary;
+    out += rule.empty() ? std::string("-- Governance: REFUSED --\n")
+                        : "-- Governance: REFUSED (" + rule + ") --\n";
+    return out;
+}
+
 void GovernanceEngine::printValidationReport() {
     std::lock_guard<std::mutex> lock(results_mutex_);
     // Count pass 2 findings
@@ -8372,10 +8477,27 @@ void GovernanceEngine::printValidationReport() {
         }
     }
 
-    // Compact mode: no pass 2 findings
+    // Compact mode: no pass 2 findings. PASS is the after-run audit's verdict;
+    // the counts before it are what happened during the run, by disposition,
+    // so they agree with the summary line above (A39(c)). It read "(N static,
+    // M runtime, 0 violations)": "static" counted the runtime gates too, and
+    // "0 violations" counted only the audit, below two overridden refusals.
     if (pass2_findings == 0) {
-        fmt::print(stderr, "-- Governance: PASS ({} static, {} runtime, 0 violations) --\n",
-                   pass1_checks, pass2_checks);
+        std::vector<CheckResult> run_results;
+        for (const auto& cr : check_results_) {
+            if (cr.category.find("pass2") != 0) run_results.push_back(cr);
+        }
+        const DispositionCounts c = countDispositions(run_results);
+        std::vector<std::string> parts;
+        if (c.warned) parts.push_back(fmt::format("{} warning{}", c.warned, c.warned == 1 ? "" : "s"));
+        if (c.overridden) parts.push_back(fmt::format("{} overridden", c.overridden));
+        if (c.approved) parts.push_back(fmt::format("{} approved", c.approved));
+        if (c.audit_only) parts.push_back(fmt::format("{} audit-only", c.audit_only));
+        if (c.refused) parts.push_back(fmt::format("{} refused", c.refused));
+        std::string during;
+        for (size_t i = 0; i < parts.size(); ++i) during += (i ? ", " : "") + parts[i];
+        fmt::print(stderr, "-- Governance: PASS ({}after-run audit: 0 findings) --\n",
+                   during.empty() ? std::string() : during + "; ");
         return;
     }
 

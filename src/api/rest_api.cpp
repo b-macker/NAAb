@@ -485,7 +485,7 @@ public:
                     return;
                 }
 
-                engine.setCheckContext(source_file, start_line);
+                naab::governance::ScopedCheckContext check_loc(source_file, start_line);
                 // V-API-004: Apply same timeout to /check as /execute to prevent ReDoS
                 unsigned int t = api_timeout_seconds.load();
                 if (t > 0) {

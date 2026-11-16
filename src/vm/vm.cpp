@@ -701,6 +701,23 @@ void VM::wireArrayEvaluator() {
     );
 }
 
+bool VM::currentCheckLocation(const void* self, std::string& file, int& line,
+                              std::string& function) {
+    const VM* vm = static_cast<const VM*>(self);
+    if (vm->frame_count_ <= 0) return false;
+    const CallFrame& f = vm->frames_[vm->frame_count_ - 1];
+    if (!f.function || !f.ip) return false;
+    // The frame's ip has already moved past the instruction being executed;
+    // an instruction is one 32-bit word.
+    long off = static_cast<long>(f.ip - f.function->chunk.code.data()) - 1;
+    if (off < 0) return false;
+    line = f.function->chunk.getLine(static_cast<int>(off));
+    if (line <= 0) return false;
+    file = f.source_file.empty() ? vm->current_file_ : f.source_file;
+    function = (f.function->name == "<script>") ? std::string() : f.function->name;
+    return true;
+}
+
 interpreter::NaabVal VM::run() {
     // A92: this VM is executing on this thread until run() returns or throws,
     // so no other engine's collector may sweep while it holds values (a
@@ -709,6 +726,9 @@ interpreter::NaabVal VM::run() {
     // A93: NAAb code on this thread runs on this VM until run() returns, so a
     // tool an agent call here starts runs nested on it (naab/thread_vm.h).
     runtime::RunningVMScope running_vm(this);
+    // A171: a check with no explicit location is located at this VM's current
+    // instruction while it runs here; a nested run() stacks and restores.
+    governance::ScopedCheckLocationProvider check_location(this, &VM::currentCheckLocation);
     CallFrame* frame = &frames_[frame_count_ - 1];
     // Handlers below this index belong to frames outside this invocation:
     // when run() is re-entered for a callback, the native caller sits on the
@@ -3096,11 +3116,14 @@ interpreter::NaabVal VM::run() {
                             }, frame_count_);
                     }
                     int gov_line = polyglot_gov_line;
-                    governance_->setCheckContext(current_file_, gov_line);
+                    // No location is set here (A171): checkPolyglotBlock() scopes
+                    // the block's own for its checks, and every check after it --
+                    // the block count, the output cap, the audit trail -- takes
+                    // this instruction's from VM::run()'s location provider.
                     // Gates: languages.allowed / languages.blocked and the
-                    // per-language rules. reloadIfChanged() and setCheckContext()
-                    // above deliberately stay OUTSIDE this gate -- they maintain
-                    // engine state rather than render a verdict.
+                    // per-language rules. reloadIfChanged() above deliberately
+                    // stays OUTSIDE this gate -- it maintains engine state
+                    // rather than render a verdict.
                     std::string err = governance_->isActive()
                         ? governance_->checkPolyglotBlock(language, raw_code, current_file_,
                                                           gov_line, bound_var_names.size())
