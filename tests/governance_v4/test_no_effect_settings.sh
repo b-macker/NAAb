@@ -2,7 +2,7 @@
 # ============================================================
 # test_no_effect_settings.sh -- a setting that enforces nothing says so
 #
-# Settings-liveness step 3 (docs/settings-liveness.md, A171). The owner's
+# Settings-liveness step 3 (docs/settings-liveness.md, A175). The owner's
 # decision of 2026-11-16: of the template settings that look like protection
 # and stop nothing, the ones with no clear meaning, no detector, or a working
 # setting that does the job leave the template and naab-lang init, and the

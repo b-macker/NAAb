@@ -186,7 +186,7 @@ is the follow-up PR.
   should take: a signature that carries no signing timestamp fails
   verification.
 
-**Found by the trace (A171, open; the owner's call):** the records undercount.
+**Found by the trace (A175, open; the owner's call):** the records undercount.
 - The template lists 143 keys that the loader never parses at all (screened:
   `python3 tools/template_coverage.py --unread`). 94 of them are mentioned
   nowhere else in `src/`. Spot-checked by hand: 14 of 14 confirmed. Examples

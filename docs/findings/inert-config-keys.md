@@ -7,7 +7,7 @@ template and init, and the safety-shaped ones are warned at load. Several
 WIRE rows are to be wired in a follow-up; three are not:
 `audit.log_events.checks_failed`, `scan_strings` and
 `max_verification_time_ms` were placed in the warned and quiet groups, which
-can be reopened. Current state: `docs/settings-liveness.md` (step 3), A171.
+can be reopened. Current state: `docs/settings-liveness.md` (step 3), A175.
 **Snapshot:** `fecb13e` (findings), re-checked unchanged at `master` `c6a648fc`.
 The template, loader, engine, checks, header and baseline are byte-identical
 between the two.

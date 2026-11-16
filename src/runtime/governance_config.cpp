@@ -858,7 +858,7 @@ static void checkRestrictionTypes(const nlohmann::json& j) {
 // Settings that look like protection and enforce nothing: each is parsed (the
 // ratchet, the extends merge and explicitly_set still see it) and consulted by
 // no check, so a config that sets one is told so instead of relying on it.
-// Settings-liveness step 3 (docs/settings-liveness.md, A171): the owner's
+// Settings-liveness step 3 (docs/settings-liveness.md, A175): the owner's
 // decision of 2026-11-16 took these out of the template and naab-lang init and
 // made the loader warn, where no clear meaning, no detector, or a working
 // setting that does the job argued against wiring them. A setting that is
