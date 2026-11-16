@@ -904,6 +904,11 @@ static const NoEffectSetting kNoEffectSettings[] = {
      " The audit trail records no check results; the telemetry file records each one."},
     {"audit.provenance.record_decisions", ""},
     {"audit.provenance.record_proof_objects", ""},
+    // naab-lang api is a plain HTTP server (rest_api.cpp, httplib::Server):
+    // the dangerous direction, an operator who sets a certificate believes the
+    // API keys travel encrypted.
+    {"api.tls_cert", " The REST server has no TLS: requests and API keys travel in plaintext."},
+    {"api.tls_key", " The REST server has no TLS: requests and API keys travel in plaintext."},
 };
 
 static void warnNoEffectSettings(const nlohmann::json& j) {

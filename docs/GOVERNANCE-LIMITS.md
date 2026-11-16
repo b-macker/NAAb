@@ -279,10 +279,10 @@ disables nothing.
 |---|---|---|
 | `trust_policy.check_revocation` | revoked keys are skipped **unconditionally** | `trust_store.cpp`, which never reads governance config |
 | `trust_policy.check_key_expiry` | expired keys skipped unconditionally | same |
-| `limits.memory.total_mb`, `per_block_mb` | `RLIMIT_AS` / Windows Job memory | the **sandbox level** (128 MB at RESTRICTED), not governance |
+| `limits.memory.total_mb`, `per_block_mb` | a child process's private memory, through `RLIMIT_DATA` | `runtime.memory_limit` (512 MB when unset), not these keys. Step 3 (2026-11-16): `per_block_mb` is warned at load and out of the template; `total_mb` is to be wired (A171) |
 | `limits.execution.parallel_blocks` | concurrency capped | a hardcoded `ThreadPool(2)` |
-| `limits.data.input_size` | source size capped at 100 MB | `limits::checkStringSize` at `lexer.cpp` |
-| `limits.timeout.per_block` | per-block CPU time capped | sandbox `max_cpu_seconds`, applied as `RLIMIT_CPU` |
+| `limits.data.input_size` | source size capped at 100 MB | `limits::checkStringSize` at `lexer.cpp`. Warned at load and out of the template since step 3 |
+| `limits.timeout.per_block` | **enforced since 2026-11-14** (A2): a block past it is refused at HARD | `underBlockTimeLimit()`; no longer an inert toggle |
 
 Because these protections are unconditional, wiring the toggles would only ever
 permit **weakening** — which is why they have been left alone.
@@ -291,19 +291,19 @@ permit **weakening** — which is why they have been left alone.
 
 | key | use this instead |
 |---|---|
-| `limits.execution.total_executions` | `limits.execution.polyglot_blocks` — live, and already counts polyglot *and* codegen executions across both engines |
+| `limits.execution.total_executions` | `limits.execution.polyglot_blocks` — live, and already counts polyglot *and* codegen executions across both engines. Warned at load and out of the template since step 3 |
 
 ### 7.3 Accepted, enforced by nothing, nothing else covering it
 
 | key | note |
 |---|---|
 | `limits.data.string_length` | governance reader has no call sites. Runtime string *growth* is capped separately by `MAX_STRING_LENGTH` in the VM's concat path, so this is not unbounded — but the key does not control it |
-| `limits.timeout.total_polyglot` | expresses a real constraint nothing else can state — cumulative time *in polyglot specifically*, as distinct from per-block CPU and whole-run wall clock. Unimplemented, deliberately kept |
-| `limits.rate.cooldown_on_limit_ms` | ships with a plausible default of `100` for behaviour that does not exist. The live rate limiters **throw** on breach rather than throttling, and `RateLimiter` has no field a cooldown could occupy |
-| `limits.code.max_total_polyglot_lines` | per-block size *is* capped; the program-wide total is not |
+| `limits.timeout.total_polyglot` | expresses a real constraint nothing else can state — cumulative time *in polyglot specifically*, as distinct from per-block CPU and whole-run wall clock. Unimplemented; the owner decided on 2026-11-16 to wire it (A171) |
+| `limits.rate.cooldown_on_limit_ms` | ships with a plausible default of `100` for behaviour that does not exist. The live rate limiters **throw** on breach rather than throttling, and `RateLimiter` has no field a cooldown could occupy. Out of the template since step 3 |
+| `limits.code.max_total_polyglot_lines` | per-block size *is* capped; the program-wide total is not. The owner decided on 2026-11-16 to wire it (A171) |
 | `limits.code.max_nesting_depth` | parse depth is capped by `MAX_PARSE_DEPTH`; this key does not control it |
 | `requirements.error_handling.require_try_catch`, `require_catch_body` | the check runs off a different field; these two sub-options are read nowhere |
-| `restrictions.code_injection.block_ldap_injection`, `block_template_injection`, `block_xpath_injection` | no matching pattern exists anywhere in the engine |
+| `restrictions.code_injection.block_ldap_injection`, `block_template_injection`, `block_xpath_injection` | no matching pattern exists anywhere in the engine. Warned at load and out of the template since step 3 |
 
 ### 7.4 Hardcoded safety constants that are defined and never used
 

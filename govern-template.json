@@ -734,13 +734,11 @@
     "blocked_flags": ["--drift-baseline-save", "--governance-override"]
   },
 
-  "_comment_trust": "Authority Decay: signature staleness and key lifecycle. max_signature_age_days=0 disables staleness check. check_key_expiry/check_revocation skip expired/revoked keys at load time.",
+  "_comment_trust": "Authority Decay: signature staleness and key lifecycle. max_signature_age_days=0 disables staleness check. Revoked and expired trusted keys are always skipped at load time; check_key_expiry and check_revocation are accepted and switch nothing off.",
   "trust": {
     "max_signature_age_days": 90,
     "require_fresh_signature": false,
-    "stale_signature_level": "advisory",
-    "check_key_expiry": true,
-    "check_revocation": true
+    "stale_signature_level": "advisory"
   },
 
   "_comment_prerequisites": "Environment Attestation: verify prerequisites before execution. Types: python_version, package (pip:pkg or npm:pkg), tool, env_var, command. Set enabled:true to activate.",
@@ -2048,7 +2046,7 @@
     "strict_types": false
   },
 
-  "_comment_api": "REST API server settings (naab-lang api). Single key via 'key' or multi-key via 'keys' array with scoped permissions (scopes: 'execute' (/api/v1/execute), 'check', 'blocks', 'stats'; a scoped key is refused every other endpoint). TLS: set tls_cert and tls_key for HTTPS. CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
+  "_comment_api": "REST API server settings (naab-lang api). Single key via 'key' or multi-key via 'keys' array with scoped permissions (scopes: 'execute' (/api/v1/execute), 'check', 'blocks', 'stats'; a scoped key is refused every other endpoint). The server speaks plain HTTP and has no TLS: tls_cert and tls_key are accepted and read by nothing (the loader warns), so put it behind a TLS-terminating proxy if it leaves the machine. CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
   "api": {
     "key": "",
     "keys": [
@@ -2059,9 +2057,7 @@
     "rate_limit": 0,
     "max_body": 1048576,
     "_comment_max_concurrent": "naab-lang mcp: worker processes running at once (0 = one per CPU core). Concurrency only -- commits from one caller still run one at a time, in arrival order, while behavioral_sequences is enabled, so a sequence split across concurrent calls is still seen.",
-    "max_concurrent": 0,
-    "tls_cert": "",
-    "tls_key": ""
+    "max_concurrent": 0
   },
 
   "_comment_runtime_versions": "Runtime version pinning — advisory/soft/hard when version doesn't match, checked for every block that runs on either engine (and codegen). Each executor reports the version of what actually runs the block: embedded python and in-process javascript (QuickJS, a date such as 2021-03-27) and sql their linked library, every subprocess runtime its own binary's version line (node, ruby, bash, go, rustc, g++, php, tsx, nim, zig, julia, mcs). A version that cannot be read (toolchain absent, or the sandbox forbids starting processes) is reported at the pin's level as unverifiable, never a pass. The javascript 18 entry below is a Node version and does not match QuickJS -- pin node for Node.js. Optional per-entry message: custom mismatch text (empty = auto-generated).",

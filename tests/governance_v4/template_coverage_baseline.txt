@@ -217,12 +217,16 @@ requirements.naming_conventions.functions
 requirements.naming_conventions.variables
 restrictions.dangerous_calls.allowlist
 telemetry.tamper_evidence.algorithm
+trust.check_key_expiry
+trust.check_revocation
 
 # --- WARNED, settings-liveness step 3 (the owner's decision of 2026-11-16:
 # the safety-shaped settings with no clear meaning, no detector, or a working
 # setting that does the job): parsed, enforced by nothing, and the loader
 # WARNS when a config sets one (warnNoEffectSettings() in
 # governance_config.cpp). Verified or traced in docs/settings-liveness.md.
+api.tls_cert
+api.tls_key
 audit.log_events.checks_failed
 audit.log_events.checks_passed
 audit.provenance.record_decisions

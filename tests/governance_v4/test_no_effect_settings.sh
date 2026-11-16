@@ -21,8 +21,11 @@
 #   NE-04   no init preset writes a setting from either step-3 group
 #   NE-05*  the warning tells the truth: the setting at a value that must trip
 #           changes nothing, while a working setting with the same meaning
-#           refuses the same program in the same harness. A control that does
-#           not fire makes its arm UNMEASURABLE, never a pass.
+#           refuses the same program in the same harness. a-f run in-process
+#           (JavaScript, the code-injection check, the audit trail) on every
+#           platform, so a control that does not fire there is a FAILURE: the
+#           harness cannot judge the setting. Only g, a child process under
+#           rlimits, may read UNMEASURABLE.
 #     a  limits.execution.total_executions   vs limits.execution.polyglot_blocks
 #     b  code_injection.block_ldap/xpath/template_injection
 #                                            vs block_sql_injection_patterns
@@ -46,7 +49,10 @@
 #   K3 warn whether or not the setting is present         -> NE-00
 #   K4 init writes limits.execution.total_executions again -> NE-04
 #   K5 the template lists audit.log_events.checks_failed  -> NE-03
-#   K6 total_executions loaded as polyglot_blocks         -> NE-05a
+#   K6 total_executions loaded as polyglot_blocks, inside its if -> NE-05a
+#      (first written outside the brace-less if, it also broke the control
+#      config; NE-05a then read UNMEASURABLE and the suite passed. A silent
+#      in-process control now fails the arm.)
 #   K7 the baseline's WARNED group gains a setting the loader does not warn
 #      about (harness mutant)                             -> NE-01, NE-02
 # ============================================================
@@ -209,7 +215,7 @@ truth() {
     local dc="$TEST_TMP/${id}_c" ds="$TEST_TMP/${id}_s"
     mk "$dc" "$cextra"; run "$dc" "$prog"; local crc=$RC cout="$OUT"
     if [ "$crc" != 3 ]; then
-        unm "$id" "$what: the control did not refuse (rc=$crc): $(tail -2 <<<"$cout" | tr '\n' ' ' | cut -c1-160)"; return
+        fail "$id" "$what: the control did not refuse, so this harness cannot judge the setting" "rc=$crc: $(tail -2 <<<"$cout" | tr '\n' ' ' | cut -c1-160)"; return
     fi
     mk "$ds" "$sextra"; run "$ds" "$prog"
     if [ "$RC" = 0 ] && grep -q DONE <<<"$OUT"; then
@@ -258,7 +264,7 @@ var x = "//user[name=" + user + "]";
 # the three injections the switches name.
 dc="$TEST_TMP/NE-05b_c"; mk "$dc" '{"restrictions": {"code_injection": {"enabled": true}}}'; run "$dc" "$INJ_SQL"
 if [ "$RC" != 3 ]; then
-    unm NE-05b "block_ldap/xpath/template_injection: the SQL control did not refuse (rc=$RC)"
+    fail NE-05b "block_ldap/xpath/template_injection: the SQL control did not refuse, so this harness cannot judge the switches" "rc=$RC"
 else
     ds="$TEST_TMP/NE-05b_s"; mk "$ds" '{"restrictions": {"code_injection": {"enabled": true, "block_ldap_injection": true, "block_xpath_injection": true, "block_template_injection": true}}}'
     run "$ds" "$INJ_OTHER"; rc_on=$RC
@@ -306,7 +312,7 @@ truth NE-05e "require_json_pipe / require_structured / validate_json, a non-JSON
 d="$TEST_TMP/ne05f"; mk "$d" '{"audit": {"level": "basic", "output_file": "audit.jsonl", "log_events": {"polyglot_executed": true, "checks_passed": true, "checks_failed": true}}}'
 run "$d" "$THREE"
 if [ "$RC" != 0 ] || [ ! -s "$d/audit.jsonl" ] || ! grep -q '"polyglot_executed"' "$d/audit.jsonl"; then
-    unm NE-05f "audit.log_events.checks_*: the control entry (polyglot_executed) was not written (rc=$RC)"
+    fail NE-05f "audit.log_events.checks_*: the control entry (polyglot_executed) was not written, so this harness cannot judge the switches" "rc=$RC"
 elif grep -qi '"event":"[a-z_]*check' "$d/audit.jsonl"; then
     fail NE-05f "the audit trail holds a check entry; the warning says it records none" "$(grep -i check "$d/audit.jsonl" | head -1 | cut -c1-200)"
 else
