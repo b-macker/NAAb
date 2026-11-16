@@ -372,7 +372,6 @@
     "level": "basic",
     "output_file": ".governance-audit.jsonl",
     "log_events": {
-      "checks_failed": true,
       "checks_warned": true,
       "overrides": true,
       "config_loaded": true
@@ -390,8 +389,6 @@
       "clean_temp_files": true
     },
     "parallel": {
-      "max_parallel_blocks": 8,
-      "timeout_per_block": 60,
       "fail_strategy": "fail_fast"
     }
   },

@@ -873,6 +873,82 @@ static void checkRestrictionTypes(const nlohmann::json& j) {
     }
 }
 
+// Settings that look like protection and enforce nothing: each is parsed (the
+// ratchet, the extends merge and explicitly_set still see it) and consulted by
+// no check, so a config that sets one is told so instead of relying on it.
+// Settings-liveness step 3 (docs/settings-liveness.md, A175): the owner's
+// decision of 2026-11-16 took these out of the template and naab-lang init and
+// made the loader warn, where no clear meaning, no detector, or a working
+// setting that does the job argued against wiring them. A setting that is
+// later made to work leaves this table in the same change.
+struct NoEffectSetting {
+    const char* path;  // dotted path in govern.json
+    const char* hint;  // the working setting to use, or "" when there is none
+};
+static const NoEffectSetting kNoEffectSettings[] = {
+    {"limits.memory.per_block_mb",
+     " \"runtime.memory_limit\" bounds what a child process may allocate."},
+    {"limits.execution.total_executions",
+     " \"limits.execution.polyglot_blocks\" caps how many polyglot blocks run."},
+    {"limits.data.input_size", ""},
+    {"restrictions.code_injection.block_ldap_injection",
+     " No check detects LDAP injection."},
+    {"restrictions.code_injection.block_xpath_injection",
+     " No check detects XPath injection."},
+    {"restrictions.code_injection.block_template_injection",
+     " No check detects template injection."},
+    {"polyglot.parallel.max_parallel_blocks", ""},
+    {"polyglot.parallel.timeout_per_block",
+     " \"limits.timeout.per_block\" bounds one block's time."},
+    {"polyglot.persistent_runtime.max_sessions", ""},
+    {"polyglot.persistent_runtime.session_timeout", ""},
+    {"polyglot.persistent_runtime.max_memory_per_session_mb", ""},
+    {"polyglot.variable_binding.max_bound_variables", ""},
+    {"polyglot.output.max_output_lines",
+     " \"limits.data.output_size\" caps what a block hands back."},
+    {"polyglot.output.require_json_pipe",
+     " \"restrictions.polyglot_output\": \"json\" requires a block's string result to be JSON."},
+    {"polyglot.output.require_naab_return", ""},
+    {"polyglot.output.validate_encoding", ""},
+    {"restrictions.polyglot_output.max_size",
+     " \"limits.data.output_size\" caps what a block hands back."},
+    {"restrictions.polyglot_output.require_structured",
+     " \"restrictions.polyglot_output\": \"json\" requires a block's string result to be JSON."},
+    {"restrictions.polyglot_output.validate_json",
+     " \"restrictions.polyglot_output\": \"json\" requires a block's string result to be JSON."},
+    {"audit.log_events.checks_passed",
+     " The audit trail records no check results; the telemetry file records each one."},
+    {"audit.log_events.checks_failed",
+     " The audit trail records no check results; the telemetry file records each one."},
+    {"audit.provenance.record_decisions", ""},
+    {"audit.provenance.record_proof_objects", ""},
+    // naab-lang api is a plain HTTP server (rest_api.cpp, httplib::Server):
+    // the dangerous direction, an operator who sets a certificate believes the
+    // API keys travel encrypted.
+    {"api.tls_cert", " The REST server has no TLS: requests and API keys travel in plaintext."},
+    {"api.tls_key", " The REST server has no TLS: requests and API keys travel in plaintext."},
+};
+
+static void warnNoEffectSettings(const nlohmann::json& j) {
+    for (const auto& s : kNoEffectSettings) {
+        const nlohmann::json* node = &j;
+        std::string rest = s.path;
+        bool present = true;
+        while (present) {
+            const auto dot = rest.find('.');
+            const std::string key = rest.substr(0, dot);
+            if (!node->is_object() || !node->contains(key)) { present = false; break; }
+            node = &(*node)[key];
+            if (dot == std::string::npos) break;
+            rest = rest.substr(dot + 1);
+        }
+        if (!present) continue;
+        fprintf(stderr,
+                "[governance] Warning: \"%s\" is parsed but not enforced -- no check reads it.%s\n",
+                s.path, s.hint);
+    }
+}
+
 static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // Take the one load-time environment snapshot (env_snapshot.h) -- the proxy,
     // CA bundle and environment every outbound connection and guidance command
@@ -882,10 +958,13 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     naab::net::captureProxyCaSnapshotOnce();
     checkRestrictionTypes(j);
 #ifdef NAAB_CONFIG_MUTATION
-    loadFromJsonImpl(applySettingDrop(j), rules_);
+    // Warn about what is actually loaded: a test build's dropped setting is gone.
+    const nlohmann::json loaded = applySettingDrop(j);
 #else
-    loadFromJsonImpl(j, rules_);
+    const nlohmann::json& loaded = j;
 #endif
+    warnNoEffectSettings(loaded);
+    loadFromJsonImpl(loaded, rules_);
     reconcileCapabilityMirrors(rules_);
     reconcileCodeQualityMirrors(rules_);
 }

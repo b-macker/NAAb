@@ -18,6 +18,14 @@
 # file's job is CHANGE DETECTION, and removing known false positives would make
 # the set drift from what the scan computes.
 #
+# Four more are live too, for the same reason (the loader or the merge is the
+# consumer): agent_dispatch.default_timeout_seconds (copied into each agent's
+# timeout_seconds, which every provider call passes to libcurl),
+# meta.inheritance.merge_arrays and merge_strategy (mergeRules()), and
+# meta.allow_agent_addition_mid_run (the reload ratchet). Found in
+# docs/findings/inert-config-keys.md (2026-10-03), re-traced in
+# settings-liveness step 3 (2026-11-16).
+#
 # A sixth, telemetry_output.forward_shutdown_drain_ms, left the scan on
 # 2026-10-28 for neither reason IK-02 names: no enforcement changed, a COMMENT in
 # include/naab/process_exit.h names it, and the scan matches the leaf word
