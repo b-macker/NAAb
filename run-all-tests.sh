@@ -5592,6 +5592,44 @@ if [ -f "$REFUSALS_ENFORCED_SCRIPT" ]; then
 else
     echo "  test_refusals_enforced.sh: not found, skipping"
 fi
+CHECK_LOCATIONS_SCRIPT="tests/governance_v4/test_check_locations.sh"
+if [ -f "$CHECK_LOCATIONS_SCRIPT" ]; then
+    # A171 (Bundle 18): a refusal records the line it happened on, in the
+    # reports, telemetry and its message; dedup keeps runtime refusals apart.
+    if run_shell_test "$CHECK_LOCATIONS_SCRIPT" 2>&1; then
+        echo "  test_check_locations.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_check_locations.sh")
+    fi
+else
+    echo "  test_check_locations.sh: not found, skipping"
+fi
+CHECK_DISPOSITION_SCRIPT="tests/governance_v4/test_check_disposition.sh"
+if [ -f "$CHECK_DISPOSITION_SCRIPT" ]; then
+    # A172 (Bundle 18): every check record says what happened to the action.
+    if run_shell_test "$CHECK_DISPOSITION_SCRIPT" 2>&1; then
+        echo "  test_check_disposition.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_check_disposition.sh")
+    fi
+else
+    echo "  test_check_disposition.sh: not found, skipping"
+fi
+CLOSING_LINES_SCRIPT="tests/governance_v4/test_closing_lines.sh"
+if [ -f "$CLOSING_LINES_SCRIPT" ]; then
+    # A174, A39(c) (Bundle 18): a refused run ends with its summary, and the
+    # summary and PASS line count what happened.
+    if run_shell_test "$CLOSING_LINES_SCRIPT" 2>&1; then
+        echo "  test_closing_lines.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_closing_lines.sh")
+    fi
+else
+    echo "  test_closing_lines.sh: not found, skipping"
+fi
 fi  # phase_runs shell
 
 # Report-only: interpreters a suite left running. A python3 was still alive at

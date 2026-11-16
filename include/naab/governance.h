@@ -3086,6 +3086,15 @@ struct CheckResult {
     // A65: which enforce() call recorded this result, so a later step of the
     // same call finds its own record after another thread has appended one.
     uint64_t record_id = 0;
+    // A171: the location came from the running program's current instruction
+    // (no explicit location was in force). Such a result is a runtime event:
+    // telemetry de-duplication never collapses it, whatever its line.
+    bool live_location = false;
+    // A172: what happened to the action -- "passed", "refused", "warned",
+    // "overridden", "approved" or "audit_only". Set where the outcome is
+    // decided (recordPass(), enforce()); dispositionOf() covers a result
+    // recorded any other way.
+    std::string disposition;
 };
 
 // ============================================================================
@@ -3592,12 +3601,44 @@ public:
     const std::string& getRunId() const { return run_id_; }
 
     // --- Check context (for report file/line tracking) ---
-    void setCheckContext(const std::string& file, int line = 0);
-    // Per-thread location stamped on check results (see setCheckContext()).
+    // The location stamped on a check result, per thread (A171). An explicit
+    // location wins -- ScopedCheckContext, which always puts back what it found;
+    // there is deliberately no setter that leaves a location behind. With none
+    // in force, the running VM is asked for its current instruction
+    // (ScopedCheckLocationProvider); with neither, the result is unlocated.
     const std::string& checkFile() const;
     int checkLine() const;
-    // Swap this thread's location, returning the previous one (ScopedCheckContext).
-    static std::pair<std::string, int> exchangeThreadCheckContext(std::string file, int line);
+    // True when the current location comes from the running VM, not an
+    // explicit one: the result is a runtime event (see CheckResult::live_location).
+    static bool checkLocationIsLive();
+    // The running VM's location when no explicit one is in force (the refusal
+    // message's "At: line N" uses it). False when there is none.
+    static bool liveCheckLocation(std::string& file, int& line, std::string& function);
+    struct ThreadCheckContext {
+        std::string file;
+        int line = 0;
+        bool explicit_set = false;
+        // A call's own location set by an engine that has no instruction to
+        // ask (the tree-walker's stdlib branch): read like the VM's live one.
+        bool live = false;
+    };
+    // Swap this thread's explicit location, returning the previous one (ScopedCheckContext).
+    static ThreadCheckContext exchangeThreadCheckContext(ThreadCheckContext next);
+    // The source a live location is read from; null fn = none.
+    struct CheckLocationSource {
+        using Fn = bool (*)(const void* self, std::string& file, int& line, std::string& function);
+        const void* self = nullptr;
+        Fn fn = nullptr;
+    };
+    static CheckLocationSource exchangeCheckLocationSource(CheckLocationSource next);
+    // A172: a result's disposition, derived for one recorded without one.
+    static std::string dispositionOf(const CheckResult& r);
+    // A174: the closing lines of a refused run (summary, then
+    // "-- Governance: REFUSED (rule) --"), printed once.
+    void printRefusalClosing();
+    // The same text, marked printed: for a caller that must print it later,
+    // after the engine is gone (the CLI's outer catch prints the error first).
+    std::string refusalClosingText();
 
     // --- Per-language getters ---
     const LanguageConfig* getLanguageConfig(const std::string& lang) const;
@@ -4577,6 +4618,7 @@ private:
     mutable std::mutex temporal_mutex_;
 
     // F6: System-wide governance level
+    std::atomic<bool> refusal_closing_printed_{false};   // A174
     std::atomic<int> governance_level_{0};  // GovernanceLevel::NORMAL
     // De-escalation hysteresis: consecutive turns where the computed target
     // level sat below governance_level_. Stepping down one level requires
@@ -4933,14 +4975,44 @@ private:
 class ScopedCheckContext {
 public:
     explicit ScopedCheckContext(std::string file, int line = 0)
-        : prev_(GovernanceEngine::exchangeThreadCheckContext(std::move(file), line)) {}
+        : prev_(GovernanceEngine::exchangeThreadCheckContext(
+              GovernanceEngine::ThreadCheckContext{std::move(file), line, true})) {}
     ~ScopedCheckContext() {
-        GovernanceEngine::exchangeThreadCheckContext(std::move(prev_.first), prev_.second);
+        GovernanceEngine::exchangeThreadCheckContext(std::move(prev_));
     }
     ScopedCheckContext(const ScopedCheckContext&) = delete;
     ScopedCheckContext& operator=(const ScopedCheckContext&) = delete;
 private:
-    std::pair<std::string, int> prev_;
+    GovernanceEngine::ThreadCheckContext prev_;
+};
+
+// A runtime call's own location, for an engine with no instruction pointer to
+// ask (the tree-walker): explicit for its duration, but a runtime event like
+// the VM's live location (never de-duplicated; names "At: line N").
+class ScopedLiveCheckContext {
+public:
+    ScopedLiveCheckContext(std::string file, int line)
+        : prev_(GovernanceEngine::exchangeThreadCheckContext(
+              GovernanceEngine::ThreadCheckContext{std::move(file), line, true, true})) {}
+    ~ScopedLiveCheckContext() { GovernanceEngine::exchangeThreadCheckContext(std::move(prev_)); }
+    ScopedLiveCheckContext(const ScopedLiveCheckContext&) = delete;
+    ScopedLiveCheckContext& operator=(const ScopedLiveCheckContext&) = delete;
+private:
+    GovernanceEngine::ThreadCheckContext prev_;
+};
+
+// The VM's current instruction as the location of every check that runs while
+// it executes with no explicit location in force (A171). VM::run() installs
+// one; nested runs stack and restore. The source is read on this thread only.
+class ScopedCheckLocationProvider {
+public:
+    ScopedCheckLocationProvider(const void* self, GovernanceEngine::CheckLocationSource::Fn fn)
+        : prev_(GovernanceEngine::exchangeCheckLocationSource({self, fn})) {}
+    ~ScopedCheckLocationProvider() { GovernanceEngine::exchangeCheckLocationSource(prev_); }
+    ScopedCheckLocationProvider(const ScopedCheckLocationProvider&) = delete;
+    ScopedCheckLocationProvider& operator=(const ScopedCheckLocationProvider&) = delete;
+private:
+    GovernanceEngine::CheckLocationSource prev_;
 };
 
 class ScopedFunctionContext {

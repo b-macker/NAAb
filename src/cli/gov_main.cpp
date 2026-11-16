@@ -272,8 +272,8 @@ static int cmdLint(const std::vector<std::string>& args) {
         engine.applyEnvironment(env_name);
     }
 
-    // Set check context to the source file
-    engine.setCheckContext(source_path, 0);
+    // The source file is the location of every check below (scoped, A171).
+    naab::governance::ScopedCheckContext lint_loc(source_path, 0);
 
     // Run static governance checks on the NAAb source
     // These check methods work purely on source strings — no execution needed.
@@ -576,7 +576,7 @@ static int cmdCheck(const std::vector<std::string>& args) {
     // unchanged.
     std::string hard_block_message;
     try {
-        engine.setCheckContext(source_file, 1);
+        naab::governance::ScopedCheckContext check_loc(source_file, 1);
         engine.checkPolyglotSource(language, code, source_file, 1);
     } catch (const naab::governance::GovernanceHardError& e) {
         hard_block_message = e.what();

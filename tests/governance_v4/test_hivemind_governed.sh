@@ -292,7 +292,9 @@ cp "$EX/govern.json.sig" "$RUN/" 2>/dev/null || true
 ( cd "$RUN" && PATH="$STUB:$PATH" timeout 180 "$NAAB" hivemind-governed.naab "smoke task" > run.txt 2>&1 )
 rc=$?
 if [ "$rc" -eq 0 ]; then ok "E-01 example completes under enforce" "exit 0"; else bad "E-01 example completes under enforce" "exit $rc"; fi
-if grep -q '0 violations' "$RUN/run.txt"; then ok "E-02 zero governance violations" "clean run"; else bad "E-02 zero governance violations" "$(grep -o '[0-9]* violations' "$RUN/run.txt" | head -1)"; fi
+# The closing line's after-run audit count (it read "... 0 violations" until
+# A39(c), Bundle 18, named what it counts).
+if grep -q 'after-run audit: 0 findings' "$RUN/run.txt"; then ok "E-02 zero governance violations" "clean run"; else bad "E-02 zero governance violations" "$(grep -- '-- Governance:' "$RUN/run.txt" | head -1)"; fi
 # The gate must leave evidence. A gate that runs and records nothing is
 # indistinguishable from one that never ran — the failure this example documents.
 # Match the exact JSON field, not the bare token: a loose grep for CONTENT_GATE

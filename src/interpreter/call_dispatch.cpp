@@ -1385,6 +1385,10 @@ void Interpreter::visit(ast::CallExpr& node) {
 
             // Check if it's a stdlib call marker
             if (marker.substr(0, 16) == "__stdlib_call__:") {
+                // A171: every check this call makes is located at the call
+                // (the tree-walker has no instruction for the engine to ask).
+                governance::ScopedLiveCheckContext stdlib_call_loc(current_file_,
+                                                                   node.getLocation().line);
                 // Parse: __stdlib_call__:module:function
                 size_t first_colon = marker.find(':', 16);
                 if (first_colon != std::string::npos) {

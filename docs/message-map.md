@@ -77,8 +77,8 @@ A46 in `docs/open-investigations.md`.
 | Pre-flight | stderr | type-check, lockfile, `[scanner]` pre-flight notes (VM, traced), agent review block and `[hint]` rejected findings |
 | Runtime | stderr | the same advisory shape, `(occurrence n/m)`, `ESCALATED`; `[hint] dict.get("k") returned null -- did you mean "..."?` (both engines, capped at 3); DX notes |
 | Polyglot | **stdout** | a block's own stderr as `[shell stderr]: ...` while its stdout becomes the block's value; `[PY ADAPTER ERROR]` before a Python error |
-| Fatal | **stdout** | `Error: ...` in one of four shapes: governance (`formatError`), runtime (hand-written Got/Help/Example), parse (location plus source excerpt), polyglot (passed through, no help) |
-| End of run | stderr | grouped advisories, guidance block, voice, Summary, `-- Governance:` line |
+| Fatal | **stdout** | `Error: ...` in one of four shapes: governance (`formatError`; a refusal during the run names its line, `At: line N`, since A171), runtime (hand-written Got/Help/Example), parse (location plus source excerpt), polyglot (passed through, no help). A refused run then prints its Summary and `-- Governance: REFUSED (rule) --` on stderr (A174) |
+| End of run | stderr | grouped advisories, guidance block, voice, Summary (counted by disposition: passed / warned / [overridden / approved / audit-only] / refused, A39(c)), `-- Governance: PASS (...; after-run audit: N findings) --` |
 
 A pipe carrying both streams kept program lines and warnings in order (one
 sample).
@@ -117,7 +117,7 @@ sample).
 | MCP `output` and `findings` | secret/PII scan, withheld on a hit, on `naab_run` and `naab_propose` alike (`withholdFindings()`); `findings` keeps the first 20 and last 60 lines and counts the gap | End-of-run groups print last; they were cut first while it kept the top 60 (A43(c), fixed 2026-10-28) |
 | Governance voice, agent review | voice reply: `secretFinding()`/`piiFinding()`, withheld on a hit, not printed or cached (A40, 2026-10-28); voice prompt and agent review: none either way; "do not include bypass instructions" is a prompt line | A40 |
 | Compiled-in strings | `tests/security/test_error_msg_leaks.sh` | Covers text in the binary, not text from sources or models |
-| Report files (SARIF, JSON, JUnit) | none | Keep EVERY occurrence (the only channel naming the second TODO site); SARIF holds the first line, JSON the help; no guidance; written for a static block on the VM too since A43(e) (2026-10-28) |
+| Report files (SARIF, JSON, JUnit) | none | Each result carries its `disposition` (A172) and the line it happened on (A171). Keep EVERY occurrence (the only channel naming the second TODO site); SARIF holds the first line, JSON the help; no guidance; written for a static block on the VM too since A43(e) (2026-10-28) |
 | Package manager | none | One-line `Error:` on stderr, no help |
 
 ## 6. Model calls the engine makes on its own

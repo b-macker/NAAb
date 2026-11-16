@@ -68,7 +68,7 @@ main {
 Hello, World!
 ```
 
-That is the program's output, on stdout. The governance engine reports on stderr:
+That is the program's output, on stdout. A refusal, like every error that stops a program, is printed on stdout too, as `Error: ...`. The governance engine's warnings and closing lines go to stderr:
 
 ```text
 [governance] WARNING contradiction.CONTRA-013
@@ -76,15 +76,16 @@ Governance warning: capabilities.filesystem path rules are enforced inside NAAb'
 [governance] Loaded: /home/you/hello/govern.json (mode: enforce)
 [governance] Sandbox: upgraded unrestricted → standard (enforce mode; set security.sandbox_level in govern.json to override)
 
-[governance] Summary (mode: enforce): 8 passed, 1 warning, 0 blocked
+[governance] Summary (mode: enforce): 8 passed, 1 warned, 0 refused
   ⚠ contradiction.CONTRA-013            [advisory]  WARN
 
--- Governance: PASS (9 static, 0 runtime, 0 violations) --
+-- Governance: PASS (1 warning; after-run audit: 0 findings) --
 ```
 
 - **CONTRA-013** is an advisory warning: execution continues. The generated `govern.json` blocks some paths (`/etc/shadow`, `/etc/passwd`). NAAb enforces that inside its own standard library and embedded Python, but not inside a shell block, which runs as a separate process. The warning currently appears for every project with path rules unless the sandbox is `restricted`, even one that never runs shell.
 - **Sandbox** is the runtime's own containment. With `mode: enforce` and no `security.sandbox_level`, it runs at `standard`. [Section 10](#10-files-environment-and-network) shows what that refuses and how to change it.
-- **Summary** and **Governance: PASS** list the checks that ran and their results.
+- **Summary** counts the checks by what happened to the action: passed, warned, refused (and overridden or audit-only when there are any). **Governance: PASS** repeats what the run let through with a warning, then the after-run audit's result.
+- A refused run ends the same way: the `Error:` on stdout, then the summary and `-- Governance: REFUSED (<rule>) --` on stderr. A refusal names the line it happened on (`At: line N`).
 
 ### The REPL
 

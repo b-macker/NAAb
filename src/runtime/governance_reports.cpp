@@ -1145,6 +1145,17 @@ std::string GovernanceEngine::generateJsonReport() const {
     report["summary"]["failed_hard"] = failed_hard;
     report["summary"]["failed_soft"] = failed_soft;
     report["summary"]["advisories"] = advisories;
+    // A172: the same results counted by what happened to the action (the
+    // level counts above say how serious a failed check was, not whether the
+    // action ran: an overridden soft refusal or an audit-only one ran).
+    {
+        nlohmann::json by = nlohmann::json::object();
+        for (const auto& r : results_snapshot) {
+            std::string d = dispositionOf(r);
+            by[d] = by.value(d, 0) + 1;
+        }
+        report["summary"]["dispositions"] = by;
+    }
 
     if (rules().scoring.enabled) {
         report["summary"]["cumulative_risk_score"] = cumulative_score_;
@@ -1163,6 +1174,7 @@ std::string GovernanceEngine::generateJsonReport() const {
         entry["rule"] = r.rule_name;
         entry["level"] = levelToString(r.level);
         entry["passed"] = r.passed;
+        entry["disposition"] = dispositionOf(r);   // A172
         if (!r.message.empty()) entry["message"] = r.message;
         entry["category"] = r.category;
         entry["severity"] = r.severity;
@@ -1326,6 +1338,7 @@ std::string GovernanceEngine::generateSarifReport() const {
         if (!r.category.empty()) props["category"] = r.category;
         if (!r.severity.empty()) props["severity"] = r.severity;
         props["enforcement"] = levelToString(r.level);
+        props["disposition"] = dispositionOf(r);   // A172
         if (!r.rationale.empty()) props["rationale"] = r.rationale;
         if (!r.decision_trace.empty()) {
             props["decisionTrace"] = nlohmann::json::array();
@@ -1668,8 +1681,12 @@ void GovernanceEngine::writeTelemetry() const {
             // Agent-path checks are stamped "<agent:NAME>" (ScopedCheckContext)
             // and are runtime events like the unlocated ones above: never
             // collapsed.
+            // A171: a result located by the running program (the VM's current
+            // instruction) is a runtime event too, whatever its line -- two
+            // refusals on one line of a loop are two events.
             const bool has_source_site = !(r.file.empty() && r.line == 0) &&
-                                         r.file.rfind("<agent:", 0) != 0;
+                                         r.file.rfind("<agent:", 0) != 0 &&
+                                         !r.live_location;
             if (has_source_site) {
                 // The result is part of the key: a violation must never be
                 // collapsed into an earlier PASS at the same site. Without it,
@@ -1690,6 +1707,9 @@ void GovernanceEngine::writeTelemetry() const {
         ev["event_type"] = r.passed ? "GovernanceCheck" : "RuleViolation";
         ev["rule_name"] = r.rule_name;
         ev["result"] = r.passed ? "pass" : "block";
+        // A172: what happened to the action. "result" stays as it was (pass /
+        // block, for a failed check whatever happened next) for existing readers.
+        ev["disposition"] = dispositionOf(r);
         ev["message"] = r.message.empty()
             ? (r.passed ? "Check passed: " + r.rule_name : "Check failed: " + r.rule_name)
             : r.message;

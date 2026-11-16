@@ -21,7 +21,7 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 13: measure what governance catches; help operators | merged, three PRs by the owner's decision (2026-11-10). PR 1 #367 (`6e2ce08b`): `naab-gov diff`. PR 2 #368 (`24cf9d80`): the scorer, its controls, the Juliet and EvalPlus pilot, and A147 fixed (refuse). PR 3 #370 (`93d2e099`): the A132 measurement, the path-traversal answer, a second profile, Semgrep labels for ten languages; A149 recorded | Bundle 13 below |
 | 14: replay and provenance | two PRs by the owner's decision (2026-11-11). PR 1 merged, #369: provenance for generated code; A160-A162 recorded. PR 2 merged, #372 (`7f1db67e`): `naab-gov replay`; A163, A164 recorded | Bundle 14 below |
 | 15: AI on deterministic rails | merged, four PRs and a follow-up. PR 1 #373 (`d792d943`; the owner's decision, 2026-11-12: A163 and A164 first, inside this bundle): the telemetry chain verifies under concurrent writers, and `--verify-telemetry-chain` is bounded and exits 1 on a file it cannot read. The feature work's scope was agreed on 2026-11-13 (three PRs): PR 2 #377 (`7bfd99cb`), `naab-gov explain`; PR 3 #379 (`2dc11dd9`), `naab-gov patch-check`; PR 4 #381 (`743e4ee7`), `naab-gov heal`. Follow-up #383 (`58796deb`), decided by the owner on 2026-11-15: A166 fixed (the voice and agent review scan what their models wrote), patch-check runs the contract search by default, A169's write half fixed (the program may not write `.naab_cache/`), and A58's unrun test programs cleaned up | Bundle 15 below |
-| 18: messages and records that match what happened | planned, added by the owner's decision (2026-11-16); A171-A174, A39(c) | Bundle 18 below |
+| 18: messages and records that match what happened | built, one PR, added by the owner's decision (2026-11-16): A171-A174 and A39(c) fixed | Bundle 18 below |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). A145 and A146 (node 24: the child memory budget, TypeScript's flags, and the runtime-pin message) were fixed in #366 (`97dab417`). The bundle plan itself was recorded in #351 (`86fc33c9`).
 
@@ -345,10 +345,20 @@ Added by the owner's decision (2026-11-16). Found walking one program from `gove
 
 **Not measured before the bundle, so measure first:** the tree-walker (audit and off only), Windows, the dangerous-call gate (the probe did not fire it), and the agent path's own location (scoped since #300, not re-checked here).
 
+**Decisions (the owner, 2026-11-16):** the telemetry field is `disposition` (values passed / refused / warned / overridden / approved / audit_only); the guard is to remove the unscoped location setter, plus a suite with one arm per kind of runtime refusal; the closing line keeps PASS and fixes its counts.
+
+**As built.**
+- A171: the engine asks the VM running on the thread for its current instruction when no explicit location is in force; `setCheckContext()` is gone, and the six places that used it are scoped. Measured before the fix as planned: the tree-walker recorded a stale line too (CL-14) and is fixed at its one stdlib branch; the dangerous-call gate is still not exercised by an arm. A live location is never de-duplicated, which also settles the dedup half.
+- A172: `disposition` in telemetry, the JSON report (with `summary.dispositions`) and SARIF; `result` unchanged.
+- A174 / A39(c): as decided; the dashboard counts the same way. A finished run's PASS line reads e.g. `(2 warnings; after-run audit: 0 findings)`.
+- A173: the user guide's sentence and example output.
+- Suites: `test_check_locations.sh` (20), `test_check_disposition.sh` (11), `test_closing_lines.sh` (8), each red on master `f3b31246` with its controls green on both, each with a kill table. One existing arm read the old wording (`test_hivemind_governed.sh` E-02) and was moved to the new one.
+
 ## Not bundled (open, the owner's call)
 
 - **Waiting on the owner:**
   - (done 2026-11-15, A58: the nine unrun test programs and `naab_testing` deleted, three folded into `naab_unit_tests`; `test_composition_validator.cpp` left, commented out of CMake.)
   - A170: `naab-lang blocks search <text>` finds nothing (found folding the search test); A169's remaining half, the cache HMAC keyed from public inputs.
+  - A177 (found in Bundle 18): past 10,000 recorded check results every further record re-packs the whole list, so a program making many governed calls slows sharply (10,000 `file.exists()` calls took 24 s on master).
 - **Open:** A66, A75(a)(b), A76(e), A70(b)(c), A67, B1, A16/F11/F12, A53, A33(b), D18, and the A64 test debt.
 - **Paused:** the guidance bypass filter.

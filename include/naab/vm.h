@@ -458,6 +458,11 @@ public:
     }
 
 private:
+    // A171: the location of a check made while this VM runs with no explicit
+    // location in force -- the current frame's instruction (VM::run() installs
+    // it as the thread's governance::ScopedCheckLocationProvider).
+    static bool currentCheckLocation(const void* self, std::string& file, int& line,
+                                     std::string& function);
     // Bundle 11: requires / ensures. Evaluates `fn`'s clauses of one kind over
     // `args` (and `result` for ensures); a clause that is false, not a bool,
     // or cannot be evaluated is a violation, enforced at the contract's level.
