@@ -4,7 +4,7 @@ The project owner's ordered plan for governance work. It was recorded on 2026-10
 
 A **bundle** is one branch, one pull request and one validated push. **Confirm a bundle's scope with the owner before starting it.** A finding made along the way is recorded in `docs/open-investigations.md` in the same pull request, and is added to a bundle only by the owner's decision.
 
-## Status (2026-11-10)
+## Status (2026-11-16)
 
 | Bundle | State | Where |
 |---|---|---|
@@ -18,9 +18,10 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 12: taint as information flow | merged (the control-flow bar waits on Bundle 13); two PRs by the owner's decision (2026-11-04), then follow-ups. PR 1 (merged, #358): one taint semantics -- one static rule both AST walks share, unknown kinds fail closed, a suite generated from the semantics table; A117. PR 2 (merged, #360): the static noninterference check, an opt-in report, `naab-gov taint`; measured, A120-A122. Follow-up PR 1 (merged, #361, `01fb3552`): A120 and A121(d) fixed, A122(b), A123 and A124 recorded. PR 3 merged, #363 (`169d6600`): A121(a)-(c), A124, A127, A129. The control-flow bar waits on Bundle 13 | Bundle 12 below |
 | 16: honest tests and the engine's own child processes | merged, #362 (`977e7a40`): A123 (13 of 14 tests and the guard; one pinned for Bundle 12 PR 3), A125, A122, A99, A100 fixed; A126 recorded for the owner | Bundle 16 below |
 | 17: what Gemini's SentinelGrid report found | merged, #365 (`795b5885`), one PR, scope by the owner's decisions of 2026-11-09: A130, A131, A133-A139, A141, A142 fixed; A132, A140, A143, A144 and F-14 recorded | Bundle 17 below |
-| 13: measure what governance catches; help operators | in progress, three PRs by the owner's decision (2026-11-10). PR 1 merged, #367 (`6e2ce08b`): `naab-gov diff`. PR 2 merged, #368 (`24cf9d80`), PR 3 built (2026-11-11: the A132 measurement, the path-traversal answer, a second profile, Semgrep labels for ten languages; A149 recorded). PR 2: the scorer, its controls, the Juliet and EvalPlus pilot, and A147 fixed (refuse) | Bundle 13 below |
+| 13: measure what governance catches; help operators | merged, three PRs by the owner's decision (2026-11-10). PR 1 #367 (`6e2ce08b`): `naab-gov diff`. PR 2 #368 (`24cf9d80`): the scorer, its controls, the Juliet and EvalPlus pilot, and A147 fixed (refuse). PR 3 #370 (`93d2e099`): the A132 measurement, the path-traversal answer, a second profile, Semgrep labels for ten languages; A149 recorded | Bundle 13 below |
 | 14: replay and provenance | two PRs by the owner's decision (2026-11-11). PR 1 merged, #369: provenance for generated code; A160-A162 recorded. PR 2 merged, #372 (`7f1db67e`): `naab-gov replay`; A163, A164 recorded | Bundle 14 below |
-| 15: AI on deterministic rails | started. PR 1 built (the owner's decision, 2026-11-12: A163 and A164 first, inside this bundle): the telemetry chain verifies under concurrent writers, and `--verify-telemetry-chain` is bounded and exits 1 on a file it cannot read. The feature work's scope was agreed on 2026-11-13 (three PRs: explain, patch-check, heal); PR 2, `naab-gov explain`, is merged (#377), PR 3, `naab-gov patch-check`, is merged (#379) and PR 4, `naab-gov heal`, is merged (#381). Follow-up decided by the owner on 2026-11-15: A166 fixed (the voice and agent review scan what their models wrote), patch-check runs the contract search by default, A169's write half fixed (the program may not write `.naab_cache/`), and A58's unrun test programs cleaned up | Bundle 15 below |
+| 15: AI on deterministic rails | merged, four PRs and a follow-up. PR 1 #373 (`d792d943`; the owner's decision, 2026-11-12: A163 and A164 first, inside this bundle): the telemetry chain verifies under concurrent writers, and `--verify-telemetry-chain` is bounded and exits 1 on a file it cannot read. The feature work's scope was agreed on 2026-11-13 (three PRs): PR 2 #377 (`7bfd99cb`), `naab-gov explain`; PR 3 #379 (`2dc11dd9`), `naab-gov patch-check`; PR 4 #381 (`743e4ee7`), `naab-gov heal`. Follow-up #383 (`58796deb`), decided by the owner on 2026-11-15: A166 fixed (the voice and agent review scan what their models wrote), patch-check runs the contract search by default, A169's write half fixed (the program may not write `.naab_cache/`), and A58's unrun test programs cleaned up | Bundle 15 below |
+| 18: messages and records that match what happened | planned, added by the owner's decision (2026-11-16); A171-A174, A39(c) | Bundle 18 below |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). A145 and A146 (node 24: the child memory budget, TypeScript's flags, and the runtime-pin message) were fixed in #366 (`97dab417`). The bundle plan itself was recorded in #351 (`86fc33c9`).
 
@@ -315,6 +316,34 @@ PR 1 merged as #367 (`6e2ce08b`). **PR 2 (built 2026-11-11):** `tools/govmeasure
   - It refuses to propose when the chain does not verify or `naab-gov replay` reports anything DIVERGED; a mapping whose own evidence is unmeasurable is skipped and named. A person signs outside the run (`docs/security-decisions.md`: no in-process signing).
   - As built (2026-11-14): the command writes nothing, not even a proposed file; the report names the key and the value. Each proposal is asked of `naab-gov ratchet` with that one value changed and kept only when the ratchet accepts it AND names the key in a tightening notice, which is what tells a level the engine reads from an unknown `level` key (the ratchet accepts a change to a key it does not compare). A run that accepted a mid-run reload is skipped: after it, the config that produced the events is not the file given. Observed while building: the ratchet refuses a SHORTHAND level's `"advisory"` -> `"soft"` (`"no_debug_artifacts": "advisory"`) as a form change, by the Bundle 8 declaration for that key, so such a rule is named and not proposed; and the engine compares the config's modification time in whole seconds, so a swap in the same second as the load is not seen until the file changes again.
   - Not built, and said in every report: the key is found by the rule's NAME (the longest dotted prefix under which the file writes a level). That it sets that rule's level is confirmed by the ratchet reading it as a level and by its written value matching the events' level, not by tracing the check.
+
+## Bundle 18 -- messages and records that match what happened
+
+Added by the owner's decision (2026-11-16). Found walking one program from `govern.json` to the messages it produces, then re-checked by `docs/investigation-method.md` on `58796deb`. The re-check changed three findings and widened one; the records are A171-A174 and A39 in `docs/open-investigations.md`. **None of it changes what a run allows or refuses**: it changes what the messages, the reports and telemetry say about it.
+
+- **A171: a refusal records the line it happened on.**
+  - Today a runtime gate (file, environment, network, taint sink) never sets a location, and inherits whatever the last function return or polyglot block left behind; the message names no line.
+  - Each gate records the location of its own call (the VM already has it: an ordinary runtime error prints `at <script>() [file:line]`), and every place that sets the location puts back what it found. The refusal message carries an `At:` line.
+  - Telemetry de-duplication (`telemetry.deduplicate_checks`) must not treat a runtime gate's row as a source site, so two refusals are never merged into one row.
+  - A guard against the next copy: the same class was patched three times before (the agent path, imported modules, A76). Candidates: a test that enumerates the gates from the binary and asserts each records its own line, or no unscoped location setter left in the engine. Decided in the bundle.
+  - Then remove the workarounds: CLAUDE.md's "read a taint violation's line from its message", and `tools/taintflow/crosscheck.py`'s, once the result row's line is right.
+- **A172: telemetry says whether the action ran.**
+  - A failed check is recorded as `"result": "block"` whether the action was refused, ran with a warning, ran under `--governance-override`, or ran in audit mode; no field says which.
+  - Add a field for the outcome; keep `result` as it is, so existing readers do not break. Its name and values are decided in the bundle, before it is built.
+  - Check the readers first: `naab-gov replay`, `heal`, `explain`, the chain verifier, the webhook, `tools/llm_bridge/score.py`. Chain hashing covers the new field.
+- **A174 and A39(c): the closing lines.**
+  - A refused run prints its closing summary too (today it ends at the error, before or during the run).
+  - The `-- Governance: PASS (...)` line is the after-run audit's verdict (pass 2, `56f25210`); its labels change to say so. Today "static" counts every check before the audit, runtime gates included, and "violations" counts the audit's findings only, so a run that printed two overrides and "2 blocked" ends with "PASS ... 0 violations".
+  - The summary's "blocked" count stops counting an overridden refusal as blocked.
+  - A changelog note: scripts that read these lines may need updating.
+- **A173: the user guide says where messages go.** It says "the governance engine reports on stderr"; a refusal, like every fatal error, prints on stdout. Correct the sentence, and say it where the guide first shows a refusal.
+
+**Left out, by decision:**
+- Moving refusals to stderr: the MCP server (A43(b)) and the fuzz oracle read them on stdout.
+- A39(a), the display filter blanking `name = "value"` in help text on the refusal path: a fix narrows where a redaction control runs, which needs its own decision (the record's option: exempt text the engine wrote).
+- A39(b), one full message per rule per run: decided (`aacade58`).
+
+**Not measured before the bundle, so measure first:** the tree-walker (audit and off only), Windows, the dangerous-call gate (the probe did not fire it), and the agent path's own location (scoped since #300, not re-checked here).
 
 ## Not bundled (open, the owner's call)
 
