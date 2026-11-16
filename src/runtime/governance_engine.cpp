@@ -8426,7 +8426,8 @@ std::string GovernanceEngine::computeCoverageReport() const {
 
 // A174: a refused run ends with the same closing a finished run gets -- the
 // summary, then the verdict -- instead of stopping at the error. Called on the
-// CLI's refusal exits; prints once (a refusal can pass two exits).
+// CLI's refusal exits. Printed once as a precaution: no path reaches two
+// refusal exits today (removing the guard turned no arm red).
 void GovernanceEngine::printRefusalClosing() {
     std::string text = refusalClosingText();
     if (text.empty()) return;

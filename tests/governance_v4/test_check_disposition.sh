@@ -30,12 +30,12 @@
 #   DS-10  compatibility: "result" is still "block" for a warned record
 #   Not measured: "approved" (needs a signed approval token; no arm).
 #
-# KILL TABLE (mutants, each turns the named arms red; run by hand)
-#   M1 telemetry writes no disposition            DS-01..DS-07 (tele), DS-10 stays
-#   M2 the override branch leaves "refused"       DS-03
+# KILL TABLE (mutants, each reverted alone and rebuilt; observed 2026-11-16)
+#   M1 telemetry writes no disposition            DS-01..DS-07 (DS-10 stays green)
+#   M2 the override branch leaves "refused"       DS-03, DS-08, DS-09
 #   M3 the audit branch leaves "refused"          DS-04
 #   M4 escalation leaves "warned"                 DS-06
-#   M5 JSON report entry has no disposition       DS-01..DS-07 (json), DS-08
+#   M5 JSON report entry has no disposition       DS-01..DS-07
 # ============================================================
 set -uo pipefail
 

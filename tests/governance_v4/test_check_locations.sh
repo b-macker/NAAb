@@ -32,18 +32,23 @@
 #   CL-09  inside an async fn (its own VM, its own thread)
 #   CL-10  inside an array.map_fn callback (a nested VM run)
 #   CL-11  dedup on: two refusals after one return are two telemetry rows
+#   CL-11b dedup on: two refusals on ONE line (a loop) are two rows -- the
+#          live-location flag's own arm
 #   CL-11c control: dedup still collapses a repeated static site
 #   CL-12  control: a contract result still records its return line (an
 #          explicit location wins over the live one)
 #   CL-13  a module compiled at run time keeps the module's file and line
 #   CL-14  tree-walker (audit): the call's line
 #
-# KILL TABLE (mutants, each turns the named arms red; run by hand)
-#   M1 no live location (VM::run registers no provider)   CL-01..CL-10, CL-14 stays
-#   M2 live location wins over an explicit one            CL-12, CL-13
-#   M3 dedup ignores the live-location flag               CL-11
-#   M4 formatError adds no "At: line N"                   CL-07, CL-08
+# KILL TABLE (mutants, each turns the named arms red; observed 2026-11-16,
+# each reverted alone and rebuilt -- the first driver restored sources with an
+# older mtime, so make kept every earlier mutant and all of them read alike)
+#   M1 no live location (VM::run registers no provider)   CL-01..CL-11
+#   M2 live location wins over an explicit one            CL-13
+#   M3 dedup ignores the live-location flag               CL-11b (survived before CL-11b)
+#   M4 formatError adds no "At: line N"                   CL-07m, CL-08
 #   M5 tree-walker stdlib branch scopes no location       CL-14
+#   M6 the contract check's location left unscoped        CL-01..CL-05, CL-08, CL-11
 # ============================================================
 set -uo pipefail
 
@@ -222,6 +227,15 @@ DEDUP=',"deduplicate_checks":true' write_arm "$W" '"capabilities":{"env_vars":{"
 $'use env\n'"$RET_FN"$'main {\n    let r = a()\n    let x = env.get("VAR_ONE")\n    let y = env.get("VAR_TWO")\n    print("done")\n}\n'
 run_arm "$W" --governance-override
 expect_lines "CL-11" "dedup on: two refusals after one return stay two telemetry rows" "$W" "capabilities.env_vars.allowed_read" tele "7 8"
+
+# The same line twice (a loop): only the live-location flag keeps these apart --
+# CL-11's two lines differ, so a dedup that ignored the flag still passed it
+# (mutant L-M3 survived until this arm).
+W="$TEST_TMP/cl11b"
+DEDUP=',"deduplicate_checks":true' write_arm "$W" '"capabilities":{"env_vars":{"allowed_read":["HOME"]}}' \
+$'use env\nmain {\n    let names = ["VAR_ONE", "VAR_TWO"]\n    for n in names {\n        let x = env.get(n)\n    }\n    print("done")\n}\n'
+run_arm "$W" --governance-override
+expect_lines "CL-11b" "dedup on: two refusals on one line (a loop) stay two telemetry rows" "$W" "capabilities.env_vars.allowed_read" tele "5 5"
 
 W="$TEST_TMP/cl11c"
 DEDUP=',"deduplicate_checks":true' write_arm "$W" '"restrictions":{"dangerous_calls":{"enabled":true,"level":"advisory"}}' \

@@ -359,5 +359,6 @@ Added by the owner's decision (2026-11-16). Found walking one program from `gove
 - **Waiting on the owner:**
   - (done 2026-11-15, A58: the nine unrun test programs and `naab_testing` deleted, three folded into `naab_unit_tests`; `test_composition_validator.cpp` left, commented out of CMake.)
   - A170: `naab-lang blocks search <text>` finds nothing (found folding the search test); A169's remaining half, the cache HMAC keyed from public inputs.
+  - A175 (found in Bundle 18): past 10,000 recorded check results every further record re-packs the whole list, so a program making many governed calls slows sharply (10,000 `file.exists()` calls took 24 s on master).
 - **Open:** A66, A75(a)(b), A76(e), A70(b)(c), A67, B1, A16/F11/F12, A53, A33(b), D18, and the A64 test debt.
 - **Paused:** the guidance bypass filter.

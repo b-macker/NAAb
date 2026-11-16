@@ -36,10 +36,11 @@
 #   CLO-07  a clean run: no summary, "-- Governance: PASS (after-run audit: 0 findings) --"
 #   CLO-08  control: exit codes are unchanged (3 refused, 0 finished)
 #
-# KILL TABLE (mutants, each turns the named arms red; run by hand)
-#   M1 main.cpp's catch sites skip printRefusalClosing     CLO-01, CLO-03
-#   M2 the static-block exit skips it                       CLO-02
-#   M3 printRefusalClosing prints every call (no once)      CLO-03 (needs two exits; see note)
+# KILL TABLE (mutants, each reverted alone and rebuilt; observed 2026-11-16)
+#   M1 the outer catch prints no closing                    CLO-01, CLO-02, CLO-03
+#   M2 the report-writing wrappers capture nothing          CLO-02
+#   M3 the print-once guard removed                         SURVIVES: no path reaches two
+#      refusal exits today; the guard is a precaution, not a measured fix
 #   M4 summary counts by level again ("blocked")            CLO-05, CLO-06
 #   M5 PASS line back to "(N static, M runtime, ...)"       CLO-04..CLO-07
 # ============================================================
