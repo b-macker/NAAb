@@ -37,7 +37,8 @@
 #     f  audit.log_events.checks_passed/checks_failed: the trail holds no check
 #        entry, while polyglot_executed writes one in the same run
 #     g  limits.memory.per_block_mb          vs runtime.memory_limit (a child
-#        process allocating 300 MB; UNMEASURABLE where rlimits do not bind)
+#        process allocating 300 MB; UNMEASURABLE where rlimits do not bind, or
+#        where the control is refused without the child's own MemoryError)
 #   Traced only, no arm: input_size (no defined meaning), max_parallel_blocks,
 #   the persistent_runtime limits, max_bound_variables, require_naab_return,
 #   validate_encoding, record_decisions, record_proof_objects -- each has no
@@ -55,6 +56,9 @@
 #      in-process control now fails the arm.)
 #   K7 the baseline's WARNED group gains a setting the loader does not warn
 #      about (harness mutant)                             -> NE-01, NE-02
+#   K8 the g control refused for another reason (shell disabled, so
+#      process.run itself is refused; harness mutant)     -> NE-05g UNMEASURABLE
+#      (before the MemoryError check it PASSED: a refusal of any kind counted)
 #
 # OUTPUT CHANNEL. build-windows at fbe08de5 failed NE-01/NE-02 with the engine
 # right: the group lists were print()ed, Windows ends each line with CRLF, and
@@ -341,14 +345,22 @@ fi
 MEM='use process
 main {
   let r = process.run("python3", ["-c", "b = bytearray(300 * 1024 * 1024); print(len(b) > 0)"])
-  if r.get("exit_code", 1) == 0 { print("DONE") } else { throw "child refused: " + string(r.get("exit_code", -1)) }
+  if r.get("exit_code", 1) == 0 { print("DONE") } else {
+    print(r.get("stderr", ""))
+    throw "child refused: " + string(r.get("exit_code", -1))
+  }
 }'
-dc="$TEST_TMP/ne05g_c"; mk "$dc" '{"runtime": {"memory_limit": 64}}'; run "$dc" "$MEM"; crc=$RC
+# The control must be refused BY THE CHILD'S ALLOCATION: its output must carry
+# the child's own MemoryError. A refusal for any other reason (no python3, the
+# interpreter itself failing under the limit) proves nothing about the limit.
+dc="$TEST_TMP/ne05g_c"; mk "$dc" '{"runtime": {"memory_limit": 64}}'; run "$dc" "$MEM"; crc=$RC; cout="$OUT"
 d0="$TEST_TMP/ne05g_0"; mk "$d0" ''; run "$d0" "$MEM"; zrc=$RC
 if [ "$zrc" != 0 ]; then
     unm NE-05g "limits.memory.per_block_mb: the child cannot allocate 300 MB here even with no limit (rc=$zrc)"
 elif [ "$crc" = 0 ]; then
     unm NE-05g "limits.memory.per_block_mb: runtime.memory_limit does not bind a child here (no rlimits)"
+elif ! grep -q MemoryError <<<"$cout"; then
+    unm NE-05g "limits.memory.per_block_mb: the runtime.memory_limit control was refused, but not by the child's allocation (rc=$crc: $(tail -2 <<<"$cout" | tr '\n' ' ' | cut -c1-160))"
 else
     ds="$TEST_TMP/ne05g_s"; mk "$ds" '{"limits": {"memory": {"per_block_mb": 64}}}'; run "$ds" "$MEM"
     if [ "$RC" = 0 ]; then pass NE-05g "limits.memory.per_block_mb: 64 lets a child allocate 300 MB, while runtime.memory_limit: 64 does not"
