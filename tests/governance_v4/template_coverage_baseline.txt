@@ -165,3 +165,84 @@ code_quality.complexity_floor.enabled
 scopes
 security.blocked_commands
 security.blocked_paths
+
+# --- MOVED OUT, settings-liveness step 3 (the owner's decision of 2026-11-16:
+# "move out, no warning"): parsed, and consulted by nothing that decides
+# anything -- output formatting, loader options, optimisation and check
+# sub-options, and exemption lists that exempt nothing (they fail closed).
+# Traced in docs/settings-liveness.md (step 3); the loader accepts them
+# quietly so configs naab-lang init wrote earlier still load without noise.
+audit.log_events.overrides
+audit.tamper_evidence.algorithm
+code_quality.max_complexity.max_parameters
+code_quality.no_apologetic_language.scan_comments_only
+code_quality.no_apologetic_language.scan_strings
+code_quality.no_hardcoded_results.check_dict_success_fields
+code_quality.no_hardcoded_results.check_return_true_false
+code_quality.no_secrets.allowlist
+limits.rate.cooldown_on_limit_ms
+meta.environment.allow_cli_override
+meta.environment.env_prefix
+meta.feature_flags.experimental_checks
+meta.feature_flags.verbose_parsing
+meta.schema_validation.suggest_corrections
+meta.schema_validation.warn_unknown_keys
+output.errors.max_errors_per_rule
+output.errors.max_total_errors
+output.errors.show_code_context
+output.errors.show_examples
+output.errors.show_help
+output.errors.verbose
+output.formatting.color
+output.formatting.unicode_symbols
+output.formatting.width
+output.summary.enabled
+output.summary.format
+output.summary.group_by
+output.summary.show_passing
+polyglot.parallel.fail_strategy
+polyglot_optimization.ai_guidance.include_in_errors
+polyglot_optimization.ai_guidance.show_benchmarks
+polyglot_optimization.ai_guidance.suggest_refactoring
+polyglot_optimization.calibration.auto_calibrate
+polyglot_optimization.helper_errors.fuzzy_match_threshold
+polyglot_optimization.helper_errors.show_alternative_language
+polyglot_optimization.language_diversity.max_single_language_percent
+polyglot_optimization.language_diversity.min_languages
+polyglot_optimization.verification.max_verification_time_ms
+requirements.naming_conventions.check_naab_code
+requirements.naming_conventions.check_polyglot_code
+requirements.naming_conventions.enabled
+requirements.naming_conventions.functions
+requirements.naming_conventions.variables
+restrictions.dangerous_calls.allowlist
+telemetry.tamper_evidence.algorithm
+
+# --- WARNED, settings-liveness step 3 (the owner's decision of 2026-11-16:
+# the safety-shaped settings with no clear meaning, no detector, or a working
+# setting that does the job): parsed, enforced by nothing, and the loader
+# WARNS when a config sets one (warnNoEffectSettings() in
+# governance_config.cpp). Verified or traced in docs/settings-liveness.md.
+audit.log_events.checks_failed
+audit.log_events.checks_passed
+audit.provenance.record_decisions
+audit.provenance.record_proof_objects
+limits.data.input_size
+limits.execution.total_executions
+limits.memory.per_block_mb
+polyglot.output.max_output_lines
+polyglot.output.require_json_pipe
+polyglot.output.require_naab_return
+polyglot.output.validate_encoding
+polyglot.parallel.max_parallel_blocks
+polyglot.parallel.timeout_per_block
+polyglot.persistent_runtime.max_memory_per_session_mb
+polyglot.persistent_runtime.max_sessions
+polyglot.persistent_runtime.session_timeout
+polyglot.variable_binding.max_bound_variables
+restrictions.code_injection.block_ldap_injection
+restrictions.code_injection.block_template_injection
+restrictions.code_injection.block_xpath_injection
+restrictions.polyglot_output.max_size
+restrictions.polyglot_output.require_structured
+restrictions.polyglot_output.validate_json
