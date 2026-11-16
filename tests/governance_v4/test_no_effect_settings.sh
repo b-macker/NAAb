@@ -55,6 +55,15 @@
 #      in-process control now fails the arm.)
 #   K7 the baseline's WARNED group gains a setting the loader does not warn
 #      about (harness mutant)                             -> NE-01, NE-02
+#
+# OUTPUT CHANNEL. build-windows at fbe08de5 failed NE-01/NE-02 with the engine
+# right: the group lists were print()ed, Windows ends each line with CRLF, and
+# every key reached the config with a CR on it. Reproduced on Linux with a
+# python3 stand-in first on PATH that runs the real one after
+# sys.stdout.reconfigure(newline="\r\n") (the old suite: the same two FAILs;
+# this one: 12 passed). The lists are now written as bytes, and a CR in either
+# list stops the suite before any arm (checked with a stand-in that also puts
+# a CR on raw bytes: exit 1 with that message).
 # ============================================================
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,17 +85,23 @@ trap cleanup EXIT
 WARN_RE='is parsed but not enforced -- no check reads it'
 
 # The two step-3 groups, read from the baseline by their headings.
+# Written as bytes: print() ends a line with CRLF on Windows, command
+# substitution keeps the CR, and every key then carried it -- the config set
+# "api.tls_cert\r", which the loader does not know, so NE-01/NE-02 saw no
+# warning on build-windows (fbe08de5) while the engine was right.
 group() {  # HEADING-PREFIX -> the keys listed under it
     python3 -I - "$BASELINE" "$1" <<'PY'
 import sys
-lines = open(sys.argv[1], encoding="utf-8").read().split("\n")
+lines = open(sys.argv[1], encoding="utf-8").read().splitlines()
 on = False
+out = []
 for l in lines:
     if l.startswith("# --- "):
         on = l.startswith(sys.argv[2])
         continue
     if on and l.strip() and not l.startswith("#"):
-        print(l.strip())
+        out.append(l.strip())
+sys.stdout.buffer.write(("\n".join(out) + "\n").encode("ascii"))
 PY
 }
 WARNED="$(group '# --- WARNED, settings-liveness step 3')"
@@ -95,6 +110,9 @@ NW=$(grep -c . <<<"$WARNED"); NM=$(grep -c . <<<"$MOVED")
 if [ "$NW" -lt 20 ] || [ "$NM" -lt 40 ]; then
     echo "  the baseline's step-3 groups were not found (warned=$NW moved=$NM)"; exit 1
 fi
+case "$WARNED$MOVED" in
+    *$'\r'*) echo "  a step-3 group key carries a carriage return; every arm reading it would test a key the loader does not know"; exit 1 ;;
+esac
 
 # json_with KEY VALUE -> a JSON object with that dotted key set
 json_with() { python3 -I -c '
