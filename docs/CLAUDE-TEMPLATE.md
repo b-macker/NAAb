@@ -501,7 +501,7 @@ create, send, run, messages, usage, register_tool, batch, fan_out, pipeline
 - `agent.pipeline()` throws if any non-final stage returns empty content — prevents silent message reuse across stages.
 - Providers: `"anthropic"` (default, uses `ANTHROPIC_API_KEY`) or `"gemini"`/`"google"` (uses `GEMINI_API_KEY` or custom `api_key_env`)
 - Governance enforcement on responses: `checkSecrets()` (HARD blocks leaked API keys/tokens), `checkPii()` (respects configured level)
-- **Tool execution**: When `tools_enabled: true` in agent config, LLM tool_use/FUNCTION_CALL responses trigger a governed tool loop. Tool results are scanned for secrets/PII before re-injection to the LLM. Budget enforcement: `max_tool_calls_per_turn`, `max_tool_loop_turns`, `tool_result_max_chars`, `tool_result_max_total_chars`, `tool_timeout_seconds`. Response includes `tool_calls_made`, `tool_loop_turns`, `tool_results`, `tool_budget_remaining`, `tool_loop_exit_reason`.
+- **Tool execution**: When `tools_enabled: true` in agent config, LLM tool_use/FUNCTION_CALL responses trigger a governed tool loop. Tool results are scanned for secrets/PII before re-injection to the LLM. Budget enforcement: `max_tool_calls_per_turn`, `max_tool_loop_turns`, `tool_result_max_chars`, `tool_result_max_total_chars`, `tool_timeout_seconds` (default 10; a call past it is a HARD block). Response includes `tool_calls_made`, `tool_loop_turns`, `tool_results`, `tool_budget_remaining`, `tool_loop_exit_reason`.
 - Turn/token limits enforced server-side — handle dict mutation does not bypass governance
 - Parallel dispatch config (optional in govern.json):
   ```json

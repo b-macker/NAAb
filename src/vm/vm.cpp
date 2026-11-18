@@ -2182,7 +2182,8 @@ interpreter::NaabVal VM::run() {
                             // the tree-walker's .exec() route has always done. The VM
                             // counted inline blocks only, so .exec() walked past the
                             // limit on the default engine.
-                            std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
+                            std::string count_err = governance_->incrementAndCheckPolyglotBlockCount(
+                                rt.language, code, gov_line);
                             if (!count_err.empty()) runtimeError("%s", count_err.c_str());
                             governance_->logPolyglotExecution(rt.language, {}, 0, current_file_,
                                                               gov_line,
@@ -3132,7 +3133,8 @@ interpreter::NaabVal VM::run() {
                     // Gates: limits.execution.polyglot_blocks. Named with a verb my
                     // ->check* sweep did not match, so it was missed on the first pass.
                     std::string count_err = governance_->isActive()
-                        ? governance_->incrementAndCheckPolyglotBlockCount() : std::string();
+                        ? governance_->incrementAndCheckPolyglotBlockCount(language, raw_code, gov_line)
+                        : std::string();
                     if (!count_err.empty()) runtimeError("%s", count_err.c_str());
 
                     // Rate limiting for polyglot execution

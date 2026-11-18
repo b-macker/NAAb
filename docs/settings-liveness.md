@@ -159,7 +159,7 @@ with the exceptions noted below.
 | Group | Settings | Evidence |
 |---|---|---|
 | **Live** (the loader or the merge is the consumer; the sweep cannot see it) | `agent_dispatch.default_timeout_seconds`, `meta.inheritance.merge_arrays`, `merge_strategy`, `meta.allow_agent_addition_mid_run` | traced, as the 2026-10-03 write-up found: each agent's `timeout_seconds` reaches libcurl; `mergeRules()`; the reload ratchet |
-| **To be wired** (the owner's decision, below; a follow-up PR) | `limits.memory.total_mb`, `limits.timeout.total_polyglot`, `limits.code.max_total_polyglot_lines`, `restrictions.imports.mode` / `allowed`, `languages.per_language.<lang>.imports.mode` / `allowed`, `restrictions.dangerous_calls.blocklist_extra`, `agents.<name>.tool_timeout_seconds`, `trust.require_fresh_signature`, `approval.default_expiry_hours`, `agent_dispatch.max_retries_per_run` (12) | verified (each set to trip, the program runs; its control refuses): total_mb 64 vs `runtime.memory_limit` 64 on a 300 MB child allocation; total_polyglot 2 vs `per_block` 1 on 3 s of blocks; max_total_polyglot_lines 4 vs `max_lines_per_block` 2 on 6 lines; an import allowlist naming only `json` vs `blocked: [re]` on `import re`; `blocklist_extra: [sorted]` vs `banned_functions: [sorted]`. Traced, no reader: the tool time limit, the fresh signature (`max_signature_age_days` and `stale_signature_level` do the age check), the approval expiry (`--approve` hardcodes 24 h, `main.cpp`), the retry cap |
+| **Wired 2026-11-18** (the owner's decision, below; PR 2) | `limits.memory.total_mb`, `limits.timeout.total_polyglot`, `limits.code.max_total_polyglot_lines`, `restrictions.imports.mode` / `allowed`, `languages.per_language.<lang>.imports.mode` / `allowed`, `restrictions.dangerous_calls.blocklist_extra`, `agents.<name>.tool_timeout_seconds`, `trust.require_fresh_signature`, `approval.default_expiry_hours`, `agent_dispatch.max_retries_per_run` (12) | Before: verified (each set to trip, the program ran; its control refused): total_mb 64 vs `runtime.memory_limit` 64 on a 300 MB child allocation; total_polyglot 2 vs `per_block` 1 on 3 s of blocks; max_total_polyglot_lines 4 vs `max_lines_per_block` 2 on 6 lines; an import allowlist naming only `json` vs `blocked: [re]` on `import re`; `blocklist_extra: [sorted]` vs `banned_functions: [sorted]`. Traced, no reader: the tool time limit, the fresh signature, the approval expiry (`--approve` hardcoded 24 h), the retry cap. After: each refuses, beside a control that the same program runs when the setting allows it -- `tests/governance_v4/test_wired_settings.sh` (red on `ec009c5e` for every subject arm) and `test_signature_staleness.sh` ST-06..10; the reload ratchet compares the two new lists (`blocklist_extra`, the import allowlists) |
 | **Warned, out of the template and init** (25) | `limits.memory.per_block_mb`, `limits.execution.total_executions`, `limits.data.input_size`, `restrictions.code_injection.block_ldap_injection` / `block_xpath_injection` / `block_template_injection`, `polyglot.parallel.max_parallel_blocks` / `timeout_per_block`, `polyglot.persistent_runtime.max_sessions` / `session_timeout` / `max_memory_per_session_mb`, `polyglot.variable_binding.max_bound_variables`, `polyglot.output.max_output_lines` / `require_json_pipe` / `require_naab_return` / `validate_encoding`, `restrictions.polyglot_output.max_size` / `require_structured` / `validate_json`, `audit.log_events.checks_passed` / `checks_failed`, `audit.provenance.record_decisions` / `record_proof_objects`, `api.tls_cert` / `tls_key` | verified for the injection trio (on and off run alike while SQL concatenation is refused), total_executions (vs `polyglot_blocks`), per_block_mb, timeout_per_block (vs `limits.timeout.per_block`), max_output_lines and max_size (vs `limits.data.output_size`), the three JSON requirements (vs `"polyglot_output": "json"`), and the audit pair (the trail holds no check entry while `polyglot_executed` writes one). Traced for the rest; `api.*` traced to a plain `httplib::Server` (`rest_api.cpp`), so the template's "set tls_cert and tls_key for HTTPS" was false |
 | **Moved out quietly** (45) | output formatting (`output.summary.*`, `output.errors.*`, `output.formatting.*`, 13), loader options (`meta.schema_validation.*`, `meta.feature_flags.*`, `meta.environment.*`, 6), `polyglot_optimization` sub-options (9), check sub-options (`max_complexity.max_parameters`, `no_apologetic_language.scan_*`, `no_hardcoded_results.check_return_true_false` / `check_dict_success_fields`), `limits.rate.cooldown_on_limit_ms`, `polyglot.parallel.fail_strategy`, the `requirements.naming_conventions` block, and switches that fail closed (`code_quality.no_secrets.allowlist`, `restrictions.dangerous_calls.allowlist`, `audit.log_events.overrides`, both `tamper_evidence.algorithm`, `trust.check_key_expiry` / `check_revocation`) | traced: no reader outside the loader, the extends merge and the ratchet. The fail-closed ones guard nothing they could loosen: the exact secret listed in `no_secrets.allowlist` still blocks, and revoked or expired trusted keys are always skipped |
 
@@ -173,8 +173,20 @@ out, no warning". Built here: the loader's warning (`warnNoEffectSettings()`,
 recorded in `template_coverage_baseline.txt` under "MOVED OUT" and "WARNED".
 The unsigned example configs (hivemind, hivemind_governed, the book's
 verification config) lost their warned keys; `examples/agent_harness`'s config
-is signed and is left as it is, so it prints two of the warnings. The wiring
-is the follow-up PR.
+is signed and is left as it is, so it prints two of the warnings.
+
+**Wired (PR 2, 2026-11-18).** The meanings are the record's, and two were
+asked: the tool time limit is a governance block like the block time limit
+("1 b"), and the import allowlist is static ("2 a": every import a block
+writes is listed, a computed import is refused, an allowlist the engine cannot
+check refuses the config). `require_fresh_signature` refuses at HARD, whatever
+`stale_signature_level` says (the owner's choice, 2026-11-18: "require" means
+refuse). The others: the polyglot line total counts each distinct block once;
+the polyglot time total interrupts the last block at what is left; `total_mb`
+caps the run's memory budget and never raises it; `blocklist_extra` is literal
+text, matched as `banned_functions` is; the retry cap is N retries across the
+run, then the failing call returns its error; the approval lifetime may be
+shortened by `--expiry`, never extended.
 
 **Where this round differs from the 2026-10-03 write-up:**
 - It recommended wiring `audit.log_events.checks_failed`,
@@ -182,9 +194,9 @@ is the follow-up PR.
   `polyglot_optimization.verification.max_verification_time_ms`. The question
   put to the owner placed them in the warned and quiet groups. That can be
   reopened.
-- It also gives `require_fresh_signature` a meaning, which the follow-up
-  should take: a signature that carries no signing timestamp fails
-  verification.
+- It also gives `require_fresh_signature` a meaning, which PR 2 took with one
+  change: a signature that carries no signing timestamp fails verification at
+  HARD (it proposed `stale_signature_level`).
 
 **Found by the trace (A175, open; the owner's call):** the records undercount.
 - The template lists 143 keys that the loader never parses at all (screened:

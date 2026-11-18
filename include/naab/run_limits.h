@@ -85,6 +85,13 @@ inline void applyConfiguredRunLimits(const naab::governance::GovernanceRules& ru
         memory_limit = memory_from_flag ? std::min(memory_limit, rules.runtime.memory_limit)
                                         : rules.runtime.memory_limit;
     }
+    // limits.memory.total_mb (and the bare form "limits": {"memory": N}) land in
+    // memory_limit_mb, which nothing read (A175). It caps the budget and never
+    // raises it: with runtime.memory_limit unset a run gets 512 MB, and a
+    // total_mb of 1024 must not hand it more.
+    if (rules.memory_limit_mb > 0) {
+        memory_limit = std::min(memory_limit, static_cast<size_t>(rules.memory_limit_mb));
+    }
 }
 
 }  // namespace runlimits

@@ -482,7 +482,8 @@ void Interpreter::visit(ast::CallExpr& node) {
                             rt.language, code, current_file_, node.getLocation().line, 0);
                         if (!gov_err.empty()) throw std::runtime_error(gov_err);
 
-                        std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
+                        std::string count_err = governance_->incrementAndCheckPolyglotBlockCount(
+                            rt.language, code, node.getLocation().line);
                         if (!count_err.empty()) throw std::runtime_error(count_err);
 
                         std::string runtime_ver;

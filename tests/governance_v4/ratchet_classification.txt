@@ -75,11 +75,11 @@ restrictions.no_hardcoded_results.level            ratchet "code_quality.no_hard
 # --- Inert: parsed, consulted by nothing ------------------------------------
 code_quality.no_secrets.allowlist                  inert -- no check reads it (screened: every .allowlist reader traced); observed 2026-10-11: the exact secret listed here still blocks
 restrictions.dangerous_calls.allowlist             inert -- parsed in loadFromJson, no reader anywhere in src/ (screened, grep for every .allowlist reader)
-restrictions.dangerous_calls.blocklist_extra       inert -- parsed in loadFromJson, no reader anywhere in src/ (screened, grep)
-restrictions.imports.allowed.<lang>                inert -- checkImports() reads only the blocked lists; no other reader (screened, grep)
-restrictions.imports.mode                          inert -- checkImports() reads only the blocked lists; no other reader (screened, grep)
-languages.per_language.<lang_name>.imports.allowed inert -- checkImports() reads only imports.blocked and banned_imports (screened, grep)
-languages.per_language.<lang_name>.imports.mode    inert -- checkImports() reads only imports.blocked and banned_imports (screened, grep)
+restrictions.dangerous_calls.blocklist_extra       order superset default=[] -- traced: checkDangerousCall() refuses each entry as literal text (naab/literal_entry_match.h, A175 wiring 2026-11-18); removing one refuses less
+restrictions.imports.allowed.<lang>                ratchet "import allowlist" -- traced: checkImports() admits only listed imports in mode allowlist (A175 wiring 2026-11-18); compared by what each side refuses, name by name (checkDetectionListRatchet)
+restrictions.imports.mode                          ratchet "import allowlist" -- traced: "allowlist" switches the allowlist on (A175 wiring 2026-11-18); compared with the lists, by what each side refuses
+languages.per_language.<lang_name>.imports.allowed ratchet "import allowlist" -- traced: checkImports() admits only listed imports in mode allowlist, at HARD (A175 wiring 2026-11-18); compared by what each side refuses, name by name
+languages.per_language.<lang_name>.imports.mode    ratchet "import allowlist" -- traced: "allowlist" switches the allowlist on (A175 wiring 2026-11-18); compared with the lists, by what each side refuses
 
 # --- Startup only -----------------------------------------------------------
 integrity.blocked_flags                            startup -- read only by the CLI preflight in main.cpp before the program runs (isBlockedFlag callers traced); flags are parsed once, so a reload cannot un-refuse one. A CHILD naab-lang reads the file on disk, which a rejected reload does not revert either.
@@ -235,7 +235,7 @@ agent_dispatch.hard_stop.consecutive_failure_limit  order lower0 -- struct: 0 = 
 agent_dispatch.hard_stop.max_agent_time_ms       order lower0 -- struct: 0 = unlimited; read live by agent_impl.cpp on every provider call (getRules().agent_dispatch.hard_stop); observed: a reload raising or zeroing it was accepted before this
 agent_dispatch.hard_stop.max_calls_per_run       order lower0 -- struct: 0 = unlimited; read live by agent_impl.cpp on every provider call (getRules().agent_dispatch.hard_stop); observed: a reload raising or zeroing it was accepted before this
 agent_dispatch.hard_stop.max_tokens_per_run      order lower0 -- struct: 0 = unlimited; read live by agent_impl.cpp on every provider call (getRules().agent_dispatch.hard_stop); observed: a reload raising or zeroing it was accepted before this
-agent_dispatch.max_retries_per_run               order lower0 -- struct: 0 = unlimited; a run-level retry budget
+agent_dispatch.max_retries_per_run               order lower0 default=0 -- traced: 0 = unlimited; retryAllowed() in agent_impl.cpp stops every retry site once the run has used it (A175 wiring 2026-11-18)
 agent_dispatch.max_concurrent                    fixed -- untraced: concurrency sizing of agent.batch/fan_out; no single tighter direction (A93: two batched tools can share a VM)
 agent_dispatch.pool_size                         fixed -- untraced: concurrency sizing of agent.batch/fan_out; no single tighter direction (A93: two batched tools can share a VM)
 agent_dispatch.pool_queue_max                    fixed -- untraced: concurrency sizing of agent.batch/fan_out; no single tighter direction (A93: two batched tools can share a VM)
@@ -283,7 +283,7 @@ agents.<name>.retry.throttle_cooldown_seconds    fixed -- untraced: retry and ke
 agents.<name>.retry.throttle_key_on              fixed -- untraced: retry and key-rotation tuning; no single tighter direction established
 agents.<name>.tool_result_max_chars              order lower -- traced: a tool result longer than it is truncated (agent_impl.cpp, no zero guard: 0 truncates everything)
 agents.<name>.tool_result_max_total_chars        order lower -- traced: tool output beyond the turn's total is truncated (agent_impl.cpp, no zero guard)
-agents.<name>.tool_timeout_seconds               order lower -- NOT YET: no reader, no tool call is timed (step 3 trace, A175; the earlier "traced: a tool call's time limit" was wrong); the owner decided on 2026-11-16 to wire it. The loader clamps it to at least 1
+agents.<name>.tool_timeout_seconds               order lower default=10 -- traced: each tool call runs under it and one that runs past it is a HARD block (checkToolTimeLimit, agent_impl.cpp; wired 2026-11-18, A175 -- before that no tool call was timed). The loader clamps it to at least 1
 
 # api
 api.key                                          startup -- traced: read when `naab-lang api` / `naab-lang mcp` starts (main.cpp setApiKeys, mcp loadPolicy); a running program's reload is not read by the server
@@ -298,7 +298,7 @@ api.tls_key                                      startup -- traced: read when `n
 
 # approval
 approval.approver_keys                           order subset -- traced: each key may approve; adding one lets another key approve
-approval.default_expiry_hours                    order lower -- traced: how long an approval stays valid; longer is looser
+approval.default_expiry_hours                    order lower default=24 -- traced: the lifetime `naab-lang --approve` grants, which --expiry may shorten and not extend (main.cpp; wired 2026-11-18, A175 -- the command hardcoded 24 before); longer is looser
 approval.store_path                              fixed -- untraced: where approvals are read from; moving it mid-run could change which approvals count
 
 # runtime
@@ -317,7 +317,7 @@ security.blocked_paths                           inert -- traced: the loader war
 # trust
 trust.check_key_expiry                           order true -- traced: signature verification refuses an expired key while true; a reload is verified with these rules
 trust.check_revocation                           order true -- traced: signature verification refuses a revoked key while true
-trust.require_fresh_signature                    order true -- NOT YET: no reader (step 3 trace, A175; the earlier "traced: refuses a signature older than max_signature_age_days" was wrong); the owner decided on 2026-11-16 to wire it. The order is kept, so a reload cannot move it the looser way
+trust.require_fresh_signature                    order true default=false -- traced: a verified signature with no signing time is refused at HARD (signatureAgeAcceptable(); wired 2026-11-18, A175 -- before that nothing read it)
 trust.max_signature_age_days                     order lower0 -- struct: 0 = no staleness check
 trust.stale_signature_level                      order level -- rule: the level a stale signature is reported at
 

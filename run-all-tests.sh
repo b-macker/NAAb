@@ -5592,6 +5592,22 @@ if [ -f "$REFUSALS_ENFORCED_SCRIPT" ]; then
 else
     echo "  test_refusals_enforced.sh: not found, skipping"
 fi
+
+WIRED_SETTINGS_SCRIPT="tests/governance_v4/test_wired_settings.sh"
+if [ -f "$WIRED_SETTINGS_SCRIPT" ]; then
+    # A175 (settings-liveness step 3, PR 2): twelve keys that loaded and did
+    # nothing now refuse -- polyglot totals, total_mb, blocklist_extra, the
+    # import allowlist, the tool time limit, the retry cap, the approval
+    # lifetime -- and the reload ratchet compares the new lists.
+    if run_shell_test "$WIRED_SETTINGS_SCRIPT" 2>&1; then
+        echo "  test_wired_settings.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_wired_settings.sh")
+    fi
+else
+    echo "  test_wired_settings.sh: not found, skipping"
+fi
 CHECK_LOCATIONS_SCRIPT="tests/governance_v4/test_check_locations.sh"
 if [ -f "$CHECK_LOCATIONS_SCRIPT" ]; then
     # A171 (Bundle 18): a refusal records the line it happened on, in the

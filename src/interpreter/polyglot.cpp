@@ -168,7 +168,8 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         if (!err.empty()) throw std::runtime_error(err);
 
         // Check polyglot block count limit
-        std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
+        std::string count_err = governance_->incrementAndCheckPolyglotBlockCount(
+            language, raw_code, line);
         if (!count_err.empty()) throw std::runtime_error(count_err);
 
         // Rate limiting for polyglot execution
@@ -1613,7 +1614,8 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                 inline_code->getBoundVariables().size());
             if (!gov_err.empty()) throw std::runtime_error(gov_err);
 
-            std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
+            std::string count_err = governance_->incrementAndCheckPolyglotBlockCount(
+                lang_str, raw_code, gov_line);
             if (!count_err.empty()) throw std::runtime_error(count_err);
 
             // BUG-J + BUG-4 + FIX-D: Taint sink check for ALL language bindings

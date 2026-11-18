@@ -29,6 +29,31 @@
 #   ST-04  the same old signature at ADVISORY loads with a warning
 #   ST-05  CONTROL: an edited file is still an INTEGRITY BLOCK (not "stale"),
 #          so ST-02 is not a verification failure in disguise
+#
+# trust.require_fresh_signature (A175; parsed and read by nothing until
+# 2026-11-18). The owner's decision: "require" means refuse -- a verified
+# signature that carries no signing time fails like one that does not verify,
+# at HARD, whatever stale_signature_level says. Two signatures carry no time:
+# an Ed25519 one made before e00f78b8 (it signs the content alone, so openssl
+# makes a valid one here) and every HMAC one.
+#   ST-06  an undated Ed25519 signature, require true: exit 3, STALE SIGNATURE
+#          BLOCK naming the missing signing time, the program does not run
+#   ST-07  the same at stale_signature_level advisory: still refused
+#   ST-08  CONTROL: the same undated signature without require loads -- the
+#          signature verifies, so ST-06's refusal is the requirement
+#   ST-09  CONTROL: a dated (fresh) signature with require true loads
+#   ST-10  an HMAC signature (a throwaway key the suite makes; no Ed25519 key
+#          installed), require true: exit 3
+#   ST-10c CONTROL: the same HMAC signature without require loads
+#
+# Red first: ST-06, ST-07 and ST-10 fail on a build of ec009c5e; the other
+# arms pass there (observed 2026-11-18).
+# KILL TABLE (each mutant built, the suite run, the arm that FAILED; observed
+# 2026-11-18):
+#   F1  the undated branch removed from signatureAgeAcceptable() .. ST-06, 07, 10
+#   F2  the undated branch judged at stale_signature_level ........ ST-07
+#   F3  the HMAC path returns true instead of judging the age ...... ST-10
+#   F4  require refuses every signature, dated or not .............. ST-09
 # ============================================================
 set -uo pipefail
 
@@ -108,6 +133,69 @@ else
     if [ $rc -eq 3 ] && grep -q 'does not match any trusted key' <<<"$out" && ! grep -q 'STALE' <<<"$out"; then
         ok "ST-05" "CONTROL: an edited file is an INTEGRITY BLOCK, not a stale one"
     else bad "ST-05" "edited file not refused as tampered (rc=$rc)" "$(grep -m2 -E 'BLOCK|STALE' <<<"$out")"; fi
+fi
+
+echo -e "${CYAN}=== Group ST: trust.require_fresh_signature ===${NC}"
+
+cfgf() {  # $1 = require_fresh_signature  $2 = stale_signature_level
+    printf '{"version":"5.0","mode":"enforce","security":{"sandbox_level":"elevated"},"trust":{"require_fresh_signature":%s,"stale_signature_level":"%s"}}\n' \
+        "$1" "$2" > "$W/govern.json"
+}
+sign_undated() {  # an Ed25519 signature over the content alone (before e00f78b8)
+    local sig
+    sig=$(openssl pkeyutl -sign -rawin -inkey "$K" -in "$W/govern.json" 2>/dev/null | base64 | tr -d '\n')
+    [ -n "$sig" ] || return 1
+    printf 'ed25519:%s' "$sig" > "$W/govern.json.sig"
+}
+refused_undated() {  # $1 = id  $2 = what
+    if [ $rc -eq 3 ] && grep -q 'STALE SIGNATURE BLOCK' <<<"$out" && grep -q 'carries no signing time' <<<"$out" \
+       && ! grep -q '^ran' <<<"$out"; then ok "$1" "$2"
+    else bad "$1" "an undated signature was not refused (rc=$rc)" "$(grep -m2 -E 'BLOCK|STALE|WARNING|ran' <<<"$out")"; fi
+}
+loaded() {  # $1 = id  $2 = what
+    if [ $rc -eq 0 ] && grep -q '^ran' <<<"$out"; then ok "$1" "$2"
+    else bad "$1" "refused (rc=$rc)" "$(grep -m2 -E 'BLOCK|STALE|Error' <<<"$out")"; fi
+}
+
+cfgf true hard
+if ! sign_undated; then
+    for id in ST-06 ST-07 ST-08; do skip "$id" "openssl cannot sign Ed25519 here (UNMEASURABLE)"; done
+else
+    out=$(run); rc=$?
+    refused_undated ST-06 "an undated signature is refused when a fresh one is required"
+    cfgf true advisory; sign_undated
+    out=$(run); rc=$?
+    refused_undated ST-07 "refused at HARD whatever stale_signature_level says"
+    cfgf false hard; sign_undated
+    out=$(run); rc=$?
+    loaded ST-08 "CONTROL: the same undated signature loads without the requirement"
+fi
+
+cfgf true hard; sign_fresh
+out=$(run); rc=$?
+loaded ST-09 "CONTROL: a dated signature loads with the requirement"
+
+# HMAC: no Ed25519 key may be installed (a trusted key makes an HMAC signature
+# an INTEGRITY BLOCK of its own), so these two run with a second, empty trust
+# store. The key is one this suite makes; it is no one's.
+HK="st-throwaway-$$-$RANDOM"
+sign_hmac() {
+    local mac
+    mac=$(NAAB_ST_HK="$HK" python3 -c 'import hmac,hashlib,os,sys; sys.stdout.write(hmac.new(os.environ["NAAB_ST_HK"].encode(), sys.stdin.buffer.read(), hashlib.sha256).hexdigest())' < "$W/govern.json")
+    [ -n "$mac" ] || return 1
+    printf 'hmac:%s' "$mac" > "$W/govern.json.sig"
+}
+EMPTY_STORE="$W/empty-trust"; mkdir -p "$EMPTY_STORE"
+run_hmac() { ( cd "$W" && NAAB_TRUST_STORE_DIR="$EMPTY_STORE" NAAB_GOVERN_KEY="$HK" timeout 30 "$NAAB" t.naab 2>&1 ); }
+if ! command -v python3 >/dev/null 2>&1; then
+    for id in ST-10 ST-10c; do skip "$id" "python3 not available to compute the HMAC (UNMEASURABLE)"; done
+else
+    cfgf false hard; sign_hmac
+    out=$(run_hmac); rc=$?
+    loaded ST-10c "CONTROL: an HMAC signature loads without the requirement"
+    cfgf true hard; sign_hmac
+    out=$(run_hmac); rc=$?
+    refused_undated ST-10 "an HMAC signature (no signing time) is refused when a fresh one is required"
 fi
 
 echo ""

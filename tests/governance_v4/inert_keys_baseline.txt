@@ -41,11 +41,14 @@
 # So: NEVER act on an entry here without verifying that key empirically --
 # configure it at a value that must trip, run a program that must trip it, and
 # include a POSITIVE CONTROL proving enforcement was live in that same run.
-# Verified this way so far: limits.code.max_functions / max_variables /
-# max_total_polyglot_lines, limits.execution.total_executions and
-# limits.memory.total_mb / per_block_mb are genuinely unenforced (six set to 1, a
-# 40-line two-block program exits 0 with "0 violations", while languages.blocked
-# blocks the identical program at exit 3).
+# Verified this way so far: limits.code.max_functions / max_variables,
+# limits.execution.total_executions and limits.memory.per_block_mb are
+# genuinely unenforced (set to 1, a 40-line two-block program exits 0 with
+# "0 violations", while languages.blocked blocks the identical program at exit
+# 3). max_total_polyglot_lines and total_mb were in that set; both are enforced
+# since 2026-11-18 (A175, test_wired_settings.sh) and have left this file, with
+# total_polyglot, max_retries_per_run, default_expiry_hours and
+# require_fresh_signature.
 #
 # WHY THIS FILE EXISTS
 #
@@ -71,12 +74,12 @@
 # four categories below are all present in this file:
 #
 #   A. No enforcement exists. The limit is simply not implemented. VERIFIED
-#      EMPIRICALLY for limits.code.max_total_polyglot_lines / max_functions /
-#      max_variables, limits.execution.total_executions and limits.memory.total_mb
-#      / per_block_mb: all six set to 1, a program with 40+ polyglot lines across
-#      two blocks runs to completion, exit 0, "0 violations" -- with
-#      languages.blocked as a positive control on the identical program and
-#      harness, which does block at exit 3. These are the real gaps.
+#      EMPIRICALLY for limits.code.max_functions / max_variables,
+#      limits.execution.total_executions and limits.memory.per_block_mb (and,
+#      until 2026-11-18, max_total_polyglot_lines and total_mb): set to 1, a
+#      program with 40+ polyglot lines across two blocks runs to completion,
+#      exit 0, "0 violations" -- with languages.blocked as a positive control on
+#      the identical program and harness, which does block at exit 3.
 #
 #   B. The feature is LIVE and the toggle is inert. trust_policy.check_revocation
 #      and trust_policy.check_key_expiry are the case: TrustStore::loadTrustedKeys
@@ -90,19 +93,17 @@
 #      nowhere, while the check itself runs off a different field
 #      (rules().require_error_handling). The rule enforces; its two knobs do not.
 #
-#   D. Feature absent and the default admits it.
-#      trust_policy.require_fresh_signature defaults to false and no
-#      signature-age comparison exists anywhere, so nothing is promised.
+#   D. Feature absent and the default admits it. (The example here,
+#      trust_policy.require_fresh_signature, is enforced since 2026-11-18:
+#      an undated signature is refused at HARD, test_signature_staleness.sh.)
 #
 # `meta.*` and `meta.inheritance.*` are a fifth, benign case: the loader itself is
 # their legitimate consumer, since they configure parsing.
 #
 # So triage before acting. The keys worth wiring or deleting are category A.
 agent_dispatch.default_timeout_seconds
-agent_dispatch.max_retries_per_run
 api.tls_cert_path
 api.tls_key_path
-approval.default_expiry_hours
 audit.log_events.checks_failed
 audit.log_events.checks_passed
 audit.provenance.record_decisions
@@ -113,13 +114,10 @@ code_quality.no_apologetic_language.scan_strings
 code_quality.no_hardcoded_results.check_dict_success_fields
 code_quality.no_hardcoded_results.check_return_true_false
 code_quality.no_mock_data.ignore_in_test_context
-limits.code.max_total_polyglot_lines
 limits.data.input_size
 limits.execution.total_executions
 limits.memory.per_block_mb
-limits.memory.total_mb
 limits.rate.cooldown_on_limit_ms
-limits.timeout.total_polyglot
 meta.allow_agent_addition_mid_run
 meta.environment.allow_cli_override
 meta.environment.env_prefix
@@ -171,4 +169,3 @@ telemetry_output.forward_timeout_ms
 telemetry_output.webhook_auth_header
 trust_policy.check_key_expiry
 trust_policy.check_revocation
-trust_policy.require_fresh_signature

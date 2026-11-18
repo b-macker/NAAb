@@ -220,10 +220,12 @@
     "timeout": {
       "global": 60,
       "per_block": 30,
+      "_comment_total_polyglot": "Seconds every polyglot block of the run may spend together (0 = no total). The block that would cross it is stopped when the time left runs out and refused (HARD); audit mode reports and stops nothing.",
       "total_polyglot": 120
     },
     "memory": {
       "_comment_reserved": "RESERVED, not in this template: limits.memory.per_block_mb is parsed and enforced by nothing (the loader warns); in-process code cannot be held to a per-block memory cap. runtime.memory_limit bounds what a child process may allocate.",
+      "_comment_total_mb": "Caps the run's memory budget (the data limit of each contained child process, which runtime.memory_limit sets, default 512 MB). It lowers that budget and never raises it, so 1024 here changes nothing unless runtime.memory_limit is larger.",
       "total_mb": 1024
     },
     "execution": {
@@ -243,6 +245,7 @@
     },
     "code": {
       "max_lines_per_block": 500,
+      "_comment_max_total_polyglot_lines": "Lines of polyglot code the program may run in total, each distinct block counted once (a block in a loop is one block). The block that crosses it is refused (HARD). 0 = no total.",
       "max_total_polyglot_lines": 5000,
       "max_nesting_depth": 10
     },
@@ -290,6 +293,7 @@
     "dangerous_calls": {
       "enabled": true,
       "level": "hard",
+      "_comment_blocklist_extra": "Names the project adds to the dangerous calls, in any language, matched as literal text without case (as banned_functions is): \"os.popen\" refuses that text, and its dot is not a pattern. Refused at this block's level. A reload cannot remove an entry.",
       "blocklist_extra": [],
       "check_chained_calls": false,
       "check_string_formatting": false
@@ -314,6 +318,7 @@
     "imports": {
       "enabled": true,
       "level": "soft",
+      "_comment_mode": "\"blocklist\" (the blocked lists only) or \"allowlist\": then every import a block of a language listed in allowed (a map: language -> modules) writes must be on its list, an entry admitting the modules nested under it (os admits os.path), and an import whose name the block computes is refused. The blocked lists still apply. Static: it reads the block's text. Only python, javascript, typescript, go and ruby can be listed; another language, the \"any\" key, an allowlist naming no language or any other mode refuses the config. languages.per_language.<lang>.imports takes the same mode with a list, at HARD.",
       "mode": "blocklist",
       "blocked": {
         "python": ["subprocess", "ctypes", "pickle", "os.system"],
@@ -737,6 +742,7 @@
   "_comment_trust": "Authority Decay: signature staleness and key lifecycle. max_signature_age_days=0 disables staleness check. Revoked and expired trusted keys are always skipped at load time; check_key_expiry and check_revocation are accepted and switch nothing off.",
   "trust": {
     "max_signature_age_days": 90,
+    "_comment_require_fresh_signature": "true: a verified signature that carries no signing time (a legacy HMAC signature, or an Ed25519 one made before signing times were recorded) is refused like one that does not verify, at HARD, whatever stale_signature_level says. Re-sign with --sign-governance.",
     "require_fresh_signature": false,
     "stale_signature_level": "advisory"
   },
@@ -1040,7 +1046,7 @@
 
   "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations. Per-agent separation of duties: network_allowed (bool) controls network access, allowed_actions (array of SHELL_EXEC/NET_CONNECT/FS_READ/FS_WRITE/AGENT_SEND/TOOL_EXEC) restricts actions. Ratchet enforcement prevents mid-run loosening.",
   "_comment_agents_providers": "Providers: 'anthropic' (default, api_key_env defaults to ANTHROPIC_API_KEY) or 'gemini'/'google' (api_key_env defaults to GEMINI_API_KEY). Responses are scanned by checkSecrets (hard) and checkPii (configurable). Turn/token limits enforced server-side.",
-  "_comment_agents_tools": "Tool Execution — tools_enabled (bool, default false) is the master switch. tools (string array) is the allowlist — must match agent.register_tool() names. max_tool_calls_per_turn caps invocations per agentSend(). max_tool_loop_turns caps LLM round-trips. tool_result_max_chars truncates individual results. tool_result_max_total_chars caps cumulative results. tool_timeout_seconds is per-call timeout. All tool config fields are ratchet-enforced (can tighten mid-run, cannot loosen).",
+  "_comment_agents_tools": "Tool Execution — tools_enabled (bool, default false) is the master switch. tools (string array) is the allowlist — must match agent.register_tool() names. max_tool_calls_per_turn caps invocations per agentSend(). max_tool_loop_turns caps LLM round-trips. tool_result_max_chars truncates individual results. tool_result_max_total_chars caps cumulative results. tool_timeout_seconds (default 10) bounds each tool call: a call that runs past it is stopped and refused (HARD). All tool config fields are ratchet-enforced (can tighten mid-run, cannot loosen).",
   "_comment_agents_resilience": "model and api_key_env accept string or array. Array enables fallback chain (model) and key rotation (api_key_env). retry configures exponential backoff with jitter. key_retry_after_seconds enables dead key revival after cooldown (0 = never revive). rate_limit adds client-side throttling.",
   "_comment_agents_thinking": "thinking_budget controls thinking/reasoning tokens. -1 (default): provider decides (WARNING: thinking models may consume entire output budget — increase max_tokens to compensate). 0: don't configure thinking (safe for all models). >0: enable thinking with that budget (sends thinkingConfig to Gemini, thinking block to Anthropic — only works on models that accept it). Gemini: thinking shares maxOutputTokens — max_tokens is expanded by thinking_budget. Anthropic: thinking is separate from max_tokens. Note: some models (gemma-4-*) think by default but reject thinkingConfig — use -1 and increase max_tokens instead. Ratchet-enforced.",
   "agents": {
@@ -1966,6 +1972,7 @@
   "_comment_agent_dispatch": "Agent Dispatch — parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size, concurrency limits, and run-level hard stop budgets.",
   "agent_dispatch": {
     "default_timeout_seconds": 0,
+    "_comment_max_retries_per_run": "Retries of failed provider calls the whole run may make (send, tool loop, agent.propose()); once used, a failing call returns its error. 0 = no cap.",
     "max_retries_per_run": 0,
     "max_concurrent": 6,
     "pool_size": 6,
@@ -2028,6 +2035,7 @@
   "approval": {
     "store_path": ".naab/approvals.json",
     "approver_keys": [],
+    "_comment_default_expiry_hours": "The lifetime naab-lang --approve grants. --expiry may shorten it, never extend it; 0 grants an approval that has already expired.",
     "default_expiry_hours": 24
   },
 

@@ -1040,6 +1040,7 @@ int main(int argc, char** argv) {
             std::string rule_name = argv[++command_arg_index];
             std::string reason = "manual approval";
             int expiry_hours = 24;
+            bool expiry_from_flag = false;
             // Parse optional --reason and --expiry
             for (int j = command_arg_index + 1; j < argc; ++j) {
                 std::string jarg = argv[j];
@@ -1049,7 +1050,55 @@ int main(int argc, char** argv) {
                     try { expiry_hours = std::stoi(argv[++j]); } catch (const std::exception&) {
                         fprintf(stderr, "Error: --expiry requires a numeric value\n"); return 1;
                     }
+                    expiry_from_flag = true;
                     command_arg_index = j;
+                }
+            }
+            // approval.default_expiry_hours: how long an approval this command
+            // grants stays valid. It was parsed and read by nothing -- this
+            // command hardcoded 24 and never loaded govern.json (A175). The
+            // project's config is loaded as a run loads it (extends included);
+            // its value is the lifetime, and --expiry may shorten it but not
+            // extend it (a flag tightens govern.json, never loosens it). A
+            // config found but not loadable refuses, as a run does (A84); with
+            // no config, nothing changes.
+            {
+                naab::governance::GovernanceEngine approve_gov;
+                const bool approve_loaded = approve_gov.discoverAndLoad(".");
+                if (!approve_loaded && naab::governance::g_governance_hard_block) {
+                    fprintf(stderr, "Error: govern.json did not pass its integrity check; "
+                                    "no approval was granted\n");
+                    return 3;
+                }
+                if (!approve_loaded && approve_gov.getLastError() != "not_found") {
+                    fprintf(stderr,
+                        "Error: govern.json was found but could not be loaded\n\n"
+                        "  Help:\n"
+                        "  - Fix the configuration error above. No approval was granted.\n");
+                    return 4;
+                }
+                // Only a value the config sets, or inherits through extends
+                // (the merge's own test: it differs from the default), binds
+                // the flag -- as a run limit binds only when configured; the
+                // struct's 24 alone leaves --expiry as it always was.
+                const auto& approve_rules = approve_gov.getRules();
+                const bool expiry_configured = approve_loaded &&
+                    (approve_rules.explicitly_set.count("approval.default_expiry_hours") ||
+                     approve_rules.approval.default_expiry_hours !=
+                         naab::governance::ApprovalConfig{}.default_expiry_hours);
+                // Applied as written: a lifetime of 0 or less grants an
+                // approval that has already expired, never the 24-hour default.
+                const int configured = approve_rules.approval.default_expiry_hours;
+                if (expiry_configured) {
+                    if (!expiry_from_flag) {
+                        expiry_hours = configured;
+                    } else if (expiry_hours > configured) {
+                        fprintf(stderr,
+                            "[governance] --expiry %d is longer than this project allows "
+                            "(%d hours); the approval expires after %d hours\n",
+                            expiry_hours, configured, configured);
+                        expiry_hours = configured;
+                    }
                 }
             }
             // Load signing key

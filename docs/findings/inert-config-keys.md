@@ -4,7 +4,10 @@
 **Acted on (2026-11-16, settings-liveness step 3):** the owner decided
 "Mixed" and "Move out, no warning". Most REMOVE rows below are out of the
 template and init, and the safety-shaped ones are warned at load. Several
-WIRE rows are to be wired in a follow-up; three are not:
+WIRE rows were wired on 2026-11-18 (step 3 PR 2): `require_fresh_signature`
+(refused at HARD, not at `stale_signature_level` as proposed below),
+`default_expiry_hours`, `max_retries_per_run`, the polyglot totals and
+`total_mb`. Three are not:
 `audit.log_events.checks_failed`, `scan_strings` and
 `max_verification_time_ms` were placed in the warned and quiet groups, which
 can be reopened. Current state: `docs/settings-liveness.md` (step 3), A175.
