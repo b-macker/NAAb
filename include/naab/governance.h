@@ -3658,6 +3658,18 @@ public:
     int blockTimeLimitSeconds(const std::string& language) const;
     // A block ran past blockTimeLimitSeconds(): HARD, through enforce().
     std::string checkBlockTimeLimit(const std::string& language, int limit_seconds, int line = 0);
+    // limits.timeout.total_polyglot: the polyglot time the run has left, in
+    // milliseconds; -1 when no total is configured. Every block's time is
+    // charged (chargePolyglotTime(), from underBlockTimeLimit()), whether a
+    // total is configured or not; true when the charge spent the last of it.
+    long long polyglotTimeRemainingMs() const;
+    bool chargePolyglotTime(long long elapsed_ms);
+    // The run's polyglot time is spent: HARD, through enforce().
+    std::string checkPolyglotTimeTotal(const std::string& language, int line = 0);
+    // agents.<name>.tool_timeout_seconds: a tool call ran past it. HARD,
+    // through enforce(), as a polyglot block past its own limit (A2).
+    std::string checkToolTimeLimit(const std::string& agent, const std::string& tool,
+                                   int limit_seconds);
 
     // --- Original checks (backward compatible) ---
     std::string checkLanguageAllowed(const std::string& language, int line = 0);
@@ -3829,7 +3841,14 @@ public:
     // Resource limits
     std::string checkLoopIterations(size_t count);
     std::string checkPolyglotBlockCount(size_t count);
-    std::string incrementAndCheckPolyglotBlockCount();
+    // Charged once per block execution, at every route that runs one: the
+    // block count (limits.execution.polyglot_blocks) and, while
+    // limits.code.max_total_polyglot_lines is set, the program-wide line total
+    // -- each distinct block (language, line, text) adds its lines once, so a
+    // block run in a loop counts once. Both HARD. The block's code is a
+    // parameter so a new execution site cannot charge one without the other.
+    std::string incrementAndCheckPolyglotBlockCount(const std::string& language,
+                                                    const std::string& code, int line);
     // limits.data.output_size and languages.per_language.<lang>.max_output_size:
     // what foreign code hands back to the program -- an inline block's value, a
     // persistent runtime's .exec(), a block-library call, codegen.run()'s
@@ -4120,6 +4139,9 @@ public:
                                   std::string& diagnostics) const;
     bool verifyContentSignature(const std::string& file_path,
                                  const std::string& content) const;
+    // A verified signature's age under the trust policy (max_signature_age_days,
+    // require_fresh_signature) at stale_signature_level. False: refuse it.
+    bool signatureAgeAcceptable(const std::string& file_path, int64_t signed_at) const;
     bool verifySignatureImpl(const std::string& file_path,
                               const std::string& content) const;
     static bool signFile(const std::string& file_path);
@@ -4461,6 +4483,8 @@ public:
     struct CounterState {
         int polyglot_block_count = 0;
         int total_polyglot_lines = 0;
+        std::unordered_set<std::string> counted_polyglot_blocks;
+        long long polyglot_time_used_ms = 0;
         int advisory_count       = 0;
         int advisory_suppressed  = 0;
     };
@@ -4733,7 +4757,15 @@ private:
     // Execution counters. The block count is changed by every VM that runs a
     // polyglot block, async fn workers included, so it is one atomic step.
     std::atomic<int> polyglot_block_count_{0};
+    // limits.code.max_total_polyglot_lines: the lines of the distinct blocks
+    // counted so far (keyed by a SHA-256 of language, line and text), under
+    // polyglot_totals_mutex_; async fn workers share the engine. Tracked only
+    // while the limit is set, so the set is bounded by the limit.
     int total_polyglot_lines_ = 0;
+    std::unordered_set<std::string> counted_polyglot_blocks_;
+    mutable std::mutex polyglot_totals_mutex_;
+    // limits.timeout.total_polyglot: milliseconds spent in polyglot blocks.
+    std::atomic<long long> polyglot_time_used_ms_{0};
 
     // Audit trail
     std::string last_audit_hash_;

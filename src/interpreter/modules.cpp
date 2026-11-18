@@ -122,7 +122,8 @@ void Interpreter::visit(ast::UseStatement& node) {
                 metadata.language, code, current_file_,
                 node.getLocation().line, 0);
             if (!err.empty()) throw std::runtime_error(err);
-            std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
+            std::string count_err = governance_->incrementAndCheckPolyglotBlockCount(
+                metadata.language, code, node.getLocation().line);
             if (!count_err.empty()) throw std::runtime_error(count_err);
         }
         std::shared_ptr<BlockValue> block_value;

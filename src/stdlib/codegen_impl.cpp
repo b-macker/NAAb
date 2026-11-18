@@ -364,7 +364,7 @@ interpreter::NaabVal CodegenModule::call(
 
         // Step 9: Shared rate limiter (Gap 8)
         if (gov_engine && gov_engine->isActive()) {
-            std::string rate_err = gov_engine->incrementAndCheckPolyglotBlockCount();
+            std::string rate_err = gov_engine->incrementAndCheckPolyglotBlockCount(language, code, 0);
             if (!rate_err.empty()) {
                 throw std::runtime_error(rate_err);
             }

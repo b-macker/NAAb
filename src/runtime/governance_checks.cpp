@@ -10,6 +10,9 @@
 #include "naab/vm.h"
 #include "naab/analyzer/task_pattern_detector.h"
 #include "naab/language_descriptors.h"
+#include "naab/crypto_utils.h"
+#include "naab/literal_entry_match.h"
+#include "naab/import_allowlist.h"
 #include <algorithm>
 #include "naab/analyzer/syntactic_analyzer.h"
 #include <nlohmann/json.hpp>
@@ -6729,6 +6732,156 @@ std::string GovernanceEngine::checkObfuscationSignals(
 }
 
 // --- Per-Language: Imports ---
+namespace {
+// The imports a block of a listable language writes (naab/import_allowlist.h),
+// read from the same text the blocked-list check reads. `computed` marks an
+// import whose module name is not a literal (or a relative Python import,
+// which has no package to resolve against); `text` is what the block wrote.
+struct WrittenImport {
+    std::string name;
+    bool computed = false;
+    std::string text;
+};
+
+std::string trimImport(std::string s) {
+    const char* ws = " \t\r\n()";
+    const auto b = s.find_first_not_of(ws);
+    if (b == std::string::npos) return "";
+    const auto e = s.find_last_not_of(ws);
+    return s.substr(b, e - b + 1);
+}
+
+// A call like require(...) / __import__(...): the literal module name when its
+// first argument is one quoted string followed by `,` or `)`, else computed.
+void addCallImport(std::vector<WrittenImport>& out, const std::string& code,
+                   std::size_t after_paren, const std::string& callee) {
+    static const naab::rx::regex literal_arg(
+        "^\\s*(?:'([^'\\n]*)'|\"([^\"\\n]*)\"|`([^`$\\n]*)`)\\s*[,)]");
+    naab::rx::smatch m;
+    const std::string rest = code.substr(after_paren, 200);
+    WrittenImport w;
+    const std::size_t close = rest.find(')');
+    w.text = callee + "(" + rest.substr(0, close == std::string::npos ? 40 : std::min<std::size_t>(close + 1, 60));
+    if (naab::rx::regex_search(rest, m, literal_arg)) {
+        for (int g = 1; g <= 3; ++g) if (m[g].matched) { w.name = m[g].str(); break; }
+        if (w.name.empty()) w.computed = true;
+    } else {
+        w.computed = true;
+    }
+    out.push_back(std::move(w));
+}
+
+// Calls of `callee_re` (whose last group ends at the open parenthesis), each
+// added through addCallImport; a match right after '.' or '::' is a method of
+// another object, not the language's import call (Ruby's JSON.load).
+void addCalls(std::vector<WrittenImport>& out, const std::string& code, const std::string& callee_re,
+              bool skip_methods) {
+    naab::rx::regex re(callee_re);
+    for (naab::rx::sregex_iterator i(code.begin(), code.end(), re), end; i != end; ++i) {
+        const auto pos = static_cast<std::size_t>(i->position(0));
+        if (skip_methods && pos > 0) {
+            std::size_t k = pos;
+            while (k > 0 && (code[k - 1] == ' ' || code[k - 1] == '\t')) --k;
+            if (k > 0 && (code[k - 1] == '.' || code[k - 1] == ':')) continue;
+        }
+        addCallImport(out, code, pos + static_cast<std::size_t>(i->length(0)), (*i)[1].str());
+    }
+}
+
+void addQuotedFrom(std::vector<WrittenImport>& out, const std::string& code, const std::string& re_text) {
+    naab::rx::regex re(re_text);
+    for (naab::rx::sregex_iterator i(code.begin(), code.end(), re), end; i != end; ++i) {
+        WrittenImport w;
+        for (std::size_t g = 1; g < i->size(); ++g) if ((*i)[g].matched) { w.name = (*i)[g].str(); break; }
+        w.text = (*i)[0].str();
+        if (w.name.empty()) w.computed = true;
+        out.push_back(std::move(w));
+    }
+}
+
+std::vector<WrittenImport> listWrittenImports(const std::string& canonical, const std::string& code) {
+    std::vector<WrittenImport> out;
+    if (canonical == "python") {
+        // import a.b as c, d  /  from a.b import c  -- per statement (a line,
+        // or a ;-separated part of one).
+        std::size_t start = 0;
+        while (start <= code.size()) {
+            std::size_t nl = code.find('\n', start);
+            if (nl == std::string::npos) nl = code.size();
+            const std::string line_text = code.substr(start, nl - start);
+            std::size_t s0 = 0;
+            while (s0 <= line_text.size()) {
+                std::size_t semi = line_text.find(';', s0);
+                if (semi == std::string::npos) semi = line_text.size();
+                std::string stmt = trimImport(line_text.substr(s0, semi - s0));
+                const auto hash = stmt.find('#');
+                if (hash != std::string::npos) stmt = trimImport(stmt.substr(0, hash));
+                if (stmt.rfind("import ", 0) == 0 || stmt.rfind("import\t", 0) == 0) {
+                    std::string rest = stmt.substr(7);
+                    std::size_t c0 = 0;
+                    while (c0 <= rest.size()) {
+                        std::size_t comma = rest.find(',', c0);
+                        if (comma == std::string::npos) comma = rest.size();
+                        std::string item = trimImport(rest.substr(c0, comma - c0));
+                        const auto as = item.find(" as ");
+                        if (as != std::string::npos) item = trimImport(item.substr(0, as));
+                        if (!item.empty()) {
+                            WrittenImport w;
+                            w.name = item;
+                            w.text = "import " + item;
+                            out.push_back(std::move(w));
+                        }
+                        c0 = comma + 1;
+                    }
+                } else if (stmt.rfind("from ", 0) == 0 || stmt.rfind("from\t", 0) == 0) {
+                    const auto imp = stmt.find(" import");
+                    std::string mod = trimImport(stmt.substr(5, imp == std::string::npos ? std::string::npos : imp - 5));
+                    WrittenImport w;
+                    w.text = "from " + mod + " import ...";
+                    if (mod.empty() || mod[0] == '.') w.computed = true;  // relative: no package
+                    else w.name = mod;
+                    out.push_back(std::move(w));
+                }
+                s0 = semi + 1;
+            }
+            start = nl + 1;
+        }
+        addCalls(out, code, "\\b(__import__|import_module)\\s*\\(", false);
+    } else if (canonical == "javascript" || canonical == "typescript") {
+        addCalls(out, code, "\\b(require)\\s*\\(", true);
+        addCalls(out, code, "\\b(import)\\s*\\(", true);
+        addQuotedFrom(out, code, "\\b(?:import|export)\\s[^'\"`;]*?\\bfrom\\s*(?:'([^'\\n]*)'|\"([^\"\\n]*)\")");
+        addQuotedFrom(out, code, "\\bimport\\s*(?:'([^'\\n]*)'|\"([^\"\\n]*)\")");
+    } else if (canonical == "go") {
+        naab::rx::regex group("\\bimport\\s*\\(([^)]*)\\)");
+        for (naab::rx::sregex_iterator i(code.begin(), code.end(), group), end; i != end; ++i)
+            addQuotedFrom(out, (*i)[1].str(), "\"([^\"\\n]*)\"|`([^`]*)`");
+        addQuotedFrom(out, code, "\\bimport\\s+(?:[A-Za-z_.][A-Za-z0-9_]*\\s+)?(?:\"([^\"\\n]*)\"|`([^`]*)`)");
+    } else if (canonical == "ruby") {
+        naab::rx::regex call("\\b(require_relative|require|load)\\b");
+        static const naab::rx::regex literal_arg(
+            "^\\s*\\(?\\s*(?:'([^'\\n]*)'|\"([^\"\\n#]*)\")");
+        for (naab::rx::sregex_iterator i(code.begin(), code.end(), call), end; i != end; ++i) {
+            const auto pos = static_cast<std::size_t>(i->position(0));
+            std::size_t k = pos;
+            while (k > 0 && (code[k - 1] == ' ' || code[k - 1] == '\t')) --k;
+            if (k > 0 && (code[k - 1] == '.' || code[k - 1] == ':')) continue;  // obj.load
+            const std::size_t after = pos + static_cast<std::size_t>(i->length(0));
+            const std::string rest = code.substr(after, 200);
+            WrittenImport w;
+            w.text = (*i)[1].str() + rest.substr(0, std::min<std::size_t>(rest.find('\n'), 60));
+            naab::rx::smatch m;
+            if (naab::rx::regex_search(rest, m, literal_arg)) {
+                for (int g = 1; g <= 2; ++g) if (m[g].matched) { w.name = m[g].str(); break; }
+            }
+            if (w.name.empty()) w.computed = true;
+            out.push_back(std::move(w));
+        }
+    }
+    return out;
+}
+}  // namespace
+
 std::string GovernanceEngine::checkImports(const std::string& language,
                                             const std::string& code, int line) {
     auto& cfg = rules().restrictions.imports;
@@ -6736,7 +6889,8 @@ std::string GovernanceEngine::checkImports(const std::string& language,
     // Check per-language config even if restrictions.imports is not enabled
     auto it = rules().languages.per_language.find(language);
     bool has_per_lang = (it != rules().languages.per_language.end() &&
-                         (!it->second.imports.blocked.empty() || !it->second.banned_imports.empty()));
+                         (!it->second.imports.blocked.empty() || !it->second.banned_imports.empty() ||
+                          it->second.imports.mode == "allowlist"));
     if (!cfg.enabled && !has_per_lang) return "";
     clearTrace();
 
@@ -6798,6 +6952,49 @@ std::string GovernanceEngine::checkImports(const std::string& language,
             fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
         }
     }
+
+    // The import allowlist (naab/import_allowlist.h). Each list that applies
+    // to this language must admit every import the block writes; both forms
+    // apply when both are set (an import must be on each). An import whose
+    // name the block computes cannot be checked, so it is refused.
+    struct AppliedAllowlist {
+        const std::vector<std::string>* names;
+        EnforcementLevel level;
+        std::string rule;
+    };
+    std::vector<AppliedAllowlist> lists;
+    const std::string canonical = naab::lang::canonicalLanguage(language);
+    if (cfg.enabled && cfg.mode == "allowlist") {
+        for (const auto& [lang_key, names] : cfg.allowed) {
+            if (naab::lang::canonicalLanguage(lang_key) == canonical)
+                lists.push_back({&names, cfg.level, "restrictions.imports.allowed." + lang_key});
+        }
+    }
+    if (it != rules().languages.per_language.end() && it->second.imports.mode == "allowlist") {
+        lists.push_back({&it->second.imports.allowed, EnforcementLevel::HARD,
+                         fmt::format("languages.per_language.{}.imports.allowed", language)});
+    }
+    if (!lists.empty()) {
+        const char sep = importNameSeparator(canonical);
+        for (const auto& imp : listWrittenImports(canonical, code)) {
+            for (const auto& list : lists) {
+                if (!imp.computed && importAdmitted(imp.name, *list.names, sep)) continue;
+                const std::string what = imp.computed
+                    ? fmt::format("A computed import in {} block cannot be checked against the allowlist: {}",
+                                  language, imp.text)
+                    : fmt::format("Import not on the allowlist in {} block: \"{}\"", language, imp.name);
+                addTrace(what);
+                return enforce("restrictions.imports", list.level,
+                    formatError(list.level, what,
+                        line > 0 ? fmt::format("line {}", line) : "",
+                        list.rule,
+                        imp.computed
+                            ? "Import modules by name, so the allowlist can be checked."
+                            : "Use a module the project allows, or ask the project owner to allow this one.",
+                        "", ""));
+            }
+        }
+    }
     recordPass("restrictions.imports", cfg.level);
     return "";
 }
@@ -6813,20 +7010,9 @@ std::string GovernanceEngine::checkBannedFunctions(const std::string& language,
 
     for (const auto& func : lc.banned_functions) {
         try {
-            // Escape regex metacharacters so entries like "curl |" are treated as literals
-            std::string escaped;
-            for (char c : func) {
-                if (std::string("\\^$.|?*+()[]{}").find(c) != std::string::npos)
-                    escaped += '\\';
-                escaped += c;
-            }
-            // For multi-word patterns, require word boundary or end-of-string after match
-            // to prevent "rm -rf /" from matching "rm -rf /tmp/safe"
-            if (func.find(' ') != std::string::npos) {
-                escaped += "(?:\\s|$)";
-            }
-            naab::rx::regex re(escaped, naab::rx::regex::icase);
-            if (naab::rx::regex_search(code, re)) {
+            // Literal, case-insensitive (naab/literal_entry_match.h, shared
+            // with restrictions.dangerous_calls.blocklist_extra).
+            if (literalEntryMatches(code, func)) {
                 // Per-function alternatives so LLMs know what to use instead
                 static const std::unordered_map<std::string, std::string> alternatives = {
                     {"eval(",     "Use a lookup table or if/else chain instead of dynamic evaluation"},
@@ -6994,11 +7180,42 @@ std::string GovernanceEngine::checkPolyglotBlockCount(size_t count) {
     return "";
 }
 
-std::string GovernanceEngine::incrementAndCheckPolyglotBlockCount() {
+std::string GovernanceEngine::incrementAndCheckPolyglotBlockCount(const std::string& language,
+                                                                const std::string& code, int line) {
     // The value checked is the value this call incremented to: a separate read
     // could see another thread's increment and both would check the same count.
     const int count = ++polyglot_block_count_;
-    return checkPolyglotBlockCount(static_cast<size_t>(count));
+    std::string err = checkPolyglotBlockCount(static_cast<size_t>(count));
+    if (!err.empty()) return err;
+
+    // limits.code.max_total_polyglot_lines: the program-wide total of polyglot
+    // code, per block, not per execution. Parsed since bcf647a0 and read by
+    // nothing, beside a total_polyglot_lines_ member nothing added to (A175).
+    // Counted whether or not a limit is set, so a reload that adds one (a
+    // tightening) judges everything the run has already executed.
+    const int max = rules().limits.code.max_total_polyglot_lines;
+    int lines = 1;
+    for (char c : code) if (c == '\n') ++lines;
+    int total = 0;
+    {
+        std::lock_guard<std::mutex> lk(polyglot_totals_mutex_);
+        const std::string key = security::CryptoUtils::sha256(
+            normalizeLanguage(language) + '\x1f' + std::to_string(line) + '\x1f' + code);
+        if (!counted_polyglot_blocks_.insert(key).second) return "";
+        total_polyglot_lines_ += lines;
+        total = total_polyglot_lines_;
+    }
+    if (max <= 0) return "";
+    clearTrace();
+    if (total <= max) return "";
+    addTrace(fmt::format("polyglot code totals {} lines across distinct blocks", total));
+    return enforce("limits.code.max_total_polyglot_lines", EnforcementLevel::HARD,
+        formatError(EnforcementLevel::HARD,
+            fmt::format("Polyglot code totals {} lines (max: {}); this {} block added {}",
+                        total, max, normalizeLanguage(language), lines),
+            line > 0 ? fmt::format("line {}", line) : "",
+            fmt::format("limits.code.max_total_polyglot_lines = {}", max),
+            "Move work out of polyglot blocks into NAAb, or into fewer, shorter blocks.", "", ""));
 }
 
 namespace {
@@ -7182,6 +7399,49 @@ std::string GovernanceEngine::checkBlockTimeLimit(const std::string& lang, int l
                 ? fmt::format("languages.per_language.{}.timeout = {}", normalized, limit_seconds)
                 : fmt::format("limits.timeout.per_block = {}", limit_seconds),
             "Make the block do less work, or split it into smaller blocks.", "", ""));
+}
+
+// limits.timeout.total_polyglot: parsed, merged and ratcheted, and read by
+// nothing (A175); "this script may run for five minutes but must not spend
+// more than thirty seconds in embedded code" (A2) had no way to be said.
+long long GovernanceEngine::polyglotTimeRemainingMs() const {
+    const int total = rules().limits.timeout.total_polyglot;
+    if (total <= 0) return -1;
+    const long long left = total * 1000LL - polyglot_time_used_ms_.load();
+    return left > 0 ? left : 0;
+}
+
+bool GovernanceEngine::chargePolyglotTime(long long elapsed_ms) {
+    if (elapsed_ms < 0) elapsed_ms = 0;
+    const long long used = (polyglot_time_used_ms_ += elapsed_ms);
+    const int total = rules().limits.timeout.total_polyglot;
+    return total > 0 && used >= total * 1000LL;
+}
+
+std::string GovernanceEngine::checkPolyglotTimeTotal(const std::string& language, int line) {
+    clearTrace();
+    const int total = rules().limits.timeout.total_polyglot;
+    addTrace(fmt::format("polyglot blocks have used {} ms of {} s",
+                         polyglot_time_used_ms_.load(), total));
+    return enforce("limits.timeout.total_polyglot", EnforcementLevel::HARD,
+        formatError(EnforcementLevel::HARD,
+            fmt::format("Polyglot blocks have used the run's polyglot time ({} seconds); "
+                        "this {} block is refused", total, normalizeLanguage(language)),
+            line > 0 ? fmt::format("line {}", line) : "",
+            fmt::format("limits.timeout.total_polyglot = {}", total),
+            "Do less work in polyglot blocks, or move it into NAAb.", "", ""));
+}
+
+std::string GovernanceEngine::checkToolTimeLimit(const std::string& agent, const std::string& tool,
+                                                 int limit_seconds) {
+    clearTrace();
+    addTrace(fmt::format("tool '{}' of agent '{}' ran past {}s", tool, agent, limit_seconds));
+    return enforce("agents.tool_timeout_seconds", EnforcementLevel::HARD,
+        formatError(EnforcementLevel::HARD,
+            fmt::format("Tool '{}' ran past its time limit ({} seconds)", tool, limit_seconds),
+            "",
+            fmt::format("agents.{}.tool_timeout_seconds = {}", agent, limit_seconds),
+            "Make the tool do less work per call, or split it into smaller tools.", "", ""));
 }
 
 const LanguageConfig* GovernanceEngine::getLanguageConfig(const std::string& lang) const {
@@ -7882,7 +8142,12 @@ void GovernanceEngine::restoreTaintState(const std::unordered_set<std::string>& 
 GovernanceEngine::CounterState GovernanceEngine::saveCounterState() const {
     CounterState s;
     s.polyglot_block_count = polyglot_block_count_.load();
-    s.total_polyglot_lines = total_polyglot_lines_;
+    {
+        std::lock_guard<std::mutex> lk(polyglot_totals_mutex_);
+        s.total_polyglot_lines = total_polyglot_lines_;
+        s.counted_polyglot_blocks = counted_polyglot_blocks_;
+    }
+    s.polyglot_time_used_ms = polyglot_time_used_ms_.load();
     s.advisory_count       = advisory_count_;
     s.advisory_suppressed  = advisory_suppressed_;
     return s;
@@ -7890,7 +8155,12 @@ GovernanceEngine::CounterState GovernanceEngine::saveCounterState() const {
 
 void GovernanceEngine::restoreCounterState(const CounterState& s) {
     polyglot_block_count_.store(s.polyglot_block_count);
-    total_polyglot_lines_ = s.total_polyglot_lines;
+    {
+        std::lock_guard<std::mutex> lk(polyglot_totals_mutex_);
+        total_polyglot_lines_ = s.total_polyglot_lines;
+        counted_polyglot_blocks_ = s.counted_polyglot_blocks;
+    }
+    polyglot_time_used_ms_.store(s.polyglot_time_used_ms);
     advisory_count_       = s.advisory_count;
     advisory_suppressed_  = s.advisory_suppressed;
 }

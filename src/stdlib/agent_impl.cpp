@@ -25,6 +25,8 @@
 #include "naab/rx.h"
 #include <atomic>
 #include <chrono>
+#include <optional>
+#include "naab/resource_limits.h"
 #include <thread>
 #include <algorithm>
 #ifdef _WIN32
@@ -329,6 +331,19 @@ static bool selectAttemptKey(const std::vector<std::string>& keys,
 //     each entry point;
 //   * a refused call is not made, so it is not counted: calls_made used to read
 //     one more than the provider ever received.
+// agent_dispatch.max_retries_per_run (0 = unlimited): parsed and merged since
+// 4fc8742e and read by nothing, so a run retried failing calls without bound
+// (A175). Asked before a retry: true while the run may retry, judged against
+// the run's failed-attempt count -- the `retries` that agent.dispatch_status()
+// and agent.usage() report -- so once it reaches the cap a failing call
+// returns its error instead of trying again. Every retry loop asks it: the
+// send, the tool loop and agent.propose().
+static bool retryAllowed(governance::GovernanceEngine* gov_engine) {
+    if (!gov_engine) return true;
+    const int cap = gov_engine->getRules().agent_dispatch.max_retries_per_run;
+    return cap <= 0 || s_dispatch.total_retries.load() <= cap;
+}
+
 static std::string chargeCallBudget(
         const governance::GovernanceRules::AgentDispatchConfig::HardStopConfig& hs,
         governance::GovernanceEngine* gov_engine,
@@ -3089,12 +3104,15 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             // are normal for tool-use models and should NOT be retried.
             if (result.response.content.empty() && result.response.tool_calls.empty()
                     && attempt + 1 < max_attempts) {
-                last_error = "empty response (0 output tokens)";
                 s_dispatch.total_retries++;
-                key_offset = key_offset_before;  // don't rotate key for empty response
-                if (config->retry.backoff_ms > 0)
-                    std::this_thread::sleep_for(std::chrono::milliseconds(config->retry.backoff_ms));
-                continue;
+                // max_retries_per_run spent: the empty reply stands.
+                if (retryAllowed(gov_engine)) {
+                    last_error = "empty response (0 output tokens)";
+                    key_offset = key_offset_before;  // don't rotate key for empty response
+                    if (config->retry.backoff_ms > 0)
+                        std::this_thread::sleep_for(std::chrono::milliseconds(config->retry.backoff_ms));
+                    continue;
+                }
             }
 
             // Success — reset consecutive failures, populate trace
@@ -3297,6 +3315,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 break;
             }
         }
+
+        // max_retries_per_run: the run's retries are spent; this call's
+        // failure stands (last_error) rather than trying again.
+        if (attempt + 1 < max_attempts && !retryAllowed(gov_engine)) break;
 
         // Backoff with jitter before next attempt
         if (attempt + 1 < max_attempts) {
@@ -3516,6 +3538,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
                 err = out.response.error;
                 s_dispatch.total_retries++;
+                if (!retryAllowed(gov_engine)) return false;  // max_retries_per_run
                 if (models.size() > 1) loop_model_idx++;   // fall back next attempt
                 if (attempt + 1 < max_attempts && config->retry.backoff_ms > 0) {
                     std::this_thread::sleep_for(
@@ -3750,12 +3773,48 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     int prev_handle = t_in_tool_execution_for_handle;
                     t_in_tool_execution_for_handle = handle_id;
 
+                    // agents.<name>.tool_timeout_seconds (default 10): parsed
+                    // since 2d3a9d64 and read by nothing, so a tool ran as long
+                    // as the run allowed (A175). As a polyglot block's limit
+                    // (A2): under enforce a thread-local timer interrupts the
+                    // tool's NAAb code -- the tool runs on this thread, or on a
+                    // VM lent to it (A93) -- and a tool that ran past the limit,
+                    // interrupted, returned or thrown, is refused at HARD.
+                    const int tool_limit = config->tool_timeout_seconds;
+                    const bool tool_limit_on = gov_engine && gov_engine->isActive() && tool_limit > 0;
+                    auto tool_ran_past = [&] {
+                        return tool_limit_on &&
+                               std::chrono::steady_clock::now() - tool_start >= std::chrono::seconds(tool_limit);
+                    };
+                    auto refuse_if_ran_past = [&] {
+                        if (!tool_ran_past()) return;
+                        t_in_tool_execution_for_handle = prev_handle;
+                        std::string err = gov_engine->checkToolTimeLimit(config_name, tc.name, tool_limit);
+                        if (!err.empty()) throw std::runtime_error(err);  // HARD throws itself
+                        t_in_tool_execution_for_handle = handle_id;
+                    };
+
                     try {
                         // Call tool function via the VM callback
                         NaabVal result_val;
                         if (gov_engine && gov_engine->hasVMCallbacks()) {
-                            result_val = gov_engine->callVMFunction(
-                                snap_it->second.function, naab_args, true);  // taint: args from LLM
+                            std::optional<security::ScopedTimeout> tool_timer;
+                            if (tool_limit_on && gov_engine->getMode() == governance::GovernanceMode::ENFORCE) {
+                                tool_timer.emplace(std::chrono::milliseconds(tool_limit * 1000LL),
+                                                   security::ScopedTimeout::Scope::Local);
+                            }
+                            try {
+                                result_val = gov_engine->callVMFunction(
+                                    snap_it->second.function, naab_args, true);  // taint: args from LLM
+                            } catch (const governance::GovernanceHardError&) {
+                                throw;
+                            } catch (...) {
+                                tool_timer.reset();
+                                refuse_if_ran_past();
+                                throw;
+                            }
+                            tool_timer.reset();
+                            refuse_if_ran_past();
                         } else {
                             throw std::runtime_error("Agent error: no VM callback for tool execution");
                         }
@@ -5973,6 +6032,10 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
                 got_response = true;
                 break;
             }
+            // A failed candidate attempt is a retry like the send's, counted
+            // and judged by max_retries_per_run.
+            s_dispatch.total_retries++;
+            if (!retryAllowed(gov_engine)) break;
             if (config->retry.backoff_ms > 0 && attempt + 1 < config->retry.max_attempts)
                 std::this_thread::sleep_for(
                     std::chrono::milliseconds(config->retry.backoff_ms));

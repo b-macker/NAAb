@@ -10,9 +10,11 @@
 #include "naab/governance_message_format.h"  // labels the LSP reads back (A43(d))
 #include "naab/contract_expr.h"   // contracts.<fn>.requires/ensures (Bundle 11)
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <vector>
 #include "naab/governance.h"
+#include "naab/import_allowlist.h"
 #include "naab/paths.h"
 #include "naab/telemetry_forwarder.h"
 #include "naab/limits.h"
@@ -949,6 +951,54 @@ static void warnNoEffectSettings(const nlohmann::json& j) {
     }
 }
 
+// The import allowlist is static (naab/import_allowlist.h): checkImports()
+// lists the imports a block writes, which it can do for python, javascript,
+// typescript, go and ruby only. An allowlist it cannot judge would let every
+// import through while reading as a restriction, so such a config is refused
+// (exit 4) rather than loaded -- as is a mode it does not know, which used to
+// mean "blocklist" whatever was written (A175, the owner's decision of
+// 2026-11-18). Throws std::runtime_error.
+static void checkImportAllowlists(const GovernanceRules& r) {
+    auto refuse = [](const std::string& key, const std::string& why) {
+        throw std::runtime_error(
+            "\"" + key + "\" " + why + "\n"
+            "  An import allowlist the engine cannot apply would let every import through,\n"
+            "  so the config is refused rather than loaded without it. An allowlist can be\n"
+            "  checked for python, javascript, typescript, go and ruby.");
+    };
+    // A mode the engine does not know: it cannot tell whether an allowlist was
+    // meant, so it does not guess (the blocked list applies in either mode).
+    auto refuse_mode = [](const std::string& key, const std::string& mode) {
+        throw std::runtime_error(
+            "\"" + key + "\" is \"" + mode + "\"; it must be \"blocklist\" or \"allowlist\".\n"
+            "  The engine cannot tell what an unknown mode meant, so the config is refused\n"
+            "  rather than loaded with a guess.");
+    };
+    auto known_mode = [](const std::string& m) { return m == "blocklist" || m == "allowlist"; };
+    const auto& ri = r.restrictions.imports;
+    if (!known_mode(ri.mode))
+        refuse_mode("restrictions.imports.mode", ri.mode);
+    if (ri.mode == "allowlist") {
+        if (ri.allowed.empty())
+            refuse("restrictions.imports.allowed", "names no language, so the allowlist restricts nothing.");
+        for (const auto& [lang, names] : ri.allowed) {
+            (void)names;
+            if (lang == "any")
+                refuse("restrictions.imports.allowed.any", "cannot be checked: name each language.");
+            if (!importsListable(naab::lang::canonicalLanguage(lang)))
+                refuse("restrictions.imports.allowed." + lang,
+                       "is an allowlist for a language whose imports cannot be listed.");
+        }
+    }
+    for (const auto& [lang, lc] : r.languages.per_language) {
+        if (!known_mode(lc.imports.mode))
+            refuse_mode("languages.per_language." + lang + ".imports.mode", lc.imports.mode);
+        if (lc.imports.mode == "allowlist" && !importsListable(naab::lang::canonicalLanguage(lang)))
+            refuse("languages.per_language." + lang + ".imports.mode",
+                   "is an allowlist for a language whose imports cannot be listed.");
+    }
+}
+
 static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // Take the one load-time environment snapshot (env_snapshot.h) -- the proxy,
     // CA bundle and environment every outbound connection and guidance command
@@ -965,6 +1015,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
 #endif
     warnNoEffectSettings(loaded);
     loadFromJsonImpl(loaded, rules_);
+    checkImportAllowlists(rules_);
     reconcileCapabilityMirrors(rules_);
     reconcileCodeQualityMirrors(rules_);
 }
@@ -5541,7 +5592,9 @@ static void checkCapabilityListRatchet(
 // grep for every reader and every parse):
 //   - parsed, read by no check: code_quality.no_secrets.allowlist (observed:
 //     listing the exact secret still blocks), restrictions.dangerous_calls
-//     allowlist / blocklist_extra, the import `mode` / `allowed` keys;
+//     allowlist. (blocklist_extra and the import `mode` / `allowed` keys were
+//     here until they were wired (A175): blocklist_extra is a declared
+//     `order superset`, the import allowlists are compared below.)
 //   - read by a check, never parsed (loadSimpleCheck takes only level and
 //     patterns, so they are always empty): no_debug_artifacts.allowlist,
 //     no_hardcoded_urls.allowlist, no_hardcoded_ips.allowlist;
@@ -5661,6 +5714,83 @@ static void checkDetectionListRatchet(
         ratchetDenyList(ol.banned_imports, nbi, exactCovers,
                         fmt::format("languages.per_language.{}.banned_imports", lang), "no longer blocked",
                         violations, notices);
+    }
+
+    // Import allowlists (naab/import_allowlist.h): restrictions.imports in mode
+    // "allowlist" (at restrictions.imports.level) and
+    // languages.per_language.<lang>.imports in mode "allowlist" (at HARD). Read
+    // by checkImports() since A175's wiring; before it nothing consulted them,
+    // so nothing here compared them. Judged by what each side REFUSES, name by
+    // name, not by entries: switching a project from the blocklist to an
+    // allowlist is a tightening an entry diff would refuse. Every list that
+    // applies to a language must admit a name (they intersect), so a name is
+    // refused as strictly as the strictest list that does not admit it. The
+    // names probed are every entry of either side plus one no entry admits:
+    // two names nested under the same entries get the same verdict from every
+    // list, and the longest of those entries is itself such a name, so the
+    // probe set is complete. A computed import is refused on any side that has
+    // a list, so it loosens exactly when a language loses its last list, which
+    // the unlisted name already shows.
+    struct AllowList { const std::vector<std::string>* names; EnforcementLevel level; };
+    auto allowLists = [](const GovernanceRules& r) {
+        std::map<std::string, std::vector<AllowList>> out;
+        const auto& ri = r.restrictions.imports;
+        if (ri.enabled && ri.mode == "allowlist")
+            for (const auto& [lang, names] : ri.allowed)
+                out[naab::lang::canonicalLanguage(lang)].push_back({&names, ri.level});
+        for (const auto& [lang, lc] : r.languages.per_language)
+            if (lc.imports.mode == "allowlist")
+                out[naab::lang::canonicalLanguage(lang)].push_back({&lc.imports.allowed,
+                                                                    EnforcementLevel::HARD});
+        return out;
+    };
+    // {refused without override, refused with override, reported at all}
+    auto verdict = [](const std::vector<AllowList>& lists, const std::string& name, char sep) {
+        std::array<int, 3> v{0, 0, 0};
+        for (const auto& l : lists) {
+            if (governance::importAdmitted(name, *l.names, sep)) continue;
+            v[0] = std::max(v[0], levelRefusal(l.level, false));
+            v[1] = std::max(v[1], levelRefusal(l.level, true));
+            v[2] = 1;
+        }
+        return v;
+    };
+    const auto old_lists = allowLists(old_r);
+    const auto new_lists = allowLists(new_r);
+    static const std::vector<AllowList> kNoLists;
+    std::set<std::string> langs;
+    for (const auto& [l, _] : old_lists) langs.insert(l);
+    for (const auto& [l, _] : new_lists) langs.insert(l);
+    for (const auto& lang : langs) {
+        auto oi = old_lists.find(lang);
+        auto ni = new_lists.find(lang);
+        const auto& ol = oi == old_lists.end() ? kNoLists : oi->second;
+        const auto& nl = ni == new_lists.end() ? kNoLists : ni->second;
+        const char sep = governance::importNameSeparator(lang);
+        std::set<std::string> probes{std::string("\x01" "unlisted")};
+        for (const auto* side : {&ol, &nl})
+            for (const auto& l : *side)
+                for (const auto& e : *l.names) if (!e.empty()) probes.insert(e);
+        std::string loosened, tightened;
+        for (const auto& name : probes) {
+            const auto vo = verdict(ol, name, sep);
+            const auto vn = verdict(nl, name, sep);
+            const std::string shown = name[0] == '\x01' ? std::string("an unlisted module")
+                                                        : "'" + name + "'";
+            bool looser = false, tighter = false;
+            for (int k = 0; k < 3; ++k) {
+                if (vn[k] < vo[k]) looser = true;
+                if (vn[k] > vo[k]) tighter = true;
+            }
+            if (looser) loosened += (loosened.empty() ? "" : ", ") + shown;
+            else if (tighter) tightened += (tightened.empty() ? "" : ", ") + shown;
+        }
+        if (!loosened.empty())
+            violations.push_back(fmt::format("import allowlist ({}): {} refused less (loosened)",
+                                             lang, loosened));
+        if (!tightened.empty())
+            notices.push_back(fmt::format("import allowlist ({}): {} refused more (tightened)",
+                                          lang, tightened));
     }
 }
 

@@ -546,9 +546,17 @@ int checkFlagOverlays(std::vector<std::string>& failures) {
             for (unsigned flag_t : {0u, 1u, 5u, 100u}) {
                 for (size_t conf_m : {size_t(0), size_t(64), size_t(2048)}) {
                     for (size_t flag_m : {size_t(0), size_t(32), size_t(512), size_t(4096)}) {
+                      for (int total_mb : {0, 48, 1024, 8192}) {
                         rules.runtime.timeout = conf_t;
                         rules.runtime.timeout_configured = configured;
                         rules.runtime.memory_limit = conf_m;
+                        // The same request without limits.memory.total_mb: the
+                        // cap may only lower what the run would otherwise get.
+                        rules.memory_limit_mb = 0;
+                        unsigned t0 = flag_t ? flag_t : 30u;
+                        size_t m0 = flag_m ? flag_m : size_t(512);
+                        naab::runlimits::applyConfiguredRunLimits(rules, t0, flag_t != 0, m0, flag_m != 0);
+                        rules.memory_limit_mb = total_mb;
                         unsigned t = flag_t ? flag_t : 30u;
                         size_t m = flag_m ? flag_m : size_t(512);
                         naab::runlimits::applyConfiguredRunLimits(rules, t, flag_t != 0, m, flag_m != 0);
@@ -559,6 +567,13 @@ int checkFlagOverlays(std::vector<std::string>& failures) {
                         if (conf_m > 0 && m > conf_m)
                             failures.push_back("memory: flag " + std::to_string(flag_m) + " raises configured " +
                                                std::to_string(conf_m) + " to " + std::to_string(m));
+                        if (total_mb > 0 && m > static_cast<size_t>(total_mb))
+                            failures.push_back("memory: limits.memory.total_mb " + std::to_string(total_mb) +
+                                               " is exceeded (" + std::to_string(m) + ")");
+                        if (m > m0)
+                            failures.push_back("memory: limits.memory.total_mb " + std::to_string(total_mb) +
+                                               " raises " + std::to_string(m0) + " to " + std::to_string(m));
+                      }
                     }
                 }
             }

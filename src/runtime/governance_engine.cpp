@@ -19,6 +19,7 @@
 #include "naab/agent_review.h"
 #include "naab/agent_provider.h"
 #include "naab/crypto_utils.h"
+#include "naab/literal_entry_match.h"
 #include "naab/trust_store.h"
 #include "naab/secure_file.h"
 #include "naab/subprocess_helpers.h"
@@ -3562,6 +3563,28 @@ std::string GovernanceEngine::checkDangerousCall(
         }
     }
 
+    // restrictions.dangerous_calls.blocklist_extra: names the operator adds to
+    // the built-in patterns, in any language, matched as literal text the way
+    // banned_functions is. Parsed since bcf647a0 and read by nothing (A175).
+    for (const auto& extra : rules().restrictions.dangerous_calls.blocklist_extra) {
+        if (extra.empty()) continue;
+        bool hit = false;
+        try {
+            hit = literalEntryMatches(code, extra);
+        } catch (const std::regex_error&) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed for a dangerous-call entry\n");
+        }
+        if (!hit) continue;
+        const auto level = rules().dangerous_calls_level;
+        return enforce("restrictions.dangerous_calls", level,
+            formatError(level,
+                fmt::format("Dangerous call in {} block: \"{}\"", language, extra),
+                line > 0 ? fmt::format("line {}: {} block", line, language)
+                         : fmt::format("{} block", language),
+                fmt::format("restrictions.dangerous_calls.blocklist_extra (\"{}\")", extra),
+                "This call is on the project's list of dangerous calls.", "", ""));
+    }
+
     recordPass("restrictions.dangerous_calls", rules().dangerous_calls_level);
     return "";
 }
@@ -5937,6 +5960,60 @@ static void sigDiag(const char* fmt, ...) {
     va_end(ap);
 }
 
+// Authority decay: the age of a signature that has VERIFIED, judged by the
+// trust policy (t_verify_trust_policy, else the active one) at
+// trust.stale_signature_level. A signature older than max_signature_age_days
+// is stale. So is one that carries no signing time -- a legacy HMAC signature,
+// or an Ed25519 one made before e00f78b8 -- when trust.require_fresh_signature
+// is set: the age check ran only `if (signed_at > 0 ...)`, so such a signature
+// never went stale, and require_fresh_signature was parsed and read by nothing
+// (A175; spec from docs/findings/inert-config-keys.md). The undated case is
+// refused at HARD; the age case at stale_signature_level. The timestamp is
+// inside the signed payload, so stripping it breaks verification rather than
+// evading this. False: refuse the file.
+bool GovernanceEngine::signatureAgeAcceptable(const std::string& file_path,
+                                              int64_t signed_at) const {
+    const TrustPolicyConfig& tp = t_verify_trust_policy
+        ? *t_verify_trust_policy : rules().trust_policy;
+    std::string block_what, soft_what, warn_what;
+    if (signed_at > 0 && tp.max_signature_age_days > 0) {
+        const int64_t now = static_cast<int64_t>(std::time(nullptr));
+        const int64_t age_days = (now - signed_at) / 86400;
+        if (age_days <= tp.max_signature_age_days) return true;
+        char buf[512];
+        snprintf(buf, sizeof(buf), "%s is %lld days old (max: %d)", file_path.c_str(),
+                 static_cast<long long>(age_days), tp.max_signature_age_days);
+        block_what = soft_what = buf;
+        snprintf(buf, sizeof(buf), "Signature on %s is %lld days old (max: %d)", file_path.c_str(),
+                 static_cast<long long>(age_days), tp.max_signature_age_days);
+        warn_what = buf;
+    } else if (signed_at <= 0 && tp.require_fresh_signature) {
+        // "Require" means refuse (the owner's decision, 2026-11-18): a
+        // signature with no signing time fails like one that does not verify,
+        // whatever stale_signature_level says -- that level judges the AGE of
+        // a dated signature, and an undated one has no age to judge.
+        sigDiag("[governance] STALE SIGNATURE BLOCK: %s's signature carries no signing time, "
+                "and a fresh signature is required.\n"
+                "  The signing key holder must re-sign this file.\n", file_path.c_str());
+        return false;
+    } else {
+        return true;
+    }
+    if (tp.stale_signature_level == governance::EnforcementLevel::HARD) {
+        sigDiag("[governance] STALE SIGNATURE BLOCK: %s.\n"
+                "  The signing key holder must re-sign this file.\n", block_what.c_str());
+        return false;
+    }
+    if (tp.stale_signature_level == governance::EnforcementLevel::SOFT) {
+        sigDiag("[governance] STALE SIGNATURE: %s.\n"
+                "  The signing key holder must re-sign this file.\n", soft_what.c_str());
+        return override_enabled_;  // SOFT: refused unless overridden
+    }
+    sigDiag("[governance] WARNING: %s.\n"
+            "  Consider having the signing key holder re-sign this file.\n", warn_what.c_str());
+    return true;
+}
+
 // V-SC-009: Unified signature verification (Ed25519 trust-anchored + HMAC legacy)
 bool GovernanceEngine::verifySignatureImpl(
     const std::string& file_path, const std::string& content) const
@@ -6041,39 +6118,7 @@ bool GovernanceEngine::verifySignatureImpl(
                 return false;
             }
 
-            // Authority Decay: check signature staleness
-            const TrustPolicyConfig& tp = t_verify_trust_policy
-                ? *t_verify_trust_policy : rules().trust_policy;
-            if (signed_at > 0 && tp.max_signature_age_days > 0) {
-                int64_t now = static_cast<int64_t>(std::time(nullptr));
-                int64_t age_days = (now - signed_at) / 86400;
-                if (age_days > tp.max_signature_age_days) {
-                    if (tp.stale_signature_level == governance::EnforcementLevel::HARD) {
-                        sigDiag(
-                            "[governance] STALE SIGNATURE BLOCK: %s is %lld days old (max: %d).\n"
-                            "  The signing key holder must re-sign this file.\n",
-                            file_path.c_str(), static_cast<long long>(age_days),
-                            tp.max_signature_age_days);
-                        return false;
-                    } else if (tp.stale_signature_level == governance::EnforcementLevel::SOFT) {
-                        sigDiag(
-                            "[governance] STALE SIGNATURE: %s is %lld days old (max: %d).\n"
-                            "  The signing key holder must re-sign this file.\n",
-                            file_path.c_str(), static_cast<long long>(age_days),
-                            tp.max_signature_age_days);
-                        // SOFT: block unless override enabled
-                        if (!override_enabled_) return false;
-                    } else {
-                        sigDiag(
-                            "[governance] WARNING: Signature on %s is %lld days old (max: %d).\n"
-                            "  Consider having the signing key holder re-sign this file.\n",
-                            file_path.c_str(), static_cast<long long>(age_days),
-                            tp.max_signature_age_days);
-                    }
-                }
-            }
-
-            return true;  // Verified against a trusted key
+            return signatureAgeAcceptable(file_path, signed_at);  // verified; now its age
         }
 
         // Ed25519 sig but no trust store keys.
@@ -6125,7 +6170,8 @@ bool GovernanceEngine::verifySignatureImpl(
         return false;
     }
 
-    return true;
+    // An HMAC signature carries no signing time: verified, it is judged as one.
+    return signatureAgeAcceptable(file_path, 0);
 }
 
 bool GovernanceEngine::verifyFileSignatureQuiet(
