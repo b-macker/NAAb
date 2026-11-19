@@ -18,6 +18,13 @@
 #   VC-06  bump-version.sh on a copy sets every declaration to a test version,
 #          and the checker then passes there
 #   VC-07  bump-version.sh fails, not skips, when a declaration is missing
+#
+# Every check reads a copy of the files with CR removed: the subject is the
+# committed text, and a Windows checkout (core.autocrlf) hands the shell each
+# file with CRLF, which read every declaration as missing or as "2.0.2 (expected
+# 2.0.2)" (reproduced here by converting the files: VC-01, VC-05 and VC-06
+# failed). UNMEASURABLE fails the suite, as everywhere else: a run with the
+# binaries not built passed before. Registered in run-all-tests.sh since A181.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -62,16 +69,17 @@ check_tree() {
     elif [ "$got" != "$minor" ]; then echo "SECURITY.md: current row $got.x (expected $minor.x)"; fi
 }
 
-copy_tree() {  # copy_tree DEST: the files that declare the version, at their paths
+copy_tree() {  # copy_tree DEST: the files that declare the version, at their paths, CR removed
     local f
-    for f in $FILES; do mkdir -p "$1/$(dirname "$f")"; cp "$REPO/$f" "$1/$f"; done
+    for f in $FILES; do mkdir -p "$1/$(dirname "$f")"; tr -d '\r' < "$REPO/$f" > "$1/$f"; done
 }
 
-V=$(cmake_version "$REPO")
+copy_tree "$W/real"
+V=$(cmake_version "$W/real")
 if [ -z "$V" ]; then echo "  CMakeLists.txt declares no version: UNMEASURABLE, not a pass"; exit 1; fi
 
 # ---- VC-01 ----------------------------------------------------------------------
-D=$(check_tree "$REPO" "$V")
+D=$(check_tree "$W/real" "$V")
 if [ -z "$D" ]; then pass VC-01 "every declaration says $V"
 else fail VC-01 "declarations disagree with CMakeLists.txt ($V)" "$D"; fi
 
@@ -84,7 +92,7 @@ if [ -x "$NAAB" ] && [ -x "$GOV" ]; then
 else unm VC-02 "naab-lang or naab-gov not built"; fi
 
 # ---- VC-03 ----------------------------------------------------------------------
-if grep -q "^## \[${V//./\\.}\] - " "$REPO/CHANGELOG.md"; then pass VC-03 "CHANGELOG.md has a [$V] section"
+if grep -q "^## \[${V//./\\.}\] - " "$W/real/CHANGELOG.md"; then pass VC-03 "CHANGELOG.md has a [$V] section"
 else fail VC-03 "CHANGELOG.md has no [$V] section"; fi
 
 # ---- VC-04 ----------------------------------------------------------------------
@@ -121,4 +129,4 @@ else fail VC-07 "the script did not fail on a missing declaration (rc=$RC)" "$OU
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed, $UNM unmeasurable ==="
-[ "$FAIL" -eq 0 ]
+[ "$FAIL" -eq 0 ] && [ "$UNM" -eq 0 ]

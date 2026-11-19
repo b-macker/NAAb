@@ -5110,6 +5110,21 @@ else
     echo "  test_release_publisher.sh: not found, skipping"
 fi
 
+VERSION_CONSISTENCY_SCRIPT="tests/self-audit/test_version_consistency.sh"
+if [ -f "$VERSION_CONSISTENCY_SCRIPT" ]; then
+    # Every file that declares NAAb's version agrees with CMakeLists.txt, both
+    # binaries print it, and scripts/bump-version.sh reaches each declaration.
+    # It ran nowhere from #348 until A181. Needs naab-lang and naab-gov built.
+    if run_shell_test "$VERSION_CONSISTENCY_SCRIPT" 2>&1; then
+        echo "  test_version_consistency.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_version_consistency.sh")
+    fi
+else
+    echo "  test_version_consistency.sh: not found, skipping"
+fi
+
 VENDORED_PATCHES_SCRIPT="tests/self-audit/test_vendored_patches.sh"
 if [ -f "$VENDORED_PATCHES_SCRIPT" ]; then
     # The vendored QuickJS is its archive plus the A89 regexp-timeout patch,
