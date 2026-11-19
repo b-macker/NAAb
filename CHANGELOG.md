@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed -- one workflow publishes a release (A180; migration note)
+- **A release page is published once, with its notes and every file.** `release.yml` now makes the signed binary, the SBOM and the provenance file itself (they were `supply-chain.yml`'s jobs). Its release step runs after every other job and publishes all 17 files in one step, and it refuses to publish when one is missing. Before, the supply-chain workflow created and published the page seconds after the tag, with no notes and none of the four packages: v2.0.2's page was public that way for 26 minutes, and v2.0.0's build failed and left one published. `supply-chain.yml` now only scans and may not write to the repository, and `fuzz-nightly.yml` gets the read-only token every other workflow has. Test: `tests/self-audit/test_release_publisher.sh`.
+  - **Migration:** from v2.0.3, the cosign certificate of `naab-lang.sig` names `.github/workflows/release.yml@refs/tags/vX.Y.Z` (v2.0.2 and earlier: `supply-chain.yml`). A verification that pins the workflow must accept the new name. `SECURITY.md` now shows a check that accepts both and no other repository; the command it showed before accepted a signature made by any GitHub repository's workflow (A182).
+
 ## [2.0.2] - 2026-11-19
 
 Covers `v2.0.1..v2.0.2`: 38 merged pull requests (#350 to #387), Bundles 8 to 18 and settings-liveness step 3. Every command under Added is new in this release; an entry further down that changes or fixes one of them records work done before the release, and the Added entry describes the command as it ships.

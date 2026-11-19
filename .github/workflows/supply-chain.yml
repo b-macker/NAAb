@@ -13,9 +13,12 @@ on:
   # Manual trigger; gitleaks-action treats this like schedule (full-history scan)
   workflow_dispatch:
 
+# Scans only. Signing, the SBOM and the provenance file a release carries are
+# made and published by release.yml (A180): this workflow used to create and
+# publish the release page itself, seconds after a v* tag, before release.yml's
+# notes and packages existed. It may not write contents, so it cannot again.
 permissions:
-  contents: write
-  id-token: write  # For cosign keyless signing
+  contents: read
   security-events: write  # For uploading SARIF results
 
 jobs:
@@ -102,15 +105,6 @@ jobs:
             sbom/naab-sbom.cdx.json
             sbom/naab-sbom.txt
 
-      - name: Attach SBOM to release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
-        with:
-          files: |
-            sbom/naab-sbom.spdx.json
-            sbom/naab-sbom.cdx.json
-            sbom/naab-sbom.txt
-
   # ==========================================================================
   # Job 4: Vulnerability Scanning (using SBOM)
   # ==========================================================================
@@ -145,112 +139,7 @@ jobs:
           sarif_file: results.sarif
 
   # ==========================================================================
-  # Job 5: Build and Sign Release Artifacts
-  # ==========================================================================
-  build-and-sign:
-    name: Build and Sign Artifacts
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-      id-token: write
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            cmake \
-            ninja-build \
-            libsqlite3-dev \
-            python3-dev \
-            python3-pybind11 \
-            libssl-dev \
-            libffi-dev \
-            libcurl4-openssl-dev \
-            pkg-config
-
-      - name: Build release binary
-        run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
-          ninja -C build naab-lang
-          strip build/naab-lang
-
-      - name: Install cosign
-        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
-
-      - name: Generate checksums
-        run: |
-          cd build
-          sha256sum naab-lang > naab-lang.sha256
-          sha512sum naab-lang > naab-lang.sha512
-
-      - name: Sign binary with cosign
-        run: |
-          chmod +x scripts/sign-artifacts.sh
-          SIGN_METHOD=cosign ./scripts/sign-artifacts.sh build/naab-lang
-
-      - name: Upload release artifacts
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
-        with:
-          files: |
-            build/naab-lang
-            build/naab-lang.sig
-            build/naab-lang.pem
-            build/naab-lang.sha256
-            build/naab-lang.sha512
-
-  # ==========================================================================
-  # Job 6: Supply Chain Provenance (SLSA)
-  # ==========================================================================
-  provenance:
-    name: Generate SLSA Provenance
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build-and-sign
-    permissions:
-      contents: write
-      id-token: write
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Generate provenance attestation
-        run: |
-          echo "SLSA provenance generation"
-          echo "Build completed from ref: ${{ github.ref }}"
-          echo "Commit: ${{ github.sha }}"
-          echo "Builder: GitHub Actions"
-          cat > provenance.json <<PROVENANCE
-          {
-            "buildType": "https://github.com/slsa-framework/slsa-github-generator",
-            "builder": { "id": "https://github.com/${{ github.repository }}/actions" },
-            "invocation": {
-              "configSource": {
-                "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
-                "digest": { "sha1": "${{ github.sha }}" }
-              }
-            },
-            "metadata": {
-              "buildStartedOn": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-              "completeness": { "parameters": true, "environment": true, "materials": true }
-            }
-          }
-          PROVENANCE
-
-      - name: Upload provenance
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
-        with:
-          files: provenance.json
-
-  # ==========================================================================
-  # Job 7: License Compliance Check
+  # Job 5: License Compliance Check
   # ==========================================================================
   license-check:
     name: License Compliance
@@ -274,7 +163,7 @@ jobs:
           echo "✓ License check complete"
 
   # ==========================================================================
-  # Job 8: Supply Chain Summary
+  # Job 6: Supply Chain Summary
   # ==========================================================================
   summary:
     name: Supply Chain Summary
@@ -295,6 +184,6 @@ jobs:
           echo "## Security Features" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Dependency lockfile (DEPENDENCIES.lock)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ SBOM generation (SPDX + CycloneDX)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Artifact signing (cosign)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Artifact signing (cosign), in release.yml on a v* tag" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Secret scanning (gitleaks)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Vulnerability scanning (Grype)" >> $GITHUB_STEP_SUMMARY
