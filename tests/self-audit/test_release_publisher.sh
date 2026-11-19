@@ -43,6 +43,16 @@ unm()  { UNM=$((UNM+1));   echo "  UNMEASURABLE [$1] $2"; }
 
 echo "=== one job publishes a release, last, with everything (A180) ==="
 if ! python3 -c 'import yaml' 2>/dev/null; then
+    # build-windows' MSYS2 Python has no PyYAML (observed: the first run of
+    # this suite there read 1 unmeasurable). The subject is the workflow
+    # files, the same text on every runner, and Build & Test, the non-root
+    # run and build-linux measure it; as test_vendored_patches.sh does, the
+    # Windows job says so and passes. Anywhere else a missing PyYAML fails.
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            echo "  test_release_publisher.sh: SKIPPED (no PyYAML in the MSYS2 Python; the workflow files are the same text everywhere and the Linux jobs measure this)"
+            exit 0 ;;
+    esac
     unm RL-00 "python3 with PyYAML is needed to read the workflow files -- UNMEASURABLE, not a pass"
     echo "=== Results: 0 passed, 0 failed, 1 unmeasurable ==="; exit 1
 fi
