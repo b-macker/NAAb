@@ -5,6 +5,12 @@ on:
     - cron: '0 4 * * *'
   workflow_dispatch:
 
+# Checkout, cache and artifact uploads only. The least-privilege blocks of
+# 49752162 predate this workflow (added two days later), so its token had the
+# repository default. tests/self-audit/test_release_publisher.sh RL-05.
+permissions:
+  contents: read
+
 jobs:
   grammar-fuzz:
     name: Grammar Fuzz (naabfuzz, 30 min)

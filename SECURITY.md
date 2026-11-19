@@ -188,23 +188,26 @@ sudo apt update && sudo apt upgrade naab-lang
 # Homebrew
 brew update && brew upgrade naab-lang
 
-# Or download latest release
-wget https://github.com/b-macker/NAAb/releases/latest/naab-lang
+# Or download the latest release's signed Linux x86_64 binary
+wget https://github.com/b-macker/NAAb/releases/latest/download/naab-lang
 ```
 
 **Verify Signature:**
 ```bash
 # Download signature and certificate
-wget https://github.com/b-macker/NAAb/releases/download/v0.2.0/naab-lang.sig
-wget https://github.com/b-macker/NAAb/releases/download/v0.2.0/naab-lang.pem
+wget https://github.com/b-macker/NAAb/releases/latest/download/naab-lang.sig
+wget https://github.com/b-macker/NAAb/releases/latest/download/naab-lang.pem
 
-# Verify with cosign
+# Verify with cosign: the signature must come from this repository's release
+# workflow, run for a version tag
 cosign verify-blob naab-lang \
   --signature naab-lang.sig \
   --certificate naab-lang.pem \
-  --certificate-identity-regexp=".*github.com.*" \
+  --certificate-identity-regexp='^https://github\.com/b-macker/NAAb/\.github/workflows/(release|supply-chain)\.yml@refs/tags/v[0-9]' \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com"
 ```
+
+The certificate names the workflow that signed: `release.yml` from v2.0.3 on, `supply-chain.yml` for v2.0.2 and earlier (observed in v2.0.2's certificate: `https://github.com/b-macker/NAAb/.github/workflows/supply-chain.yml@refs/tags/v2.0.2`). Name this repository in the identity: a pattern such as `.*github.com.*` also accepts a signature made by any other repository's workflow.
 
 ## Vulnerability Disclosure Policy
 

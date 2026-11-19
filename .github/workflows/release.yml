@@ -5,8 +5,14 @@ on:
     tags:
       - 'v*'
 
+# This workflow is the only one that publishes a release (A180). Every job
+# reads; only create-release may write, and it runs after every other job, so
+# the release page appears once, with its notes and every file. Before, the
+# supply-chain workflow created and published the page seconds after the tag,
+# with no notes and none of the packages, and left it so when a build failed
+# (v2.0.0). tests/self-audit/test_release_publisher.sh pins this shape.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-linux-x86_64:
@@ -117,10 +123,117 @@ jobs:
           name: windows-x86_64
           path: build/naab-windows-x86_64.zip*
 
+  # The supply-chain files: these three jobs were supply-chain.yml's, each
+  # uploading straight to the release (A180). They now hand their files to
+  # create-release as artifacts. Each artifact's paths share one directory, so
+  # its files land at the download root under the names published below.
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate SBOM
+        run: |
+          chmod +x scripts/generate-sbom.sh
+          ./scripts/generate-sbom.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            sbom/naab-sbom.spdx.json
+            sbom/naab-sbom.cdx.json
+            sbom/naab-sbom.txt
+
+  # Keyless cosign: the certificate names this workflow, so from v2.0.3 on a
+  # signature verifies as .github/workflows/release.yml@refs/tags/vX.Y.Z
+  # (v2.0.2 and earlier: supply-chain.yml). SECURITY.md shows the check.
+  sign:
+    name: Build and Sign Artifacts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            libsqlite3-dev \
+            python3-dev \
+            python3-pybind11 \
+            libssl-dev \
+            libffi-dev \
+            libcurl4-openssl-dev \
+            pkg-config
+      - name: Build release binary
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
+          ninja -C build naab-lang
+          strip build/naab-lang
+      - name: Install cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+      - name: Generate checksums
+        run: |
+          cd build
+          sha256sum naab-lang > naab-lang.sha256
+          sha512sum naab-lang > naab-lang.sha512
+      - name: Sign binary with cosign
+        run: |
+          chmod +x scripts/sign-artifacts.sh
+          SIGN_METHOD=cosign ./scripts/sign-artifacts.sh build/naab-lang
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-binary
+          path: |
+            build/naab-lang
+            build/naab-lang.sig
+            build/naab-lang.pem
+            build/naab-lang.sha256
+            build/naab-lang.sha512
+
+  provenance:
+    name: Generate SLSA Provenance
+    needs: sign
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate provenance attestation
+        run: |
+          echo "SLSA provenance generation"
+          echo "Build completed from ref: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Builder: GitHub Actions"
+          cat > provenance.json <<PROVENANCE
+          {
+            "buildType": "https://github.com/slsa-framework/slsa-github-generator",
+            "builder": { "id": "https://github.com/${{ github.repository }}/actions" },
+            "invocation": {
+              "configSource": {
+                "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                "digest": { "sha1": "${{ github.sha }}" }
+              }
+            },
+            "metadata": {
+              "buildStartedOn": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "completeness": { "parameters": true, "environment": true, "materials": true }
+            }
+          }
+          PROVENANCE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: provenance
+          path: provenance.json
+
   create-release:
     name: Create GitHub Release
-    needs: [build-linux-x86_64, build-linux-aarch64, build-macos, build-windows]
+    needs: [build-linux-x86_64, build-linux-aarch64, build-macos, build-windows, sbom, sign, provenance]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -166,4 +279,14 @@ jobs:
             naab-macos-arm64.tar.gz.sha256
             naab-windows-x86_64.zip
             naab-windows-x86_64.zip.sha256
+            naab-lang
+            naab-lang.sig
+            naab-lang.pem
+            naab-lang.sha256
+            naab-lang.sha512
+            naab-sbom.spdx.json
+            naab-sbom.cdx.json
+            naab-sbom.txt
+            provenance.json
+          fail_on_unmatched_files: true
           generate_release_notes: true

@@ -5096,6 +5096,20 @@ else
     echo "  test_no_std_regex.sh: not found, skipping"
 fi
 
+RELEASE_PUBLISHER_SCRIPT="tests/self-audit/test_release_publisher.sh"
+if [ -f "$RELEASE_PUBLISHER_SCRIPT" ]; then
+    # Only release.yml's create-release job publishes a release, after every
+    # other job, with all 17 files (A180). Reads the workflow files only.
+    if run_shell_test "$RELEASE_PUBLISHER_SCRIPT" 2>&1; then
+        echo "  test_release_publisher.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_release_publisher.sh")
+    fi
+else
+    echo "  test_release_publisher.sh: not found, skipping"
+fi
+
 VENDORED_PATCHES_SCRIPT="tests/self-audit/test_vendored_patches.sh"
 if [ -f "$VENDORED_PATCHES_SCRIPT" ]; then
     # The vendored QuickJS is its archive plus the A89 regexp-timeout patch,
