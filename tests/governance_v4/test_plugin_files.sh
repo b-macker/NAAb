@@ -16,8 +16,10 @@
 # explicitly, as the operator's own files like hooks and guidance sources.
 # The exemption covers the reads loadPlugins() makes while it loads a plugin
 # (the file and what its top level imports); without it the plugin read would
-# now meet the lease, the capability manifest and the path policy, and a
-# refused plugin is skipped with a warning -- its rules off.
+# now meet the lease, the capability manifest and the path policy, each of
+# which refuses at HARD: the run ends, compliant or not (observed with the
+# exemption removed -- PF-02c and PF-03 fail, and test_capability_manifest.sh
+# MF-22c).
 #
 # A192. Nothing stopped the program writing a plugin file: observed on
 # c1312132, with shell disabled, file.write over the plugin, and the next run
@@ -58,8 +60,20 @@
 #           languages are outside path policy (CONTRA-013)
 #
 # Kill table (each mutant rebuilt, suite re-run; observed 2026-11-20):
-#   PLACEHOLDER
-# Red first: on c1312132 PF-01 and PW-01 .. PW-08 fail, every other arm passes.
+#   the run's engine not current before compile (main.cpp) -> PF-01
+#   no plugin exemption in ModuleResolver::parseModuleFile -> PF-02c, PF-03
+#     (the plugin read is refused at HARD and the run ends, so the control
+#     arm, which needs the run, is the one that fails; PF-02 then reads
+#     UNMEASURABLE; test_capability_manifest.sh MF-22c fails the same way)
+#   no plugin exemption in ModuleRegistry::parseModuleFile -> PF-03 (its helper)
+#   the load scope never held (loadPlugins)               -> PF-02c, PF-03
+#   the plugin write check removed                        -> PW-01 .. PW-08, PW-10
+#   no hard-link check in isGovernancePluginPath()        -> PW-06
+#   reads refused too (the mode check dropped)            -> PW-09
+#   matched by file name only                             -> PW-00
+# Red first (observed): on c1312132 PF-01, PW-01 .. PW-08 and PW-10 fail and
+# every other arm passes -- PF-02c/PF-02 and PF-03 pin the exemption there (the
+# plugin read met an idle engine) and fail under the mutants that remove it.
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

@@ -3230,9 +3230,12 @@ std::string GovernanceEngine::resolvePluginPath(const GovernancePlugin& plugin) 
 // load (its file and what its top level imports: nothing the program wrote
 // runs inside it). The program may not write a plugin file (A192,
 // isGovernancePluginPath()). Before A116 the exemption was an accident: the
-// reads met the tree-walker's idle engine during compile, while a plugin first
-// loaded at run time met the real one and, under a lease without FS_READ, was
-// skipped with a warning -- its rules off.
+// reads met the tree-walker's idle engine during compile. Without it the reads
+// meet the real engine, whose refusals here are HARD -- a lease without
+// FS_READ, a manifest that does not list the plugin, a plugin under
+// blocked_paths each end the run, compliant or not (observed with the scope
+// removed: test_plugin_files.sh PF-02c and PF-03, test_capability_manifest.sh
+// MF-22c).
 static thread_local int t_plugin_load_depth = 0;
 
 bool GovernanceEngine::loadingPluginsOnThisThread() { return t_plugin_load_depth > 0; }

@@ -1061,8 +1061,11 @@ static void checkRestrictionTypes(const nlohmann::json& j) {
     // or contracts.functions, an agent called `enabled`, an output contract's
     // field types -- holds names, not settings, and a key that matches both a
     // literal setting and an open map is left to its section's own rule. Keys
-    // the loader does not read are the unknown-key warning's, not this. The
-    // environments block is applied by its own rules (applyEnvironmentTo).
+    // the loader does not read are the unknown-key warning's, not this. An
+    // environment's keys are names in the schema (environments.<name>.<key>),
+    // so nothing inside one is judged here: its own rules apply it
+    // (applyEnvironmentTo). A separate skip for that block was dead code under
+    // the schema (it survived as a mutant) and was removed.
     // Measured over the 189 tracked configs: the only values this refuses are
     // in two configs poisoned on purpose.
     const auto& schema = knownConfigSchema();
@@ -1086,7 +1089,6 @@ static void checkRestrictionTypes(const nlohmann::json& j) {
             if (!node.is_object()) return;
             for (const auto& [k, v] : node.items()) {
                 if (isConfigAnnotationKey(k)) continue;
-                if (path.empty() && k == "environments") continue;
                 const auto nc = schema.step(cands, k);
                 if (nc.empty()) continue;                       // not a setting
                 const std::string p = path.empty() ? k : path + "." + k;

@@ -42,9 +42,12 @@
 #   a non-string `level` accepted                       -> TY-12
 #   a non-numeric `limits` value accepted               -> TY-13
 #   a limits `rationale` refused                        -> TY-13c
-#   the environments block walked                       -> TY-13c (it survived
-#     the first TY-13c, whose environment used a dotted key; now nested)
-#   every key spelled enabled/level judged (no schema)  -> TY-14
+#   the environments block walked                       -> TY-13c on the first
+#     walk, which judged every key spelled enabled/level; under the schema
+#     (2026-11-20) the separate skip SURVIVED -- an environment's keys are
+#     names there -- and was removed as dead code
+#   every key spelled enabled/level judged (no schema)  -> TY-14 (and
+#     test_function_capability_level.sh FL-07)
 # Red first (observed): on master fc9b8099 TY-01..TY-06 fail (each loads; shell
 # runs, the file and the variable are read) and every control passes. TY-08 was
 # UNMEASURABLE there (that build had no naab-gov); it fails under the first
@@ -131,9 +134,9 @@ arm TY-10 'capabilities.functions.default "ENV_READ"' '"filesystem": {"mode": "w
 # `enabled` only as true or false, a `level` only as a string, a `limits`
 # value only as a number, and dropped anything else -- the check off, the
 # limit gone (observed on c1312132: each loaded and ran). TY-13c CONTROL: a
-# limits rationale (text) and an environment's string values still load --
-# written nested, so a walk that entered the environments block would refuse
-# its "enabled": "true".
+# limits rationale (text) and an environment's string values still load
+# (an environment's keys are names in the loader's schema, so nothing inside
+# one is judged).
 arm TY-11 'code_quality.no_placeholders.enabled "true"' '"filesystem": {"mode": "write"}' plain ', "code_quality": {"no_placeholders": {"enabled": "true", "level": "hard"}}'
 arm TY-12 'restrictions.shell_injection.level 99' '"filesystem": {"mode": "write"}' plain ', "restrictions": {"shell_injection": {"level": 99}}'
 arm TY-13 'limits.execution.loop_iterations "100"' '"filesystem": {"mode": "write"}' plain ', "limits": {"execution": {"loop_iterations": "100"}}'
