@@ -143,6 +143,20 @@ TEST(SafeRegexTest, PatternAnalysis_Quantifiers) {
 
 // Nested quantifiers under strict validation (A189): the classic (a+)+b now
 // runs, in linear time, and answers; it used to be refused before any work.
+// The score threshold no longer refuses (A189, decision 23): a pattern it
+// refused -- overlapping alternatives under repetition -- runs and answers.
+TEST(SafeRegexTest, HighScore_RunsUnderStrictValidation) {
+    RegexLimits limits;
+    limits.strict_validation = true;
+    SafeRegex sr(limits);
+
+    PatternComplexity c = sr.analyzePattern("(a|ab)*c.*d.*e.*f");
+    EXPECT_TRUE(c.is_safe);
+    EXPECT_GE(c.backtracking_score, 100);
+    EXPECT_FALSE(c.warning.empty());
+    EXPECT_TRUE(sr.safeMatch("abcdef", "(a|ab)*c.*d.*e.*f"));
+}
+
 TEST(SafeRegexTest, NestedQuantifiers_RunUnderStrictValidation) {
     RegexLimits limits;
     limits.strict_validation = true;

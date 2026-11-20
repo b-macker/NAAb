@@ -13,8 +13,9 @@
 #      against a 1s budget, and --timeout 5 fired at 30.5s -- it could not
 #      preempt it either.
 #
-# Group A: the validator refuses no nested quantifier any more (A189); every
-#          such pattern answers, and on the fallback stops at the budget.
+# Group A: the validator refuses no pattern any more (A189: nested quantifiers,
+#          decision 13; the score threshold, decision 23); every such pattern
+#          answers, and on the fallback stops at the budget.
 # Group B: a pattern the validator allows but that is exponential must stop at
 #          the budget. Asserted on WALL TIME: the error text alone was already
 #          produced by the broken build, 29 seconds late.
@@ -63,7 +64,7 @@ set -uo pipefail
 PASS=0
 FAIL=0
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
-NAAB="$REPO/build/naab-lang"
+NAAB="${NAAB:-$REPO/build/naab-lang}"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/naab_rxt.XXXXXX")"
 [ -n "$WORK" ] && [ -d "$WORK" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 # The fixture is an unsigned govern.json; with any key in the trust store that
@@ -153,6 +154,19 @@ run_match a06 '(a+)+b' "${A10K}!"
 if [ "$ELAPSED" -le 2 ] && [[ "$OUT" == *RESULT:false* ]]; then
     pass A-06 "(a+)+b on 10,000 characters answers false in ${ELAPSED}s"
 else fail A-06 "(a+)+b on 10,000 characters took ${ELAPSED}s" "$(echo "$OUT" | head -2)"; fi
+
+# A-08: the score threshold's refusals are gone too (decision 23): each shape
+# it refused (observed on the PR 1 build before that change, "dangerous regex
+# pattern", one with an empty reason) now answers, inside the bound.
+a08=""
+# The separator is @ because the patterns hold | (alternation).
+for case in '(a|a)*.*b@aab' '(a|ab)*c.*d.*e.*f@abcdef' '(a|b|ab)*(c|d|cd)*(e|f|ef)*.*@abcdef' 'a*b*c*d*e*f*g*h*i*j*k*l*m*n*o*p*q*r*s*t*u*v*@abc'; do
+    pat="${case%%@*}"; inp="${case#*@}"
+    run_match "a08_$RANDOM" "$pat" "$inp"
+    if [ "$ELAPSED" -gt 4 ] || [[ "$OUT" != *RESULT:true* ]]; then a08="$a08 [$pat => $(grep -m1 -E 'CAUGHT|RESULT' <<<"$OUT") ${ELAPSED}s]"; fi
+done
+if [ -z "$a08" ]; then pass A-08 "four shapes the score threshold refused run and match"
+else fail A-08 "a shape did not run or match:$a08"; fi
 
 # A-07: a nested quantifier the RE2 engine cannot take (the lookahead forces
 # the backtracking fallback) still stops at the budget -- the safety the

@@ -23,6 +23,9 @@
 #   TY-09   capabilities.functions.default [] (read only as an object) -> exit 4 (A187)
 #   TY-10   capabilities.functions.default "ENV_READ" -> exit 4; TY-09c CONTROL: the
 #           object form and the string level load and refuse
+#   TY-11   code_quality enabled "true" -> exit 4; TY-12 a level 99 -> exit 4;
+#   TY-13   a limits value "100" -> exit 4 (A111's remainder); TY-13c CONTROL:
+#           a limits rationale and environment strings still load
 #   TY-07   CONTROL: the forms the loader does apply still load and restrict:
 #           blocked_read as one string, the bare "shell": false, and
 #           "filesystem": true (restricts nothing) loads
@@ -113,6 +116,18 @@ arm TY-06 "an agent role's blocked_paths \"vault/\"" '"shell": {"enabled": false
 # section's string "level" still load, and the empty grant refuses (exit 3).
 arm TY-09 'capabilities.functions.default []' '"filesystem": {"mode": "write"}, "functions": {"default": [], "level": "hard"}' env
 arm TY-10 'capabilities.functions.default "ENV_READ"' '"filesystem": {"mode": "write"}, "functions": {"default": "ENV_READ", "level": "hard"}' env
+# TY-11..TY-13 (A111's remainder): every other section reads a check's
+# `enabled` only as true or false, a `level` only as a string, a `limits`
+# value only as a number, and dropped anything else -- the check off, the
+# limit gone (observed on c1312132: each loaded and ran). TY-13c CONTROL: a
+# limits rationale (text) and an environment's string values still load.
+arm TY-11 'code_quality.no_placeholders.enabled "true"' '"filesystem": {"mode": "write"}' plain ', "code_quality": {"no_placeholders": {"enabled": "true", "level": "hard"}}'
+arm TY-12 'restrictions.shell_injection.level 99' '"filesystem": {"mode": "write"}' plain ', "restrictions": {"shell_injection": {"level": 99}}'
+arm TY-13 'limits.execution.max_loops "100"' '"filesystem": {"mode": "write"}' plain ', "limits": {"execution": {"max_loops": "100"}}'
+run t13c '"filesystem": {"mode": "write"}' plain ', "limits": {"execution": {"max_loops": 100000, "rationale": "a reason"}}, "environments": {"prod": {"quality_gate.enabled": "true"}}'
+if [ "$RC" -eq 0 ] && [ "$HAPPENED" = yes ]; then pass TY-13c "CONTROL: a limits rationale and an environment's string values load and the program runs"
+else fail TY-13c "CONTROL: an accepted form was refused" "rc=$RC $(grep -m1 'must be' <<<"$OUT")"; fi
+
 run t9c '"filesystem": {"mode": "write"}, "functions": {"default": {"allowed_actions": []}, "level": "hard"}' env
 if [ "$RC" -eq 3 ] && [ "$HAPPENED" = no ]; then pass TY-09c "CONTROL: the object form with a string level loads and refuses the read (exit 3)"
 else fail TY-09c "CONTROL: the object form should load and refuse" "rc=$RC happened=$HAPPENED"; fi

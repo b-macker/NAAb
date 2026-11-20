@@ -27,6 +27,8 @@
 #   RT-01  naab-gov ratchet --env: a reload that drops the raise is refused
 #                                                                     (red on c1312132)
 #   RT-01c CONTROL: the same file again is accepted
+#   RT-03  the same for no_dead_code, a level only the table's comparison sees
+#          on the overlaid rules                                  (red on c1312132)
 #   RT-02  an ordinary file edit of a declared level prints one violation, not two
 #   PIN    every `order level` key in ratchet_classification.txt is in the
 #          table or in environment_levels_baseline.txt with a reason, and no
@@ -34,10 +36,11 @@
 #
 # Kill table (mutants, run by hand, revert-checked 2026-11-20):
 #   E1 applyEnvironmentCheckKeys() not called            -> EV-01..EV-06, EV-08, RT-01
-#   E2 the nested form not flattened                     -> EV-02
+#   E2 no environment object flattened                   -> EV-01..EV-08, RT-01
 #   E3 a lower level applied (no levelLoosens test)      -> EV-04
-#   E4 the minimum/mirror pass skipped after a raise     -> EV-08
-#   E5 the ratchet loop over the table removed           -> RT-01
+#   E4 the minimum/mirror pass skipped after a raise     -> EV-01..EV-03, EV-08
+#   E5 the ratchet loop over the table removed           -> RT-03 (RT-01 survives:
+#                                                           an older line compares it)
 #   E6 duplicate declared-order messages not dropped     -> RT-02
 #   E7 a table entry removed (restrictions.dangerous_calls) -> EV-08
 set -u
@@ -138,6 +141,17 @@ ratchet RT01 "$RAISED" "$DROPPED" --env production
 if [ "$rt_live" -ne 1 ]; then skip RT-01 "RT-01c did not accept"
 elif [ "$RC" -eq 1 ] && has "code_quality.no_placeholders.level: hard -> advisory"; then ok RT-01 "dropping the environment's raise mid-run is refused"
 else bad RT-01 "dropping the raise: rc=$RC, expected a refusal naming the level" "$OUT"; fi
+
+# RT-03: a check only the table's comparison covers on the overlaid rules
+# (no_dead_code's level is otherwise compared on the raw file text, where an
+# environment's raise does not appear). RT-01's no_placeholders is also
+# compared by an older line of the ratchet, so RT-01 alone cannot show the
+# table loop is there (the E5 mutant survived it).
+ratchet RT03 '{"mode":"enforce","code_quality":{"no_dead_code":{"enabled":true,"level":"advisory"}},"environments":{"production":{"code_quality.no_dead_code.level":"hard"}}}' \
+             '{"mode":"enforce","code_quality":{"no_dead_code":{"enabled":true,"level":"advisory"}},"environments":{"production":{}}}' --env production
+if [ "$rt_live" -ne 1 ]; then skip RT-03 "RT-01c did not accept"
+elif [ "$RC" -eq 1 ] && has "code_quality.no_dead_code.level: hard -> advisory"; then ok RT-03 "dropping an environment's raise of a level the file text cannot show is refused"
+else bad RT-03 "rc=$RC, expected a refusal naming no_dead_code's level" "$OUT"; fi
 
 ratchet RT02 '{"mode":"enforce","code_quality":{"no_dead_code":{"enabled":true,"level":"hard"}}}' \
              '{"mode":"enforce","code_quality":{"no_dead_code":{"enabled":true,"level":"advisory"}}}'

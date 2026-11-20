@@ -1796,6 +1796,7 @@ void Compiler::visit(ast::ModuleUseStmt& node) {
     if (stdlib_modules.count(module_path)) {
         // Stdlib module: emit marker string
         std::string marker = "__stdlib_module__:" + module_path;
+        stdlib_bindings_[bind_name] = module_path;
         int marker_idx = makeConstant(interpreter::NaabVal::makeString(marker));
         emitWide(OpCode::OP_CONST, static_cast<uint32_t>(marker_idx), line);
         int name_idx = identifierConstant(bind_name);
@@ -1853,6 +1854,30 @@ void Compiler::visit(ast::CallExpr& node) {
             patchJump(skip_call);
             patchJump(end);
             return;
+        }
+        // debug.is_tainted("x"), x a local or an upvalue (F35): the answer is
+        // the VALUE's taint. The runtime call looks the name up in the
+        // engine's run-wide taint set, where the VM records only globals, so
+        // it answered false for every tainted local (an unsafe answer: a
+        // program guarding on it never refused). A computed name, or a name
+        // that is a global or nothing, keeps the runtime call.
+        if (auto* obj = dynamic_cast<ast::IdentifierExpr*>(member->getObject())) {
+            auto b = stdlib_bindings_.find(obj->getName());
+            if (b != stdlib_bindings_.end() && b->second == "debug" &&
+                member->getMember() == "is_tainted" && node.getArgs().size() == 1 &&
+                resolveLocal(current_, obj->getName()) == -1 &&
+                resolveUpvalue(current_, obj->getName()) == -1) {
+                auto* lit = dynamic_cast<ast::LiteralExpr*>(node.getArgs()[0].get());
+                if (lit && lit->getLiteralKind() == ast::LiteralKind::String &&
+                    lit->getValue().find("${") == std::string::npos) {
+                    const std::string& var = lit->getValue();
+                    if (resolveLocal(current_, var) != -1 || resolveUpvalue(current_, var) != -1) {
+                        emitGetVariable(var, line);
+                        emitOp(OpCode::OP_TAINT_OF, line);
+                        return;
+                    }
+                }
+            }
         }
         // Compile the object
         member->getObject()->accept(*this);

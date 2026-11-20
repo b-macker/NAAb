@@ -136,14 +136,15 @@ PatternComplexity SafeRegex::analyzePattern(const std::string& pattern) const {
         result.backtracking_score += (result.quantifier_count - 20) * 2;
     }
 
-    // Final safety determination. This score threshold still refuses some
-    // ordinary shapes the linear matcher runs safely -- overlapping
-    // alternatives under repetition, more than twenty quantifiers -- which is
-    // the same class as the nested-quantifier refusal above, recorded in A189
-    // for the owner's decision; until then it stays.
-    result.is_safe = (result.backtracking_score < 100);
-    if (!result.is_safe && result.warning.empty())
-        result.warning = "Pattern has a high estimated backtracking score";  // was printed empty
+    // The score is reported, no longer a refusal (A189, the owner's decision
+    // 23 of 2026-11-20). It refused ordinary patterns the linear matcher runs
+    // safely -- `(a|ab)*c.*d.*e.*f`, `(a|a)*.*b`, twenty-two `x*` in a row
+    // (whose refusal printed an empty reason) -- the same class as the
+    // nested-quantifier refusal. The time bound and the fallback's step budget
+    // are what stop a slow pattern, and they stay.
+    result.is_safe = true;
+    if (result.backtracking_score >= 100 && result.warning.empty())
+        result.warning = "Pattern has a high estimated backtracking score";
 
     return result;
 }

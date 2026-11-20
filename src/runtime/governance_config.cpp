@@ -1049,6 +1049,36 @@ static void checkRestrictionTypes(const nlohmann::json& j) {
                 boolean(a, base, k);
         }
     }
+    // Every other section (A111's remainder): the loader reads a check's
+    // `enabled` only as true or false, a `level` only as a string, and a
+    // `limits` value only as a number, and drops anything else -- so
+    // `"no_secrets": {"enabled": "true"}` left the check off, and
+    // `"limits": {"execution": {"max_loops": "100"}}` left no limit, with no
+    // word (traced: every `enabled` read is behind is_boolean(), every limit
+    // behind is_number*()). Measured over the 189 tracked configs: the only
+    // values this refuses are in two configs poisoned on purpose; a limits
+    // `rationale` is text and stays. The environments block is applied by its
+    // own rules (applyEnvironmentTo), so it is not walked.
+    std::function<void(const nlohmann::json&, const std::string&, bool)> walk =
+        [&](const nlohmann::json& node, const std::string& path, bool in_limits) {
+            if (node.is_array()) {
+                for (const auto& e : node) walk(e, path + "[]", in_limits);
+                return;
+            }
+            if (!node.is_object()) return;
+            for (const auto& [k, v] : node.items()) {
+                if (!k.empty() && k[0] == '_') continue;            // comments
+                if (path.empty() && k == "environments") continue;
+                const std::string p = path.empty() ? k : path + "." + k;
+                if (k == "enabled" && !v.is_boolean()) refuse(p, "true or false", v);
+                if (k == "level" && !v.is_string()) refuse(p, "a level name", v);
+                const bool lim = in_limits || (path.empty() && k == "limits");
+                if (in_limits && k != "rationale" && !v.is_object() && !v.is_number())
+                    refuse(p, "a number", v);
+                walk(v, p, lim);
+            }
+        };
+    walk(j, "", false);
 }
 
 // Settings that look like protection and enforce nothing: each is parsed (the
