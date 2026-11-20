@@ -153,6 +153,29 @@ static void syncGovernanceToSandbox(
         config.allowed_hosts.push_back(h);
     for (const auto& h : rules.capabilities.network.blocked_hosts)
         config.blocked_hosts.push_back(h);
+    // The same gap for the port list (A87, the owner's decision 15): canConnect()
+    // and hostPolicyAllows() have always checked allowed_ports, and the sandbox
+    // was never given it, so it bound no connection the program made (observed:
+    // a <<python>> connect to another port landed). Like the host lists, it
+    // reaches the sandbox here, at startup. A list the sandbox already holds
+    // (a level's own) is narrowed to the ports both name, never widened.
+    if (!rules.capabilities.network.allowed_ports.empty()) {
+        const auto& gov_ports = rules.capabilities.network.allowed_ports;
+        if (config.allowed_ports.empty()) {
+            config.allowed_ports = gov_ports;
+        } else {
+            std::vector<int> both;
+            for (int p : config.allowed_ports)
+                if (std::find(gov_ports.begin(), gov_ports.end(), p) != gov_ports.end()) both.push_back(p);
+            if (both.empty()) {
+                // Nothing in common: no port is allowed. The sandbox reads an
+                // empty list as "all", so leave connections switched off.
+                config.network_enabled = false;
+                config.capabilities.erase(naab::security::Capability::NET_CONNECT);
+            }
+            config.allowed_ports = both;
+        }
+    }
     // Shell disabled in governance → remove exec from sandbox
     if (!rules.shell_allowed) {
         config.allow_exec = false;

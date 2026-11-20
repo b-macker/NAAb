@@ -13,6 +13,10 @@
 #      against a 1s budget, and --timeout 5 fired at 30.5s -- it could not
 #      preempt it either.
 #
+# Kill table (2026-11-20, each mutant applied alone and observed): the
+# nested-quantifier refusal restored -> A-01, A-02, A-05, A-06; the score
+# refusal restored -> A-08.
+#
 # Group A: the validator refuses no pattern any more (A189: nested quantifiers,
 #          decision 13; the score threshold, decision 23); every such pattern
 #          answers, and on the fallback stops at the budget.

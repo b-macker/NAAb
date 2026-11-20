@@ -167,7 +167,7 @@ overflow the parser's stack.
 
 Every capability gate calls one helper, `checkFunctionCapability()`, and
 top-level code resolves through the `default` entry ("top level resolves via
-default", traced). A grant becomes one more set in that intersection, at HARD,
+default", traced; since Bundle 19 a `main` entry first, A186). A grant becomes one more set in that intersection, at HARD,
 so it narrows every frame and can never widen one. The same grant also strips
 the worker's sandbox, the way `syncGovernanceToSandbox` already does for
 `capabilities.*`. That reaches code the helper does not see, but not all of

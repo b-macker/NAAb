@@ -34,6 +34,14 @@
 #
 # Kill table (observed 2026-11-01): checkRestrictionTypes() not called ->
 # TY-01..TY-06, TY-08; the strict array rule dropped -> TY-05, TY-06.
+# Added 2026-11-20 (Bundle 19), each mutant applied alone and observed:
+#   a non-object capabilities.functions entry accepted -> TY-09, TY-10
+#   a non-boolean `enabled` accepted                    -> TY-11
+#   a non-string `level` accepted                       -> TY-12
+#   a non-numeric `limits` value accepted               -> TY-13
+#   a limits `rationale` refused                        -> TY-13c
+#   the environments block walked                       -> TY-13c (it survived
+#     the first TY-13c, whose environment used a dotted key; now nested)
 # Red first (observed): on master fc9b8099 TY-01..TY-06 fail (each loads; shell
 # runs, the file and the variable are read) and every control passes. TY-08 was
 # UNMEASURABLE there (that build had no naab-gov); it fails under the first
@@ -120,11 +128,13 @@ arm TY-10 'capabilities.functions.default "ENV_READ"' '"filesystem": {"mode": "w
 # `enabled` only as true or false, a `level` only as a string, a `limits`
 # value only as a number, and dropped anything else -- the check off, the
 # limit gone (observed on c1312132: each loaded and ran). TY-13c CONTROL: a
-# limits rationale (text) and an environment's string values still load.
+# limits rationale (text) and an environment's string values still load --
+# written nested, so a walk that entered the environments block would refuse
+# its "enabled": "true".
 arm TY-11 'code_quality.no_placeholders.enabled "true"' '"filesystem": {"mode": "write"}' plain ', "code_quality": {"no_placeholders": {"enabled": "true", "level": "hard"}}'
 arm TY-12 'restrictions.shell_injection.level 99' '"filesystem": {"mode": "write"}' plain ', "restrictions": {"shell_injection": {"level": 99}}'
 arm TY-13 'limits.execution.max_loops "100"' '"filesystem": {"mode": "write"}' plain ', "limits": {"execution": {"max_loops": "100"}}'
-run t13c '"filesystem": {"mode": "write"}' plain ', "limits": {"execution": {"max_loops": 100000, "rationale": "a reason"}}, "environments": {"prod": {"quality_gate.enabled": "true"}}'
+run t13c '"filesystem": {"mode": "write"}' plain ', "limits": {"execution": {"max_loops": 100000, "rationale": "a reason"}}, "environments": {"prod": {"quality_gate": {"enabled": "true"}}}'
 if [ "$RC" -eq 0 ] && [ "$HAPPENED" = yes ]; then pass TY-13c "CONTROL: a limits rationale and an environment's string values load and the program runs"
 else fail TY-13c "CONTROL: an accepted form was refused" "rc=$RC $(grep -m1 'must be' <<<"$OUT")"; fi
 
