@@ -1,0 +1,19 @@
+# `order level` keys in ratchet_classification.txt that an environment cannot
+# raise (A185) -- read by test_environment_levels.sh. Every other `order level`
+# key must be in kEnvironmentChecks (src/runtime/governance_config.cpp, between
+# the ENVIRONMENT CHECK TABLE markers). An environment that sets one of these
+# gets the named load warning ("which an environment cannot change"), so
+# nothing here is silently dropped.
+#
+# <key> TAB <reason>
+trust.stale_signature_level	judged when govern.json's signature is verified at load, before an environment is applied
+contradiction_detection.max_level	contradictions are found and reported while govern.json loads, before an environment is applied
+polyglot_optimization.enforcement_level	a string the optimization analyzer reads, not an enforcement-level field; no refusal depends on it
+polyglot_optimization.verification.enforcement_level	a string the optimization analyzer reads, not an enforcement-level field; no refusal depends on it
+languages.per_language.<lang_name>.dangerous_calls.level	a per-language entry, keyed by a language name the environment block has no way to address
+languages.per_language.<lang_name>.no_console_log.level	a per-language entry, keyed by a language name the environment block has no way to address
+languages.per_language.<lang_name>.no_curl_pipe_sh.level	a per-language entry, keyed by a language name the environment block has no way to address
+languages.per_language.<lang_name>.no_var.level	a per-language entry, keyed by a language name the environment block has no way to address
+languages.per_language.<lang_name>.no_wget_pipe_bash.level	a per-language entry, keyed by a language name the environment block has no way to address
+languages.per_language.<lang_name>.require_set_e.level	a per-language entry, keyed by a language name the environment block has no way to address
+languages.per_language.<lang_name>.strict_mode.level	a per-language entry, keyed by a language name the environment block has no way to address

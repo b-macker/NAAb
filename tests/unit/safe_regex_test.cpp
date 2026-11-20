@@ -113,10 +113,10 @@ TEST(SafeRegexTest, PatternAnalysis_Safe) {
 TEST(SafeRegexTest, PatternAnalysis_NestedQuantifiers) {
     SafeRegex sr;
 
-    // (a+)+ is a classic ReDoS pattern
+    // (a+)+ is reported, no longer refused (A189): the matcher is linear for
+    // it (RE2), and the fallback that is not stops at its step and time budgets.
     PatternComplexity complexity = sr.analyzePattern("(a+)+");
-    EXPECT_FALSE(complexity.is_safe);
-    EXPECT_GE(complexity.backtracking_score, 100);
+    EXPECT_TRUE(complexity.is_safe);
     EXPECT_FALSE(complexity.warning.empty());
 }
 
@@ -141,16 +141,17 @@ TEST(SafeRegexTest, PatternAnalysis_Quantifiers) {
     EXPECT_EQ(complexity.quantifier_count, 4);
 }
 
-// Test ReDoS protection
-TEST(SafeRegexTest, RejectDangerousPattern_NestedQuantifiers) {
+// Nested quantifiers under strict validation (A189): the classic (a+)+b now
+// runs, in linear time, and answers; it used to be refused before any work.
+TEST(SafeRegexTest, NestedQuantifiers_RunUnderStrictValidation) {
     RegexLimits limits;
     limits.strict_validation = true;
     SafeRegex sr(limits);
 
-    // This pattern causes catastrophic backtracking
-    EXPECT_THROW({
-        sr.safeMatch("aaaaaaaaaaaaaaaaaaaaaaaa!", "(a+)+b");
-    }, RegexDangerousPatternException);
+    EXPECT_FALSE(sr.safeMatch("aaaaaaaaaaaaaaaaaaaaaaaa!", "(a+)+b"));
+    EXPECT_TRUE(sr.safeMatch("aaab", "(a+)+b"));
+    EXPECT_TRUE(sr.safeSearch("one, two ,three", "(\\s*,\\s*)+"));
+    EXPECT_TRUE(sr.safeMatch("ab cd ", "([a-z]+ )*"));
 }
 
 TEST(SafeRegexTest, TimeoutProtection_SlowPattern) {

@@ -33,7 +33,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NAAB="$SCRIPT_DIR/../../build/naab-lang"
+NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
 
 # The old form probed `[ -d <termux tmp> ]` first. That probe is unsound off
 # Android: the project's own runners created that directory on Linux, so the
@@ -55,7 +55,7 @@ echo -e "${CYAN}|  F5: capabilities.functions is ratcheted (tighten-only)      |
 echo -e "${CYAN}+==============================================================+${NC}"
 echo ""
 
-ALL_IDS="FR-01 FR-02 FR-03 FR-04 FR-05 FR-06 FR-07 FR-08 FR-09 FR-10 FR-11 FR-12"
+ALL_IDS="FR-01 FR-02 FR-03 FR-04 FR-05 FR-06 FR-07 FR-08 FR-09 FR-10 FR-11 FR-12 FR-13 FR-13c"
 
 IS_WINDOWS=0
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
@@ -63,14 +63,14 @@ case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
 if [ "$IS_WINDOWS" -eq 1 ]; then
     for id in $ALL_IDS; do skip "$id" "mid-run file swap requires POSIX file semantics"; done
     echo ""
-    echo "  Total: 12 | Pass: 0 | Fail: 0 | Skip: 12"
+    echo "  Total: 14 | Pass: 0 | Fail: 0 | Skip: 14"
     exit 0
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
     for id in $ALL_IDS; do skip "$id" "python3 unavailable (fixture generator + polyglot swap)"; done
     echo ""
-    echo "  Total: 12 | Pass: 0 | Fail: 0 | Skip: 12"
+    echo "  Total: 14 | Pass: 0 | Fail: 0 | Skip: 14"
     exit 0
 fi
 
@@ -287,6 +287,24 @@ if [ "$R" = "accepted" ]; then
     pass "FR-12" "control: raising the level is accepted"
 else
     fail "FR-12" "raising the level was refused" "reload=$R"
+fi
+
+# FR-13 (A186): a "main" entry is the top level's own entry. Adding one that
+# grants more than "default" widens the top level, so it is refused like any
+# other new entry above default; FR-13c, the same entry granting less, is a
+# tightening and is accepted. Both pass on c1312132 too (the ratchet judged a
+# "main" name like any entry); they pin that the new meaning opened no reload hole.
+read -r R _ <<< "$(run_swap "$RO" '{"default": {"allowed_actions": ["FS_READ"]}, "main": {"allowed_actions": ["FS_READ", "FS_WRITE"]}}')"
+if [ "$R" = "rejected" ]; then
+    pass "FR-13" "a new main entry more permissive than default is refused"
+else
+    fail "FR-13" "a new main entry granted more than default" "reload=$R"
+fi
+read -r R _ <<< "$(run_swap "$RW" '{"default": {"allowed_actions": ["FS_READ", "FS_WRITE"]}, "main": {"allowed_actions": ["FS_READ"]}}')"
+if [ "$R" = "accepted" ]; then
+    pass "FR-13c" "control: a new main entry more restrictive than default is accepted"
+else
+    fail "FR-13c" "adding a restricting main entry was refused" "reload=$R"
 fi
 
 echo ""

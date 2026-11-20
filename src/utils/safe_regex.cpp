@@ -91,12 +91,16 @@ std::chrono::milliseconds SafeRegex::getEffectiveTimeout(
 PatternComplexity SafeRegex::analyzePattern(const std::string& pattern) const {
     PatternComplexity result;
 
-    // Check for nested quantifiers (highly dangerous)
+    // Nested quantifiers are reported, no longer refused (A189, the owner's
+    // decision 13 of 2026-11-20). The refusal predates A89: since then the
+    // matcher is RE2 (linear time) for every pattern RE2 can take, and the
+    // backtracking fallback for the rest stops at its step budget and at the
+    // time bound below, which stay. The refusal had become a false one: it
+    // refused ordinary patterns -- `([a-z]+ )*`, `(\s*,\s*)+`, `(?:a+)?b`, the
+    // shape of `(https?://)?` -- that run in linear time.
     if (pattern_analysis::hasNestedQuantifiers(pattern)) {
-        result.is_safe = false;
-        result.backtracking_score += 100;
-        result.warning = "Pattern contains nested quantifiers (e.g., (a+)+), which can cause catastrophic backtracking";
-        return result;
+        result.warning = "Pattern contains nested quantifiers (e.g., (a+)+); the matcher's "
+                         "time and step budgets bound it";
     }
 
     // Check for overlapping alternatives
@@ -132,8 +136,14 @@ PatternComplexity SafeRegex::analyzePattern(const std::string& pattern) const {
         result.backtracking_score += (result.quantifier_count - 20) * 2;
     }
 
-    // Final safety determination
+    // Final safety determination. This score threshold still refuses some
+    // ordinary shapes the linear matcher runs safely -- overlapping
+    // alternatives under repetition, more than twenty quantifiers -- which is
+    // the same class as the nested-quantifier refusal above, recorded in A189
+    // for the owner's decision; until then it stays.
     result.is_safe = (result.backtracking_score < 100);
+    if (!result.is_safe && result.warning.empty())
+        result.warning = "Pattern has a high estimated backtracking score";  // was printed empty
 
     return result;
 }

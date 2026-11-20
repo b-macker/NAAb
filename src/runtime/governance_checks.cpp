@@ -7010,9 +7010,10 @@ std::string GovernanceEngine::checkBannedFunctions(const std::string& language,
 
     for (const auto& func : lc.banned_functions) {
         try {
-            // Literal, case-insensitive (naab/literal_entry_match.h, shared
-            // with restrictions.dangerous_calls.blocklist_extra).
-            if (literalEntryMatches(code, func)) {
+            // Literal, case-insensitive, the language's reserved word skipped
+            // (naab/literal_entry_match.h, shared with
+            // restrictions.dangerous_calls.blocklist_extra; A184).
+            if (literalEntryMatches(code, func, language)) {
                 // Per-function alternatives so LLMs know what to use instead
                 static const std::unordered_map<std::string, std::string> alternatives = {
                     {"eval(",     "Use a lookup table or if/else chain instead of dynamic evaluation"},

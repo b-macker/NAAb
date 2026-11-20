@@ -20,6 +20,9 @@
 #   TY-04   blocked_read [["SECRET"]]   -> exit 4, the variable was not read
 #   TY-05   languages.allowed "python" (read only as a list) -> exit 4
 #   TY-06   an agent role's blocked_paths "vault/" (read only as a list) -> exit 4
+#   TY-09   capabilities.functions.default [] (read only as an object) -> exit 4 (A187)
+#   TY-10   capabilities.functions.default "ENV_READ" -> exit 4; TY-09c CONTROL: the
+#           object form and the string level load and refuse
 #   TY-07   CONTROL: the forms the loader does apply still load and restrict:
 #           blocked_read as one string, the bare "shell": false, and
 #           "filesystem": true (restricts nothing) loads
@@ -104,6 +107,15 @@ arm TY-03 'blocked_paths [["vault/"]]' '"filesystem": {"mode": "write", "blocked
 arm TY-04 'blocked_read [["NAAB_TY_SECRET"]]' '"env_vars": {"blocked_read": [["NAAB_TY_SECRET"]]}' env
 arm TY-05 'languages.allowed "python"' '"shell": {"enabled": false}' plain ', "languages": {"allowed": "python"}'
 arm TY-06 "an agent role's blocked_paths \"vault/\"" '"shell": {"enabled": false}' plain ', "agents": {"r": {"provider": "gemini", "blocked_paths": "vault/"}}'
+# TY-09/TY-10 (A187): a capabilities.functions entry is read only as an object;
+# `"default": []` loaded as no entry and restricted nothing (observed on
+# c1312132: the variable was read). TY-09c CONTROL: the object form and the
+# section's string "level" still load, and the empty grant refuses (exit 3).
+arm TY-09 'capabilities.functions.default []' '"filesystem": {"mode": "write"}, "functions": {"default": [], "level": "hard"}' env
+arm TY-10 'capabilities.functions.default "ENV_READ"' '"filesystem": {"mode": "write"}, "functions": {"default": "ENV_READ", "level": "hard"}' env
+run t9c '"filesystem": {"mode": "write"}, "functions": {"default": {"allowed_actions": []}, "level": "hard"}' env
+if [ "$RC" -eq 3 ] && [ "$HAPPENED" = no ]; then pass TY-09c "CONTROL: the object form with a string level loads and refuses the read (exit 3)"
+else fail TY-09c "CONTROL: the object form should load and refuse" "rc=$RC happened=$HAPPENED"; fi
 
 ok=1; why=""
 run t7a '"env_vars": {"blocked_read": "NAAB_TY_SECRET"}' env

@@ -42,4 +42,16 @@ const std::vector<std::string>& environmentSnapshot();
 // that (as getenv behaves there).
 std::string snapshotEnv(const std::string& key);
 
+// The environment an OPERATOR process starts with -- a governance hook, a
+// command or MCP guidance source: the snapshot, without NAAb's own key
+// variables (NAAB_GOVERN_KEY, NAAB_LOCK_KEY, NAAB_SIGNING_KEY; V-SC-006)
+// unless keep_naab_keys. Never the live environment, which the program writes
+// with env.set (A53). One copy, so a hook and a source process cannot drift.
+std::vector<std::string> operatorEnvironment(bool keep_naab_keys = false);
+
+// A bare program name looked up on the SNAPSHOT's PATH, as the operator's
+// shell would have found it when NAAb started: its full path, or "" when it is
+// not found. A name holding a directory separator is not looked up.
+std::string findOnSnapshotPath(const std::string& name);
+
 } // namespace naab
