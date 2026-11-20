@@ -3220,6 +3220,23 @@ std::string GovernanceEngine::resolvePluginPath(const GovernancePlugin& plugin) 
     return (fs::path(govern_json_dir_) / plugin.file_path).string();
 }
 
+// A116: plugin files are read with the run's engine current (main.cpp makes it
+// current before the static phase). The module loader's gates judge the
+// program -- its lease, its capability manifest, its path policy, its
+// function-scope capabilities -- and a plugin file is not the program's: it is
+// the operator's governance code, named in govern.json, as a hook or a
+// guidance source is. So the reads loadPluginFile() makes are exempted while
+// this depth is held on the thread, which is the whole of the plugin's own
+// load (its file and what its top level imports: nothing the program wrote
+// runs inside it). The program may not write a plugin file (A192,
+// isGovernancePluginPath()). Before A116 the exemption was an accident: the
+// reads met the tree-walker's idle engine during compile, while a plugin first
+// loaded at run time met the real one and, under a lease without FS_READ, was
+// skipped with a warning -- its rules off.
+static thread_local int t_plugin_load_depth = 0;
+
+bool GovernanceEngine::loadingPluginsOnThisThread() { return t_plugin_load_depth > 0; }
+
 void GovernanceEngine::loadPlugins() {
     if (plugins_loaded_.exchange(true)) return;
 
@@ -3252,7 +3269,13 @@ void GovernanceEngine::loadPlugins() {
         }
 
         try {
-            interp->loadPluginFile(plugin_path.string());
+            {
+                struct PluginLoadScope {
+                    PluginLoadScope() { ++t_plugin_load_depth; }
+                    ~PluginLoadScope() { --t_plugin_load_depth; }
+                } scope;
+                interp->loadPluginFile(plugin_path.string());
+            }
             std::lock_guard<std::mutex> lock(plugin_files_mutex_);
             loaded_plugin_files_.insert(plugin_path.string());
         } catch (const governance::GovernanceHardError&) {

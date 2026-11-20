@@ -2,6 +2,7 @@
 // Extracted from governance.cpp lines 2718-5602
 
 #include <optional>
+#include "naab/config_known_keys.h"
 #include "naab/governance.h"
 #include "naab/language_registry.h"
 #include "naab/code_provenance.h"
@@ -7970,36 +7971,10 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         // reads named children. A level with no known children is a value the
         // loader reads whole (contract fixtures, regex lists) and is not
         // descended into; "*" stands for any key of an open map (agents.<name>).
-        static const std::vector<std::string> KNOWN_PATHS = {
-#include "governance_known_keys.inc"
-        };
-        static const auto schema = [] {
-            struct Schema {
-                std::unordered_set<std::string> known;
-                std::unordered_map<std::string, std::vector<std::string>> children;
-            } sc;
-            for (const auto& p : KNOWN_PATHS) {
-                sc.known.insert(p);
-                auto cut = p.rfind('\x1f');
-                std::string parent = cut == std::string::npos ? std::string() : p.substr(0, cut);
-                std::string leaf = cut == std::string::npos ? p : p.substr(cut + 1);
-                sc.children[parent].push_back(leaf);
-            }
-            return sc;
-        }();
-        auto isAnnotation = [](const std::string& k) {
-            return (!k.empty() && k[0] == '_') || k == "rationale" ||
-                   (k.size() > 10 && k.compare(k.size() - 10, 10, "_rationale") == 0);
-        };
-        auto join = [](const std::string& a, const std::string& b) {
-            return a.empty() ? b : a + '\x1f' + b;
-        };
+        const auto& schema = knownConfigSchema();
+        auto isAnnotation = [](const std::string& k) { return isConfigAnnotationKey(k); };
         auto step = [&](const std::vector<std::string>& cands, const std::string& seg) {
-            std::vector<std::string> out;
-            for (const auto& c : cands)
-                for (const std::string& s : {seg, std::string("*")})
-                    if (schema.known.count(join(c, s))) out.push_back(join(c, s));
-            return out;
+            return schema.step(cands, seg);
         };
         constexpr size_t kMaxNestedWarnings = 25;
         size_t nested_found = 0;
@@ -8050,6 +8025,41 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
                 "not listed.", nested_found - kMaxNestedWarnings));
     } catch (const std::exception&) {}
     return warnings;
+}
+
+// The loader's own schema (include/naab/config_known_keys.h).
+const KnownConfigSchema& knownConfigSchema() {
+    static const std::vector<std::string> KNOWN_PATHS = {
+#include "governance_known_keys.inc"
+    };
+    static const KnownConfigSchema schema = [] {
+        KnownConfigSchema sc;
+        for (const auto& p : KNOWN_PATHS) {
+            sc.known.insert(p);
+            auto cut = p.rfind('\x1f');
+            std::string parent = cut == std::string::npos ? std::string() : p.substr(0, cut);
+            std::string leaf = cut == std::string::npos ? p : p.substr(cut + 1);
+            sc.children[parent].push_back(leaf);
+        }
+        return sc;
+    }();
+    return schema;
+}
+
+std::vector<std::string> KnownConfigSchema::step(const std::vector<std::string>& cands,
+                                                 const std::string& seg) const {
+    std::vector<std::string> out;
+    for (const auto& c : cands)
+        for (const std::string& s : {seg, std::string("*")}) {
+            const std::string p = c.empty() ? s : c + '\x1f' + s;
+            if (known.count(p)) out.push_back(p);
+        }
+    return out;
+}
+
+bool isConfigAnnotationKey(const std::string& k) {
+    return (!k.empty() && k[0] == '_') || k == "rationale" ||
+           (k.size() > 10 && k.compare(k.size() - 10, 10, "_rationale") == 0);
 }
 
 // --- Entropy Analysis ---

@@ -1219,6 +1219,32 @@ bool GovernanceEngine::isEngineStateDir(const std::string& canon_n) const {
     return false;
 }
 
+// A192: a plugin file govern.json names, resolved as loadPlugins() resolves it
+// (against govern.json's directory), from the LIVE rules; a hard link to the
+// same file is the same file.
+bool GovernanceEngine::isGovernancePluginPath(const std::string& canon_n) const {
+    const auto rules_hold = rulesPtr();
+    if (rules_hold->governance_plugins.empty()) return false;
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const bool target_exists = fs::exists(canon_n, ec);
+    for (const auto& plugin : rules_hold->governance_plugins) {
+        std::string pp;
+        try {
+            pp = fs::weakly_canonical(fs::absolute(fs::path(resolvePluginPath(plugin)))).string();
+        } catch (...) {
+            continue;
+        }
+        std::replace(pp.begin(), pp.end(), '\\', '/');
+        if (pp == canon_n) return true;
+        if (target_exists) {
+            std::error_code ec2;
+            if (fs::exists(pp, ec2) && fs::equivalent(pp, canon_n, ec2) && !ec2) return true;
+        }
+    }
+    return false;
+}
+
 bool GovernanceEngine::isEvidenceLogPath(const std::string& canon_n) const {
     std::vector<std::string> paths;
     {
@@ -3026,6 +3052,28 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
                 "file.write(\"" + filepath + "\", text)",
                 "file.write(\"output/notes.md\", text)"),
             "guidance source is not writable by the program: " + filepath);
+    }
+
+    // A governance plugin is code the engine runs as the operator's governance
+    // (A116): a program that could rewrite one would choose the checks its
+    // next run is judged by -- observed before this (A192): with shell
+    // disabled, file.write over the plugin and the next run executed the eval
+    // the plugin refused. Every program write is refused here, the decision
+    // point file/io and embedded Python's audit hook reach on both engines.
+    // Reads stay allowed. Subprocess languages do not reach this gate
+    // (CONTRA-013).
+    if (mode == "write" && isGovernancePluginPath(canon_n)) {
+        return deny("governance.plugin_files", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Writing a governance plugin is blocked: " + filepath,
+                currentFunction().empty() ? std::string()
+                                          : ("in function '" + currentFunction() + "'"),
+                "the project's governance runs this file to check the program",
+                "A governed program can read this file but cannot change it.\n"
+                "The operator edits it outside the program; write your output to another file.",
+                "file.write(\"" + filepath + "\", text)",
+                "file.write(\"output/notes.naab\", text)"),
+            "governance plugin is not writable by the program: " + filepath);
     }
 
     // Governance evidence -- the telemetry output, the agent transcript, the

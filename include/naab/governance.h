@@ -3552,6 +3552,11 @@ public:
     // back -- `.naab_cache/` beside govern.json, where agent review and the
     // governance voice cache their results -- or anything under it (A169).
     bool isEngineStateDir(const std::string& canon_n) const;
+    // True when `canon_n` (canonical, '/' separators) is a governance plugin
+    // file govern.json names (`governance_plugins[].file`). The engine runs it
+    // as the operator's governance code, so the governed program may read it
+    // but not write it (A192).
+    bool isGovernancePluginPath(const std::string& canon_n) const;
     // The agent-channel text for a set of deliveries ("" for none).
     static std::string formatGuidance(const std::vector<GuidanceDelivery>& items);
     // Opaque outside governance_guidance.cpp.
@@ -3845,6 +3850,11 @@ public:
                                   const std::unordered_map<std::string, interpreter::NaabVal>& context,
                                   int line = 0);
     void loadPlugins();
+    // True while loadPlugins() is reading the plugin files govern.json names
+    // on this thread. The module loader's read gates judge the PROGRAM's
+    // imports; a plugin file is the operator's governance code, read
+    // without them (A116, the owner's decision of 2026-11-20).
+    static bool loadingPluginsOnThisThread();
 
     // Resource limits
     std::string checkLoopIterations(size_t count);

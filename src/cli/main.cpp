@@ -2330,6 +2330,16 @@ int main(int argc, char** argv) {
             if (use_vm) {
                 // Governance: reuse shared_governance loaded before preflight (no TOCTOU)
                 auto& vm_governance = shared_governance;
+                // A116: the run's engine is the current one from here, before
+                // the static phase and compile. It used to become current only
+                // just before execute(), so every check reached through
+                // getCurrent() while the VM compiled -- the module loader's read
+                // gates, a plugin's stdlib calls, agent review's dispatch
+                // settings -- asked the tree-walker Interpreter's own engine,
+                // which never loaded the config (its constructor, above, makes
+                // it current). Governance plugin files are exempted explicitly
+                // instead (GovernanceEngine::loadPlugins()).
+                if (gov_loaded) naab::governance::GovernanceEngine::setCurrent(&vm_governance);
                 auto script_dir = std::filesystem::absolute(filename).parent_path();
                 // Integrity: if signature verification failed, hard block immediately
                 if (!gov_loaded && naab::governance::g_governance_hard_block) {

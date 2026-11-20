@@ -26,6 +26,8 @@
 #   TY-11   code_quality enabled "true" -> exit 4; TY-12 a level 99 -> exit 4;
 #   TY-13   a limits value "100" -> exit 4 (A111's remainder); TY-13c CONTROL:
 #           a limits rationale and environment strings still load
+#   TY-14   CONTROL: user-named keys spelled "enabled"/"level" (an output
+#           contract's field types, a contract on a function `level`) load
 #   TY-07   CONTROL: the forms the loader does apply still load and restrict:
 #           blocked_read as one string, the bare "shell": false, and
 #           "filesystem": true (restricts nothing) loads
@@ -42,6 +44,7 @@
 #   a limits `rationale` refused                        -> TY-13c
 #   the environments block walked                       -> TY-13c (it survived
 #     the first TY-13c, whose environment used a dotted key; now nested)
+#   every key spelled enabled/level judged (no schema)  -> TY-14
 # Red first (observed): on master fc9b8099 TY-01..TY-06 fail (each loads; shell
 # runs, the file and the variable are read) and every control passes. TY-08 was
 # UNMEASURABLE there (that build had no naab-gov); it fails under the first
@@ -133,10 +136,19 @@ arm TY-10 'capabilities.functions.default "ENV_READ"' '"filesystem": {"mode": "w
 # its "enabled": "true".
 arm TY-11 'code_quality.no_placeholders.enabled "true"' '"filesystem": {"mode": "write"}' plain ', "code_quality": {"no_placeholders": {"enabled": "true", "level": "hard"}}'
 arm TY-12 'restrictions.shell_injection.level 99' '"filesystem": {"mode": "write"}' plain ', "restrictions": {"shell_injection": {"level": 99}}'
-arm TY-13 'limits.execution.max_loops "100"' '"filesystem": {"mode": "write"}' plain ', "limits": {"execution": {"max_loops": "100"}}'
-run t13c '"filesystem": {"mode": "write"}' plain ', "limits": {"execution": {"max_loops": 100000, "rationale": "a reason"}}, "environments": {"prod": {"quality_gate": {"enabled": "true"}}}'
+arm TY-13 'limits.execution.loop_iterations "100"' '"filesystem": {"mode": "write"}' plain ', "limits": {"execution": {"loop_iterations": "100"}}'
+run t13c '"filesystem": {"mode": "write"}' plain ', "limits": {"execution": {"loop_iterations": 100000, "rationale": "a reason"}}, "environments": {"prod": {"quality_gate": {"enabled": "true"}}}'
 if [ "$RC" -eq 0 ] && [ "$HAPPENED" = yes ]; then pass TY-13c "CONTROL: a limits rationale and an environment's string values load and the program runs"
 else fail TY-13c "CONTROL: an accepted form was refused" "rc=$RC $(grep -m1 'must be' <<<"$OUT")"; fi
+# TY-14 CONTROL: only a key the loader reads AS that setting is judged. A map
+# keyed by the user's names holds names: an output contract's field types for
+# fields called "enabled" and "level", and a contract on a function called
+# `level` (the first version judged every key spelled "enabled"/"level" and
+# refused these; FL-07 in test_function_capability_level.sh is the same rule
+# for capabilities.functions).
+run t14 '"filesystem": {"mode": "write"}' plain ', "agents": {"r": {"provider": "gemini", "output_contract": {"format": "json", "field_types": {"enabled": "boolean", "level": "string"}}}}, "contracts": {"functions": {"level": {"min_arity": 0}}}'
+if [ "$RC" -eq 0 ] && [ "$HAPPENED" = yes ]; then pass TY-14 "CONTROL: user-named keys called enabled/level (field types, a contract's function) load and the program runs"
+else fail TY-14 "CONTROL: a user's names were judged as settings" "rc=$RC $(grep -m1 'must be' <<<"$OUT")"; fi
 
 run t9c '"filesystem": {"mode": "write"}, "functions": {"default": {"allowed_actions": []}, "level": "hard"}' env
 if [ "$RC" -eq 3 ] && [ "$HAPPENED" = no ]; then pass TY-09c "CONTROL: the object form with a string level loads and refuses the read (exit 3)"

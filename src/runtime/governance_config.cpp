@@ -13,6 +13,7 @@
 #include <array>
 #include <cctype>
 #include <vector>
+#include "naab/config_known_keys.h"
 #include "naab/governance.h"
 #include "naab/import_allowlist.h"
 #include "naab/paths.h"
@@ -749,11 +750,10 @@ struct EnvironmentCheckKey {
     bool* (*enabled)(GovernanceRules&);              // nullptr: a level only
     EnforcementLevel* (*level)(GovernanceRules&);
 };
-#define NAAB_ENV_CHECK(p, f)                                                       \
-    {p, [](GovernanceRules& r) -> bool* { return &r.f.enabled; },                  \
-        [](GovernanceRules& r) -> EnforcementLevel* { return &r.f.level; }}
-#define NAAB_ENV_LEVEL(p, f)                                                       \
-    {p, nullptr, [](GovernanceRules& r) -> EnforcementLevel* { return &r.f; }}
+// One line each: tools/template_coverage.py tokenizes this file and has no
+// rule for a line continuation.
+#define NAAB_ENV_CHECK(p, f) {p, [](GovernanceRules& r) -> bool* { return &r.f.enabled; }, [](GovernanceRules& r) -> EnforcementLevel* { return &r.f.level; }}
+#define NAAB_ENV_LEVEL(p, f) {p, nullptr, [](GovernanceRules& r) -> EnforcementLevel* { return &r.f; }}
 // ENVIRONMENT CHECK TABLE BEGIN
 const EnvironmentCheckKey kEnvironmentChecks[] = {
     NAAB_ENV_CHECK("code_quality.no_secrets", code_quality.no_secrets),
@@ -1053,32 +1053,53 @@ static void checkRestrictionTypes(const nlohmann::json& j) {
     // `enabled` only as true or false, a `level` only as a string, and a
     // `limits` value only as a number, and drops anything else -- so
     // `"no_secrets": {"enabled": "true"}` left the check off, and
-    // `"limits": {"execution": {"max_loops": "100"}}` left no limit, with no
-    // word (traced: every `enabled` read is behind is_boolean(), every limit
-    // behind is_number*()). Measured over the 189 tracked configs: the only
-    // values this refuses are in two configs poisoned on purpose; a limits
-    // `rationale` is text and stays. The environments block is applied by its
-    // own rules (applyEnvironmentTo), so it is not walked.
-    std::function<void(const nlohmann::json&, const std::string&, bool)> walk =
-        [&](const nlohmann::json& node, const std::string& path, bool in_limits) {
+    // `"limits": {"execution": {"loop_iterations": "100"}}` left no limit,
+    // with no word (traced: every `enabled` read is behind is_boolean(), every
+    // limit behind is_number*()). Only a key the loader READS AS THAT SETTING
+    // is judged, by the loader's own schema (config_known_keys.h): a map keyed
+    // by the user's names -- a function `level()` under capabilities.functions
+    // or contracts.functions, an agent called `enabled`, an output contract's
+    // field types -- holds names, not settings, and a key that matches both a
+    // literal setting and an open map is left to its section's own rule. Keys
+    // the loader does not read are the unknown-key warning's, not this. The
+    // environments block is applied by its own rules (applyEnvironmentTo).
+    // Measured over the 189 tracked configs: the only values this refuses are
+    // in two configs poisoned on purpose.
+    const auto& schema = knownConfigSchema();
+    auto onlyLiteral = [](const std::vector<std::string>& cands, const std::string& key) {
+        for (const auto& c : cands) {
+            const auto cut = c.rfind('\x1f');
+            if ((cut == std::string::npos ? c : c.substr(cut + 1)) != key) return false;
+        }
+        return !cands.empty();
+    };
+    std::function<void(const nlohmann::json&, const std::vector<std::string>&,
+                       const std::string&, bool)> walk =
+        [&](const nlohmann::json& node, const std::vector<std::string>& cands,
+            const std::string& path, bool in_limits) {
             if (node.is_array()) {
-                for (const auto& e : node) walk(e, path + "[]", in_limits);
+                const auto nc = schema.step(cands, "[]");
+                if (nc.empty()) return;
+                for (const auto& e : node) walk(e, nc, path + "[]", in_limits);
                 return;
             }
             if (!node.is_object()) return;
             for (const auto& [k, v] : node.items()) {
-                if (!k.empty() && k[0] == '_') continue;            // comments
+                if (isConfigAnnotationKey(k)) continue;
                 if (path.empty() && k == "environments") continue;
+                const auto nc = schema.step(cands, k);
+                if (nc.empty()) continue;                       // not a setting
                 const std::string p = path.empty() ? k : path + "." + k;
-                if (k == "enabled" && !v.is_boolean()) refuse(p, "true or false", v);
-                if (k == "level" && !v.is_string()) refuse(p, "a level name", v);
+                if (k == "enabled" && onlyLiteral(nc, k) && !v.is_boolean())
+                    refuse(p, "true or false", v);
+                if (k == "level" && onlyLiteral(nc, k) && !v.is_string())
+                    refuse(p, "a level name", v);
                 const bool lim = in_limits || (path.empty() && k == "limits");
-                if (in_limits && k != "rationale" && !v.is_object() && !v.is_number())
-                    refuse(p, "a number", v);
-                walk(v, p, lim);
+                if (in_limits && !v.is_object() && !v.is_number()) refuse(p, "a number", v);
+                walk(v, nc, p, lim);
             }
         };
-    walk(j, "", false);
+    walk(j, {std::string()}, "", false);
 }
 
 // Settings that look like protection and enforce nothing: each is parsed (the
@@ -4980,13 +5001,12 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             std::function<void(const std::string&, const nlohmann::json&)> flatten =
                 [&](const std::string& prefix, const nlohmann::json& v) {
                     if (v.is_object()) {
-                        for (auto& [k, sub] : v.items())
-                            flatten(prefix.empty() ? k : prefix + "." + k, sub);
+                        for (auto& [k, sub] : v.items()) flatten(prefix + "." + k, sub);
                         return;
                     }
                     overrides[prefix] = v.is_string() ? v.get<std::string>() : v.dump();
                 };
-            flatten("", env_json);
+            for (auto& [key, value] : env_json.items()) flatten(key, value);
             rules_.environments[env_name] = overrides;
         }
     }

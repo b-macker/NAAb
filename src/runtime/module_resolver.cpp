@@ -493,8 +493,11 @@ std::unique_ptr<ast::Program> ModuleResolver::parseModuleFile(const fs::path& pa
     // A25: a module read is a filesystem read and must obey the same governance
     // as file.read(). Gate at the one point every engine's import path reaches
     // to read bytes from disk, so `import "x.naab"` cannot bypass
-    // capabilities.filesystem.mode:none / blocked_paths.
-    if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+    // capabilities.filesystem.mode:none / blocked_paths. A governance plugin
+    // file is the operator's, not the program's import (A116).
+    const bool operator_plugin = governance::GovernanceEngine::loadingPluginsOnThisThread();
+    if (auto* gov = governance::GovernanceEngine::getCurrent();
+        gov && gov->isActive() && !operator_plugin) {
         // The capability manifest pins modules (Bundle 11 PR 2): an unlisted
         // module is refused as a module, before the path gate.
         std::string m_err = gov->checkManifestModule(path.string(), nullptr);
@@ -513,7 +516,8 @@ std::unique_ptr<ast::Program> ModuleResolver::parseModuleFile(const fs::path& pa
     }
     std::string source = std::move(*src);
     // ... and a listed one must be the text the manifest approved.
-    if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+    if (auto* gov = governance::GovernanceEngine::getCurrent();
+        gov && gov->isActive() && !operator_plugin) {
         std::string m_err = gov->checkManifestModule(path.string(), &source);
         if (!m_err.empty()) throw std::runtime_error(m_err);
     }
