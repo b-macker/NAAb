@@ -6213,6 +6213,14 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
     }
 
     auto [config_name, handle_id] = validateHandle(args[0]);
+    // Gap O (A185): a tool may not commit a proposal for the handle that is running it.
+    if (t_in_tool_execution_for_handle == handle_id) {
+        throw std::runtime_error(
+            "Agent error: agent.commit denied — called from a tool on its own agent\n\n"
+            "  Help:\n"
+            "  - A tool function cannot call agent.commit() on the agent that invoked it\n"
+            "  - The orchestration script calls it, after the agent's turn\n");
+    }
     // Every check recorded during this commit is the agent's, not the script's:
     // see ScopedCheckContext (governance.h).
     governance::ScopedCheckContext agent_check_ctx("<agent:" + config_name + ">");
@@ -7463,6 +7471,14 @@ static NaabVal agentReset(std::vector<NaabVal>& args) {
             "  - The agent keeps its config but starts a fresh conversation\n");
 
     auto [config_name, handle_id] = validateHandle(args[0]);
+    // Gap O (A185): a tool may not reset (and so clear the drift history of) the handle that is running it.
+    if (t_in_tool_execution_for_handle == handle_id) {
+        throw std::runtime_error(
+            "Agent error: agent.reset denied — called from a tool on its own agent\n\n"
+            "  Help:\n"
+            "  - A tool function cannot call agent.reset() on the agent that invoked it\n"
+            "  - The orchestration script calls it, after the agent's turn\n");
+    }
     auto& handle = args[0].asDict();
 
     // Capture pre-reset state for telemetry
@@ -7606,6 +7622,14 @@ static NaabVal agentRecordValidation(std::vector<NaabVal>& args) {
             "    agent.record_validation(dev, v.get(\"pytest_passed\"), v.get(\"pytest_output\"), v.get(\"test_func_count\"))\n");
 
     auto [config_name, handle_id] = validateHandle(args[0]);
+    // Gap O (A185): a tool may not record the validation outcome of the handle that is running it.
+    if (t_in_tool_execution_for_handle == handle_id) {
+        throw std::runtime_error(
+            "Agent error: agent.record_validation denied — called from a tool on its own agent\n\n"
+            "  Help:\n"
+            "  - A tool function cannot call agent.record_validation() on the agent that invoked it\n"
+            "  - The orchestration script calls it, after the agent's turn\n");
+    }
     bool passed = args[1].asBool();
     std::string detail;
     if (args.size() >= 3 && args[2].isString()) detail = args[2].asString();

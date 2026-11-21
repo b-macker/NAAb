@@ -2650,6 +2650,10 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (te.contains("hmac_key") && te["hmac_key"].is_string()) rules_.audit.tamper_evidence.hmac_key = te["hmac_key"].get<std::string>();
             if (te.contains("hmac_key_env") && te["hmac_key_env"].is_string()) {
                 std::string env_name = te["hmac_key_env"].get<std::string>();
+                // The NAME is kept (A186): the program is refused the variable
+                // (A33(b), addGovernanceProtectedPaths()), and the ratchet
+                // compares it beside the value.
+                rules_.audit.tamper_evidence.hmac_key_env = env_name;
                 const char* env_val = std::getenv(env_name.c_str());
                 if (env_val && env_val[0] != '\0') {
                     rules_.audit.tamper_evidence.hmac_key = env_val;
@@ -2676,6 +2680,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (prov.contains("signing_key") && prov["signing_key"].is_string()) rules_.audit.provenance.signing_key = prov["signing_key"].get<std::string>();
             if (prov.contains("signing_key_env") && prov["signing_key_env"].is_string()) {
                 std::string env_name = prov["signing_key_env"].get<std::string>();
+                rules_.audit.provenance.signing_key_env = env_name;   // A186
                 const char* env_val = std::getenv(env_name.c_str());
                 if (env_val) rules_.audit.provenance.signing_key = env_val;
             }
@@ -3634,6 +3639,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (te.contains("hmac_key") && te["hmac_key"].is_string()) rules_.telemetry_output.tamper_evidence.hmac_key = te["hmac_key"].get<std::string>();
             if (te.contains("hmac_key_env") && te["hmac_key_env"].is_string()) {
                 std::string env_name = te["hmac_key_env"].get<std::string>();
+                rules_.telemetry_output.tamper_evidence.hmac_key_env = env_name;   // A186
                 const char* env_val = std::getenv(env_name.c_str());
                 if (env_val) rules_.telemetry_output.tamper_evidence.hmac_key = env_val;
             }
@@ -3648,6 +3654,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.telemetry_output.webhook_auth_header = tel["webhook_auth_header"].get<std::string>();
         if (tel.contains("webhook_auth_env") && tel["webhook_auth_env"].is_string()) {
             std::string env_name = tel["webhook_auth_env"].get<std::string>();
+            rules_.telemetry_output.webhook_auth_env = env_name;   // A186
             const char* env_val = std::getenv(env_name.c_str());
             if (env_val) {
                 // H2: raw value — user provides full scheme ("Bearer xxx", "Basic xxx", etc.)
@@ -5858,8 +5865,13 @@ static void checkEvidenceRatchet(
     // The chain's key: a different key mid-run leaves one file under two keys.
     // Compared as configured (the variable's name, or the literal key when no
     // variable is named); a change of the variable's VALUE is A33(b).
+    // Both the variable's name and the value it held when the config was read
+    // (A186). Until the names were kept on the rules this compared the value
+    // only; comparing the name alone would accept a key changed under the same
+    // name -- and a program can env.set() a variable before a reload re-reads
+    // it -- so the value stays in the comparison.
     auto keyRef = [](const std::string& env_name, const std::string& literal) {
-        return env_name.empty() ? "literal:" + literal : "env:" + env_name;
+        return "env:" + env_name + "|value:" + literal;
     };
     if (ot.tamper_evidence.enabled && nt.tamper_evidence.enabled &&
         keyRef(ot.tamper_evidence.hmac_key_env, ot.tamper_evidence.hmac_key) !=

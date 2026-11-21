@@ -22,6 +22,7 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 14: replay and provenance | two PRs by the owner's decision (2026-11-11). PR 1 merged, #369: provenance for generated code; A160-A162 recorded. PR 2 merged, #372 (`7f1db67e`): `naab-gov replay`; A163, A164 recorded | Bundle 14 below |
 | 15: AI on deterministic rails | merged, four PRs and a follow-up. PR 1 #373 (`d792d943`; the owner's decision, 2026-11-12: A163 and A164 first, inside this bundle): the telemetry chain verifies under concurrent writers, and `--verify-telemetry-chain` is bounded and exits 1 on a file it cannot read. The feature work's scope was agreed on 2026-11-13 (three PRs): PR 2 #377 (`7bfd99cb`), `naab-gov explain`; PR 3 #379 (`2dc11dd9`), `naab-gov patch-check`; PR 4 #381 (`743e4ee7`), `naab-gov heal`. Follow-up #383 (`58796deb`), decided by the owner on 2026-11-15: A166 fixed (the voice and agent review scan what their models wrote), patch-check runs the contract search by default, A169's write half fixed (the program may not write `.naab_cache/`), and A58's unrun test programs cleaned up | Bundle 15 below |
 | 18: messages and records that match what happened | merged, #386 (`ec009c5e`), one PR, added to the plan by the owner's decision (2026-11-16, #384): A171-A174 and A39(c) fixed | Bundle 18 below |
+| 19: run history -- what NAAb refused, what helped, what agents claimed | planned, five PRs by the owner's decisions (2026-11-21); PR 1 in progress | Bundle 19 below |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). A145 and A146 (node 24: the child memory budget, TypeScript's flags, and the runtime-pin message) were fixed in #366 (`97dab417`). The bundle plan itself was recorded in #351 (`86fc33c9`). Release 2.0.2 (CHANGELOG `[2.0.2]`) carries everything merged from #350 to #387; like 2.0.1, its tag is put on the merged release commit.
 
@@ -353,6 +354,31 @@ Added by the owner's decision (2026-11-16). Found walking one program from `gove
 - A174 / A39(c): as decided; the dashboard counts the same way. A finished run's PASS line reads e.g. `(2 warnings; after-run audit: 0 findings)`.
 - A173: the user guide's sentence and example output.
 - Suites: `test_check_locations.sh` (20), `test_check_disposition.sh` (11), `test_closing_lines.sh` (8), each red on master `f3b31246` with its controls green on both, each with a kill table. One existing arm read the old wording (`test_hivemind_governed.sh` E-02) and was moved to the new one.
+
+## Bundle 19 -- run history: what NAAb refused, what helped, what agents claimed
+
+Added by the owner's decision (2026-11-21), after reading the "Self-Improvement Memory" paper (arXiv 2611.18856): the paper gives an optimizer a structured memory of problem, attempt, prediction, outcome and provenance; this bundle gives that memory to the evaluator, NAAb, which coding agents iterate against until it says PASS. Each run starts with no memory of the last, so governance can be satisfied without the problem being solved.
+
+One history, derived at `naab-lang run` start from previous runs' tamper-evident telemetry (runs whose chain verifies), with refused code stored content-addressed in the protected `.naab_cache/` and its hash inside the chained row. Three consumers:
+- **Refusal memory:** how a refusal went away (repaired, moved into a module the check skips, special-cased the golden input, history reset); a remembered function found unchanged in an imported module is re-checked; precedent on the next refusal of the rule.
+- **Live-guidance slice 2, as decided on 2026-10-12** (`docs/plan-live-guidance.md`, "Measuring whether it helped"): nothing at runtime decides on outcomes; an engine-written `history` source; after-run efficacy with undetermined windows; an optional holdout.
+- **Claims as evidence:** a reply's claim of success or a fix is chained before the validation that settles it; S24 (off by default) charges a claim a failed validation contradicts.
+
+**Rules:** memory only points an existing check at code or chooses engine-written facts to show -- every verdict is the real check under the current `govern.json`, so a stale or forged history can add an honest check and never invent or remove a refusal; nothing skips work because of memory; no model, embedding or retrieval anywhere; run only (not `naab-gov`, lint or the contract-search worker); a secret or PII subject is never stored; how a check was avoided is never printed to the terminal.
+
+**Decisions (the owner, 2026-11-21):**
+- Five PRs, in order: (1) evidence the history can stand on; (2) run history that records and reports and changes no verdict; (3) the parts that act; (4) guidance slice 2; (5) claims.
+- A remembered function found unchanged in an imported module is refused at the rule's own level (narrowing `ae4bfb67`'s module exemption only for code NAAb already refused).
+- `naab-lang init` turns telemetry and the chain on, so history is automatic for new projects.
+- In scope: A183 (telemetry loss past 10,000 results), A184 (the governance-baseline file), A185 (a tool grading its own handle), A191 (S19's claim reading). A33(b) (the key variables withheld from the program) is PR 1's main item; A186 found with it.
+
+**PR 1 -- evidence the history can stand on:** A33(b) for all four key variables (`telemetry.tamper_evidence.hmac_key_env`, `audit.tamper_evidence.hmac_key_env`, `audit.provenance.signing_key_env`, `telemetry.webhook_auth_env`), with A186; A183; A184; A185.
+**PR 2 -- run history (no verdict changes):** a subject on every function-body check record (A187), a code fingerprint, the content-addressed store, the chained carry and its anchor, reset detection, `naab-gov history`, `history.enabled`, `naab-lang init` writing telemetry and the chain on.
+**PR 3 -- the parts that act:** the module re-check, precedent lines on the refused run's closing text (stderr), the golden-case fact (telemetry and the report only).
+**PR 4 -- guidance slice 2:** the model on scored-reply records (A188), the `history` source, efficacy (one function for the report and the next run), the holdout, a replay `guidance` check (A189).
+**PR 5 -- claims:** one claim reader shared by S19 (A191) and S24, `AGENT_CLAIM`, settlement on `VALIDATION_RECORDED`, S24, a replay `claims` check.
+
+**Known limits, to be stated in every PR:** deleting both the telemetry file and `.naab_cache` erases history undetectably; a shell block with shell on can edit `.naab_cache` (CONTRA-013); a fresh checkout or CI without history passes what a local run refused; a trivial edit while moving code defeats the fingerprint; an `extends` child can switch telemetry off (A98 leaves it unfloored). None loosens existing governance; the module route's full fix stays the owner's open decision on module heuristics.
 
 ## Not bundled (open, the owner's call)
 

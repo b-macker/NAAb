@@ -4784,7 +4784,18 @@ private:
     // How many check_results_ have already been dumped to telemetry, and the
     // dedup keys seen across all dumps. check_results_ is never cleared, so
     // without these a second writeReports() re-emits the entire set.
-    mutable size_t telemetry_results_dumped_ = 0;
+    // A183: telemetry resumes after the highest record_id it has written. It
+    // resumed from a vector index, but the list is capped by evicting from the
+    // front (MAX_CHECK_RESULTS), so at the cap the index stopped moving and
+    // every later result was never written. Atomic: capCheckResultsLocked()
+    // reads it under results_mutex_, writeTelemetry() writes it without.
+    mutable std::atomic<uint64_t> telemetry_written_through_id_{0};
+    // Lines writeTelemetry() has written this run (the stderr total).
+    mutable long long check_events_written_total_ = 0;
+    // Results evicted by the cap before telemetry wrote them (under
+    // results_mutex_), and how many of those the summary event has reported.
+    uint64_t evicted_before_telemetry_ = 0;
+    mutable uint64_t evicted_before_telemetry_reported_ = 0;
     mutable std::unordered_set<std::string> telemetry_dedup_seen_;
     // Score at the last ScoringSnapshot; -1 = none emitted yet.
     mutable int scoring_snapshot_last_score_ = -1;
@@ -4925,7 +4936,9 @@ private:
     // Append one result under results_mutex_ (the post-run audits; A86).
     void appendCheckResult(CheckResult r) {
         std::lock_guard<std::mutex> lock(results_mutex_);
+        r.record_id = ++check_record_seq_;   // A183: telemetry resumes by this
         check_results_.push_back(std::move(r));
+        capCheckResultsLocked();
     }
     // Caller MUST hold results_mutex_. Every check_results_ writer calls this.
     void capCheckResultsLocked();

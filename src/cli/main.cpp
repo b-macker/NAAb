@@ -597,6 +597,22 @@ static void printRefusalClosingIfGoverned() {
     }
 }
 
+// Every fatal exit flushes the advisory summary and then writes the reports
+// the engine holds (A183(b)). The flush can itself record a result (a
+// validation scored at exit). The outer handlers used to flush only: a HARD
+// refusal made after the run's last report write -- a must_produce contract,
+// which runs after execute() -- was printed and never reached telemetry, the
+// JSON report or SARIF (observed with 5 governed calls). writeReports() resumes
+// telemetry where it stopped, so a second call writes nothing twice. Guarded:
+// this runs inside a catch, and nothing here may throw out of it.
+static void flushGovernanceOnFatalExit() {
+    if (auto* gov = naab::governance::GovernanceEngine::getCurrent()) {
+        if (!gov->isActive()) return;
+        gov->flushGroupedAdvisories();
+        try { gov->writeReports(); } catch (...) {}
+    }
+}
+
 int main(int argc, char** argv) {
     // Enable ANSI colours + UTF-8 console on Windows; no-op on POSIX.
     naab::platform::enableAnsiConsole();
@@ -3103,6 +3119,16 @@ int main(int argc, char** argv) {
                         vm_governance.saveGovernanceBaseline();
                     }
                 }
+
+                // A183(c): write once more at the end of a clean run. execute()
+                // wrote the reports when the program finished; everything
+                // recorded after that -- the after-run audit, the execution
+                // contracts' passes, the baseline check -- was never written to
+                // telemetry or the reports. Resumes where the last write
+                // stopped, so nothing is written twice.
+                if (vm_governance.isActive()) {
+                    vm_governance.writeReports();
+                }
                 vm_allocation_count = bytecode_vm.getAllocationCount();
                 vm_gc_runs = bytecode_vm.gcCollectionsRun();
                 vm_gc_deferred = bytecode_vm.gcCollectionsDeferred();
@@ -3289,6 +3315,9 @@ int main(int argc, char** argv) {
                         if (governance_baseline_save) {
                             gov->saveGovernanceBaseline();
                         }
+                        // A183(c): as on the VM path, everything recorded after
+                        // the program finished reaches the reports.
+                        gov->writeReports();
                     }
                 }
 
@@ -3364,9 +3393,7 @@ int main(int argc, char** argv) {
             // silently became zero exactly when the operator most needs the
             // list. Idempotent: it clears its own buffers, so the normal-exit
             // call and this one cannot double-print.
-            if (auto* gov = naab::governance::GovernanceEngine::getCurrent()) {
-                if (gov->isActive()) gov->flushGroupedAdvisories();
-            }
+            flushGovernanceOnFatalExit();
             std::string msg = naab::error::ErrorSanitizer::sanitize(e.what());
             fmt::print("Error: {}\n", msg);
             fflush(stdout);
@@ -3382,9 +3409,7 @@ int main(int argc, char** argv) {
             // silently became zero exactly when the operator most needs the
             // list. Idempotent: it clears its own buffers, so the normal-exit
             // call and this one cannot double-print.
-            if (auto* gov = naab::governance::GovernanceEngine::getCurrent()) {
-                if (gov->isActive()) gov->flushGroupedAdvisories();
-            }
+            flushGovernanceOnFatalExit();
             fflush(stdout);
             fflush(stderr);
             // naab-29 L-02: governance hard block overrides process.exit()
@@ -3402,9 +3427,7 @@ int main(int argc, char** argv) {
             // silently became zero exactly when the operator most needs the
             // list. Idempotent: it clears its own buffers, so the normal-exit
             // call and this one cannot double-print.
-            if (auto* gov = naab::governance::GovernanceEngine::getCurrent()) {
-                if (gov->isActive()) gov->flushGroupedAdvisories();
-            }
+            flushGovernanceOnFatalExit();
             // V-ERR-002: sanitize before displaying to prevent sensitive data leakage
             fmt::print("{}\n", naab::error::ErrorSanitizer::sanitize(e.formatError()));
             fflush(stdout);
@@ -3423,9 +3446,7 @@ int main(int argc, char** argv) {
             // silently became zero exactly when the operator most needs the
             // list. Idempotent: it clears its own buffers, so the normal-exit
             // call and this one cannot double-print.
-            if (auto* gov = naab::governance::GovernanceEngine::getCurrent()) {
-                if (gov->isActive()) gov->flushGroupedAdvisories();
-            }
+            flushGovernanceOnFatalExit();
             std::string raw_msg = e.what();
             std::string msg = naab::error::ErrorSanitizer::sanitize(raw_msg);
             fmt::print("Error: {}\n", msg);

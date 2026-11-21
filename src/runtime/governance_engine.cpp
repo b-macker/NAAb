@@ -1065,13 +1065,27 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
     // reads as a ratchet loosening of blocked_read. Limits: audit mode does not
     // enforce blocked_read, and a <<sh>> block under elevated with shell on can
     // read the process environment file (A32, CONTRA-013).
+    auto protectEnvName = [&](const std::string& name) {
+        if (!name.empty() &&
+            std::find(protected_env_names_.begin(), protected_env_names_.end(), name) ==
+                protected_env_names_.end())
+            protected_env_names_.push_back(name);
+    };
     for (const auto& s : target_rules.guidance.sources) {
-        if (s.type == "https" && !s.auth_env.empty() &&
-            std::find(protected_env_names_.begin(), protected_env_names_.end(), s.auth_env) ==
-                protected_env_names_.end()) {
-            protected_env_names_.push_back(s.auth_env);
-        }
+        if (s.type == "https") protectEnvName(s.auth_env);
     }
+    // The evidence keys (A33(b)): the variables holding the HMAC keys that seal
+    // the telemetry chain and the audit trail, the path of the provenance
+    // signing key, and the webhook's credential. The engine reads each when
+    // the config is loaded; a program that could read one could forge a
+    // correctly chained record of its own run, sign an attestation, or post
+    // forged events to the operator's SIEM. Withheld whenever the name is
+    // configured, whether or not the feature is on, by the same rule and with
+    // the same limits as auth_env above.
+    protectEnvName(target_rules.telemetry_output.tamper_evidence.hmac_key_env);
+    protectEnvName(target_rules.audit.tamper_evidence.hmac_key_env);
+    protectEnvName(target_rules.audit.provenance.signing_key_env);
+    protectEnvName(target_rules.telemetry_output.webhook_auth_env);
     auto& blocked_read = target_rules.capabilities.env_vars.blocked_read;
     for (const auto& name : protected_env_names_) {
         if (std::find(blocked_read.begin(), blocked_read.end(), name) == blocked_read.end())
@@ -1136,6 +1150,28 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
             const auto abs = std::filesystem::absolute(cal, ec);
             if (!ec) remember(abs.lexically_normal().string());
         }
+    }
+    // The governance baseline (A184) is engine state by the same reasoning:
+    // checkGovernanceBaseline() reads it at the end of the run to decide
+    // fail_on_regression, and a missing file means "no baseline yet", so a
+    // program that rewrote or deleted it hid its own regression (measured:
+    // three warnings against a baseline of one exits 2; the same program
+    // rewriting the file first exited 0). Opened as configured, relative to
+    // the working directory, so recorded both as written and absolute.
+    // Reads stay allowed; saving it stays the operator's --governance-baseline-save.
+    if (target_rules.governance_baseline.enabled &&
+        !target_rules.governance_baseline.path.empty()) {
+        const std::string bl = target_rules.governance_baseline.path;
+        std::lock_guard<std::mutex> lk(evidence_paths_mutex_);
+        auto remember = [&](const std::string& p) {
+            if (std::find(engine_state_paths_.begin(), engine_state_paths_.end(), p) ==
+                engine_state_paths_.end())
+                engine_state_paths_.push_back(p);
+        };
+        remember(bl);
+        std::error_code ec;
+        const auto abs = std::filesystem::absolute(bl, ec);
+        if (!ec) remember(abs.lexically_normal().string());
     }
 
     // A169: `.naab_cache/` beside govern.json is engine state too. Agent review
@@ -1405,16 +1441,26 @@ void GovernanceEngine::capCheckResultsLocked() {
     // several results per polyglot block at once, and erase-from-front in a
     // loop is quadratic. F8: preflight entries are evicted only as a last resort.
     size_t excess = check_results_.size() - MAX_CHECK_RESULTS;
+    // A183: a result evicted before telemetry wrote it is lost from the record;
+    // count it, so the summary event can say so.
+    const uint64_t written_through = telemetry_written_through_id_.load();
     auto out = check_results_.begin();
     for (auto it = check_results_.begin(); it != check_results_.end(); ++it) {
-        if (excess > 0 && !it->preflight) { --excess; continue; }
+        if (excess > 0 && !it->preflight) {
+            --excess;
+            if (it->record_id > written_through) ++evicted_before_telemetry_;
+            continue;
+        }
         if (out != it) *out = std::move(*it);
         ++out;
     }
     check_results_.erase(out, check_results_.end());
     if (check_results_.size() > MAX_CHECK_RESULTS) {
+        const auto drop = check_results_.size() - MAX_CHECK_RESULTS;
+        for (size_t i = 0; i < drop; ++i)
+            if (check_results_[i].record_id > written_through) ++evicted_before_telemetry_;
         check_results_.erase(check_results_.begin(),
-            check_results_.begin() + (check_results_.size() - MAX_CHECK_RESULTS));
+            check_results_.begin() + drop);
     }
 }
 
@@ -1431,6 +1477,7 @@ void GovernanceEngine::recordPass(const std::string& rule_name,
                               false, rationale, std::move(t_current_decision_trace), ""});
     check_results_.back().live_location = live_location;
     check_results_.back().disposition = "passed";   // A172
+    check_results_.back().record_id = ++check_record_seq_;   // A183
     t_current_decision_trace.clear();
     // V-GOV-024: cap telemetry to prevent unbounded memory growth
     capCheckResultsLocked();
@@ -3029,9 +3076,11 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
             "governance evidence file is not writable by the program: " + filepath);
     }
 
-    // The scoring calibration file is engine STATE: its weights replace the
-    // configured ones, so a program that could write it could zero the weight
-    // of its own violations (A60). Lowering a weight is the operator's
+    // The scoring calibration file and the governance baseline (A184) are
+    // engine STATE: calibration weights replace the configured ones, so a
+    // program that could write the file could zero the weight of its own
+    // violations (A60); the baseline decides fail_on_regression, so rewriting
+    // or deleting it hid a regression. Lowering a weight is the operator's
     // decision, made in this file outside the run; governance.calibrate() may
     // only raise one. Reads stay allowed. Subprocess languages do not reach
     // this gate (CONTRA-013).
@@ -3041,9 +3090,9 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
                 "Writing a governance state file is blocked: " + filepath,
                 currentFunction().empty() ? std::string()
                                           : ("in function '" + currentFunction() + "'"),
-                "the engine reads its scoring weights from this file",
+                "the engine reads this file back to make its own decisions",
                 "A governed program can read this file but cannot change it.\n"
-                "Weights are lowered by the operator, outside the run.",
+                "The operator changes it, outside the run.",
                 "file.write(\"" + filepath + "\", text)",
                 "file.write(\"output/notes.json\", text)"),
             "governance state file is not writable by the program: " + filepath);
@@ -3875,6 +3924,7 @@ void GovernanceEngine::scoreUnconsumedValidations() {
                             "so it was scored at the end of the run: coherence {:.4f} -> {:.4f}",
                             who, r.coherence_before, r.coherence_after),
                 "context_drift", "medium", 0, "<agent:" + r.config_name + ">", {}, {}});
+            check_results_.back().record_id = ++check_record_seq_;   // A183
             capCheckResultsLocked();
         }
         if (rules().telemetry_output.enabled) {

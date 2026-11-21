@@ -1653,14 +1653,18 @@ void GovernanceEngine::writeTelemetry() const {
     size_t runtime_exempt_count = 0;
     size_t events_written = 0;
 
-    // Resume where the previous dump stopped. check_results_ is never cleared,
-    // so iterating from the start re-emits every earlier result — a clean
-    // execute() followed by main.cpp's quality-gate exit duplicated the whole
-    // set (45-48 records on a live run), inflating every count derived from
-    // this file. Results only ever accumulate, so an index is sufficient.
-    const size_t results_total = results_snapshot.size();
-    for (size_t ri = telemetry_results_dumped_; ri < results_total; ++ri) {
-        const auto& r = results_snapshot[ri];
+    // Resume where the previous dump stopped: iterating from the start
+    // re-emits every earlier result -- a clean execute() followed by
+    // main.cpp's quality-gate exit duplicated the whole set (45-48 records on
+    // a live run), inflating every count derived from this file. Resumed by
+    // record_id, not by position (A183): the list is capped by evicting from
+    // the front, so past MAX_CHECK_RESULTS a position stops moving and every
+    // later result was never written. Every writer numbers its result.
+    const uint64_t written_through = telemetry_written_through_id_.load();
+    uint64_t newest_written = written_through;
+    for (const auto& r : results_snapshot) {
+        if (r.record_id <= written_through) continue;
+        if (r.record_id > newest_written) newest_written = r.record_id;
         // Fix 4B: skip duplicate (rule_name, file, line) entries.
         //
         // Only entries that HAVE a source site. enforce() fills file/line from
@@ -1757,9 +1761,19 @@ void GovernanceEngine::writeTelemetry() const {
         forwardTelemetry(ev.dump());
     }
 
+    // Results the cap evicted before this file received them (A183): read
+    // under results_mutex_, reported once each.
+    uint64_t evicted_unreported = 0;
+    {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        evicted_unreported = evicted_before_telemetry_ - evicted_before_telemetry_reported_;
+        evicted_before_telemetry_reported_ = evicted_before_telemetry_;
+    }
+
     // Fix 4B: emit summary event recording dedup stats
-    if (rules().telemetry_output.deduplicate_checks &&
-        (dedup_count > 0 || runtime_exempt_count > 0)) {
+    if ((rules().telemetry_output.deduplicate_checks &&
+         (dedup_count > 0 || runtime_exempt_count > 0)) ||
+        evicted_unreported > 0) {
         nlohmann::json summary;
         summary["run_id"] = run_id_;
         summary["event_type"] = "GovernanceCheckSummary";
@@ -1771,6 +1785,9 @@ void GovernanceEngine::writeTelemetry() const {
         // dedup guard above. Reported so "deduplicated" cannot be read as
         // "everything repeated was collapsed".
         summary["runtime_exempt"] = runtime_exempt_count;
+        // Results recorded and then evicted by the result cap before telemetry
+        // received them: the record is short by this many (A183).
+        summary["evicted_before_written"] = evicted_unreported;
         // Held until the line is written and flushed: the next writer seeds its
         // prev_hash from the file's tail, so a sealed line that is not in the
         // file yet gives two events the same predecessor (A164).
@@ -1791,7 +1808,7 @@ void GovernanceEngine::writeTelemetry() const {
     }
 
     // Everything above this point has now been committed to the file.
-    telemetry_results_dumped_ = results_total;
+    telemetry_written_through_id_.store(newest_written);
 
     // Fix 5B: emit end-of-run health warnings (catches instrumentation failures
     // that per-turn checkGovernanceHealth() missed due to check_after_turns gate)
@@ -1850,18 +1867,22 @@ void GovernanceEngine::writeTelemetry() const {
     // investigating flushing because of it). Both counts are reported now.
     const long long agent_events = agent_events_written_.load(std::memory_order_relaxed);
     // writeTelemetry() runs more than once per run (writeReports has many call
-    // sites), so print only when something new was written since the last line.
+    // sites), so print only when something new was written since the last line,
+    // and print the run's running total: the last line printed matches the
+    // file. It printed this call's check results only, so a second write (the
+    // end of a clean run writes once more, A183(c)) read as lost events.
+    check_events_written_total_ += static_cast<long long>(events_written);
     if (events_written > 0 || agent_events != agent_events_reported_) {
         agent_events_reported_ = agent_events;
         int failures = telemetry_write_failures_.load(std::memory_order_relaxed);
         std::string breakdown = agent_events > 0
             ? fmt::format(" ({} check results + {} agent, anchor and health events)",
-                          events_written, agent_events)
+                          check_events_written_total_, agent_events)
             : std::string();
         std::string failure_note = failures > 0
             ? fmt::format(" ({} write failures)", failures) : std::string();
         fprintf(stderr, "[governance] Telemetry: %lld events written to %s%s%s\n",
-                static_cast<long long>(events_written) + agent_events,
+                check_events_written_total_ + agent_events,
                 rules().telemetry_output.output_file.c_str(),
                 breakdown.c_str(), failure_note.c_str());
     }
@@ -2217,6 +2238,7 @@ std::string GovernanceEngine::checkPolyglotOptimization(
         {
             std::lock_guard<std::mutex> lock(results_mutex_);
             check_results_.push_back(check);
+            check_results_.back().record_id = ++check_record_seq_;   // A183
             capCheckResultsLocked();  // V-GOV-024
         }
 
