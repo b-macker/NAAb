@@ -32,7 +32,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NAAB="$SCRIPT_DIR/../../build/naab-lang"
+# The binary under test can be named (an argument or $NAAB), so a mutant build
+# is measured rather than the tree's: hard-coded, a mutant run of this suite
+# tested the unmutated binary and read as a survival.
+NAAB="${1:-${NAAB:-$SCRIPT_DIR/../../build/naab-lang}}"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"
 
 # The old form probed `[ -d <termux tmp> ]` first. That probe is unsound off

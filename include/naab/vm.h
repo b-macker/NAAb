@@ -169,6 +169,12 @@ enum class OpCode : uint8_t {
     // decides. [mode:24] 0 = save TOS's taint, 1 = add TOS's taint to the saved
     // one (a match pattern or guard), 2 = add the saved taint to TOS and drop it.
     OP_COND_TAINT,
+
+    // debug.is_tainted("x") naming a local or upvalue (F35): pop the value,
+    // push whether it is tainted. The VM keeps a local's taint on its value
+    // (taint_stack_), not under its name, so the name lookup the runtime call
+    // makes answered false for every tainted local.
+    OP_TAINT_OF,
 };
 
 // ============================================================================

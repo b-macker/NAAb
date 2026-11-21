@@ -2843,6 +2843,14 @@ struct GovernanceRules {
     // M3: tracks which JSON keys were explicitly present in the config file.
     // Used by mergeRules() to distinguish "user set field to default" from "never set".
     std::unordered_set<std::string> explicitly_set;
+    // The variables a config names as holding a key the ENGINE uses --
+    // telemetry.tamper_evidence.hmac_key_env, audit.tamper_evidence.hmac_key_env,
+    // audit.provenance.signing_key_env -- recorded as parsed. Withheld from the
+    // program like a guidance source's auth_env (addGovernanceProtectedPaths,
+    // A33(b)): a program that reads the chain's key can seal forged lines.
+    // Kept apart from the *_key_env fields, which nothing fills: the key
+    // ratchet compares the key values (keyRef).
+    std::vector<std::string> key_env_names;
 
     // What a model writes -- an agent reply, a propose candidate, the arguments
     // of a tool call the model makes -- is scanned for secrets unless the
@@ -3544,6 +3552,11 @@ public:
     // back -- `.naab_cache/` beside govern.json, where agent review and the
     // governance voice cache their results -- or anything under it (A169).
     bool isEngineStateDir(const std::string& canon_n) const;
+    // True when `canon_n` (canonical, '/' separators) is a governance plugin
+    // file govern.json names (`governance_plugins[].file`). The engine runs it
+    // as the operator's governance code, so the governed program may read it
+    // but not write it (A192).
+    bool isGovernancePluginPath(const std::string& canon_n) const;
     // The agent-channel text for a set of deliveries ("" for none).
     static std::string formatGuidance(const std::vector<GuidanceDelivery>& items);
     // Opaque outside governance_guidance.cpp.
@@ -3837,6 +3850,11 @@ public:
                                   const std::unordered_map<std::string, interpreter::NaabVal>& context,
                                   int line = 0);
     void loadPlugins();
+    // True while loadPlugins() is reading the plugin files govern.json names
+    // on this thread. The module loader's read gates judge the PROGRAM's
+    // imports; a plugin file is the operator's governance code, read
+    // without them (A116, the owner's decision of 2026-11-20).
+    static bool loadingPluginsOnThisThread();
 
     // Resource limits
     std::string checkLoopIterations(size_t count);
@@ -4863,6 +4881,12 @@ private:
     void applyStartupOverlays(GovernanceRules& target_rules);
     static bool applyAgentRoleTo(GovernanceRules& target_rules, const std::string& agent_id);
     static bool applyEnvironmentTo(GovernanceRules& target_rules, const std::string& env_name);
+    // The environment keys applyEnvironmentTo() does not handle itself: each
+    // names a check an environment may raise (governance_config.cpp's
+    // kEnvironmentChecks, A185), or is warned about and ignored.
+    static void applyEnvironmentCheckKeys(
+        GovernanceRules& target_rules, const std::string& env_name,
+        const std::vector<std::pair<std::string, std::string>>& keys);
     // The stricter of file_mode and an environment's "mode" value (A95(b)).
     static GovernanceMode modeAfterEnvironment(GovernanceMode file_mode, const std::string& env_value);
     static void applyBaselineFlags(GovernanceRules& target_rules, bool record, bool check);

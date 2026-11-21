@@ -85,8 +85,11 @@ std::unique_ptr<ast::Program> ModuleRegistry::parseModuleFile(const std::string&
     // F33: `use module` reads a file from disk and must obey the same filesystem
     // governance as file.read() / `import` (A25). ModuleResolver was gated in
     // #213 but this second module path (ModuleRegistry) was not, so `use secret`
-    // still bypassed capabilities.filesystem.mode:none / blocked_paths.
-    if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+    // still bypassed capabilities.filesystem.mode:none / blocked_paths. A
+    // governance plugin's own load is the operator's, not the program's (A116).
+    const bool operator_plugin = governance::GovernanceEngine::loadingPluginsOnThisThread();
+    if (auto* gov = governance::GovernanceEngine::getCurrent();
+        gov && gov->isActive() && !operator_plugin) {
         // The capability manifest pins modules (Bundle 11 PR 2).
         std::string m_err = gov->checkManifestModule(file_path, nullptr);
         if (!m_err.empty()) throw std::runtime_error(m_err);
@@ -103,7 +106,8 @@ std::unique_ptr<ast::Program> ModuleRegistry::parseModuleFile(const std::string&
         throw std::runtime_error("Failed to open file: " + file_path);
     }
     std::string source = std::move(*src);
-    if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+    if (auto* gov = governance::GovernanceEngine::getCurrent();
+        gov && gov->isActive() && !operator_plugin) {
         std::string m_err = gov->checkManifestModule(file_path, &source);
         if (!m_err.empty()) throw std::runtime_error(m_err);
     }

@@ -7,12 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed -- Bundle 19 PR 1: security and silent no-ops (migration notes)
+- **The run's governance now judges the compile phase too (A116).** A governance plugin's own calls made while the program compiles -- `env.get` of a blocked variable, for one -- are refused as they already were while it runs. A plugin file itself is read as the operator's: a lease, a capability manifest or a `blocked_paths` entry does not stop the engine loading it.
+  - **Migration:** a plugin whose rule reads something the project withholds from the program now ends the run at compile; give the plugin what it needs some other way.
+- **A config that loaded may now be refused at load (exit 4), naming the key:** a `capabilities.functions` entry that is not an object, such as `"default": []`, which used to restrict nothing (A187); and, anywhere in the config, an `enabled` that is not `true` or `false`, a `level` that is not a level name, or a `limits` value that is not a number -- each was dropped to its default, leaving the check off or the limit gone (A111). Only a key the loader reads as that setting is judged: a function, agent or output-contract field the user named `level` or `enabled` is a name and still loads. A limits `rationale` is text and still loads. Over the repository's 189 configs, only two written to be invalid are affected.
+  - **Migration:** write `"enabled": true`, not `"true"`; a level as a string (`"hard"`); a limit as a number.
+- **An environment now applies the check levels it sets (A185).** `environments.<name>` with `code_quality.no_placeholders.level: "hard"` (or the nested form) raises that check, and turns it on if the file leaves it off; it used to be dropped in silence. An environment can only raise a level: a lower one is ignored with a warning, as a lower mode already was. Any key an environment cannot change now draws a warning naming it. A mid-run reload that drops an environment's raise is refused.
+  - **Migration:** a run with `--env` whose environment names check levels now enforces them.
+- **`capabilities.network.allowed_ports` now binds the program's connections (A87):** `http.*`, URL imports and embedded Python's sockets. It was read and applied to nothing.
+- **A governance hook starts from the environment NAAb started with (A53).** A bare command name is found on that `PATH`, and the hook no longer sees variables the program set. `blocked_read` values still reach it, as before.
+- **The variables that hold the engine's keys are withheld from the program (A33(b)):** the ones `telemetry.tamper_evidence.hmac_key_env`, `audit.tamper_evidence.hmac_key_env` and `audit.provenance.signing_key_env` name. `env.get` on one is a HARD block, and no child process receives it.
+  - **Migration:** a program that read one of these variables is now refused; it should not need the engine's keys.
+- **`capabilities.env_vars.read: false` is a HARD block at every env function (A183).** It used to reach the sandbox first, whose refusal a `try` caught, so the run ended PASS. Under audit the refusal is now recorded.
+- **The top level has its own function-capability entry (A186).** A `"main"` entry in `capabilities.functions` grants the main block and module loading (`use mod` is a top-level FS_READ); `"default"` still applies without one, and the advisory now proposes a `"main"` entry rather than widening `"default"`.
+
+### Fixed
+- **The program can no longer write a governance plugin file (A192).** `file.write` over the plugin govern.json names ran, and the next run skipped the rule the plugin had enforced. Every program write to a plugin file is now refused (HARD); reading it is still allowed.
+- **Under `extends`, a child's `dangerous_calls` or `main_block` level no longer lowers its parent's (A191).** A child's `"level": "advisory"` ran `eval()` its parent refused at `hard`: the floor raised one copy of the setting and the check read another.
+- **A banned `Function(` no longer refuses JavaScript's `function` keyword (A184)**, in `banned_functions` and `restrictions.dangerous_calls.blocklist_extra`. `new Function(...)`, `Function(...)` and an alias of it are still refused, and other languages still match without case.
+- **The `regex` module no longer refuses ordinary patterns (A189)** such as `([a-z]+ )*`, `(\s*,\s*)+` or `(a|ab)*c.*d`: the matcher is linear for them since A89. A slow pattern is still stopped by the time limit and the step budget.
+- **`debug.is_tainted("x")` answers correctly on the default engine (F35)** for a local or captured variable; it answered false for tainted data. A name computed at run time still reads false there (recorded).
+- **The version check runs with the suite (A181).** `tests/self-audit/test_version_consistency.sh`, which checks that every file declaring NAAb's version agrees, that both binaries print it and that `scripts/bump-version.sh` reaches every declaration, ran nowhere since 2.0.0; `run-all-tests.sh` runs it now. It reads the files with Windows line endings removed, so it measures the committed text on every runner, and a run that cannot measure fails.
+
+### Documentation
+- `docs/GOVERNANCE-LIMITS.md` §8, "What a Restart Forgets": what governance state lives only in the process (B1, documented by decision rather than persisted); §7.6 and the summary table no longer say `--timeout` can extend a governance timeout, which A79 fixed.
+
 ### Changed -- one workflow publishes a release (A180; migration note)
 - **A release page is published once, with its notes and every file.** `release.yml` now makes the signed binary, the SBOM and the provenance file itself (they were `supply-chain.yml`'s jobs). Its release step runs after every other job and publishes all 17 files in one step, and it refuses to publish when one is missing. Before, the supply-chain workflow created and published the page seconds after the tag, with no notes and none of the four packages: v2.0.2's page was public that way for 26 minutes, and v2.0.0's build failed and left one published. `supply-chain.yml` now only scans and may not write to the repository, and `fuzz-nightly.yml` gets the read-only token every other workflow has. Test: `tests/self-audit/test_release_publisher.sh`.
   - **Migration:** from v2.0.3, the cosign certificate of `naab-lang.sig` names `.github/workflows/release.yml@refs/tags/vX.Y.Z` (v2.0.2 and earlier: `supply-chain.yml`). A verification that pins the workflow must accept the new name. `SECURITY.md` now shows a check that accepts both and no other repository; the command it showed before accepted a signature made by any GitHub repository's workflow (A182).
-
-### Fixed
-- **The version check runs with the suite (A181).** `tests/self-audit/test_version_consistency.sh`, which checks that every file declaring NAAb's version agrees, that both binaries print it and that `scripts/bump-version.sh` reaches every declaration, ran nowhere since 2.0.0; `run-all-tests.sh` runs it now. It reads the files with Windows line endings removed, so it measures the committed text on every runner, and a run that cannot measure fails.
 
 ## [2.0.2] - 2026-11-19
 

@@ -2,6 +2,7 @@
 // Extracted from governance.cpp lines 5603-7484
 
 #include "naab/bounded_jsonl.h"
+#include "naab/env_snapshot.h"
 #include "naab/governance.h"
 #include "naab/paths.h"
 #include "naab/telemetry_forwarder.h"
@@ -845,22 +846,23 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
         argv.push_back(nullptr);
 
         // Resolve command path before fork — execvp does PATH search which
-        // may malloc (not async-signal-safe). execv is async-signal-safe.
+        // may malloc (not async-signal-safe). execve is async-signal-safe.
+        // Both come from the LOAD-TIME environment (A53): a hook is the
+        // operator's command, and the live environment is the program's to
+        // write (env.set), so a bare name was found through a PATH the
+        // program chose and the hook ran with variables the program set.
+        // A name not found there keeps its name, and execve fails (exit 127).
         std::string resolved_cmd = hook.command;
         if (hook.command.find('/') == std::string::npos) {
-            const char* path_env = getenv("PATH");
-            if (path_env) {
-                std::istringstream path_stream(path_env);
-                std::string dir;
-                while (std::getline(path_stream, dir, ':')) {
-                    std::string candidate = dir + "/" + hook.command;
-                    if (access(candidate.c_str(), X_OK) == 0) {
-                        resolved_cmd = candidate;
-                        break;
-                    }
-                }
-            }
+            const std::string found = naab::findOnSnapshotPath(hook.command);
+            if (!found.empty()) resolved_cmd = found;
         }
+        // V-SC-006: NAAb's own key variables are left out unless the hook
+        // asks for them (operatorEnvironment()).
+        std::vector<std::string> env_strings = naab::operatorEnvironment(hook.inherit_governance_keys);
+        std::vector<char*> envp;
+        for (auto& e : env_strings) envp.push_back(const_cast<char*>(e.c_str()));
+        envp.push_back(nullptr);
 
         pid_t pid = fork();
         if (pid < 0) return;
@@ -873,15 +875,6 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
             // running after the hook "timed out" -- the timeout bounded the
             // shell, not the hook.
             setpgid(0, 0);
-
-            // V-SC-006: scrub governance keys from child environment.
-            // unsetenv is technically not async-signal-safe, but these 3 calls
-            // on constant strings have near-zero practical risk (no allocation in glibc).
-            if (!hook.inherit_governance_keys) {
-                unsetenv("NAAB_GOVERN_KEY");
-                unsetenv("NAAB_LOCK_KEY");
-                unsetenv("NAAB_SIGNING_KEY");
-            }
 
             // stdin, stdout and stderr all on the null device. stdin too: a
             // hook has no use for the run's input, and an inherited pipe let a
@@ -900,7 +893,7 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
             // Per-call timeout via alarm (child process — no thread conflicts)
             if (hook.timeout > 0) alarm(static_cast<unsigned>(hook.timeout));
 
-            execv(resolved_cmd.c_str(), const_cast<char* const*>(argv.data()));
+            execve(resolved_cmd.c_str(), const_cast<char* const*>(argv.data()), envp.data());
             _exit(127);  // exec failed
         }
 
@@ -989,29 +982,27 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
         // V-SC-006: Build filtered environment block to scrub governance keys
         std::vector<char> env_block;
         LPVOID env_ptr = nullptr;
-        if (!hook.inherit_governance_keys) {
-            // Hook scope: a hook is the operator's command, so blocked_read
-            // (program-facing) is not applied to it; the subprocess lists are.
+        {
+            // From the LOAD-TIME environment, as on POSIX (A53), never the
+            // live one the program writes with env.set. Hook scope: a hook is
+            // the operator's command, so blocked_read (program-facing) is not
+            // applied to it; the subprocess lists are, unless the hook keeps
+            // NAAb's keys (inherit_governance_keys), when nothing is scrubbed.
             const naab::runtime::EnvScrubPolicy hook_policy =
                 naab::runtime::currentEnvScrubPolicy(naab::runtime::EnvScrubScope::Hook);
-            LPCH cur_env = ::GetEnvironmentStringsA();
-            if (cur_env) {
-                for (LPCH p = cur_env; *p; ) {
-                    std::string entry(p);
-                    p += entry.size() + 1;
-                    size_t eq = entry.find('=');
-                    if (eq != std::string::npos) {
-                        std::string key = entry.substr(0, eq);
-                        if (naab::runtime::shouldScrubEnvVar(hook_policy, key)) continue;
-                    }
-                    for (char c : entry) env_block.push_back(c);
-                    env_block.push_back('\0');
-                }
-                ::FreeEnvironmentStringsA(cur_env);
+            for (const auto& entry : naab::operatorEnvironment(hook.inherit_governance_keys)) {
+                size_t eq = entry.find('=');
+                if (!hook.inherit_governance_keys && eq != std::string::npos &&
+                    naab::runtime::shouldScrubEnvVar(hook_policy, entry.substr(0, eq)))
+                    continue;
+                for (char c : entry) env_block.push_back(c);
+                env_block.push_back('\0');
             }
             env_block.push_back('\0');  // double-null terminator
             env_ptr = env_block.data();
         }
+        // A bare name is found on the snapshot's PATH, not the live one.
+        std::string app_name = naab::findOnSnapshotPath(hook.command);
 
         SECURITY_ATTRIBUTES sa = {};
         sa.nLength = sizeof(sa);
@@ -1045,7 +1036,7 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
         // deliberately left running. If the process cannot join the job (an
         // outer job forbidding nesting), the old single-process kill remains.
         HANDLE job = ::CreateJobObjectA(nullptr, nullptr);
-        BOOL ok = ::CreateProcessA(nullptr, cmdline_buf.data(),
+        BOOL ok = ::CreateProcessA(app_name.empty() ? nullptr : app_name.c_str(), cmdline_buf.data(),
                                    nullptr, nullptr,
                                    hNul != INVALID_HANDLE_VALUE,
                                    CREATE_SUSPENDED, env_ptr, nullptr, &si, &pi);
@@ -3229,6 +3220,26 @@ std::string GovernanceEngine::resolvePluginPath(const GovernancePlugin& plugin) 
     return (fs::path(govern_json_dir_) / plugin.file_path).string();
 }
 
+// A116: plugin files are read with the run's engine current (main.cpp makes it
+// current before the static phase). The module loader's gates judge the
+// program -- its lease, its capability manifest, its path policy, its
+// function-scope capabilities -- and a plugin file is not the program's: it is
+// the operator's governance code, named in govern.json, as a hook or a
+// guidance source is. So the reads loadPluginFile() makes are exempted while
+// this depth is held on the thread, which is the whole of the plugin's own
+// load (its file and what its top level imports: nothing the program wrote
+// runs inside it). The program may not write a plugin file (A192,
+// isGovernancePluginPath()). Before A116 the exemption was an accident: the
+// reads met the tree-walker's idle engine during compile. Without it the reads
+// meet the real engine, whose refusals here are HARD -- a lease without
+// FS_READ, a manifest that does not list the plugin, a plugin under
+// blocked_paths each end the run, compliant or not (observed with the scope
+// removed: test_plugin_files.sh PF-02c and PF-03, test_capability_manifest.sh
+// MF-22c).
+static thread_local int t_plugin_load_depth = 0;
+
+bool GovernanceEngine::loadingPluginsOnThisThread() { return t_plugin_load_depth > 0; }
+
 void GovernanceEngine::loadPlugins() {
     if (plugins_loaded_.exchange(true)) return;
 
@@ -3261,7 +3272,13 @@ void GovernanceEngine::loadPlugins() {
         }
 
         try {
-            interp->loadPluginFile(plugin_path.string());
+            {
+                struct PluginLoadScope {
+                    PluginLoadScope() { ++t_plugin_load_depth; }
+                    ~PluginLoadScope() { --t_plugin_load_depth; }
+                } scope;
+                interp->loadPluginFile(plugin_path.string());
+            }
             std::lock_guard<std::mutex> lock(plugin_files_mutex_);
             loaded_plugin_files_.insert(plugin_path.string());
         } catch (const governance::GovernanceHardError&) {

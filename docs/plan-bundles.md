@@ -22,6 +22,7 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 14: replay and provenance | two PRs by the owner's decision (2026-11-11). PR 1 merged, #369: provenance for generated code; A160-A162 recorded. PR 2 merged, #372 (`7f1db67e`): `naab-gov replay`; A163, A164 recorded | Bundle 14 below |
 | 15: AI on deterministic rails | merged, four PRs and a follow-up. PR 1 #373 (`d792d943`; the owner's decision, 2026-11-12: A163 and A164 first, inside this bundle): the telemetry chain verifies under concurrent writers, and `--verify-telemetry-chain` is bounded and exits 1 on a file it cannot read. The feature work's scope was agreed on 2026-11-13 (three PRs): PR 2 #377 (`7bfd99cb`), `naab-gov explain`; PR 3 #379 (`2dc11dd9`), `naab-gov patch-check`; PR 4 #381 (`743e4ee7`), `naab-gov heal`. Follow-up #383 (`58796deb`), decided by the owner on 2026-11-15: A166 fixed (the voice and agent review scan what their models wrote), patch-check runs the contract search by default, A169's write half fixed (the program may not write `.naab_cache/`), and A58's unrun test programs cleaned up | Bundle 15 below |
 | 18: messages and records that match what happened | merged, #386 (`ec009c5e`), one PR, added to the plan by the owner's decision (2026-11-16, #384): A171-A174 and A39(c) fixed | Bundle 18 below |
+| 19: every open item, and seven findings from another session | five PRs, the owner's decisions 1-24 (2026-11-20). PR 1 (security and silent no-ops): A183-A187, A189, A191, A53, A33(b), A87, A111's remainder and F35 fixed, A116 decided (a) and built, A192 found and fixed, B1 documented, A188 and A190 recorded for PR 3 | Bundle 19 below |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). A145 and A146 (node 24: the child memory budget, TypeScript's flags, and the runtime-pin message) were fixed in #366 (`97dab417`). The bundle plan itself was recorded in #351 (`86fc33c9`). Release 2.0.2 (CHANGELOG `[2.0.2]`) carries everything merged from #350 to #387; like 2.0.1, its tag is put on the merged release commit.
 
@@ -354,11 +355,27 @@ Added by the owner's decision (2026-11-16). Found walking one program from `gove
 - A173: the user guide's sentence and example output.
 - Suites: `test_check_locations.sh` (20), `test_check_disposition.sh` (11), `test_closing_lines.sh` (8), each red on master `f3b31246` with its controls green on both, each with a kill table. One existing arm read the old wording (`test_hivemind_governed.sh` E-02) and was moved to the new one.
 
+## Bundle 19 -- every open item, and seven findings from another session
+
+The owner asked (2026-11-20) for everything still open as one bundle: the open records with a clear fix or a decision to recommend, and seven findings another session reported, each re-verified on master `c1312132` beside a control. Five PRs, each from master after the previous one merges: (1) security and silent no-ops, (2) `init`, the slowdown and the evidence it loses, (3) language, tooling and VM correctness, (4) template clean-up and test debt, (5) CDD signals. Decisions 1-22 were approved before the work started and 23-24 during PR 1; PR 1's description carries the plan, with what stays out and why.
+
+**PR 1, as built.**
+- A183: `env_vars.read: false` is a HARD, recorded refusal at every env function (governance asked before the sandbox).
+- A184: a banned `Function(` no longer refuses JavaScript's keyword `function`, in the one matcher `banned_functions` and `blocklist_extra` share.
+- A185: an environment raises a listed check's level and turns it on, never lowers it, and names any key it cannot apply; the reload ratchet compares the table on the overlaid rules.
+- A186/A187: a `"main"` entry is the top level's own; a non-object `capabilities.functions` entry refuses the config.
+- A189: the regex validator's two heuristic refusals are gone (decisions 13 and 23); the time and step budgets stay.
+- A191 (found building A185): an `extends` child's `dangerous_calls` or `main_block` level no longer lowers its parent's.
+- A53: hooks start from the load-time environment. A33(b): the key variables are withheld. A87: `allowed_ports` binds the program's connections. A111's remainder: an ill-typed `enabled`, `level` or limit refuses the config. F35: `debug.is_tainted` answers from the value's taint on the VM.
+- B1: documented (`docs/GOVERNANCE-LIMITS.md` §8). A116: the owner chose (a) -- the run's engine is current before the static phase, and plugin files are exempted explicitly while `loadPlugins()` reads them. A192 (found building it): the program may not write a plugin file.
+- A188 (`naab-lang check`) and A190 (line breaks) are recorded for PR 3.
+- Suites: `test_env_read_off_refusal.sh`, `test_banned_keyword_match.sh`, `test_environment_levels.sh`, `test_hook_snapshot_env.sh`, `test_key_env_withheld.sh`, `test_allowed_ports.sh`, and new arms in the extends-floor, function-capability, restriction-types, regex and taint-parity suites; each red on `c1312132` with its controls green on both, each with an observed kill table.
+
 ## Not bundled (open, the owner's call)
 
 - **Waiting on the owner:**
   - (done 2026-11-15, A58: the nine unrun test programs and `naab_testing` deleted, three folded into `naab_unit_tests`; `test_composition_validator.cpp` left, commented out of CMake.)
   - A170: `naab-lang blocks search <text>` finds nothing (found folding the search test); A169's remaining half, the cache HMAC keyed from public inputs.
   - A177 (found in Bundle 18): past 10,000 recorded check results every further record re-packs the whole list, so a program making many governed calls slows sharply (10,000 `file.exists()` calls took 24 s on master).
-- **Open:** A66, A75(a)(b), A76(e), A70(b)(c), A67, B1, A16/F11/F12, A53, A33(b), D18, and the A64 test debt.
+- **Open:** A76(e), A70(b)(c), A16/F11/F12. (A66, A75, A67, D18, A170, A177 and the A64 test debt are in Bundle 19's later PRs; B1, A53 and A33(b) in its PR 1.)
 - **Paused:** the guidance bypass filter.

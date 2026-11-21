@@ -1072,6 +1072,15 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
             protected_env_names_.push_back(s.auth_env);
         }
     }
+    // The same for the variables that hold the engine's own keys -- the
+    // telemetry and audit chains' HMAC keys and the attestation signing key
+    // (A33(b)): a program that reads the chain's key can seal lines it forges.
+    for (const auto& name : target_rules.key_env_names) {
+        if (std::find(protected_env_names_.begin(), protected_env_names_.end(), name) ==
+            protected_env_names_.end()) {
+            protected_env_names_.push_back(name);
+        }
+    }
     auto& blocked_read = target_rules.capabilities.env_vars.blocked_read;
     for (const auto& name : protected_env_names_) {
         if (std::find(blocked_read.begin(), blocked_read.end(), name) == blocked_read.end())
@@ -1205,6 +1214,32 @@ bool GovernanceEngine::isEngineStateDir(const std::string& canon_n) const {
                 std::error_code ec3;
                 if (fs::equivalent(e.path(), canon_n, ec3) && !ec3) return true;
             }
+        }
+    }
+    return false;
+}
+
+// A192: a plugin file govern.json names, resolved as loadPlugins() resolves it
+// (against govern.json's directory), from the LIVE rules; a hard link to the
+// same file is the same file.
+bool GovernanceEngine::isGovernancePluginPath(const std::string& canon_n) const {
+    const auto rules_hold = rulesPtr();
+    if (rules_hold->governance_plugins.empty()) return false;
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const bool target_exists = fs::exists(canon_n, ec);
+    for (const auto& plugin : rules_hold->governance_plugins) {
+        std::string pp;
+        try {
+            pp = fs::weakly_canonical(fs::absolute(fs::path(resolvePluginPath(plugin)))).string();
+        } catch (...) {
+            continue;
+        }
+        std::replace(pp.begin(), pp.end(), '\\', '/');
+        if (pp == canon_n) return true;
+        if (target_exists) {
+            std::error_code ec2;
+            if (fs::exists(pp, ec2) && fs::equivalent(pp, canon_n, ec2) && !ec2) return true;
         }
     }
     return false;
@@ -2650,10 +2685,15 @@ std::string GovernanceEngine::checkFunctionCapability(
     const auto& fns = rules().capabilities.functions;
     const std::string& fn = currentFunction();
 
-    // Resolve a frame to its declaration, or nullptr when unrestricted.
+    // Resolve a frame to its declaration, or nullptr when unrestricted. The
+    // top level (the main block, and a module's top-level code as it loads) is
+    // the frame "", and its own entry is "main" (A186, the owner's decision 12
+    // of 2026-11-20): it used to resolve through "default" only, so granting
+    // the top level an action -- `use mod` is a top-level FS_READ -- meant
+    // granting it to every function without an entry.
     auto resolve = [&](const std::string& name,
                        std::string& entry_out) -> const FunctionCapability* {
-        auto i = fns.find(name);
+        auto i = fns.find(name.empty() ? std::string("main") : name);
         if (i != fns.end()) { entry_out = i->first; return &i->second; }
         i = fns.find("default");
         if (i != fns.end()) { entry_out = "default"; return &i->second; }
@@ -2665,7 +2705,7 @@ std::string GovernanceEngine::checkFunctionCapability(
     // the outermost constraint the operator has to relax.
     const std::vector<std::string>& stk = functionStack();
     std::vector<std::string> frames(stk.begin(), stk.end());
-    if (frames.empty()) frames.push_back(fn);  // top level resolves via "default"
+    if (frames.empty()) frames.push_back(fn);  // top level: "main", else "default"
 
     const FunctionCapability* blocking = nullptr;
     std::string blocking_entry, blocking_frame;
@@ -2691,6 +2731,11 @@ std::string GovernanceEngine::checkFunctionCapability(
         quoted += "\"" + a + "\"";
     }
     std::string who = fn.empty() ? std::string("top level") : ("'" + fn + "'");
+    // The entry to add the action to. For the top level narrowed by "default"
+    // that is a new "main" entry, starting from default's actions: adding the
+    // action to "default" would grant it to every function without an entry.
+    const std::string fix_entry =
+        (blocking_frame.empty() && blocking_entry == "default") ? std::string("main") : blocking_entry;
     std::string proposed = quoted.empty() ? ("\"" + required + "\"")
                                           : (quoted + ", \"" + required + "\"");
 
@@ -2746,7 +2791,7 @@ std::string GovernanceEngine::checkFunctionCapability(
         std::lock_guard<std::mutex> lock(results_mutex_);
         std::string key = blocking_frame + "\x1f" + required;
         if (undeclared_effects_seen_.insert(key).second) {
-            undeclared_effects_.push_back({blocking_frame, required, blocking_entry});
+            undeclared_effects_.push_back({blocking_frame, required, fix_entry});
         }
     }
     return enforce("capabilities.functions", fn_level,
@@ -2761,13 +2806,13 @@ std::string GovernanceEngine::checkFunctionCapability(
             "That entry may perform: " + (listed.empty() ? "(nothing)" : listed) + "\n"
             "Either the operation does not belong here, or the\n"
             "declaration is incomplete. To permit it, add " + required + ":\n"
-            "  \"capabilities\": { \"functions\": { \"" + blocking_entry + "\": {\n"
+            "  \"capabilities\": { \"functions\": { \"" + fix_entry + "\": {\n"
             "      \"allowed_actions\": [" + proposed + "] } } }\n"
             "A function grant can only narrow what its role and the\n"
             "program already permit - adding it here has no effect if\n"
             "either of those lacks it.",
             example_bad,
-            "Declare " + required + " on '" + blocking_entry + "', or move the call"));
+            "Declare " + required + " on '" + fix_entry + "', or move the call"));
 }
 
 std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
@@ -3007,6 +3052,28 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
                 "file.write(\"" + filepath + "\", text)",
                 "file.write(\"output/notes.md\", text)"),
             "guidance source is not writable by the program: " + filepath);
+    }
+
+    // A governance plugin is code the engine runs as the operator's governance
+    // (A116): a program that could rewrite one would choose the checks its
+    // next run is judged by -- observed before this (A192): with shell
+    // disabled, file.write over the plugin and the next run executed the eval
+    // the plugin refused. Every program write is refused here, the decision
+    // point file/io and embedded Python's audit hook reach on both engines.
+    // Reads stay allowed. Subprocess languages do not reach this gate
+    // (CONTRA-013).
+    if (mode == "write" && isGovernancePluginPath(canon_n)) {
+        return deny("governance.plugin_files", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Writing a governance plugin is blocked: " + filepath,
+                currentFunction().empty() ? std::string()
+                                          : ("in function '" + currentFunction() + "'"),
+                "the project's governance runs this file to check the program",
+                "A governed program can read this file but cannot change it.\n"
+                "The operator edits it outside the program; write your output to another file.",
+                "file.write(\"" + filepath + "\", text)",
+                "file.write(\"output/notes.naab\", text)"),
+            "governance plugin is not writable by the program: " + filepath);
     }
 
     // Governance evidence -- the telemetry output, the agent transcript, the
@@ -3570,7 +3637,7 @@ std::string GovernanceEngine::checkDangerousCall(
         if (extra.empty()) continue;
         bool hit = false;
         try {
-            hit = literalEntryMatches(code, extra);
+            hit = literalEntryMatches(code, extra, language);
         } catch (const std::regex_error&) {
             fprintf(stderr, "[governance] Warning: regex pattern failed for a dangerous-call entry\n");
         }
@@ -3965,6 +4032,10 @@ void GovernanceEngine::flushGroupedAdvisories() {
             // replace the list and silently drop the permissions already there.
             std::set<std::string> all(acts.begin(), acts.end());
             auto ei = rules().capabilities.functions.find(entry);
+            // A "main" entry proposed for the top level starts from what the
+            // top level has now: "default"'s actions (A186).
+            if (ei == rules().capabilities.functions.end() && entry == "main")
+                ei = rules().capabilities.functions.find("default");
             if (ei != rules().capabilities.functions.end()) {
                 for (const auto& a : ei->second.allowed_actions) all.insert(a);
             }
@@ -7429,7 +7500,11 @@ bool GovernanceEngine::applyEnvironmentTo(GovernanceRules& r, const std::string&
                 env_name.c_str(), key.c_str(), value.c_str());
         }
     };
-    for (const auto& [key, value] : overrides) {
+    // Applied in key order, so the warnings come out the same on every run.
+    std::vector<std::pair<std::string, std::string>> ordered(overrides.begin(), overrides.end());
+    std::sort(ordered.begin(), ordered.end());
+    std::vector<std::pair<std::string, std::string>> check_keys;
+    for (const auto& [key, value] : ordered) {
         if (key == "mode") {
             const GovernanceMode file_mode = r.mode;
             r.mode = modeAfterEnvironment(file_mode, value);
@@ -7454,9 +7529,12 @@ bool GovernanceEngine::applyEnvironmentTo(GovernanceRules& r, const std::string&
             r.output.file_output.report_json = value;
         } else if (key == "output.file_output.report_junit") {
             r.output.file_output.report_junit = value;
+        } else {
+            // Every other key used to be dropped in silence (A185).
+            check_keys.emplace_back(key, value);
         }
-        // Additional dot-path overrides can be added as needed
     }
+    applyEnvironmentCheckKeys(r, env_name, check_keys);
     return true;
 }
 

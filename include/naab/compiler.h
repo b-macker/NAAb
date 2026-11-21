@@ -121,6 +121,10 @@ private:
 
     // Module import bindings (populated during visit(ImportStmt) / visit(ModuleUseStmt))
     std::unordered_set<std::string> module_import_bindings_;
+    // The name each `use <stdlib module>` binds, and the module it names:
+    // `use debug as d` is {"d": "debug"}. Read by debug.is_tainted's
+    // compile-time case (F35).
+    std::unordered_map<std::string, std::string> stdlib_bindings_;
 
     // Pre-flight taint analysis: track statically-tainted variables at compile time
     // Mirrors tree-walker's expressionContainsTaint() for static analysis

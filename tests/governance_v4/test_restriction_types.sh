@@ -20,6 +20,14 @@
 #   TY-04   blocked_read [["SECRET"]]   -> exit 4, the variable was not read
 #   TY-05   languages.allowed "python" (read only as a list) -> exit 4
 #   TY-06   an agent role's blocked_paths "vault/" (read only as a list) -> exit 4
+#   TY-09   capabilities.functions.default [] (read only as an object) -> exit 4 (A187)
+#   TY-10   capabilities.functions.default "ENV_READ" -> exit 4; TY-09c CONTROL: the
+#           object form and the string level load and refuse
+#   TY-11   code_quality enabled "true" -> exit 4; TY-12 a level 99 -> exit 4;
+#   TY-13   a limits value "100" -> exit 4 (A111's remainder); TY-13c CONTROL:
+#           a limits rationale and environment strings still load
+#   TY-14   CONTROL: user-named keys spelled "enabled"/"level" (an output
+#           contract's field types, a contract on a function `level`) load
 #   TY-07   CONTROL: the forms the loader does apply still load and restrict:
 #           blocked_read as one string, the bare "shell": false, and
 #           "filesystem": true (restricts nothing) loads
@@ -28,6 +36,18 @@
 #
 # Kill table (observed 2026-11-01): checkRestrictionTypes() not called ->
 # TY-01..TY-06, TY-08; the strict array rule dropped -> TY-05, TY-06.
+# Added 2026-11-20 (Bundle 19), each mutant applied alone and observed:
+#   a non-object capabilities.functions entry accepted -> TY-09, TY-10
+#   a non-boolean `enabled` accepted                    -> TY-11
+#   a non-string `level` accepted                       -> TY-12
+#   a non-numeric `limits` value accepted               -> TY-13
+#   a limits `rationale` refused                        -> TY-13c
+#   the environments block walked                       -> TY-13c on the first
+#     walk, which judged every key spelled enabled/level; under the schema
+#     (2026-11-20) the separate skip SURVIVED -- an environment's keys are
+#     names there -- and was removed as dead code
+#   every key spelled enabled/level judged (no schema)  -> TY-14 (and
+#     test_function_capability_level.sh FL-07)
 # Red first (observed): on master fc9b8099 TY-01..TY-06 fail (each loads; shell
 # runs, the file and the variable are read) and every control passes. TY-08 was
 # UNMEASURABLE there (that build had no naab-gov); it fails under the first
@@ -104,6 +124,38 @@ arm TY-03 'blocked_paths [["vault/"]]' '"filesystem": {"mode": "write", "blocked
 arm TY-04 'blocked_read [["NAAB_TY_SECRET"]]' '"env_vars": {"blocked_read": [["NAAB_TY_SECRET"]]}' env
 arm TY-05 'languages.allowed "python"' '"shell": {"enabled": false}' plain ', "languages": {"allowed": "python"}'
 arm TY-06 "an agent role's blocked_paths \"vault/\"" '"shell": {"enabled": false}' plain ', "agents": {"r": {"provider": "gemini", "blocked_paths": "vault/"}}'
+# TY-09/TY-10 (A187): a capabilities.functions entry is read only as an object;
+# `"default": []` loaded as no entry and restricted nothing (observed on
+# c1312132: the variable was read). TY-09c CONTROL: the object form and the
+# section's string "level" still load, and the empty grant refuses (exit 3).
+arm TY-09 'capabilities.functions.default []' '"filesystem": {"mode": "write"}, "functions": {"default": [], "level": "hard"}' env
+arm TY-10 'capabilities.functions.default "ENV_READ"' '"filesystem": {"mode": "write"}, "functions": {"default": "ENV_READ", "level": "hard"}' env
+# TY-11..TY-13 (A111's remainder): every other section reads a check's
+# `enabled` only as true or false, a `level` only as a string, a `limits`
+# value only as a number, and dropped anything else -- the check off, the
+# limit gone (observed on c1312132: each loaded and ran). TY-13c CONTROL: a
+# limits rationale (text) and an environment's string values still load
+# (an environment's keys are names in the loader's schema, so nothing inside
+# one is judged).
+arm TY-11 'code_quality.no_placeholders.enabled "true"' '"filesystem": {"mode": "write"}' plain ', "code_quality": {"no_placeholders": {"enabled": "true", "level": "hard"}}'
+arm TY-12 'restrictions.shell_injection.level 99' '"filesystem": {"mode": "write"}' plain ', "restrictions": {"shell_injection": {"level": 99}}'
+arm TY-13 'limits.execution.loop_iterations "100"' '"filesystem": {"mode": "write"}' plain ', "limits": {"execution": {"loop_iterations": "100"}}'
+run t13c '"filesystem": {"mode": "write"}' plain ', "limits": {"execution": {"loop_iterations": 100000, "rationale": "a reason"}}, "environments": {"prod": {"quality_gate": {"enabled": "true"}}}'
+if [ "$RC" -eq 0 ] && [ "$HAPPENED" = yes ]; then pass TY-13c "CONTROL: a limits rationale and an environment's string values load and the program runs"
+else fail TY-13c "CONTROL: an accepted form was refused" "rc=$RC $(grep -m1 'must be' <<<"$OUT")"; fi
+# TY-14 CONTROL: only a key the loader reads AS that setting is judged. A map
+# keyed by the user's names holds names: an output contract's field types for
+# fields called "enabled" and "level", and a contract on a function called
+# `level` (the first version judged every key spelled "enabled"/"level" and
+# refused these; FL-07 in test_function_capability_level.sh is the same rule
+# for capabilities.functions).
+run t14 '"filesystem": {"mode": "write"}' plain ', "agents": {"r": {"provider": "gemini", "output_contract": {"format": "json", "field_types": {"enabled": "boolean", "level": "string"}}}}, "contracts": {"functions": {"level": {"min_arity": 0}}}'
+if [ "$RC" -eq 0 ] && [ "$HAPPENED" = yes ]; then pass TY-14 "CONTROL: user-named keys called enabled/level (field types, a contract's function) load and the program runs"
+else fail TY-14 "CONTROL: a user's names were judged as settings" "rc=$RC $(grep -m1 'must be' <<<"$OUT")"; fi
+
+run t9c '"filesystem": {"mode": "write"}, "functions": {"default": {"allowed_actions": []}, "level": "hard"}' env
+if [ "$RC" -eq 3 ] && [ "$HAPPENED" = no ]; then pass TY-09c "CONTROL: the object form with a string level loads and refuses the read (exit 3)"
+else fail TY-09c "CONTROL: the object form should load and refuse" "rc=$RC happened=$HAPPENED"; fi
 
 ok=1; why=""
 run t7a '"env_vars": {"blocked_read": "NAAB_TY_SECRET"}' env

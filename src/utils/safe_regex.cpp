@@ -91,12 +91,16 @@ std::chrono::milliseconds SafeRegex::getEffectiveTimeout(
 PatternComplexity SafeRegex::analyzePattern(const std::string& pattern) const {
     PatternComplexity result;
 
-    // Check for nested quantifiers (highly dangerous)
+    // Nested quantifiers are reported, no longer refused (A189, the owner's
+    // decision 13 of 2026-11-20). The refusal predates A89: since then the
+    // matcher is RE2 (linear time) for every pattern RE2 can take, and the
+    // backtracking fallback for the rest stops at its step budget and at the
+    // time bound below, which stay. The refusal had become a false one: it
+    // refused ordinary patterns -- `([a-z]+ )*`, `(\s*,\s*)+`, `(?:a+)?b`, the
+    // shape of `(https?://)?` -- that run in linear time.
     if (pattern_analysis::hasNestedQuantifiers(pattern)) {
-        result.is_safe = false;
-        result.backtracking_score += 100;
-        result.warning = "Pattern contains nested quantifiers (e.g., (a+)+), which can cause catastrophic backtracking";
-        return result;
+        result.warning = "Pattern contains nested quantifiers (e.g., (a+)+); the matcher's "
+                         "time and step budgets bound it";
     }
 
     // Check for overlapping alternatives
@@ -132,8 +136,15 @@ PatternComplexity SafeRegex::analyzePattern(const std::string& pattern) const {
         result.backtracking_score += (result.quantifier_count - 20) * 2;
     }
 
-    // Final safety determination
-    result.is_safe = (result.backtracking_score < 100);
+    // The score is reported, no longer a refusal (A189, the owner's decision
+    // 23 of 2026-11-20). It refused ordinary patterns the linear matcher runs
+    // safely -- `(a|ab)*c.*d.*e.*f`, `(a|a)*.*b`, twenty-two `x*` in a row
+    // (whose refusal printed an empty reason) -- the same class as the
+    // nested-quantifier refusal. The time bound and the fallback's step budget
+    // are what stop a slow pattern, and they stay.
+    result.is_safe = true;
+    if (result.backtracking_score >= 100 && result.warning.empty())
+        result.warning = "Pattern has a high estimated backtracking score";
 
     return result;
 }
