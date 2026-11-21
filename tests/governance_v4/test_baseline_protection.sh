@@ -45,6 +45,7 @@ NAAB="${1:-$SCRIPT_DIR/../../build/naab-lang}"
 NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
 
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+source "$SCRIPT_DIR/../helpers/native_path.sh"
 setup_isolated_trust
 TEST_TMP=$(mktemp -d "${TMPDIR:-/tmp}/naab_baseprot_XXXXXX")
 trap 'teardown_isolated_trust; rm -rf "$TEST_TMP"' EXIT
@@ -126,7 +127,9 @@ fi
 
 # ---- BP-04 absolute path ---------------------------------------------------------
 fresh bp04 true
-prog 3 "    file.write(\"$D/$BL\", \"{}\")" > "$D/t.naab"; run
+# The binary is handed a path in ITS vocabulary: under MSYS2 a /tmp/... path
+# names another file to a native build, and the write would land there.
+prog 3 "    file.write(\"$(native_path "$D/$BL")\", \"{}\")" > "$D/t.naab"; run
 if [ "$RC" = 3 ] && [ "$(cksum < "$D/$BL")" = "$BASE_SUM" ]; then
     pass BP-04 "the absolute path of the baseline is refused too"
 else

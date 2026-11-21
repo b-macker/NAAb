@@ -216,13 +216,25 @@ EOF
     stop_swap_operators
 }
 
+# On Windows a config cannot be replaced under a running program (0304af3a;
+# every reload suite since reports UNMEASURABLE there): a swap that the program
+# saw done but that the engine never read as a reload is a platform limit.
+IS_WINDOWS=0
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
+[ -n "${WINDIR:-}" ] && IS_WINDOWS=1
+no_reload_here() {
+    [ "$IS_WINDOWS" = 1 ] && ! grep -qi 'reloaded mid-run\|reload rejected' <<<"$OUT"
+}
+
 FSW=', "capabilities": {"filesystem": {"mode": "write"}}'
 reload_run ke08 "$FSW" ', "capabilities": {"filesystem": {"mode": "write"}, "env_vars": {"blocked_read": ["EVK_OTHER"]}}' '' \
 '    print("KEY=" + env.get("EVK_A"))'
 # The key is read first: a refused read is HARD and ends the run, so whatever
 # is read first is the only thing this arm can observe. That the reload was
 # accepted is read from the engine's own line (a change applied).
-if grep -q 'SWAP=true' <<<"$OUT" && grep -qE 'reloaded mid-run: [1-9][0-9]* change' <<<"$OUT" && \
+if no_reload_here; then
+    unm KE-08 "a mid-run config swap is not read on Windows (POSIX file semantics)"
+elif grep -q 'SWAP=true' <<<"$OUT" && grep -qE 'reloaded mid-run: [1-9][0-9]* change' <<<"$OUT" && \
    [ "$RC" = 3 ] && grep -q 'blocked_read' <<<"$OUT" && ! grep -q "$KEYVAL" <<<"$OUT"; then
     pass KE-08 "after an accepted reload (a change applied) the key is still refused"
 else
@@ -233,7 +245,9 @@ reload_run ke09 "$FSW" "$FSW" '    env.set("EVK_A", "changed-by-the-program")' \
 '    print("HAS=" + string(env.has("EVK_OTHER")))
     print("END")'
 K9_OK=0; (cd "$D" && NAAB_TELEMETRY_HMAC_KEY="$KEYVAL" "$NAAB" --verify-telemetry-chain tele.jsonl >/dev/null 2>&1) || K9_OK=$?
-if grep -q 'SWAP=true' <<<"$OUT" && grep -qi 'reload rejected' <<<"$OUT" && \
+if no_reload_here; then
+    unm KE-09 "a mid-run config swap is not read on Windows (POSIX file semantics)"
+elif grep -q 'SWAP=true' <<<"$OUT" && grep -qi 'reload rejected' <<<"$OUT" && \
    grep -q "key changed mid-run" <<<"$OUT" && [ "$K9_OK" = 0 ]; then
     pass KE-09 "a key the program set with env.set is refused by the reload ratchet; the chain keeps the operator's key"
 else
@@ -243,7 +257,9 @@ fi
 reload_run ke09c "$FSW" "$FSW" '' \
 '    print("HAS=" + string(env.has("EVK_OTHER")))
     print("END")'
-if grep -q 'SWAP=true' <<<"$OUT" && grep -q 'reloaded mid-run' <<<"$OUT" && grep -q '^END' <<<"$OUT"; then
+if no_reload_here; then
+    unm KE-09c "a mid-run config swap is not read on Windows (POSIX file semantics)"
+elif grep -q 'SWAP=true' <<<"$OUT" && grep -q 'reloaded mid-run' <<<"$OUT" && grep -q '^END' <<<"$OUT"; then
     pass KE-09c "CONTROL: the same reload without env.set is accepted"
 else
     fail KE-09c "the unchanged reload was not accepted, so KE-09 proves nothing" "rc=$RC $(grep -iE 'SWAP=|reload|rror' <<<"$OUT" | head -3 | tr '\n' ' ')"
