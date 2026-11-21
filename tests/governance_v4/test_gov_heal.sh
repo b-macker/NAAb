@@ -20,7 +20,7 @@
 #   HL-01b  CONTROL: the same file with --min 2 -> proposed
 #   HL-02   one event edited in a copy: the chain does not verify -> exit 2,
 #           nothing proposed, in the text report and in --json
-#   HL-03   a run with its last line (RunEnd) cut off -> exit 2
+#   HL-03   a run cut off before its first RunEnd -> exit 2
 #   HL-04   the config given is not the one the run used -> exit 2
 #   HL-05   two runs in one file under two configs: only the run under the
 #           given config is counted, the other is named as skipped
@@ -191,7 +191,12 @@ HEAL_FILE=edited.jsonl heal "$A"
 if [ "$RC" -eq 2 ] && [ "$e_json_rc" -eq 2 ] && [ "$e_json" = "ok" ] && has "the telemetry chain does not verify" && ! has "Proposed (" && has "result: UNMEASURABLE"; then
     pass HL-02 "an edited copy: the chain does not verify, nothing is proposed, exit 2"
 else fail HL-02 "an edited telemetry file must not yield a proposal" "rc=$RC: $(grep -A3 'did not hold' <<<"$OUT" | tr '\n' ' ' | cut -c1-240)"; fi
-head -n -1 "$A/tel.jsonl" > "$A/cut.jsonl"
+# Cut before the run's FIRST RunEnd. Cutting only the last line assumed one
+# RunEnd at the end of a clean run, which held only while results recorded
+# after the program finished were never written (A183(c)): a clean run now
+# writes once more, after the after-run audit, and seals a second RunEnd, so
+# the last line alone left an earlier RunEnd behind and read as a BREAK.
+awk '/"event_type":"RunEnd"/{exit} {print}' "$A/tel.jsonl" > "$A/cut.jsonl"
 HEAL_FILE=cut.jsonl heal "$A"
 if [ "$RC" -eq 2 ] && has "could not be verified" && ! has "Proposed ("; then
     pass HL-03 "a run with no RunEnd: the chain could not be verified, nothing is proposed, exit 2"
