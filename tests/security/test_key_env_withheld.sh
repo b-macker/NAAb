@@ -30,6 +30,7 @@ REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 NAAB="${NAAB:-$REPO/build/naab-lang}"
 W="$(mktemp -d)"
 source "$REPO/tests/helpers/trust_setup.sh"
+source "$REPO/tests/helpers/native_path.sh"   # KW-04 hands the binary a program path
 setup_isolated_trust
 trap 'teardown_isolated_trust; rm -rf "$W"' EXIT
 
@@ -72,10 +73,16 @@ for row in "KW-01|$NT|$VT|telemetry.tamper_evidence.hmac_key_env" \
 done
 
 PR="$(command -v printenv || true)"
+# The program is run by naab-lang, a native binary under MSYS2: hand it the
+# path in ITS vocabulary (native_path.sh), with the .exe the file has there.
+[ -n "$PR" ] && [ -f "$PR.exe" ] && PR="$PR.exe"
+[ -n "$PR" ] && PR="$(native_path "$PR")"
 if [ -z "$PR" ]; then skip KW-04 "no printenv here"; skip KW-04c "no printenv here"
 else
     go kw4c "process.run(\"$PR\", [\"$NF\"])"
     if grep -q "$VF" <<<"$OUT"; then ok KW-04c "a child receives the unrelated variable"; c=1
+    elif grep -qE 'CreateProcess failed|No such file|cannot execute' <<<"$OUT"; then
+        skip KW-04c "the child could not be started here (rc=$RC)"; c=0
     else bad KW-04c "the child did not receive the unrelated variable (rc=$RC)" "$OUT"; c=0; fi
     go kw4 "process.run(\"$PR\", [\"$NT\"])"
     if [ "$c" -ne 1 ]; then skip KW-04 "KW-04c did not run"

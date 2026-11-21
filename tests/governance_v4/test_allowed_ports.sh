@@ -79,9 +79,15 @@ py() {
     LANDED=0; grep -qx "$1" "$W/events" && LANDED=1
 }
 
+# AP-00..AP-02 measure EMBEDDED Python's sockets. A build without it (every
+# Windows build) runs <<python>> as a separate process, whose block value is
+# null and whose sockets no host or port policy reaches (CONTRA-013).
+mkdir -p "$W/pyprobe"; printf '{"version":"5.0","mode":"off"}\n' > "$W/pyprobe/govern.json"
+printf 'main {\n    let x = <<python\n1 + 1\n>>\n    print("PY=" + string(x))\n}\n' > "$W/pyprobe/p.naab"
+EMBEDDED_PY=0; grep -q '^PY=2$' <<<"$(cd "$W/pyprobe" && "$NAAB" run p.naab 2>&1)" && EMBEDDED_PY=1
 py AP-00 '{"enabled": true}' "$P2"
-if [[ "$OUT" == *R=OK* ]] && [ "$LANDED" = 1 ]; then ok AP-00 "no port list: a connect to the second listener lands"; live=1
-elif [[ "$OUT" != *R=* ]]; then skip AP-00 "the <<python>> block did not run here"; live=0
+if [ "$EMBEDDED_PY" -ne 1 ]; then skip AP-00 "this build has no embedded Python"; live=0
+elif [[ "$OUT" == *R=OK* ]] && [ "$LANDED" = 1 ]; then ok AP-00 "no port list: a connect to the second listener lands"; live=1
 else bad AP-00 "the connect did not land with no port list" "$OUT"; live=0; fi
 
 if [ "$live" = 1 ]; then

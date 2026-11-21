@@ -198,11 +198,17 @@ EOF
     [ "$swap" = 1 ] && start_swap_operator "$d"
     OUT="$(cd "$d" && timeout 120 "$NAAB" run p.naab 2>&1)"; RC=$?
 }
+# The reload arm needs an embedded Python block (the swap helper runs in one).
+# A build without one (every Windows build) cannot measure it; a build WITH one
+# whose block does not run is a failure, not a skip.
+mkdir -p "$W/pyprobe"; printf '{"version":"5.0","mode":"off"}\n' > "$W/pyprobe/govern.json"
+printf 'main {\n    let x = <<python\n1 + 1\n>>\n    print("PY=" + string(x))\n}\n' > "$W/pyprobe/p.naab"
+EMBEDDED_PY=0; grep -q '^PY=2$' <<<"$(cd "$W/pyprobe" && "$NAAB" run p.naab 2>&1)" && EMBEDDED_PY=1
 rl "$W/rlc" 0
 if [ "$RC" -eq 0 ] && has STEP1:step1 && has RAN && has AFTER; then
     ok "RLc" "with no reload, load_dotenv runs after the block (exit 0)"; rl_control=1
-elif ! has STEP1:step1; then
-    skip "RLc" "the <<python>> block did not run here"; rl_control=0
+elif ! has STEP1:step1 && [ "$EMBEDDED_PY" -ne 1 ]; then
+    skip "RLc" "this build has no embedded Python, so the reload helper cannot run"; rl_control=0
 else
     bad "RLc" "no reload: rc=$RC" "$OUT"; rl_control=0
 fi
@@ -219,4 +225,7 @@ fi
 
 echo
 echo "Results: $PASS passed, $FAIL failed, $SKIP unmeasurable"
-[ "$FAIL" -eq 0 ] && [ "$SKIP" -eq 0 ]
+# UNMEASURABLE is reported, not a failure (the suites' convention): the one
+# arm that can skip does so only on a build with no embedded Python, which the
+# probe above establishes; anywhere else it is a FAIL.
+[ "$FAIL" -eq 0 ]
