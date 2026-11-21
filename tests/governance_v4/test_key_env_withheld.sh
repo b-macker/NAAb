@@ -45,7 +45,7 @@
 #   M3 no push for audit.provenance.signing_key_env       -> KE-03 red
 #   M4 no push for telemetry.webhook_auth_env              -> KE-04 red
 #   M5 keyRef() compares the name only                      -> KE-09 red
-#   M6 the loader does not keep the names (A186 reverted)   -> KE-01..KE-04 red
+#   M6 the loader does not keep the names (A186 reverted)   -> KE-01..KE-06 KE-08 red
 # On master c1312132 (before the fix): KE-01..KE-06 and KE-08 red; KE-00, KE-07,
 # KE-09 and KE-09c green (the value comparison already refused KE-09).
 #
