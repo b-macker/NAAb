@@ -77,11 +77,29 @@ static void checkEnvSandbox(const std::string& operation, const std::string& var
     }
 }
 
-// Governance policy checks for env var access
+// Governance policy checks for env var access. Every env function asks these
+// BEFORE checkEnvSandbox (A183): `capabilities.env_vars.read: false` also
+// removes SYS_ENV from the sandbox, and the sandbox's refusal is an ordinary
+// error a NAAb try/catch swallows, recording nothing, so the stricter setting
+// used to give weaker evidence than blocking one variable by name. Governance
+// refuses at HARD through enforce(); the sandbox stays as the second layer.
 static std::string checkEnvGovernanceRead(const std::string& var_name) {
     auto* gov = governance::GovernanceEngine::getCurrent();
     if (!gov || !gov->isActive()) return "";
     return gov->checkEnvVarRead(var_name);
+}
+// The read switch alone, for the calls that read no one named variable
+// (get_all, load_dotenv): checkEnvVarRead() decides the switch before it looks
+// at any list, so the name it is given does not matter when reads are off.
+// The reload first, as checkEnvVarRead() does, so a reload that switched reads
+// off is judged here, not after.
+static void checkEnvGovernanceReadSwitch() {
+    auto* gov = governance::GovernanceEngine::getCurrent();
+    if (!gov || !gov->isActive()) return;
+    gov->reloadIfChanged();
+    if (gov->getRules().capabilities.env_vars.read) return;
+    auto gov_err = gov->checkEnvVarRead("*");
+    if (!gov_err.empty()) throw std::runtime_error(gov_err);
 }
 static std::string checkEnvGovernanceWrite(const std::string& var_name) {
     auto* gov = governance::GovernanceEngine::getCurrent();
@@ -122,14 +140,14 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("get() takes 1 or 2 arguments (key, default?)");
         }
         std::string key = getString(args[0]);
+        {
+            auto gov_err = checkEnvGovernanceRead(key);
+            if (!gov_err.empty()) throw std::runtime_error(gov_err);
+        }
         checkEnvSandbox("get", key);
         if (isBlockedEnvVar(key)) {
             if (args.size() == 2) return args[1];
             return interpreter::NaabVal::makeNull();
-        }
-        {
-            auto gov_err = checkEnvGovernanceRead(key);
-            if (!gov_err.empty()) throw std::runtime_error(gov_err);
         }
         const char* value = std::getenv(key.c_str());
 
@@ -148,6 +166,10 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("set_var() takes exactly 2 arguments (key, value)");
         }
         std::string key = getString(args[0]);
+        {
+            auto gov_err = checkEnvGovernanceWrite(key);
+            if (!gov_err.empty()) throw std::runtime_error(gov_err);
+        }
         checkEnvSandbox("set_var", key);
         // V-ENV-001: block mutation of internal secrets
         if (isBlockedEnvVar(key)) {
@@ -158,10 +180,6 @@ interpreter::NaabVal EnvModule::call(
         if (isDangerousEnvVar(key)) {
             throw std::runtime_error(
                 "Security: env.set_var() denied — '" + key + "' can hijack polyglot sandbox");
-        }
-        {
-            auto gov_err = checkEnvGovernanceWrite(key);
-            if (!gov_err.empty()) throw std::runtime_error(gov_err);
         }
         std::string value = getString(args[1]);
 
@@ -175,12 +193,12 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("has() takes exactly 1 argument");
         }
         std::string key = getString(args[0]);
-        checkEnvSandbox("has", key);
-        if (isBlockedEnvVar(key)) return makeBool(false);
         {
             auto gov_err = checkEnvGovernanceRead(key);
             if (!gov_err.empty()) return makeBool(false);  // stealth deny — prevents existence leak
         }
+        checkEnvSandbox("has", key);
+        if (isBlockedEnvVar(key)) return makeBool(false);
         const char* value = std::getenv(key.c_str());
         return makeBool(value != nullptr);
     }
@@ -191,15 +209,15 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("delete_var() takes exactly 1 argument");
         }
         std::string key = getString(args[0]);
+        {
+            auto gov_err = checkEnvGovernanceWrite(key);
+            if (!gov_err.empty()) throw std::runtime_error(gov_err);
+        }
         checkEnvSandbox("delete_var", key);
         // V-ENV-001: block deletion of internal secrets
         if (isBlockedEnvVar(key)) {
             throw std::runtime_error(
                 "Security: env.delete_var() denied — '" + key + "' is an internal NAAb variable");
-        }
-        {
-            auto gov_err = checkEnvGovernanceWrite(key);
-            if (!gov_err.empty()) throw std::runtime_error(gov_err);
         }
         naab::platform::unsetenv(key);
         return makeNull();
@@ -210,6 +228,7 @@ interpreter::NaabVal EnvModule::call(
         if (args.size() != 0) {
             throw std::runtime_error("get_all() takes no arguments");
         }
+        checkEnvGovernanceReadSwitch();
         checkEnvSandbox("get_all");
 
         // F8: block_env_dump was enforced only by regex over polyglot source,
@@ -271,6 +290,7 @@ interpreter::NaabVal EnvModule::call(
 
     // Function 6: load_dotenv - Load environment variables from .env file
     if (function_name == "load_dotenv") {
+        checkEnvGovernanceReadSwitch();
         checkEnvSandbox("load_dotenv");
         std::string path = ".env";
         bool strict = false;  // Default: lenient mode
@@ -367,14 +387,14 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("get_int() takes 1 or 2 arguments (key, default?)");
         }
         std::string key = getString(args[0]);
+        {
+            auto gov_err = checkEnvGovernanceRead(key);
+            if (!gov_err.empty()) throw std::runtime_error(gov_err);
+        }
         checkEnvSandbox("get_int", key);
         if (isBlockedEnvVar(key)) {
             if (args.size() == 2) return args[1];
             return makeInt(0);
-        }
-        {
-            auto gov_err = checkEnvGovernanceRead(key);
-            if (!gov_err.empty()) throw std::runtime_error(gov_err);
         }
         const char* value = std::getenv(key.c_str());
 
@@ -397,14 +417,14 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("get_float() takes 1 or 2 arguments (key, default?)");
         }
         std::string key = getString(args[0]);
+        {
+            auto gov_err = checkEnvGovernanceRead(key);
+            if (!gov_err.empty()) throw std::runtime_error(gov_err);
+        }
         checkEnvSandbox("get_float", key);
         if (isBlockedEnvVar(key)) {
             if (args.size() == 2) return args[1];
             return makeDouble(0.0);
-        }
-        {
-            auto gov_err = checkEnvGovernanceRead(key);
-            if (!gov_err.empty()) throw std::runtime_error(gov_err);
         }
         const char* value = std::getenv(key.c_str());
 
@@ -427,14 +447,14 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("get_bool() takes 1 or 2 arguments (key, default?)");
         }
         std::string key = getString(args[0]);
+        {
+            auto gov_err = checkEnvGovernanceRead(key);
+            if (!gov_err.empty()) throw std::runtime_error(gov_err);
+        }
         checkEnvSandbox("get_bool", key);
         if (isBlockedEnvVar(key)) {
             if (args.size() == 2) return args[1];
             return makeBool(false);
-        }
-        {
-            auto gov_err = checkEnvGovernanceRead(key);
-            if (!gov_err.empty()) throw std::runtime_error(gov_err);
         }
         const char* value = std::getenv(key.c_str());
 

@@ -2843,6 +2843,14 @@ struct GovernanceRules {
     // M3: tracks which JSON keys were explicitly present in the config file.
     // Used by mergeRules() to distinguish "user set field to default" from "never set".
     std::unordered_set<std::string> explicitly_set;
+    // The variables a config names as holding a key the ENGINE uses --
+    // telemetry.tamper_evidence.hmac_key_env, audit.tamper_evidence.hmac_key_env,
+    // audit.provenance.signing_key_env -- recorded as parsed. Withheld from the
+    // program like a guidance source's auth_env (addGovernanceProtectedPaths,
+    // A33(b)): a program that reads the chain's key can seal forged lines.
+    // Kept apart from the *_key_env fields, which nothing fills: the key
+    // ratchet compares the key values (keyRef).
+    std::vector<std::string> key_env_names;
 
     // What a model writes -- an agent reply, a propose candidate, the arguments
     // of a tool call the model makes -- is scanned for secrets unless the
@@ -3095,6 +3103,30 @@ struct CheckResult {
     // decided (recordPass(), enforce()); dispositionOf() covers a result
     // recorded any other way.
     std::string disposition;
+};
+
+// A193: what the check-result cap (V-GOV-024) has evicted, tallied at the one
+// eviction point (capCheckResultsLocked()). A count over the run -- the
+// summary and closing lines, the quality gate, wasBlocked() -- adds this to
+// what is still in memory, so it does not depend on the cap. Before, a run past
+// MAX_CHECK_RESULTS evicted its oldest results and every such count forgot
+// them: an advisory recorded early stopped failing `advisory_violations > 0`
+// and the run ended "Governance: PASS" (observed, d7799c6d).
+struct DispositionTally {
+    uint64_t passed = 0, warned = 0, overridden = 0, approved = 0, audit_only = 0, refused = 0;
+};
+struct EvictedCheckTally {
+    uint64_t total = 0;
+    DispositionTally run;     // results the run recorded
+    DispositionTally audit;   // after-run audit results (category "pass2...")
+    // The quality gate's counts, over failed results, as evaluateQualityGate()
+    // counts them: by level, and "security" by severity.
+    uint64_t violations = 0, hard = 0, soft = 0, advisory = 0, security = 0;
+    uint64_t pass1_hard = 0, pass1_soft = 0, pass1_advisory = 0;
+    uint64_t pass2_checks = 0, pass2_findings = 0;
+    uint64_t scored_advisories = 0;   // what verifyScoreIntegrity() recomputes from
+    bool blocked = false;             // a result wasBlocked() would count
+    bool intent_block = false;        // a result hasIntentBlock() would count
 };
 
 // ============================================================================
@@ -3544,6 +3576,11 @@ public:
     // back -- `.naab_cache/` beside govern.json, where agent review and the
     // governance voice cache their results -- or anything under it (A169).
     bool isEngineStateDir(const std::string& canon_n) const;
+    // True when `canon_n` (canonical, '/' separators) is a governance plugin
+    // file govern.json names (`governance_plugins[].file`). The engine runs it
+    // as the operator's governance code, so the governed program may read it
+    // but not write it (A192).
+    bool isGovernancePluginPath(const std::string& canon_n) const;
     // The agent-channel text for a set of deliveries ("" for none).
     static std::string formatGuidance(const std::vector<GuidanceDelivery>& items);
     // Opaque outside governance_guidance.cpp.
@@ -3837,6 +3874,24 @@ public:
                                   const std::unordered_map<std::string, interpreter::NaabVal>& context,
                                   int line = 0);
     void loadPlugins();
+    // True while loadPlugins() is reading the plugin files govern.json names
+    // on this thread. The module loader's read gates judge the PROGRAM's
+    // imports; a plugin file is the operator's governance code, read
+    // without them (A116, the owner's decision of 2026-11-20).
+    static bool loadingPluginsOnThisThread();
+    // Decision 26 (A192(b), Bundle 19): the plugins govern.json names that
+    // could not be loaded -- missing, unparseable, or failing while loading --
+    // each "PATH: reason". Under enforce the run loads every plugin before
+    // anything runs and refuses itself (exit 4) when this is not empty.
+    std::vector<std::string> pluginLoadFailures() const;
+    // Decision 25 (A192(a), Bundle 19): what a plugin load reads and where its
+    // imports look, called by both module loaders while loadPlugins() holds
+    // its load scope on this thread (no-ops otherwise). A file read is
+    // protected from program writes like the plugin; a place looked in before
+    // the file found is protected from being created, so a program cannot put
+    // a lookalike helper ahead of the real one.
+    static void notePluginModuleRead(const std::string& path);
+    static void notePluginLookupCandidate(const std::string& path);
 
     // Resource limits
     std::string checkLoopIterations(size_t count);
@@ -4051,6 +4106,12 @@ public:
     void resetCheckResults() {
         std::lock_guard<std::mutex> lock(results_mutex_);
         check_results_.clear();
+        evicted_ = EvictedCheckTally{};   // A193: a reset starts the count over
+    }
+    // A193: what the cap has evicted so far (a copy, under results_mutex_).
+    EvictedCheckTally evictedCheckTally() const {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        return evicted_;
     }
 
     // Feature 1: Check if any HARD violation was recorded
@@ -4568,7 +4629,13 @@ private:
     std::vector<CheckResult> check_results_;
     mutable std::mutex results_mutex_;  // V-CONC-007: Thread-safe check_results_ access
     uint64_t check_record_seq_ = 0;     // A65: CheckResult::record_id source, under results_mutex_
+public:
     static constexpr size_t MAX_CHECK_RESULTS = 10000;  // V-GOV-024: Cap telemetry entries
+    // A177: the cap compacts only once the list is this far over it, so a
+    // record is amortised constant time; at most MAX + SLACK results are held.
+    static constexpr size_t CHECK_RESULTS_SLACK = MAX_CHECK_RESULTS / 10;
+private:
+    EvictedCheckTally evicted_;          // A193, under results_mutex_
     GovernancePulse pulse_;  // Governance self-health assessment (writes under results_mutex_)
     std::string agent_id_ = "anonymous";
     std::string run_id_;  // Unique per-execution ID for telemetry run separation
@@ -4674,7 +4741,13 @@ private:
     std::atomic<bool> plugins_loaded_{false};
     // Resolved paths of the plugin files loaded into the interpreter.
     std::set<std::string> loaded_plugin_files_;
-    std::mutex plugin_files_mutex_;         // guards loaded_plugin_files_
+    // Decision 26: plugins that could not be loaded ("PATH: reason").
+    std::vector<std::string> plugin_load_failures_;
+    // Decision 25: files a plugin load read, and the paths its imports looked
+    // for before the one they found (canonical, '/' separators).
+    std::vector<std::string> plugin_read_files_;
+    std::vector<std::string> plugin_lookup_paths_;
+    mutable std::mutex plugin_files_mutex_;   // guards the four above
     std::string resolvePluginPath(const GovernancePlugin& plugin) const;
     bool in_plugin_check_ = false;          // Re-entrancy guard
     std::unordered_set<std::string> warned_plugin_rules_;  // Dedup warnings
@@ -4781,21 +4854,13 @@ private:
     // run, then main.cpp's contract / quality-gate / baseline exits call it
     // again. Anything chained after a RunEnd must be reconciled by a fresh one.
     mutable long long run_end_declared_ = -1;
-    // How many check_results_ have already been dumped to telemetry, and the
-    // dedup keys seen across all dumps. check_results_ is never cleared, so
-    // without these a second writeReports() re-emits the entire set.
-    // A183: telemetry resumes after the highest record_id it has written. It
-    // resumed from a vector index, but the list is capped by evicting from the
-    // front (MAX_CHECK_RESULTS), so at the cap the index stopped moving and
-    // every later result was never written. Atomic: capCheckResultsLocked()
-    // reads it under results_mutex_, writeTelemetry() writes it without.
-    mutable std::atomic<uint64_t> telemetry_written_through_id_{0};
-    // Lines writeTelemetry() has written this run (the stderr total).
-    mutable long long check_events_written_total_ = 0;
-    // Results evicted by the cap before telemetry wrote them (under
-    // results_mutex_), and how many of those the summary event has reported.
-    uint64_t evicted_before_telemetry_ = 0;
-    mutable uint64_t evicted_before_telemetry_reported_ = 0;
+    // The record number (CheckResult::record_id) of the last result dumped to
+    // telemetry, and the dedup keys seen across all dumps. Without these a
+    // second writeReports() re-emits the entire set. A107: this was a POSITION
+    // in check_results_, and the cap erases from the front, so a result
+    // appended between two dumps that the erase moved below it was never
+    // written. Record numbers only grow, so a later dump resumes by number.
+    mutable uint64_t telemetry_last_record_dumped_ = 0;
     mutable std::unordered_set<std::string> telemetry_dedup_seen_;
     // Score at the last ScoringSnapshot; -1 = none emitted yet.
     mutable int scoring_snapshot_last_score_ = -1;
@@ -4819,6 +4884,8 @@ private:
     // rather than in the exit dump -- for the exit summary's count.
     mutable std::atomic<long long> agent_events_written_{0};
     mutable long long agent_events_reported_ = 0;
+    // Lines writeTelemetry() has written this run (the stderr total, A195(b)).
+    mutable long long check_events_written_total_ = 0;
 
     // Telemetry forwarding (webhook/SIEM)
     mutable std::shared_ptr<TelemetryForwarder> telemetry_forwarder_;
@@ -4874,6 +4941,12 @@ private:
     void applyStartupOverlays(GovernanceRules& target_rules);
     static bool applyAgentRoleTo(GovernanceRules& target_rules, const std::string& agent_id);
     static bool applyEnvironmentTo(GovernanceRules& target_rules, const std::string& env_name);
+    // The environment keys applyEnvironmentTo() does not handle itself: each
+    // names a check an environment may raise (governance_config.cpp's
+    // kEnvironmentChecks, A185), or is warned about and ignored.
+    static void applyEnvironmentCheckKeys(
+        GovernanceRules& target_rules, const std::string& env_name,
+        const std::vector<std::pair<std::string, std::string>>& keys);
     // The stricter of file_mode and an environment's "mode" value (A95(b)).
     static GovernanceMode modeAfterEnvironment(GovernanceMode file_mode, const std::string& env_value);
     static void applyBaselineFlags(GovernanceRules& target_rules, bool record, bool check);
@@ -4936,12 +5009,20 @@ private:
     // Append one result under results_mutex_ (the post-run audits; A86).
     void appendCheckResult(CheckResult r) {
         std::lock_guard<std::mutex> lock(results_mutex_);
-        r.record_id = ++check_record_seq_;   // A183: telemetry resumes by this
+        pushCheckResultLocked(std::move(r));
+    }
+    // Caller MUST hold results_mutex_. The one place a result enters
+    // check_results_ (A107): it gives the result its record number, which
+    // telemetry resumes by and enforce() finds its own record by (A65).
+    // tests/governance_v4/test_check_result_cap.sh CR-00 fails on another.
+    uint64_t pushCheckResultLocked(CheckResult r) {
+        r.record_id = ++check_record_seq_;
         check_results_.push_back(std::move(r));
-        capCheckResultsLocked();
+        return check_results_.back().record_id;
     }
     // Caller MUST hold results_mutex_. Every check_results_ writer calls this.
     void capCheckResultsLocked();
+    void tallyEvictedLocked(const CheckResult& r);   // A193
 
     // --- Formatting ---
     std::string scanSecrets(const std::string& code, int line, bool code_starts_at_line);

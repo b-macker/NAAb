@@ -13,8 +13,13 @@
 #      against a 1s budget, and --timeout 5 fired at 30.5s -- it could not
 #      preempt it either.
 #
-# Group A: the validator must reject the bypass, and must NOT reject ordinary
-#          patterns (the old check also refused (?:ab)+).
+# Kill table (2026-11-20, each mutant applied alone and observed): the
+# nested-quantifier refusal restored -> A-01, A-02, A-05, A-06; the score
+# refusal restored -> A-08.
+#
+# Group A: the validator refuses no pattern any more (A189: nested quantifiers,
+#          decision 13; the score threshold, decision 23); every such pattern
+#          answers, and on the fallback stops at the budget.
 # Group B: a pattern the validator allows but that is exponential must stop at
 #          the budget. Asserted on WALL TIME: the error text alone was already
 #          produced by the broken build, 29 seconds late.
@@ -63,7 +68,7 @@ set -uo pipefail
 PASS=0
 FAIL=0
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
-NAAB="$REPO/build/naab-lang"
+NAAB="${NAAB:-$REPO/build/naab-lang}"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/naab_rxt.XXXXXX")"
 [ -n "$WORK" ] && [ -d "$WORK" ] || { echo "FATAL: could not create work dir" >&2; exit 1; }
 # The fixture is an unsigned govern.json; with any key in the trust store that
@@ -109,17 +114,20 @@ EOF
 }
 
 echo "=== A: validator ==="
+# A-01/A-02 were refusals: the validator refused any quantified group holding a
+# quantifier. Since A89 the matcher is linear for these (RE2), so the refusal
+# was a false one and is gone (A189, the owner's decision 13 of 2026-11-20):
+# both now ANSWER, at once. A-07 is the arm that keeps that safe -- the same
+# nested shape forced onto the backtracking fallback still stops at the budget.
 run_match a01 '((a+))+b' "${A30}!"
-case "$OUT" in
-    *CAUGHT:*"dangerous regex pattern"*) pass A-01 "((a+))+b rejected by the validator (${ELAPSED}s)" ;;
-    *) fail A-01 "((a+))+b was not rejected up front" "$(echo "$OUT" | head -2)" ;;
-esac
+if [ "$ELAPSED" -le 4 ] && [[ "$OUT" == *RESULT:false* ]]; then
+    pass A-01 "((a+))+b runs and answers false in linear time (${ELAPSED}s)"
+else fail A-01 "((a+))+b should answer false within 4s (took ${ELAPSED}s)" "$(echo "$OUT" | head -2)"; fi
 
 run_match a02 '(a+)+b' "${A30}!"
-case "$OUT" in
-    *CAUGHT:*"dangerous regex pattern"*) pass A-02 "(a+)+b still rejected" ;;
-    *) fail A-02 "(a+)+b no longer rejected" "$(echo "$OUT" | head -2)" ;;
-esac
+if [ "$ELAPSED" -le 4 ] && [[ "$OUT" == *RESULT:false* ]]; then
+    pass A-02 "(a+)+b runs and answers false (${ELAPSED}s)"
+else fail A-02 "(a+)+b should answer false within 4s (took ${ELAPSED}s)" "$(echo "$OUT" | head -2)"; fi
 
 run_match a03 '(?:ab)+' "ababab"
 case "$OUT" in
@@ -132,6 +140,45 @@ case "$OUT" in
     *RESULT:true*) pass A-04 "parentheses inside a character class are literal" ;;
     *) fail A-04 "character-class parentheses misread as a group" "$(echo "$OUT" | head -2)" ;;
 esac
+
+# A-05: the four patterns the refusal turned away (observed on c1312132,
+# "dangerous regex pattern"), each now matching what it should.
+a05=""
+for case in '([a-z]+ )*|ab cd ' '(\\s*,\\s*)+|, ,' '(?:a+)?b|aab' '(https?://)?x|https://x'; do
+    pat="${case%%|*}"; inp="${case#*|}"
+    run_match "a05_$RANDOM" "$pat" "$inp"
+    [[ "$OUT" == *RESULT:true* ]] || a05="$a05 [$pat => $(echo "$OUT" | head -1)]"
+done
+if [ -z "$a05" ]; then pass A-05 "four ordinary nested-quantifier patterns run and match"
+else fail A-05 "a pattern did not run or match:$a05"; fi
+
+# A-06: the classic shape on a long input still answers in linear time.
+A10K="$(printf 'a%.0s' $(seq 10000))"
+run_match a06 '(a+)+b' "${A10K}!"
+if [ "$ELAPSED" -le 2 ] && [[ "$OUT" == *RESULT:false* ]]; then
+    pass A-06 "(a+)+b on 10,000 characters answers false in ${ELAPSED}s"
+else fail A-06 "(a+)+b on 10,000 characters took ${ELAPSED}s" "$(echo "$OUT" | head -2)"; fi
+
+# A-08: the score threshold's refusals are gone too (decision 23): each shape
+# it refused (observed on the PR 1 build before that change, "dangerous regex
+# pattern", one with an empty reason) now answers, inside the bound.
+a08=""
+# The separator is @ because the patterns hold | (alternation).
+for case in '(a|a)*.*b@aab' '(a|ab)*c.*d.*e.*f@abcdef' '(a|b|ab)*(c|d|cd)*(e|f|ef)*.*@abcdef' 'a*b*c*d*e*f*g*h*i*j*k*l*m*n*o*p*q*r*s*t*u*v*@abc'; do
+    pat="${case%%@*}"; inp="${case#*@}"
+    run_match "a08_$RANDOM" "$pat" "$inp"
+    if [ "$ELAPSED" -gt 4 ] || [[ "$OUT" != *RESULT:true* ]]; then a08="$a08 [$pat => $(grep -m1 -E 'CAUGHT|RESULT' <<<"$OUT") ${ELAPSED}s]"; fi
+done
+if [ -z "$a08" ]; then pass A-08 "four shapes the score threshold refused run and match"
+else fail A-08 "a shape did not run or match:$a08"; fi
+
+# A-07: a nested quantifier the RE2 engine cannot take (the lookahead forces
+# the backtracking fallback) still stops at the budget -- the safety the
+# removed refusal used to provide in front of the fallback.
+run_match a07 '(?=a)(a+)+b' "${A25}!"
+if [ "$ELAPSED" -le 4 ] && { [[ "$OUT" == *CAUGHT:*"timed out"* ]] || [[ "$OUT" == *CAUGHT:*"step budget"* ]] || [[ "$OUT" == *RESULT:false* ]]; }; then
+    pass A-07 "(?=a)(a+)+b on the fallback ends within the budget (${ELAPSED}s): $(grep -m1 -E "CAUGHT|RESULT" <<<"$OUT" | cut -c1-60)"
+else fail A-07 "the fallback did not stop within 4s (took ${ELAPSED}s)" "$(echo "$OUT" | head -2)"; fi
 
 echo "=== B: the budget holds ==="
 FALLBACK='(?=a)(a|a)+b'

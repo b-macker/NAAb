@@ -1,42 +1,40 @@
 #!/usr/bin/env bash
 # ============================================================
-# test_telemetry_after_cap.sh -- every recorded result reaches telemetry (A183)
+# test_telemetry_after_cap.sh -- every recorded result reaches telemetry (A195, A107)
 #
 # THE DEFECTS (one class: a check result is recorded and never written)
 #
-# (a) writeTelemetry() resumed from a vector INDEX ("results only ever
-#     accumulate", #111), while capCheckResultsLocked() evicts from the front
-#     once MAX_CHECK_RESULTS (10,000) is reached. At the cap the index equals
-#     the size and stops moving, so every result recorded after a dump at the
-#     cap was never written. Results evicted before their first dump were lost
-#     without a count.
 # (b) main.cpp's outer handlers for a fatal error flushed the advisory summary
 #     and never wrote the reports, so a HARD refusal made after the run's last
 #     report write -- a must_produce contract runs after execute() -- was printed
 #     and absent from telemetry and the JSON report even with five governed
-#     calls (observed on master c1312132).
+#     calls (observed on master c1312132; A195).
 # (c) a clean VM run wrote its reports inside execute() and never again, so
 #     everything recorded after the program finished -- the after-run audit,
 #     the execution contracts' passes, the baseline check -- never reached
-#     telemetry or the reports (observed: a passing must_produce, no row).
+#     telemetry or the reports (observed: a passing must_produce, no row; A195).
+# (a) past the result cap (MAX_CHECK_RESULTS, 10,000) telemetry stopped
+#     writing: it resumed from a position in a list the cap shortens from the
+#     front. That is A107, fixed by Bundle 19 PR 2 (#393): telemetry resumes by
+#     record number and GovernanceCheckSummary counts results_not_written.
+#     The arms past the cap pin that fix from outside, with (b) and (c).
 #
-# Every writer now numbers its result (record_id), telemetry resumes after the
-# highest number it has written, the summary event reports results evicted
-# before they were written (evicted_before_written), every fatal exit writes
-# the reports through flushGovernanceOnFatalExit(), and a clean run writes
-# them once more at its end. The stderr "Telemetry: N events" line reports the
-# run's running total, so the last line printed still matches the file
-# (test_telemetry_count.sh).
+# Every fatal exit now writes the reports through flushGovernanceOnFatalExit(),
+# and a clean run writes them once more at its end. The stderr "Telemetry: N
+# events" line reports the run's running total, so the last line printed still
+# matches the file (test_telemetry_count.sh).
 #
 #   TC-00  CONTROL: the program runs and the contract refuses it (exit 3, the
 #          must_produce error printed) -- the refusal the arms look for exists
 #   TC-01  (b) with 5 governed calls the refusal is a RuleViolation row in
 #          telemetry
 #   TC-01r (b) and in the JSON report
-#   TC-02  (a)+(b) with 5,200 calls (past the cap) the refusal is still written
-#   TC-02e (a) the summary event counts the results the cap evicted before
-#          they were written
-#   TC-02c CONTROL: under the cap no eviction is reported
+#   TC-02  (a)+(b) with 6,000 calls -- 12,000 results, past the cap and the
+#          compaction slack (#393 compacts at MAX + 1,000) -- the refusal is still
+#          written
+#   TC-02e (a) the summary event counts the results that left memory before
+#          they were written (results_not_written)
+#   TC-02c CONTROL: under the cap none is reported
 #   TC-03a (c) on a clean exit, a contract PASS recorded after execute()'s
 #          report is written
 #   TC-03  (a)+(c) the same past the cap
@@ -44,13 +42,13 @@
 #          exit path writes nothing twice and does not break the chain)
 #
 # Kill table (each mutant applied alone, rebuilt, this suite run; observed
-# 2026-11-21 on the default build):
+# 2026-11-21 on the default build, after merging master d32f8603):
 #   M1 the fatal-exit report write removed       -> TC-01 TC-01r TC-02 red
 #   M2 telemetry resumes from an index again      -> TC-02 TC-03 red
-#   M3 the eviction count removed                 -> TC-02e red
+#   M3 the results_not_written count removed      -> TC-02e red
 #   M4 the clean-run final report write removed   -> TC-03a TC-03 red
-# On master c1312132: TC-01, TC-01r, TC-02, TC-02e, TC-03a, TC-03 red; the
-# controls and TC-04 green.
+# On master d32f8603: TC-01, TC-01r, TC-02, TC-03a, TC-03 red (b, c); TC-02e
+# and the controls green. On c1312132: TC-02e red too.
 # ============================================================
 set -uo pipefail
 
@@ -87,7 +85,7 @@ EOF
 }
 # row_count FILE RULE TYPE: lines of that event type and rule
 row_count() { grep -F "\"event_type\":\"$3\"" "$1" 2>/dev/null | grep -cF "\"rule_name\":\"$2\""; }
-evicted_of() { grep -F '"event_type":"GovernanceCheckSummary"' "$1" 2>/dev/null | grep -oE '"evicted_before_written":[0-9]+' | grep -oE '[0-9]+$' | awk '{s+=$1} END {print s+0}'; }
+evicted_of() { grep -F '"event_type":"GovernanceCheckSummary"' "$1" 2>/dev/null | grep -oE '"results_not_written":[0-9]+' | grep -oE '[0-9]+$' | awk '{s+=$1} END {print s+0}'; }
 RULE="contracts.double_it.must_produce"
 
 # ---- small run, refused ---------------------------------------------------------
@@ -116,10 +114,10 @@ else
 fi
 
 # ---- past the cap, refused ---------------------------------------------------
-run big 5200 4
+run big 6000 4
 BIG="$D"
 if [ "$RC" = 3 ] && [ "$(row_count "$BIG/tele.jsonl" "$RULE" RuleViolation)" -ge 1 ]; then
-    pass TC-02 "past the 10,000-result cap the refusal is still written"
+    pass TC-02 "past the result cap (12,000 results) the refusal is still written"
 else
     fail TC-02 "past the cap the refusal never reached telemetry" "rc=$RC rows=$(row_count "$BIG/tele.jsonl" "$RULE" RuleViolation)"
 fi
@@ -127,13 +125,13 @@ EV=$(evicted_of "$BIG/tele.jsonl")
 if [ "$EV" -ge 1 ]; then
     pass TC-02e "the summary counts $EV result(s) the cap evicted before they were written"
 else
-    fail TC-02e "results evicted before they were written are not counted" "evicted_before_written=$EV"
+    fail TC-02e "results that left memory before they were written are not counted" "results_not_written=$EV"
 fi
 
 # ---- past the cap, clean exit: a pass recorded after execute()'s report -------
 run pass_small 5 3
 P_SMALL="$D"; P_SMALL_RC=$RC
-run pass_big 5200 3
+run pass_big 6000 3
 P_BIG="$D"
 if [ "$P_SMALL_RC" = 0 ] && [ "$(row_count "$P_SMALL/tele.jsonl" "$RULE" GovernanceCheck)" -ge 1 ]; then
     pass TC-03a "on a clean exit, the contract's pass (recorded after execute()) is written"

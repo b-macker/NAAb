@@ -342,10 +342,48 @@ disables the check. The engine now warns and lists the valid values.
 
 ### 7.6 One behaviour worth knowing
 
-`--timeout` and the govern.json global timeout combine with `std::max`, so the
-CLI flag can **extend** a governance timeout, not only shrink it. This is
-deliberate per the comment at the call site, but it makes the timeout a floor
-rather than a ceiling, unlike every other governance limit.
+`--timeout` used to combine with the govern.json global timeout through
+`std::max`, so the flag could extend a governance timeout. Since A79 a
+configured limit caps the flag (`applyConfiguredRunLimits()`,
+`include/naab/run_limits.h`): the flag can shorten the run's time, never
+lengthen it, like every other governance limit.
+
+## 8. What a Restart Forgets
+
+The engine's judgement of a run lives in the process. A restarted process
+starts with none of it (B1, the owner's decision of 2026-11-20: documented as
+a boundary, not persisted -- persisting it raises scope, expiry and
+tamper-evidence questions one run cannot answer).
+
+### Kept only in memory, so a restart resets it
+
+- **The governance level** (`governance_level_`: normal, elevated, high,
+  critical) and the de-escalation counter. Observed in a live run: one segment
+  ended `elevated` and the next process began `normal`.
+- **Advisory escalation counts** (`advisory_escalation`, keyed by rule name),
+  the quarantine streak, the challenge-failure streak and every standing lease.
+- **Each agent handle's drift state**: coherence, baselines, the signals'
+  histories. Handles do not outlive the process.
+- **Run budgets** (`agent_dispatch.hard_stop`: calls, tokens, time) and the
+  rate limiters, which are per run by definition.
+- **The evidence epoch** and the pulse verdict.
+
+### Kept on disk, so a restart continues it
+
+- The telemetry and audit chains: each run's first event commits to the file's
+  last one (`RunStart`), so a deleted or edited run between two others breaks
+  the chain (`--verify-telemetry-chain`, `naab-verify-audit`).
+- Recorded output baselines, the scoring calibration file, the governance
+  baseline and the agent review cache.
+
+### What follows
+
+A system that restarts its NAAb process between steps gets a fresh level and
+fresh counts each time: escalation cannot accumulate across processes, and a
+long-lived workflow that wants scrutiny to carry over has to keep its own
+record (the chained telemetry is the place to read it from) and set the
+stricter configuration itself -- an environment that raises levels
+(`--env`) or a stricter govern.json for the next process.
 
 ---
 
@@ -371,10 +409,11 @@ rather than a ceiling, unlike every other governance limit.
 | Unrecognised `level` silently disables the check | **High** | Config | Warned (§7.5) |
 | `limits.data.dict_size` unenforced | — | Limits | **Fixed** — now enforced in both engines |
 | `trust_policy.*` toggles control nothing | Low | Config | Protection is unconditional (§7.1) |
-| `limits.memory.*` controls nothing | Medium | Limits | Memory bounded by sandbox level (§7.1) |
+| `limits.memory.per_block_mb` controls nothing | Low | Limits | Warned at load; `total_mb` enforced since 2026-11-18 (§7.1) |
 | `cooldown_on_limit_ms` — behaviour does not exist | Low | Limits | Rate limiters throw, not throttle (§7.3) |
 | Four `limits.h` constants referenced by nothing | Low | Limits | Absent defence layer (§7.4) |
-| `--timeout` can extend a governance timeout | Low | Config | Deliberate; timeout is a floor (§7.6) |
+| `--timeout` could extend a governance timeout | — | Config | **Fixed** (A79): a configured limit caps the flag (§7.6) |
+| Scrutiny does not survive a restart | Medium | Config | Documented boundary (§8, B1) |
 
 **High-severity items** are fundamental to the architecture — polyglot blocks execute in the target language's runtime, which NAAb cannot constrain. Use OS-level sandboxing for untrusted code.
 

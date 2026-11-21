@@ -193,7 +193,7 @@ if [ "$RC" -eq 2 ] && [ "$e_json_rc" -eq 2 ] && [ "$e_json" = "ok" ] && has "the
 else fail HL-02 "an edited telemetry file must not yield a proposal" "rc=$RC: $(grep -A3 'did not hold' <<<"$OUT" | tr '\n' ' ' | cut -c1-240)"; fi
 # Cut before the run's FIRST RunEnd. Cutting only the last line assumed one
 # RunEnd at the end of a clean run, which held only while results recorded
-# after the program finished were never written (A183(c)): a clean run now
+# after the program finished were never written (A195(c)): a clean run now
 # writes once more, after the after-run audit, and seals a second RunEnd, so
 # the last line alone left an earlier RunEnd behind and read as a BREAK.
 awk '/"event_type":"RunEnd"/{exit} {print}' "$A/tel.jsonl" > "$A/cut.jsonl"

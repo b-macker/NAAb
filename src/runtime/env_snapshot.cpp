@@ -4,6 +4,11 @@
 
 #include <cctype>
 #include <mutex>
+#include <sstream>
+
+#ifndef _WIN32
+#  include <unistd.h>
+#endif
 
 #ifdef _WIN32
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -17,6 +22,7 @@
 extern char** environ;
 #  define NAAB_SNAPSHOT_ENVIRON environ
 #endif
+
 
 namespace naab {
 
@@ -76,6 +82,41 @@ std::string snapshotEnv(const std::string& key) {
             return kv.substr(key.size() + 1);
 #endif
     return "";
+}
+
+std::vector<std::string> operatorEnvironment(bool keep_naab_keys) {
+    std::vector<std::string> out;
+    for (const auto& kv : environmentSnapshot()) {
+        if (!keep_naab_keys &&
+            (kv.rfind("NAAB_GOVERN_KEY=", 0) == 0 || kv.rfind("NAAB_LOCK_KEY=", 0) == 0 ||
+             kv.rfind("NAAB_SIGNING_KEY=", 0) == 0))
+            continue;
+        out.push_back(kv);
+    }
+    return out;
+}
+
+std::string findOnSnapshotPath(const std::string& name) {
+    if (name.empty()) return "";
+#ifndef _WIN32
+    if (name.find('/') != std::string::npos) return "";
+    std::istringstream ps(snapshotEnv("PATH"));
+    std::string dir;
+    while (std::getline(ps, dir, ':')) {
+        if (dir.empty()) continue;
+        const std::string cand = dir + "/" + name;
+        if (::access(cand.c_str(), X_OK) == 0) return cand;
+    }
+    return "";
+#else
+    if (name.find('/') != std::string::npos || name.find('\\') != std::string::npos) return "";
+    const std::string path = snapshotEnv("PATH");
+    if (path.empty()) return "";
+    char buf[MAX_PATH];
+    const DWORD n = ::SearchPathA(path.c_str(), name.c_str(), ".exe", MAX_PATH, buf, nullptr);
+    if (n == 0 || n >= MAX_PATH) return "";
+    return std::string(buf, n);
+#endif
 }
 
 } // namespace naab

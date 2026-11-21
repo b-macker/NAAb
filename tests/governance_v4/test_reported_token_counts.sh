@@ -18,9 +18,18 @@
 #           and the total never goes below the first reply's 900)
 #   TC-02   the second reply reports 2^62 and 2^32-1: they are charged (the
 #           total reaches at least 10,000,000) and the run stops at once
+#   TC-03   (A110 residual, Bundle 19) every reply reports the 10M+10M each
+#           count is clamped to, under a run budget of INT_MAX - 1 with the
+#           per-agent budget off: the run stops after the 108th call, where
+#           the total (2,160,000,000) first passes the budget. As int, the
+#           total wrapped negative there and the run never stopped. The shown
+#           total saturates at INT_MAX and is never negative.
+#   TC-04   the same with the per-agent max_total_tokens at INT_MAX - 1 and no
+#           run budget: the 109th send is refused
 #
 # Kill table (observed 2026-11-01): reportedTokenCount() not clamping at 0 ->
-# TC-01; reading the count with get<int>() again -> TC-01, TC-02.
+# TC-01; reading the count with get<int>() again -> TC-01, TC-02. Bundle 19:
+# the run total back to int -> TC-03; the tracker counts back to int -> TC-04.
 # Red first (observed): on master fc9b8099 TC-01 fails (four requests, lowest
 # total -999100) and TC-02 fails (three requests, highest total 1799); TC-00 passes.
 set -uo pipefail
@@ -106,6 +115,60 @@ if [ "$OUT" = "STUB-FAILED" ]; then unm TC-02 "the stub did not start"
 elif [ "$REQS" -eq 2 ] && [ "$(max_total)" -ge 10000000 ]; then
     pass TC-02 "counts past int's range are charged, not wrapped (total $(max_total)), and the run stops"
 else fail TC-02 "huge reported counts were not charged as large" "requests=$REQS highest total=$(max_total)"; fi
+
+# run_big ID RUN_BUDGET AGENT_BUDGET -> OUT, REQS
+run_big() {
+    WDIR="$TEST_TMP/$1"; mkdir -p "$WDIR"
+    echo '{"responses": [{"content": "big", "input_tokens": 10000000, "output_tokens": 10000000}]}' > "$WDIR/fixture.json"
+    if ! start_stub "$WDIR/fixture.json" "$WDIR"; then OUT="STUB-FAILED"; REQS=0; return; fi
+    cat > "$WDIR/govern.json" <<G
+{"version": "3.0", "mode": "enforce", "security": {"sandbox_level": "elevated"},
+ "agent_dispatch": {"hard_stop": {"max_tokens_per_run": $2}},
+ "agents": {"a": {"provider": "gemini", "model": "stub-model",
+   "api_base": "http://127.0.0.1:$STUB_PORT", "api_key_env": "FAKE_KEY_TOKCOUNT",
+   "max_tokens": 100, "max_turns": 1000, "max_total_tokens": $3,
+   "retry": {"max_attempts": 1}}}}
+G
+    cat > "$WDIR/t.naab" <<'P'
+use agent
+main {
+    let h = agent.create("a")
+    let i = 0
+    let stopped = -1
+    while i < 130 {
+        try {
+            let r = agent.send(h, "turn " + string(i))
+            print("SENT " + string(i) + " tokens_used=" + string(agent.dispatch_status().get("tokens_used")))
+        } catch (e) {
+            if stopped < 0 {
+                stopped = i
+                print("FIRST_REFUSED " + string(i) + " " + string(e).split("\n")[0])
+            }
+        }
+        i = i + 1
+    }
+    print("USAGE total_tokens=" + string(agent.usage(h).get("total_tokens")))
+}
+P
+    OUT=$(cd "$WDIR" && timeout 120s "$NAAB" t.naab 2>&1)
+    stop_stub
+    REQS=$(ls "$WDIR"/req_*.json 2>/dev/null | wc -l | tr -d ' ')
+}
+
+run_big tc03 2147483646 0
+if [ "$OUT" = "STUB-FAILED" ]; then unm TC-03 "the stub did not start"
+elif ! grep -q "SENT 0 " <<<"$OUT"; then unm TC-03 "the first send did not go out: $(tr '\n' ' ' <<<"$OUT" | cut -c1-200)"
+elif [ "$REQS" -eq 108 ] && grep -q "FIRST_REFUSED 108 .*Hard stop" <<<"$OUT" && [ "$(min_total)" -ge 0 ] \
+     && grep -q "tokens_used=2147483647" <<<"$OUT"; then
+    pass TC-03 "a run budget of INT_MAX - 1 stops the run after the 108th call (total shown saturated at INT_MAX, never negative)"
+else fail TC-03 "the run budget near INT_MAX was not reached" "requests=$REQS lowest shown=$(min_total) $(grep -m1 FIRST_REFUSED <<<"$OUT" | cut -c1-160)"; fi
+
+run_big tc04 0 2147483646
+if [ "$OUT" = "STUB-FAILED" ]; then unm TC-04 "the stub did not start"
+elif ! grep -q "SENT 0 " <<<"$OUT"; then unm TC-04 "the first send did not go out: $(tr '\n' ' ' <<<"$OUT" | cut -c1-200)"
+elif [ "$REQS" -eq 108 ] && grep -q "FIRST_REFUSED 108 " <<<"$OUT" && grep -q "USAGE total_tokens=2147483647" <<<"$OUT"; then
+    pass TC-04 "a per-agent budget of INT_MAX - 1 refuses the 109th send (usage shown saturated at INT_MAX)"
+else fail TC-04 "the per-agent budget near INT_MAX was not reached" "requests=$REQS $(grep -m1 -E 'FIRST_REFUSED|USAGE' <<<"$OUT" | cut -c1-160) $(grep USAGE <<<"$OUT")"; fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $UNM unmeasurable"

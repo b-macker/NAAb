@@ -32,7 +32,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NAAB="$SCRIPT_DIR/../../build/naab-lang"
+NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
 
 # The old form probed `[ -d <termux tmp> ]` first. That probe is unsound off
 # Android: the project's own runners created that directory on Linux, so the
@@ -54,10 +54,10 @@ echo -e "${CYAN}|  Function capabilities reach every gate, on both engines     |
 echo -e "${CYAN}+==============================================================+${NC}"
 echo ""
 
-ALL_IDS="FG-01 FG-02 FG-03 FG-04 FG-05 FG-06 FG-07 FG-08 FG-09 FG-10 FG-11 FG-12"
+ALL_IDS="FG-01 FG-02 FG-03 FG-04 FG-05 FG-06 FG-07 FG-08 FG-09 FG-10 FG-11 FG-12 FG-13 FG-13c FG-14 FG-14a FG-15 FG-15b"
 if ! command -v python3 >/dev/null 2>&1; then
     for id in $ALL_IDS; do skip "$id" "python3 unavailable (fixture generator)"; done
-    echo ""; echo "  Total: 12 | Pass: 0 | Fail: 0 | Skip: 12"; exit 0
+    echo ""; echo "  Total: 18 | Pass: 0 | Fail: 0 | Skip: 18"; exit 0
 fi
 
 mkdir -p "$W"
@@ -318,6 +318,49 @@ if [ -z "$bad" ]; then
 else
     fail "FG-12" "the tier disagreed with mode:off" "problems:$bad"
 fi
+
+# FG-13..FG-15 (A186, the owner's decision 12 of 2026-11-20): the top level
+# -- the main block, and a module's code as it loads -- has its own entry,
+# "main". It resolved through "default" only, so `use mod` (a top-level
+# FS_READ) could be granted only by granting FS_READ to every function without
+# an entry. FG-13c and FG-14 are the controls: without "main" the top level is
+# still narrowed by "default"; FG-14a is the main block using its own entry
+# and FG-14 that no function gains it.
+printf 'export fn add(x) {\n    return x + 1\n}\n' > "$W/mod.naab"
+printf 'use mod as m\nmain { print("RAN " + m.add(1)) }\n' > "$W/usemod.naab"
+run usemod.naab '{"level": "hard", "default": {"allowed_actions": []}, "main": {"allowed_actions": ["FS_READ"]}}'
+if [ "$RC" -eq 0 ] && grep -q "RAN 2" <<<"$OUT"; then
+    pass "FG-13" "a \"main\" entry grants the top level's module load, with \"default\" granting nothing"
+else fail "FG-13" "the main entry did not grant the module load (rc=$RC)" "$(head -3 <<<"$OUT")"; fi
+run usemod.naab '{"level": "hard", "default": {"allowed_actions": []}}'
+if [ "$RC" -eq 3 ] && ! grep -q "RAN 2" <<<"$OUT" && grep -q "Undeclared action in top level: FS_READ" <<<"$OUT"; then
+    pass "FG-13c" "CONTROL: without \"main\", \"default\" still narrows the top level"
+else fail "FG-13c" "the top level was not narrowed by default (rc=$RC)" "$(head -3 <<<"$OUT")"; fi
+
+printf '%s\n' 'fn writer() { file.write("o-fn.txt", "x") }' 'main {' \
+    '    file.write("o-top.txt", "x")' '    print("TOP-WROTE")' '    writer()' \
+    '    print("FN-WROTE")' '}' > "$W/topwrite.naab"
+rm -f "$W/o-fn.txt" "$W/o-top.txt"
+run topwrite.naab '{"level": "hard", "default": {"allowed_actions": []}, "main": {"allowed_actions": ["FS_WRITE"]}}'
+if grep -q "TOP-WROTE" <<<"$OUT" && [ -f "$W/o-top.txt" ]; then
+    pass "FG-14a" "the main entry's FS_WRITE lets the main block write"
+else fail "FG-14a" "the main block could not write under its own entry (rc=$RC)" "$(head -3 <<<"$OUT")"; fi
+if [ "$RC" -eq 3 ] && ! grep -q "FN-WROTE" <<<"$OUT" && [ ! -f "$W/o-fn.txt" ]; then
+    pass "FG-14" "the main entry widens no function: writer() still resolves to default and is refused"
+else fail "FG-14" "a function wrote under the main entry (rc=$RC)" "$(head -3 <<<"$OUT")"; fi
+
+# FG-15: at advisory the grouped summary proposes a "main" entry for the top
+# level, starting from default's actions -- adding the action to "default"
+# would grant it to every function. FG-15b pastes the proposal back.
+printf '%s\n' 'main {' '    file.write("o-top2.txt", "x")' '    print("DONE")' '}' > "$W/topwrite2.naab"
+run topwrite2.naab '{"default": {"allowed_actions": ["FS_READ"]}}'
+if grep -qF '"main": { "allowed_actions": ["FS_READ", "FS_WRITE"] }' <<<"$OUT" && ! grep -qF '"default": { "allowed_actions"' <<<"$OUT"; then
+    pass "FG-15" "the advisory proposes a main entry (default's actions plus FS_WRITE), not a wider default"
+else fail "FG-15" "the proposal did not name main with default's actions" "$(grep -A3 'To permit' <<<"$OUT" | head -4)"; fi
+run topwrite2.naab '{"default": {"allowed_actions": ["FS_READ"]}, "main": { "allowed_actions": ["FS_READ", "FS_WRITE"] }}'
+if [ "$RC" -eq 0 ] && grep -q "DONE" <<<"$OUT" && ! grep -q "Undeclared function effects" <<<"$OUT"; then
+    pass "FG-15b" "the pasted proposal silences the advisory"
+else fail "FG-15b" "the pasted proposal did not silence the advisory (rc=$RC)" "$(grep -m2 'Undeclared' <<<"$OUT")"; fi
 
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"

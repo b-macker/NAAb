@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ============================================================
-# test_key_env_withheld.sh -- the evidence keys are withheld from the program (A33(b), A186)
+# test_key_env_withheld_routes.sh -- the evidence keys are withheld from the program, on every route (A33(b))
 #
-# THE DEFECT (A33(b), recorded 2026-10-14, left as its own follow-up)
+# THE DEFECT (A33(b), recorded 2026-10-14)
 #
 # The variables named by telemetry.tamper_evidence.hmac_key_env,
 # audit.tamper_evidence.hmac_key_env, audit.provenance.signing_key_env and
@@ -11,13 +11,15 @@
 # webhook's credential. The engine reads each when the config is loaded, and
 # the governed program could read them too: env.get, a child process, embedded
 # Python's os.environ. A program holding the chain key can append a correctly
-# chained forged record of its own run. Only guidance's auth_env was withheld.
+# chained forged record of its own run; one holding the webhook's can post it.
 #
-# A186, found building the fix: the loader kept only the VALUES of these
-# variables, never their names, so there was nothing to withhold by name, and
-# the reload ratchet's keyRef() compared values. It now compares both the name
-# and the value: comparing the name alone would accept a key changed under the
-# same name, which a program can do with env.set() before a reload re-reads it.
+# Bundle 19 PR 1 (#392) withholds the first three (GovernanceRules::
+# key_env_names, tests/security/test_key_env_withheld.sh). Bundle 20 PR 1 adds
+# the fourth, telemetry.webhook_auth_env, at its parse site. This suite checks
+# all four over every route the program has, the reload, and that the engine
+# still uses the key. The key ratchet compares the key's VALUE (keyRef(); the
+# *_key_env fields stay empty): KE-09 pins that a value a program changed with
+# env.set() before a reload is refused.
 #
 #   KE-00  CONTROL: with no setting naming it, the program reads the variable
 #          (the refusal arms below are measuring a variable that reaches it)
@@ -34,20 +36,20 @@
 #          with it and fails with a wrong key (the control that it was used)
 #   KE-08  after an accepted mid-run reload (a tightening, "N change(s)
 #          applied"), the key is still refused
-#   KE-09  A186: a program that env.set()s the key variable cannot get a reload
-#          with that value accepted -- the ratchet refuses the key change
+#   KE-09  a program that env.set()s the key variable cannot get a reload with
+#          that value accepted -- the ratchet refuses the key change
 #   KE-09c CONTROL: the same reload without env.set is accepted
 #
 # Kill table (each mutant applied alone, rebuilt, this suite run; observed
-# 2026-11-21 on the default build):
-#   M1 no push for telemetry.tamper_evidence.hmac_key_env -> KE-01 KE-05 KE-06 KE-08 red
-#   M2 no push for audit.tamper_evidence.hmac_key_env     -> KE-02 red
-#   M3 no push for audit.provenance.signing_key_env       -> KE-03 red
-#   M4 no push for telemetry.webhook_auth_env              -> KE-04 red
-#   M5 keyRef() compares the name only                      -> KE-09 red
-#   M6 the loader does not keep the names (A186 reverted)   -> KE-01..KE-06 KE-08 red
-# On master c1312132 (before the fix): KE-01..KE-06 and KE-08 red; KE-00, KE-07,
-# KE-09 and KE-09c green (the value comparison already refused KE-09).
+# 2026-11-21 on the default build, after merging master d32f8603):
+#   M1 no key_env_names push for telemetry.tamper_evidence.hmac_key_env -> KE-01 KE-05 KE-06 KE-08 red
+#   M2 no push for audit.tamper_evidence.hmac_key_env                     -> KE-02 red
+#   M3 no push for audit.provenance.signing_key_env                       -> KE-03 red
+#   M4 no push for telemetry.webhook_auth_env                              -> KE-04 red
+#   M5 keyRef() compares the (empty) name only                             -> KE-09 red
+#   M6 addGovernanceProtectedPaths() skips key_env_names                   -> KE-01..KE-06 KE-08 red
+# On master d32f8603 (#392 withholds three): KE-04 red, the rest green. On
+# c1312132 (before #392): KE-01..KE-06 and KE-08 red.
 #
 # Not covered: audit mode does not enforce blocked_read, and a subprocess
 # language with shell on can read the process environment file (A32,
@@ -71,7 +73,7 @@ pass() { PASS=$((PASS+1)); echo "  PASS [$1] $2"; }
 fail() { FAIL=$((FAIL+1)); echo "  FAIL [$1] $2${3:+ -- $3}"; }
 unm()  { UNM=$((UNM+1));  echo "  UNMEASURABLE [$1] $2"; }
 
-echo "=== test_key_env_withheld.sh ==="
+echo "=== test_key_env_withheld_routes.sh ==="
 if [ ! -x "$NAAB" ]; then echo "  UNMEASURABLE: naab-lang not built"; echo "Result: 0 passed, 0 failed, 1 unmeasurable"; exit 1; fi
 
 # Values built from fragments, so neither appears whole in this file.

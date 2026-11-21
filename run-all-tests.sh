@@ -5637,6 +5637,105 @@ if [ -f "$WIRED_SETTINGS_SCRIPT" ]; then
 else
     echo "  test_wired_settings.sh: not found, skipping"
 fi
+B19_ENV_READ_OFF_SCRIPT="tests/security/test_env_read_off_refusal.sh"
+if [ -f "$B19_ENV_READ_OFF_SCRIPT" ]; then
+    # A183 (Bundle 19): env_vars.read false is a HARD, recorded refusal at every env function, not a catchable sandbox error.
+    if run_shell_test "$B19_ENV_READ_OFF_SCRIPT" 2>&1; then
+        echo "  test_env_read_off_refusal.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_env_read_off_refusal.sh")
+    fi
+else
+    echo "  test_env_read_off_refusal.sh: not found, skipping"
+fi
+B19_KEYWORD_SCRIPT="tests/governance_v4/test_banned_keyword_match.sh"
+if [ -f "$B19_KEYWORD_SCRIPT" ]; then
+    # A184 (Bundle 19): a banned "Function(" does not refuse the JavaScript keyword `function`.
+    if run_shell_test "$B19_KEYWORD_SCRIPT" 2>&1; then
+        echo "  test_banned_keyword_match.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_banned_keyword_match.sh")
+    fi
+else
+    echo "  test_banned_keyword_match.sh: not found, skipping"
+fi
+B19_ENV_LEVELS_SCRIPT="tests/governance_v4/test_environment_levels.sh"
+if [ -f "$B19_ENV_LEVELS_SCRIPT" ]; then
+    # A185 (Bundle 19): an environment raises a check's level, never lowers it, and names a key it cannot apply. Needs naab-gov.
+    if run_shell_test "$B19_ENV_LEVELS_SCRIPT" 2>&1; then
+        echo "  test_environment_levels.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_environment_levels.sh")
+    fi
+else
+    echo "  test_environment_levels.sh: not found, skipping"
+fi
+B19_HOOK_ENV_SCRIPT="tests/governance_v4/test_hook_snapshot_env.sh"
+if [ -f "$B19_HOOK_ENV_SCRIPT" ]; then
+    # A53 (Bundle 19): a hook starts from the load-time environment, not one the program wrote.
+    if run_shell_test "$B19_HOOK_ENV_SCRIPT" 2>&1; then
+        echo "  test_hook_snapshot_env.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_hook_snapshot_env.sh")
+    fi
+else
+    echo "  test_hook_snapshot_env.sh: not found, skipping"
+fi
+B19_KEY_ENV_SCRIPT="tests/security/test_key_env_withheld.sh"
+if [ -f "$B19_KEY_ENV_SCRIPT" ]; then
+    # A33(b) (Bundle 19): the variables holding the engine's own keys are withheld from the program.
+    if run_shell_test "$B19_KEY_ENV_SCRIPT" 2>&1; then
+        echo "  test_key_env_withheld.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_key_env_withheld.sh")
+    fi
+else
+    echo "  test_key_env_withheld.sh: not found, skipping"
+fi
+B19_PORTS_SCRIPT="tests/governance_v4/test_allowed_ports.sh"
+if [ -f "$B19_PORTS_SCRIPT" ]; then
+    # A87 (Bundle 19): capabilities.network.allowed_ports binds the program's connections.
+    if run_shell_test "$B19_PORTS_SCRIPT" 2>&1; then
+        echo "  test_allowed_ports.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_allowed_ports.sh")
+    fi
+else
+    echo "  test_allowed_ports.sh: not found, skipping"
+fi
+B19_PLUGIN_FILES_SCRIPT="tests/governance_v4/test_plugin_files.sh"
+if [ -f "$B19_PLUGIN_FILES_SCRIPT" ]; then
+    # A116, A192 (Bundle 19): the run's engine judges the compile phase; plugin
+    # files are read as the operator's and never written by the program.
+    if run_shell_test "$B19_PLUGIN_FILES_SCRIPT" 2>&1; then
+        echo "  test_plugin_files.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_plugin_files.sh")
+    fi
+else
+    echo "  test_plugin_files.sh: not found, skipping"
+fi
+B19_CHECK_RESULT_CAP_SCRIPT="tests/governance_v4/test_check_result_cap.sh"
+if [ -f "$B19_CHECK_RESULT_CAP_SCRIPT" ]; then
+    # A177, A107, A193 (Bundle 19 PR 2): past 10,000 check results a run stays
+    # fast, telemetry writes or counts every result, and the run's counts keep
+    # what the cap evicted.
+    if run_shell_test "$B19_CHECK_RESULT_CAP_SCRIPT" 2>&1; then
+        echo "  test_check_result_cap.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_check_result_cap.sh")
+    fi
+else
+    echo "  test_check_result_cap.sh: not found, skipping"
+fi
 CHECK_LOCATIONS_SCRIPT="tests/governance_v4/test_check_locations.sh"
 if [ -f "$CHECK_LOCATIONS_SCRIPT" ]; then
     # A171 (Bundle 18): a refusal records the line it happened on, in the

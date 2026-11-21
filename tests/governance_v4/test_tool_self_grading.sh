@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# test_tool_self_grading.sh -- a tool may not grade, reset or commit its own agent (A185)
+# test_tool_self_grading.sh -- a tool may not grade, reset or commit its own agent (A197)
 #
 # THE DEFECT
 #

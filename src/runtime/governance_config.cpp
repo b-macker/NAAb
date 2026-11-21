@@ -13,6 +13,7 @@
 #include <array>
 #include <cctype>
 #include <vector>
+#include "naab/config_known_keys.h"
 #include "naab/governance.h"
 #include "naab/import_allowlist.h"
 #include "naab/paths.h"
@@ -711,6 +712,171 @@ static void reconcileCodeQualityMirrors(GovernanceRules& r) {
          r.code_quality.no_placeholders.enabled, r.code_quality.no_placeholders.level);
     pair(r.no_hardcoded_results, r.no_hardcoded_results_level,
          r.code_quality.no_hardcoded_results.enabled, r.code_quality.no_hardcoded_results.level);
+    // The same split for restrictions.dangerous_calls and two requirements
+    // (A191): checkDangerousCall() reads restrict_dangerous_calls +
+    // dangerous_calls_level, checkMainBlockRequired() require_main_block +
+    // main_block_level, and the extends floor raised only the structured level
+    // (and the flat switch). Observed on c1312132: a child's
+    // `"dangerous_calls": {"level": "advisory"}` under a parent's "hard" ran
+    // eval() with a warning, exit 0, where the parent alone refused it, exit 3.
+    // The shorthand ("dangerous_calls": "hard") set only the flat pair, as for
+    // no_secrets above, so the floor and the reload ratchet did not see it.
+    pair(r.restrict_dangerous_calls, r.dangerous_calls_level,
+         r.restrictions.dangerous_calls.enabled, r.restrictions.dangerous_calls.level);
+    pair(r.require_main_block, r.main_block_level,
+         r.requirements.main_block.enabled, r.requirements.main_block.level);
+    pair(r.require_error_handling, r.error_handling_level,
+         r.requirements.error_handling.enabled, r.requirements.error_handling.level);
+}
+
+// The checks an environment (environments.<name>) may raise (A185). The
+// environment block is a flat map of dotted keys, and applyEnvironmentTo()
+// used to apply seven of them -- mode, three gate switches, three report
+// paths -- and drop every other key in silence, so a production environment's
+// `code_quality.no_placeholders.level: "hard"` over an advisory file ran
+// advisory, exit 0 (observed on c1312132). An environment may now raise a
+// listed check's level, and turn on a listed check that has its own switch
+// (the owner's decision 11, 2026-11-20), never lower one; any other key gets
+// a named warning. Each entry names the fields the extends floor raises
+// (applyExtendsFloor) or the one level field a subsystem reads, and the reload
+// ratchet compares every entry on the overlaid rules (checkRatchetViolation),
+// so an edit that drops a raise mid-run is refused, as for the mode.
+// tests/governance_v4/test_environment_levels.sh reads the table between the
+// two markers and pins it against every `order level` key in
+// ratchet_classification.txt.
+namespace {
+struct EnvironmentCheckKey {
+    const char* path;
+    bool* (*enabled)(GovernanceRules&);              // nullptr: a level only
+    EnforcementLevel* (*level)(GovernanceRules&);
+};
+// One line each: tools/template_coverage.py tokenizes this file and has no
+// rule for a line continuation.
+#define NAAB_ENV_CHECK(p, f) {p, [](GovernanceRules& r) -> bool* { return &r.f.enabled; }, [](GovernanceRules& r) -> EnforcementLevel* { return &r.f.level; }}
+#define NAAB_ENV_LEVEL(p, f) {p, nullptr, [](GovernanceRules& r) -> EnforcementLevel* { return &r.f; }}
+// ENVIRONMENT CHECK TABLE BEGIN
+const EnvironmentCheckKey kEnvironmentChecks[] = {
+    NAAB_ENV_CHECK("code_quality.no_secrets", code_quality.no_secrets),
+    NAAB_ENV_CHECK("code_quality.no_placeholders", code_quality.no_placeholders),
+    NAAB_ENV_CHECK("code_quality.no_hardcoded_results", code_quality.no_hardcoded_results),
+    NAAB_ENV_CHECK("code_quality.no_pii", code_quality.no_pii),
+    NAAB_ENV_CHECK("code_quality.no_temporary_code", code_quality.no_temporary_code),
+    NAAB_ENV_CHECK("code_quality.no_simulation_markers", code_quality.no_simulation_markers),
+    NAAB_ENV_CHECK("code_quality.no_mock_data", code_quality.no_mock_data),
+    NAAB_ENV_CHECK("code_quality.no_apologetic_language", code_quality.no_apologetic_language),
+    NAAB_ENV_CHECK("code_quality.no_dead_code", code_quality.no_dead_code),
+    NAAB_ENV_CHECK("code_quality.no_debug_artifacts", code_quality.no_debug_artifacts),
+    NAAB_ENV_CHECK("code_quality.no_unsafe_deserialization", code_quality.no_unsafe_deserialization),
+    NAAB_ENV_CHECK("code_quality.no_sql_injection", code_quality.no_sql_injection),
+    NAAB_ENV_CHECK("code_quality.no_path_traversal", code_quality.no_path_traversal),
+    NAAB_ENV_CHECK("code_quality.no_hardcoded_urls", code_quality.no_hardcoded_urls),
+    NAAB_ENV_CHECK("code_quality.no_hardcoded_ips", code_quality.no_hardcoded_ips),
+    NAAB_ENV_CHECK("code_quality.max_complexity", code_quality.max_complexity),
+    NAAB_ENV_CHECK("code_quality.encoding", code_quality.encoding),
+    NAAB_ENV_CHECK("code_quality.no_oversimplification", code_quality.no_oversimplification),
+    NAAB_ENV_CHECK("code_quality.no_incomplete_logic", code_quality.no_incomplete_logic),
+    NAAB_ENV_CHECK("code_quality.no_hallucinated_apis", code_quality.no_hallucinated_apis),
+    NAAB_ENV_CHECK("code_quality.complexity_floor", code_quality.complexity_floor),
+    NAAB_ENV_CHECK("code_quality.semantic_checks", code_quality.semantic_checks),
+    NAAB_ENV_CHECK("code_quality.intent_validation", code_quality.intent_validation),
+    NAAB_ENV_LEVEL("code_quality.intent_validation.missing_level", code_quality.intent_validation.missing_level),
+    NAAB_ENV_CHECK("code_quality.drift_detection", code_quality.drift_detection),
+    NAAB_ENV_CHECK("restrictions.dangerous_calls", restrictions.dangerous_calls),
+    NAAB_ENV_CHECK("restrictions.shell_injection", restrictions.shell_injection),
+    NAAB_ENV_CHECK("restrictions.imports", restrictions.imports),
+    NAAB_ENV_CHECK("restrictions.data_exfiltration", restrictions.data_exfiltration),
+    NAAB_ENV_CHECK("restrictions.resource_abuse", restrictions.resource_abuse),
+    NAAB_ENV_CHECK("restrictions.privilege_escalation", restrictions.privilege_escalation),
+    NAAB_ENV_CHECK("restrictions.information_disclosure", restrictions.information_disclosure),
+    NAAB_ENV_CHECK("restrictions.code_injection", restrictions.code_injection),
+    NAAB_ENV_CHECK("restrictions.crypto", restrictions.crypto),
+    NAAB_ENV_CHECK("restrictions.vcs_secret_extraction", restrictions.vcs_secret_extraction),
+    NAAB_ENV_CHECK("restrictions.obfuscation", restrictions.obfuscation),
+    NAAB_ENV_CHECK("requirements.main_block", requirements.main_block),
+    NAAB_ENV_CHECK("requirements.error_handling", requirements.error_handling),
+    NAAB_ENV_CHECK("requirements.naming_conventions", requirements.naming_conventions),
+    NAAB_ENV_CHECK("pipeline_separation", pipeline_separation),
+    NAAB_ENV_CHECK("temporal_coupling", temporal_coupling),
+    {"polyglot.variable_binding.require_explicit",
+        [](GovernanceRules& r) -> bool* { return &r.polyglot.variable_binding.require_explicit; },
+        [](GovernanceRules& r) -> EnforcementLevel* { return &r.polyglot.variable_binding.require_explicit_level; }},
+    NAAB_ENV_LEVEL("codegen.level", codegen.level),
+    NAAB_ENV_LEVEL("contracts.level", contracts.level),
+    NAAB_ENV_LEVEL("baselines.level", baselines.level),
+    NAAB_ENV_LEVEL("governance_baseline.level", governance_baseline.level),
+    NAAB_ENV_LEVEL("context_drift.level", context_drift.level),
+    NAAB_ENV_LEVEL("context_drift.reality_checkpoint.level", context_drift.reality_checkpoint.level),
+    NAAB_ENV_LEVEL("exposure_tracking.level", exposure_tracking.level),
+    NAAB_ENV_LEVEL("circuit_breaker.output_admissibility.level", circuit_breaker.output_admissibility.level),
+};
+// ENVIRONMENT CHECK TABLE END
+#undef NAAB_ENV_CHECK
+#undef NAAB_ENV_LEVEL
+
+// The entry a key names, and whether it named the level ("<check>.level" or
+// the shorthand "<check>": a level word) or the switch ("<check>.enabled").
+const EnvironmentCheckKey* environmentCheckFor(const std::string& key, bool& names_switch) {
+    names_switch = false;
+    for (const auto& e : kEnvironmentChecks) {
+        const std::string p = e.path;
+        if (key == p) return &e;
+        if (e.enabled && key == p + ".level") return &e;
+        if (e.enabled && key == p + ".enabled") { names_switch = true; return &e; }
+    }
+    return nullptr;
+}
+}  // namespace
+
+static void enforceMinimumLevelsOnRules(GovernanceRules& rules);
+
+void GovernanceEngine::applyEnvironmentCheckKeys(
+    GovernanceRules& r, const std::string& env_name,
+    const std::vector<std::pair<std::string, std::string>>& keys) {
+    bool raised = false;
+    for (const auto& [key, value] : keys) {
+        bool names_switch = false;
+        const EnvironmentCheckKey* e = environmentCheckFor(key, names_switch);
+        if (!e) {
+            fprintf(stderr,
+                "[governance] WARNING: environment '%s' sets %s, which an environment "
+                "cannot change; the value is ignored.\n", env_name.c_str(), key.c_str());
+            continue;
+        }
+        bool* on = e->enabled ? e->enabled(r) : nullptr;
+        EnforcementLevel* lv = e->level(r);
+        const std::string word = normalizeLevelName(value);
+        if (on && (names_switch || word == "true" || word == "false")) {
+            if (word == "true") { if (!*on) { *on = true; raised = true; } continue; }
+            if (*on)
+                fprintf(stderr,
+                    "[governance] WARNING: environment '%s' sets %s to \"%s\", but this "
+                    "govern.json turns it on. An environment can only turn a check on, so "
+                    "the value is ignored.\n", env_name.c_str(), key.c_str(), value.c_str());
+            continue;
+        }
+        EnforcementLevel want;
+        if (!matchEnforcementLevel(value, want)) {
+            fprintf(stderr,
+                "[governance] WARNING: environment '%s' sets %s to \"%s\", which is not an "
+                "enforcement level; the value is ignored.\n",
+                env_name.c_str(), key.c_str(), value.c_str());
+            continue;
+        }
+        const bool was_on = !on || *on;
+        if (was_on && levelLoosens(*lv, want)) {
+            fprintf(stderr,
+                "[governance] WARNING: environment '%s' sets %s to \"%s\", which refuses less "
+                "than this govern.json's level. An environment can only raise a level, so "
+                "the value is ignored.\n", env_name.c_str(), key.c_str(), value.c_str());
+            continue;
+        }
+        *lv = want;
+        if (on) *on = true;
+        raised = true;
+    }
+    // The minimum-level rule and the flat copies the checks read, as after a
+    // load: a check an environment turned on at advisory runs at its minimum.
+    if (raised) enforceMinimumLevelsOnRules(r);
 }
 
 // A restriction the loader cannot read is a restriction it silently does not
@@ -842,9 +1008,19 @@ static void checkRestrictionTypes(const nlohmann::json& j) {
             for (const char* k : {"allowed_commands", "blocked_commands"}) strList(sh, "capabilities.shell", k);
             for (const char* k : {"enabled", "allow_pipes", "allow_redirects"}) boolean(sh, "capabilities.shell", k);
         }
+        // An entry the loader reads only as an object (A187): `"default": []`
+        // or `"default": "FS_READ"` was skipped, so a config meant to grant
+        // nothing restricted nothing (observed on c1312132: `{"default": [],
+        // "level": "hard"}` loaded silently and every action ran). A string
+        // "level" is the section's own level, not a function.
         if (cap.contains("functions") && cap["functions"].is_object())
-            for (const auto& [name, entry] : cap["functions"].items())
+            for (const auto& [name, entry] : cap["functions"].items()) {
+                if (name == "level" && entry.is_string()) continue;
+                if (!entry.is_object())
+                    refuse("capabilities.functions." + name,
+                           "an object with an allowed_actions list", entry);
                 strList(entry, "capabilities.functions." + name, "allowed_actions", true);
+            }
     }
     if (j.contains("languages") && j["languages"].is_object())
         for (const char* k : {"allowed", "blocked"}) strList(j["languages"], "languages", k, true);
@@ -873,6 +1049,59 @@ static void checkRestrictionTypes(const nlohmann::json& j) {
                 boolean(a, base, k);
         }
     }
+    // Every other section (A111's remainder): the loader reads a check's
+    // `enabled` only as true or false, a `level` only as a string, and a
+    // `limits` value only as a number, and drops anything else -- so
+    // `"no_secrets": {"enabled": "true"}` left the check off, and
+    // `"limits": {"execution": {"loop_iterations": "100"}}` left no limit,
+    // with no word (traced: every `enabled` read is behind is_boolean(), every
+    // limit behind is_number*()). Only a key the loader READS AS THAT SETTING
+    // is judged, by the loader's own schema (config_known_keys.h): a map keyed
+    // by the user's names -- a function `level()` under capabilities.functions
+    // or contracts.functions, an agent called `enabled`, an output contract's
+    // field types -- holds names, not settings, and a key that matches both a
+    // literal setting and an open map is left to its section's own rule. Keys
+    // the loader does not read are the unknown-key warning's, not this. An
+    // environment's keys are names in the schema (environments.<name>.<key>),
+    // so nothing inside one is judged here: its own rules apply it
+    // (applyEnvironmentTo). A separate skip for that block was dead code under
+    // the schema (it survived as a mutant) and was removed.
+    // Measured over the 189 tracked configs: the only values this refuses are
+    // in two configs poisoned on purpose.
+    const auto& schema = knownConfigSchema();
+    auto onlyLiteral = [](const std::vector<std::string>& cands, const std::string& key) {
+        for (const auto& c : cands) {
+            const auto cut = c.rfind('\x1f');
+            if ((cut == std::string::npos ? c : c.substr(cut + 1)) != key) return false;
+        }
+        return !cands.empty();
+    };
+    std::function<void(const nlohmann::json&, const std::vector<std::string>&,
+                       const std::string&, bool)> walk =
+        [&](const nlohmann::json& node, const std::vector<std::string>& cands,
+            const std::string& path, bool in_limits) {
+            if (node.is_array()) {
+                const auto nc = schema.step(cands, "[]");
+                if (nc.empty()) return;
+                for (const auto& e : node) walk(e, nc, path + "[]", in_limits);
+                return;
+            }
+            if (!node.is_object()) return;
+            for (const auto& [k, v] : node.items()) {
+                if (isConfigAnnotationKey(k)) continue;
+                const auto nc = schema.step(cands, k);
+                if (nc.empty()) continue;                       // not a setting
+                const std::string p = path.empty() ? k : path + "." + k;
+                if (k == "enabled" && onlyLiteral(nc, k) && !v.is_boolean())
+                    refuse(p, "true or false", v);
+                if (k == "level" && onlyLiteral(nc, k) && !v.is_string())
+                    refuse(p, "a level name", v);
+                const bool lim = in_limits || (path.empty() && k == "limits");
+                if (in_limits && !v.is_object() && !v.is_number()) refuse(p, "a number", v);
+                walk(v, nc, p, lim);
+            }
+        };
+    walk(j, {std::string()}, "", false);
 }
 
 // Settings that look like protection and enforce nothing: each is parsed (the
@@ -2650,10 +2879,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (te.contains("hmac_key") && te["hmac_key"].is_string()) rules_.audit.tamper_evidence.hmac_key = te["hmac_key"].get<std::string>();
             if (te.contains("hmac_key_env") && te["hmac_key_env"].is_string()) {
                 std::string env_name = te["hmac_key_env"].get<std::string>();
-                // The NAME is kept (A186): the program is refused the variable
-                // (A33(b), addGovernanceProtectedPaths()), and the ratchet
-                // compares it beside the value.
-                rules_.audit.tamper_evidence.hmac_key_env = env_name;
+                if (!env_name.empty()) rules_.key_env_names.push_back(env_name);  // A33(b)
                 const char* env_val = std::getenv(env_name.c_str());
                 if (env_val && env_val[0] != '\0') {
                     rules_.audit.tamper_evidence.hmac_key = env_val;
@@ -2680,7 +2906,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (prov.contains("signing_key") && prov["signing_key"].is_string()) rules_.audit.provenance.signing_key = prov["signing_key"].get<std::string>();
             if (prov.contains("signing_key_env") && prov["signing_key_env"].is_string()) {
                 std::string env_name = prov["signing_key_env"].get<std::string>();
-                rules_.audit.provenance.signing_key_env = env_name;   // A186
+                if (!env_name.empty()) rules_.key_env_names.push_back(env_name);  // A33(b)
                 const char* env_val = std::getenv(env_name.c_str());
                 if (env_val) rules_.audit.provenance.signing_key = env_val;
             }
@@ -3639,7 +3865,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (te.contains("hmac_key") && te["hmac_key"].is_string()) rules_.telemetry_output.tamper_evidence.hmac_key = te["hmac_key"].get<std::string>();
             if (te.contains("hmac_key_env") && te["hmac_key_env"].is_string()) {
                 std::string env_name = te["hmac_key_env"].get<std::string>();
-                rules_.telemetry_output.tamper_evidence.hmac_key_env = env_name;   // A186
+                if (!env_name.empty()) rules_.key_env_names.push_back(env_name);  // A33(b)
                 const char* env_val = std::getenv(env_name.c_str());
                 if (env_val) rules_.telemetry_output.tamper_evidence.hmac_key = env_val;
             }
@@ -3654,7 +3880,10 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.telemetry_output.webhook_auth_header = tel["webhook_auth_header"].get<std::string>();
         if (tel.contains("webhook_auth_env") && tel["webhook_auth_env"].is_string()) {
             std::string env_name = tel["webhook_auth_env"].get<std::string>();
-            rules_.telemetry_output.webhook_auth_env = env_name;   // A186
+            // Withheld like the chain keys (A33(b)): it is the credential the
+            // engine posts telemetry with, so a program that read it could post
+            // forged events to the operator's webhook.
+            if (!env_name.empty()) rules_.key_env_names.push_back(env_name);
             const char* env_val = std::getenv(env_name.c_str());
             if (env_val) {
                 // H2: raw value — user provides full scheme ("Bearer xxx", "Basic xxx", etc.)
@@ -4771,9 +5000,19 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         for (auto& [env_name, env_json] : j["environments"].items()) {
             if (!env_json.is_object()) continue;
             std::unordered_map<std::string, std::string> overrides;
-            for (auto& [key, val] : env_json.items()) {
-                overrides[key] = val.is_string() ? val.get<std::string>() : val.dump();
-            }
+            // A nested object is read as the dotted keys it spells (A185):
+            // `"code_quality": {"no_placeholders": {"level": "hard"}}` is
+            // `code_quality.no_placeholders.level`. It used to be kept as one
+            // key holding the object's text, which nothing applied.
+            std::function<void(const std::string&, const nlohmann::json&)> flatten =
+                [&](const std::string& prefix, const nlohmann::json& v) {
+                    if (v.is_object()) {
+                        for (auto& [k, sub] : v.items()) flatten(prefix + "." + k, sub);
+                        return;
+                    }
+                    overrides[prefix] = v.is_string() ? v.get<std::string>() : v.dump();
+                };
+            for (auto& [key, value] : env_json.items()) flatten(key, value);
             rules_.environments[env_name] = overrides;
         }
     }
@@ -5220,8 +5459,22 @@ static bool checkDeclaredOrderRatchet(const std::string& installed_text,
                 blocks.insert(p.size());
         walkDeclared(*e, segs, 0, &old_json, &new_json, "", blocks, v, n);
     }
-    violations.insert(violations.end(), v.begin(), v.end());
-    notices.insert(notices.end(), n.begin(), n.end());
+    // A key the hand-written comparisons already reported is not printed twice
+    // (the environment table compares overlaid levels there, A185); the
+    // decision still counts it.
+    auto add_new = [](std::vector<std::string>& into, const std::set<std::string>& from) {
+        const size_t before = into.size();
+        for (const auto& m : from) {
+            const size_t c = m.find(':');
+            bool dup = false;
+            if (c != std::string::npos)
+                for (size_t i = 0; i < before && !dup; ++i)
+                    dup = into[i].compare(0, c + 1, m, 0, c + 1) == 0;
+            if (!dup) into.push_back(m);
+        }
+    };
+    add_new(violations, v);
+    add_new(notices, n);
     return v.empty();
 }
 
@@ -5865,13 +6118,8 @@ static void checkEvidenceRatchet(
     // The chain's key: a different key mid-run leaves one file under two keys.
     // Compared as configured (the variable's name, or the literal key when no
     // variable is named); a change of the variable's VALUE is A33(b).
-    // Both the variable's name and the value it held when the config was read
-    // (A186). Until the names were kept on the rules this compared the value
-    // only; comparing the name alone would accept a key changed under the same
-    // name -- and a program can env.set() a variable before a reload re-reads
-    // it -- so the value stays in the comparison.
     auto keyRef = [](const std::string& env_name, const std::string& literal) {
-        return "env:" + env_name + "|value:" + literal;
+        return env_name.empty() ? "literal:" + literal : "env:" + env_name;
     };
     if (ot.tamper_evidence.enabled && nt.tamper_evidence.enabled &&
         keyRef(ot.tamper_evidence.hmac_key_env, ot.tamper_evidence.hmac_key) !=
@@ -6173,6 +6421,29 @@ static bool checkRatchetViolation(
     chkRestrict(old_r.governance_baseline.enabled, new_r.governance_baseline.enabled, "governance_baseline.enabled");
     chkRestrict(old_r.governance_baseline.fail_on_regression, new_r.governance_baseline.fail_on_regression,
                 "governance_baseline.fail_on_regression");
+    // Every check an environment may raise (kEnvironmentChecks, A185), compared
+    // on the overlaid rules for the same reason as the three gates above. A key
+    // already compared above is not reported twice.
+    {
+        auto reported = [&](const std::string& name) {
+            for (const auto* list : {&violations, &notices})
+                for (const auto& m : *list)
+                    if (m.compare(0, name.size() + 1, name + ":") == 0) return true;
+            return false;
+        };
+        auto& o = const_cast<GovernanceRules&>(old_r);  // read only
+        auto& n = const_cast<GovernanceRules&>(new_r);  // read only
+        for (const auto& e : kEnvironmentChecks) {
+            const std::string p = e.path;
+            if (e.enabled) {
+                const std::string en = p + ".enabled";
+                if (!reported(en)) chkRestrict(*e.enabled(o), *e.enabled(n), en.c_str());
+            }
+            const std::string ln = e.enabled ? p + ".level" : p;
+            const bool both_on = !e.enabled || (*e.enabled(o) && *e.enabled(n));
+            if (both_on && !reported(ln)) chkLevel(*e.level(o), *e.level(n), ln.c_str());
+        }
+    }
 
     // --- D0. Governance mode (ENFORCE < AUDIT < OFF, lower = stricter) ---
     // Never compared until the ratchet-coverage guard listed it: a signed

@@ -1752,23 +1752,12 @@ std::string startSourceProcess(const GuidancePathFn& resolvePath, const std::str
     if (command.empty()) return "it has no program";
     // Everything the child needs is built BEFORE fork(): allocation is not
     // async-signal-safe, and another thread may hold the allocator's lock.
-    std::vector<std::string> env_strings;
-    for (const auto& kv : naab::environmentSnapshot()) {
-        // NAAb's own secrets reach no operator process either (as hooks, V-SC-006).
-        if (kv.rfind("NAAB_GOVERN_KEY=", 0) == 0 || kv.rfind("NAAB_LOCK_KEY=", 0) == 0 ||
-            kv.rfind("NAAB_SIGNING_KEY=", 0) == 0) continue;
-        env_strings.push_back(kv);
-    }
+    // The load-time environment without NAAb's own keys, and a bare name
+    // looked up on the SNAPSHOT's PATH -- the helpers hooks use too (A53).
+    std::vector<std::string> env_strings = naab::operatorEnvironment();
     std::string prog = command[0];
     if (prog.find('/') == std::string::npos) {
-        // A bare name is looked up on the SNAPSHOT's PATH, not the live one.
-        std::istringstream ps(naab::snapshotEnv("PATH"));
-        std::string dir, found;
-        while (std::getline(ps, dir, ':')) {
-            if (dir.empty()) continue;
-            const std::string cand = dir + "/" + prog;
-            if (::access(cand.c_str(), X_OK) == 0) { found = cand; break; }
-        }
+        const std::string found = naab::findOnSnapshotPath(prog);
         if (found.empty()) return "its program was not found on PATH";
         prog = found;
     } else if (prog[0] != '/') {

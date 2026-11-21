@@ -290,6 +290,14 @@ static void checkUrlModuleGovernance(const std::string& url) {
     }
 }
 
+// Decision 25 (A192(a), Bundle 19): while a governance plugin loads, every
+// place its imports look is recorded on the loading engine, so the program
+// cannot create a lookalike there ahead of the real helper (no-op otherwise).
+static void lookingFor(const fs::path& p) {
+    if (governance::GovernanceEngine::loadingPluginsOnThisThread())
+        governance::GovernanceEngine::notePluginLookupCandidate(p.string());
+}
+
 std::optional<fs::path> ModuleResolver::resolve(
     const std::string& module_spec,
     const fs::path& current_file_dir) {
@@ -332,12 +340,14 @@ std::optional<fs::path> ModuleResolver::resolve(
     // 5. Try custom search paths
     for (const auto& search_path : search_paths_) {
         fs::path candidate = search_path / module_spec;
+        lookingFor(candidate);
         if (fs::exists(candidate) && fs::is_regular_file(candidate)) {
             return candidate;
         }
 
         // Try with .naab extension
         fs::path with_ext = search_path / (module_spec + ".naab");
+        lookingFor(with_ext);
         if (fs::exists(with_ext) && fs::is_regular_file(with_ext)) {
             return with_ext;
         }
@@ -355,12 +365,14 @@ std::optional<fs::path> ModuleResolver::resolveRelative(
         fs::path candidate = current_dir / spec;
 
         // Try exact path
+        lookingFor(candidate);
         if (fs::exists(candidate) && fs::is_regular_file(candidate)) {
             return candidate;
         }
 
         // Try with .naab extension
         fs::path with_ext = fs::path(candidate.string() + ".naab");
+        lookingFor(with_ext);
         if (fs::exists(with_ext) && fs::is_regular_file(with_ext)) {
             return with_ext;
         }
@@ -371,12 +383,14 @@ std::optional<fs::path> ModuleResolver::resolveRelative(
     // Also try bare relative paths (e.g., "modules/logger.naab")
     // These are resolved relative to the current file's directory
     fs::path candidate = current_dir / spec;
+    lookingFor(candidate);
     if (fs::exists(candidate) && fs::is_regular_file(candidate)) {
         return candidate;
     }
 
     // Try with .naab extension
     fs::path with_ext = fs::path(candidate.string() + ".naab");
+    lookingFor(with_ext);
     if (fs::exists(with_ext) && fs::is_regular_file(with_ext)) {
         return with_ext;
     }
@@ -398,6 +412,12 @@ std::optional<fs::path> ModuleResolver::resolveFromModules(
 
     while (true) {
         fs::path naab_modules = dir / "naab_modules";
+        // Recorded whether or not naab_modules/ exists yet: a program that
+        // creates it with a lookalike inside is the case this guards. The
+        // package-directory form (naab_modules/<spec>/...) is covered by
+        // recording the directory itself, which protects everything under it.
+        lookingFor(naab_modules / spec);
+        lookingFor(naab_modules / (spec + ".naab"));
 
         if (fs::exists(naab_modules) && fs::is_directory(naab_modules)) {
             fs::path candidate = naab_modules / spec;
@@ -450,6 +470,8 @@ std::optional<fs::path> ModuleResolver::resolveFromGlobal(const std::string& spe
     }
 
     fs::path global_modules = fs::path(home) / ".naab" / "modules";
+    lookingFor(global_modules / spec);
+    lookingFor(global_modules / (spec + ".naab"));
 
     if (!fs::exists(global_modules)) {
         return std::nullopt;
@@ -470,6 +492,8 @@ std::optional<fs::path> ModuleResolver::resolveFromGlobal(const std::string& spe
 
 std::optional<fs::path> ModuleResolver::resolveFromSystem(const std::string& spec) {
     fs::path system_modules = "/usr/local/naab/modules";
+    lookingFor(system_modules / spec);
+    lookingFor(system_modules / (spec + ".naab"));
 
     if (!fs::exists(system_modules)) {
         return std::nullopt;
@@ -493,8 +517,13 @@ std::unique_ptr<ast::Program> ModuleResolver::parseModuleFile(const fs::path& pa
     // A25: a module read is a filesystem read and must obey the same governance
     // as file.read(). Gate at the one point every engine's import path reaches
     // to read bytes from disk, so `import "x.naab"` cannot bypass
-    // capabilities.filesystem.mode:none / blocked_paths.
-    if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+    // capabilities.filesystem.mode:none / blocked_paths. A governance plugin
+    // file is the operator's, not the program's import (A116).
+    const bool operator_plugin = governance::GovernanceEngine::loadingPluginsOnThisThread();
+    // Decision 25: a file a plugin load reads is protected like the plugin.
+    if (operator_plugin) governance::GovernanceEngine::notePluginModuleRead(path.string());
+    if (auto* gov = governance::GovernanceEngine::getCurrent();
+        gov && gov->isActive() && !operator_plugin) {
         // The capability manifest pins modules (Bundle 11 PR 2): an unlisted
         // module is refused as a module, before the path gate.
         std::string m_err = gov->checkManifestModule(path.string(), nullptr);
@@ -513,7 +542,8 @@ std::unique_ptr<ast::Program> ModuleResolver::parseModuleFile(const fs::path& pa
     }
     std::string source = std::move(*src);
     // ... and a listed one must be the text the manifest approved.
-    if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+    if (auto* gov = governance::GovernanceEngine::getCurrent();
+        gov && gov->isActive() && !operator_plugin) {
         std::string m_err = gov->checkManifestModule(path.string(), &source);
         if (!m_err.empty()) throw std::runtime_error(m_err);
     }

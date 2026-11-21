@@ -49,6 +49,12 @@
 #           parent's banned imports for it
 #   XF-15   integrity.blocked_flags: a child's own list does not drop a flag
 #           its parent locks
+#   XF-16   restrictions.dangerous_calls: a child's level "advisory" does not
+#           lower the parent's "hard" -- the floor raised the structured copy and
+#           the check reads the flat one (A191, observed on c1312132: the child
+#           ran eval() with a warning, exit 0); XF-16b the shorthand form
+#   XF-17   requirements.main_block: the same split -- a child's "advisory"
+#           does not lower the parent's hard requirement
 #   XF-10c  CONTROL: a child still tightens -- its own blocked_read entry is
 #           refused beside the parent's
 #   XF-11c  CONTROL: a child still sets what is not a security setting -- its
@@ -67,6 +73,7 @@
 #   integrity.blocked_flags not unioned            XF-15
 #   codegen not floored                            XF-13
 #   per_language banned lists not unioned          XF-14
+#   the three flat pairs left out of reconcileCodeQualityMirrors  XF-16, XF-16b, XF-17
 # Red first (observed, master's binary): the 14 subject arms fail; the 8
 # controls pass. (The binary is from 977e7a40; governance_config.cpp is
 # identical between it and master 169d6600.)
@@ -290,6 +297,27 @@ if [ "$PRC" -eq 3 ] && ! grep -q PLAIN-OK <<<"$PO"; then
         pass XF-15 "a child's own blocked_flags does not drop a flag its parent locks"
     else fail XF-15 "the child ran with the flag its parent locks (rc=$CRC)" "$CO"; fi
 else unm XF-15 "control failed: the parent used directly did not refuse the flag (rc=$PRC)"; fi
+
+P_EVAL='main {
+    let r = <<javascript
+eval("1 + 1")
+>>
+    print("EVAL=" + r)
+}'
+xrun xf16 '"restrictions": {"dangerous_calls": {"enabled": true, "level": "hard"}}' \
+          '"restrictions": {"dangerous_calls": {"enabled": true, "level": "advisory"}}' child_wins replace "$P_EVAL"
+refused_both XF-16 "a child's dangerous_calls level advisory does not lower the parent's hard" "EVAL=2"
+xrun xf16b '"restrictions": {"dangerous_calls": "hard"}' \
+           '"restrictions": {"dangerous_calls": "advisory"}' child_wins replace "$P_EVAL"
+refused_both XF-16b "the same in the shorthand form" "EVAL=2"
+P_NOMAIN='fn helper() {
+    return 1
+}'
+xrun xf17 '"requirements": {"main_block": {"level": "hard"}}' \
+          '"requirements": {"main_block": {"level": "advisory"}}' child_wins replace "$P_NOMAIN"
+if [ "$PRC" -ne 3 ]; then unm XF-17 "control failed: the parent used directly did not refuse (rc=$PRC)"
+elif [ "$CRC" -eq 3 ]; then pass XF-17 "a child's main_block advisory does not lower the parent's hard requirement"
+else fail XF-17 "the child ran without a main block (rc=$CRC)" "$CO"; fi
 
 xrun xf10 '"capabilities": {"env_vars": {"blocked_read": ["NAAB_XF_A"]}}' \
           '"capabilities": {"env_vars": {"blocked_read": ["NAAB_XF_B"]}}' child_wins replace "$P_READ_B"

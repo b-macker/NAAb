@@ -153,6 +153,29 @@ static void syncGovernanceToSandbox(
         config.allowed_hosts.push_back(h);
     for (const auto& h : rules.capabilities.network.blocked_hosts)
         config.blocked_hosts.push_back(h);
+    // The same gap for the port list (A87, the owner's decision 15): canConnect()
+    // and hostPolicyAllows() have always checked allowed_ports, and the sandbox
+    // was never given it, so it bound no connection the program made (observed:
+    // a <<python>> connect to another port landed). Like the host lists, it
+    // reaches the sandbox here, at startup. A list the sandbox already holds
+    // (a level's own) is narrowed to the ports both name, never widened.
+    if (!rules.capabilities.network.allowed_ports.empty()) {
+        const auto& gov_ports = rules.capabilities.network.allowed_ports;
+        if (config.allowed_ports.empty()) {
+            config.allowed_ports = gov_ports;
+        } else {
+            std::vector<int> both;
+            for (int p : config.allowed_ports)
+                if (std::find(gov_ports.begin(), gov_ports.end(), p) != gov_ports.end()) both.push_back(p);
+            if (both.empty()) {
+                // Nothing in common: no port is allowed. The sandbox reads an
+                // empty list as "all", so leave connections switched off.
+                config.network_enabled = false;
+                config.capabilities.erase(naab::security::Capability::NET_CONNECT);
+            }
+            config.allowed_ports = both;
+        }
+    }
     // Shell disabled in governance → remove exec from sandbox
     if (!rules.shell_allowed) {
         config.allow_exec = false;
@@ -598,7 +621,7 @@ static void printRefusalClosingIfGoverned() {
 }
 
 // Every fatal exit flushes the advisory summary and then writes the reports
-// the engine holds (A183(b)). The flush can itself record a result (a
+// the engine holds (A195(b)). The flush can itself record a result (a
 // validation scored at exit). The outer handlers used to flush only: a HARD
 // refusal made after the run's last report write -- a must_produce contract,
 // which runs after execute() -- was printed and never reached telemetry, the
@@ -2323,6 +2346,16 @@ int main(int argc, char** argv) {
             if (use_vm) {
                 // Governance: reuse shared_governance loaded before preflight (no TOCTOU)
                 auto& vm_governance = shared_governance;
+                // A116: the run's engine is the current one from here, before
+                // the static phase and compile. It used to become current only
+                // just before execute(), so every check reached through
+                // getCurrent() while the VM compiled -- the module loader's read
+                // gates, a plugin's stdlib calls, agent review's dispatch
+                // settings -- asked the tree-walker Interpreter's own engine,
+                // which never loaded the config (its constructor, above, makes
+                // it current). Governance plugin files are exempted explicitly
+                // instead (GovernanceEngine::loadPlugins()).
+                if (gov_loaded) naab::governance::GovernanceEngine::setCurrent(&vm_governance);
                 auto script_dir = std::filesystem::absolute(filename).parent_path();
                 // Integrity: if signature verification failed, hard block immediately
                 if (!gov_loaded && naab::governance::g_governance_hard_block) {
@@ -2631,6 +2664,33 @@ int main(int argc, char** argv) {
                         }
                         fflush(stdout); fflush(stderr);
                         naab::exitProcess(3);
+                    }
+                }
+
+                // Decision 26 (A192(b), Bundle 19, the owner's decision of
+                // 2026-11-21): under enforce every governance plugin govern.json
+                // names is loaded before anything runs, and one that is missing
+                // or does not load refuses the run (exit 4), naming it. They
+                // loaded lazily, at the first plugin check, and one that could
+                // not load was skipped with a warning while its rules did not
+                // run. Loading first also means every file a plugin reads is
+                // known, and protected from the program, before the program
+                // starts (decision 25). Audit and off keep the lazy load and the
+                // warning.
+                if (gov_loaded && vm_governance.isActive() &&
+                    vm_governance.getMode() == naab::governance::GovernanceMode::ENFORCE &&
+                    !vm_governance.getRules().governance_plugins.empty()) {
+                    vm_governance.loadPlugins();
+                    const auto plugin_failures = vm_governance.pluginLoadFailures();
+                    if (!plugin_failures.empty()) {
+                        fprintf(stderr, "[governance] Governance config error: %zu governance plugin%s "
+                                        "could not be loaded:\n",
+                                plugin_failures.size(), plugin_failures.size() == 1 ? "" : "s");
+                        for (const auto& f : plugin_failures) fprintf(stderr, "  - %s\n", f.c_str());
+                        fprintf(stderr, "\n  Help:\n  - A plugin's rules cannot run, so the run is refused. "
+                                        "Fix or restore the plugin file. Nothing was run.\n");
+                        fflush(stdout); fflush(stderr);
+                        naab::exitProcess(4);
                     }
                 }
 
@@ -3120,7 +3180,7 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                // A183(c): write once more at the end of a clean run. execute()
+                // A195(c): write once more at the end of a clean run. execute()
                 // wrote the reports when the program finished; everything
                 // recorded after that -- the after-run audit, the execution
                 // contracts' passes, the baseline check -- was never written to
@@ -3315,7 +3375,7 @@ int main(int argc, char** argv) {
                         if (governance_baseline_save) {
                             gov->saveGovernanceBaseline();
                         }
-                        // A183(c): as on the VM path, everything recorded after
+                        // A195(c): as on the VM path, everything recorded after
                         // the program finished reaches the reports.
                         gov->writeReports();
                     }
@@ -4504,15 +4564,59 @@ int main(int argc, char** argv) {
         std::string preset;
         std::string languages_override;
 
+        // A176: init writes files, so an argument it does not understand
+        // must stop it before anything is written. It used to ignore one:
+        // `init --help` wrote naab.toml and govern.json, and a misspelt
+        // preset (`--preset strict`, `--governance-preset Strickt`) wrote a
+        // standard config -- weaker than the one asked for -- with at most
+        // a warning.
+        auto print_init_usage = []() {
+            fmt::print("Usage: naab-lang init [options]\n"
+                       "  Create naab.toml and govern.json in the current directory.\n"
+                       "  An existing file is kept unless --force is given.\n\n"
+                       "  --governance-preset P  P: relaxed | standard | strict | paranoid\n"
+                       "  --languages a,b        the languages govern.json allows\n"
+                       "  --taint                taint tracking and sequence detection on\n"
+                       "  --governance           write govern.json only\n"
+                       "  --no-governance        write naab.toml only\n"
+                       "  --package              create a package project structure\n"
+                       "  --force                replace existing files\n"
+                       "  --help, -h             show this help and write nothing\n");
+        };
         for (int i = 2; i < argc; i++) {
             std::string arg = argv[i];
+            if (arg == "--help" || arg == "-h") {
+                print_init_usage();
+                return 0;
+            }
             if (arg == "--package") package_mode = true;
             else if (arg == "--no-governance") no_governance = true;
             else if (arg == "--governance") governance_only = true;
             else if (arg == "--force") force = true;
             else if (arg == "--taint") taint_flag = true;
-            else if (arg == "--governance-preset" && i + 1 < argc) preset = argv[++i];
-            else if (arg == "--languages" && i + 1 < argc) languages_override = argv[++i];
+            else if (arg == "--governance-preset" || arg == "--languages") {
+                if (i + 1 >= argc) {
+                    fmt::print(stderr, "Error: {} needs a value. Nothing was written.\n\n", arg);
+                    print_init_usage();
+                    return 1;
+                }
+                (arg == "--languages" ? languages_override : preset) = argv[++i];
+            } else {
+                fmt::print(stderr, "Error: init does not know the argument '{}'. "
+                                   "Nothing was written.\n\n", arg);
+                print_init_usage();
+                return 1;
+            }
+        }
+        if (!preset.empty()) {
+            std::string p = preset;
+            for (auto& c : p) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (p != "relaxed" && p != "standard" && p != "strict" && p != "paranoid") {
+                fmt::print(stderr, "Error: unknown governance preset '{}' (relaxed, standard, "
+                                   "strict or paranoid). Nothing was written.\n", preset);
+                return 1;
+            }
+            preset = p;
         }
 
         fmt::print("\n");
@@ -4660,11 +4764,20 @@ int main(int argc, char** argv) {
         }
 
         // Step 1: Create naab.toml (unless --governance only)
+        // A176: an existing naab.toml is kept unless --force, as govern.json
+        // is (writeGovernJson). 7d5cf24c wrote the "already exists" message,
+        // but createDefaultManifest() opens the file for writing whether or
+        // not it exists, so the message printed only when the WRITE failed
+        // and an existing manifest was replaced every time.
         if (!governance_only) {
-            if (naab::manifest::createDefaultManifest("naab.toml")) {
+            std::error_code toml_ec;
+            if (std::filesystem::exists("naab.toml", toml_ec) && !force) {
+                fmt::print("  naab.toml already exists (kept; --force replaces it)\n");
+            } else if (naab::manifest::createDefaultManifest("naab.toml")) {
                 fmt::print("✓ Created naab.toml\n");
             } else {
-                fmt::print("  naab.toml already exists (skipped)\n");
+                fmt::print(stderr, "✗ Failed to create naab.toml\n");
+                return 1;
             }
         }
 

@@ -1065,27 +1065,23 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
     // reads as a ratchet loosening of blocked_read. Limits: audit mode does not
     // enforce blocked_read, and a <<sh>> block under elevated with shell on can
     // read the process environment file (A32, CONTRA-013).
-    auto protectEnvName = [&](const std::string& name) {
-        if (!name.empty() &&
-            std::find(protected_env_names_.begin(), protected_env_names_.end(), name) ==
-                protected_env_names_.end())
-            protected_env_names_.push_back(name);
-    };
     for (const auto& s : target_rules.guidance.sources) {
-        if (s.type == "https") protectEnvName(s.auth_env);
+        if (s.type == "https" && !s.auth_env.empty() &&
+            std::find(protected_env_names_.begin(), protected_env_names_.end(), s.auth_env) ==
+                protected_env_names_.end()) {
+            protected_env_names_.push_back(s.auth_env);
+        }
     }
-    // The evidence keys (A33(b)): the variables holding the HMAC keys that seal
-    // the telemetry chain and the audit trail, the path of the provenance
-    // signing key, and the webhook's credential. The engine reads each when
-    // the config is loaded; a program that could read one could forge a
-    // correctly chained record of its own run, sign an attestation, or post
-    // forged events to the operator's SIEM. Withheld whenever the name is
-    // configured, whether or not the feature is on, by the same rule and with
-    // the same limits as auth_env above.
-    protectEnvName(target_rules.telemetry_output.tamper_evidence.hmac_key_env);
-    protectEnvName(target_rules.audit.tamper_evidence.hmac_key_env);
-    protectEnvName(target_rules.audit.provenance.signing_key_env);
-    protectEnvName(target_rules.telemetry_output.webhook_auth_env);
+    // The same for the variables that hold the engine's own keys -- the
+    // telemetry and audit chains' HMAC keys, the attestation signing key and
+    // the webhook's credential (A33(b)): a program that reads the chain's key
+    // can seal lines it forges, and one that reads the webhook's can post them.
+    for (const auto& name : target_rules.key_env_names) {
+        if (std::find(protected_env_names_.begin(), protected_env_names_.end(), name) ==
+            protected_env_names_.end()) {
+            protected_env_names_.push_back(name);
+        }
+    }
     auto& blocked_read = target_rules.capabilities.env_vars.blocked_read;
     for (const auto& name : protected_env_names_) {
         if (std::find(blocked_read.begin(), blocked_read.end(), name) == blocked_read.end())
@@ -1151,14 +1147,15 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
             if (!ec) remember(abs.lexically_normal().string());
         }
     }
-    // The governance baseline (A184) is engine state by the same reasoning:
+
+    // The governance baseline (A196) is engine state by the same reasoning:
     // checkGovernanceBaseline() reads it at the end of the run to decide
     // fail_on_regression, and a missing file means "no baseline yet", so a
     // program that rewrote or deleted it hid its own regression (measured:
-    // three warnings against a baseline of one exits 2; the same program
-    // rewriting the file first exited 0). Opened as configured, relative to
-    // the working directory, so recorded both as written and absolute.
-    // Reads stay allowed; saving it stays the operator's --governance-baseline-save.
+    // three warnings against a baseline of one exit 2; the same program
+    // rewriting the file first exited 0). Opened as configured, relative to the
+    // working directory, so recorded both as written and absolute. Reads stay
+    // allowed; saving it stays the operator's --governance-baseline-save.
     if (target_rules.governance_baseline.enabled &&
         !target_rules.governance_baseline.path.empty()) {
         const std::string bl = target_rules.governance_baseline.path;
@@ -1242,6 +1239,53 @@ bool GovernanceEngine::isEngineStateDir(const std::string& canon_n) const {
                 if (fs::equivalent(e.path(), canon_n, ec3) && !ec3) return true;
             }
         }
+    }
+    return false;
+}
+
+// A192: a plugin file govern.json names, resolved as loadPlugins() resolves it
+// (against govern.json's directory), from the LIVE rules; a hard link to the
+// same file is the same file.
+bool GovernanceEngine::isGovernancePluginPath(const std::string& canon_n) const {
+    const auto rules_hold = rulesPtr();
+    if (rules_hold->governance_plugins.empty()) return false;
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const bool target_exists = fs::exists(canon_n, ec);
+    // Decision 25 (A192(a), Bundle 19): a new .naab file directly in a
+    // plugin's own folder could be a lookalike of a helper the plugin, or a
+    // later version of it, imports by name.
+    const fs::path target(canon_n);
+    std::string target_ext = target.extension().string();
+    for (auto& c : target_ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    for (const auto& plugin : rules_hold->governance_plugins) {
+        std::string pp;
+        try {
+            pp = fs::weakly_canonical(fs::absolute(fs::path(resolvePluginPath(plugin)))).string();
+        } catch (...) {
+            continue;
+        }
+        std::replace(pp.begin(), pp.end(), '\\', '/');
+        if (pp == canon_n) return true;
+        if (target_exists) {
+            std::error_code ec2;
+            if (fs::exists(pp, ec2) && fs::equivalent(pp, canon_n, ec2) && !ec2) return true;
+        }
+        if (target_ext == ".naab" && target.parent_path() == fs::path(pp).parent_path()) return true;
+    }
+    // Decision 25: every file a plugin load read (its helpers), a hard link
+    // included, and every place its imports looked before the file they found
+    // -- or anything under such a place, for a package directory -- so a
+    // program can neither change a helper nor put a lookalike ahead of it.
+    std::vector<std::string> reads, lookups;
+    {
+        std::lock_guard<std::mutex> lock(plugin_files_mutex_);
+        reads = plugin_read_files_;
+        lookups = plugin_lookup_paths_;
+    }
+    if (recordedPathMatches(reads, canon_n)) return true;
+    for (const auto& l : lookups) {
+        if (canon_n == l || canon_n.rfind(l + "/", 0) == 0) return true;
     }
     return false;
 }
@@ -1435,32 +1479,67 @@ std::string GovernanceEngine::lookupRationale(const std::string& rule_name) cons
     return "";  // No rationale configured
 }
 
+void GovernanceEngine::tallyEvictedLocked(const CheckResult& r) {
+    // A193: count an evicted result the way each run-wide reader counts it.
+    EvictedCheckTally& t = evicted_;
+    t.total++;
+    const bool audit = r.category.find("pass2") == 0;
+    DispositionTally& d = audit ? t.audit : t.run;
+    const std::string disp = dispositionOf(r);
+    if (disp == "passed") d.passed++;
+    else if (disp == "warned") d.warned++;
+    else if (disp == "overridden") d.overridden++;
+    else if (disp == "approved") d.approved++;
+    else if (disp == "audit_only") d.audit_only++;
+    else d.refused++;
+    if (audit) {
+        t.pass2_checks++;
+        if (!r.passed) t.pass2_findings++;
+    }
+    if (r.passed) return;
+    t.violations++;
+    if (r.level == EnforcementLevel::HARD) t.hard++;
+    else if (r.level == EnforcementLevel::SOFT) t.soft++;
+    else t.advisory++;
+    if (r.severity == "critical" || r.severity == "high") t.security++;
+    if (!audit) {
+        if (r.level == EnforcementLevel::HARD) t.pass1_hard++;
+        else if (r.level == EnforcementLevel::SOFT) t.pass1_soft++;
+        else t.pass1_advisory++;
+    }
+    if (r.level == EnforcementLevel::HARD || r.escalated) t.blocked = true;
+    if ((r.rule_name == "agent_review.intent_mismatch" ||
+         r.rule_name == "agent_review.intent_evasion") &&
+        r.level != EnforcementLevel::ADVISORY) t.intent_block = true;
+    if (r.level == EnforcementLevel::ADVISORY && !audit && !r.escalated &&
+        r.rule_name.compare(0, 6, "pass2.") != 0) t.scored_advisories++;
+}
+
 void GovernanceEngine::capCheckResultsLocked() {
-    if (check_results_.size() <= MAX_CHECK_RESULTS) return;
+    // A177: compact only once the list is CHECK_RESULTS_SLACK over the cap.
+    // Compacting at every record past the cap moved every other result on
+    // each one (about 10,000 moves a record), so a program making many
+    // governed calls slowed sharply past 10,000 results (observed: 10,000
+    // file.exists() calls 23.8 s, 20,000 past the 30 s limit). At a compaction
+    // point the result kept is the one the per-record pass kept: the
+    // preflight results and the newest of the others, MAX_CHECK_RESULTS in
+    // all; in between, up to CHECK_RESULTS_SLACK older results are still held.
+    if (check_results_.size() <= MAX_CHECK_RESULTS + CHECK_RESULTS_SLACK) return;
     // One pass, not one erase per entry: the post-execution audit can append
     // several results per polyglot block at once, and erase-from-front in a
     // loop is quadratic. F8: preflight entries are evicted only as a last resort.
     size_t excess = check_results_.size() - MAX_CHECK_RESULTS;
-    // A183: a result evicted before telemetry wrote it is lost from the record;
-    // count it, so the summary event can say so.
-    const uint64_t written_through = telemetry_written_through_id_.load();
     auto out = check_results_.begin();
     for (auto it = check_results_.begin(); it != check_results_.end(); ++it) {
-        if (excess > 0 && !it->preflight) {
-            --excess;
-            if (it->record_id > written_through) ++evicted_before_telemetry_;
-            continue;
-        }
+        if (excess > 0 && !it->preflight) { tallyEvictedLocked(*it); --excess; continue; }
         if (out != it) *out = std::move(*it);
         ++out;
     }
     check_results_.erase(out, check_results_.end());
     if (check_results_.size() > MAX_CHECK_RESULTS) {
-        const auto drop = check_results_.size() - MAX_CHECK_RESULTS;
-        for (size_t i = 0; i < drop; ++i)
-            if (check_results_[i].record_id > written_through) ++evicted_before_telemetry_;
-        check_results_.erase(check_results_.begin(),
-            check_results_.begin() + drop);
+        auto last = check_results_.begin() + (check_results_.size() - MAX_CHECK_RESULTS);
+        for (auto it = check_results_.begin(); it != last; ++it) tallyEvictedLocked(*it);
+        check_results_.erase(check_results_.begin(), last);
     }
 }
 
@@ -1472,12 +1551,11 @@ void GovernanceEngine::recordPass(const std::string& rule_name,
     const bool live_location = checkLocationIsLive();   // A171
     // V-CONC-007: mutex-guard concurrent access from async threads
     std::lock_guard<std::mutex> lock(results_mutex_);
-    check_results_.push_back({rule_name, level, true, "", cat, "",
-                              checkLine(), checkFile(), cwes, owasps,
-                              false, rationale, std::move(t_current_decision_trace), ""});
+    pushCheckResultLocked({rule_name, level, true, "", cat, "",
+                           checkLine(), checkFile(), cwes, owasps,
+                           false, rationale, std::move(t_current_decision_trace), ""});
     check_results_.back().live_location = live_location;
     check_results_.back().disposition = "passed";   // A172
-    check_results_.back().record_id = ++check_record_seq_;   // A183
     t_current_decision_trace.clear();
     // V-GOV-024: cap telemetry to prevent unbounded memory growth
     capCheckResultsLocked();
@@ -1579,11 +1657,10 @@ std::string GovernanceEngine::enforce(
     {
         // V-CONC-007: mutex-guard concurrent access from async threads
         std::lock_guard<std::mutex> lock(results_mutex_);
-        check_results_.push_back({rule_name, level, false, violation_message, cat, sev,
-                                  checkLine(), checkFile(), cwes, owasps,
-                                  preflight_mode_, rationale, std::move(t_current_decision_trace),
-                                  explanation});
-        check_results_.back().record_id = my_record = ++check_record_seq_;
+        my_record = pushCheckResultLocked({rule_name, level, false, violation_message, cat, sev,
+                                           checkLine(), checkFile(), cwes, owasps,
+                                           preflight_mode_, rationale, std::move(t_current_decision_trace),
+                                           explanation});
         check_results_.back().live_location = live_location;
         // A172: what happens to the action. A refusal unless a branch below
         // lets it run (audit, approval, override); an advisory warns unless
@@ -2697,10 +2774,15 @@ std::string GovernanceEngine::checkFunctionCapability(
     const auto& fns = rules().capabilities.functions;
     const std::string& fn = currentFunction();
 
-    // Resolve a frame to its declaration, or nullptr when unrestricted.
+    // Resolve a frame to its declaration, or nullptr when unrestricted. The
+    // top level (the main block, and a module's top-level code as it loads) is
+    // the frame "", and its own entry is "main" (A186, the owner's decision 12
+    // of 2026-11-20): it used to resolve through "default" only, so granting
+    // the top level an action -- `use mod` is a top-level FS_READ -- meant
+    // granting it to every function without an entry.
     auto resolve = [&](const std::string& name,
                        std::string& entry_out) -> const FunctionCapability* {
-        auto i = fns.find(name);
+        auto i = fns.find(name.empty() ? std::string("main") : name);
         if (i != fns.end()) { entry_out = i->first; return &i->second; }
         i = fns.find("default");
         if (i != fns.end()) { entry_out = "default"; return &i->second; }
@@ -2712,7 +2794,7 @@ std::string GovernanceEngine::checkFunctionCapability(
     // the outermost constraint the operator has to relax.
     const std::vector<std::string>& stk = functionStack();
     std::vector<std::string> frames(stk.begin(), stk.end());
-    if (frames.empty()) frames.push_back(fn);  // top level resolves via "default"
+    if (frames.empty()) frames.push_back(fn);  // top level: "main", else "default"
 
     const FunctionCapability* blocking = nullptr;
     std::string blocking_entry, blocking_frame;
@@ -2738,6 +2820,11 @@ std::string GovernanceEngine::checkFunctionCapability(
         quoted += "\"" + a + "\"";
     }
     std::string who = fn.empty() ? std::string("top level") : ("'" + fn + "'");
+    // The entry to add the action to. For the top level narrowed by "default"
+    // that is a new "main" entry, starting from default's actions: adding the
+    // action to "default" would grant it to every function without an entry.
+    const std::string fix_entry =
+        (blocking_frame.empty() && blocking_entry == "default") ? std::string("main") : blocking_entry;
     std::string proposed = quoted.empty() ? ("\"" + required + "\"")
                                           : (quoted + ", \"" + required + "\"");
 
@@ -2793,7 +2880,7 @@ std::string GovernanceEngine::checkFunctionCapability(
         std::lock_guard<std::mutex> lock(results_mutex_);
         std::string key = blocking_frame + "\x1f" + required;
         if (undeclared_effects_seen_.insert(key).second) {
-            undeclared_effects_.push_back({blocking_frame, required, blocking_entry});
+            undeclared_effects_.push_back({blocking_frame, required, fix_entry});
         }
     }
     return enforce("capabilities.functions", fn_level,
@@ -2808,13 +2895,13 @@ std::string GovernanceEngine::checkFunctionCapability(
             "That entry may perform: " + (listed.empty() ? "(nothing)" : listed) + "\n"
             "Either the operation does not belong here, or the\n"
             "declaration is incomplete. To permit it, add " + required + ":\n"
-            "  \"capabilities\": { \"functions\": { \"" + blocking_entry + "\": {\n"
+            "  \"capabilities\": { \"functions\": { \"" + fix_entry + "\": {\n"
             "      \"allowed_actions\": [" + proposed + "] } } }\n"
             "A function grant can only narrow what its role and the\n"
             "program already permit - adding it here has no effect if\n"
             "either of those lacks it.",
             example_bad,
-            "Declare " + required + " on '" + blocking_entry + "', or move the call"));
+            "Declare " + required + " on '" + fix_entry + "', or move the call"));
 }
 
 std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
@@ -3056,6 +3143,30 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
             "guidance source is not writable by the program: " + filepath);
     }
 
+    // A governance plugin is code the engine runs as the operator's governance
+    // (A116): a program that could rewrite one would choose the checks its
+    // next run is judged by -- observed before this (A192): with shell
+    // disabled, file.write over the plugin and the next run executed the eval
+    // the plugin refused. Every program write is refused here, the decision
+    // point file/io and embedded Python's audit hook reach on both engines.
+    // Reads stay allowed. Subprocess languages do not reach this gate
+    // (CONTRA-013).
+    if (mode == "write" && isGovernancePluginPath(canon_n)) {
+        // Decision 25: also a helper a plugin read, a place its imports
+        // looked, or a new .naab file in a plugin's folder.
+        return deny("governance.plugin_files", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Writing a governance plugin is blocked: " + filepath,
+                currentFunction().empty() ? std::string()
+                                          : ("in function '" + currentFunction() + "'"),
+                "the project's governance runs this file, or looks for its code here, to check the program",
+                "A governed program can read these files but cannot change or add them.\n"
+                "The operator edits them outside the program; write your output to another file.",
+                "file.write(\"" + filepath + "\", text)",
+                "file.write(\"output/notes.txt\", text)"),
+            "governance plugin is not writable by the program: " + filepath);
+    }
+
     // Governance evidence -- the telemetry output, the agent transcript, the
     // audit trail -- is written by the engine. A program that could write it
     // could erase or rewrite the record of its own run, so every program write
@@ -3076,7 +3187,7 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
             "governance evidence file is not writable by the program: " + filepath);
     }
 
-    // The scoring calibration file and the governance baseline (A184) are
+    // The scoring calibration file and the governance baseline (A196) are
     // engine STATE: calibration weights replace the configured ones, so a
     // program that could write the file could zero the weight of its own
     // violations (A60); the baseline decides fail_on_regression, so rewriting
@@ -3619,7 +3730,7 @@ std::string GovernanceEngine::checkDangerousCall(
         if (extra.empty()) continue;
         bool hit = false;
         try {
-            hit = literalEntryMatches(code, extra);
+            hit = literalEntryMatches(code, extra, language);
         } catch (const std::regex_error&) {
             fprintf(stderr, "[governance] Warning: regex pattern failed for a dangerous-call entry\n");
         }
@@ -3918,13 +4029,12 @@ void GovernanceEngine::scoreUnconsumedValidations() {
             : "'" + r.config_name + "' (handle " + std::to_string(r.handle_id) + ")";
         {
             std::lock_guard<std::mutex> lock(results_mutex_);
-            check_results_.push_back({"context_drift.validation_outcome", EnforcementLevel::ADVISORY,
+            pushCheckResultLocked({"context_drift.validation_outcome", EnforcementLevel::ADVISORY,
                 false,
                 fmt::format("A failed validation for agent {} was recorded after its last turn, "
                             "so it was scored at the end of the run: coherence {:.4f} -> {:.4f}",
                             who, r.coherence_before, r.coherence_after),
                 "context_drift", "medium", 0, "<agent:" + r.config_name + ">", {}, {}});
-            check_results_.back().record_id = ++check_record_seq_;   // A183
             capCheckResultsLocked();
         }
         if (rules().telemetry_output.enabled) {
@@ -4015,6 +4125,10 @@ void GovernanceEngine::flushGroupedAdvisories() {
             // replace the list and silently drop the permissions already there.
             std::set<std::string> all(acts.begin(), acts.end());
             auto ei = rules().capabilities.functions.find(entry);
+            // A "main" entry proposed for the top level starts from what the
+            // top level has now: "default"'s actions (A186).
+            if (ei == rules().capabilities.functions.end() && entry == "main")
+                ei = rules().capabilities.functions.find("default");
             if (ei != rules().capabilities.functions.end()) {
                 for (const auto& a : ei->second.allowed_actions) all.insert(a);
             }
@@ -4063,6 +4177,16 @@ namespace {
 struct DispositionCounts {
     int passed = 0, warned = 0, overridden = 0, approved = 0, audit_only = 0, refused = 0;
     int nonPassing() const { return warned + overridden + approved + audit_only + refused; }
+    // A193: results the cap evicted are still results of the run.
+    DispositionCounts& add(const DispositionTally& t) {
+        passed += static_cast<int>(t.passed);
+        warned += static_cast<int>(t.warned);
+        overridden += static_cast<int>(t.overridden);
+        approved += static_cast<int>(t.approved);
+        audit_only += static_cast<int>(t.audit_only);
+        refused += static_cast<int>(t.refused);
+        return *this;
+    }
 };
 
 template <typename Range>
@@ -4106,7 +4230,8 @@ std::string GovernanceEngine::formatSummary() const {
     std::lock_guard<std::mutex> lock(results_mutex_);
     if (check_results_.empty()) return "";
 
-    const DispositionCounts counts = countDispositions(check_results_);
+    DispositionCounts counts = countDispositions(check_results_);
+    counts.add(evicted_.run).add(evicted_.audit);   // A193
 
     std::ostringstream oss;
     std::string mode_str = "enforce";
@@ -4461,6 +4586,7 @@ void GovernanceEngine::runGovernanceVoice() {
 
 bool GovernanceEngine::hasIntentBlock() const {
     std::lock_guard<std::mutex> lock(results_mutex_);
+    if (evicted_.intent_block) return true;   // A193
     for (const auto& r : check_results_) {
         if (!r.passed &&
             (r.rule_name == "agent_review.intent_mismatch" ||
@@ -4476,7 +4602,8 @@ std::string GovernanceEngine::formatSummaryOneLine() const {
     std::lock_guard<std::mutex> lock(results_mutex_);
     if (check_results_.empty()) return "";
 
-    const DispositionCounts counts = countDispositions(check_results_);
+    DispositionCounts counts = countDispositions(check_results_);
+    counts.add(evicted_.run).add(evicted_.audit);   // A193
 
     // Silent when all passed — clean output
     if (counts.nonPassing() == 0) return "";
@@ -4520,7 +4647,8 @@ void GovernanceEngine::printDashboard() const {
     std::lock_guard<std::mutex> lock(results_mutex_);
     // Counted by disposition (A172): an overridden or audit-only refusal ran,
     // so it is not counted as blocked.
-    const DispositionCounts counts = countDispositions(check_results_);
+    DispositionCounts counts = countDispositions(check_results_);
+    counts.add(evicted_.run).add(evicted_.audit);   // A193
     std::map<std::string, int> block_counts;
     for (const auto& r : check_results_) {
         if (!r.passed && dispositionOf(r) == "refused") block_counts[r.rule_name]++;
@@ -4600,7 +4728,16 @@ void GovernanceEngine::printDashboard() const {
             }
         }
         if (!verifyScoreIntegrity()) {
-            fprintf(stderr, "  INTEGRITY: score mismatch (incremental vs recomputed)\n");
+            // A193: the recomputation reads the results still in memory, so
+            // once the cap has evicted a scored advisory it cannot agree --
+            // say it cannot be checked rather than report a mismatch.
+            if (evicted_.scored_advisories > 0)
+                fprintf(stderr, "  INTEGRITY: not checked (%llu scored advisories were evicted "
+                                "from memory past %zu results)\n",
+                        static_cast<unsigned long long>(evicted_.scored_advisories),
+                        MAX_CHECK_RESULTS);
+            else
+                fprintf(stderr, "  INTEGRITY: score mismatch (incremental vs recomputed)\n");
         }
     }
     if (rules().telemetry_output.enabled)
@@ -4748,8 +4885,9 @@ void GovernanceEngine::printDashboard() const {
     {
         auto ds = stdlib::getAgentDispatchStats();
         if (ds.total_calls > 0) {
-            fprintf(stderr, "Dispatch:   %d calls (%d retries, %d tokens, %lldms)\n",
-                    ds.total_calls, ds.total_retries, ds.total_tokens,
+            fprintf(stderr, "Dispatch:   %lld calls (%d retries, %lld tokens, %lldms)\n",
+                    static_cast<long long>(ds.total_calls), ds.total_retries,
+                    static_cast<long long>(ds.total_tokens),
                     static_cast<long long>(ds.total_agent_time_ms));
             if (!ds.dead_keys.empty()) {
                 std::string dead_str;
@@ -4803,6 +4941,7 @@ void GovernanceEngine::printDashboard() const {
 bool GovernanceEngine::wasBlocked() const {
     // A copy taken under results_mutex_: async fns and agent.batch workers
     // record while this runs, and the vector may reallocate under a reader (A86).
+    if (evictedCheckTally().blocked) return true;   // A193
     const std::vector<CheckResult> results_snapshot = getCheckResults();
     for (const auto& r : results_snapshot) {
         if (!r.passed && (r.level == EnforcementLevel::HARD || r.escalated)) return true;
@@ -4820,7 +4959,12 @@ std::string GovernanceEngine::evaluateQualityGate() const {
     // Quality gate conditions (only when enabled)
     if (rules().quality_gate.enabled) {
         std::lock_guard<std::mutex> lock(results_mutex_);
-        int hard = 0, soft = 0, advisory = 0, security = 0, total_violations = 0;
+        // A193: the counts start from what the cap evicted, so an advisory
+        // recorded early still fails `advisory_violations > 0` past the cap.
+        int hard = static_cast<int>(evicted_.hard), soft = static_cast<int>(evicted_.soft),
+            advisory = static_cast<int>(evicted_.advisory),
+            security = static_cast<int>(evicted_.security),
+            total_violations = static_cast<int>(evicted_.violations);
         for (const auto& r : check_results_) {
             if (r.passed) continue;
             total_violations++;
@@ -4837,7 +4981,8 @@ std::string GovernanceEngine::evaluateQualityGate() const {
             else if (cond.metric == "advisory_violations") value = advisory;
             else if (cond.metric == "security_findings") value = security;
             else if (cond.metric == "total_violations") value = total_violations;
-            else if (cond.metric == "total_checks") value = static_cast<int>(check_results_.size());
+            else if (cond.metric == "total_checks")
+                value = static_cast<int>(check_results_.size() + evicted_.total);
             else if (cond.metric == "cumulative_risk_score") value = cumulative_score_;
             else continue;
 
@@ -7479,7 +7624,11 @@ bool GovernanceEngine::applyEnvironmentTo(GovernanceRules& r, const std::string&
                 env_name.c_str(), key.c_str(), value.c_str());
         }
     };
-    for (const auto& [key, value] : overrides) {
+    // Applied in key order, so the warnings come out the same on every run.
+    std::vector<std::pair<std::string, std::string>> ordered(overrides.begin(), overrides.end());
+    std::sort(ordered.begin(), ordered.end());
+    std::vector<std::pair<std::string, std::string>> check_keys;
+    for (const auto& [key, value] : ordered) {
         if (key == "mode") {
             const GovernanceMode file_mode = r.mode;
             r.mode = modeAfterEnvironment(file_mode, value);
@@ -7504,9 +7653,12 @@ bool GovernanceEngine::applyEnvironmentTo(GovernanceRules& r, const std::string&
             r.output.file_output.report_json = value;
         } else if (key == "output.file_output.report_junit") {
             r.output.file_output.report_junit = value;
+        } else {
+            // Every other key used to be dropped in silence (A185).
+            check_keys.emplace_back(key, value);
         }
-        // Additional dot-path overrides can be added as needed
     }
+    applyEnvironmentCheckKeys(r, env_name, check_keys);
     return true;
 }
 
@@ -8551,7 +8703,9 @@ std::string GovernanceEngine::refusalClosingText() {
 void GovernanceEngine::printValidationReport() {
     std::lock_guard<std::mutex> lock(results_mutex_);
     // Count pass 2 findings
-    int pass2_checks = 0, pass2_findings = 0;
+    // A193: the counts include what the cap evicted.
+    int pass2_checks = static_cast<int>(evicted_.pass2_checks),
+        pass2_findings = static_cast<int>(evicted_.pass2_findings);
     std::vector<const CheckResult*> pass2_results;
     for (const auto& cr : check_results_) {
         if (cr.category.find("pass2") == 0) {
@@ -8562,7 +8716,10 @@ void GovernanceEngine::printValidationReport() {
     }
 
     // Count pass 1 stats
-    int pass1_checks = 0, pass1_hard = 0, pass1_soft = 0, pass1_advisory = 0;
+    int pass1_checks = static_cast<int>(evicted_.total - evicted_.pass2_checks),
+        pass1_hard = static_cast<int>(evicted_.pass1_hard),
+        pass1_soft = static_cast<int>(evicted_.pass1_soft),
+        pass1_advisory = static_cast<int>(evicted_.pass1_advisory);
     for (const auto& cr : check_results_) {
         if (cr.category.find("pass2") != 0) {
             pass1_checks++;
@@ -8584,7 +8741,8 @@ void GovernanceEngine::printValidationReport() {
         for (const auto& cr : check_results_) {
             if (cr.category.find("pass2") != 0) run_results.push_back(cr);
         }
-        const DispositionCounts c = countDispositions(run_results);
+        DispositionCounts c = countDispositions(run_results);
+        c.add(evicted_.run);   // A193
         std::vector<std::string> parts;
         if (c.warned) parts.push_back(fmt::format("{} warning{}", c.warned, c.warned == 1 ? "" : "s"));
         if (c.overridden) parts.push_back(fmt::format("{} overridden", c.overridden));

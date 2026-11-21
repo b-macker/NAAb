@@ -59,8 +59,14 @@ std::optional<std::string> ModuleRegistry::resolveModulePath(
 ) {
     std::string file_path = modulePathToFilePath(module_path);
 
+    // Decision 25 (A192(a), Bundle 19): while a governance plugin loads, the
+    // places its `use` looks are recorded, so the program cannot create a
+    // lookalike there (no-op otherwise).
+    const bool plugin_load = governance::GovernanceEngine::loadingPluginsOnThisThread();
+
     // 1. Check relative to current directory
     auto full_path = current_dir / file_path;
+    if (plugin_load) governance::GovernanceEngine::notePluginLookupCandidate(full_path.string());
     if (std::filesystem::exists(full_path)) {
         return std::filesystem::absolute(full_path).string();
     }
@@ -68,6 +74,7 @@ std::optional<std::string> ModuleRegistry::resolveModulePath(
     // 2. Check each search path
     for (const auto& search_path : search_paths_) {
         auto search_full_path = std::filesystem::path(search_path) / file_path;
+        if (plugin_load) governance::GovernanceEngine::notePluginLookupCandidate(search_full_path.string());
         if (std::filesystem::exists(search_full_path)) {
             return std::filesystem::absolute(search_full_path).string();
         }
@@ -85,8 +92,13 @@ std::unique_ptr<ast::Program> ModuleRegistry::parseModuleFile(const std::string&
     // F33: `use module` reads a file from disk and must obey the same filesystem
     // governance as file.read() / `import` (A25). ModuleResolver was gated in
     // #213 but this second module path (ModuleRegistry) was not, so `use secret`
-    // still bypassed capabilities.filesystem.mode:none / blocked_paths.
-    if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+    // still bypassed capabilities.filesystem.mode:none / blocked_paths. A
+    // governance plugin's own load is the operator's, not the program's (A116).
+    const bool operator_plugin = governance::GovernanceEngine::loadingPluginsOnThisThread();
+    // Decision 25: a file a plugin load reads is protected like the plugin.
+    if (operator_plugin) governance::GovernanceEngine::notePluginModuleRead(file_path);
+    if (auto* gov = governance::GovernanceEngine::getCurrent();
+        gov && gov->isActive() && !operator_plugin) {
         // The capability manifest pins modules (Bundle 11 PR 2).
         std::string m_err = gov->checkManifestModule(file_path, nullptr);
         if (!m_err.empty()) throw std::runtime_error(m_err);
@@ -103,7 +115,8 @@ std::unique_ptr<ast::Program> ModuleRegistry::parseModuleFile(const std::string&
         throw std::runtime_error("Failed to open file: " + file_path);
     }
     std::string source = std::move(*src);
-    if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+    if (auto* gov = governance::GovernanceEngine::getCurrent();
+        gov && gov->isActive() && !operator_plugin) {
         std::string m_err = gov->checkManifestModule(file_path, &source);
         if (!m_err.empty()) throw std::runtime_error(m_err);
     }

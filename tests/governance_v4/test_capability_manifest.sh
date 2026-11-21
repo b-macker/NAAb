@@ -52,10 +52,13 @@
 #       Windows failure's shape                   -> all eleven narrowing arms
 #       (MF-06 MF-07 MF-07r MF-07p MF-08 MF-09 MF-10 MF-10s MF-11 MF-11b MF-12);
 #       before applied() was required, MF-06, MF-07p and MF-08 read PASS under it
-#   Not a mutant: MF-22c/MF-22 are an observation. Plugin exemptions in the files
-#   layer and the module pin were written and SURVIVED as mutants (the plugin read
-#   never reaches those gates on the default engine; it loads with no action
-#   granted), so they were removed as dead code (A116).
+#   MF-22c/MF-22 were an observation until A116: plugin exemptions in the files
+#   layer and the module pin were written and SURVIVED as mutants (the plugin
+#   read met the tree-walker's idle engine while the VM compiled), so they were
+#   removed as dead code. Since A116 (Bundle 19) the run's engine judges the
+#   compile phase and plugin loads are exempted explicitly
+#   (GovernanceEngine::loadPlugins()); without that exemption MF-22c fails --
+#   the plugin read is refused at HARD and the run ends.
 #
 # Usage: bash tests/governance_v4/test_capability_manifest.sh [path/to/naab-lang]
 set -uo pipefail
@@ -472,8 +475,8 @@ else
 fi
 
 # A governance plugin is the operator's code: under a manifest that grants no
-# action at all it still loads and its rule still runs (observed: the plugin
-# read does not reach the manifest's gates on this engine). The block is
+# action at all it still loads and its rule still runs (its read is exempted
+# as the operator's, A116). The block is
 # JavaScript, which runs in-process everywhere: with no action granted there is
 # no SHELL_EXEC, and where Python is a separate process (Windows) the shell-off
 # rule refuses a <<python>> block before the plugin is asked (observed at

@@ -1,15 +1,44 @@
 #!/bin/bash
 # Integration test for naab-lang init governance generator
 # Tests: presets, section completeness, flags, overwrite protection
+#
+# Bundle 19 PR 2 arms (A176, A75):
+#   Test 6   every preset but relaxed writes taint tracking and sequence
+#            detection on (A75(b)); relaxed only with --taint
+#   Test 7b  an existing naab.toml is kept without --force, replaced with it
+#   Test 13  --help / -h print the usage and write nothing; an argument init
+#            does not know, a flag missing its value and an unknown preset
+#            refuse (exit 1) and write nothing; a preset name in another case
+#            is accepted (control)
+#   Test 14  the summary and the file say what the standard sandbox refuses
+#   Test 15  a generated standard project refuses a file.read -> python flow
+#            and runs the same block on a literal (control); UNMEASURABLE
+#            without embedded Python
+#
+# Kill table (mutants of src/cli/main.cpp init and src/cli/governance_init.cpp,
+# run by hand from a copy of the tree):
+#   I1  drop the naab.toml existence check                  -> Test 7b
+#   I2  --help handled after the files are written          -> Test 13 (--help)
+#   I3  an unknown argument ignored again                   -> Test 13 (unknown)
+#   I4  an unknown preset falls back to standard again      -> Test 13 (preset)
+#   I5  taint on only with --taint again (presetToConfig)   -> Test 6, Test 15
+#   I6  taint on for relaxed too                            -> Test 6 (relaxed)
+#   I7  the sandbox note left out of the file               -> Test 14 (file)
+#   I8  the sandbox note left out of the summary            -> Test 14 (summary)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-NAAB_BIN="${SCRIPT_DIR}/../../build/naab-lang"
+NAAB_BIN="${NAAB:-${SCRIPT_DIR}/../../build/naab-lang}"
 PASS=0
 FAIL=0
+UNM=0
 TEST_DIR="${HOME}/.naab_init_test_$$"
 mkdir -p "$TEST_DIR"
+# Generated configs are unsigned: keep a key installed on this machine from
+# turning every run into an integrity block.
+source "${SCRIPT_DIR}/../helpers/trust_setup.sh"
+setup_isolated_trust
 
-cleanup() { rm -rf "$TEST_DIR"; }
+cleanup() { rm -rf "$TEST_DIR"; teardown_isolated_trust; }
 trap cleanup EXIT
 
 check() {
@@ -110,12 +139,32 @@ import json; d=json.load(open(\"govern.json\"))
 assert d[\"taint_tracking\"][\"enabled\"] == True
 ' 2>/dev/null"
 
-# Without --taint
+# Without --taint (A75(b), the owner's decision of 2026-11-20): every preset
+# but relaxed writes taint tracking and sequence detection on, as plain init
+# does; relaxed only with --taint. This arm used to pin "taint disabled
+# without --taint" for standard -- the opt-in 7d5cf24c built, reversed.
+for preset in standard strict paranoid; do
+    cd "$TEST_DIR" && rm -f govern.json
+    echo "" | "$NAAB_BIN" init --governance --governance-preset "$preset" --force > /dev/null 2>&1
+    check "$preset: taint tracking and sequence detection on without --taint" "python3 -c '
+import json; d=json.load(open(\"govern.json\"))
+assert d[\"taint_tracking\"][\"enabled\"] == True
+assert d[\"behavioral_sequences\"][\"enabled\"] == True
+' 2>/dev/null"
+done
 cd "$TEST_DIR" && rm -f govern.json
-echo "" | "$NAAB_BIN" init --governance --governance-preset standard --force > /dev/null 2>&1
-check "taint disabled without --taint" "python3 -c '
+echo "" | "$NAAB_BIN" init --governance --governance-preset relaxed --force > /dev/null 2>&1
+check "relaxed: taint tracking and sequence detection off without --taint" "python3 -c '
 import json; d=json.load(open(\"govern.json\"))
 assert d[\"taint_tracking\"][\"enabled\"] == False
+assert d[\"behavioral_sequences\"][\"enabled\"] == False
+' 2>/dev/null"
+cd "$TEST_DIR" && rm -f govern.json
+echo "" | "$NAAB_BIN" init --governance --governance-preset relaxed --taint --force > /dev/null 2>&1
+check "relaxed --taint: both on" "python3 -c '
+import json; d=json.load(open(\"govern.json\"))
+assert d[\"taint_tracking\"][\"enabled\"] == True
+assert d[\"behavioral_sequences\"][\"enabled\"] == True
 ' 2>/dev/null"
 
 # --- Test 7: No overwrite without --force ---
@@ -129,6 +178,21 @@ check "Existing file not overwritten" "[ \"\$(cat govern.json)\" = 'existing' ]"
 # --- Test 8: --force overwrites ---
 echo "" | "$NAAB_BIN" init --governance --governance-preset standard --force > /dev/null 2>&1
 check "File overwritten with --force" "python3 -c 'import json; json.load(open(\"govern.json\"))' 2>/dev/null"
+
+# --- Test 7b: an existing naab.toml is kept without --force (A176) ---
+# 7d5cf24c printed "naab.toml already exists (skipped)", but the manifest
+# writer opened the file for writing whether or not it existed, so a user's
+# naab.toml was replaced by the template on every init.
+echo ""
+echo "Test 7b: naab.toml overwrite protection"
+cd "$TEST_DIR" && rm -f govern.json naab.toml
+printf 'name = "mine"\n' > naab.toml
+echo "" | "$NAAB_BIN" init --governance-preset standard > /dev/null 2>&1
+check "existing naab.toml kept without --force" '[ "$(cat naab.toml)" = "name = \"mine\"" ]'
+check "govern.json still written beside the kept naab.toml (control)" '[ -f govern.json ]'
+rm -f govern.json
+echo "" | "$NAAB_BIN" init --governance-preset standard --force > /dev/null 2>&1
+check "--force replaces naab.toml" 'grep -q "^\[package\]" naab.toml'
 
 # --- Test 9: --no-governance skips govern.json ---
 echo ""
@@ -234,11 +298,83 @@ COUT=$(cd "$D" && "$NAAB_BIN" hello.naab 2>&1); CRC=$?
 check "control: an ignored flag and an unknown level are both reported, and the level blocks" \
     'grep -q "has no effect" <<<"$COUT" && grep -q "unknown enforcement level" <<<"$COUT" && [ "$CRC" -eq 3 ]'
 
+# --- Test 13: init writes nothing it was not asked for (A176) ---
+# Each case runs in an empty directory; "writes nothing" means the directory
+# is still empty afterwards.
+echo ""
+echo "Test 13: --help and arguments init does not know"
+empty_after() {  # ARGS... -> sets RC, OUT, LEFT (files left in the directory)
+    local d; d=$(mktemp -d "$TEST_DIR/a13.XXXXXX")
+    OUT=$(cd "$d" && "$NAAB_BIN" init "$@" </dev/null 2>&1); RC=$?
+    LEFT=$(ls -A "$d")
+}
+empty_after --help
+check "--help: exit 0, prints the init usage, writes nothing" \
+    '[ "$RC" -eq 0 ] && grep -q "Usage: naab-lang init" <<<"$OUT" && [ -z "$LEFT" ]'
+empty_after -h
+check "-h: exit 0, writes nothing" '[ "$RC" -eq 0 ] && [ -z "$LEFT" ]'
+empty_after --preset strict
+check "an unknown argument (--preset): exit 1, named, writes nothing" \
+    '[ "$RC" -eq 1 ] && grep -q "does not know the argument .--preset." <<<"$OUT" && [ -z "$LEFT" ]'
+empty_after --governance-preset Strickt
+check "an unknown preset: exit 1, writes nothing (it used to write standard)" \
+    '[ "$RC" -eq 1 ] && grep -q "unknown governance preset" <<<"$OUT" && [ -z "$LEFT" ]'
+empty_after --governance-preset
+check "--governance-preset with no value: exit 1, writes nothing" \
+    '[ "$RC" -eq 1 ] && [ -z "$LEFT" ]'
+empty_after --governance --governance-preset STRICT
+check "control: a preset name in another case is accepted and written" \
+    '[ "$RC" -eq 0 ] && [ -n "$LEFT" ] && grep -q "preset: strict" <<<"$(cat "$TEST_DIR"/a13.*/govern.json 2>/dev/null)"'
+
+# --- Test 14: the sandbox's refusals are stated (A75(a)) ---
+# No preset sets security.sandbox_level, so enforce runs at standard, which
+# refuses shell blocks and env.get(); init used to print "Capabilities: read
+# files, shell" and say nothing about either.
+echo ""
+echo "Test 14: the standard sandbox's refusals are stated"
+D="$TEST_DIR/p14"; mkdir -p "$D"
+SOUT=$(cd "$D" && "$NAAB_BIN" init --governance --governance-preset standard </dev/null 2>&1)
+check "summary names the standard sandbox, its refusals and the remedy" \
+    'grep -q "Sandbox: .*standard sandbox.*shell blocks.*env.get().*sandbox_level.*elevated" <<<"$SOUT"'
+# Opened from its own directory: a native Python (build-windows) cannot open
+# an MSYS path handed to it.
+check "the file carries the same note" "(cd \"$D\" && python3 -c '
+import json; d=json.load(open(\"govern.json\"))
+n=d[\"_comment_sandbox\"]
+assert \"shell blocks\" in n and \"env.get()\" in n and \"elevated\" in n
+assert \"security\" not in d
+' 2>/dev/null)"
+
+# --- Test 15: a generated standard project refuses a taint flow (A75) ---
+# file.read is a taint source and python_exec a sink in the generated file;
+# shell is not usable here, because the standard sandbox refuses it first.
+echo ""
+echo "Test 15: a generated standard project refuses a tainted flow"
+D="$TEST_DIR/p15"; mkdir -p "$D"
+(cd "$D" && "$NAAB_BIN" init --governance --governance-preset standard </dev/null >/dev/null 2>&1)
+echo "abc" > "$D/data.txt"
+printf 'main {\n  let r = <<python\n1 + 1\n>>\n  print("PY_OK " + r)\n}\n' > "$D/probe.naab"
+printf 'main {\n  let s = file.read("data.txt")\n  let r = <<python[s]\ns.upper()\n>>\n  print("FLOW_RAN " + r)\n}\n' > "$D/flow.naab"
+printf 'main {\n  let s = "abc"\n  let r = <<python[s]\ns.upper()\n>>\n  print("CLEAN_RAN " + r)\n}\n' > "$D/clean.naab"
+POUT=$(cd "$D" && "$NAAB_BIN" probe.naab 2>&1)
+if ! grep -q "PY_OK 2" <<<"$POUT"; then
+    echo "  UNMEASURABLE: embedded Python does not run here, so the python_exec flow cannot be judged"
+    UNM=$((UNM + 1))
+else
+    FOUT=$(cd "$D" && "$NAAB_BIN" flow.naab 2>&1); FRC=$?
+    COUT2=$(cd "$D" && "$NAAB_BIN" clean.naab 2>&1); CRC2=$?
+    check "file.read -> python block: refused (exit 3, taint violation), the block did not run" \
+        '[ "$FRC" -eq 3 ] && grep -q "Taint tracking violation" <<<"$FOUT" && ! grep -q FLOW_RAN <<<"$FOUT"'
+    check "control: the same block on a literal runs" \
+        '[ "$CRC2" -eq 0 ] && grep -q "CLEAN_RAN ABC" <<<"$COUT2"'
+fi
+
 # --- Summary ---
 echo ""
 echo "=== Results ==="
 TOTAL=$((PASS + FAIL))
 echo "  $PASS/$TOTAL passed"
+[ "$UNM" -gt 0 ] && echo "  $UNM UNMEASURABLE"
 
 if [ $FAIL -gt 0 ]; then
     echo "  $FAIL FAILED"

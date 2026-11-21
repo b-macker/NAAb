@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# test_baseline_protection.sh -- the governance baseline is engine state (A184)
+# test_baseline_protection.sh -- the governance baseline is engine state (A196)
 #
 # THE DEFECT
 #

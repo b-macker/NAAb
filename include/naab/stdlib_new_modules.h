@@ -305,9 +305,9 @@ public:
 
 // Agent dispatch stats — run-level counters for dashboard/telemetry
 struct AgentDispatchStats {
-    int total_calls = 0;
+    int64_t total_calls = 0;     // A110 residual: 64-bit like the run totals
     int total_retries = 0;
-    int total_tokens = 0;
+    int64_t total_tokens = 0;
     int64_t total_agent_time_ms = 0;
     int consecutive_failures = 0;
     bool hard_stopped = false;

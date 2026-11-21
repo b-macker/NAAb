@@ -815,6 +815,7 @@ interpreter::NaabVal VM::run() {
         &&vm_OP_ARG_PASSED,                                                // 80
         &&vm_OP_CONTRACT_ENTRY,                                            // 81
         &&vm_OP_COND_TAINT,                                                // 82
+        &&vm_OP_TAINT_OF,                                                  // 83
     };
 
     #define VM_CASE(opcode) vm_##opcode
@@ -890,6 +891,15 @@ interpreter::NaabVal VM::run() {
                     if (!cond_taint_.empty()) { c = cond_taint_.back() != 0; cond_taint_.pop_back(); }
                     if (c && governance_) peekTaint(0) = true;
                 }
+            }
+                VM_NEXT();
+
+            VM_CASE(OP_TAINT_OF): {
+                // debug.is_tainted("x") for a local or upvalue (F35): the
+                // value's own taint, the one every sink check reads.
+                const bool t = governance_ && peekTaint(0);
+                pop();
+                push(interpreter::NaabVal::makeBool(t));
             }
                 VM_NEXT();
 
@@ -5992,6 +6002,7 @@ static const char* opcodeName(OpCode op) {
         case OpCode::OP_ARG_PASSED: return "OP_ARG_PASSED";
         case OpCode::OP_CONTRACT_ENTRY: return "OP_CONTRACT_ENTRY";
         case OpCode::OP_COND_TAINT: return "OP_COND_TAINT";
+        case OpCode::OP_TAINT_OF: return "OP_TAINT_OF";
     }
     return "OP_UNKNOWN";
 }
