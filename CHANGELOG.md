@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed -- Bundle 19 PR 2: init, a run past 10,000 results, plugins that cannot load (migration notes)
+- **`naab-lang init --governance-preset standard`, `strict` and `paranoid` write taint tracking and sequence detection on (A75)**, as plain `naab-lang init` already did; `relaxed` turns them on only with `--taint`. `init` and the generated file now say what the standard sandbox refuses -- shell blocks, `env.get()`, reading outside this directory, home and the temp directory -- and that `"security": {"sandbox_level": "elevated"}` allows them.
+  - **Migration:** a project generated with a preset now refuses a taint flow, such as file contents passed into a `<<python>>` block, unless a `sanitize_`/`validate_`/`escape_` function cleans it; regenerate with `--governance-preset relaxed`, or edit `taint_tracking`, if that is not wanted.
+- **`naab-lang init` writes nothing it was not asked for (A176).** An existing `naab.toml` is kept unless `--force`; `init --help` and `-h` print init's usage; an argument init does not know, a flag missing its value, and an unknown preset name refuse (exit 1) and write nothing. A preset name is read without case.
+  - **Migration:** a script that ran `init` with a misspelt flag (`--preset strict`) got a standard config and now gets exit 1; use `--governance-preset`.
+- **Under enforce, every governance plugin loads before the program runs, and one that is missing or does not load refuses the run (exit 4), naming it (A192(b)).** A plugin rule that gives no verdict -- its function is missing, it throws, it returns no dict with `"pass"` -- counts as failed at the rule's own level instead of being skipped. Audit and off keep the warning.
+  - **Migration:** fix or restore a plugin file the run reports; a `hard` rule whose function throws now refuses what it checks.
+- **The program may not change a governance plugin's helpers, or put a lookalike where a plugin looks for one (A192(a)).** Every file a plugin reads while it loads, every place its `use`/`import` looked before the file it found (its own folder, `naab_modules/` up the tree, `~/.naab/modules`), and a new `.naab` file directly in a plugin's folder are refused to program writes (HARD); reads stay allowed.
+  - **Migration:** write program output elsewhere than a plugin's folder and the `naab_modules/` entries its imports name.
+
+### Fixed -- Bundle 19 PR 2
+- **A run past 10,000 check results keeps its own counts (A193).** The quality gate, the summary and `Governance: PASS|REFUSED` lines, the dashboard and the blocked check now count the results the memory cap evicted: an advisory recorded early used to stop failing `advisory_violations > 0`, and the run ended `Governance: PASS`.
+- **A run past 10,000 check results no longer slows down sharply (A177):** the cap compacts in batches of 1,000. 20,000 governed calls hit the 30-second run limit before; they now take about a second (unoptimised build).
+- **Telemetry writes every check result once, or says it could not (A107).** It resumed from a position in the result list, which the cap moves, so results recorded between two writes were skipped; it resumes by record number now, and `GovernanceCheckSummary.results_not_written` counts results that left memory before a write.
+- **A token budget near `INT_MAX` is reached (A110 residual).** The run's call and token totals and the per-agent token counts are 64-bit; a count shown to the program stops at `INT_MAX` instead of wrapping negative.
+
 ### Changed -- Bundle 19 PR 1: security and silent no-ops (migration notes)
 - **The run's governance now judges the compile phase too (A116).** A governance plugin's own calls made while the program compiles -- `env.get` of a blocked variable, for one -- are refused as they already were while it runs. A plugin file itself is read as the operator's: a lease, a capability manifest or a `blocked_paths` entry does not stop the engine loading it.
   - **Migration:** a plugin whose rule reads something the project withholds from the program now ends the run at compile; give the plugin what it needs some other way.

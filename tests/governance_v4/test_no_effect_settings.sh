@@ -208,7 +208,9 @@ fi
 bad=""
 for preset in relaxed standard strict paranoid; do
     d="$TEST_TMP/ne04_$preset"; mkdir -p "$d"
-    (cd "$d" && "$NAAB" init --preset "$preset" --governance >/dev/null 2>&1)
+    # `--governance-preset`: this arm used `--preset`, which init ignored
+    # until A176 (Bundle 19), so all four runs wrote the one default config.
+    (cd "$d" && "$NAAB" init --governance-preset "$preset" --governance </dev/null >/dev/null 2>&1)
     if [ ! -f "$d/govern.json" ]; then bad="$bad $preset[no govern.json]"; continue; fi
     hits="$(python3 -I - "$d/govern.json" <<PY
 import json, sys

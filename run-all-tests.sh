@@ -5722,6 +5722,20 @@ if [ -f "$B19_PLUGIN_FILES_SCRIPT" ]; then
 else
     echo "  test_plugin_files.sh: not found, skipping"
 fi
+B19_CHECK_RESULT_CAP_SCRIPT="tests/governance_v4/test_check_result_cap.sh"
+if [ -f "$B19_CHECK_RESULT_CAP_SCRIPT" ]; then
+    # A177, A107, A193 (Bundle 19 PR 2): past 10,000 check results a run stays
+    # fast, telemetry writes or counts every result, and the run's counts keep
+    # what the cap evicted.
+    if run_shell_test "$B19_CHECK_RESULT_CAP_SCRIPT" 2>&1; then
+        echo "  test_check_result_cap.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_check_result_cap.sh")
+    fi
+else
+    echo "  test_check_result_cap.sh: not found, skipping"
+fi
 CHECK_LOCATIONS_SCRIPT="tests/governance_v4/test_check_locations.sh"
 if [ -f "$CHECK_LOCATIONS_SCRIPT" ]; then
     # A171 (Bundle 18): a refusal records the line it happened on, in the

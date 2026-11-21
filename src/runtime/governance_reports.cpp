@@ -13,6 +13,7 @@
 #include "naab/analyzer/task_pattern_detector.h"
 #include "naab/analyzer/syntactic_analyzer.h"
 #include <nlohmann/json.hpp>
+#include <algorithm>
 #include <fstream>
 #include <filesystem>
 #include <iostream>
@@ -1644,14 +1645,32 @@ void GovernanceEngine::writeTelemetry() const {
     size_t runtime_exempt_count = 0;
     size_t events_written = 0;
 
-    // Resume where the previous dump stopped. check_results_ is never cleared,
-    // so iterating from the start re-emits every earlier result — a clean
-    // execute() followed by main.cpp's quality-gate exit duplicated the whole
-    // set (45-48 records on a live run), inflating every count derived from
-    // this file. Results only ever accumulate, so an index is sufficient.
-    const size_t results_total = results_snapshot.size();
-    for (size_t ri = telemetry_results_dumped_; ri < results_total; ++ri) {
-        const auto& r = results_snapshot[ri];
+    // Resume where the previous dump stopped. Iterating from the start
+    // re-emits every earlier result — a clean execute() followed by
+    // main.cpp's quality-gate exit duplicated the whole set (45-48 records on
+    // a live run), inflating every count derived from this file. A107: resume
+    // by record number, not by position -- the cap (V-GOV-024) erases from the
+    // front, so a position skipped results appended between two dumps. The
+    // snapshot is in record-number order (numbers are given under
+    // results_mutex_ as results are appended, and the cap keeps the order).
+    const auto first_new = std::upper_bound(
+        results_snapshot.begin(), results_snapshot.end(), telemetry_last_record_dumped_,
+        [](uint64_t id, const CheckResult& r) { return id < r.record_id; });
+    // A result numbered after the last one dumped that is not in the snapshot
+    // left memory before it was written: the cap evicted it (or a reset
+    // cleared it). Counted, and reported below, so a gap is not silent.
+    uint64_t not_written = 0;
+    uint64_t expect_id = telemetry_last_record_dumped_ + 1;
+    for (auto it = first_new; it != results_snapshot.end(); ++it) {
+        if (it->record_id > expect_id) not_written += it->record_id - expect_id;
+        expect_id = it->record_id + 1;
+    }
+    const uint64_t last_id_in_snapshot =
+        results_snapshot.empty() ? telemetry_last_record_dumped_
+                                 : std::max(telemetry_last_record_dumped_,
+                                            results_snapshot.back().record_id);
+    for (auto rit = first_new; rit != results_snapshot.end(); ++rit) {
+        const auto& r = *rit;
         // Fix 4B: skip duplicate (rule_name, file, line) entries.
         //
         // Only entries that HAVE a source site. enforce() fills file/line from
@@ -1748,9 +1767,10 @@ void GovernanceEngine::writeTelemetry() const {
         forwardTelemetry(ev.dump());
     }
 
-    // Fix 4B: emit summary event recording dedup stats
-    if (rules().telemetry_output.deduplicate_checks &&
-        (dedup_count > 0 || runtime_exempt_count > 0)) {
+    // Fix 4B: emit summary event recording dedup stats. A107: also when
+    // results left memory before they could be written, with their count.
+    if ((rules().telemetry_output.deduplicate_checks &&
+         (dedup_count > 0 || runtime_exempt_count > 0)) || not_written > 0) {
         nlohmann::json summary;
         summary["run_id"] = run_id_;
         summary["event_type"] = "GovernanceCheckSummary";
@@ -1762,6 +1782,9 @@ void GovernanceEngine::writeTelemetry() const {
         // dedup guard above. Reported so "deduplicated" cannot be read as
         // "everything repeated was collapsed".
         summary["runtime_exempt"] = runtime_exempt_count;
+        // A107: results recorded but gone from memory (the check-result cap,
+        // MAX_CHECK_RESULTS) before this dump, so absent from this file.
+        summary["results_not_written"] = not_written;
         // Held until the line is written and flushed: the next writer seeds its
         // prev_hash from the file's tail, so a sealed line that is not in the
         // file yet gives two events the same predecessor (A164).
@@ -1782,7 +1805,7 @@ void GovernanceEngine::writeTelemetry() const {
     }
 
     // Everything above this point has now been committed to the file.
-    telemetry_results_dumped_ = results_total;
+    telemetry_last_record_dumped_ = last_id_in_snapshot;
 
     // Fix 5B: emit end-of-run health warnings (catches instrumentation failures
     // that per-turn checkGovernanceHealth() missed due to check_after_turns gate)
@@ -2207,7 +2230,7 @@ std::string GovernanceEngine::checkPolyglotOptimization(
         check.file = checkFile();
         {
             std::lock_guard<std::mutex> lock(results_mutex_);
-            check_results_.push_back(check);
+            pushCheckResultLocked(check);
             capCheckResultsLocked();  // V-GOV-024
         }
 
@@ -3237,8 +3260,51 @@ std::string GovernanceEngine::resolvePluginPath(const GovernancePlugin& plugin) 
 // removed: test_plugin_files.sh PF-02c and PF-03, test_capability_manifest.sh
 // MF-22c).
 static thread_local int t_plugin_load_depth = 0;
+// The engine whose loadPlugins() holds the load scope on this thread: what a
+// plugin load reads and looks for is recorded on it (decision 25).
+static thread_local GovernanceEngine* t_plugin_loading_engine = nullptr;
 
 bool GovernanceEngine::loadingPluginsOnThisThread() { return t_plugin_load_depth > 0; }
+
+namespace {
+std::string canonicalSlashPath(const std::string& path) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::path p = fs::absolute(fs::path(path), ec);
+    if (ec) return "";
+    std::string out = fs::weakly_canonical(p, ec).string();
+    if (ec) return "";
+    std::replace(out.begin(), out.end(), '\\', '/');
+    return out;
+}
+}  // namespace
+
+void GovernanceEngine::notePluginModuleRead(const std::string& path) {
+    GovernanceEngine* e = t_plugin_loading_engine;
+    if (!e || t_plugin_load_depth <= 0) return;
+    const std::string c = canonicalSlashPath(path);
+    if (c.empty()) return;
+    std::lock_guard<std::mutex> lock(e->plugin_files_mutex_);
+    if (std::find(e->plugin_read_files_.begin(), e->plugin_read_files_.end(), c) ==
+        e->plugin_read_files_.end())
+        e->plugin_read_files_.push_back(c);
+}
+
+void GovernanceEngine::notePluginLookupCandidate(const std::string& path) {
+    GovernanceEngine* e = t_plugin_loading_engine;
+    if (!e || t_plugin_load_depth <= 0) return;
+    const std::string c = canonicalSlashPath(path);
+    if (c.empty()) return;
+    std::lock_guard<std::mutex> lock(e->plugin_files_mutex_);
+    if (std::find(e->plugin_lookup_paths_.begin(), e->plugin_lookup_paths_.end(), c) ==
+        e->plugin_lookup_paths_.end())
+        e->plugin_lookup_paths_.push_back(c);
+}
+
+std::vector<std::string> GovernanceEngine::pluginLoadFailures() const {
+    std::lock_guard<std::mutex> lock(plugin_files_mutex_);
+    return plugin_load_failures_;
+}
 
 void GovernanceEngine::loadPlugins() {
     if (plugins_loaded_.exchange(true)) return;
@@ -3265,18 +3331,34 @@ void GovernanceEngine::loadPlugins() {
             if (loaded_plugin_files_.count(plugin_path.string())) continue;  // loaded before a reload
         }
 
+        // Decision 26 (A192(b)): a plugin that cannot be loaded is recorded,
+        // so a run under enforce refuses itself (main.cpp) and a rule of it
+        // reached later counts as failed (checkPluginRules()). It used to be
+        // skipped with this warning and its rules did not run (9e4db45e).
+        auto recordFailure = [&](const std::string& reason) {
+            std::lock_guard<std::mutex> lock(plugin_files_mutex_);
+            const std::string entry = plugin_path.string() + ": " + reason;
+            if (std::find(plugin_load_failures_.begin(), plugin_load_failures_.end(), entry) ==
+                plugin_load_failures_.end())
+                plugin_load_failures_.push_back(entry);
+        };
         if (!fs::exists(plugin_path)) {
             fprintf(stderr, "[governance] Warning: Plugin file not found: %s\n",
                     plugin_path.string().c_str());
+            recordFailure("not found");
             continue;
         }
 
         try {
             {
                 struct PluginLoadScope {
-                    PluginLoadScope() { ++t_plugin_load_depth; }
-                    ~PluginLoadScope() { --t_plugin_load_depth; }
-                } scope;
+                    GovernanceEngine* saved;
+                    explicit PluginLoadScope(GovernanceEngine* e) : saved(t_plugin_loading_engine) {
+                        ++t_plugin_load_depth;
+                        t_plugin_loading_engine = e;
+                    }
+                    ~PluginLoadScope() { --t_plugin_load_depth; t_plugin_loading_engine = saved; }
+                } scope(this);
                 interp->loadPluginFile(plugin_path.string());
             }
             std::lock_guard<std::mutex> lock(plugin_files_mutex_);
@@ -3286,6 +3368,7 @@ void GovernanceEngine::loadPlugins() {
         } catch (const std::exception& e) {
             fprintf(stderr, "[governance] Warning: Failed to load plugin %s: %s\n",
                     plugin_path.string().c_str(), e.what());
+            recordFailure(e.what());
         }
     }
 }
@@ -3314,10 +3397,37 @@ std::string GovernanceEngine::checkPluginRules(
         ~PluginGuard() { flag = false; }
     } guard(in_plugin_check_);
 
+    // Decision 26 (A192(b), Bundle 19): a rule that renders no verdict -- its
+    // plugin did not load, its function is missing, it threw, or it returned
+    // something other than a dict with "pass" -- counts as FAILED at the
+    // rule's own level. Each used to be skipped with a warning, so a broken
+    // rule read as a rule that passed. Audit and off still only record it, as
+    // enforce() does for every failure there; a plugin that did not load is
+    // skipped outside enforce, as before (its warning stands).
+    const bool enforcing = rules().mode == GovernanceMode::ENFORCE;
+    auto noVerdict = [&](const GovernancePluginRule& rule, const std::string& why) -> std::string {
+        return enforce("governance_plugins." + rule.id, rule.level,
+            formatError(rule.level,
+                fmt::format("Plugin rule '{}' gave no verdict: {}", rule.id, why),
+                line > 0 ? fmt::format("line {}", line) : "",
+                "governance_plugins[\"" + rule.id + "\"]",
+                "A plugin rule that cannot decide is counted as failed, not passed.\n"
+                "The operator fixes the plugin; the program cannot.", "", ""));
+    };
     for (const auto& plugin : rules().governance_plugins) {
+        bool loaded = false;
         {
             std::lock_guard<std::mutex> lock(plugin_files_mutex_);
-            if (!loaded_plugin_files_.count(resolvePluginPath(plugin))) continue;
+            loaded = loaded_plugin_files_.count(resolvePluginPath(plugin)) > 0;
+        }
+        if (!loaded) {
+            if (!enforcing) continue;
+            for (const auto& rule : plugin.rules) {
+                if (!rule.enabled || rule.trigger != trigger) continue;
+                std::string err = noVerdict(rule, "its plugin file could not be loaded");
+                if (!err.empty()) return err;
+            }
+            continue;
         }
 
         for (const auto& rule : plugin.rules) {
@@ -3349,6 +3459,8 @@ std::string GovernanceEngine::checkPluginRules(
                                 rule.function_name.c_str(), rule.id.c_str());
                         warned_plugin_rules_.insert(rule.function_name);
                     }
+                    std::string err = noVerdict(rule, "its function '" + rule.function_name + "' is not defined");
+                    if (!err.empty()) return err;
                     continue;
                 }
             } catch (...) {
@@ -3357,6 +3469,8 @@ std::string GovernanceEngine::checkPluginRules(
                             rule.function_name.c_str(), rule.id.c_str());
                     warned_plugin_rules_.insert(rule.function_name);
                 }
+                std::string err = noVerdict(rule, "its function '" + rule.function_name + "' is not defined");
+                if (!err.empty()) return err;
                 continue;
             }
 
@@ -3376,6 +3490,8 @@ std::string GovernanceEngine::checkPluginRules(
             } catch (const std::exception& e) {
                 fprintf(stderr, "[governance] Plugin rule '%s' threw: %s\n",
                         rule.id.c_str(), e.what());
+                std::string err = noVerdict(rule, "it threw an error");
+                if (!err.empty()) return err;
                 continue;
             }
 
@@ -3386,6 +3502,8 @@ std::string GovernanceEngine::checkPluginRules(
                             rule.id.c_str(), result.getTypeName().c_str());
                     warned_plugin_rules_.insert(rule.id + ".result");
                 }
+                std::string err = noVerdict(rule, "it returned " + result.getTypeName() + ", not a dict with \"pass\"");
+                if (!err.empty()) return err;
                 continue;
             }
 
@@ -3408,6 +3526,8 @@ std::string GovernanceEngine::checkPluginRules(
                             rule.id.c_str());
                     warned_plugin_rules_.insert(rule.id + ".pass");
                 }
+                std::string err = noVerdict(rule, "it returned a dict without \"pass\"");
+                if (!err.empty()) return err;
                 continue;
             }
 

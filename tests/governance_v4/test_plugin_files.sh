@@ -59,6 +59,37 @@
 #   PW-11   PINNED, not endorsed: a <<sh>> write lands -- subprocess
 #           languages are outside path policy (CONTRA-013)
 #
+# Decision 25 (A192(a), Bundle 19 PR 2, the owner's decision of 2026-11-21):
+# what a plugin load reads and where its imports look is recorded, and the
+# program may write neither. The lookup order (ModuleResolver::resolve) is the
+# importing file's folder, then naab_modules/ in it and every parent, then
+# ~/.naab/modules and /usr/local/naab/modules, the exact name before +".naab".
+#   PH-00   CONTROL: a plugin in gov/ using gov/helper.naab (`use`) and the
+#           project's naab_modules/shared.naab (`import`) refuses the eval block
+#   PH-01   file.write over gov/helper.naab: refused, unchanged
+#   PH-02   file.write over naab_modules/shared.naab: refused
+#   PH-03   a lookalike at gov/naab_modules/shared.naab, looked at first,
+#           with gov/naab_modules/ not existing yet: refused
+#   PH-04   an extensionless naab_modules/shared (tried before .naab): refused
+#   PH-05   a new .naab file in the plugin's own folder: refused
+#   PH-06   CONTROL: gov/notes.txt, gov/out/report.naab, naab_modules/other.naab,
+#           naab_modules/shared_notes.txt and out.naab (nothing a plugin reads
+#           or looks for) are written
+#   PH-07   after the refused writes the next run still refuses the eval
+#   PH-08   a write through a hard link to gov/helper.naab: refused
+#   PH-09   a write through a hard link to naab_modules/shared.naab: refused
+#
+# Decision 26 (A192(b)): under enforce every plugin loads before anything runs,
+# and a rule that gives no verdict counts as failed at its own level.
+#   PL-01   the plugin missing, a program with no polyglot block: exit 4, the
+#           plugin named, nothing ran
+#   PL-01a  CONTROL: the same under audit runs (the warning stands)
+#   PL-02   the plugin does not parse: exit 4
+#   PL-03   a hard rule that throws: the block is refused, exit 3
+#   PL-04   a rule naming a function the plugin lacks: refused
+#   PL-05   a rule that returns a string: refused
+#   PL-06   the throw at advisory: a warning, and the block runs
+#
 # Kill table (each mutant rebuilt, suite re-run; observed 2026-11-20):
 #   the run's engine not current before compile (main.cpp) -> PF-01
 #   no plugin exemption in ModuleResolver::parseModuleFile -> PF-02c, PF-03
@@ -71,6 +102,24 @@
 #   no hard-link check in isGovernancePluginPath()        -> PW-06
 #   reads refused too (the mode check dropped)            -> PW-09
 #   matched by file name only                             -> PW-00
+# Bundle 19 PR 2 (run by hand from a copy of the tree):
+#   no read recorded in ModuleRegistry::parseModuleFile     -> PH-08 (PH-01
+#     survives it: the path the lookup found is recorded too)
+#   no read recorded in ModuleResolver::parseModuleFile     -> PH-09
+#   naab_modules/ looked-for paths recorded only when the
+#     folder exists                                         -> PH-03
+#   the exact-name candidate not recorded                   -> PH-04
+#   the new-.naab-in-the-plugin-folder rule removed         -> PH-05
+#   the .naab rule applied to the whole tree under the folder -> PH-06
+#   a looked-for path matched as a prefix of any write      -> PH-06
+#   no eager load in main.cpp                               -> PL-01
+#   loadPluginFile returns on a parse failure again         -> PL-02
+#   a throwing rule skipped again                           -> PL-03, PL-06
+#   a missing function skipped again                        -> PL-04
+#   a non-dict result skipped again                         -> PL-05
+#   the no-verdict rule enforced at hard whatever its level -> PL-06
+# Red first (observed, Bundle 19 PR 2): on d7799c6d PH-01..PH-05, PH-07..PH-09
+# and PL-01..PL-06 fail; PH-00, PH-06 and PL-01a pass on both builds.
 # Red first (observed): on c1312132 PF-01, PW-01 .. PW-08 and PW-10 fail and
 # every other arm passes -- PF-02c/PF-02 and PF-03 pin the exemption there (the
 # plugin read met an idle engine) and fail under the mutants that remove it.
@@ -389,6 +438,185 @@ echo "# sh" >> plugin.naab
 else
     unm PW-11 "no shell executor here"
 fi
+
+echo "=== Decision 25 (A192(a)): a plugin's helpers, and the places it looks for them ==="
+
+# mkhelp DIR -- an enforce project whose plugin in gov/ uses two helpers:
+# gov/helper.naab (`use helper`, found in its own folder) and shared.naab in
+# the project's naab_modules/ (`import "shared"`, found after looking in
+# gov/ and gov/naab_modules/ first).
+mkhelp() {
+    local dir="$1"
+    mk "$dir" "gov/plugin.naab"
+    mkdir -p "$dir/naab_modules"
+    cat > "$dir/gov/helper.naab" <<'EOF'
+export fn has_eval(code) {
+    return code.contains("eval(")
+}
+EOF
+    cat > "$dir/naab_modules/shared.naab" <<'EOF'
+export fn verdict(bad) {
+    if bad {
+        return { "pass": false, "message": "eval() is forbidden by project policy" }
+    }
+    return { "pass": true }
+}
+EOF
+    cat > "$dir/gov/plugin.naab" <<'EOF'
+use helper
+import "shared" as shared
+
+export function check_no_eval(ctx) {
+    return shared.verdict(helper.has_eval(ctx["code"]))
+}
+EOF
+    cp "$dir/gov/helper.naab" "$dir/helper.orig"
+}
+helper_intact() { cmp -s "$1/gov/helper.naab" "$1/helper.orig"; }
+# wtry DIR PATH -> RC/OUT of a program writing PATH; WROTE printed when it ran
+wtry() { run "$1" "use file
+main {
+    file.write(\"$2\", \"export fn has_eval(code) { return false }\")
+    print(\"WROTE\")
+}"; }
+refused_write() { [ "$RC" = 3 ] && named && ! grep -q WROTE <<<"$OUT"; }
+
+d="$TEST_TMP/h00"; mkhelp "$d"
+run "$d" "$P_OK"
+if ran_ok; then
+    run "$d" "$P_EVAL"
+    if fired; then
+        pass PH-00 "CONTROL: the plugin loads both helpers (its folder, the project's naab_modules) and refuses the eval block"
+        H_OK=1
+    else fail PH-00 "the helper-using plugin should refuse the eval block" "rc=$RC: $(excerpt)"; H_OK=0; fi
+else fail PH-00 "a compliant block should run beside the helper-using plugin" "rc=$RC: $(excerpt)"; H_OK=0; fi
+
+if [ "$H_OK" = 1 ]; then
+    d="$TEST_TMP/h01"; mkhelp "$d"; wtry "$d" "gov/helper.naab"
+    if refused_write && helper_intact "$d"; then pass PH-01 "file.write over a helper the plugin read: refused, unchanged"
+    else fail PH-01 "a helper the plugin read should not be writable" "rc=$RC: $(excerpt)"; fi
+
+    d="$TEST_TMP/h02"; mkhelp "$d"; wtry "$d" "naab_modules/shared.naab"
+    if refused_write && grep -q "verdict" "$d/naab_modules/shared.naab"; then
+        pass PH-02 "file.write over a helper found in naab_modules/: refused"
+    else fail PH-02 "a helper found in naab_modules should not be writable" "rc=$RC: $(excerpt)"; fi
+
+    d="$TEST_TMP/h03"; mkhelp "$d"; wtry "$d" "gov/naab_modules/shared.naab"
+    if refused_write && [ ! -e "$d/gov/naab_modules/shared.naab" ]; then
+        pass PH-03 "a lookalike where the import looked first (gov/naab_modules/shared.naab, folder absent): refused"
+    else fail PH-03 "a lookalike ahead of the real helper should be refused" "rc=$RC: $(excerpt)"; fi
+
+    d="$TEST_TMP/h04"; mkhelp "$d"; wtry "$d" "naab_modules/shared"
+    if refused_write && [ ! -e "$d/naab_modules/shared" ]; then
+        pass PH-04 "an extensionless lookalike (the exact name is tried before .naab): refused"
+    else fail PH-04 "an extensionless lookalike should be refused" "rc=$RC: $(excerpt)"; fi
+
+    d="$TEST_TMP/h05"; mkhelp "$d"; wtry "$d" "gov/newcheck.naab"
+    if refused_write && [ ! -e "$d/gov/newcheck.naab" ]; then
+        pass PH-05 "a new .naab file in the plugin's own folder: refused"
+    else fail PH-05 "a new .naab in a plugin's folder should be refused" "rc=$RC: $(excerpt)"; fi
+
+    d="$TEST_TMP/h06"; mkhelp "$d"; mkdir -p "$d/gov/out"
+    run "$d" 'use file
+main {
+    file.write("gov/notes.txt", "FINE")
+    file.write("gov/out/report.naab", "FINE")
+    file.write("naab_modules/other.naab", "FINE")
+    file.write("naab_modules/shared_notes.txt", "FINE")
+    file.write("out.naab", "FINE")
+    print("WROTE")
+}'
+    if [ "$RC" = 0 ] && grep -q WROTE <<<"$OUT" && [ "$(cat "$d/gov/notes.txt" 2>/dev/null)" = FINE ] \
+            && [ "$(cat "$d/gov/out/report.naab" 2>/dev/null)" = FINE ] \
+            && [ "$(cat "$d/naab_modules/shared_notes.txt" 2>/dev/null)" = FINE ] \
+            && [ "$(cat "$d/naab_modules/other.naab" 2>/dev/null)" = FINE ]; then
+        pass PH-06 "CONTROL: a non-.naab file in the plugin's folder, a .naab in a folder under it, an unrelated module and a name sharing a helper's prefix in naab_modules/, and a .naab elsewhere are written"
+    else fail PH-06 "writes that no plugin reads or looks for should run" "rc=$RC: $(excerpt)"; fi
+
+    # A hard link to a helper: the read record, not the lookup one, catches it
+    # (a looked-for path is compared by name).
+    d="$TEST_TMP/h08"; mkhelp "$d"
+    if ln "$d/gov/helper.naab" "$d/hl_helper.naab" 2>/dev/null; then
+        wtry "$d" "hl_helper.naab"
+        if refused_write && helper_intact "$d"; then pass PH-08 "a write through a hard link to the use-d helper: refused"
+        else fail PH-08 "a hard link to a helper the plugin read should not be writable" "rc=$RC: $(excerpt)"; fi
+    else unm PH-08 "hard links are not available here"; fi
+    d="$TEST_TMP/h09"; mkhelp "$d"
+    if ln "$d/naab_modules/shared.naab" "$d/hl_shared.naab" 2>/dev/null; then
+        wtry "$d" "hl_shared.naab"
+        if refused_write && grep -q "verdict" "$d/naab_modules/shared.naab"; then
+            pass PH-09 "a write through a hard link to the import-ed helper: refused"
+        else fail PH-09 "a hard link to an imported helper should not be writable" "rc=$RC: $(excerpt)"; fi
+    else unm PH-09 "hard links are not available here"; fi
+
+    d="$TEST_TMP/h07"; mkhelp "$d"; wtry "$d" "gov/helper.naab"; wtry "$d" "gov/naab_modules/shared.naab"
+    run "$d" "$P_EVAL"
+    if fired && helper_intact "$d"; then pass PH-07 "after the refused writes, the next run still refuses the eval block"
+    else fail PH-07 "the plugin's helpers should still decide the next run" "rc=$RC: $(excerpt)"; fi
+else
+    for a in PH-01 PH-02 PH-03 PH-04 PH-05 PH-06 PH-07 PH-08 PH-09; do unm "$a" "the helper-using plugin did not load here (PH-00)"; done
+fi
+
+echo "=== Decision 26 (A192(b)): a plugin that cannot load, a rule with no verdict ==="
+
+P_PLAIN='main {
+    print("PROGRAM_RAN")
+}'
+d="$TEST_TMP/l01"; mk "$d"; rm -f "$d/plugin.naab"
+run "$d" "$P_PLAIN"
+if [ "$RC" = 4 ] && grep -q "could not be loaded" <<<"$OUT" && grep -q "plugin.naab: not found" <<<"$OUT" \
+        && ! grep -q PROGRAM_RAN <<<"$OUT"; then
+    pass PL-01 "enforce, the plugin file missing: exit 4, named, nothing ran (a program with no block, so the load is not lazy)"
+else fail PL-01 "a missing plugin should refuse the run under enforce" "rc=$RC: $(excerpt)"; fi
+
+sed 's/"mode": "enforce"/"mode": "audit"/' "$d/govern.json" > "$d/g.tmp" && mv "$d/g.tmp" "$d/govern.json"
+run "$d" "$P_PLAIN"
+if [ "$RC" = 0 ] && grep -q PROGRAM_RAN <<<"$OUT"; then
+    pass PL-01a "CONTROL: audit mode, the plugin missing: the program runs (the warning stands)"
+else fail PL-01a "audit should keep the warning and run" "rc=$RC: $(excerpt)"; fi
+
+d="$TEST_TMP/l02"; mk "$d"; printf 'export function check_no_eval(ctx) {\n    return { "pass": \n' > "$d/plugin.naab"
+run "$d" "$P_PLAIN"
+if [ "$RC" = 4 ] && grep -q "could not be loaded" <<<"$OUT" && ! grep -q PROGRAM_RAN <<<"$OUT"; then
+    pass PL-02 "enforce, the plugin does not parse: exit 4, nothing ran"
+else fail PL-02 "an unparseable plugin should refuse the run" "rc=$RC: $(excerpt)"; fi
+
+d="$TEST_TMP/l03"; mk "$d"
+cat > "$d/plugin.naab" <<'EOF'
+export function check_no_eval(ctx) {
+    throw "the plugin broke"
+}
+EOF
+run "$d" "$P_OK"
+if [ "$RC" = 3 ] && grep -q "gave no verdict: it threw" <<<"$OUT" && ! grep -q "JS=2" <<<"$OUT"; then
+    pass PL-03 "a hard rule that throws counts as failed: the block is refused (exit 3) and did not run"
+else fail PL-03 "a throwing rule should count as failed at its level" "rc=$RC: $(excerpt)"; fi
+
+d="$TEST_TMP/l04"; mk "$d"
+printf 'export function something_else(ctx) {\n    return { "pass": true }\n}\n' > "$d/plugin.naab"
+run "$d" "$P_OK"
+if [ "$RC" = 3 ] && grep -q "is not defined" <<<"$OUT" && ! grep -q "JS=2" <<<"$OUT"; then
+    pass PL-04 "a rule whose function the plugin lacks counts as failed: refused"
+else fail PL-04 "a missing rule function should count as failed" "rc=$RC: $(excerpt)"; fi
+
+d="$TEST_TMP/l05"; mk "$d"
+printf 'export function check_no_eval(ctx) {\n    return "fine"\n}\n' > "$d/plugin.naab"
+run "$d" "$P_OK"
+if [ "$RC" = 3 ] && grep -q "gave no verdict: it returned" <<<"$OUT" && ! grep -q "JS=2" <<<"$OUT"; then
+    pass PL-05 "a rule that returns no verdict (a string) counts as failed: refused"
+else fail PL-05 "a rule returning a non-dict should count as failed" "rc=$RC: $(excerpt)"; fi
+
+d="$TEST_TMP/l06"; mk "$d"
+sed 's/"level":"hard"/"level":"advisory"/' "$d/govern.json" > "$d/g.tmp" && mv "$d/g.tmp" "$d/govern.json"
+cat > "$d/plugin.naab" <<'EOF'
+export function check_no_eval(ctx) {
+    throw "the plugin broke"
+}
+EOF
+run "$d" "$P_OK"
+if [ "$RC" = 0 ] && grep -q "JS=2" <<<"$OUT" && grep -q "gave no verdict" <<<"$OUT" && grep -qE "Summary .*[1-9][0-9]* warned" <<<"$OUT"; then
+    pass PL-06 "at advisory the same throw is a warning -- its own level -- and the block runs"
+else fail PL-06 "an advisory rule with no verdict should warn and run" "rc=$RC: $(excerpt)"; fi
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed, $UNM unmeasurable ==="
