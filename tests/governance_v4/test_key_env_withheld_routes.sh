@@ -48,8 +48,9 @@
 #   M4 no push for telemetry.webhook_auth_env                              -> KE-04 red
 #   M5 keyRef() compares the (empty) name only                             -> KE-09 red
 #   M6 addGovernanceProtectedPaths() skips key_env_names                   -> KE-01..KE-06 KE-08 red
-# On master d32f8603 (#392 withholds three): KE-04 red, the rest green. On
-# c1312132 (before #392): KE-01..KE-06 and KE-08 red.
+# Master d32f8603's state for the webhook variable is M4 (no push): KE-04 red
+# there, the rest green (not run on master's own binary). On c1312132 (before
+# #392): KE-01..KE-06 and KE-08 red (observed).
 #
 # Not covered: audit mode does not enforce blocked_read, and a subprocess
 # language with shell on can read the process environment file (A32,

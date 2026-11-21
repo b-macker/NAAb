@@ -47,8 +47,9 @@
 #   M2 telemetry resumes from an index again      -> TC-02 TC-03 red
 #   M3 the results_not_written count removed      -> TC-02e red
 #   M4 the clean-run final report write removed   -> TC-03a TC-03 red
-# On master d32f8603: TC-01, TC-01r, TC-02, TC-03a, TC-03 red (b, c); TC-02e
-# and the controls green. On c1312132: TC-02e red too.
+# Master d32f8603's state is M1 + M4 (neither report write): TC-01, TC-01r,
+# TC-02, TC-03a, TC-03 red there (not run on master's own binary). On
+# c1312132 (observed): those and TC-02e red.
 # ============================================================
 set -uo pipefail
 
