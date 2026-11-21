@@ -1183,6 +1183,7 @@ std::unique_ptr<ast::FunctionDecl> Parser::parseFunctionDecl() {
             // Optional default value
             std::optional<std::unique_ptr<ast::Expr>> default_value;
             if (match(lexer::TokenType::EQ)) {
+                skipNewlines();  // A190: the value may start on the next line
                 default_value = parseExpression();
             }
 
@@ -1330,6 +1331,7 @@ std::unique_ptr<ast::EnumDecl> Parser::parseEnumDecl() {
         // Optional explicit value: Variant = 10
         std::optional<int> explicit_value = std::nullopt;
         if (match(lexer::TokenType::EQ)) {
+            skipNewlines();  // A190
             auto& value_token = expect(lexer::TokenType::NUMBER, "Expected integer value after '='");
             try {
                 explicit_value = std::stoi(value_token.value);
@@ -1460,6 +1462,7 @@ std::unique_ptr<ast::StructLiteralExpr> Parser::parseStructLiteral(
                            std::to_string(current().line));
         }
         expect(lexer::TokenType::COLON, "Expected ':' after field name");
+        skipNewlines();  // A190
 
         auto field_expr = parseExpression();
         field_inits.emplace_back(field_name_value, std::move(field_expr));
@@ -1982,6 +1985,7 @@ std::unique_ptr<ast::VarDeclStmt> Parser::parseVarDeclStmt() {
     // Optional initializer
     std::unique_ptr<ast::Expr> init;
     if (match(lexer::TokenType::EQ)) {
+        skipNewlines();  // A190: as parseAssignment() does after '='
         init = parseExpression();
     }
 
@@ -2063,6 +2067,7 @@ std::unique_ptr<ast::DestructureStmt> Parser::parseDestructureStmt() {
     }
 
     expect(lexer::TokenType::EQ, "Expected '=' after destructuring pattern");
+    skipNewlines();  // A190
     auto init = parseExpression();
 
     optionalSemicolon();
@@ -3001,6 +3006,7 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
                         current()));
                 }
                 expect(lexer::TokenType::COLON, "Expected ':' after dict key");
+                skipNewlines();  // A190
                 auto value = parseExpression();
                 pairs.emplace_back(std::move(key), std::move(value));
                 skipNewlines();
@@ -3545,6 +3551,7 @@ std::unique_ptr<ast::Expr> Parser::parseLambdaExpr() {
             // Optional default value
             std::optional<std::unique_ptr<ast::Expr>> default_value;
             if (match(lexer::TokenType::EQ)) {
+                skipNewlines();  // A190: the value may start on the next line
                 default_value = parseExpression();
             }
 

@@ -953,6 +953,19 @@ else
     echo "  test_flag_position.sh: not found, skipping"
 fi
 
+# `naab-lang check` agrees with the run: imports, the prelude, string + any (A188).
+CHECKMODS_SCRIPT="tests/cli/test_check_modules.sh"
+if [ -f "$CHECKMODS_SCRIPT" ]; then
+    if run_shell_test "$CHECKMODS_SCRIPT" 2>&1; then
+        echo "  test_check_modules.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_check_modules.sh")
+    fi
+else
+    echo "  test_check_modules.sh: not found, skipping"
+fi
+
 # Every CLI option main.cpp parses is classified against govern.json's policy
 # (Bundle 1 item 1.6).
 FLAGPOLICY_SCRIPT="tests/cli/test_flag_policy.sh"
@@ -3325,6 +3338,19 @@ else
     echo "  test_default_params.sh: not found, skipping"
 fi
 
+# VM arithmetic between a float and a non-number is a type error (A196).
+FLOATNN_SCRIPT="tests/vm/test_float_nonnumber.sh"
+if [ -f "$FLOATNN_SCRIPT" ]; then
+    if run_shell_test "$FLOATNN_SCRIPT" 2>&1; then
+        echo "  test_float_nonnumber.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_float_nonnumber.sh")
+    fi
+else
+    echo "  test_float_nonnumber.sh: not found, skipping"
+fi
+
 # == and != compare lists, dictionaries and structs by value, both engines (A72).
 VALEQ_SCRIPT="tests/vm/test_value_equality.sh"
 if [ -f "$VALEQ_SCRIPT" ]; then
@@ -4978,6 +5004,20 @@ if [ -f "$PARSER_STRING_INTERP_ESCAPE_SCRIPT" ]; then
     fi
 else
     echo "  test_string_interp_escape.sh: not found, skipping"
+fi
+
+# A190 (Bundle 19 PR 3): a line break after '=' or a key's ':'.
+PARSER_LINE_BREAKS_SCRIPT="tests/parser/test_line_breaks.sh"
+if [ -f "$PARSER_LINE_BREAKS_SCRIPT" ]; then
+    if run_shell_test "$PARSER_LINE_BREAKS_SCRIPT" 2>&1; then
+        echo "  test_line_breaks.sh: ALL PASSED"
+    else
+        echo "  test_line_breaks.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_line_breaks.sh")
+    fi
+else
+    echo "  test_line_breaks.sh: not found, skipping"
 fi
 
 PARSER_POLYGLOT_LINES_SCRIPT="tests/parser/test_polyglot_line_numbers.sh"

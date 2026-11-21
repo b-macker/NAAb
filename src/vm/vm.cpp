@@ -1,6 +1,7 @@
 #include "naab/block_time_limit.h"
 #include "naab/sql_executor.h"
 #include "naab/vm.h"
+#include "naab/stdlib_prelude.h"
 #include "naab/value_equality.h"
 #include "naab/string_interpolation.h"
 #include "naab/taint_rule.h"
@@ -52,6 +53,15 @@
 
 namespace naab {
 namespace vm {
+
+// A196: the float branch of + - * / used to need only ONE double operand and
+// read the other with asInt(), which on a string, list, dict or null is the
+// value's handle, not a number: "a" * 2.5 was 20 and [1] - 1.5 was 33.5, exit
+// 0. Both operands must be numbers (a bool is already an int by then); any
+// other pair falls through to the type error the int path raises.
+static inline bool bothNumbers(const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
+    return (a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble());
+}
 
 // ============================================================================
 // Chunk
@@ -221,11 +231,7 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
 
     // Register stdlib prelude modules (same as tree-walker's auto-import)
     // Skip names that conflict with builtins (string is both a module and a function)
-    static const char* prelude_modules[] = {
-        "array", "dict", "io", "file", "debug", "bolo", "env",
-        "math", "json", "http", "crypto", "time", "os"
-    };
-    for (auto mod : prelude_modules) {
+    for (auto mod : naab::stdlib::kVmPreludeModules) {   // naab/stdlib_prelude.h
         // Don't overwrite block imports injected via setGlobal()
         auto it = globals_.find(mod);
         if (it != globals_.end() && it->second.isBlock()) continue;
@@ -1060,7 +1066,7 @@ interpreter::NaabVal VM::run() {
                             av, bv, av, bv);
                     }
                     push(interpreter::NaabVal::makeInt(av + bv));
-                } else if (a.isDouble() || b.isDouble()) {
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A196
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av + bv));
@@ -1150,7 +1156,7 @@ interpreter::NaabVal VM::run() {
                             av, bv, av, bv);
                     }
                     push(interpreter::NaabVal::makeInt(av - bv));
-                } else if (a.isDouble() || b.isDouble()) {
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A196
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av - bv));
@@ -1195,7 +1201,7 @@ interpreter::NaabVal VM::run() {
                             av, bv, av, bv);
                     }
                     push(interpreter::NaabVal::makeInt(static_cast<int32_t>(result64)));
-                } else if (a.isDouble() || b.isDouble()) {
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A196
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av * bv));
@@ -1255,7 +1261,7 @@ interpreter::NaabVal VM::run() {
                     // Division always produces a double, matching the tree-walker
                     push(interpreter::NaabVal::makeDouble(
                         static_cast<double>(a.asInt()) / static_cast<double>(b.asInt())));
-                } else if (a.isDouble() || b.isDouble()) {
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A196
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     if (bv == 0.0) runtimeError("Division by zero");
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
@@ -4669,10 +4675,9 @@ VM::importModule(const std::string& module_path) {
             if (sv.size() >= 18 && sv.substr(0, 18) == "__stdlib_module__:") {
                     // Only filter prelude modules (every VM already has them)
                     // Let non-prelude use bindings (csv, regex, uuid, etc.) propagate
-                    static const std::unordered_set<std::string> prelude = {
-                        "array", "dict", "io", "file", "debug", "bolo", "env",
-                        "math", "json", "http", "crypto", "time", "os"
-                    };
+                    static const std::unordered_set<std::string> prelude(
+                        std::begin(naab::stdlib::kVmPreludeModules),
+                        std::end(naab::stdlib::kVmPreludeModules));
                     std::string mod_name = sv.substr(18);
                     if (prelude.count(mod_name)) continue;
                 }
