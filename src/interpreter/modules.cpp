@@ -896,8 +896,8 @@ void Interpreter::loadPluginFile(const std::string& path) {
     auto module = module_resolver_->loadModule(std::filesystem::path(path));
     if (!module || !module->ast) {
         // Decision 26 (A192(b)): reported to loadPlugins(), which records the
-        // plugin as not loaded. It used to return here, and the plugin was
-        // then recorded as loaded with none of its functions.
+        // plugin as not loaded. Defensive: a parse error throws out of
+        // loadModule() before this (mutant P9, return here, survived).
         throw std::runtime_error("the plugin file could not be parsed");
     }
 
@@ -971,7 +971,9 @@ void Interpreter::loadPluginFile(const std::string& path) {
         if (governance_ && governance_->isActive()) {
             governance_->restoreTaintState(saved_taint);
         }
-        // Decision 26: reported, not swallowed (see above).
+        // Decision 26: reported, not swallowed. This returned, so a plugin
+        // whose top level failed while running was recorded as loaded, and
+        // its rules then found no function (traced).
         throw std::runtime_error(std::string("loading it failed: ") + e.what());
     }
 

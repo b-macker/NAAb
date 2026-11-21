@@ -17,7 +17,9 @@
 // engine (run by hand from a copy of the tree):
 //   U1 compact at every record again (no slack)    -> SizeStaysWithinCapPlusSlack
 //                                                      (size == MAX after one over)
-//   U2 compaction keeps the OLDEST instead         -> RetainedSetIsTheNewest
+//   U2 compaction keeps the oldest record          -> RetainedSetIsTheNewest
+//      (excess - 1 instead is an equivalent mutant: the function's second
+//      branch evicts what the first loop left over)
 //   U3 the tally not updated at eviction           -> EvictedResultsStillCount
 //   U4 the quality gate ignores the tally          -> EvictedResultsStillCount
 //   U5 telemetry resumes by position again         -> TelemetryWritesEachResultOnce

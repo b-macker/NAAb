@@ -85,6 +85,9 @@
 #           plugin named, nothing ran
 #   PL-01a  CONTROL: the same under audit runs (the warning stands)
 #   PL-02   the plugin does not parse: exit 4
+#   PL-02b  the plugin parses and its top level fails (an unresolvable
+#           import): exit 4 -- loadPluginFile() returned there, so the
+#           plugin was recorded as loaded
 #   PL-03   a hard rule that throws: the block is refused, exit 3
 #   PL-04   a rule naming a function the plugin lacks: refused
 #   PL-05   a rule that returns a string: refused
@@ -112,14 +115,17 @@
 #   the new-.naab-in-the-plugin-folder rule removed         -> PH-05
 #   the .naab rule applied to the whole tree under the folder -> PH-06
 #   a looked-for path matched as a prefix of any write      -> PH-06
-#   no eager load in main.cpp                               -> PL-01
-#   loadPluginFile returns on a parse failure again         -> PL-02
+#   no eager load in main.cpp                               -> PL-01, PL-02
+#   loadPluginFile returns on a top-level failure again     -> PL-02b
+#   loadPluginFile returns on a null AST again: SURVIVES, and is expected to
+#     -- a parse error throws out of loadModule() before that branch, so
+#     PL-02 is decided by the throw; the branch is defensive only
 #   a throwing rule skipped again                           -> PL-03, PL-06
 #   a missing function skipped again                        -> PL-04
 #   a non-dict result skipped again                         -> PL-05
 #   the no-verdict rule enforced at hard whatever its level -> PL-06
 # Red first (observed, Bundle 19 PR 2): on d7799c6d PH-01..PH-05, PH-07..PH-09
-# and PL-01..PL-06 fail; PH-00, PH-06 and PL-01a pass on both builds.
+# and PL-01..PL-06 (PL-02b included) fail; PH-00, PH-06 and PL-01a pass on both builds.
 # Red first (observed): on c1312132 PF-01, PW-01 .. PW-08 and PW-10 fail and
 # every other arm passes -- PF-02c/PF-02 and PF-03 pin the exemption there (the
 # plugin read met an idle engine) and fail under the mutants that remove it.
@@ -128,6 +134,8 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NAAB="${1:-${NAAB:-$REPO/build/naab-lang}}"
+# Absolute: every program runs after a cd into its project.
+NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
 TEST_TMP="$(mktemp -d "${TMPDIR:-/tmp}/naab_plugfiles_XXXXXX")"
 
 PASS=0; FAIL=0; UNM=0
@@ -580,6 +588,20 @@ run "$d" "$P_PLAIN"
 if [ "$RC" = 4 ] && grep -q "could not be loaded" <<<"$OUT" && ! grep -q PROGRAM_RAN <<<"$OUT"; then
     pass PL-02 "enforce, the plugin does not parse: exit 4, nothing ran"
 else fail PL-02 "an unparseable plugin should refuse the run" "rc=$RC: $(excerpt)"; fi
+
+d="$TEST_TMP/l02b"; mk "$d"
+cat > "$d/plugin.naab" <<'EOF'
+import "no_such_helper" as h
+
+export function check_no_eval(ctx) {
+    return { "pass": true }
+}
+EOF
+run "$d" "$P_PLAIN"
+if [ "$RC" = 4 ] && grep -q "could not be loaded" <<<"$OUT" && grep -q "loading it failed" <<<"$OUT" \
+        && ! grep -q PROGRAM_RAN <<<"$OUT"; then
+    pass PL-02b "enforce, the plugin parses but its top level fails (an import that does not resolve): exit 4"
+else fail PL-02b "a plugin whose top level fails should refuse the run" "rc=$RC: $(excerpt)"; fi
 
 d="$TEST_TMP/l03"; mk "$d"
 cat > "$d/plugin.naab" <<'EOF'
