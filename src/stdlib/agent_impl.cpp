@@ -82,11 +82,8 @@ static void ensureProcessSecret() {
 // Server-side governance tracking — immune to handle mutation
 struct AgentTracker {
     int turns = 0;
-    // A110 residual: 64-bit, as the run totals are. Each reply adds at most
-    // 10M per count (reportedTokenCount()), so an int total wrapped after
-    // about 2.1 billion tokens and a budget near INT_MAX was never reached.
-    int64_t input_tokens = 0;
-    int64_t output_tokens = 0;
+    int64_t input_tokens = 0;   // A110 residual: 64-bit like the run totals -- an int wrapped
+    int64_t output_tokens = 0;  // past ~2.1B tokens (each reply adds at most 10M per count)
     int retries = 0;           // total retry attempts across all sends
     int fallbacks = 0;         // times a fallback model was used
     int64_t total_latency_ms = 0;  // cumulative API call time
