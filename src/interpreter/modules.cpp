@@ -895,8 +895,10 @@ void Interpreter::loadPluginFile(const std::string& path) {
     // Load and parse the .naab file
     auto module = module_resolver_->loadModule(std::filesystem::path(path));
     if (!module || !module->ast) {
-        fprintf(stderr, "[governance] Warning: Failed to parse plugin file: %s\n", path.c_str());
-        return;
+        // Decision 26 (A192(b)): reported to loadPlugins(), which records the
+        // plugin as not loaded. Defensive: a parse error throws out of
+        // loadModule() before this (mutant P9, return here, survived).
+        throw std::runtime_error("the plugin file could not be parsed");
     }
 
     // Push file context
@@ -969,8 +971,10 @@ void Interpreter::loadPluginFile(const std::string& path) {
         if (governance_ && governance_->isActive()) {
             governance_->restoreTaintState(saved_taint);
         }
-        fprintf(stderr, "[governance] Warning: Error loading plugin %s: %s\n", path.c_str(), e.what());
-        return;
+        // Decision 26: reported, not swallowed. This returned, so a plugin
+        // whose top level failed while running was recorded as loaded, and
+        // its rules then found no function (traced).
+        throw std::runtime_error(std::string("loading it failed: ") + e.what());
     }
 
     // Restore state

@@ -40,11 +40,29 @@ else
     fail "V-CONC-007 T1: results_mutex_ not found in governance.h"
 fi
 
-# Test 2: lock_guard used around check_results_ writes
-if grep -B2 'check_results_.push_back' "$SRC_GOV_CPP" | grep -q 'lock_guard.*results_mutex_'; then
-    pass "V-CONC-007 T2: check_results_ writes are mutex-guarded"
+# Test 2: lock_guard used around check_results_ writes. Since Bundle 19 PR 2
+# (A107) a result enters only through pushCheckResultLocked(), whose caller
+# holds the lock, so every call to it must follow a lock_guard on
+# results_mutex_ within three lines. (This test used to look only at the first
+# check_results_.push_back in governance_engine.cpp; test_check_result_cap.sh
+# CR-00 pins that no other append site exists.)
+T2_SITES=0; T2_BAD=""
+for f in "$SRC_GOV_CPP" "$SCRIPT_DIR/../../src/runtime/governance_reports.cpp" "$SRC_GOV_H"; do
+    while IFS=: read -r ln _; do
+        [ -n "$ln" ] || continue
+        T2_SITES=$((T2_SITES + 1))
+        from=$((ln > 3 ? ln - 3 : 1))
+        if ! sed -n "${from},$((ln - 1))p" "$f" | grep -q 'lock_guard.*results_mutex_'; then
+            T2_BAD="$T2_BAD $(basename "$f"):$ln"
+        fi
+    done < <(grep -n 'pushCheckResultLocked(' "$f" | grep -v 'uint64_t pushCheckResultLocked(')
+done
+if [ "$T2_SITES" -eq 0 ]; then
+    fail "V-CONC-007 T2: no call to pushCheckResultLocked() found -- the probe measures nothing"
+elif [ -z "$T2_BAD" ]; then
+    pass "V-CONC-007 T2: check_results_ writes are mutex-guarded ($T2_SITES append sites)"
 else
-    fail "V-CONC-007 T2: check_results_ writes NOT mutex-guarded"
+    fail "V-CONC-007 T2: check_results_ writes NOT mutex-guarded:$T2_BAD"
 fi
 
 # ── V-GOV-024: Telemetry cap ──────────────────────────────────────────────

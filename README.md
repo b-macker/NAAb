@@ -129,7 +129,7 @@ main {
 ../build/naab-lang                 # interactive REPL
 ```
 
-NAAb looks for a `govern.json` in the program's directory and its parents, and refuses to run a program without one (exit 4). `naab-lang init --governance-preset relaxed|standard|strict|paranoid` picks how strict the generated file is; a preset leaves taint tracking and sequence detection off unless `--taint` is added, while plain `init` turns both on. `--no-governance` waives the requirement, but a `govern.json` that is found still applies.
+NAAb looks for a `govern.json` in the program's directory and its parents, and refuses to run a program without one (exit 4). `naab-lang init --governance-preset relaxed|standard|strict|paranoid` picks how strict the generated file is; every preset but `relaxed` turns taint tracking and sequence detection on, as plain `init` does (`relaxed` only with `--taint`). `--no-governance` waives the requirement, but a `govern.json` that is found still applies.
 
 The [user guide](USER_GUIDE.md) goes on from here: the language, modules, other languages, and working with the policy.
 

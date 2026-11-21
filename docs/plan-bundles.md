@@ -22,7 +22,7 @@ A **bundle** is one branch, one pull request and one validated push. **Confirm a
 | 14: replay and provenance | two PRs by the owner's decision (2026-11-11). PR 1 merged, #369: provenance for generated code; A160-A162 recorded. PR 2 merged, #372 (`7f1db67e`): `naab-gov replay`; A163, A164 recorded | Bundle 14 below |
 | 15: AI on deterministic rails | merged, four PRs and a follow-up. PR 1 #373 (`d792d943`; the owner's decision, 2026-11-12: A163 and A164 first, inside this bundle): the telemetry chain verifies under concurrent writers, and `--verify-telemetry-chain` is bounded and exits 1 on a file it cannot read. The feature work's scope was agreed on 2026-11-13 (three PRs): PR 2 #377 (`7bfd99cb`), `naab-gov explain`; PR 3 #379 (`2dc11dd9`), `naab-gov patch-check`; PR 4 #381 (`743e4ee7`), `naab-gov heal`. Follow-up #383 (`58796deb`), decided by the owner on 2026-11-15: A166 fixed (the voice and agent review scan what their models wrote), patch-check runs the contract search by default, A169's write half fixed (the program may not write `.naab_cache/`), and A58's unrun test programs cleaned up | Bundle 15 below |
 | 18: messages and records that match what happened | merged, #386 (`ec009c5e`), one PR, added to the plan by the owner's decision (2026-11-16, #384): A171-A174 and A39(c) fixed | Bundle 18 below |
-| 19: every open item, and seven findings from another session | five PRs, the owner's decisions 1-24 (2026-11-20). PR 1 (security and silent no-ops): A183-A187, A189, A191, A53, A33(b), A87, A111's remainder and F35 fixed, A116 decided (a) and built, A192 found and fixed, B1 documented, A188 and A190 recorded for PR 3 | Bundle 19 below |
+| 19: every open item, and seven findings from another session | five PRs, the owner's decisions 1-24 (2026-11-20). PR 1 (security and silent no-ops): A183-A187, A189, A191, A53, A33(b), A87, A111's remainder and F35 fixed, A116 decided (a) and built, A192 found and fixed, B1 documented, A188 and A190 recorded for PR 3. PR 2 (init, a run past 10,000 results, plugins): A75(a)(b), A176, A177, A107, A110's remainder, A192(a)(b) (decisions 25-26, 2026-11-21) fixed, A193 found and fixed | Bundle 19 below |
 
 Outside the bundles: A92 (the cycle collector cleared lists another engine was using) was fixed in #350 (`96a129b1`). A145 and A146 (node 24: the child memory budget, TypeScript's flags, and the runtime-pin message) were fixed in #366 (`97dab417`). The bundle plan itself was recorded in #351 (`86fc33c9`). Release 2.0.2 (CHANGELOG `[2.0.2]`) carries everything merged from #350 to #387; like 2.0.1, its tag is put on the merged release commit.
 
@@ -371,11 +371,19 @@ The owner asked (2026-11-20) for everything still open as one bundle: the open r
 - A188 (`naab-lang check`) and A190 (line breaks) are recorded for PR 3.
 - Suites: `test_env_read_off_refusal.sh`, `test_banned_keyword_match.sh`, `test_environment_levels.sh`, `test_hook_snapshot_env.sh`, `test_key_env_withheld.sh`, `test_allowed_ports.sh`, and new arms in the extends-floor, function-capability, restriction-types, regex and taint-parity suites; each red on `c1312132` with its controls green on both, each with an observed kill table.
 
+**PR 2, as built.**
+- A176: `init` keeps an existing `naab.toml` without `--force`, prints its usage for `--help`, and refuses (writing nothing) an argument, a missing value or a preset it does not know -- a misspelt preset used to write a standard config. Found by luck on the way: `test_no_effect_settings.sh` NE-04 had passed an unknown flag and checked one config four times.
+- A75: every preset but `relaxed` writes taint tracking and sequence detection on (decision 1); the summary and the file say what the standard sandbox refuses, measured.
+- A177: the check-result cap compacts in batches. A107: telemetry resumes by record number and counts results that left memory unwritten. A193 (found tracing A177's readers): the quality gate and the closing lines counted only what the cap kept, so an early advisory stopped failing the gate.
+- A110's remainder: 64-bit run totals, reproduced first.
+- A192(a), decision 25: a plugin's helpers and the places its imports look are protected from program writes, after tracing the lookup order. A192(b), decision 26: under enforce plugins load first and one that cannot load refuses the run; a rule with no verdict counts as failed.
+- Suites: `test_check_result_cap.sh`, unit `check_result_cap_test.cpp`, and new arms in `test_init_governance.sh`, `test_plugin_files.sh`, `test_reported_token_counts.sh`; each red on d7799c6d where it is a subject.
+
 ## Not bundled (open, the owner's call)
 
 - **Waiting on the owner:**
   - (done 2026-11-15, A58: the nine unrun test programs and `naab_testing` deleted, three folded into `naab_unit_tests`; `test_composition_validator.cpp` left, commented out of CMake.)
   - A170: `naab-lang blocks search <text>` finds nothing (found folding the search test); A169's remaining half, the cache HMAC keyed from public inputs.
-  - A177 (found in Bundle 18): past 10,000 recorded check results every further record re-packs the whole list, so a program making many governed calls slows sharply (10,000 `file.exists()` calls took 24 s on master).
-- **Open:** A76(e), A70(b)(c), A16/F11/F12. (A66, A75, A67, D18, A170, A177 and the A64 test debt are in Bundle 19's later PRs; B1, A53 and A33(b) in its PR 1.)
+  - (done 2026-11-21, Bundle 19 PR 2: A177, the check-result cap compacts in batches.)
+- **Open:** A76(e), A70(b)(c), A16/F11/F12. (A66, A67, D18, A170 and the A64 test debt are in Bundle 19's later PRs; B1, A53 and A33(b) were in its PR 1, A75 and A177 in its PR 2.)
 - **Paused:** the guidance bypass filter.

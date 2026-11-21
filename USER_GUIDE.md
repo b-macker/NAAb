@@ -851,7 +851,7 @@ Before a program runs, the scanner may print `[scanner] Pre-flight notes`: advis
 
 `govern.json` is an ordinary JSON file in the project, and the policy is whatever it says. A few ways to start:
 
-- `naab-lang init --governance-preset relaxed|standard|strict|paranoid` writes a stricter or looser file. Every preset turns taint tracking and sequence detection off unless `--taint` is also given; plain `naab-lang init` turns both on.
+- `naab-lang init --governance-preset relaxed|standard|strict|paranoid` writes a stricter or looser file. Every preset but `relaxed` turns taint tracking and sequence detection on, as plain `naab-lang init` does; `relaxed` turns them on only with `--taint`. No preset sets `security.sandbox_level`, so the standard sandbox refuses shell blocks, `env.get()` and reads outside the project, home and temp directories; `init` says so, and `"security": {"sandbox_level": "elevated"}` allows them. An existing `naab.toml` or `govern.json` is kept unless `--force`, and `naab-lang init --help` lists every option.
 - [`govern-template.json`](govern-template.json) lists every key, each with its default and a `_comment_` explaining it.
 - `"mode"` is `"enforce"` (refusals stop the program), `"audit"` (they are reported and the program continues) or `"off"`.
 - A signed `govern.json` cannot be edited without the change being detected. The [README](README.md#how-it-works) shows the signing commands.

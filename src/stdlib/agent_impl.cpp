@@ -82,8 +82,8 @@ static void ensureProcessSecret() {
 // Server-side governance tracking — immune to handle mutation
 struct AgentTracker {
     int turns = 0;
-    int input_tokens = 0;
-    int output_tokens = 0;
+    int64_t input_tokens = 0;   // A110 residual: 64-bit like the run totals -- an int wrapped
+    int64_t output_tokens = 0;  // past ~2.1B tokens (each reply adds at most 10M per count)
     int retries = 0;           // total retry attempts across all sends
     int fallbacks = 0;         // times a fallback model was used
     int64_t total_latency_ms = 0;  // cumulative API call time
@@ -119,8 +119,8 @@ struct PendingProposal {
     std::string content;       // authoritative content (commit uses this, not the dict)
     std::string user_message;  // prompt that produced the candidates (history pairing)
     std::string model;
-    int input_tokens = 0;
-    int output_tokens = 0;
+    int64_t input_tokens = 0;
+    int64_t output_tokens = 0;
     bool scan_ok = true;       // response scan + contract passed during propose
     double score = 1.0;        // read-only admissibility score at propose time
     bool admissible = true;
@@ -139,9 +139,12 @@ static std::unordered_map<int, std::vector<PendingProposal>> s_pending_proposals
 
 // Run-level dispatch counters — shared across all agent calls in this process
 struct DispatchCounters {
-    std::atomic<int> total_calls{0};
+    // A110 residual: the run totals are 64-bit, so a budget near INT_MAX is
+    // reached rather than crossed by a wrap (shown to a script saturated at
+    // INT_MAX, makeCount()).
+    std::atomic<int64_t> total_calls{0};
     std::atomic<int> total_retries{0};
-    std::atomic<int> total_tokens{0};
+    std::atomic<int64_t> total_tokens{0};
     std::atomic<int64_t> total_agent_time_ms{0};
     std::atomic<int> consecutive_failures{0};
     std::atomic<bool> hard_stopped{false};
@@ -162,6 +165,18 @@ struct DispatchCounters {
     std::atomic<size_t> key_stagger{0};
 };
 static DispatchCounters s_dispatch;
+
+// A110 residual: a 64-bit count shown to the program. NaabVal ints are 32-bit,
+// so a count past INT_MAX reads INT_MAX rather than wrapping negative.
+static NaabVal makeCount(int64_t v) {
+    if (v > std::numeric_limits<int>::max()) v = std::numeric_limits<int>::max();
+    if (v < std::numeric_limits<int>::min()) v = std::numeric_limits<int>::min();
+    return NaabVal::makeInt(static_cast<int>(v));
+}
+// What is left of a budget, never negative, shown the same way.
+static NaabVal makeRemaining(int64_t budget, int64_t used) {
+    return makeCount(std::max<int64_t>(0, budget - used));
+}
 
 // Tool registration — script-side allowlist for agent tool execution
 struct ToolRegistration {
@@ -353,7 +368,7 @@ static std::string chargeCallBudget(
         return s_dispatch.stop_reason.empty() ? std::string("hard stop active")
                                               : s_dispatch.stop_reason;
     }
-    const int calls = ++s_dispatch.total_calls;
+    const int64_t calls = ++s_dispatch.total_calls;
     if (hs.max_calls_per_run <= 0) return "";
     if (calls <= hs.max_calls_per_run) return "";
     s_dispatch.total_calls--;
@@ -389,8 +404,8 @@ static std::string chargeCallBudget(
 // without ever comparing them with the cap.
 static void chargeTokenBudget(
         const governance::GovernanceRules::AgentDispatchConfig::HardStopConfig& hs,
-        int input_tokens, int output_tokens) {
-    const int total = (s_dispatch.total_tokens += input_tokens + output_tokens);
+        int64_t input_tokens, int64_t output_tokens) {
+    const int64_t total = (s_dispatch.total_tokens += input_tokens + output_tokens);
     if (hs.max_tokens_per_run > 0 && total > hs.max_tokens_per_run) {
         std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
         s_dispatch.hard_stopped = true;
@@ -952,14 +967,13 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
         if (it != s_trackers.end()) {
             auto& t = it->second;
             state["turns_used"] = NaabVal::makeInt(t.turns);
-            state["tokens_used"] = NaabVal::makeInt(t.input_tokens + t.output_tokens);
+            state["tokens_used"] = makeCount(t.input_tokens + t.output_tokens);
             if (config) {
                 state["turns_remaining"] = NaabVal::makeInt(
                     std::max(0, config->max_turns - t.turns));
-                state["tokens_remaining"] = NaabVal::makeInt(
-                    config->max_total_tokens > 0
-                        ? std::max(0, config->max_total_tokens - t.input_tokens - t.output_tokens)
-                        : -1);
+                state["tokens_remaining"] = config->max_total_tokens > 0
+                    ? makeRemaining(config->max_total_tokens, t.input_tokens + t.output_tokens)
+                    : NaabVal::makeInt(-1);
             } else {
                 // Always emit. A key that vanishes is indistinguishable from one
                 // holding 0 via dict.get(), so a script cannot tell "no limit
@@ -1169,15 +1183,13 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
     std::unordered_map<std::string, NaabVal> dispatch;
     if (ge) {
         const auto& hs = ge->getRules().agent_dispatch.hard_stop;
-        dispatch["calls_remaining"] = NaabVal::makeInt(
-            hs.max_calls_per_run > 0
-                ? std::max(0, hs.max_calls_per_run - s_dispatch.total_calls.load()) : -1);
-        dispatch["tokens_remaining"] = NaabVal::makeInt(
-            hs.max_tokens_per_run > 0
-                ? std::max(0, hs.max_tokens_per_run - s_dispatch.total_tokens.load()) : -1);
-        dispatch["time_remaining_ms"] = NaabVal::makeInt(
-            hs.max_agent_time_ms > 0
-                ? std::max(0, static_cast<int>(hs.max_agent_time_ms - s_dispatch.total_agent_time_ms.load())) : -1);
+        dispatch["calls_remaining"] = hs.max_calls_per_run > 0
+            ? makeRemaining(hs.max_calls_per_run, s_dispatch.total_calls.load()) : NaabVal::makeInt(-1);
+        dispatch["tokens_remaining"] = hs.max_tokens_per_run > 0
+            ? makeRemaining(hs.max_tokens_per_run, s_dispatch.total_tokens.load()) : NaabVal::makeInt(-1);
+        dispatch["time_remaining_ms"] = hs.max_agent_time_ms > 0
+            ? makeRemaining(hs.max_agent_time_ms, s_dispatch.total_agent_time_ms.load())
+            : NaabVal::makeInt(-1);
         dispatch["hard_stopped"] = NaabVal::makeBool(s_dispatch.hard_stopped.load());
     }
     state["dispatch"] = NaabVal::makeDict(std::move(dispatch));
@@ -1867,7 +1879,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
 
         // Enforce token budget from tracker (not handle dict)
-        int total_used = tracker.input_tokens + tracker.output_tokens;
+        int64_t total_used = tracker.input_tokens + tracker.output_tokens;
         if (config->max_total_tokens > 0 && total_used >= config->max_total_tokens) {
             // Say WHICH of the two token budgets bound. There are two with
             // confusingly similar names: this PER-AGENT one, and a separate
@@ -4024,7 +4036,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     tool_loop_exit_reason = "max_turns";
                     break;
                 }
-                int total_tokens_used = tracker.input_tokens + tracker.output_tokens;
+                int64_t total_tokens_used = tracker.input_tokens + tracker.output_tokens;
                 if (config->max_total_tokens > 0 && total_tokens_used >= config->max_total_tokens) {
                     tool_loop_exit_reason = "max_tokens";
                     break;
@@ -4712,8 +4724,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         tracker.total_latency_ms += agent_resp.latency_ms;
         tracker.key_offset = key_offset;
         handle["turns"] = NaabVal::makeInt(tracker.turns);
-        handle["input_tokens"] = NaabVal::makeInt(tracker.input_tokens);
-        handle["output_tokens"] = NaabVal::makeInt(tracker.output_tokens);
+        handle["input_tokens"] = makeCount(tracker.input_tokens);
+        handle["output_tokens"] = makeCount(tracker.output_tokens);
         current_turn = tracker.turns;  // updated turn count
         if (transcript_active) {
             transcript_entry["tracker_update"] = {
@@ -5774,7 +5786,7 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
                 "  Got: {} turns used\n",
                 config->max_turns, tracker.turns));
         }
-        int total_used = tracker.input_tokens + tracker.output_tokens;
+        int64_t total_used = tracker.input_tokens + tracker.output_tokens;
         // Same limit, same ambiguity, second call site (agentPropose). Fixing
         // only agentSend would have left propose reporting the old message --
         // "a fix reaching one of N callers is the default outcome, not the
@@ -6154,8 +6166,8 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
         auto& tracker = s_trackers[handle_id];
         tracker.input_tokens += total_prop_tokens_in;
         tracker.output_tokens += total_prop_tokens_out;
-        handle["input_tokens"] = NaabVal::makeInt(tracker.input_tokens);
-        handle["output_tokens"] = NaabVal::makeInt(tracker.output_tokens);
+        handle["input_tokens"] = makeCount(tracker.input_tokens);
+        handle["output_tokens"] = makeCount(tracker.output_tokens);
         s_pending_proposals[handle_id] = std::move(pending);
     }
 
@@ -6380,7 +6392,9 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
         gov_engine->emitEvent(governance::RuntimeEventType::AGENT_RESPONSE,
             "agent.response('" + config_name + "', tokens=" +
             std::to_string(selected.output_tokens) + ")", "", 0, cfp,
-            selected.output_tokens, 0, response_keywords, selected.input_tokens);
+            // One candidate's counts, each at most 10M (reportedTokenCount()).
+            static_cast<int>(selected.output_tokens), 0, response_keywords,
+            static_cast<int>(selected.input_tokens));
         const unsigned long long cdd_seq_before = gov_engine->cddAnalysisSeq(handle_id);
         std::string drift_err = gov_engine->checkContextDrift(handle_id, event_turn, "");
         const bool cdd_analyzed = gov_engine->cddAnalysisSeq(handle_id) != cdd_seq_before;
@@ -6572,8 +6586,8 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
     result["content"] = NaabVal::makeString(selected.content);
     result["role"] = NaabVal::makeString("assistant");
     std::unordered_map<std::string, NaabVal> usage;
-    usage["input_tokens"] = NaabVal::makeInt(selected.input_tokens);
-    usage["output_tokens"] = NaabVal::makeInt(selected.output_tokens);
+    usage["input_tokens"] = makeCount(selected.input_tokens);
+    usage["output_tokens"] = makeCount(selected.output_tokens);
     result["usage"] = NaabVal::makeDict(std::move(usage));
     std::unordered_map<std::string, NaabVal> adm;
     adm["admissible"] = NaabVal::makeBool(output_admissible);
@@ -6682,9 +6696,9 @@ static NaabVal agentUsage(std::vector<NaabVal>& args) {
     auto& tracker = tracker_it->second;
 
     std::unordered_map<std::string, NaabVal> result;
-    result["input_tokens"] = NaabVal::makeInt(tracker.input_tokens);
-    result["output_tokens"] = NaabVal::makeInt(tracker.output_tokens);
-    result["total_tokens"] = NaabVal::makeInt(tracker.input_tokens + tracker.output_tokens);
+    result["input_tokens"] = makeCount(tracker.input_tokens);
+    result["output_tokens"] = makeCount(tracker.output_tokens);
+    result["total_tokens"] = makeCount(tracker.input_tokens + tracker.output_tokens);
     result["turns"] = NaabVal::makeInt(tracker.turns);
     result["retries"] = NaabVal::makeInt(tracker.retries);
     result["fallbacks"] = NaabVal::makeInt(tracker.fallbacks);
@@ -6761,16 +6775,15 @@ static NaabVal agentDispatchStatus(std::vector<NaabVal>& /*args*/) {
     }
 
     std::unordered_map<std::string, NaabVal> result;
-    result["calls_made"] = NaabVal::makeInt(s_dispatch.total_calls.load());
-    result["calls_remaining"] = NaabVal::makeInt(
-        max_calls > 0 ? std::max(0, max_calls - s_dispatch.total_calls.load()) : -1);
-    result["tokens_used"] = NaabVal::makeInt(s_dispatch.total_tokens.load());
-    result["tokens_remaining"] = NaabVal::makeInt(
-        max_tokens > 0 ? std::max(0, max_tokens - s_dispatch.total_tokens.load()) : -1);
-    result["agent_time_ms"] = NaabVal::makeInt(
-        static_cast<int>(s_dispatch.total_agent_time_ms.load()));
-    result["time_remaining_ms"] = NaabVal::makeInt(
-        max_time_ms > 0 ? std::max(0, static_cast<int>(max_time_ms - s_dispatch.total_agent_time_ms.load())) : -1);
+    result["calls_made"] = makeCount(s_dispatch.total_calls.load());
+    result["calls_remaining"] = max_calls > 0
+        ? makeRemaining(max_calls, s_dispatch.total_calls.load()) : NaabVal::makeInt(-1);
+    result["tokens_used"] = makeCount(s_dispatch.total_tokens.load());
+    result["tokens_remaining"] = max_tokens > 0
+        ? makeRemaining(max_tokens, s_dispatch.total_tokens.load()) : NaabVal::makeInt(-1);
+    result["agent_time_ms"] = makeCount(s_dispatch.total_agent_time_ms.load());
+    result["time_remaining_ms"] = max_time_ms > 0
+        ? makeRemaining(max_time_ms, s_dispatch.total_agent_time_ms.load()) : NaabVal::makeInt(-1);
     result["consecutive_failures"] = NaabVal::makeInt(s_dispatch.consecutive_failures.load());
     result["hard_stopped"] = NaabVal::makeBool(s_dispatch.hard_stopped.load());
     {

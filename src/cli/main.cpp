@@ -2651,6 +2651,33 @@ int main(int argc, char** argv) {
                     }
                 }
 
+                // Decision 26 (A192(b), Bundle 19, the owner's decision of
+                // 2026-11-21): under enforce every governance plugin govern.json
+                // names is loaded before anything runs, and one that is missing
+                // or does not load refuses the run (exit 4), naming it. They
+                // loaded lazily, at the first plugin check, and one that could
+                // not load was skipped with a warning while its rules did not
+                // run. Loading first also means every file a plugin reads is
+                // known, and protected from the program, before the program
+                // starts (decision 25). Audit and off keep the lazy load and the
+                // warning.
+                if (gov_loaded && vm_governance.isActive() &&
+                    vm_governance.getMode() == naab::governance::GovernanceMode::ENFORCE &&
+                    !vm_governance.getRules().governance_plugins.empty()) {
+                    vm_governance.loadPlugins();
+                    const auto plugin_failures = vm_governance.pluginLoadFailures();
+                    if (!plugin_failures.empty()) {
+                        fprintf(stderr, "[governance] Governance config error: %zu governance plugin%s "
+                                        "could not be loaded:\n",
+                                plugin_failures.size(), plugin_failures.size() == 1 ? "" : "s");
+                        for (const auto& f : plugin_failures) fprintf(stderr, "  - %s\n", f.c_str());
+                        fprintf(stderr, "\n  Help:\n  - A plugin's rules cannot run, so the run is refused. "
+                                        "Fix or restore the plugin file. Nothing was run.\n");
+                        fflush(stdout); fflush(stderr);
+                        naab::exitProcess(4);
+                    }
+                }
+
                 // Every static block on the VM -- the whole-source checks, the
                 // intent preflight and agent review here, the per-function
                 // checks inside compile() -- leaves through this one
@@ -4516,15 +4543,59 @@ int main(int argc, char** argv) {
         std::string preset;
         std::string languages_override;
 
+        // A176: init writes files, so an argument it does not understand
+        // must stop it before anything is written. It used to ignore one:
+        // `init --help` wrote naab.toml and govern.json, and a misspelt
+        // preset (`--preset strict`, `--governance-preset Strickt`) wrote a
+        // standard config -- weaker than the one asked for -- with at most
+        // a warning.
+        auto print_init_usage = []() {
+            fmt::print("Usage: naab-lang init [options]\n"
+                       "  Create naab.toml and govern.json in the current directory.\n"
+                       "  An existing file is kept unless --force is given.\n\n"
+                       "  --governance-preset P  P: relaxed | standard | strict | paranoid\n"
+                       "  --languages a,b        the languages govern.json allows\n"
+                       "  --taint                taint tracking and sequence detection on\n"
+                       "  --governance           write govern.json only\n"
+                       "  --no-governance        write naab.toml only\n"
+                       "  --package              create a package project structure\n"
+                       "  --force                replace existing files\n"
+                       "  --help, -h             show this help and write nothing\n");
+        };
         for (int i = 2; i < argc; i++) {
             std::string arg = argv[i];
+            if (arg == "--help" || arg == "-h") {
+                print_init_usage();
+                return 0;
+            }
             if (arg == "--package") package_mode = true;
             else if (arg == "--no-governance") no_governance = true;
             else if (arg == "--governance") governance_only = true;
             else if (arg == "--force") force = true;
             else if (arg == "--taint") taint_flag = true;
-            else if (arg == "--governance-preset" && i + 1 < argc) preset = argv[++i];
-            else if (arg == "--languages" && i + 1 < argc) languages_override = argv[++i];
+            else if (arg == "--governance-preset" || arg == "--languages") {
+                if (i + 1 >= argc) {
+                    fmt::print(stderr, "Error: {} needs a value. Nothing was written.\n\n", arg);
+                    print_init_usage();
+                    return 1;
+                }
+                (arg == "--languages" ? languages_override : preset) = argv[++i];
+            } else {
+                fmt::print(stderr, "Error: init does not know the argument '{}'. "
+                                   "Nothing was written.\n\n", arg);
+                print_init_usage();
+                return 1;
+            }
+        }
+        if (!preset.empty()) {
+            std::string p = preset;
+            for (auto& c : p) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (p != "relaxed" && p != "standard" && p != "strict" && p != "paranoid") {
+                fmt::print(stderr, "Error: unknown governance preset '{}' (relaxed, standard, "
+                                   "strict or paranoid). Nothing was written.\n", preset);
+                return 1;
+            }
+            preset = p;
         }
 
         fmt::print("\n");
@@ -4672,11 +4743,20 @@ int main(int argc, char** argv) {
         }
 
         // Step 1: Create naab.toml (unless --governance only)
+        // A176: an existing naab.toml is kept unless --force, as govern.json
+        // is (writeGovernJson). 7d5cf24c wrote the "already exists" message,
+        // but createDefaultManifest() opens the file for writing whether or
+        // not it exists, so the message printed only when the WRITE failed
+        // and an existing manifest was replaced every time.
         if (!governance_only) {
-            if (naab::manifest::createDefaultManifest("naab.toml")) {
+            std::error_code toml_ec;
+            if (std::filesystem::exists("naab.toml", toml_ec) && !force) {
+                fmt::print("  naab.toml already exists (kept; --force replaces it)\n");
+            } else if (naab::manifest::createDefaultManifest("naab.toml")) {
                 fmt::print("✓ Created naab.toml\n");
             } else {
-                fmt::print("  naab.toml already exists (skipped)\n");
+                fmt::print(stderr, "✗ Failed to create naab.toml\n");
+                return 1;
             }
         }
 
