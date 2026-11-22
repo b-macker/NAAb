@@ -59,7 +59,7 @@
 #          preset, and a refusal in an init'd project is remembered
 #   RH-15  a refused function moved unchanged into a module (`export fn`) is
 #          recognised there: a seen_in_module sighting, listed by naab-gov
-#          history, and the run's verdict unchanged; RH-15c no sighting in a
+#          history (its verdict is test_refusal_memory.sh RM-01); RH-15c no sighting in a
 #          fresh project or for changed code under the same name
 #
 # Kill table (each mutant applied alone, rebuilt, this suite run; observed
@@ -439,9 +439,10 @@ if [ "$(subj "$MF" seen_in_module validate)" = 0 ] && [ "$(subj "$MC" seen_in_mo
 else
     fail RH-15c "a sighting with nothing remembered, or for changed code, so RH-15 measures nothing" "fresh=$(subj "$MF" seen_in_module validate) other=$(subj "$MC" seen_in_module validate)"
 fi
-if [ "$M1" = 3 ] && [ "$(subj "$M" seen_in_module validate)" = 1 ] && grep -q 'met in an imported module' <<<"$MO" && \
-   grep -q '^RAN' <<<"$M2OUT" && [ "$M2" = 0 ]; then
-    pass RH-15 "refused code moved unchanged into a module is recognised there (seen_in_module); the verdict is unchanged"
+# The moved code's verdict is test_refusal_memory.sh's (PR 3 re-checks it, RM-01);
+# this arm pins the sighting.
+if [ "$M1" = 3 ] && [ "$(subj "$M" seen_in_module validate)" = 1 ] && grep -q 'met in an imported module' <<<"$MO"; then
+    pass RH-15 "refused code moved unchanged into a module is recognised there (seen_in_module)"
 else
     fail RH-15 "moved code was not recognised in the module" "refused=$M1 moved=$M2 seen=$(subj "$M" seen_in_module validate)"
 fi

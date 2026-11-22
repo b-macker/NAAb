@@ -2821,7 +2821,7 @@ int main(int argc, char** argv) {
 
                     // Store source for governance voice synthesis
                     if (gov_loaded && vm_governance.isActive()) {
-                        vm_governance.setSource(source);
+                        vm_governance.setSource(source, filename);
                     }
 
                     // Agent review: LLM-based governance phase (if enabled in govern.json)
@@ -3270,7 +3270,7 @@ int main(int argc, char** argv) {
 
                 // Store source for governance voice synthesis (tree-walker path)
                 if (gov_loaded && shared_governance.isActive()) {
-                    shared_governance.setSource(source);
+                    shared_governance.setSource(source, filename);
                 }
 
                 // Agent review: LLM-based governance phase (tree-walker path)

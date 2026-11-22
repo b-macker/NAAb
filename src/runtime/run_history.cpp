@@ -9,6 +9,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <set>
 #include <fstream>
@@ -86,6 +88,83 @@ Fingerprint fingerprintNaab(const std::string& text, const std::string& own_name
     return out;
 }
 
+namespace {
+// A text's tokens for the golden-case diff: as the fingerprint reads them, but
+// with names and literal values kept (the question is which values were added).
+bool diffTokens(const std::string& text, std::vector<std::pair<int, std::string>>& out) {
+    std::vector<naab::lexer::Token> toks;
+    try {
+        naab::lexer::Lexer lx(text);
+        toks = lx.tokenize();
+    } catch (...) {
+        return false;
+    }
+    for (const auto& t : toks) {
+        if (t.type == TokenType::NEWLINE || t.type == TokenType::COMMENT ||
+            t.type == TokenType::END_OF_FILE)
+            continue;
+        if (out.empty() && t.type == TokenType::EXPORT) continue;
+        out.emplace_back(static_cast<int>(t.type), t.value);
+    }
+    return true;
+}
+
+// A golden-case value as a literal token would hold it: a JSON number or
+// string; anything else (a list, a dict, a boolean, null) is not judged.
+bool scalarLiteral(const std::string& json_text, bool& is_number, double& number, std::string& str) {
+    try {
+        const json v = json::parse(json_text);
+        if (v.is_number()) { is_number = true; number = v.get<double>(); return true; }
+        if (v.is_string()) { is_number = false; str = v.get<std::string>(); return true; }
+    } catch (...) {}
+    return false;
+}
+}  // namespace
+
+int goldenCaseInserted(const std::string& refused_text, const std::string& passing_text,
+                       const std::vector<std::pair<std::vector<std::string>, std::string>>& cases) {
+    constexpr size_t kMaxTokens = 2000;   // the comparison is quadratic
+    std::vector<std::pair<int, std::string>> a, b;
+    if (!diffTokens(refused_text, a) || !diffTokens(passing_text, b)) return 0;
+    if (a.size() > kMaxTokens || b.size() > kMaxTokens || b.empty()) return 0;
+    // Longest common subsequence; what of b it leaves out is what was inserted.
+    std::vector<std::vector<uint16_t>> L(a.size() + 1, std::vector<uint16_t>(b.size() + 1, 0));
+    for (size_t i = a.size(); i-- > 0;)
+        for (size_t j = b.size(); j-- > 0;)
+            L[i][j] = a[i] == b[j] ? static_cast<uint16_t>(L[i + 1][j + 1] + 1)
+                                   : std::max(L[i + 1][j], L[i][j + 1]);
+    std::vector<std::pair<int, std::string>> inserted;
+    for (size_t i = 0, j = 0; j < b.size();) {
+        if (i < a.size() && a[i] == b[j]) { ++i; ++j; }
+        else if (i < a.size() && L[i + 1][j] >= L[i][j + 1]) ++i;
+        else inserted.push_back(b[j++]);
+    }
+    const int kNumber = static_cast<int>(TokenType::NUMBER), kString = static_cast<int>(TokenType::STRING);
+    for (size_t c = 0; c < cases.size(); ++c) {
+        std::vector<std::string> values = cases[c].first;
+        values.push_back(cases[c].second);
+        std::vector<bool> used(inserted.size(), false);
+        bool all = !values.empty();
+        for (const auto& v : values) {
+            bool is_number = false; double number = 0; std::string s;
+            if (!scalarLiteral(v, is_number, number, s)) { all = false; break; }
+            bool found = false;
+            for (size_t k = 0; k < inserted.size() && !found; ++k) {
+                if (used[k]) continue;
+                if (is_number && inserted[k].first == kNumber) {
+                    try { found = std::stod(inserted[k].second) == number; } catch (...) {}
+                } else if (!is_number && inserted[k].first == kString) {
+                    found = inserted[k].second == s;
+                }
+                if (found) used[k] = true;
+            }
+            if (!found) { all = false; break; }
+        }
+        if (all) return static_cast<int>(c) + 1;
+    }
+    return 0;
+}
+
 std::string lfSha256(const std::string& text) {
     std::string lf;
     lf.reserve(text.size());
@@ -96,11 +175,47 @@ std::string lfSha256(const std::string& text) {
     return naab::security::CryptoUtils::sha256(lf);
 }
 
+bool mustProduceRule(const std::string& rule) {
+    static const std::string pre = "contracts.", suf = ".must_produce";
+    if (rule.size() <= pre.size() + suf.size()) return false;
+    if (rule.compare(0, pre.size(), pre) != 0) return false;
+    if (rule.compare(rule.size() - suf.size(), suf.size(), suf) != 0) return false;
+    const std::string fn = rule.substr(pre.size(), rule.size() - pre.size() - suf.size());
+    if (fn.empty() || fn.size() > 64 || (fn[0] >= '0' && fn[0] <= '9')) return false;
+    return std::all_of(fn.begin(), fn.end(), [](unsigned char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+    });
+}
+
 bool rememberedRule(const std::string& rule) {
-    return rule == "code_quality.no_placeholders" ||
+    return mustProduceRule(rule) ||
+           rule == "code_quality.no_placeholders" ||
            rule == "code_quality.no_oversimplification" ||
            rule == "code_quality.no_incomplete_logic" ||
            rule == "code_quality.complexity_floor";
+}
+
+namespace {
+bool plainChars(const std::string& s, size_t max, const char* extra) {
+    if (s.empty() || s.size() > max) return false;
+    for (char ch : s) {
+        const unsigned char c = static_cast<unsigned char>(ch);
+        const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                        (c >= '0' && c <= '9') || c == '_' ||
+                        std::strchr(extra, ch) != nullptr;
+        if (!ok) return false;
+    }
+    return true;
+}
+}  // namespace
+
+bool displayableRepair(const Repair& r) {
+    if (!rememberedRule(r.rule)) return false;
+    if (!plainChars(r.function, 64, "") || (r.function[0] >= '0' && r.function[0] <= '9')) return false;
+    if (!plainChars(r.file, 200, "./-") || r.file[0] == '/' || r.file.find("..") != std::string::npos)
+        return false;
+    if (!plainChars(r.refused_run, 40, "-") || !plainChars(r.repaired_run, 40, "-")) return false;
+    return levelRank(r.level) >= 0;
 }
 
 bool secretLikeRule(const std::string& rule) {
@@ -124,12 +239,19 @@ int levelRank(const std::string& level) {
 
 const Remembered* matchMoved(const RunHistory& h, const Fingerprint& fp,
                              const std::string& function) {
-    if (fp.fp.empty()) return nullptr;
+    auto all = matchMovedAll(h, fp, function);
+    return all.empty() ? nullptr : all.front();
+}
+
+std::vector<const Remembered*> matchMovedAll(const RunHistory& h, const Fingerprint& fp,
+                                             const std::string& function) {
+    std::vector<const Remembered*> out;
+    if (fp.fp.empty()) return out;
     for (const auto& r : h.remembered) {
         if (r.fpv != kFingerprintVersion || r.fp != fp.fp) continue;
-        if (fp.tokens >= kMinTokensWithoutName || r.function == function) return &r;
+        if (fp.tokens >= kMinTokensWithoutName || r.function == function) out.push_back(&r);
     }
-    return nullptr;
+    return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -185,6 +307,8 @@ bool readRepair(const json& e, Repair& r) {
     r.file = str(e, "file"); r.function = str(e, "function");
     r.refused_run = str(e, "refused_run"); r.repaired_run = str(e, "repaired_run");
     r.refused_sha256 = str(e, "refused_sha256"); r.repaired_sha256 = str(e, "repaired_sha256");
+    r.golden_case = num(e, "golden_case");
+    if (r.golden_case < 0 || r.golden_case > 1000 || !mustProduceRule(r.rule)) r.golden_case = 0;
     return rememberedRule(r.rule) && !r.file.empty();
 }
 
@@ -502,10 +626,12 @@ std::string carryEntriesJson(const std::vector<Remembered>& entries) {
 std::string carryRepairsJson(const std::vector<Repair>& repairs) {
     json a = json::array();
     for (const auto& r : repairs) {
-        a.push_back({{"rule", r.rule}, {"level", r.level}, {"file", r.file},
-                     {"function", r.function}, {"refused_run", r.refused_run},
-                     {"repaired_run", r.repaired_run}, {"refused_sha256", r.refused_sha256},
-                     {"repaired_sha256", r.repaired_sha256}});
+        json e = {{"rule", r.rule}, {"level", r.level}, {"file", r.file},
+                  {"function", r.function}, {"refused_run", r.refused_run},
+                  {"repaired_run", r.repaired_run}, {"refused_sha256", r.refused_sha256},
+                  {"repaired_sha256", r.repaired_sha256}};
+        if (r.golden_case > 0) e["golden_case"] = r.golden_case;
+        a.push_back(e);
     }
     return a.dump();
 }

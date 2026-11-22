@@ -83,7 +83,8 @@ const char* kindText(const std::string& kind) {
 const std::vector<std::string>& notJudged() {
     static const std::vector<std::string> v = {
         "whether a repair is a real fix: \"repaired\" says the rule passed for the function "
-        "at the same or a stricter level",
+        "at the same or a stricter level; a golden-case note says which literals the change "
+        "added, which a legitimate fix of a base case can add too",
         "history kept in another telemetry file, or before the last 64 MiB of this one",
         "the code itself: a refused function's text stays in the project's .naab_cache/",
     };
@@ -170,6 +171,7 @@ int cmdHistory(const std::vector<std::string>& args) {
                       {"function", shown(r.function)}, {"refused_in_run", shown(r.refused_run)},
                       {"repaired_in_run", shown(r.repaired_run)}};
             if (!storeName(r.refused_sha256).empty()) e["stored"] = storeName(r.refused_sha256);
+            if (r.golden_case > 0) e["golden_case"] = r.golden_case;
             rep_a.push_back(e);
         }
         out["repaired"] = rep_a;
@@ -228,6 +230,9 @@ int cmdHistory(const std::vector<std::string>& args) {
                   << ", passed in run " << shown(r.repaired_run);
         if (!storeName(r.refused_sha256).empty())
             std::cout << "\n      refused text: " << storeName(r.refused_sha256);
+        if (r.golden_case > 0)
+            std::cout << "\n      the change that made it pass inserts golden case #" << r.golden_case
+                      << "'s input and expected value as literals";
         std::cout << "\n";
     }
 
