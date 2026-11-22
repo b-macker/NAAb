@@ -3202,6 +3202,13 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         readInt("max_source_kb", gc.max_source_kb, 1, 10240);
         readInt("cooldown_turns", gc.cooldown_turns, 0, 100000);
         readInt("initial_fetch_ms", gc.initial_fetch_ms, 0, 30000);
+        if (gj.contains("holdout")) {
+            if (gj["holdout"].is_number()) {
+                gc.holdout = std::max(0.0, std::min(1.0, gj["holdout"].get<double>()));
+            } else {
+                warnG("holdout must be a number from 0 to 1; no deliveries are held out");
+            }
+        }
         parseRationale(gj, gc.rationale);
 
         // The whole configuration can be the sources list (owner, 2026-10-12:

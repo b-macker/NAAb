@@ -1258,6 +1258,11 @@ struct GuidanceConfig {
     // This bounds that wait for all of them together (ms); refreshes after it
     // run in the background and never delay the program.
     int initial_fetch_ms = 1500;
+    // Bundle 20 PR 4: the fraction of would-be agent deliveries withheld, so
+    // a later report can compare a delivered window with a withheld one
+    // (include/naab/guidance_efficacy.h). 0 = none. Read once, when the run
+    // starts: a reload does not change the arms mid-run.
+    double holdout = 0.0;
     std::vector<GuidanceSourceConfig> sources;
     std::vector<GuidanceRuleConfig> rules;
     std::string rationale;
@@ -1284,6 +1289,8 @@ struct GuidanceDelivery {
     std::string recorded_sha256;
     std::string section_sha256;
     std::string section_key;
+    long long holdout_ordinal = -1;   // the holdout draw it passed (-1: no holdout)
+    double holdout_draw = -1.0;
     std::string id;          // delivery id, joins GUIDANCE_DELIVERED to
                              // GUIDANCE_RESPONSE / GUIDANCE_VALIDATION
     int turn = -1;           // the request turn that carried it (agent channel)
@@ -5067,6 +5074,10 @@ private:
     // Document cache, per-handle queues and cooldowns. Created lazily under
     // guidance_mutex_; shared_ptr so the type can stay incomplete here.
     std::shared_ptr<GuidanceState> guidance_state_;
+    // guidance.holdout as the run started (Bundle 20 PR 4): a reload does not
+    // change the arms. -1 until the first load records it; read under
+    // guidance_mutex_.
+    double guidance_holdout_ = -1.0;
     mutable std::mutex guidance_mutex_;
     // Connector cache + background refresh thread. Lock order: guidance_mutex_
     // may take the fetcher's own lock (to read the cache); the fetcher thread

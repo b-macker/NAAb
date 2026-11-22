@@ -444,6 +444,7 @@ add_library(naab_security
     src/runtime/project_context.cpp          # Project context awareness (LLM files, linters, manifests)
     src/runtime/governance_guidance.cpp      # Live guidance (docs/plan-live-guidance.md)
     src/runtime/run_history.cpp              # Run history (Bundle 20): what earlier runs refused
+    src/runtime/guidance_efficacy.cpp        # Guidance efficacy (Bundle 20 PR 4), read after the run
     src/utils/safe_regex.cpp                # Phase 1 Item 7: Regex timeout protection
     src/runtime/tamper_evident_logger.cpp    # Phase 1 Item 8: Tamper-evident logging
     src/runtime/ffi_callback_validator.cpp   # Phase 1 Item 9: FFI callback safety

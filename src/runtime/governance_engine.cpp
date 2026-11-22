@@ -967,6 +967,11 @@ bool GovernanceEngine::loadFoundConfig(const std::string& config_path,
             // Guidance connectors: the first fetch of every https/command
             // source, before the program runs (a no-op outside `naab-lang run`).
             startGuidanceSources(/*initial_load=*/true);
+            {
+                // The holdout is fixed as the run starts (Bundle 20 PR 4).
+                std::lock_guard<std::mutex> lk(guidance_mutex_);
+                if (guidance_holdout_ < 0.0) guidance_holdout_ = rules().guidance.holdout;
+            }
 
             return true;
     }

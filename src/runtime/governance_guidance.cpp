@@ -24,6 +24,7 @@
 #include "naab/bounded_read.h"
 #include "naab/crypto_utils.h"
 #include "naab/error_sanitizer.h"
+#include "naab/guidance_efficacy.h"
 #include "naab/host_match.h"
 #include "naab/loopback_url.h"
 #include "naab/curl_egress.h"
@@ -259,6 +260,7 @@ struct GovernanceEngine::GuidanceState {
     // Full chain: every delivery gets an id; the run log feeds the end-of-run
     // terminal block and is updated as the reply and validation arrive.
     unsigned long long next_id = 1;
+    unsigned long long holdout_ordinal = 0;   // Bundle 20 PR 4: draws made this run
     struct RunEntry {
         std::string id, agent, trigger, label, heading;   // label: guidanceLabel()
         int turn = -1;
@@ -1026,6 +1028,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
 
     std::vector<std::tuple<std::string, std::string, std::string>> withheld_detail;  // trigger, ref, reason
     std::vector<std::pair<std::string, std::string>> cooldown_detail;               // trigger, ref
+    std::vector<GuidanceDelivery> held_out;                                         // the holdout arm
     {
         std::lock_guard<std::mutex> lock(guidance_mutex_);
         if (!guidance_state_) guidance_state_ = std::make_shared<GuidanceState>();
@@ -1045,6 +1048,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
             st.pending.erase(pit);
         }
         if (requests.empty()) return delivered;
+        // guidance_holdout_ is read under guidance_mutex_, which this holds.
 
         auto& sent = st.last_sent[handle_id];
         std::set<std::string> this_send;
@@ -1093,7 +1097,33 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
                     }
                     text = truncateUtf8(text, room - mark) + kTruncMark;
                 }
+                // The holdout (Bundle 20 PR 4; docs/plan-live-guidance.md,
+                // "Measuring whether it helped": causation needs arms). Drawn
+                // here, after the cooldown, the scan and the budget, so a
+                // held-out candidate is exactly one that would have been
+                // delivered. It cools down as if delivered and uses no budget.
+                long long ordinal = -1;
+                double draw = -1.0;
+                const double holdout = guidance_holdout_ > 0.0 ? guidance_holdout_ : 0.0;
+                if (holdout > 0.0) {
+                    ordinal = static_cast<long long>(st.holdout_ordinal++);
+                    draw = naab::guidance::holdoutDraw(run_id_, static_cast<unsigned long long>(ordinal));
+                }
                 GuidanceDelivery d;
+                d.holdout_ordinal = ordinal;
+                d.holdout_draw = draw;
+                if (ordinal >= 0 && draw < holdout) {
+                    d.trigger = req.rule.on;
+                    d.source = c.source; d.file = c.file; d.section = c.slug; d.heading = c.heading;
+                    d.text = std::move(text);
+                    d.select = c.select; d.score = c.score;
+                    stampIdentity(d, c.body);
+                    d.turn = turn;
+                    this_send.insert(key);
+                    sent[key] = turn;
+                    held_out.push_back(std::move(d));
+                    continue;
+                }
                 d.trigger = req.rule.on;
                 d.source = c.source;
                 d.file = c.file;
@@ -1141,7 +1171,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
         // The delivered TEXT is part of the event: without it the chain cannot
         // show what the model was told. It has passed the secret/PII scan and
         // is bounded by max_chars_per_turn.
-        writeAgentTelemetry("GUIDANCE_DELIVERED", {
+        std::unordered_map<std::string, std::string> ev = {
             {"delivery_id", d.id},
             {"handle_id", std::to_string(handle_id)},
             {"agent", agent_name}, {"config_name", agent_name},
@@ -1158,6 +1188,34 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
             {"section_key", d.section_key},
             {"lookup_ms", lm},
             {"text", d.text},
+        };
+        if (d.holdout_ordinal >= 0) {
+            char dr[32], ho[32];
+            snprintf(dr, sizeof(dr), "%.6f", d.holdout_draw);
+            snprintf(ho, sizeof(ho), "%.6f", guidance_holdout_);
+            ev["holdout"] = ho;
+            ev["holdout_ordinal"] = std::to_string(d.holdout_ordinal);
+            ev["holdout_draw"] = dr;
+        }
+        writeAgentTelemetry("GUIDANCE_DELIVERED", ev);
+    }
+    for (const auto& d : held_out) {
+        // The would-be delivery, every field but its text: what a later
+        // report compares the delivered arm with.
+        char dr[32], ho[32];
+        snprintf(dr, sizeof(dr), "%.6f", d.holdout_draw);
+        snprintf(ho, sizeof(ho), "%.6f", guidance_holdout_);
+        writeAgentTelemetry("GUIDANCE_WITHHELD", {
+            {"handle_id", std::to_string(handle_id)},
+            {"agent", agent_name}, {"config_name", agent_name},
+            {"turn", std::to_string(turn)},
+            {"channel", "agent"},
+            {"trigger", d.trigger}, {"ref", d.source + "#" + d.section}, {"reason", "holdout"},
+            {"source", d.source}, {"file", d.file}, {"section", d.section}, {"heading", d.heading},
+            {"chars", std::to_string(d.text.size())},
+            {"sha256", d.sha256}, {"section_sha256", d.section_sha256}, {"section_key", d.section_key},
+            {"holdout", ho}, {"holdout_ordinal", std::to_string(d.holdout_ordinal)},
+            {"holdout_draw", dr},
         });
     }
     for (const auto& [trig, ref, reason] : withheld_detail) {
