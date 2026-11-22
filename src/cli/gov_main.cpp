@@ -104,6 +104,9 @@ static void printHelp() {
         "                                         next run starts from, their repairs, and\n"
         "                                         where remembered code was met again\n"
         "                                         (report only; --hmac-key, --json)\n"
+        "  naab-gov efficacy <telemetry> [opts]   What followed each piece of guidance an\n"
+        "                                         agent was given, per section, trigger and\n"
+        "                                         model (report only; --hmac-key, --json)\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
         "\n"
@@ -755,6 +758,7 @@ int cmdPatchCheck(const std::vector<std::string>& args, const char* argv0);
 int cmdHeal(const std::vector<std::string>& args, const char* argv0);
 // gov_history.cpp: what the run history holds (Bundle 20, report only).
 int cmdHistory(const std::vector<std::string>& args);
+int cmdEfficacy(const std::vector<std::string>& args);
 // gov_diff.cpp (Bundle 13)
 int cmdDiff(const std::vector<std::string>& args);
 // gov_manifest.cpp (Bundle 11 PR 2)
@@ -986,6 +990,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "history") {
             return cmdHistory(rest);
+        }
+
+        if (cmd == "efficacy") {
+            return cmdEfficacy(rest);
         }
     } catch (const naab::governance::GovernanceHardError& e) {
         std::cerr << e.what() << "\n";

@@ -111,7 +111,7 @@ guidance.max_chars_terminal        neutral -- traced: a delivery budget (termina
 guidance.max_source_kb             neutral -- traced: caps how much of a source is read; no check reads it
 guidance.cooldown_turns            neutral -- traced: delivery frequency only
 guidance.sources.<sname>.path      neutral -- traced: which file is delivered; its read is gated by the filesystem policy at every load, and its write refusal follows the source (block comment)
-guidance.sources.<sname>.type      neutral -- traced: file | sqlite | https | command (inferred when absent); an unknown type is dropped with a warning
+guidance.sources.<sname>.type      neutral -- traced: file | sqlite | https | command | mcp (inferred when absent) | history (Bundle 20 PR 4, the engine's own run history, read-only, never a file the program writes); an unknown type is dropped with a warning
 guidance.rules.[].on               neutral -- traced: which event selects guidance; no enforcement reads it
 guidance.rules.[].from             neutral -- traced: which source/section is delivered
 guidance.rules.[].to               neutral -- traced: delivery channel (agent/terminal)
@@ -147,6 +147,7 @@ guidance.sources.<sname>.resources       neutral -- traced: which of the MCP ser
 guidance.sources.[].mcp                  neutral -- traced: list form of guidance.sources.<sname>.mcp
 guidance.sources.[].resources            neutral -- traced: list form of guidance.sources.<sname>.resources
 guidance.initial_fetch_ms                neutral -- traced: how long a run waits at load for its first fetch; what it does not cover is fetched in the background
+guidance.holdout                         startup -- traced: copied into guidance_holdout_ once, after the startup guidance load (governance_engine.cpp), and never re-read, so a reload changes neither the fraction withheld nor the draws (Bundle 20 PR 4); it withholds guidance, which grants and withholds no capability
 
 # --- Evidence (A33(a), checkEvidenceRatchet) ---------------------------------
 # Keys the evidence ratchet compares under another key's message, and the

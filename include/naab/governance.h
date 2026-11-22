@@ -1258,6 +1258,11 @@ struct GuidanceConfig {
     // This bounds that wait for all of them together (ms); refreshes after it
     // run in the background and never delay the program.
     int initial_fetch_ms = 1500;
+    // Bundle 20 PR 4: the fraction of would-be agent deliveries withheld, so
+    // a later report can compare a delivered window with a withheld one
+    // (include/naab/guidance_efficacy.h). 0 = none. Read once, when the run
+    // starts: a reload does not change the arms mid-run.
+    double holdout = 0.0;
     std::vector<GuidanceSourceConfig> sources;
     std::vector<GuidanceRuleConfig> rules;
     std::string rationale;
@@ -1274,6 +1279,18 @@ struct GuidanceDelivery {
     std::string select;      // "anchor" | "keywords"
     double score = 0.0;      // keyword score (0 for anchors)
     std::string sha256;      // of `text`
+    // A200 (Bundle 20 PR 4). The telemetry writer passes every field through
+    // the path sanitiser, so a `text` holding a path is recorded changed and
+    // no longer matches `sha256`: `recorded_sha256` is the hash of the text
+    // exactly as the event records it. `section_key` names the section
+    // across runs -- the source, the heading compared loosely, and the hash
+    // of the section's whole text (`section_sha256`, before any truncation)
+    // -- where a slug renumbers when a heading repeats or the sources change.
+    std::string recorded_sha256;
+    std::string section_sha256;
+    std::string section_key;
+    long long holdout_ordinal = -1;   // the holdout draw it passed (-1: no holdout)
+    double holdout_draw = -1.0;
     std::string id;          // delivery id, joins GUIDANCE_DELIVERED to
                              // GUIDANCE_RESPONSE / GUIDANCE_VALIDATION
     int turn = -1;           // the request turn that carried it (agent channel)
@@ -3571,7 +3588,8 @@ public:
     void guidanceOnResponse(int handle_id, const std::string& agent_name,
                             const std::vector<GuidanceDelivery>& delivered,
                             const std::unordered_set<std::string>& response_keywords,
-                            bool response_ok, bool analyzed);
+                            bool response_ok, bool analyzed,
+                            const std::string& model = "");   // A199: the model that answered
     // The first agent.record_validation() after guidance reached a handle:
     // GUIDANCE_VALIDATION with the delivery ids and the outcome.
     void guidanceOnValidation(int handle_id, const std::string& agent_name, bool passed);
@@ -3720,6 +3738,10 @@ public:
     // earlier runs' recorded repairs of that rule at its current level or a
     // stricter one; "" when there are none. Shown with a refusal only.
     std::string historyPrecedentLines(const std::vector<CheckResult>& results) const;
+    // Bundle 20 PR 4: the `history` guidance source -- one section per remembered
+    // rule, named for it, holding the engine-written facts of earlier runs. Built
+    // once, after the history is read; a run without history has no document.
+    void buildHistoryGuidance();
     // The source a live location is read from; null fn = none.
     struct CheckLocationSource {
         using Fn = bool (*)(const void* self, std::string& file, int& line, std::string& function);
@@ -4932,6 +4954,10 @@ private:
     // history_mutex_.
     std::shared_ptr<const naab::history::RunHistory> run_history_;
     std::atomic<bool> history_active_{false};
+    // Bundle 20 PR 4: the telemetry file's size when this run read its history
+    // -- where its own lines begin. The carry records it, so the next run
+    // judges this run's guidance deliveries exactly once.
+    long long history_from_offset_ = -1;
     mutable std::mutex history_mutex_;
     // rule \x1f file \x1f function -> {strictest level a pass was recorded at, sha256}
     mutable std::map<std::string, std::pair<std::string, std::string>> history_passed_;
@@ -5056,6 +5082,10 @@ private:
     // Document cache, per-handle queues and cooldowns. Created lazily under
     // guidance_mutex_; shared_ptr so the type can stay incomplete here.
     std::shared_ptr<GuidanceState> guidance_state_;
+    // guidance.holdout as the run started (Bundle 20 PR 4): a reload does not
+    // change the arms. -1 until the first load records it; read under
+    // guidance_mutex_.
+    double guidance_holdout_ = -1.0;
     mutable std::mutex guidance_mutex_;
     // Connector cache + background refresh thread. Lock order: guidance_mutex_
     // may take the fetcher's own lock (to read the cache); the fetcher thread

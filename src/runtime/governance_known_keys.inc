@@ -943,6 +943,7 @@
 "guidance",
 "guidance\x1f""cooldown_turns",
 "guidance\x1f""enabled",
+"guidance\x1f""holdout",
 "guidance\x1f""initial_fetch_ms",
 "guidance\x1f""max_chars_per_turn",
 "guidance\x1f""max_chars_terminal",

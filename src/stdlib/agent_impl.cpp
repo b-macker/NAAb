@@ -465,6 +465,32 @@ static bool effectiveSignal(const governance::AgentConfig* config,
 // multiple fence blocks are left untouched. Shared by send and propose paths.
 // Bundle 14: record text a model wrote, so an execution event can say whether
 // the code it ran equals it (include/naab/code_provenance.h). Hashes only.
+// A199 (Bundle 20 PR 4): the model that answered the reply a send returns. A
+// tool loop's calls record it in answered_by_model only; actual_model is the
+// send's own first call.
+static std::string replyModel(const runtime::AgentResponse& r) {
+    return r.answered_by_model.empty() ? r.actual_model : r.answered_by_model;
+}
+
+// A199: a tool loop replaces the send's response with the loop's last reply,
+// whose call path sets none of the trace fields, so after any tool call the
+// trace read model, provider and key name empty, attempts 1 and latency 0, and
+// agent.usage() lost the send's own retries and latency (observed). The trace
+// keeps the send's own call and names the model that answered the reply
+// returned; fallback_used says whether that model is not the primary one.
+static void keepSendTrace(runtime::AgentResponse& r, const runtime::AgentResponse& send) {
+    const std::string answered = replyModel(r);
+    r.actual_model = answered.empty() ? replyModel(send) : answered;
+    r.answered_by_model = r.actual_model;
+    r.actual_provider = send.actual_provider;
+    r.actual_api_key_env = send.actual_api_key_env;
+    r.attempts = send.attempts;
+    r.latency_ms = send.latency_ms;
+    r.original_model = send.original_model;
+    r.fallback_used = send.fallback_used ||
+        (!r.original_model.empty() && r.actual_model != r.original_model);
+}
+
 static void recordModelOutput(const std::string& text,
                               const runtime::AgentResponse& resp,
                               const std::string& config_name, int handle_id,
@@ -3436,6 +3462,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // replaces agent_resp, so the response it replaces must be accounted
     // first unless the loop already did.
     bool loop_resp_accounted = false;
+    // A199: the send's own call, for the trace after a tool loop replaces it.
+    const runtime::AgentResponse send_resp_trace = agent_resp;
     // F48/F54 tool-loop attempt state. Separate from the send path's own
     // key_offset/model_idx on purpose: the tool loop is a different sequence of
     // calls and should not rewind or advance the send path's rotation. Seeded
@@ -4137,6 +4165,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
             // Update response data
             agent_resp = loop_result.response;
+            keepSendTrace(agent_resp, send_resp_trace);
             loop_resp_accounted = false;
             content = agent_resp.content;
             stop_reason = agent_resp.stop_reason;
@@ -4241,6 +4270,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     // Any tool call a provider returns anyway is not executed:
                     // the reply is its text.
                     agent_resp = final_result.response;
+                    keepSendTrace(agent_resp, send_resp_trace);
                     loop_resp_accounted = false;
                     content = agent_resp.content;
                     stop_reason = agent_resp.stop_reason;
@@ -4818,7 +4848,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         const bool cdd_analyzed = gov_engine->cddAnalysisSeq(handle_id) != cdd_seq_before;
         if (!guidance_delivered.empty()) {
             gov_engine->guidanceOnResponse(handle_id, config_name, guidance_delivered,
-                response_keywords, agent_resp.success && !agent_resp.content.empty(), cdd_analyzed);
+                response_keywords, agent_resp.success && !agent_resp.content.empty(), cdd_analyzed,
+                replyModel(agent_resp));
             guidance_reply_logged = true;
         }
         queueSignalGuidance(gov_engine, handle_id, config_name, cdd_analyzed);
@@ -4982,6 +5013,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"handle_id",        std::to_string(handle_id)},
                     {"config_name",      config_name},
                     {"turn",             std::to_string(current_turn)},
+                    // A199: the model that answered this reply, so a fallback
+                    // model's turns can be told from the primary's.
+                    {"model",            replyModel(agent_resp)},
                     {"coherence",        coh},
                     {"velocity",         vel},
                     {"acceleration",     acc},
@@ -5062,6 +5096,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"handle_id",        std::to_string(handle_id)},
                     {"config_name",      config_name},
                     {"turn",             std::to_string(current_turn)},
+                    // A199: the model that answered this reply, so a fallback
+                    // model's turns can be told from the primary's.
+                    {"model",            replyModel(agent_resp)},
                     {"governance_level", level_str},
                     {"drift_detected",   "false"},
                     {"state",            "no_data_yet"}
@@ -5191,7 +5228,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         std::unordered_set<std::string> reply_kw;
         if (!agent_resp.content.empty()) extractKeywords(agent_resp.content, reply_kw);
         gov_engine->guidanceOnResponse(handle_id, config_name, guidance_delivered, reply_kw,
-                                       agent_resp.success && !agent_resp.content.empty(), false);
+                                       agent_resp.success && !agent_resp.content.empty(), false,
+                                       replyModel(agent_resp));
     }
 
     // Output admissibility gate — post-CDD coherence boundary
@@ -6441,6 +6479,7 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                     {"handle_id",        std::to_string(handle_id)},
                     {"config_name",      config_name},
                     {"turn",             std::to_string(current_turn)},
+                    {"model",            selected.model},   // A199
                     {"coherence",        fmt::format("{:.4f}", drift_state->coherence_score)},
                     {"velocity",         fmt::format("{:.4f}", drift_state->coherence_velocity)},
                     {"acceleration",     fmt::format("{:.4f}", drift_state->coherence_acceleration)},

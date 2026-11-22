@@ -23,6 +23,9 @@
 #include "naab/keyword_extract.h"
 #include "naab/bounded_read.h"
 #include "naab/crypto_utils.h"
+#include "naab/error_sanitizer.h"
+#include "naab/guidance_efficacy.h"
+#include "naab/run_history.h"
 #include "naab/host_match.h"
 #include "naab/loopback_url.h"
 #include "naab/curl_egress.h"
@@ -258,6 +261,7 @@ struct GovernanceEngine::GuidanceState {
     // Full chain: every delivery gets an id; the run log feeds the end-of-run
     // terminal block and is updated as the reply and validation arrive.
     unsigned long long next_id = 1;
+    unsigned long long holdout_ordinal = 0;   // Bundle 20 PR 4: draws made this run
     struct RunEntry {
         std::string id, agent, trigger, label, heading;   // label: guidanceLabel()
         int turn = -1;
@@ -266,6 +270,8 @@ struct GovernanceEngine::GuidanceState {
         std::string recurred;      // "true" | "false" | "not_analyzed" | ""
         std::string validation;    // "passed" | "failed" | ""
         double lookup_ms = 0.0;
+        std::string section_key;   // A200(d): the section across runs
+        std::string model;         // A199: the model that answered the reply
     };
     std::vector<RunEntry> run_log;                            // capped
     std::vector<std::pair<std::string, std::string>> withheld_log;  // (ref, reason), capped
@@ -277,6 +283,11 @@ struct GovernanceEngine::GuidanceState {
     // private members). Read-only from here: lookups take the fetcher's own
     // lock just long enough to copy a cached document pointer -- never I/O.
     std::shared_ptr<GovernanceEngine::GuidanceFetcher> fetcher;
+
+    // The `history` source (Bundle 20 PR 4): built once from the run history
+    // when the run starts, never changed after. Null when this run read no
+    // history (not `naab-lang run`, history off, telemetry or its chain off).
+    std::shared_ptr<const GuidanceDoc> history_doc;
 };
 
 static constexpr size_t kRunLogCap = 500;
@@ -345,8 +356,9 @@ bool GovernanceEngine::isGuidanceSourcePath(const std::string& canon_n) const {
         return std::filesystem::exists(sp, ec2) && std::filesystem::equivalent(sp, canon_n, ec2) && !ec2;
     };
     for (const auto& s : gc.sources) {
-        // A URL is not a file the program could write.
-        if (s.type == "https") continue;
+        // A URL is not a file the program could write; the history source is
+        // the engine's own state (.naab_cache, refused to the program already).
+        if (s.type == "https" || s.type == "history") continue;
         if (s.type == "command" || s.type == "mcp") {
             // A command or MCP server runs with the OPERATOR's authority, outside
             // the program's sandbox. If the program could rewrite its script,
@@ -653,7 +665,11 @@ static std::vector<Candidate> guidanceSelect(GovernanceEngine& eng,
         // never waits on a network or a process.
         std::string why;
         const GuidanceDoc* doc = nullptr;
-        if (src->type == "https" || src->type == "command" || src->type == "mcp") {
+        if (src->type == "history") {
+            // Engine-written facts from earlier runs, built at startup.
+            if (st.history_doc) { doc = st.history_doc.get(); hold.push_back(st.history_doc); }
+            else why = "no_history";
+        } else if (src->type == "https" || src->type == "command" || src->type == "mcp") {
             auto held = guidanceFetchedDoc(st, *src, why);
             if (held) { doc = held.get(); hold.push_back(std::move(held)); }
         } else if (src->type == "sqlite") {
@@ -964,6 +980,21 @@ static const GuidanceDoc* guidanceLoadSqliteDoc(GovernanceEngine& eng,
 // Decide-only: checkSecrets()/checkPii() would ENFORCE on a hit (a HARD
 // secret ends the run) and record a pass otherwise. Guidance is withheld, not
 // blocked, so it uses the twins that share their patterns and switches.
+// A200 (Bundle 20 PR 4): what identifies a delivery's text and its section.
+// `sha256` is the text as delivered; `recorded_sha256` the text as the event
+// records it (the telemetry writer passes every field through the path
+// sanitiser); `section_key` names the section across runs -- its source, its
+// heading compared loosely and the hash of its whole text before truncation --
+// as hex, a shape no recorded value can turn into display text.
+static void stampIdentity(GuidanceDelivery& d, const std::string& section_text) {
+    d.sha256 = security::CryptoUtils::sha256(d.text);
+    d.recorded_sha256 = security::CryptoUtils::sha256(
+        naab::error::ErrorSanitizer::sanitizeFilePaths(d.text));
+    d.section_sha256 = security::CryptoUtils::sha256(section_text);
+    d.section_key = security::CryptoUtils::sha256(
+        d.source + "\n" + normName(d.heading) + "\n" + d.section_sha256).substr(0, 32);
+}
+
 static std::string guidanceScan(GovernanceEngine& eng, const std::string& text) {
     if (!eng.secretFinding(text).empty()) return "secret";
     if (!eng.piiFinding(text).empty()) return "pii";
@@ -1007,6 +1038,8 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
     const auto& gc = rules_hold->guidance;
 
     std::vector<std::tuple<std::string, std::string, std::string>> withheld_detail;  // trigger, ref, reason
+    std::vector<std::pair<std::string, std::string>> cooldown_detail;               // trigger, ref
+    std::vector<GuidanceDelivery> held_out;                                         // the holdout arm
     {
         std::lock_guard<std::mutex> lock(guidance_mutex_);
         if (!guidance_state_) guidance_state_ = std::make_shared<GuidanceState>();
@@ -1026,6 +1059,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
             st.pending.erase(pit);
         }
         if (requests.empty()) return delivered;
+        // guidance_holdout_ is read under guidance_mutex_, which this holds.
 
         auto& sent = st.last_sent[handle_id];
         std::set<std::string> this_send;
@@ -1045,7 +1079,14 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
                 const std::string key = c.source + "#" + c.slug;
                 if (this_send.count(key)) continue;
                 auto sit = sent.find(key);
-                if (sit != sent.end() && turn - sit->second < gc.cooldown_turns) continue;
+                if (sit != sent.end() && turn - sit->second < gc.cooldown_turns) {
+                    // A200(c): recorded, so a trigger that fired while its
+                    // section was cooling down is not read as one that did not
+                    // fire. Telemetry only: the end-of-run block lists what
+                    // policy withheld, and a cooldown is not that.
+                    cooldown_detail.emplace_back(req.rule.on, key);
+                    continue;
+                }
                 const std::string reason = guidanceScan(*this, c.body);
                 if (!reason.empty()) {
                     withheld_detail.emplace_back(req.rule.on, key, reason);
@@ -1067,7 +1108,33 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
                     }
                     text = truncateUtf8(text, room - mark) + kTruncMark;
                 }
+                // The holdout (Bundle 20 PR 4; docs/plan-live-guidance.md,
+                // "Measuring whether it helped": causation needs arms). Drawn
+                // here, after the cooldown, the scan and the budget, so a
+                // held-out candidate is exactly one that would have been
+                // delivered. It cools down as if delivered and uses no budget.
+                long long ordinal = -1;
+                double draw = -1.0;
+                const double holdout = guidance_holdout_ > 0.0 ? guidance_holdout_ : 0.0;
+                if (holdout > 0.0) {
+                    ordinal = static_cast<long long>(st.holdout_ordinal++);
+                    draw = naab::guidance::holdoutDraw(run_id_, static_cast<unsigned long long>(ordinal));
+                }
                 GuidanceDelivery d;
+                d.holdout_ordinal = ordinal;
+                d.holdout_draw = draw;
+                if (ordinal >= 0 && draw < holdout) {
+                    d.trigger = req.rule.on;
+                    d.source = c.source; d.file = c.file; d.section = c.slug; d.heading = c.heading;
+                    d.text = std::move(text);
+                    d.select = c.select; d.score = c.score;
+                    stampIdentity(d, c.body);
+                    d.turn = turn;
+                    this_send.insert(key);
+                    sent[key] = turn;
+                    held_out.push_back(std::move(d));
+                    continue;
+                }
                 d.trigger = req.rule.on;
                 d.source = c.source;
                 d.file = c.file;
@@ -1076,7 +1143,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
                 d.text = std::move(text);
                 d.select = c.select;
                 d.score = c.score;
-                d.sha256 = security::CryptoUtils::sha256(d.text);
+                stampIdentity(d, c.body);
                 used += sep + header.size() + d.text.size();
                 this_send.insert(key);
                 sent[key] = turn;
@@ -1096,6 +1163,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
                 e.id = d.id; e.agent = agent_name; e.trigger = d.trigger;
                 e.label = guidanceLabel(d.file, d.source); e.heading = d.heading; e.turn = turn;
                 e.lookup_ms = lookup_ms;
+                e.section_key = d.section_key;   // A200(d)
                 st.run_log.push_back(std::move(e));
             }
             auto& waiting = st.awaiting_validation[handle_id];
@@ -1114,7 +1182,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
         // The delivered TEXT is part of the event: without it the chain cannot
         // show what the model was told. It has passed the secret/PII scan and
         // is bounded by max_chars_per_turn.
-        writeAgentTelemetry("GUIDANCE_DELIVERED", {
+        std::unordered_map<std::string, std::string> ev = {
             {"delivery_id", d.id},
             {"handle_id", std::to_string(handle_id)},
             {"agent", agent_name}, {"config_name", agent_name},
@@ -1126,8 +1194,39 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
             {"select", d.select}, {"score", sc},
             {"chars", std::to_string(d.text.size())},
             {"sha256", d.sha256},
+            {"recorded_sha256", d.recorded_sha256},
+            {"section_sha256", d.section_sha256},
+            {"section_key", d.section_key},
             {"lookup_ms", lm},
             {"text", d.text},
+        };
+        if (d.holdout_ordinal >= 0) {
+            char dr[32], ho[32];
+            snprintf(dr, sizeof(dr), "%.6f", d.holdout_draw);
+            snprintf(ho, sizeof(ho), "%.6f", guidance_holdout_);
+            ev["holdout"] = ho;
+            ev["holdout_ordinal"] = std::to_string(d.holdout_ordinal);
+            ev["holdout_draw"] = dr;
+        }
+        writeAgentTelemetry("GUIDANCE_DELIVERED", ev);
+    }
+    for (const auto& d : held_out) {
+        // The would-be delivery, every field but its text: what a later
+        // report compares the delivered arm with.
+        char dr[32], ho[32];
+        snprintf(dr, sizeof(dr), "%.6f", d.holdout_draw);
+        snprintf(ho, sizeof(ho), "%.6f", guidance_holdout_);
+        writeAgentTelemetry("GUIDANCE_WITHHELD", {
+            {"handle_id", std::to_string(handle_id)},
+            {"agent", agent_name}, {"config_name", agent_name},
+            {"turn", std::to_string(turn)},
+            {"channel", "agent"},
+            {"trigger", d.trigger}, {"ref", d.source + "#" + d.section}, {"reason", "holdout"},
+            {"source", d.source}, {"file", d.file}, {"section", d.section}, {"heading", d.heading},
+            {"chars", std::to_string(d.text.size())},
+            {"sha256", d.sha256}, {"section_sha256", d.section_sha256}, {"section_key", d.section_key},
+            {"holdout", ho}, {"holdout_ordinal", std::to_string(d.holdout_ordinal)},
+            {"holdout_draw", dr},
         });
     }
     for (const auto& [trig, ref, reason] : withheld_detail) {
@@ -1137,6 +1236,15 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
             {"turn", std::to_string(turn)},
             {"channel", "agent"},
             {"trigger", trig}, {"ref", ref}, {"reason", reason},
+        });
+    }
+    for (const auto& [trig, ref] : cooldown_detail) {
+        writeAgentTelemetry("GUIDANCE_WITHHELD", {
+            {"handle_id", std::to_string(handle_id)},
+            {"agent", agent_name}, {"config_name", agent_name},
+            {"turn", std::to_string(turn)},
+            {"channel", "agent"},
+            {"trigger", trig}, {"ref", ref}, {"reason", "cooldown"},
         });
     }
     return delivered;
@@ -1196,7 +1304,7 @@ GovernanceEngine::GuidanceTerminal GovernanceEngine::guidanceForTerminal(
                 d.trigger = "violation:" + rule_name;
                 d.source = c.source; d.file = c.file; d.section = c.slug; d.heading = c.heading;
                 d.text = std::move(text); d.select = c.select; d.score = c.score;
-                d.sha256 = security::CryptoUtils::sha256(d.text);
+                stampIdentity(d, c.body);
                 d.id = "g" + std::to_string(st.next_id++);
                 used += d.text.size();
                 g.delivered.push_back(std::move(d));
@@ -1229,6 +1337,9 @@ void GovernanceEngine::emitGuidanceTerminal(const GuidanceTerminal& g) {
             {"section", d.section}, {"heading", d.heading}, {"select", d.select},
             {"chars", std::to_string(d.text.size())},
             {"sha256", d.sha256},
+            {"recorded_sha256", d.recorded_sha256},
+            {"section_sha256", d.section_sha256},
+            {"section_key", d.section_key},
             {"text", d.text},
         });
     }
@@ -1289,7 +1400,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidancePull(const std::string& 
             d.source = c.source; d.file = c.file; d.section = c.slug; d.heading = c.heading;
             d.text = c.body.size() > cap ? truncateUtf8(c.body, cap) + kTruncMark : c.body;
             d.select = c.select; d.score = c.score;
-            d.sha256 = security::CryptoUtils::sha256(d.text);
+            stampIdentity(d, c.body);
             d.id = "g" + std::to_string(guidance_state_->next_id++);
             out.push_back(std::move(d));
         }
@@ -1302,6 +1413,9 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidancePull(const std::string& 
             {"heading", d.heading},
             {"select", d.select}, {"chars", std::to_string(d.text.size())},
             {"sha256", d.sha256},
+            {"recorded_sha256", d.recorded_sha256},
+            {"section_sha256", d.section_sha256},
+            {"section_key", d.section_key},
             {"text", d.text},
         });
     }
@@ -1316,7 +1430,8 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidancePull(const std::string& 
 void GovernanceEngine::guidanceOnResponse(int handle_id, const std::string& agent_name,
                                           const std::vector<GuidanceDelivery>& delivered,
                                           const std::unordered_set<std::string>& response_keywords,
-                                          bool response_ok, bool analyzed) {
+                                          bool response_ok, bool analyzed,
+                                          const std::string& model) {
     if (delivered.empty() || !guidanceEnabled()) return;
     // Which signals paid on the reply's turn (only meaningful when CDD
     // analysed it; an interval-skipped turn re-shows stale state).
@@ -1355,6 +1470,7 @@ void GovernanceEngine::guidanceOnResponse(int handle_id, const std::string& agen
                     e.terms = r.terms;
                     e.used = r.used;
                     e.recurred = r.recurred;
+                    e.model = model;
                 }
             }
         }
@@ -1373,6 +1489,7 @@ void GovernanceEngine::guidanceOnResponse(int handle_id, const std::string& agen
             {"terms_used", std::to_string(r.used)},
             {"recall", rc},
             {"matched", r.matched},
+            {"model", model},   // A199
         };
         if (!r.recurred.empty()) f["trigger_recurred"] = r.recurred;
         writeAgentTelemetry("GUIDANCE_RESPONSE", f);
@@ -1445,6 +1562,23 @@ void GovernanceEngine::printGuidanceSummary() {
         out += "  ... and " + std::to_string(log.size() - kShow) + " more (every delivery is in telemetry)\n";
     for (size_t i = 0; i < withheld.size() && i < kShow; ++i)
         out += "  withheld: " + withheld[i].first + " (" + withheld[i].second + ")\n";
+    // Bundle 20 PR 4: what earlier runs say about a section delivered again
+    // now -- named only when every one of its judged earlier deliveries was
+    // followed by its trigger again (include/naab/guidance_efficacy.h). The
+    // label and heading are this run's own, already shown above; the totals
+    // come from verified telemetry. Facts only: no verdict follows from them.
+    if (history_active_.load() && run_history_ && !run_history_->tallies.empty()) {
+        std::set<std::string> named;
+        for (const auto& e : log) {
+            if (e.section_key.empty() || !named.insert(e.section_key).second) continue;
+            for (const auto& t : run_history_->tallies) {
+                if (t.key != e.section_key || !naab::guidance::neverResolved(t)) continue;
+                out += "  earlier runs: " + e.label + " > " + e.heading + " -- its trigger came back after all " +
+                       std::to_string(t.judged()) + " judged deliveries (naab-gov efficacy FILE)\n";
+                break;
+            }
+        }
+    }
     fprintf(stderr, "%s", out.c_str());
 }
 
@@ -2568,6 +2702,53 @@ static std::shared_ptr<const GuidanceDoc> guidanceFetchedDoc(GovernanceEngine::G
         return nullptr;
     }
     return it->second.doc;
+}
+
+// The `history` guidance source (Bundle 20 PR 4; docs/plan-live-guidance.md,
+// slice 2: "a `history` source of facts from previous runs' telemetry
+// (engine-written fields only)"). One section per rule earlier runs refused,
+// named for the rule, so the automatic routes' name matching -- a
+// `violation:<rule>` at the terminal, `governance.guidance(<rule>)` -- finds it
+// and nothing else ranks it. Its text is facts only: rule, function, file,
+// line, run ids, level; every one shape-checked (displayableRemembered,
+// displayableRepair) or dropped, so nothing a file holds can become an
+// instruction. Built once from the run history the run read at startup.
+void GovernanceEngine::buildHistoryGuidance() {
+    if (!run_history_) return;
+    constexpr size_t kPerSection = 5, kMaxSections = 50;
+    std::map<std::string, std::pair<std::vector<std::string>, std::vector<std::string>>> by_rule;
+    for (const auto& r : run_history_->remembered) {
+        if (!naab::history::displayableRemembered(r)) continue;
+        auto& v = by_rule[r.rule].first;
+        v.push_back("- fn " + r.function + " (" + r.file + " line " + std::to_string(r.line) +
+                    ") was refused in run " + r.origin_run + " at " + r.level);
+    }
+    for (const auto& rp : run_history_->repairs) {
+        if (!naab::history::displayableRepair(rp)) continue;
+        auto& v = by_rule[rp.rule].second;
+        v.push_back("- fn " + rp.function + " (" + rp.file + ") was refused in run " + rp.refused_run +
+                    " and passed in run " + rp.repaired_run + " at " + rp.level + " or stricter");
+    }
+    auto doc = std::make_shared<GuidanceDoc>();
+    doc->loaded = true;
+    std::map<std::string, int> seen;
+    for (auto& [rule, facts] : by_rule) {
+        if (doc->sections.size() >= kMaxSections) { doc->truncated = true; break; }
+        std::string text;
+        auto lastFew = [&](std::vector<std::string>& v, const char* title) {
+            if (v.empty()) return;
+            if (!text.empty()) text += "\n";
+            text += std::string(title) + "\n";
+            const size_t from = v.size() > kPerSection ? v.size() - kPerSection : 0;
+            for (size_t i = from; i < v.size(); ++i) text += v[i] + "\n";
+        };
+        lastFew(facts.first, "Earlier runs of this project refused this rule:");
+        lastFew(facts.second, "Earlier runs passed it after a refusal:");
+        appendRowSection(doc->sections, seen, rule, rule, text);
+    }
+    std::lock_guard<std::mutex> lock(guidance_mutex_);
+    if (!guidance_state_) guidance_state_ = std::make_shared<GuidanceState>();
+    guidance_state_->history_doc = std::move(doc);
 }
 
 }  // namespace governance
