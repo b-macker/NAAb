@@ -18,6 +18,13 @@
 //                  the transcript
 //   provenance     code an execution event attributes to a model reply names a
 //                  reply an AGENT_RESPONSE of the same run recorded
+//   guidance       a delivery's recorded text hashes to its recorded_sha256
+//                  (and is the text delivered when the two hashes agree); a
+//                  GUIDANCE_RESPONSE names a delivery of the same run, handle,
+//                  turn and trigger; its trigger_recurred is what the reply's
+//                  CDD_TURN paid; a holdout draw recomputes from the run id and
+//                  ordinal, falls on the recorded side of the holdout, and the
+//                  run's ordinals run 0..N once each under one holdout value
 //
 // Each is MATCH, DIVERGED or UNMEASURABLE. A decision whose evidence is not in
 // the files given -- no snapshot and no CDD_TURN, no transcript, a chain sealed
@@ -40,6 +47,7 @@
 #include "naab/bounded_jsonl.h"
 #include "naab/crypto_utils.h"
 #include "naab/governance.h"
+#include "naab/guidance_efficacy.h"
 #include <nlohmann/json.hpp>
 
 #include <cmath>
@@ -153,6 +161,12 @@ bool sumTerms(const std::string& list, bool penalties, double& sum, int& count) 
     return true;
 }
 
+// A GUIDANCE_RESPONSE, judged once the whole file is read.
+struct GuidanceReply {
+    std::string id, handle, turn, trigger, recurred;
+    long long line = 0;
+};
+
 struct RunState {
     std::unordered_map<std::string, double> prev_coherence;        // by handle
     std::unordered_set<std::string> prev_unknown;                   // after a reset
@@ -160,6 +174,13 @@ struct RunState {
     std::string pulse;                                              // last to_verdict
     std::unordered_set<std::string> reply_hashes;                   // content_sha256
     std::unordered_set<std::string> replies;                        // the joined origin
+    // guidance (Bundle 20 PR 4)
+    std::unordered_map<std::string, std::string> deliveries;        // id -> handle|turn|trigger
+    std::vector<GuidanceReply> guidance_replies;
+    // handle|turn_at_request -> each CDD_TURN row: its analyzed field and penalties
+    std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> request_rows;
+    std::map<long long, int> holdout_ordinals;                      // ordinal -> times recorded
+    std::set<std::string> holdout_values;                           // as printed
 };
 
 std::string replyKey(const std::string& content, const std::string& request,
@@ -242,6 +263,214 @@ public:
         }
     }
 
+    // --- guidance ------------------------------------------------------
+    bool lines_skipped = false;   // a line was too large to read, or not JSON
+
+    void requestRow(const json& ev, RunState& st) {
+        std::string handle, tar, analyzed, pen;
+        if (!field(ev, "handle_id", handle) || !field(ev, "turn_at_request", tar)) return;
+        field(ev, "analyzed", analyzed);
+        field(ev, "penalties_detail", pen);
+        auto& rows = st.request_rows[handle + "|" + tar];
+        if (rows.size() < 16) rows.emplace_back(analyzed, pen);
+    }
+
+    void guidanceDelivered(const json& ev, RunState& st, const std::string& run, long long line) {
+        std::string id, channel, delivered, recorded;
+        field(ev, "delivery_id", id);
+        field(ev, "channel", channel);
+        // A200(a): `sha256` covers the text as delivered, `recorded_sha256` the
+        // text as the telemetry writer recorded it (it sanitises absolute paths).
+        if (!field(ev, "recorded_sha256", recorded)) {
+            note("guidance", Verdict::Unmeasurable, run, line,
+                 "delivery " + plain(id) + ": a writer before recorded_sha256, whose only hash "
+                 "covers the text before the telemetry writer sanitised it");
+        } else {
+            auto t = ev.find("text");
+            if (t == ev.end() || !t->is_string()) {
+                note("guidance", Verdict::Diverged, run, line,
+                     "delivery " + plain(id) + ": no text is recorded");
+            } else if (naab::security::CryptoUtils::sha256(t->get_ref<const std::string&>()) != recorded) {
+                note("guidance", Verdict::Diverged, run, line,
+                     "delivery " + plain(id) + ": the recorded text does not hash to its recorded_sha256");
+            } else if (!field(ev, "sha256", delivered) || delivered != recorded) {
+                note("guidance", Verdict::Unmeasurable, run, line,
+                     "delivery " + plain(id) + ": the record holds its own hash, but the text "
+                     "delivered differs from it (a path the telemetry writer sanitised), so what "
+                     "was delivered is not in the file");
+            } else {
+                note("guidance", Verdict::Match, run, line, "");
+            }
+        }
+        if (channel != "agent") return;
+        std::string handle, turn, trigger;
+        field(ev, "handle_id", handle);
+        field(ev, "turn", turn);
+        field(ev, "trigger", trigger);
+        if (!id.empty() && st.deliveries.size() < 100000)
+            st.deliveries.emplace(id, handle + "|" + turn + "|" + trigger);
+        holdoutDraw(ev, st, run, line, true);
+    }
+
+    // The holdout draw of a delivered or held-out candidate (Bundle 20 PR 4):
+    // sha256("<run_id>:<ordinal>") read as a number in [0, 1), held out below
+    // the run's holdout and delivered at or above it.
+    void holdoutDraw(const json& ev, RunState& st, const std::string& run, long long line,
+                     bool was_delivered) {
+        std::string ord_s, draw_s, ho_s;
+        const bool o = field(ev, "holdout_ordinal", ord_s);
+        const bool d = field(ev, "holdout_draw", draw_s);
+        const bool h = field(ev, "holdout", ho_s);
+        if (was_delivered && !o && !d && !h) return;   // no holdout in this run
+        const std::string what = was_delivered ? "delivered candidate" : "held-out candidate";
+        long long ord = -1;
+        if (o && !ord_s.empty() && ord_s.size() <= 12 &&
+            ord_s.find_first_not_of("0123456789") == std::string::npos)
+            ord = std::stoll(ord_s);
+        double draw = 0.0, ho = 0.0;
+        if (ord < 0 || !d || !h || !decimal(draw_s, draw) || !decimal(ho_s, ho)) {
+            note("guidance", Verdict::Unmeasurable, run, line,
+                 what + ": the holdout ordinal, draw or value is missing or not a number");
+            return;
+        }
+        if (st.holdout_ordinals.size() < 100000) st.holdout_ordinals[ord]++;
+        st.holdout_values.insert(ho_s);
+        const double exact = naab::guidance::holdoutDraw(run, static_cast<unsigned long long>(ord));
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%.6f", exact);
+        // Both figures are printed to six places, so each is half a unit of
+        // the last place from the number it stands for.
+        if (std::fabs(exact - draw) > 0.0000005 + 1e-12) {
+            note("guidance", Verdict::Diverged, run, line,
+                 what + " " + plain(ord_s) + ": draw " + plain(draw_s) +
+                 ", the run id and ordinal give " + buf);
+            return;
+        }
+        if (!(ho > 0.0 && ho <= 1.0)) {
+            note("guidance", Verdict::Diverged, run, line,
+                 what + " " + plain(ord_s) + ": holdout " + plain(ho_s) + " is outside (0, 1]");
+            return;
+        }
+        if (std::fabs(exact - ho) < 0.0000005) {
+            note("guidance", Verdict::Unmeasurable, run, line,
+                 what + " " + plain(ord_s) + ": the draw equals the holdout as printed");
+            return;
+        }
+        const bool held = exact < ho;
+        if (held == was_delivered) {
+            note("guidance", Verdict::Diverged, run, line,
+                 what + " " + plain(ord_s) + ": draw " + buf + (held ? " is below" : " is not below") +
+                 " the holdout " + plain(ho_s));
+            return;
+        }
+        note("guidance", Verdict::Match, run, line, "");
+    }
+
+    // The signal name a CDD_TURN's penalties_detail uses for config key `key`.
+    static std::string paidLabel(const std::string& key) {
+        for (int i = 0; i < naab::governance::NUM_CDD_SIGNALS; ++i)
+            if (key == naab::governance::kCddSignalKeys[i])
+                return naab::governance::ContextDriftAnalyzer::signalName(i);
+        return "";
+    }
+
+    static bool paid(const std::string& penalties, const std::string& label) {
+        size_t pos = 0;
+        int seen = 0;
+        while (pos < penalties.size() && ++seen <= 64) {
+            size_t end = penalties.find(',', pos);
+            if (end == std::string::npos) end = penalties.size();
+            const std::string term = penalties.substr(pos, end - pos);
+            if (term.substr(0, term.find('=')) == label) return true;
+            pos = end + 1;
+        }
+        return false;
+    }
+
+    // What can only be judged once the whole file is read.
+    void finishGuidance() {
+        for (auto& [run, st] : runs) {
+            for (const auto& r : st.guidance_replies) {
+                const std::string where = "reply to delivery " + plain(r.id);
+                auto it = st.deliveries.find(r.id);
+                if (it == st.deliveries.end()) {
+                    note("guidance", lines_skipped ? Verdict::Unmeasurable : Verdict::Diverged, run, r.line,
+                         where + ": no agent-channel delivery of this run has that id" +
+                         (lines_skipped ? std::string(", and some lines were not read") : ""));
+                } else if (it->second != r.handle + "|" + r.turn + "|" + r.trigger) {
+                    note("guidance", Verdict::Diverged, run, r.line,
+                         where + ": the delivery was recorded for another handle, turn or trigger");
+                } else {
+                    note("guidance", Verdict::Match, run, r.line, "");
+                }
+                if (r.recurred.empty() || r.trigger.rfind("signal:", 0) != 0) continue;
+                const std::string label = paidLabel(r.trigger.substr(7));
+                if (label.empty()) {
+                    note("guidance", Verdict::Unmeasurable, run, r.line,
+                         where + ": the trigger names a signal this version does not know");
+                    continue;
+                }
+                int analysed = 0, skipped = 0;
+                std::string pen;
+                auto rows = st.request_rows.find(r.handle + "|" + r.turn);
+                if (rows != st.request_rows.end()) {
+                    for (const auto& [a, p] : rows->second) {
+                        if (a == "true") { ++analysed; pen = p; }
+                        else if (a == "false") ++skipped;
+                    }
+                }
+                if (r.recurred == "not_analyzed") {
+                    if (analysed > 0)
+                        note("guidance", Verdict::Diverged, run, r.line,
+                             where + ": recorded as not analysed, and the turn's CDD_TURN was analysed");
+                    else if (skipped > 0) note("guidance", Verdict::Match, run, r.line, "");
+                    else note("guidance", Verdict::Unmeasurable, run, r.line,
+                              where + ": no CDD_TURN records the reply's turn");
+                    continue;
+                }
+                if (r.recurred != "true" && r.recurred != "false") {
+                    note("guidance", Verdict::Unmeasurable, run, r.line,
+                         where + ": trigger_recurred " + plain(r.recurred) + " is not one this version knows");
+                    continue;
+                }
+                if (analysed == 0) {
+                    note("guidance", skipped > 0 ? Verdict::Diverged : Verdict::Unmeasurable, run, r.line,
+                         where + (skipped > 0
+                                  ? ": records whether the trigger recurred, and the turn's CDD_TURN was not analysed"
+                                  : ": no analysed CDD_TURN records the reply's turn"));
+                } else if (analysed > 1) {
+                    note("guidance", Verdict::Unmeasurable, run, r.line,
+                         where + ": more than one analysed CDD_TURN records the reply's turn");
+                } else if (paid(pen, label) != (r.recurred == "true")) {
+                    note("guidance", Verdict::Diverged, run, r.line,
+                         where + ": trigger_recurred " + plain(r.recurred) + ", and " + plain(label) +
+                         (paid(pen, label) ? " paid" : " did not pay") + " on the turn's CDD_TURN");
+                } else {
+                    note("guidance", Verdict::Match, run, r.line, "");
+                }
+            }
+            if (!st.holdout_ordinals.empty()) {
+                const long long last = st.holdout_ordinals.rbegin()->first;
+                long long missing = 0, repeated = 0;
+                for (long long i = 0; i <= last && i < 100000; ++i) {
+                    auto it = st.holdout_ordinals.find(i);
+                    if (it == st.holdout_ordinals.end()) ++missing;
+                    else if (it->second > 1) ++repeated;
+                }
+                if (missing || repeated) {
+                    note("guidance", lines_skipped && !repeated ? Verdict::Unmeasurable : Verdict::Diverged,
+                         run, 0, std::to_string(missing) + " holdout ordinal(s) below the last are not "
+                         "recorded and " + std::to_string(repeated) + " are recorded more than once");
+                } else {
+                    note("guidance", Verdict::Match, run, 0, "");
+                }
+            }
+            if (st.holdout_values.size() > 1)
+                note("guidance", Verdict::Diverged, run, 0,
+                     "the holdout changed during the run (it is fixed at startup)");
+        }
+    }
+
     // --- transcript ----------------------------------------------------
     bool transcript_given = false;
     bool transcript_partial = false;                 // a line was not read
@@ -295,7 +524,21 @@ public:
         if (!field(ev, "event_type", type)) return;
         field(ev, "run_id", run);
         RunState& st = runs[run];
-        if (type == "CDD_TURN") cddTurn(ev, st, run, line);
+        if (type == "CDD_TURN") { requestRow(ev, st); cddTurn(ev, st, run, line); }
+        else if (type == "GUIDANCE_DELIVERED") guidanceDelivered(ev, st, run, line);
+        else if (type == "GUIDANCE_WITHHELD") {
+            std::string reason;
+            if (field(ev, "reason", reason) && reason == "holdout") holdoutDraw(ev, st, run, line, false);
+        } else if (type == "GUIDANCE_RESPONSE") {
+            GuidanceReply r;
+            field(ev, "delivery_id", r.id);
+            field(ev, "handle_id", r.handle);
+            field(ev, "turn_at_request", r.turn);
+            field(ev, "trigger", r.trigger);
+            field(ev, "trigger_recurred", r.recurred);
+            r.line = line;
+            if (st.guidance_replies.size() < 100000) st.guidance_replies.push_back(r);
+        }
         else if (type == "OUTPUT_ADMISSIBILITY_EVAL") admissibility(ev, st, run, line);
         else if (type == "PULSE_TRANSITION") field(ev, "to_verdict", st.pulse);
         else if (type == "AGENT_RESET") {
@@ -579,6 +822,7 @@ int cmdReplay(const std::vector<std::string>& args) {
         return 4;
     }
     rp.chain(chain, !key.empty());
+    rp.lines_skipped = chain.skipped > 0 || chain.corrupt > 0;
 
     long long events = 0;
     {
@@ -608,6 +852,8 @@ int cmdReplay(const std::vector<std::string>& args) {
         }
     }
 
+    rp.finishGuidance();
+
     long long matched = 0, diverged = 0, unmeasurable = 0;
     for (const auto& kv : rp.totals.match) matched += kv.second;
     for (const auto& kv : rp.totals.diverged) diverged += kv.second;
@@ -618,12 +864,14 @@ int cmdReplay(const std::vector<std::string>& args) {
     const char* overall = rc == 1 ? "DIVERGED" : rc == 2 ? "UNMEASURABLE" : "MATCH";
 
     static const char* kChecks[] = {"chain", "admissibility", "coherence", "transcript",
-                                    "provenance"};
+                                    "provenance", "guidance"};
     static const char* kNotChecked =
         "Not checked: the scorer is not re-run, so a penalty that should not have been "
         "charged, or one that was never listed, is not seen; governance level changes, "
-        "step-up challenges, guidance, contracts, sequence matches and every other event "
-        "type; whether the files are the ones the run wrote, beyond the chain.";
+        "step-up challenges, contracts, sequence matches and every other event type; which "
+        "section guidance selection should have chosen, and what followed a delivery after "
+        "the reply's own turn (naab-gov efficacy reports that); whether the files are the "
+        "ones the run wrote, beyond the chain.";
 
     if (as_json) {
         json out;
