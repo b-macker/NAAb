@@ -8,8 +8,8 @@
 //   remembered  refusals the next run would start from: the last
 //               HISTORY_CARRY in the file, and the refusals after it (a run
 //               killed before writing its carry still counts)
-//   repaired    the carry's recent repairs: the function was scanned under the
-//               rule at the same or a stricter level and not refused
+//   repaired    the carry's recent repairs: the rule passed for the function
+//               at the same or a stricter level (a recorded pass, not a scan)
 //   sightings   HISTORY_SUBJECT events: a remembered function refused again,
 //               passed, or met in an imported module
 //   resets      HISTORY_RESET events: a run found its anchor no longer matched
@@ -82,8 +82,8 @@ const char* kindText(const std::string& kind) {
 
 const std::vector<std::string>& notJudged() {
     static const std::vector<std::string> v = {
-        "whether a repair is a real fix: \"repaired\" says the function was scanned "
-        "under the rule at the same or a stricter level and not refused",
+        "whether a repair is a real fix: \"repaired\" says the rule passed for the function "
+        "at the same or a stricter level",
         "history kept in another telemetry file, or before the last 64 MiB of this one",
         "the code itself: a refused function's text stays in the project's .naab_cache/",
     };
