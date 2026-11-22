@@ -1274,6 +1274,16 @@ struct GuidanceDelivery {
     std::string select;      // "anchor" | "keywords"
     double score = 0.0;      // keyword score (0 for anchors)
     std::string sha256;      // of `text`
+    // A200 (Bundle 20 PR 4). The telemetry writer passes every field through
+    // the path sanitiser, so a `text` holding a path is recorded changed and
+    // no longer matches `sha256`: `recorded_sha256` is the hash of the text
+    // exactly as the event records it. `section_key` names the section
+    // across runs -- the source, the heading compared loosely, and the hash
+    // of the section's whole text (`section_sha256`, before any truncation)
+    // -- where a slug renumbers when a heading repeats or the sources change.
+    std::string recorded_sha256;
+    std::string section_sha256;
+    std::string section_key;
     std::string id;          // delivery id, joins GUIDANCE_DELIVERED to
                              // GUIDANCE_RESPONSE / GUIDANCE_VALIDATION
     int turn = -1;           // the request turn that carried it (agent channel)
@@ -3571,7 +3581,8 @@ public:
     void guidanceOnResponse(int handle_id, const std::string& agent_name,
                             const std::vector<GuidanceDelivery>& delivered,
                             const std::unordered_set<std::string>& response_keywords,
-                            bool response_ok, bool analyzed);
+                            bool response_ok, bool analyzed,
+                            const std::string& model = "");   // A199: the model that answered
     // The first agent.record_validation() after guidance reached a handle:
     // GUIDANCE_VALIDATION with the delivery ids and the outcome.
     void guidanceOnValidation(int handle_id, const std::string& agent_name, bool passed);
