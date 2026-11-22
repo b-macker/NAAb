@@ -1,6 +1,8 @@
 // governance_reports.cpp — GovernanceEngine report generation, audit, plugins
 // Extracted from governance.cpp lines 5603-7484
 
+#include "naab/run_history.h"
+#include "naab/atomic_file.h"
 #include "naab/bounded_jsonl.h"
 #include "naab/env_snapshot.h"
 #include "naab/governance.h"
@@ -1745,6 +1747,19 @@ void GovernanceEngine::writeTelemetry() const {
             ev["owasp"] = nlohmann::json::array();
             for (const auto& o : r.owasp_ids) ev["owasp"].push_back(o);
         }
+        // Bundle 20: the function-body subject the check judged. Its file is
+        // relative to the project with '/' separators, so path sanitising
+        // leaves it alone; a secret or PII rule's row names it only.
+        if (!r.subject_file.empty()) {
+            ev["subject_function"] = r.subject_function;
+            ev["subject_file"] = r.subject_file;
+            if (!r.subject_fp.empty()) {
+                ev["subject_sha256"] = r.subject_sha256;
+                ev["subject_fp"] = r.subject_fp;
+                ev["subject_fpv"] = naab::history::kFingerprintVersion;
+                ev["subject_tokens"] = r.subject_tokens;
+            }
+        }
         // Tamper-evident hash chain for telemetry entries
         // Held until the line is written and flushed: the next writer seeds its
         // prev_hash from the file's tail, so a sealed line that is not in the
@@ -1765,6 +1780,13 @@ void GovernanceEngine::writeTelemetry() const {
 
         fflush(fp.get());
         forwardTelemetry(ev.dump());
+        // Bundle 20: the chained row a remembered refusal points back to.
+        if (!r.passed && !r.subject_fp.empty() && ev.contains("hash") &&
+            naab::history::rememberedRule(r.rule_name)) {
+            std::lock_guard<std::mutex> lk(history_mutex_);
+            history_row_hashes_[r.rule_name + '\x1f' + r.subject_file + '\x1f' + r.subject_function] =
+                ev["hash"].get<std::string>();
+        }
     }
 
     // Fix 4B: emit summary event recording dedup stats. A107: also when
@@ -1847,6 +1869,12 @@ void GovernanceEngine::writeTelemetry() const {
             events_written++;
         fflush(fp.get());
         forwardTelemetry(snap.dump());
+    }
+
+    // Bundle 20: this run's history events and carry, before RunEnd counts them.
+    if (history_active_.load()) {
+        try { events_written += writeHistoryLocked(fp.get(), timestamp, results_snapshot); }
+        catch (...) {}
     }
 
     // RunEnd anchor: declares this run's chained event count so the verifier
@@ -3570,6 +3598,142 @@ std::string GovernanceEngine::checkPluginRules(
     }
 
     return "";
+}
+
+// Bundle 20: the run history's events, sealed on the telemetry file the
+// caller holds (writeTelemetry(): the file lock is held, so the anchor's
+// offset is this line's). HISTORY_SUBJECT once per sighting; HISTORY_CARRY
+// whenever what is remembered changed, then the anchor names it.
+long long GovernanceEngine::writeHistoryLocked(FILE* fp, const std::string& timestamp,
+                                               const std::vector<CheckResult>& results) const {
+    namespace fs = std::filesystem;
+    if (!fp || govern_json_dir_.empty()) return 0;
+    const auto& te = rules().telemetry_output.tamper_evidence;
+    long long written = 0;
+    auto seal = [&](nlohmann::json& ev) -> std::pair<long long, std::string> {
+        std::unique_lock<std::mutex> hlock(telemetry_hash_mutex_, std::defer_lock);
+        std::string h;
+        if (te.enabled) {
+            hlock.lock();
+            ev["prev_hash"] = chainPrevLocked(fp);
+            last_telemetry_hash_ = computeHash(ev.dump(), te);
+            ev["hash"] = last_telemetry_hash_;
+            h = last_telemetry_hash_;
+            chained_events_this_run_++;
+        }
+        fflush(fp);
+        fseek(fp, 0, SEEK_END);
+        const long long offset = static_cast<long long>(ftell(fp));
+        const std::string line = ev.dump() + "\n";
+        if (checkedWrite(fp, line, telemetry_write_failures_)) ++written;
+        fflush(fp);
+        forwardTelemetry(ev.dump());
+        return {offset, h};
+    };
+
+    std::error_code path_ec;
+    const fs::path cache = fs::path(govern_json_dir_) / ".naab_cache";
+    const std::string tpath = fs::absolute(rules().telemetry_output.output_file, path_ec)
+                                  .lexically_normal().string();
+    const std::string anchor_path = (cache / "history.anchor.json").string();
+
+    // Two runs at once: each read the history when it started, so the later
+    // carry would drop what the other run refused. Under the telemetry file's
+    // lock (held here), a carry another run wrote since this one started is
+    // read, verified, and merged in. The anchor is read first (one small
+    // file); the carry only when it names a run this one has not merged.
+    naab::history::RunHistory other;
+    {
+        std::string anchor_run;
+        std::ifstream ain(anchor_path, std::ios::binary);
+        if (ain) {
+            std::stringstream ss; ss << ain.rdbuf();
+            const std::string a = ss.str();
+            auto aj = a.size() < 4096 ? nlohmann::json::parse(a, nullptr, false) : nlohmann::json();
+            if (aj.is_object() && aj.contains("run_id") && aj["run_id"].is_string())
+                anchor_run = aj["run_id"].get<std::string>();
+        }
+        bool fresh;
+        {
+            std::lock_guard<std::mutex> lk(history_mutex_);
+            fresh = !anchor_run.empty() && anchor_run != run_id_ &&
+                    !(run_history_ && run_history_->carry_run == anchor_run) &&
+                    history_merged_runs_.insert(anchor_run).second;
+        }
+        if (fresh) {
+            other = naab::history::readRunHistory(
+                tpath, anchor_path, [this, te](const std::string& d) { return computeHash(d, te); });
+        }
+    }
+
+    std::vector<naab::history::Remembered> carry;
+    std::vector<naab::history::Repair> repaired;
+    std::vector<std::pair<std::string, naab::history::Remembered>> sightings;
+    std::vector<naab::history::Sighting> moved;
+    std::string carry_text;
+    std::vector<naab::history::Repair> repairs_out;
+    {
+        std::lock_guard<std::mutex> lk(history_mutex_);
+        historyOutcome(results, carry, repaired, sightings);
+        moved = history_seen_in_module_;
+        if (!other.carry_run.empty()) history_other_ = other;
+        repairs_out = repaired;
+        if (run_history_)
+            for (const auto& r : run_history_->repairs) {
+                if (repairs_out.size() >= naab::history::kMaxRepairs) break;
+                repairs_out.push_back(r);
+            }
+        if (!history_other_.carry_run.empty())
+            naab::history::mergeConcurrent(history_other_, run_id_, carry, repairs_out);
+        carry_text = naab::history::carryEntriesJson(carry) + "|" +
+                     naab::history::carryRepairsJson(repairs_out);
+    }
+
+    auto once = [&](const std::string& k) {
+        std::lock_guard<std::mutex> lk(history_mutex_);
+        return history_events_written_.insert(k).second;
+    };
+    for (const auto& [kind, m] : sightings) {
+        if (!once(kind + '\x1f' + m.rule + '\x1f' + m.file + '\x1f' + m.function)) continue;
+        nlohmann::json ev = {{"run_id", run_id_}, {"event_type", "HISTORY_SUBJECT"},
+                             {"timestamp", timestamp}, {"kind", kind}, {"rule", m.rule},
+                             {"level", m.level}, {"file", m.file}, {"function", m.function},
+                             {"origin_run", m.origin_run}, {"origin_hash", m.origin_hash},
+                             {"config_fingerprint", config_fingerprint_}};
+        seal(ev);
+    }
+    for (const auto& sg : moved) {
+        if (!once("seen_in_module\x1f" + sg.origin.rule + '\x1f' + sg.file + '\x1f' + sg.function)) continue;
+        nlohmann::json ev = {{"run_id", run_id_}, {"event_type", "HISTORY_SUBJECT"},
+                             {"timestamp", timestamp}, {"kind", "seen_in_module"},
+                             {"rule", sg.origin.rule}, {"level", sg.origin.level},
+                             {"file", sg.file}, {"function", sg.function},
+                             {"origin_file", sg.origin.file}, {"origin_function", sg.origin.function},
+                             {"origin_run", sg.origin.origin_run}, {"origin_hash", sg.origin.origin_hash},
+                             {"config_fingerprint", config_fingerprint_}};
+        seal(ev);
+    }
+
+    bool changed;
+    {
+        std::lock_guard<std::mutex> lk(history_mutex_);
+        changed = carry_text != history_last_carry_;
+        if (changed) history_last_carry_ = carry_text;
+        history_repairs_this_run_ = repaired;
+    }
+    if (!changed) return written;
+    nlohmann::json ev = {{"run_id", run_id_}, {"event_type", "HISTORY_CARRY"},
+                         {"timestamp", timestamp},
+                         {"fpv", naab::history::kFingerprintVersion},
+                         {"entries", nlohmann::json::parse(naab::history::carryEntriesJson(carry))},
+                         {"repairs", nlohmann::json::parse(naab::history::carryRepairsJson(repairs_out))}};
+    const auto [offset, h] = seal(ev);
+    if (h.empty() || offset < 0) return written;
+    std::error_code ec;
+    fs::create_directories(cache, ec);
+    naab::runtime::writeFileAtomically(anchor_path,
+                                       naab::history::anchorJson(tpath, offset, h, run_id_), ec);
+    return written;
 }
 
 } // namespace governance

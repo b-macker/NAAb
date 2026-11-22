@@ -30,6 +30,7 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <functional>
+#include "naab/atomic_file.h"
 #include <filesystem>
 #include <iostream>
 #include <sstream>
@@ -1365,6 +1366,37 @@ GovernanceEngine::ThreadCheckContext GovernanceEngine::exchangeThreadCheckContex
     return prev;
 }
 
+// Bundle 20: the function-body subject the checks on this thread judge.
+static thread_local GovernanceEngine::CheckSubject t_check_subject;
+
+GovernanceEngine::CheckSubject GovernanceEngine::exchangeThreadCheckSubject(CheckSubject next) {
+    CheckSubject prev = std::move(t_check_subject);
+    t_check_subject = std::move(next);
+    return prev;
+}
+
+void GovernanceEngine::stampSubject(CheckResult& r, const std::string& rule_name) const {
+    if (!t_check_subject.set) return;
+    r.subject_function = t_check_subject.function;
+    r.subject_file = t_check_subject.file;
+    // A secret or PII rule's subject is named, never hashed: a hash of a short
+    // body can be searched for, and telemetry is forwarded off the machine.
+    if (naab::history::secretLikeRule(rule_name)) return;
+    r.subject_sha256 = t_check_subject.sha256;
+    r.subject_fp = t_check_subject.fp;
+    r.subject_tokens = t_check_subject.tokens;
+    // A pass of a remembered rule is what a repair is judged from. Noted here,
+    // when it is recorded, so the check-result cap cannot evict it first. The
+    // strictest level a pass was recorded at is kept.
+    if (r.passed && history_active_.load() && naab::history::rememberedRule(rule_name)) {
+        const std::string lv = levelToString(r.level);
+        std::lock_guard<std::mutex> lk(history_mutex_);
+        auto& p = history_passed_[rule_name + '\x1f' + r.subject_file + '\x1f' + r.subject_function];
+        if (p.first.empty() || naab::history::levelRank(lv) > naab::history::levelRank(p.first))
+            p = {lv, r.subject_sha256};
+    }
+}
+
 GovernanceEngine::CheckLocationSource GovernanceEngine::exchangeCheckLocationSource(
         CheckLocationSource next) {
     CheckLocationSource prev = t_location_source;
@@ -1556,6 +1588,7 @@ void GovernanceEngine::recordPass(const std::string& rule_name,
                            false, rationale, std::move(t_current_decision_trace), ""});
     check_results_.back().live_location = live_location;
     check_results_.back().disposition = "passed";   // A172
+    stampSubject(check_results_.back(), rule_name);           // Bundle 20
     t_current_decision_trace.clear();
     // V-GOV-024: cap telemetry to prevent unbounded memory growth
     capCheckResultsLocked();
@@ -1584,6 +1617,13 @@ std::string GovernanceEngine::enforce(
     const std::string& rule_name,
     EnforcementLevel level,
     const std::string& violation_message) {
+
+    // Bundle 20: a refused function-body subject is kept in .naab_cache under
+    // its hash, before anything below can throw. Never a secret or PII rule's.
+    if (history_active_.load() && t_check_subject.set && t_check_subject.text &&
+        naab::history::rememberedRule(rule_name) && !naab::history::secretLikeRule(rule_name)) {
+        try { storeSubjectText(t_check_subject.sha256, *t_check_subject.text); } catch (...) {}
+    }
 
     // LEVEL EFFECT 2 — at HIGH and above, an ADVISORY is enforced as SOFT.
     //
@@ -1661,6 +1701,7 @@ std::string GovernanceEngine::enforce(
                                            checkLine(), checkFile(), cwes, owasps,
                                            preflight_mode_, rationale, std::move(t_current_decision_trace),
                                            explanation});
+        stampSubject(check_results_.back(), rule_name);   // Bundle 20
         check_results_.back().live_location = live_location;
         // A172: what happens to the action. A refusal unless a branch below
         // lets it run (audit, approval, override); an advisory warns unless
@@ -8695,6 +8736,7 @@ std::string GovernanceEngine::refusalClosingText() {
     }
     std::string out;
     if (!summary.empty()) out += "\n" + summary;
+    try { out += historyClosingLine(); } catch (...) {}   // Bundle 20: before the verdict
     out += rule.empty() ? std::string("-- Governance: REFUSED --\n")
                         : "-- Governance: REFUSED (" + rule + ") --\n";
     return out;
@@ -8751,6 +8793,10 @@ void GovernanceEngine::printValidationReport() {
         if (c.refused) parts.push_back(fmt::format("{} refused", c.refused));
         std::string during;
         for (size_t i = 0; i < parts.size(); ++i) during += (i ? ", " : "") + parts[i];
+        try {   // Bundle 20: before the verdict
+            const std::string hl = historyClosingLineFrom(check_results_);
+            if (!hl.empty()) fputs(hl.c_str(), stderr);
+        } catch (...) {}
         fmt::print(stderr, "-- Governance: PASS ({}after-run audit: 0 findings) --\n",
                    during.empty() ? std::string() : during + "; ");
         return;
@@ -8896,6 +8942,10 @@ void GovernanceEngine::printValidationReport() {
     // Verdict
     int total_violations = pass1_hard + pass1_soft + pass2_findings;
     std::string verdict = total_violations == 0 ? "PASS" : "FINDINGS";
+    try {   // Bundle 20: before the verdict
+        const std::string hl = historyClosingLineFrom(check_results_);
+        if (!hl.empty()) fputs(("\n" + hl).c_str(), stderr);
+    } catch (...) {}
     fmt::print(stderr, "\n  Verdict: {} ({} hard, {} soft, {} advisory, {} runtime)\n",
                verdict, pass1_hard, pass1_soft, pass1_advisory, pass2_findings);
     fmt::print(stderr, "-------------------------------------------------------------------------\n");
@@ -10801,6 +10851,196 @@ std::string GovernanceEngine::checkPreExecution(
 // thrown, so the mark can never outlive the call that set it.
 void GovernanceEngine::endPreExecutionScope() {
     t_preexec_consumed = false;
+}
+
+// ============================================================================
+// Run history (Bundle 20): include/naab/run_history.h
+// ============================================================================
+
+static std::atomic<bool> s_allow_run_history{false};
+
+void GovernanceEngine::allowRunHistory(bool on) { s_allow_run_history.store(on); }
+
+std::string GovernanceEngine::historyRelativePath(const std::string& file) const {
+    if (file.empty()) return "";
+    std::error_code ec;
+    std::filesystem::path p = std::filesystem::absolute(file, ec);
+    if (ec) return std::filesystem::path(file).generic_string();
+    if (!govern_json_dir_.empty()) {
+        auto rel = std::filesystem::relative(p, govern_json_dir_, ec);
+        if (!ec && !rel.empty() && rel.generic_string().rfind("..", 0) != 0)
+            return rel.generic_string();
+    }
+    return p.lexically_normal().generic_string();
+}
+
+// The refused text, under its hash, in the protected .naab_cache (A169: the
+// program may not write it). Never a text the secret or PII patterns match,
+// whether or not those checks are on; bounded per subject and per run.
+void GovernanceEngine::storeSubjectText(const std::string& sha256, const std::string& text) {
+    namespace fs = std::filesystem;
+    if (govern_json_dir_.empty() || sha256.size() != 64 || text.size() > naab::history::kSubjectMaxBytes)
+        return;
+    if (history_store_bytes_.load() + text.size() > naab::history::kSubjectRunBudget) return;
+    if (!firstSecretPattern(text).empty() || piiPresentUngated(text)) return;
+    std::error_code ec;
+    const fs::path dir = fs::path(govern_json_dir_) / ".naab_cache";
+    const fs::path dest = dir / (sha256 + ".subject.txt");
+    if (fs::exists(dest, ec)) return;
+    fs::create_directories(dir, ec);
+    if (naab::runtime::writeFileAtomically(dest, text, ec)) history_store_bytes_ += text.size();
+}
+
+void GovernanceEngine::loadRunHistory() {
+    namespace fs = std::filesystem;
+    if (!s_allow_run_history.load() || !rules().history.enabled) return;
+    if (govern_json_dir_.empty()) return;   // an inline config has no .naab_cache to keep history in
+    const fs::path cache = fs::path(govern_json_dir_) / ".naab_cache";
+    const std::string anchor = (cache / "history.anchor.json").string();
+    const auto& tel = rules().telemetry_output;
+    std::error_code ec;
+    const bool chain_on = tel.enabled && !tel.output_file.empty() && tel.tamper_evidence.enabled;
+    if (!chain_on) {
+        // Said only where history existed and stopped: a project that never
+        // turned telemetry on keeps its stderr unchanged.
+        if (fs::exists(anchor, ec))
+            fprintf(stderr, "[governance] History: not read -- telemetry or its chain is off, "
+                            "so this run neither reads nor keeps the history of earlier runs\n");
+        return;
+    }
+    history_active_ = true;
+    const std::string tpath = fs::absolute(tel.output_file, ec).lexically_normal().string();
+    const TamperEvidenceConfig te = tel.tamper_evidence;
+    naab::history::RunHistory h = naab::history::readRunHistory(
+        tpath, anchor, [this, te](const std::string& d) { return computeHash(d, te); });
+    h.keyed = !te.hmac_key.empty();
+    if (!h.reset_reason.empty()) {
+        fprintf(stderr, "[governance] History: reset -- %s; earlier refusals are not remembered\n",
+                h.reset_reason.c_str());
+        writeAgentTelemetry("HISTORY_RESET", {{"reason", h.reset_reason}});
+    }
+    if (!h.remembered.empty() || !h.repairs.empty()) {
+        writeAgentTelemetry("HISTORY_LOADED", {
+            {"remembered", std::to_string(h.remembered.size())},
+            {"repairs", std::to_string(h.repairs.size())},
+            {"window_rows", std::to_string(h.window_rows)},
+            {"bytes_read", std::to_string(h.bytes_read)},
+            {"from_anchor", h.from_anchor ? "true" : "false"},
+            {"keyed", h.keyed ? "true" : "false"},
+            {"carry_run", h.carry_run}});
+    }
+    {
+        std::lock_guard<std::mutex> lk(history_mutex_);
+        history_last_carry_ = naab::history::carryEntriesJson(h.remembered) + "|" +
+                              naab::history::carryRepairsJson(h.repairs);
+    }
+    run_history_ = std::make_shared<const naab::history::RunHistory>(std::move(h));
+
+    // Keep the store bounded: the oldest subjects past kStoreMaxEntries go.
+    std::vector<std::pair<fs::file_time_type, fs::path>> subjects;
+    for (fs::directory_iterator it(cache, ec), end; !ec && it != end; it.increment(ec)) {
+        const auto name = it->path().filename().string();
+        if (name.size() > 12 && name.compare(name.size() - 12, 12, ".subject.txt") == 0)
+            subjects.emplace_back(it->last_write_time(ec), it->path());
+    }
+    if (subjects.size() > naab::history::kStoreMaxEntries) {
+        std::sort(subjects.begin(), subjects.end());
+        for (size_t i = 0; i + naab::history::kStoreMaxEntries < subjects.size(); ++i)
+            fs::remove(subjects[i].second, ec);
+    }
+}
+
+// What this run does to the remembered set. A remembered refusal is
+//   refused again -- the same rule refused the same function in this run;
+//   repaired       -- this run recorded a pass of the same rule for the same
+//                     function at the same or a stricter level (a "repair" by
+//                     switching the rule off or lowering it is never one);
+//   unseen         -- otherwise; forgotten after kForgetAfterRuns runs.
+// Refusals new in this run are added. Pure: the carry and the closing line
+// both call it.
+void GovernanceEngine::historyOutcome(
+        const std::vector<CheckResult>& results,
+        std::vector<naab::history::Remembered>& carry,
+        std::vector<naab::history::Repair>& repaired,
+        std::vector<std::pair<std::string, naab::history::Remembered>>& sightings) const {
+    using naab::history::Remembered;
+    carry.clear(); repaired.clear(); sightings.clear();
+    const auto key = [](const std::string& rule, const std::string& file, const std::string& fn) {
+        return rule + '\x1f' + file + '\x1f' + fn;
+    };
+    std::map<std::string, Remembered> refused_now;
+    for (const auto& r : results) {
+        if (r.passed || r.subject_file.empty() || r.subject_fp.empty()) continue;
+        if (!naab::history::rememberedRule(r.rule_name)) continue;
+        if (dispositionOf(r) == "audit_only") continue;
+        Remembered m;
+        m.fp = r.subject_fp; m.tokens = r.subject_tokens; m.rule = r.rule_name;
+        m.level = levelToString(r.level); m.file = r.subject_file; m.function = r.subject_function;
+        m.sha256 = r.subject_sha256; m.line = r.line; m.origin_run = run_id_;
+        auto hk = history_row_hashes_.find(key(r.rule_name, r.subject_file, r.subject_function));
+        if (hk != history_row_hashes_.end()) m.origin_hash = hk->second;
+        refused_now[key(m.rule, m.file, m.function)] = m;
+    }
+    if (run_history_) {
+        for (const auto& old : run_history_->remembered) {
+            const std::string k = key(old.rule, old.file, old.function);
+            auto now = refused_now.find(k);
+            if (now != refused_now.end()) {
+                sightings.emplace_back("refused_again", now->second);
+                continue;   // re-added below from this run's row
+            }
+            // Repaired: this run recorded a PASS of the same rule for the same
+            // function, at the remembered level or a stricter one -- so the
+            // rule ran, on at that level. Being scanned is not enough: a scan
+            // another check refused first never ran this rule, and a rule
+            // switched off or lowered records no such pass.
+            auto passed = history_passed_.find(k);
+            if (passed != history_passed_.end() &&
+                naab::history::levelRank(passed->second.first) >= naab::history::levelRank(old.level)) {
+                naab::history::Repair rp;
+                rp.rule = old.rule; rp.level = old.level; rp.file = old.file; rp.function = old.function;
+                rp.refused_run = old.origin_run; rp.repaired_run = run_id_;
+                rp.refused_sha256 = old.sha256; rp.repaired_sha256 = passed->second.second;
+                repaired.push_back(rp);
+                sightings.emplace_back("passed", old);
+                continue;
+            }
+            Remembered kept = old;
+            ++kept.unseen;
+            if (kept.unseen <= naab::history::kForgetAfterRuns) carry.push_back(kept);
+        }
+    }
+    for (auto& [k, m] : refused_now) carry.push_back(m);
+    if (carry.size() > naab::history::kMaxRemembered) {
+        std::stable_sort(carry.begin(), carry.end(),
+                         [](const Remembered& a, const Remembered& b) { return a.unseen < b.unseen; });
+        carry.resize(naab::history::kMaxRemembered);
+    }
+}
+
+std::string GovernanceEngine::historyClosingLine() const {
+    if (!history_active_.load() || !run_history_) return "";
+    return historyClosingLineFrom(getCheckResults());
+}
+
+// The same, from results the caller already holds (printValidationReport()
+// holds results_mutex_, which is not recursive).
+std::string GovernanceEngine::historyClosingLineFrom(const std::vector<CheckResult>& results) const {
+    if (!history_active_.load() || !run_history_) return "";
+    std::vector<naab::history::Remembered> carry;
+    std::vector<naab::history::Repair> repaired;
+    std::vector<std::pair<std::string, naab::history::Remembered>> sightings;
+    {
+        std::lock_guard<std::mutex> lk(history_mutex_);
+        if (history_line_printed_) return "";
+        historyOutcome(results, carry, repaired, sightings);
+        history_line_printed_ = true;
+    }
+    const size_t remembered = run_history_->remembered.size();
+    if (remembered == 0 && repaired.empty()) return "";
+    return fmt::format("-- History: {} refusal(s) remembered from earlier runs, {} repaired in this run "
+                       "(naab-gov history {}) --\n",
+                       remembered, repaired.size(), rules().telemetry_output.output_file);
 }
 
 } // namespace governance

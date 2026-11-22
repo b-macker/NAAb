@@ -3,6 +3,7 @@
 // test_ratchet_coverage.sh RC-07 fails when the two differ.
 // {path, order, enum values (loosest first), default JSON of an absent key}
 {"restrictions.dangerous_calls.blocklist_extra", DeclaredOrder::Superset, nullptr, "[]"},
+{"history.enabled", DeclaredOrder::True, nullptr, "true"},
 {"advisory_escalation.weight_multiplier", DeclaredOrder::Higher, nullptr, nullptr},
 {"agent_dispatch.hard_stop.action", DeclaredOrder::Enum, "warn|block", nullptr},
 {"agent_dispatch.hard_stop.consecutive_failure_limit", DeclaredOrder::LowerZero, nullptr, nullptr},

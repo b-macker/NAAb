@@ -1804,6 +1804,11 @@ int main(int argc, char** argv) {
         // Prerequisite checks start commands, so they run only where a program
         // runs, on the same terms as the guidance connectors (A122(c)).
         if (!lint_only) naab::governance::GovernanceEngine::allowPrerequisites(true);
+        // Run history (Bundle 20) is read only where a program runs: not by
+        // lint, and not by the contract-search worker naab-gov patch-check
+        // starts (a patched tree must not inherit refusals or write history).
+        if (!lint_only && contract_search.empty())
+            naab::governance::GovernanceEngine::allowRunHistory(true);
 
         naab::governance::GovernanceEngine shared_governance;
         auto gov_abs_file = std::filesystem::absolute(filename);
@@ -1837,6 +1842,10 @@ int main(int argc, char** argv) {
             fflush(nullptr);
             naab::exitProcess(4);
         }
+
+        // Run history (Bundle 20): what earlier runs refused, before compile.
+        // Reads nothing unless it was allowed above and telemetry's chain is on.
+        if (gov_loaded) shared_governance.loadRunHistory();
 
         // Pre-flight authority — persists to VM-path check below
         bool _has_authority = false;

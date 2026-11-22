@@ -1189,6 +1189,13 @@ static bool firstPiiMatch(const NoPiiConfig& cfg, const std::string& code,
 
 // Decide-only: the description of the first PII checkPii() would act on, or
 // "". Never enforces, records nothing (guidance text is withheld, not blocked).
+bool GovernanceEngine::piiPresentUngated(const std::string& text) const {
+    NoPiiConfig cfg = rules().code_quality.no_pii;
+    cfg.enabled = true;
+    std::string desc, found;
+    return firstPiiMatch(cfg, text, desc, found);
+}
+
 std::string GovernanceEngine::piiFinding(const std::string& text) const {
     const auto& cfg = rules().code_quality.no_pii;
     if (!cfg.enabled) return "";
@@ -3803,6 +3810,11 @@ std::string GovernanceEngine::checkComplexityFloor(
         }
     }
 
+    // Judged and met: recorded under the rule's own name, so a function the
+    // floor refused before is seen to pass it (the run history's repair,
+    // Bundle 20). A skip above -- too short, no matching prefix -- judged
+    // nothing and records nothing.
+    recordPass("code_quality.complexity_floor", cfg.level);
     return "";
 }
 
@@ -4897,6 +4909,48 @@ std::string GovernanceEngine::checkNaabFunctionBodyScan(
     // is left behind for whatever is checked next).
     std::optional<ScopedCheckContext> module_ctx;
     module_ctx.emplace(source_file, line);
+
+    // Bundle 20: name the subject every check below judges, and note it for
+    // the run history -- checked here (a remembered refusal's repair is judged
+    // from this) and, for an imported module, matched against what earlier
+    // runs refused. Recording only: no verdict below depends on it.
+    std::optional<ScopedCheckSubject> subject_scope;
+    if (history_active_.load()) {
+        CheckSubject cs;
+        cs.function = function_name;
+        cs.file = historyRelativePath(source_file);
+        // A body that matches a secret or PII pattern is never stored and its
+        // text is never hashed: a hash of a short body can be searched for, and
+        // telemetry is forwarded off the machine. Its fingerprint is kept -- it
+        // drops comments and literal values -- unless the hashed token text
+        // itself matches (a secret inside a polyglot block), so a PII-shaped
+        // comment or number does not take a function out of the history.
+        const bool sensitive = !firstSecretPattern(source_code).empty() ||
+                               piiPresentUngated(source_code);
+        std::string fp_stream;
+        naab::history::Fingerprint fpr =
+            naab::history::fingerprintNaab(source_code, function_name, sensitive ? &fp_stream : nullptr);
+        if (sensitive && (!firstSecretPattern(fp_stream).empty() || piiPresentUngated(fp_stream)))
+            fpr = naab::history::Fingerprint{};
+        cs.fp = fpr.fp;
+        cs.tokens = fpr.tokens;
+        if (!sensitive) {
+            cs.sha256 = naab::history::lfSha256(source_code);
+            cs.text = &source_code;
+        }
+        cs.set = true;
+        if (!fpr.fp.empty()) {
+            std::lock_guard<std::mutex> lk(history_mutex_);
+            if (imported_module && run_history_) {
+                if (const auto* m = naab::history::matchMoved(*run_history_, fpr, function_name)) {
+                    naab::history::Sighting sg;
+                    sg.origin = *m; sg.file = cs.file; sg.function = function_name;
+                    history_seen_in_module_.push_back(sg);
+                }
+            }
+        }
+        subject_scope.emplace(std::move(cs));
+    }
 
     auto& os_cfg = rules().code_quality.no_oversimplification;
     auto& il_cfg = rules().code_quality.no_incomplete_logic;
@@ -7890,7 +7944,7 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "restrictions", "code_quality", "custom_rules", "scopes",
         "output", "audit", "meta", "hooks", "polyglot", "polyglot_optimization",
         "contracts", "manifest", "baselines", "project_context", "guidance", "scanner",
-        "governance_plugins", "governance", "patch_check",
+        "governance_plugins", "governance", "patch_check", "history",
         "taint_tracking", "quality_gate", "governance_baseline",
         "environments", "runtime_versions", "agent_roles", "agents", "telemetry", "scoring",
         "runtime", "security", "api", "integrity", "project_name", "scorers",

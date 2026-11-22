@@ -1170,13 +1170,23 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
     }
 
     // ── telemetry ──────────────────────────────────────────────────
+    // On, with its chain, for every preset (Bundle 20, the owner's decision of
+    // 2026-11-21): the run history -- what earlier runs refused, and whether a
+    // refusal was repaired or moved -- is read from the chained telemetry, so a
+    // project init makes has it without another setting. A config with
+    // telemetry or its chain off has no history.
     {
-        root["telemetry"]["enabled"] = strict_plus;
+        root["telemetry"]["enabled"] = true;
         root["telemetry"]["output_file"] = "telemetry.jsonl";
         root["telemetry"]["tamper_evidence"] = {
-            {"enabled", paranoid},
+            {"enabled", true},
             {"chain_genesis", "NAAB-TELEMETRY-GENESIS"}
         };
+        root["_comment_history"] =
+            "Run history: each run reads what earlier runs refused from the chained "
+            "telemetry and records whether a refusal was repaired. It never changes a "
+            "verdict by itself. See it with: naab-gov history telemetry.jsonl";
+        root["history"]["enabled"] = true;
     }
 
     // ── meta ───────────────────────────────────────────────────────
@@ -1613,6 +1623,7 @@ bool naab::cli::writeGovernJson(const std::string& path,
     fmt::print("  Capabilities: {} | Scanner: {}\n",
         cap_desc, config.scanner_enabled ? "enabled" : "disabled");
     fmt::print("  Sandbox: {}\n", kStandardSandboxNote);
+    fmt::print("  Run history: on (telemetry.jsonl, chained; naab-gov history telemetry.jsonl)\n");
 
     return true;
 }
