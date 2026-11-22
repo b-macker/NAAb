@@ -4884,6 +4884,8 @@ private:
     // rather than in the exit dump -- for the exit summary's count.
     mutable std::atomic<long long> agent_events_written_{0};
     mutable long long agent_events_reported_ = 0;
+    // Lines writeTelemetry() has written this run (the stderr total, A195(b)).
+    mutable long long check_events_written_total_ = 0;
 
     // Telemetry forwarding (webhook/SIEM)
     mutable std::shared_ptr<TelemetryForwarder> telemetry_forwarder_;

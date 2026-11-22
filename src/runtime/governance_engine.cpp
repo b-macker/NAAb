@@ -1073,8 +1073,9 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
         }
     }
     // The same for the variables that hold the engine's own keys -- the
-    // telemetry and audit chains' HMAC keys and the attestation signing key
-    // (A33(b)): a program that reads the chain's key can seal lines it forges.
+    // telemetry and audit chains' HMAC keys, the attestation signing key and
+    // the webhook's credential (A33(b)): a program that reads the chain's key
+    // can seal lines it forges, and one that reads the webhook's can post them.
     for (const auto& name : target_rules.key_env_names) {
         if (std::find(protected_env_names_.begin(), protected_env_names_.end(), name) ==
             protected_env_names_.end()) {
@@ -1145,6 +1146,29 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
             const auto abs = std::filesystem::absolute(cal, ec);
             if (!ec) remember(abs.lexically_normal().string());
         }
+    }
+
+    // The governance baseline (A196) is engine state by the same reasoning:
+    // checkGovernanceBaseline() reads it at the end of the run to decide
+    // fail_on_regression, and a missing file means "no baseline yet", so a
+    // program that rewrote or deleted it hid its own regression (measured:
+    // three warnings against a baseline of one exit 2; the same program
+    // rewriting the file first exited 0). Opened as configured, relative to the
+    // working directory, so recorded both as written and absolute. Reads stay
+    // allowed; saving it stays the operator's --governance-baseline-save.
+    if (target_rules.governance_baseline.enabled &&
+        !target_rules.governance_baseline.path.empty()) {
+        const std::string bl = target_rules.governance_baseline.path;
+        std::lock_guard<std::mutex> lk(evidence_paths_mutex_);
+        auto remember = [&](const std::string& p) {
+            if (std::find(engine_state_paths_.begin(), engine_state_paths_.end(), p) ==
+                engine_state_paths_.end())
+                engine_state_paths_.push_back(p);
+        };
+        remember(bl);
+        std::error_code ec;
+        const auto abs = std::filesystem::absolute(bl, ec);
+        if (!ec) remember(abs.lexically_normal().string());
     }
 
     // A169: `.naab_cache/` beside govern.json is engine state too. Agent review
@@ -3163,9 +3187,11 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
             "governance evidence file is not writable by the program: " + filepath);
     }
 
-    // The scoring calibration file is engine STATE: its weights replace the
-    // configured ones, so a program that could write it could zero the weight
-    // of its own violations (A60). Lowering a weight is the operator's
+    // The scoring calibration file and the governance baseline (A196) are
+    // engine STATE: calibration weights replace the configured ones, so a
+    // program that could write the file could zero the weight of its own
+    // violations (A60); the baseline decides fail_on_regression, so rewriting
+    // or deleting it hid a regression. Lowering a weight is the operator's
     // decision, made in this file outside the run; governance.calibrate() may
     // only raise one. Reads stay allowed. Subprocess languages do not reach
     // this gate (CONTRA-013).
@@ -3175,9 +3201,9 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
                 "Writing a governance state file is blocked: " + filepath,
                 currentFunction().empty() ? std::string()
                                           : ("in function '" + currentFunction() + "'"),
-                "the engine reads its scoring weights from this file",
+                "the engine reads this file back to make its own decisions",
                 "A governed program can read this file but cannot change it.\n"
-                "Weights are lowered by the operator, outside the run.",
+                "The operator changes it, outside the run.",
                 "file.write(\"" + filepath + "\", text)",
                 "file.write(\"output/notes.json\", text)"),
             "governance state file is not writable by the program: " + filepath);

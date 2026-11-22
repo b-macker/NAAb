@@ -23,9 +23,18 @@
 #   TA-03  CONTROL: variable.assign not among the sinks -- the assignment runs
 #   TA-04  CONTROL: a sanitized right-hand side -- the assignment runs
 #   TA-05  CONTROL: an untainted right-hand side -- the assignment runs
+#   TA-06  INSTRUMENT: TA-00's refusal, run from a directory whose name holds
+#          "RAN", still reads as refused. The engine prints the program's path,
+#          so a substring test for the program's marker read a refusal as a run
+#          whenever mktemp's random suffix spelled RAN (A205).
+#
+# The program's marker is matched as a whole line (print("RAN") prints it on
+# its own line), never as a substring of the output.
 #
 # Kill table (each mutant rebuilt, this suite run):
 #   the check back to checkTaintedSink(var_name, ...)   TA-01, TA-02
+#   refused()/ran() back to a substring test for RAN     TA-06 (harness mutant,
+#                                                       no rebuild)
 # ============================================================
 set -uo pipefail
 
@@ -53,8 +62,11 @@ run() {
     printf '%s\n' "$3" > "$d/p.naab"
     OUT="$(cd "$d" && timeout 60 "$NAAB" run p.naab 2>&1)"; RC=$?
 }
-refused() { [ "$RC" = 3 ] && [[ "$OUT" != *RAN* ]] && [[ "$OUT" == *"Taint tracking violation"* ]]; }
-ran()     { [ "$RC" = 0 ] && [[ "$OUT" == *RAN* ]]; }
+# The marker is a whole line: the output also holds the program's path, and a
+# path can contain the letters RAN.
+marker()  { grep -qx 'RAN' <<<"$OUT"; }
+refused() { [ "$RC" = 3 ] && ! marker && [[ "$OUT" == *"Taint tracking violation"* ]]; }
+ran()     { [ "$RC" = 0 ] && marker; }
 
 run ta0 '["file.write"]' 'use env
 use file
@@ -109,6 +121,22 @@ run ta5 '["variable.assign"]' 'main {
 }'
 if ran; then ok "TA-05" "control: an untainted right-hand side runs"
 else bad "TA-05" "an untainted assignment was refused" "rc=$RC $OUT"; fi
+
+# TA-06: the same refusal from a directory whose name holds the marker's letters.
+run ta6_RAN_dir '["file.write"]' 'use env
+use file
+main {
+    let v = env.get("NAAB_TA_PROBE")
+    file.write("out.txt", v)
+    print("RAN")
+}'
+if [[ "$OUT" == *ta6_RAN_dir* ]] && refused; then
+    ok "TA-06" "instrument: a refusal printed beside a path holding RAN still reads as refused"
+elif [[ "$OUT" != *ta6_RAN_dir* ]]; then
+    bad "TA-06" "the output does not name the program's directory, so this arm measures nothing" "rc=$RC $OUT"
+else
+    bad "TA-06" "a path holding RAN made a refusal read as a run" "rc=$RC $OUT"
+fi
 
 echo ""
 echo "  Results: $PASS passed, $FAIL failed"

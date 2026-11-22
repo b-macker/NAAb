@@ -3880,6 +3880,10 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.telemetry_output.webhook_auth_header = tel["webhook_auth_header"].get<std::string>();
         if (tel.contains("webhook_auth_env") && tel["webhook_auth_env"].is_string()) {
             std::string env_name = tel["webhook_auth_env"].get<std::string>();
+            // Withheld like the chain keys (A33(b)): it is the credential the
+            // engine posts telemetry with, so a program that read it could post
+            // forged events to the operator's webhook.
+            if (!env_name.empty()) rules_.key_env_names.push_back(env_name);
             const char* env_val = std::getenv(env_name.c_str());
             if (env_val) {
                 // H2: raw value — user provides full scheme ("Bearer xxx", "Basic xxx", etc.)

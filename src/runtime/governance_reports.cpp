@@ -1864,18 +1864,22 @@ void GovernanceEngine::writeTelemetry() const {
     // investigating flushing because of it). Both counts are reported now.
     const long long agent_events = agent_events_written_.load(std::memory_order_relaxed);
     // writeTelemetry() runs more than once per run (writeReports has many call
-    // sites), so print only when something new was written since the last line.
+    // sites), so print only when something new was written since the last line,
+    // and print the run's running total: the last line printed matches the
+    // file. It printed this call's check results only, so a second write (the
+    // end of a clean run writes once more, A195(b)) read as lost events.
+    check_events_written_total_ += static_cast<long long>(events_written);
     if (events_written > 0 || agent_events != agent_events_reported_) {
         agent_events_reported_ = agent_events;
         int failures = telemetry_write_failures_.load(std::memory_order_relaxed);
         std::string breakdown = agent_events > 0
             ? fmt::format(" ({} check results + {} agent, anchor and health events)",
-                          events_written, agent_events)
+                          check_events_written_total_, agent_events)
             : std::string();
         std::string failure_note = failures > 0
             ? fmt::format(" ({} write failures)", failures) : std::string();
         fprintf(stderr, "[governance] Telemetry: %lld events written to %s%s%s\n",
-                static_cast<long long>(events_written) + agent_events,
+                check_events_written_total_ + agent_events,
                 rules().telemetry_output.output_file.c_str(),
                 breakdown.c_str(), failure_note.c_str());
     }
