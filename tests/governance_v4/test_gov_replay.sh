@@ -16,7 +16,8 @@
 # about a decision check reads that check's own count.
 #
 # Controls: RP-00 (the runs happened and hold every kind of event the arms
-# edit), RP-01 (the untouched files MATCH on every check -- each DIVERGED arm
+# edit), RP-16 (run G, guidance with a holdout, MATCHes on every guidance
+# decision it records), RP-01 (the untouched files MATCH on every check -- each DIVERGED arm
 # below is that same file with one edit), RP-09c (a short junk line is not what
 # RP-09 reports), RP-12 (the config beside the telemetry is one a loader
 # refuses).
@@ -62,6 +63,12 @@
 #   report text not made plain                       -> RP-13
 #   RunEnd absence reads MATCH                       -> RP-14a
 #   a wrong-typed hash field aborts (A163)           -> RP-15
+#   guidance: the recorded text not hashed            -> RP-16a
+#   guidance: trigger_recurred not compared           -> RP-16b
+#   guidance: the draw not recomputed                 -> RP-16c
+#   guidance: a reply not joined to its delivery      -> RP-16d
+#   guidance: the ordinal set not checked             -> RP-16e
+#   guidance: no recorded_sha256 reads MATCH          -> RP-16f
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -606,6 +613,102 @@ VOUT=$(cd "$W/15" && "$NAAB" --verify-telemetry-chain tel.jsonl 2>&1); VRC=$?
 if [ "$RC" = 1 ] && [ "$(cnt chain diverged)" = 1 ] && [ $VRC -lt 126 ] && [[ "$VOUT" == *CORRUPT* ]]; then
     pass "RP-15" "a hash field that is not a string: DIVERGED here, CORRUPT in the verifier, no abort"
 else fail "RP-15" "a wrong-typed hash field (replay rc=$RC, verifier rc=$VRC)" "$OUT $VOUT"; fi
+
+# --- RP-16: guidance (Bundle 20 PR 4) ---------------------------------------
+# Run G: one agent whose replies repeat, so response_repetition pays every
+# turn; a playbook section named for it is delivered with the next request;
+# holdout 0.5 draws every candidate, cooldown 0 makes every paid turn one.
+# Twenty sends make eighteen candidates, so both arms are non-empty but for
+# about 1 run in 130,000 (2 in 2^18).
+G="$W/g"; G_OK=1
+make_guidance_run() {
+    local d="$1"; mkdir -p "$d/docs"
+    printf '# Playbook\n\n## Response repetition\nRP_GUIDE_q7: never send the same answer twice.\n' > "$d/docs/playbook.md"
+    python3 -c 'import json,sys; json.dump({"responses":[{"content":"The same answer about invoices.","output_tokens":20}]}, open(sys.argv[1],"w",encoding="utf-8"))' "$d/fixture.json"
+    if ! start_stub "$d/fixture.json" "$d"; then stop_stub; return 1; fi
+    cat > "$d/govern.json" <<EOF
+{ "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "elevated" },
+  "telemetry": {"enabled": true, "output_file": "tel.jsonl", "tamper_evidence": {"enabled": true}},
+  "behavioral_sequences": {"enabled": true}, "advisory_escalation": {"enabled": false},
+  "context_drift": {"enabled": true, "level": "advisory", "check_interval_turns": 1,
+     "reality_checkpoint": {"enabled": false}},
+  "guidance": {"cooldown_turns": 0, "holdout": 0.5, "sources": ["docs/playbook.md"]},
+  "agents": { "worker": { "provider": "gemini", "model": "stub-model",
+      "system_prompt": "You answer questions about invoices.",
+      "api_base": "http://127.0.0.1:$STUB_PORT", "api_key_env": "RP_FAKE_KEY",
+      "max_tokens": 50, "max_turns": 40 } } }
+EOF
+    printf 'use agent\nmain {\n  let h = agent.create("worker")\n  let i = 0\n  while i < 20 { i = i + 1\n    let r = agent.send(h, "Explain the invoice total.") }\n  print("RUN_DONE")\n}\n' > "$d/p.naab"
+    (cd "$d" && timeout 120 "$NAAB" p.naab </dev/null > run.out 2>&1)
+    stop_stub
+    grep -q RUN_DONE "$d/run.out"
+}
+make_guidance_run "$G" || G_OK=0
+gkinds() {
+    python3 - "$1" <<'PY'
+import json, sys
+d = h = r = 0
+for line in open(sys.argv[1], "rb"):
+    try: e = json.loads(line)
+    except ValueError: continue
+    t = e.get("event_type")
+    if t == "GUIDANCE_DELIVERED" and "holdout_ordinal" in e: d += 1
+    if t == "GUIDANCE_WITHHELD" and e.get("reason") == "holdout": h += 1
+    if t == "GUIDANCE_RESPONSE" and e.get("trigger_recurred") in ("true", "false"): r += 1
+print("delivered=%d held=%d replies=%d" % (d, h, r))
+PY
+}
+# ord0 SRC DST FIELD=VALUE: the event (delivered or held out) holding holdout
+# ordinal 0 gets FIELD=VALUE; every other line is copied byte for byte.
+ord0() {
+    python3 - "$1" "$2" "$3" <<'PY'
+import json, os, sys
+src, dst, arg = sys.argv[1], sys.argv[2], sys.argv[3]
+os.makedirs(dst, exist_ok=True)
+f, _, v = arg.partition("=")
+lines = open(os.path.join(src, "tel.jsonl"), "rb").read().split(b"\n")
+done = False
+for i, raw in enumerate(lines):
+    try: e = json.loads(raw)
+    except ValueError: continue
+    if not done and e.get("holdout_ordinal") == "0":
+        e[f] = v; lines[i] = json.dumps(e).encode("utf-8"); done = True
+if not done: sys.exit("ord0: no ordinal 0")
+open(os.path.join(dst, "tel.jsonl"), "wb").write(b"\n".join(lines))
+PY
+}
+if [ $G_OK = 0 ]; then
+    unm "RP-16" "the guidance run did not complete: the guidance arms are not measured"
+else
+    GK=$(gkinds "$G/tel.jsonl")
+    rp "$G"
+    read -r gd gh gr <<<"$(sed 's/[a-z]*=//g' <<<"$GK")"
+    if [ "$RC" = 0 ] && [ "${gd:-0}" -ge 1 ] && [ "${gh:-0}" -ge 1 ] && [ "${gr:-0}" -ge 1 ] \
+       && [ "$(cnt guidance diverged)" = 0 ] && [ "$(cnt guidance unmeasurable)" = 0 ] \
+       && [ "$(cnt guidance match)" -ge $((2 * gd + gh + 2 * gr + 1)) ]; then
+        pass "RP-16" "the guidance run ($GK) MATCHes: recorded texts, draws on both arms, replies and their drift turns, the ordinal set"
+    else fail "RP-16" "the guidance run does not match its own evidence (rc=$RC, $GK)" "$OUT"; fi
+
+    edit "$G" "$W/16a" "set:GUIDANCE_DELIVERED#0:text=An edited text."
+    rp "$W/16a"; expect RP-16a "a delivery's recorded text edited" 1 guidance diverged eq 1
+
+    edit "$G" "$W/16b" "set:GUIDANCE_RESPONSE#0:trigger_recurred=false"
+    rp "$W/16b"; expect RP-16b "a reply recorded as not recurring when its drift turn paid" 1 guidance diverged eq 1
+
+    ord0 "$G" "$W/16c" "holdout_draw=0.999999"
+    rp "$W/16c"; expect RP-16c "a holdout draw that the run id and ordinal do not give" 1 guidance diverged eq 1
+
+    edit "$G" "$W/16d" "set:GUIDANCE_RESPONSE#0:delivery_id=g999"
+    rp "$W/16d"; expect RP-16d "a reply naming a delivery the run did not record" 1 guidance diverged eq 1
+
+    # ordinal 0 renamed 50: its draw no longer recomputes, and the run's
+    # ordinals now miss 0 -- two findings, one per rule.
+    ord0 "$G" "$W/16e" "holdout_ordinal=50"
+    rp "$W/16e"; expect RP-16e "a holdout ordinal moved out of the run's sequence" 1 guidance diverged eq 2
+
+    edit "$G" "$W/16f" "del:GUIDANCE_DELIVERED#0:recorded_sha256"
+    rp "$W/16f"; expect RP-16f "a delivery without recorded_sha256 (a writer before it): unmeasurable" 1 guidance unmeasurable eq 1
+fi
 
 echo ""
 echo "  $PASS passed, $FAIL failed, $UNM unmeasurable"

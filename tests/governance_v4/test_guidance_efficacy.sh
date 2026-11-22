@@ -38,8 +38,8 @@
 #   K4  recorded_sha256 taken over the text before sanitising        -> GE-03
 #   K5  the cooldown skip records nothing                            -> GE-04
 #   K6  the holdout draw compared with > instead of <                -> GE-05
-#   K7  the next run ignores from_offset (judges after the carry only) -> GE-06
-#   K8  the carry drops its guidance tallies                         -> GE-06
+#   K7  the next run ignores from_offset (judges after the carry only) -> GE-07c
+#   K8  the carry drops its guidance tallies                         -> GE-06 GE-07c
 #   K9  intervenes() always false                                    -> GE-08
 #   K10 the next run's judge reads lines whose hash does not recompute -> GE-09
 #   K11 naab-gov efficacy exits 0 whatever it found                  -> GE-10c
@@ -79,10 +79,13 @@ echo "=== guidance efficacy (Bundle 20 PR 4) ==="
 # observation, so a new event that changes what an agent is told would be
 # judged as nothing. Read from the source (screened: string literals passed to
 # writeAgentTelemetry), the same list CLAUDE.md tells a new event to update.
+# Run from the repo root with relative names, and the table fed on stdin: under
+# MSYS2 python3 is a native program that cannot open the shell's /tmp names.
 classify_check() {  # $1 = the efficacy source; prints each written type the table lacks
-    python3 -I - "$REPO/src" "$1" <<'PYEOF'
+    local code
+    code="$(cat <<'PYEOF'
 import os, re, sys
-src, table_file = sys.argv[1], sys.argv[2]
+src = "src"
 written = set()
 for root, _, files in os.walk(src):
     for f in files:
@@ -90,11 +93,13 @@ for root, _, files in os.walk(src):
             text = open(os.path.join(root, f), encoding="utf-8", errors="replace").read()
             written.update(re.findall(r'writeAgentTelemetry\(\s*"([A-Z_]+)"', text))
 table = set(re.findall(r'\{"([A-Z_]+)", "(?:intervention|observation)"\}',
-                       open(table_file, encoding="utf-8").read()))
+                       sys.stdin.buffer.read().decode("utf-8")))
 for t in sorted(written - table):
     print(t)
 print("WRITTEN %d" % len(written), file=sys.stderr)
 PYEOF
+)"
+    (cd "$REPO" && python3 -I -c "$code" < "$1")
 }
 EFF_SRC="$REPO/src/runtime/guidance_efficacy.cpp"
 MISSING="$(classify_check "$EFF_SRC" 2>"$TEST_TMP/ge00.err")"
@@ -332,14 +337,16 @@ for e, held in [(x, False) for x in dl] + [(x, True) for x in ho]:
     if (dr < float(e["holdout"])) != held: bad += 1
 print("delivered=%d held=%d drawn=%d bad=%d contiguous=%s" % (len(dl), len(ho), len(ords), bad, sorted(ords) == list(range(len(ords)))))'
 d="$TEST_TMP/ge05"; playbook "$d"
-out="$(erun "$d" "$REPEAT_FIXTURE" '{"cooldown_turns": 0, "holdout": 0.5, "sources": ["docs/playbook.md"]}' "" "$(SENDS 12)")"
+out="$(erun "$d" "$REPEAT_FIXTURE" '{"cooldown_turns": 0, "holdout": 0.5, "sources": ["docs/playbook.md"]}' "" "$(SENDS 20)")"
 dc="$TEST_TMP/ge05c"; playbook "$dc"
-outc="$(erun "$dc" "$REPEAT_FIXTURE" '{"cooldown_turns": 0, "sources": ["docs/playbook.md"]}' "" "$(SENDS 12)")"
+outc="$(erun "$dc" "$REPEAT_FIXTURE" '{"cooldown_turns": 0, "sources": ["docs/playbook.md"]}' "" "$(SENDS 20)")"
 R5="$(tq "$d/tele.jsonl" "$H5")"; R5C="$(tq "$dc/tele.jsonl" "$H5")"
 RP5="$("$NAAB_GOV" replay --json "$d/tele.jsonl" | python3 -I -c 'import json,sys; c=json.load(sys.stdin)["checks"]["guidance"]; print("%d/%d/%d" % (c["match"], c["diverged"], c["unmeasurable"]))')"
-# Twelve sends: ten candidates (requests 2-11), every one delivered.
+# Twenty sends: eighteen candidates (requests 2-19), every one delivered.
+# Eighteen, so that both arms are non-empty but for about 1 run in 130,000
+# (2 in 2^18 at holdout 0.5; with ten it was 2 in 1,024).
 N5C="$(sed -n 's/^delivered=\([0-9]*\) held=0 drawn=0 bad=0 contiguous=True$/\1/p' <<<"$R5C")"
-if [ "${N5C:-0}" -eq 10 ]; then
+if [ "${N5C:-0}" -eq 18 ]; then
     pass "GE-05c" "with holdout 0 nothing is drawn or held out ($R5C)"
 else
     fail "GE-05c" "a run without a holdout drew or held out" "$R5C"
