@@ -191,6 +191,20 @@ struct HistoryReport {
 HistoryReport readHistoryReport(const std::string& telemetry_path,
                                 const std::function<std::string(const std::string&)>& hash);
 
+// What `naab-gov efficacy` reports (Bundle 20 PR 4): every agent delivery and
+// held-out candidate in the last kBackwardScanBytes, judged by
+// naab::guidance::judge() over the lines whose own hash recomputes.
+struct EfficacyReport {
+    bool opened = false;
+    std::vector<naab::guidance::Outcome> outcomes;
+    long long lines = 0;           // lines of a type the judge reads
+    long long verified = 0;        // ... whose own hash recomputed
+    bool cut = false;              // the file is longer than kBackwardScanBytes
+    std::vector<std::string> holdouts;   // the holdout values recorded, as written
+};
+EfficacyReport readEfficacyReport(const std::string& telemetry_path,
+                                  const std::function<std::string(const std::string&)>& hash);
+
 // The millisecond time a run id ("<ms>-<pid>") starts with; -1 when it has none.
 long long runTime(const std::string& run_id);
 

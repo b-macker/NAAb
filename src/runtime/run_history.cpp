@@ -669,6 +669,41 @@ HistoryReport readHistoryReport(const std::string& telemetry_path,
     return rep;
 }
 
+EfficacyReport readEfficacyReport(const std::string& telemetry_path,
+                                  const std::function<std::string(const std::string&)>& hash) {
+    EfficacyReport rep;
+    std::error_code ec;
+    const auto fsize = std::filesystem::file_size(telemetry_path, ec);
+    if (ec) return rep;
+    {
+        std::ifstream probe(telemetry_path, std::ios::binary);
+        if (!probe) return rep;
+    }
+    rep.opened = true;
+    const long long size = static_cast<long long>(fsize);
+    const long long start = std::max<long long>(0, size - static_cast<long long>(kBackwardScanBytes));
+    rep.cut = start > 0;
+    std::string buf;
+    if (!readRegion(telemetry_path, start, static_cast<size_t>(size - start), buf)) return rep;
+    std::vector<naab::guidance::Event> events;
+    for (const auto& ln : splitLines(buf, start, start > 0)) {
+        const std::string type = lineEventType(ln.text);
+        if (type.empty() || !naab::guidance::judgedEventType(type)) continue;
+        ++rep.lines;
+        json ev;
+        if (!verifiedEvent(ln.text, hash, ev)) continue;
+        ++rep.verified;
+        naab::guidance::Event e = toEfficacyEvent(ev);
+        auto h = e.f.find("holdout");
+        if (h != e.f.end() && rep.holdouts.size() < 16 &&
+            std::find(rep.holdouts.begin(), rep.holdouts.end(), h->second) == rep.holdouts.end())
+            rep.holdouts.push_back(h->second);
+        events.push_back(std::move(e));
+    }
+    rep.outcomes = naab::guidance::judge(events);
+    return rep;
+}
+
 long long runTime(const std::string& run_id) {
     const size_t dash = run_id.find('-');
     if (dash == 0 || dash == std::string::npos || dash > 19) return -1;
