@@ -4950,6 +4950,10 @@ private:
     // history_mutex_.
     std::shared_ptr<const naab::history::RunHistory> run_history_;
     std::atomic<bool> history_active_{false};
+    // Bundle 20 PR 4: the telemetry file's size when this run read its history
+    // -- where its own lines begin. The carry records it, so the next run
+    // judges this run's guidance deliveries exactly once.
+    long long history_from_offset_ = -1;
     mutable std::mutex history_mutex_;
     // rule \x1f file \x1f function -> {strictest level a pass was recorded at, sha256}
     mutable std::map<std::string, std::pair<std::string, std::string>> history_passed_;

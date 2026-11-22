@@ -10927,6 +10927,13 @@ void GovernanceEngine::loadRunHistory() {
     }
     history_active_ = true;
     const std::string tpath = fs::absolute(tel.output_file, ec).lexically_normal().string();
+    // Bundle 20 PR 4: where this run's own lines begin, so the next run can
+    // judge this run's guidance deliveries (its carry records it).
+    {
+        const auto sz = fs::file_size(tpath, ec);
+        history_from_offset_ = ec ? 0 : static_cast<long long>(sz);
+        ec.clear();
+    }
     const TamperEvidenceConfig te = tel.tamper_evidence;
     naab::history::RunHistory h = naab::history::readRunHistory(
         tpath, anchor, [this, te](const std::string& d) { return computeHash(d, te); });
@@ -10936,8 +10943,10 @@ void GovernanceEngine::loadRunHistory() {
                 h.reset_reason.c_str());
         writeAgentTelemetry("HISTORY_RESET", {{"reason", h.reset_reason}});
     }
-    if (!h.remembered.empty() || !h.repairs.empty()) {
+    if (!h.remembered.empty() || !h.repairs.empty() || !h.tallies.empty() || h.outcomes_judged > 0) {
         writeAgentTelemetry("HISTORY_LOADED", {
+            {"guidance_sections", std::to_string(h.tallies.size())},
+            {"guidance_judged", std::to_string(h.outcomes_judged)},
             {"remembered", std::to_string(h.remembered.size())},
             {"repairs", std::to_string(h.repairs.size())},
             {"window_rows", std::to_string(h.window_rows)},
@@ -10948,8 +10957,12 @@ void GovernanceEngine::loadRunHistory() {
     }
     {
         std::lock_guard<std::mutex> lk(history_mutex_);
+        // A carry is rewritten only when what it holds changed; outcomes this
+        // run judged are a change, so their totals reach the next carry.
         history_last_carry_ = naab::history::carryEntriesJson(h.remembered) + "|" +
-                              naab::history::carryRepairsJson(h.repairs);
+                              naab::history::carryRepairsJson(h.repairs) + "|" +
+                              (h.outcomes_judged > 0 ? std::string("(judged)")
+                                                     : naab::history::carryTalliesJson(h.tallies));
     }
     run_history_ = std::make_shared<const naab::history::RunHistory>(std::move(h));
 

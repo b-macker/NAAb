@@ -1551,6 +1551,23 @@ void GovernanceEngine::printGuidanceSummary() {
         out += "  ... and " + std::to_string(log.size() - kShow) + " more (every delivery is in telemetry)\n";
     for (size_t i = 0; i < withheld.size() && i < kShow; ++i)
         out += "  withheld: " + withheld[i].first + " (" + withheld[i].second + ")\n";
+    // Bundle 20 PR 4: what earlier runs say about a section delivered again
+    // now -- named only when every one of its judged earlier deliveries was
+    // followed by its trigger again (include/naab/guidance_efficacy.h). The
+    // label and heading are this run's own, already shown above; the totals
+    // come from verified telemetry. Facts only: no verdict follows from them.
+    if (history_active_.load() && run_history_ && !run_history_->tallies.empty()) {
+        std::set<std::string> named;
+        for (const auto& e : log) {
+            if (e.section_key.empty() || !named.insert(e.section_key).second) continue;
+            for (const auto& t : run_history_->tallies) {
+                if (t.key != e.section_key || !naab::guidance::neverResolved(t)) continue;
+                out += "  earlier runs: " + e.label + " > " + e.heading + " -- its trigger came back after all " +
+                       std::to_string(t.judged()) + " judged deliveries (naab-gov efficacy FILE)\n";
+                break;
+            }
+        }
+    }
     fprintf(stderr, "%s", out.c_str());
 }
 

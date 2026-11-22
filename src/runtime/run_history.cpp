@@ -317,6 +317,45 @@ struct Line {
     std::string text;
 };
 
+bool readTally(const json& e, naab::guidance::SectionTally& t) {
+    if (!e.is_object()) return false;
+    t.key = str(e, "key");
+    t.delivered = num(e, "delivered"); t.held_out = num(e, "held_out");
+    t.recurred = num(e, "recurred"); t.quiet = num(e, "quiet"); t.resolved = num(e, "resolved");
+    t.undetermined = num(e, "undetermined"); t.incomplete = num(e, "incomplete");
+    t.mixed_model = num(e, "mixed_model"); t.not_judged = num(e, "not_judged");
+    return naab::guidance::plausibleTally(t);
+}
+
+naab::guidance::Event toEfficacyEvent(const json& ev) {
+    naab::guidance::Event e;
+    for (auto it = ev.begin(); it != ev.end(); ++it) {
+        const auto& v = it.value();
+        std::string s;
+        if (v.is_string()) s = v.get<std::string>();
+        else if (v.is_number_integer()) s = std::to_string(v.get<long long>());
+        else if (v.is_boolean()) s = v.get<bool>() ? "true" : "false";
+        else continue;
+        if (s.size() > 4096) continue;   // the judge reads short fields only
+        e.f[it.key()] = s;
+    }
+    e.type = e.f["event_type"];
+    e.run = e.f["run_id"];
+    auto h = e.f.find("handle_id");
+    if (h != e.f.end()) e.handle = h->second;
+    return e;
+}
+
+// The event type a raw line names, without parsing it.
+std::string lineEventType(const std::string& t) {
+    const std::string k = "\"event_type\":\"";
+    const size_t p = t.find(k);
+    if (p == std::string::npos) return "";
+    const size_t q = t.find('"', p + k.size());
+    if (q == std::string::npos || q - p - k.size() > 64) return "";
+    return t.substr(p + k.size(), q - p - k.size());
+}
+
 // Lines of `buf` (which starts at file offset `base`). The first partial line
 // is skipped when `skip_first_partial`.
 std::vector<Line> splitLines(const std::string& buf, long long base, bool skip_first_partial) {
@@ -373,7 +412,8 @@ void addOrUpdate(std::vector<Remembered>& v, const Remembered& r) {
 
 RunHistory readRunHistory(const std::string& telemetry_path,
                           const std::string& anchor_path,
-                          const std::function<std::string(const std::string&)>& hash) {
+                          const std::function<std::string(const std::string&)>& hash,
+                          bool judge_guidance) {
     RunHistory h;
     std::error_code ec;
     const auto fsize = std::filesystem::file_size(telemetry_path, ec);
@@ -452,9 +492,19 @@ RunHistory readRunHistory(const std::string& telemetry_path,
     // chain anyone can recompute them, and a keyed chain's HMAC already binds
     // each line. A line that does not verify is skipped, never trusted.
     size_t i = 0;
+    long long last_carry_offset = -1;
+    size_t last_carry_index = 0;
     auto loadCarry = [&](const json& ev) {
-        h.remembered.clear(); h.repairs.clear();
+        h.remembered.clear(); h.repairs.clear(); h.tallies.clear();
         h.carry_run = str(ev, "run_id");
+        h.carry_from_offset = -1;
+        if (ev.contains("from_offset") && ev["from_offset"].is_number_integer())
+            h.carry_from_offset = ev["from_offset"].get<long long>();
+        if (ev.contains("guidance") && ev["guidance"].is_array())
+            for (const auto& e : ev["guidance"]) {
+                naab::guidance::SectionTally t;
+                if (readTally(e, t) && h.tallies.size() < naab::guidance::kMaxTallies) h.tallies.push_back(t);
+            }
         if (ev.contains("entries") && ev["entries"].is_array())
             for (const auto& e : ev["entries"]) { Remembered r; if (readEntry(e, r)) addOrUpdate(h.remembered, r); }
         if (ev.contains("repairs") && ev["repairs"].is_array())
@@ -462,7 +512,11 @@ RunHistory readRunHistory(const std::string& telemetry_path,
     };
     if (have_carry && !lines.empty()) {
         json ev;
-        if (verifiedEvent(lines[0].text, hash, ev)) loadCarry(ev);
+        if (verifiedEvent(lines[0].text, hash, ev)) {
+            loadCarry(ev);
+            last_carry_offset = lines[0].offset;
+            last_carry_index = 0;
+        }
         i = 1;
     }
     long long window = 0;
@@ -476,7 +530,11 @@ RunHistory readRunHistory(const std::string& telemetry_path,
         if (!carry && !refusal) continue;
         json ev;
         if (!verifiedEvent(t, hash, ev)) continue;
-        if (carry) { loadCarry(ev); h.window_rows = 0; continue; }
+        if (carry) {
+            loadCarry(ev); h.window_rows = 0;
+            last_carry_offset = lines[i].offset; last_carry_index = i;
+            continue;
+        }
         Remembered r;
         r.rule = str(ev, "rule_name");
         r.fp = str(ev, "subject_fp");
@@ -495,7 +553,64 @@ RunHistory readRunHistory(const std::string& telemetry_path,
     }
     if (h.remembered.size() > kMaxRemembered) h.remembered.resize(kMaxRemembered);
     if (h.repairs.size() > kMaxRepairs) h.repairs.resize(kMaxRepairs);
+
+    // 4. Guidance efficacy (Bundle 20 PR 4): judge the deliveries no carry
+    // holds yet -- the carry-writer's own (its lines start at from_offset and
+    // end at its carry) and every one after the last carry. Each line is used
+    // only when its own hash recomputes, as above.
+    if (!judge_guidance) return h;
+    std::vector<naab::guidance::Event> events;
+    auto take = [&](const std::string& t, const std::string& only_run) {
+        const std::string type = lineEventType(t);
+        if (type.empty() || !naab::guidance::judgedEventType(type)) return;
+        json ev;
+        if (!verifiedEvent(t, hash, ev)) return;
+        naab::guidance::Event e = toEfficacyEvent(ev);
+        if (!only_run.empty() && e.run != only_run) return;
+        events.push_back(std::move(e));
+    };
+    if (have_carry && last_carry_offset >= 0 && h.carry_from_offset >= 0 &&
+        h.carry_from_offset < last_carry_offset) {
+        const size_t len = static_cast<size_t>(std::min<long long>(
+            last_carry_offset - h.carry_from_offset, static_cast<long long>(kForwardWindowBytes)));
+        std::string buf;
+        if (readRegion(telemetry_path, h.carry_from_offset, len, buf)) {
+            h.bytes_read += static_cast<long long>(buf.size());
+            for (const auto& l : splitLines(buf, h.carry_from_offset, false)) take(l.text, h.carry_run);
+        }
+    }
+    {
+        long long w = 0;
+        const size_t from = have_carry ? last_carry_index + 1 : 0;
+        for (size_t k = from; k < lines.size(); ++k) {
+            w += static_cast<long long>(lines[k].text.size()) + 1;
+            if (w > static_cast<long long>(kForwardWindowBytes)) break;
+            take(lines[k].text, "");
+        }
+    }
+    if (!events.empty()) {
+        const auto outcomes = naab::guidance::judge(events);
+        h.outcomes_judged = static_cast<int>(outcomes.size());
+        naab::guidance::addOutcomes(h.tallies, outcomes);
+    }
     return h;
+}
+
+naab::guidance::Event efficacyEvent(const std::string& json_text) {
+    json ev = json::parse(json_text, nullptr, false);
+    if (!ev.is_object()) return {};
+    return toEfficacyEvent(ev);
+}
+
+std::string carryTalliesJson(const std::vector<naab::guidance::SectionTally>& tallies) {
+    json a = json::array();
+    for (const auto& t : tallies) {
+        a.push_back({{"key", t.key}, {"delivered", t.delivered}, {"held_out", t.held_out},
+                     {"recurred", t.recurred}, {"quiet", t.quiet}, {"resolved", t.resolved},
+                     {"undetermined", t.undetermined}, {"incomplete", t.incomplete},
+                     {"mixed_model", t.mixed_model}, {"not_judged", t.not_judged}});
+    }
+    return a.dump();
 }
 
 bool knownResetReason(const std::string& reason) {

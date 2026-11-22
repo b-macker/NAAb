@@ -30,6 +30,8 @@
 #include <string>
 #include <vector>
 
+#include "naab/guidance_efficacy.h"
+
 namespace naab {
 namespace history {
 
@@ -126,6 +128,14 @@ struct RunHistory {
     bool keyed = false;
     std::string reset_reason;     // the anchor no longer matched the file
     std::string unread_reason;    // history could not be read at all
+    // Bundle 20 PR 4: guidance efficacy. The carry's per-section totals, plus
+    // the outcomes this reader judged: the carry-writer's own deliveries (from
+    // `from_offset`, where its lines began, to its carry; at most
+    // kForwardWindowBytes) and every delivery after the carry. A run never
+    // judges its own; the next one does, once.
+    std::vector<naab::guidance::SectionTally> tallies;
+    int outcomes_judged = 0;      // deliveries judged by this reader
+    long long carry_from_offset = -1;
 };
 
 // A remembered refusal the module function matches: the same fingerprint and
@@ -146,9 +156,13 @@ std::vector<const Remembered*> matchMovedAll(const RunHistory& h, const Fingerpr
 // own hash recomputes; a line that does not verify is skipped (memory is
 // lost, never wrong). Links are not required: they bind nothing an unkeyed
 // chain's reader could not recompute, and a keyed chain's HMAC binds each line.
+// `judge_guidance` false: the carry's guidance totals as written, nothing
+// judged -- the merge of a concurrent run's carry, whose window holds this
+// run's own deliveries (a run never judges its own; the next one does).
 RunHistory readRunHistory(const std::string& telemetry_path,
                           const std::string& anchor_path,
-                          const std::function<std::string(const std::string&)>& hash);
+                          const std::function<std::string(const std::string&)>& hash,
+                          bool judge_guidance = true);
 
 // A reset reason the reader writes (readRunHistory): `naab-gov history` shows
 // a recorded reason only when it is one of these.
@@ -191,6 +205,9 @@ void mergeConcurrent(const RunHistory& other, const std::string& this_run,
 // The HISTORY_CARRY fields and the anchor file, as JSON text.
 std::string carryEntriesJson(const std::vector<Remembered>& entries);
 std::string carryRepairsJson(const std::vector<Repair>& repairs);
+std::string carryTalliesJson(const std::vector<naab::guidance::SectionTally>& tallies);
+// One verified telemetry event as the efficacy judge reads it.
+naab::guidance::Event efficacyEvent(const std::string& json_text);
 std::string anchorJson(const std::string& telemetry_path, long long offset,
                        const std::string& hash, const std::string& run_id);
 

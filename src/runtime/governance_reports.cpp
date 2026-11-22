@@ -3666,7 +3666,8 @@ long long GovernanceEngine::writeHistoryLocked(FILE* fp, const std::string& time
         }
         if (fresh) {
             other = naab::history::readRunHistory(
-                tpath, anchor_path, [this, te](const std::string& d) { return computeHash(d, te); });
+                tpath, anchor_path, [this, te](const std::string& d) { return computeHash(d, te); },
+                /*judge_guidance=*/false);
         }
     }
 
@@ -3676,6 +3677,7 @@ long long GovernanceEngine::writeHistoryLocked(FILE* fp, const std::string& time
     std::vector<naab::history::Sighting> moved;
     std::string carry_text;
     std::vector<naab::history::Repair> repairs_out;
+    std::vector<naab::guidance::SectionTally> tallies;
     {
         std::lock_guard<std::mutex> lk(history_mutex_);
         historyOutcome(results, carry, repaired, sightings);
@@ -3689,8 +3691,15 @@ long long GovernanceEngine::writeHistoryLocked(FILE* fp, const std::string& time
             }
         if (!history_other_.carry_run.empty())
             naab::history::mergeConcurrent(history_other_, run_id_, carry, repairs_out);
+        // Guidance efficacy totals: what this run judged at its start, merged
+        // with a concurrent run's (per section, the larger count; both read
+        // the same earlier runs).
+        if (run_history_) tallies = run_history_->tallies;
+        if (!history_other_.carry_run.empty())
+            naab::guidance::mergeTallies(tallies, history_other_.tallies);
         carry_text = naab::history::carryEntriesJson(carry) + "|" +
-                     naab::history::carryRepairsJson(repairs_out);
+                     naab::history::carryRepairsJson(repairs_out) + "|" +
+                     naab::history::carryTalliesJson(tallies);
     }
 
     auto once = [&](const std::string& k) {
@@ -3737,7 +3746,12 @@ long long GovernanceEngine::writeHistoryLocked(FILE* fp, const std::string& time
                          {"timestamp", timestamp},
                          {"fpv", naab::history::kFingerprintVersion},
                          {"entries", nlohmann::json::parse(naab::history::carryEntriesJson(carry))},
-                         {"repairs", nlohmann::json::parse(naab::history::carryRepairsJson(repairs_out))}};
+                         {"repairs", nlohmann::json::parse(naab::history::carryRepairsJson(repairs_out))},
+                         // Bundle 20 PR 4: where this run's lines begin (the
+                         // next run judges its guidance deliveries from here)
+                         // and the per-section efficacy totals.
+                         {"from_offset", history_from_offset_},
+                         {"guidance", nlohmann::json::parse(naab::history::carryTalliesJson(tallies))}};
     const auto [offset, h] = seal(ev);
     if (h.empty() || offset < 0) return written;
     std::error_code ec;
