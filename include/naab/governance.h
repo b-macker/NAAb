@@ -3738,6 +3738,10 @@ public:
     // earlier runs' recorded repairs of that rule at its current level or a
     // stricter one; "" when there are none. Shown with a refusal only.
     std::string historyPrecedentLines(const std::vector<CheckResult>& results) const;
+    // Bundle 20 PR 4: the `history` guidance source -- one section per remembered
+    // rule, named for it, holding the engine-written facts of earlier runs. Built
+    // once, after the history is read; a run without history has no document.
+    void buildHistoryGuidance();
     // The source a live location is read from; null fn = none.
     struct CheckLocationSource {
         using Fn = bool (*)(const void* self, std::string& file, int& line, std::string& function);

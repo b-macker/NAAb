@@ -10965,6 +10965,7 @@ void GovernanceEngine::loadRunHistory() {
                                                      : naab::history::carryTalliesJson(h.tallies));
     }
     run_history_ = std::make_shared<const naab::history::RunHistory>(std::move(h));
+    buildHistoryGuidance();   // PR 4: the `history` guidance source
 
     // Keep the store bounded: the oldest subjects past kStoreMaxEntries go.
     std::vector<std::pair<fs::file_time_type, fs::path>> subjects;

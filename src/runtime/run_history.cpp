@@ -218,6 +218,16 @@ bool displayableRepair(const Repair& r) {
     return levelRank(r.level) >= 0;
 }
 
+bool displayableRemembered(const Remembered& r) {
+    if (!rememberedRule(r.rule)) return false;
+    if (!plainChars(r.function, 64, "") || (r.function[0] >= '0' && r.function[0] <= '9')) return false;
+    if (!plainChars(r.file, 200, "./-") || r.file[0] == '/' || r.file.find("..") != std::string::npos)
+        return false;
+    if (!plainChars(r.origin_run, 40, "-")) return false;
+    if (r.line < 0 || r.line > 10000000) return false;
+    return levelRank(r.level) >= 0;
+}
+
 bool secretLikeRule(const std::string& rule) {
     std::string r = rule;
     std::transform(r.begin(), r.end(), r.begin(),

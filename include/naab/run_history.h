@@ -111,6 +111,10 @@ int goldenCaseInserted(const std::string& refused_text, const std::string& passi
 // anyone who edits the file, so a value is shown only in a shape no forged
 // line can turn into instructions or terminal control (PR 3's precedent lines).
 bool displayableRepair(const Repair& r);
+// The same shape check for a remembered refusal (Bundle 20 PR 4, the `history`
+// guidance source): a remembered rule, a plain function name, a relative plain
+// file, a plain run id, a known level and a line that is a small number.
+bool displayableRemembered(const Remembered& r);
 
 // A remembered refusal's code seen again in this run, somewhere else.
 struct Sighting {

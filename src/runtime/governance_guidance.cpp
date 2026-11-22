@@ -25,6 +25,7 @@
 #include "naab/crypto_utils.h"
 #include "naab/error_sanitizer.h"
 #include "naab/guidance_efficacy.h"
+#include "naab/run_history.h"
 #include "naab/host_match.h"
 #include "naab/loopback_url.h"
 #include "naab/curl_egress.h"
@@ -282,6 +283,11 @@ struct GovernanceEngine::GuidanceState {
     // private members). Read-only from here: lookups take the fetcher's own
     // lock just long enough to copy a cached document pointer -- never I/O.
     std::shared_ptr<GovernanceEngine::GuidanceFetcher> fetcher;
+
+    // The `history` source (Bundle 20 PR 4): built once from the run history
+    // when the run starts, never changed after. Null when this run read no
+    // history (not `naab-lang run`, history off, telemetry or its chain off).
+    std::shared_ptr<const GuidanceDoc> history_doc;
 };
 
 static constexpr size_t kRunLogCap = 500;
@@ -350,8 +356,9 @@ bool GovernanceEngine::isGuidanceSourcePath(const std::string& canon_n) const {
         return std::filesystem::exists(sp, ec2) && std::filesystem::equivalent(sp, canon_n, ec2) && !ec2;
     };
     for (const auto& s : gc.sources) {
-        // A URL is not a file the program could write.
-        if (s.type == "https") continue;
+        // A URL is not a file the program could write; the history source is
+        // the engine's own state (.naab_cache, refused to the program already).
+        if (s.type == "https" || s.type == "history") continue;
         if (s.type == "command" || s.type == "mcp") {
             // A command or MCP server runs with the OPERATOR's authority, outside
             // the program's sandbox. If the program could rewrite its script,
@@ -658,7 +665,11 @@ static std::vector<Candidate> guidanceSelect(GovernanceEngine& eng,
         // never waits on a network or a process.
         std::string why;
         const GuidanceDoc* doc = nullptr;
-        if (src->type == "https" || src->type == "command" || src->type == "mcp") {
+        if (src->type == "history") {
+            // Engine-written facts from earlier runs, built at startup.
+            if (st.history_doc) { doc = st.history_doc.get(); hold.push_back(st.history_doc); }
+            else why = "no_history";
+        } else if (src->type == "https" || src->type == "command" || src->type == "mcp") {
             auto held = guidanceFetchedDoc(st, *src, why);
             if (held) { doc = held.get(); hold.push_back(std::move(held)); }
         } else if (src->type == "sqlite") {
@@ -2691,6 +2702,53 @@ static std::shared_ptr<const GuidanceDoc> guidanceFetchedDoc(GovernanceEngine::G
         return nullptr;
     }
     return it->second.doc;
+}
+
+// The `history` guidance source (Bundle 20 PR 4; docs/plan-live-guidance.md,
+// slice 2: "a `history` source of facts from previous runs' telemetry
+// (engine-written fields only)"). One section per rule earlier runs refused,
+// named for the rule, so the automatic routes' name matching -- a
+// `violation:<rule>` at the terminal, `governance.guidance(<rule>)` -- finds it
+// and nothing else ranks it. Its text is facts only: rule, function, file,
+// line, run ids, level; every one shape-checked (displayableRemembered,
+// displayableRepair) or dropped, so nothing a file holds can become an
+// instruction. Built once from the run history the run read at startup.
+void GovernanceEngine::buildHistoryGuidance() {
+    if (!run_history_) return;
+    constexpr size_t kPerSection = 5, kMaxSections = 50;
+    std::map<std::string, std::pair<std::vector<std::string>, std::vector<std::string>>> by_rule;
+    for (const auto& r : run_history_->remembered) {
+        if (!naab::history::displayableRemembered(r)) continue;
+        auto& v = by_rule[r.rule].first;
+        v.push_back("- fn " + r.function + " (" + r.file + " line " + std::to_string(r.line) +
+                    ") was refused in run " + r.origin_run + " at " + r.level);
+    }
+    for (const auto& rp : run_history_->repairs) {
+        if (!naab::history::displayableRepair(rp)) continue;
+        auto& v = by_rule[rp.rule].second;
+        v.push_back("- fn " + rp.function + " (" + rp.file + ") was refused in run " + rp.refused_run +
+                    " and passed in run " + rp.repaired_run + " at " + rp.level + " or stricter");
+    }
+    auto doc = std::make_shared<GuidanceDoc>();
+    doc->loaded = true;
+    std::map<std::string, int> seen;
+    for (auto& [rule, facts] : by_rule) {
+        if (doc->sections.size() >= kMaxSections) { doc->truncated = true; break; }
+        std::string text;
+        auto lastFew = [&](std::vector<std::string>& v, const char* title) {
+            if (v.empty()) return;
+            if (!text.empty()) text += "\n";
+            text += std::string(title) + "\n";
+            const size_t from = v.size() > kPerSection ? v.size() - kPerSection : 0;
+            for (size_t i = from; i < v.size(); ++i) text += v[i] + "\n";
+        };
+        lastFew(facts.first, "Earlier runs of this project refused this rule:");
+        lastFew(facts.second, "Earlier runs passed it after a refusal:");
+        appendRowSection(doc->sections, seen, rule, rule, text);
+    }
+    std::lock_guard<std::mutex> lock(guidance_mutex_);
+    if (!guidance_state_) guidance_state_ = std::make_shared<GuidanceState>();
+    guidance_state_->history_doc = std::move(doc);
 }
 
 }  // namespace governance

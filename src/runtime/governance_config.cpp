@@ -3298,7 +3298,9 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                 }
             }
             if (sname.empty()) {
-                if (sc.type == "https") {
+                if (sc.type == "history") {
+                    sname = "history";
+                } else if (sc.type == "https") {
                     // The document's file name ("guidance" for .../guidance.json),
                     // else the host.
                     // Bounds-safe on any string: the URL is validated below.
@@ -3344,9 +3346,22 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             while (taken(sname)) sname = base + "-" + std::to_string(n++);
             sc.name = sname;
             if (sc.type != "file" && sc.type != "sqlite" && sc.type != "https" && sc.type != "command" &&
-                sc.type != "mcp") {
+                sc.type != "mcp" && sc.type != "history") {
                 warnG("source \"" + sname + "\" has type \"" + sc.type +
-                      "\", which this build does not read (supported: file, sqlite, https, command, mcp); ignored");
+                      "\", which this build does not read (supported: file, sqlite, https, command, mcp, "
+                      "history); ignored");
+                return;
+            }
+            // Bundle 20 PR 4: the engine's own facts from earlier runs
+            // ({"type": "history"}); it reads no path, URL, program or query.
+            if (sc.type == "history") {
+                if (!sc.path.empty() || !sc.url.empty() || !sc.command.empty() || !sc.query.empty() ||
+                    !sc.resources.empty() || !sc.auth_env.empty())
+                    warnG("source \"" + sname + "\": a history source reads only the run history "
+                          "(path, url, command, mcp, query, resources and auth_env are ignored)");
+                sc.path.clear(); sc.url.clear(); sc.command.clear(); sc.query.clear();
+                sc.resources.clear(); sc.auth_env.clear();
+                gc.sources.push_back(std::move(sc));
                 return;
             }
             if ((sc.type == "command" || sc.type == "mcp") && sc.command.empty()) {
