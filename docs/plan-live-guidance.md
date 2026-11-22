@@ -178,6 +178,28 @@ undetermined when another intervention (correction, challenge) landed in it. Tha
 is correlation. Causation needs arms -- a stub (as #164) or an optional holdout
 that withholds a random fraction of deliveries on live runs. Slice 2.
 
+**Built (Bundle 20 PR 4).** As decided: nothing at runtime decides on it.
+`include/naab/guidance_efficacy.h` holds one `judge()`, used by the next run's
+start and by `naab-gov efficacy TELEMETRY`; per agent delivery it reads the
+next three analysed `CDD_TURN`s of the handle (N = 3) and records whether the
+triggering signal paid again (`recurred`), did not (`quiet`), the run ended
+first (`incomplete`), the window spans two models (`mixed_model`), or another
+intervention landed in it (`undetermined`: an accepted reload, a challenge, a
+reset, a mandate reminder or correction, another delivery to the handle, a
+pulled section). Which event types intervene is a table over every type the
+engine writes, with a guard test, so a new event is classified when it is
+added. Coherence movement is not judged: the signal recurring is the outcome
+that names the guidance's own trigger, and coherence moves for many reasons.
+A run never judges its own deliveries; the next run judges them from the
+verified lines and carries per-section totals, and the end-of-run block names a
+section whose every judged delivery was followed by its trigger again -- for
+the operator, who may rewrite it; selection never reads the totals. The
+holdout is `guidance.holdout` (0..1, default 0, fixed at startup), drawn per
+candidate from the SHA-256 of the run id and an ordinal, so the arms can be
+recomputed from the telemetry (`naab-gov replay`'s `guidance` check does).
+Per-signal and per-model counts are in the report only: a model shown what
+penalises it can learn to avoid the signal rather than the behaviour.
+
 ## Slices
 
 1. **Core** (built): `file` sources, the four triggers, the three channels,
@@ -189,8 +211,11 @@ that withholds a random fraction of deliveries on live runs. Slice 2.
    -> G-16, agent injection and terminal suffix -> the delivery arms and
    G-10/G-11, cooldown -> G-03 `nnYYYYY`, live re-read -> G-05, signal queue ->
    G-03).
-2. **Measured**: the after-run efficacy report; a `history` source of facts from
-   previous runs' telemetry (engine-written fields only). Prerequisite partly
+2. **Measured** (**built**, Bundle 20 PR 4 -- above, and `{"type": "history"}`:
+   one section per rule earlier runs refused, named for the rule, holding
+   shape-checked facts from the run history): the after-run efficacy report; a
+   `history` source of facts from previous runs' telemetry (engine-written
+   fields only). Prerequisite partly
    met: the telemetry/transcript/audit files are now write-protected from the
    governed program (`addGovernanceProtectedPaths()` + `isEvidenceLogPath()`,
    evidence-files entry in CLAUDE.md, `test_evidence_file_protection.sh`), so a
