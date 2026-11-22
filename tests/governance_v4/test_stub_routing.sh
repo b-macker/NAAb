@@ -25,6 +25,9 @@
 #   D6  req_N.json opened without encoding=utf-8 -> SR-07 (SR-07c stays green)
 #   D7  keys.log written after the body, as before -> SR-08 (SR-08c stays green)
 #   D8  append_log() without its lock                -> SR-09 (SR-09c stays green)
+#   D9  path routes ignored (`for k in []`)          -> SR-10 SR-10c (A1 is spent early)
+#   D10 body routes tried before path routes         -> SR-10 SR-10c
+#   D11 path routes share one counter                -> SR-10
 #
 # Each gate is isolated by at least one row (SR-01/SR-02 by D5, SR-04 by D3,
 # SR-05 by D4), so none of them is riding on a neighbour.
@@ -76,6 +79,8 @@ gate_def SR-08 EVIDENCE "keys.log holds a sequential client's requests in order,
 gate_def SR-08c CONTROL "without a held log line, keys.log holds both requests"
 gate_def SR-09 EVIDENCE "every append to a shared log is made under the stub's log lock"
 gate_def SR-09c CONTROL "the SR-09 scan flags an unlocked append in a planted copy"
+gate_def SR-10 ROUTING  "a path route answers by the request path, before a body route, with its own counter"
+gate_def SR-10c CONTROL "a request whose path matches no path route is routed by its body as before"
 
 # ------------------------------------------------------------------
 # A minimal client: POST a body, print the model's text on one line.
@@ -372,6 +377,71 @@ if [ -n "$(unlocked_appends "$TEST_TMP/stub_unlocked.py")" ]; then
     pass SR-09c "the scan flags the append once the lock is removed from a copy"
 else
     fail SR-09c "the scan did not flag an unlocked append in the planted copy -- SR-09 measures nothing"
+fi
+
+# ------------------------------------------------------------------
+# SR-10 / SR-10c -- routes by request path (Bundle 20 PR 4)
+# ------------------------------------------------------------------
+# Gemini puts the model in the URL, so a primary model and its fallback can
+# only be answered differently by path. A path route wins over a body route
+# (BODY_A carries TOKEN_ALPHA on the primary's path and still gets P1), each
+# path route keeps its own counter, and a path no route names falls through
+# to the body routes unchanged (SR-10c).
+cat > "$TEST_TMP/post_path.py" << 'PYEOF'
+import json, sys, urllib.request
+port = sys.argv[1]
+out = []
+args = sys.argv[2:]
+for i in range(0, len(args), 2):
+    req = urllib.request.Request("http://127.0.0.1:%s%s" % (port, args[i]),
+                                 data=args[i + 1].encode("utf-8"),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        d = json.load(r)
+    out.append(d["candidates"][0]["content"]["parts"][0].get("text", "") or "-")
+print(" ".join(out))
+PYEOF
+cat > "$TEST_TMP/paths.json" << 'EOF'
+{
+  "path_routes": {
+    "models/model-primary:": {"responses": [{"content": "P1"}, {"content": "P2"}]},
+    "models/model-backup:":  {"responses": [{"content": "K1"}, {"content": "K2"}]}
+  },
+  "routes": {"TOKEN_ALPHA": {"responses": [{"content": "A1"}, {"content": "A2"}]}},
+  "responses": [{"content": "G1"}]
+}
+EOF
+PRI="/v1beta/models/model-primary:generateContent"
+BAK="/v1beta/models/model-backup:generateContent"
+OTH="/v1beta/models/model-other:generateContent"
+PATH_DIR="$TEST_TMP/paths"; mkdir -p "$PATH_DIR"
+if start_stub "$TEST_TMP/paths.json" "$PATH_DIR"; then
+    PATH_OUT="$(python3 "$TEST_TMP/post_path.py" "$STUB_PORT" \
+        "$PRI" "$BODY_A" "$BAK" "$BODY_N" "$PRI" "$BODY_N" "$OTH" "$BODY_A" "$BAK" "$BODY_A" "$OTH" "$BODY_N" \
+        2>"$PATH_DIR/client.err")"
+    PATH_RC=$?
+    stop_stub
+    PATH_EXPECT="P1 K1 P2 A1 K2 G1"
+    NPATH=$(count_matches ' path:models/' "$PATH_DIR/routes.log")
+    NPATHS=$(count_matches 'generateContent$' "$PATH_DIR/paths.log")
+    if [ $PATH_RC -ne 0 ]; then
+        fail SR-10 "a path route answers by the request path" "client failed: $(head -c 300 "$PATH_DIR/client.err")"
+    elif [ "$PATH_OUT" = "$PATH_EXPECT" ] && [ "$NPATH" = 4 ] && [ "$NPATHS" = 6 ]; then
+        pass SR-10 "a path route answers by the request path, before a body route, with its own counter"
+    else
+        fail SR-10 "path routing mis-ordered or not recorded" \
+             "expected '$PATH_EXPECT', got '$PATH_OUT'; path decisions in routes.log=$NPATH (want 4), paths.log lines=$NPATHS (want 6)"
+    fi
+    # The two requests on a path no route names: the body decides, as before.
+    OTHER="$(echo "$PATH_OUT" | awk '{print $4, $6}')"
+    if [ $PATH_RC -eq 0 ] && [ "$OTHER" = "A1 G1" ]; then
+        pass SR-10c "a request whose path matches no path route is routed by its body as before"
+    else
+        fail SR-10c "an unmatched path changed body routing" "expected 'A1 G1', got '$OTHER'"
+    fi
+else
+    skip SR-10 "a path route answers by the request path" "stub failed to start"
+    skip SR-10c "an unmatched path is routed by its body" "stub failed to start"
 fi
 
 gate_print_summary

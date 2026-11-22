@@ -48,6 +48,20 @@ Two rules that a fixture author has to be able to rely on:
 The global response index advances only for UNROUTED requests, so a fixture
 with no "routes" key behaves exactly as before.
 
+Optional routing by request PATH (Bundle 20 PR 4), for a provider that puts
+the model in the URL (Gemini: /v1beta/models/<model>:generateContent), so a
+primary model and its fallback can answer differently:
+    {
+      "path_routes": {
+        "models/gemini-primary:": {"responses": [{"status": 500}]},
+        "models/gemini-backup:":  {"responses": [{"content": "ok"}]}
+      }
+    }
+A path route key is a plain SUBSTRING of the request path; the first match in
+fixture order wins, and it is tried BEFORE the body routes. Each keeps its own
+counter, and routes.log records it as "path:<key>". The path of every request
+is logged to <state_dir>/paths.log as "<request-number> <path>".
+
 Prints "READY <port>" on stdout once listening. Writes request bodies to
 <state_dir>/req_N.json when state_dir is given (for test assertions).
 
@@ -106,6 +120,8 @@ class StubState:
         # controls which that is.
         self.routes = fixture.get("routes", {}) or {}
         self.route_count = dict((k, 0) for k in self.routes)
+        self.path_routes = fixture.get("path_routes", {}) or {}
+        self.path_route_count = dict((k, 0) for k in self.path_routes)
         self.state_dir = state_dir
         self.validate_pairing = fixture.get("validate_tool_pairing", True)
         self.count = 0        # every request, for req_N.json numbering
@@ -148,30 +164,43 @@ class StubState:
             return {"content": "stub default response"}
         return responses[min(idx, len(responses) - 1)]
 
-    def next_response(self, body, api_key=None):
+    def next_response(self, body, api_key=None, path=""):
         with self.lock:
             self.count += 1
             n = self.count
             key = None
-            for k in self.routes:
-                if k in body:
+            logged = None
+            for k in self.path_routes:
+                if k in path:
                     key = k
                     break
-            if key is None:
-                idx = self.global_idx
-                self.global_idx += 1
-                responses = self.responses
+            if key is not None:
+                idx = self.path_route_count[key]
+                self.path_route_count[key] = idx + 1
+                responses = self.path_routes[key].get("responses", [])
+                logged = "path:" + key
             else:
-                idx = self.route_count[key]
-                self.route_count[key] = idx + 1
-                responses = self.routes[key].get("responses", [])
+                for k in self.routes:
+                    if k in body:
+                        key = k
+                        break
+                if key is None:
+                    idx = self.global_idx
+                    self.global_idx += 1
+                    responses = self.responses
+                else:
+                    idx = self.route_count[key]
+                    self.route_count[key] = idx + 1
+                    responses = self.routes[key].get("responses", [])
+                    logged = key
         if self.state_dir:
             try:
                 with open("%s/req_%d.json" % (self.state_dir, n), "w", encoding="utf-8", errors="replace") as f:
                     f.write(body)
             except OSError:
                 pass
-            self.append_log("routes.log", "%d %s\n" % (n, key if key is not None else "-"))
+            self.append_log("routes.log", "%d %s\n" % (n, logged if logged is not None else "-"))
+            self.append_log("paths.log", "%d %s\n" % (n, path))
         return self._pick(responses, idx), n
 
 
@@ -249,7 +278,7 @@ class Handler(BaseHTTPRequestHandler):
         api_key = (self.headers.get("x-goog-api-key")
                    or self.headers.get("x-api-key"))
         t0 = int((time.monotonic() - START_MONO) * 1000)
-        spec, req_n = STATE.next_response(body, api_key)
+        spec, req_n = STATE.next_response(body, api_key, self.path)
 
         status = spec.get("status", 200)
         bad_pairing = STATE.validate_pairing and pairing_violation(body)
