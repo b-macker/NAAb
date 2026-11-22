@@ -64,8 +64,10 @@ Fingerprint fingerprintNaab(const std::string& text, const std::string& own_name
 // SHA-256 (hex) of the text with CRLF read as LF, as readSignedFile reads.
 std::string lfSha256(const std::string& text);
 
-// The function-body checks whose refusals history remembers.
+// The function-body checks whose refusals history remembers, and (PR 3) a
+// function's must_produce contract, `contracts.<fn>.must_produce`.
 bool rememberedRule(const std::string& rule);
+bool mustProduceRule(const std::string& rule);
 // A rule whose subject must never be stored (secrets, PII): name only.
 bool secretLikeRule(const std::string& rule);
 // advisory < detect < soft < approval_required < hard; unknown = -1.
@@ -85,7 +87,28 @@ struct Repair {
     std::string rule, level, file, function;
     std::string refused_run, repaired_run;
     std::string refused_sha256, repaired_sha256;
+    // PR 3: for a must_produce repair, the 1-based golden case whose input and
+    // expected value the passing change inserted as literals; 0 = none seen.
+    // A fact, never a verdict: a legitimate base-case fix has the same diff.
+    int golden_case = 0;
 };
+
+// PR 3: the first golden case (1-based) whose every argument and expected
+// value -- scalars only, a number or a string -- appears among the literal
+// tokens the passing text INSERTS relative to the refused text (the longest
+// common subsequence of the two token streams, literal values kept); 0 when
+// none does, when a case has a non-scalar value, or when either text does not
+// lex or is too long to compare. `cases` holds each case's argument JSON texts
+// and its expected JSON text.
+int goldenCaseInserted(const std::string& refused_text, const std::string& passing_text,
+                       const std::vector<std::pair<std::vector<std::string>, std::string>>& cases);
+
+// A repair whose every field is a shape the engine writes: a remembered rule,
+// a plain function name, a plain relative path, plain run ids. History lines
+// are verified by their hash, but an unkeyed chain's hash can be recomputed by
+// anyone who edits the file, so a value is shown only in a shape no forged
+// line can turn into instructions or terminal control (PR 3's precedent lines).
+bool displayableRepair(const Repair& r);
 
 // A remembered refusal's code seen again in this run, somewhere else.
 struct Sighting {
@@ -110,6 +133,10 @@ struct RunHistory {
 // (a refused `return []` stub must not match every library stub). nullptr: none.
 const Remembered* matchMoved(const RunHistory& h, const Fingerprint& fp,
                              const std::string& function);
+// Every remembered refusal the module function matches, by the same rule (a
+// function can be remembered under more than one rule).
+std::vector<const Remembered*> matchMovedAll(const RunHistory& h, const Fingerprint& fp,
+                                             const std::string& function);
 
 // Reads the history. `hash` recomputes a chained line's hash exactly as the
 // writer did (HMAC when the chain is keyed). With an anchor that still matches,

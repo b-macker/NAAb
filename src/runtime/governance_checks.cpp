@@ -28,6 +28,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "naab/lexer.h"
+#include "naab/declaration_source.h"
 #include "naab/string_interpolation.h"
 #ifndef _WIN32
 #  include <sys/file.h>
@@ -4728,8 +4729,33 @@ std::string GovernanceEngine::runExecutionContracts() {
             continue;
         }
         if (!contract.must_produce.empty()) {
+            // PR 3: the function's text, from the entry program, is the subject
+            // of its must_produce result, so a refusal is remembered and a
+            // later pass is judged a repair. A function defined only in an
+            // imported module has no subject here (not remembered).
+            std::string fn_text;
+            std::optional<ScopedCheckSubject> fn_subject;
+            if (history_active_.load() && !source_.empty() && !source_file_for_history_.empty()) {
+                std::vector<std::string> lines;
+                {
+                    std::string cur;
+                    for (char ch : source_) {
+                        if (ch == '\n') { lines.push_back(cur); cur.clear(); }
+                        else cur += ch;
+                    }
+                    lines.push_back(cur);
+                }
+                for (size_t i = 0; i < lines.size(); ++i) {
+                    if (!naab::source::declaresFunction(lines[i], func_name)) continue;
+                    fn_text = naab::source::declarationText(lines, static_cast<int>(i) + 1, func_name);
+                    break;
+                }
+                if (!fn_text.empty())
+                    fn_subject.emplace(buildCheckSubject(func_name, fn_text, source_file_for_history_));
+            }
             std::string err = checkMustProduce(func_name, contract, 0);
             if (!err.empty()) return err;
+            if (fn_subject) noteGoldenCase(func_name, contract, fn_text);
         }
         if (!contract.must_vary.empty()) {
             std::string err = checkMustVary(func_name, contract, 0);
@@ -4880,6 +4906,76 @@ std::string GovernanceEngine::boundedScan(const std::string& file, int line,
     }
 }
 
+// PR 3: when a must_produce contract that an earlier run refused for this
+// function now passes, compare the refused text the run stored with the text
+// that passed, and note the first golden case whose input and expected value
+// the change inserted as literals. A fact for telemetry and `naab-gov history`
+// only: the verdict was the contract's, and a legitimate fix of a base case
+// can make the same diff.
+void GovernanceEngine::noteGoldenCase(const std::string& func_name,
+                                      const FunctionContract& contract,
+                                      const std::string& passing_text) {
+    namespace fs = std::filesystem;
+    if (!history_active_.load() || !run_history_ || govern_json_dir_.empty()) return;
+    const std::string rule = "contracts." + func_name + ".must_produce";
+    const std::string file = historyRelativePath(source_file_for_history_);
+    std::string refused_sha;
+    {
+        std::lock_guard<std::mutex> lk(history_mutex_);
+        for (const auto& r : run_history_->remembered)
+            if (r.rule == rule && r.file == file && r.function == func_name) { refused_sha = r.sha256; break; }
+    }
+    if (refused_sha.size() != 64) return;
+    const fs::path stored = fs::path(govern_json_dir_) / ".naab_cache" / (refused_sha + ".subject.txt");
+    std::string refused_text;
+    {
+        std::ifstream in(stored, std::ios::binary);
+        if (!in) return;
+        refused_text.resize(naab::history::kSubjectMaxBytes + 1);
+        in.read(&refused_text[0], static_cast<std::streamsize>(refused_text.size()));
+        refused_text.resize(static_cast<size_t>(in.gcount()));
+    }
+    // The store is written by the engine and refused to the program, but a
+    // shell block with shell on can edit it (CONTRA-013): use only a text that
+    // is still the one the refusal recorded.
+    if (refused_text.size() > naab::history::kSubjectMaxBytes ||
+        naab::history::lfSha256(refused_text) != refused_sha)
+        return;
+    std::vector<std::pair<std::vector<std::string>, std::string>> cases;
+    for (const auto& tc : contract.must_produce) cases.emplace_back(tc.args_json, tc.expect_json);
+    const int g = naab::history::goldenCaseInserted(refused_text, passing_text, cases);
+    if (g <= 0) return;
+    std::lock_guard<std::mutex> lk(history_mutex_);
+    history_golden_case_[rule + '\x1f' + file + '\x1f' + func_name] = g;
+}
+
+GovernanceEngine::CheckSubject GovernanceEngine::buildCheckSubject(
+    const std::string& function, const std::string& text, const std::string& source_file) const {
+    CheckSubject cs;
+    cs.function = function;
+    cs.file = historyRelativePath(source_file);
+    // A body that matches a secret or PII pattern is never stored and its
+    // text is never hashed: a hash of a short body can be searched for, and
+    // telemetry is forwarded off the machine. Its fingerprint is kept -- it
+    // drops comments and literal values -- unless the hashed token text
+    // itself matches (a secret inside a polyglot block), so a PII-shaped
+    // comment or number does not take a function out of the history.
+    const bool sensitive = !firstSecretPattern(text).empty() || piiPresentUngated(text);
+    std::string fp_stream;
+    naab::history::Fingerprint fpr =
+        naab::history::fingerprintNaab(text, function, sensitive ? &fp_stream : nullptr);
+    if (sensitive && (!firstSecretPattern(fp_stream).empty() || piiPresentUngated(fp_stream)))
+        fpr = naab::history::Fingerprint{};
+    cs.fp = fpr.fp;
+    cs.tokens = fpr.tokens;
+    if (!sensitive) {
+        cs.sha256 = naab::history::lfSha256(text);
+        cs.text = &text;
+    }
+    cs.set = true;
+    return cs;
+}
+
 std::string GovernanceEngine::checkNaabFunctionBody(
     const std::string& function_name,
     const std::string& source_code,
@@ -4913,39 +5009,25 @@ std::string GovernanceEngine::checkNaabFunctionBodyScan(
     // Bundle 20: name the subject every check below judges, and note it for
     // the run history -- checked here (a remembered refusal's repair is judged
     // from this) and, for an imported module, matched against what earlier
-    // runs refused. Recording only: no verdict below depends on it.
+    // runs refused. PR 3: a module function that matches a remembered refusal
+    // runs that rule's check here, which a module otherwise skips (below).
     std::optional<ScopedCheckSubject> subject_scope;
+    std::set<std::string> recheck_rules;   // remembered rules this module function matches
     if (history_active_.load()) {
-        CheckSubject cs;
-        cs.function = function_name;
-        cs.file = historyRelativePath(source_file);
-        // A body that matches a secret or PII pattern is never stored and its
-        // text is never hashed: a hash of a short body can be searched for, and
-        // telemetry is forwarded off the machine. Its fingerprint is kept -- it
-        // drops comments and literal values -- unless the hashed token text
-        // itself matches (a secret inside a polyglot block), so a PII-shaped
-        // comment or number does not take a function out of the history.
-        const bool sensitive = !firstSecretPattern(source_code).empty() ||
-                               piiPresentUngated(source_code);
-        std::string fp_stream;
-        naab::history::Fingerprint fpr =
-            naab::history::fingerprintNaab(source_code, function_name, sensitive ? &fp_stream : nullptr);
-        if (sensitive && (!firstSecretPattern(fp_stream).empty() || piiPresentUngated(fp_stream)))
-            fpr = naab::history::Fingerprint{};
-        cs.fp = fpr.fp;
-        cs.tokens = fpr.tokens;
-        if (!sensitive) {
-            cs.sha256 = naab::history::lfSha256(source_code);
-            cs.text = &source_code;
-        }
-        cs.set = true;
+        CheckSubject cs = buildCheckSubject(function_name, source_code, source_file);
+        naab::history::Fingerprint fpr{cs.fp, cs.tokens};
         if (!fpr.fp.empty()) {
             std::lock_guard<std::mutex> lk(history_mutex_);
             if (imported_module && run_history_) {
-                if (const auto* m = naab::history::matchMoved(*run_history_, fpr, function_name)) {
+                const auto matched = naab::history::matchMovedAll(*run_history_, fpr, function_name);
+                if (!matched.empty()) {
                     naab::history::Sighting sg;
-                    sg.origin = *m; sg.file = cs.file; sg.function = function_name;
+                    sg.origin = *matched.front(); sg.file = cs.file; sg.function = function_name;
                     history_seen_in_module_.push_back(sg);
+                }
+                for (const auto* m : matched) {
+                    if (!recheck_rules.insert(m->rule).second) continue;
+                    cs.history_refs.push_back({m->rule, m->origin_run, m->origin_hash});
                 }
             }
         }
@@ -4994,7 +5076,16 @@ std::string GovernanceEngine::checkNaabFunctionBodyScan(
     // An imported module skips the heuristics: ae4bfb67 kept them off module
     // loading (expensive regex, and 3e7c94e1's false violations). Its content
     // checks -- placeholders, incomplete logic, secrets, PII -- run (A31).
-    if (os_cfg.enabled && !imported_module) {
+    // Bundle 20 PR 3, the owner's decision of 2026-11-21: code an earlier run
+    // refused is checked again where it is met, at the rule's own level. A
+    // module function whose fingerprint matches a remembered refusal (and has
+    // at least kMinTokensWithoutName tokens, or the same name) runs that
+    // rule's check -- that one rule only. History chooses where the check
+    // looks; the check under the current govern.json decides.
+    auto recheck = [&](const char* rule) {
+        return imported_module && recheck_rules.count(rule) > 0;
+    };
+    if (os_cfg.enabled && (!imported_module || recheck("code_quality.no_oversimplification"))) {
         err = checkOversimplification(stripped(), line);
         if (!err.empty()) return err;
     }
@@ -5004,8 +5095,10 @@ std::string GovernanceEngine::checkNaabFunctionBodyScan(
         if (!err.empty()) return err;
 
         // Cosmetic sanitizer check — uses inverted logic: checks for PRESENCE
-        // of real sanitization ops rather than listing specific cosmetic patterns
-        if (!imported_module) {
+        // of real sanitization ops rather than listing specific cosmetic patterns.
+        // It refuses under no_incomplete_logic's name, so a remembered refusal
+        // of that rule runs it on a module function (PR 3).
+        if (!imported_module || recheck("code_quality.no_incomplete_logic")) {
             err = checkCosmeticSanitizer(function_name, stripped(), line);
             if (!err.empty()) return err;
         }
@@ -5023,7 +5116,8 @@ std::string GovernanceEngine::checkNaabFunctionBodyScan(
 
     // Complexity floor check for NAAb functions
     auto& cf_cfg = rules().code_quality.complexity_floor;
-    if (cf_cfg.enabled && cf_cfg.check_naab && !imported_module) {
+    if (cf_cfg.enabled && cf_cfg.check_naab &&
+        (!imported_module || recheck("code_quality.complexity_floor"))) {
         // Skip if function contains polyglot blocks and skip_if_has_polyglot_block is set
         bool has_polyglot = source_code.find("<<") != std::string::npos;
         if (!has_polyglot || !cf_cfg.skip_if_has_polyglot_block) {

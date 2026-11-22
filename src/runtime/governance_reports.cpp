@@ -1759,6 +1759,10 @@ void GovernanceEngine::writeTelemetry() const {
                 ev["subject_fpv"] = naab::history::kFingerprintVersion;
                 ev["subject_tokens"] = r.subject_tokens;
             }
+            // PR 3: this check ran on an imported module's function because an
+            // earlier run refused the same code under this rule.
+            if (!r.history_ref_run.empty())
+                ev["history_ref"] = {{"run", r.history_ref_run}, {"row_hash", r.history_ref_hash}};
         }
         // Tamper-evident hash chain for telemetry entries
         // Held until the line is written and flushed: the next writer seeds its
@@ -3700,6 +3704,13 @@ long long GovernanceEngine::writeHistoryLocked(FILE* fp, const std::string& time
                              {"level", m.level}, {"file", m.file}, {"function", m.function},
                              {"origin_run", m.origin_run}, {"origin_hash", m.origin_hash},
                              {"config_fingerprint", config_fingerprint_}};
+        // PR 3: a must_produce pass whose change inserted a golden case's
+        // input and expected value as literals says which case (a fact only).
+        if (kind == "passed" && naab::history::mustProduceRule(m.rule)) {
+            std::lock_guard<std::mutex> lk(history_mutex_);
+            auto g = history_golden_case_.find(m.rule + '\x1f' + m.file + '\x1f' + m.function);
+            if (g != history_golden_case_.end()) ev["golden_case"] = g->second;
+        }
         seal(ev);
     }
     for (const auto& sg : moved) {

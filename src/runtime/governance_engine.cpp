@@ -1385,6 +1385,12 @@ void GovernanceEngine::stampSubject(CheckResult& r, const std::string& rule_name
     r.subject_sha256 = t_check_subject.sha256;
     r.subject_fp = t_check_subject.fp;
     r.subject_tokens = t_check_subject.tokens;
+    for (const auto& ref : t_check_subject.history_refs) {
+        if (ref[0] != rule_name) continue;
+        r.history_ref_run = ref[1];
+        r.history_ref_hash = ref[2];
+        break;
+    }
     // A pass of a remembered rule is what a repair is judged from. Noted here,
     // when it is recorded, so the check-result cap cannot evict it first. The
     // strictest level a pass was recorded at is kept.
@@ -4442,6 +4448,11 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
 
 void GovernanceEngine::setSource(const std::string& source) {
     source_ = source;
+}
+
+void GovernanceEngine::setSource(const std::string& source, const std::string& source_file) {
+    source_ = source;
+    source_file_for_history_ = source_file;
 }
 
 void GovernanceEngine::runGovernanceVoice() {
@@ -8736,6 +8747,7 @@ std::string GovernanceEngine::refusalClosingText() {
     }
     std::string out;
     if (!summary.empty()) out += "\n" + summary;
+    try { out += historyPrecedentLines(getCheckResults()); } catch (...) {}   // PR 3
     try { out += historyClosingLine(); } catch (...) {}   // Bundle 20: before the verdict
     out += rule.empty() ? std::string("-- Governance: REFUSED --\n")
                         : "-- Governance: REFUSED (" + rule + ") --\n";
@@ -11001,6 +11013,10 @@ void GovernanceEngine::historyOutcome(
                 rp.rule = old.rule; rp.level = old.level; rp.file = old.file; rp.function = old.function;
                 rp.refused_run = old.origin_run; rp.repaired_run = run_id_;
                 rp.refused_sha256 = old.sha256; rp.repaired_sha256 = passed->second.second;
+                if (naab::history::mustProduceRule(old.rule)) {
+                    auto g = history_golden_case_.find(k);
+                    if (g != history_golden_case_.end()) rp.golden_case = g->second;
+                }
                 repaired.push_back(rp);
                 sightings.emplace_back("passed", old);
                 continue;
@@ -11016,6 +11032,39 @@ void GovernanceEngine::historyOutcome(
                          [](const Remembered& a, const Remembered& b) { return a.unseen < b.unseen; });
         carry.resize(naab::history::kMaxRemembered);
     }
+}
+
+// PR 3: what an earlier run did to pass the rule this run refused. A precedent
+// is a recorded repair -- the rule passed for that function at the level it was
+// refused at or a stricter one -- and is shown only when that level is at
+// least the level this run refused at, so a "repair" made by lowering or
+// switching the rule off is never one. Facts only: rule, function, file, runs.
+// It names no code and says nothing of how the pass was reached (telemetry
+// and `naab-gov history` carry that).
+std::string GovernanceEngine::historyPrecedentLines(const std::vector<CheckResult>& results) const {
+    if (!history_active_.load() || !run_history_ || run_history_->repairs.empty()) return "";
+    std::map<std::string, std::string> refused;   // rule -> strictest level refused at
+    for (const auto& r : results) {
+        if (r.passed || dispositionOf(r) != "refused") continue;
+        if (!naab::history::rememberedRule(r.rule_name)) continue;
+        const std::string lv = levelToString(r.level);
+        auto& cur = refused[r.rule_name];
+        if (cur.empty() || naab::history::levelRank(lv) > naab::history::levelRank(cur)) cur = lv;
+    }
+    std::string out;
+    for (const auto& [rule, level] : refused) {
+        int shown = 0;
+        for (auto it = run_history_->repairs.rbegin();
+             it != run_history_->repairs.rend() && shown < 2; ++it) {
+            const auto& rp = *it;
+            if (rp.rule != rule || !naab::history::displayableRepair(rp)) continue;
+            if (naab::history::levelRank(rp.level) < naab::history::levelRank(level)) continue;
+            out += fmt::format("-- Precedent for {}: fn {} ({}) was refused in run {} and passed in run {} --\n",
+                               rule, rp.function, rp.file, rp.refused_run, rp.repaired_run);
+            ++shown;
+        }
+    }
+    return out;
 }
 
 std::string GovernanceEngine::historyClosingLine() const {

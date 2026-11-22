@@ -12,6 +12,7 @@
 // Every rule is configurable and can be turned off.
 
 #include <cstdio>
+#include <array>
 #include <deque>
 #include <string>
 #include <vector>
@@ -3116,6 +3117,11 @@ struct CheckResult {
     std::string subject_sha256;    // of the function's text, CRLF read as LF
     std::string subject_fp;        // naab::history::fingerprintNaab()
     int subject_tokens = 0;
+    // Bundle 20 PR 3: set when this check ran on an imported module's function
+    // only because an earlier run refused the same code under this rule -- the
+    // run and the chained row that refused it.
+    std::string history_ref_run;
+    std::string history_ref_hash;
 };
 
 // A193: what the check-result cap (V-GOV-024) has evicted, tallied at the one
@@ -3684,8 +3690,20 @@ public:
         int tokens = 0;
         const std::string* text = nullptr;
         bool set = false;
+        // Bundle 20 PR 3: remembered refusals this module function matches,
+        // as {rule, origin run, origin row hash}. A result under one of these
+        // rules is stamped with its reference.
+        std::vector<std::array<std::string, 3>> history_refs;
     };
     static CheckSubject exchangeThreadCheckSubject(CheckSubject next);
+    // A function's subject from its text: the name, the file relative to
+    // govern.json, the LF hash and the fingerprint, with a secret or PII body
+    // never hashed (the rule checkNaabFunctionBodyScan() applies). `text` must
+    // outlive the subject's scope.
+    CheckSubject buildCheckSubject(const std::string& function, const std::string& text,
+                                   const std::string& source_file) const;
+    void noteGoldenCase(const std::string& func_name, const FunctionContract& contract,
+                        const std::string& passing_text);
     // Run history (Bundle 20). Read only by a process that runs a program:
     // `naab-lang run` turns this on before it loads governance, like the
     // external guidance and prerequisites switches. naab-gov, lint and the
@@ -3698,6 +3716,10 @@ public:
     // The `-- History: ... --` line, or "" when there is nothing to say.
     std::string historyClosingLine() const;
     std::string historyClosingLineFrom(const std::vector<CheckResult>& results) const;
+    // PR 3: up to two `-- Precedent ... --` lines per rule this run refused, from
+    // earlier runs' recorded repairs of that rule at its current level or a
+    // stricter one; "" when there are none. Shown with a refusal only.
+    std::string historyPrecedentLines(const std::vector<CheckResult>& results) const;
     // The source a live location is read from; null fn = none.
     struct CheckLocationSource {
         using Fn = bool (*)(const void* self, std::string& file, int& line, std::string& function);
@@ -4314,6 +4336,9 @@ public:
     // Agent review: LLM-based governance phase (detection → validation → scoring)
     void runAgentReview(const std::string& source);
     void setSource(const std::string& source);
+    // The same, with the path of the file the text came from (PR 3: a
+    // must_produce refusal names its function's subject from it).
+    void setSource(const std::string& source, const std::string& source_file);
     void runGovernanceVoice();
 
     // --- Behavioral Sequence Detection ---
@@ -4813,6 +4838,7 @@ private:
     bool voice_ran_ = false;            // runGovernanceVoice() asked the voice (once per engine)
     std::string governance_voice_summary_;  // synthesized remediation guide
     std::string source_;                    // script source (for voice phase)
+    std::string source_file_for_history_;   // the entry file source_ came from (PR 3)
 
     // Attestation results (populated by runAttestation())
     bool attestation_passed_ = true;
@@ -4914,6 +4940,9 @@ private:
     mutable naab::history::RunHistory history_other_;
     mutable std::set<std::string> history_merged_runs_;
     mutable std::vector<naab::history::Sighting> history_seen_in_module_;
+    // PR 3: rule\x1ffile\x1ffunction -> the golden case a must_produce pass
+    // inserted as literals (goldenCaseInserted()), for the repair it makes.
+    mutable std::map<std::string, int> history_golden_case_;
     mutable std::map<std::string, std::string> history_row_hashes_;  // rule \x1f file \x1f function -> row hash
     mutable bool history_line_printed_ = false;
     mutable std::set<std::string> history_events_written_;     // sighting keys, once each
