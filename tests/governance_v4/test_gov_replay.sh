@@ -3,11 +3,12 @@
 # recorded evidence (Bundle 14 PR 2).
 #
 # The subject is a report: per decision MATCH / DIVERGED / UNMEASURABLE, exit 1
-# when anything diverged, else 2 when anything is unmeasurable, else 0. Two real
+# when anything diverged, else 2 when anything is unmeasurable, else 0. Three real
 # runs against the agent stub make the evidence (run A: plain chain, adaptive
 # baseline on, a reply executed through codegen; run B: a chain sealed with a
-# key this suite makes up, baseline off). Every other arm is a COPY of run A's
-# files with one thing changed, and asserts the count of the check that should
+# key this suite makes up, baseline off; run G, Bundle 20 PR 4: guidance with a
+# holdout, for the guidance check). Every other arm is a COPY of run A's
+# files (RP-16a-g: run G's) with one thing changed, and asserts the count of the check that should
 # notice -- not only the exit status, which a changed line also moves through
 # the chain check.
 #
@@ -68,7 +69,7 @@
 #   guidance: the draw not recomputed                 -> RP-16c
 #   guidance: a reply not joined to its delivery      -> RP-16d
 #   guidance: a joined reply's trigger not compared   -> RP-16g
-#   guidance: the ordinal set not checked             -> RP-16e
+#   guidance: the ordinal set not checked             -> RP-16 RP-16e
 #   guidance: no recorded_sha256 reads MATCH          -> RP-16f
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
