@@ -67,6 +67,7 @@
 #   guidance: trigger_recurred not compared           -> RP-16b
 #   guidance: the draw not recomputed                 -> RP-16c
 #   guidance: a reply not joined to its delivery      -> RP-16d
+#   guidance: a joined reply's trigger not compared   -> RP-16g
 #   guidance: the ordinal set not checked             -> RP-16e
 #   guidance: no recorded_sha256 reads MATCH          -> RP-16f
 set -uo pipefail
@@ -705,6 +706,11 @@ else
     # ordinals now miss 0 -- two findings, one per rule.
     ord0 "$G" "$W/16e" "holdout_ordinal=50"
     rp "$W/16e"; expect RP-16e "a holdout ordinal moved out of the run's sequence" 1 guidance diverged eq 2
+
+    # A reply joined to a real delivery under another trigger: circular_actions
+    # pays on every turn of this run too, so only the join can notice.
+    edit "$G" "$W/16g" "set:GUIDANCE_RESPONSE#0:trigger=signal:circular_actions"
+    rp "$W/16g"; expect RP-16g "a reply whose trigger is not its delivery's" 1 guidance diverged eq 1
 
     edit "$G" "$W/16f" "del:GUIDANCE_DELIVERED#0:recorded_sha256"
     rp "$W/16f"; expect RP-16f "a delivery without recorded_sha256 (a writer before it): unmeasurable" 1 guidance unmeasurable eq 1
