@@ -57,6 +57,10 @@
 #          a missing file exit 4
 #   RH-14  naab-lang init writes telemetry, its chain and history on for every
 #          preset, and a refusal in an init'd project is remembered
+#   RH-15  a refused function moved unchanged into a module (`export fn`) is
+#          recognised there: a seen_in_module sighting, listed by naab-gov
+#          history, and the run's verdict unchanged; RH-15c no sighting in a
+#          fresh project or for changed code under the same name
 #
 # Kill table (each mutant applied alone, rebuilt, this suite run; observed
 # 2026-11-21 on the default build):
@@ -70,6 +74,7 @@
 #   H-M8  no line when the chain is switched off          -> RH-12 red
 #   H-M9  init leaves telemetry off below strict          -> RH-14 red
 #   H-M10 no history line before a refusal's verdict      -> RH-02 red
+#   H-M11 a leading `export` kept in the fingerprint      -> RH-15 red
 # On the tree before this PR (#394's head a8951878, observed 2026-11-22) RH-00
 # fails and the suite stops there.
 #
@@ -414,6 +419,31 @@ if [ "$ok" = 1 ] && [ "$RC" = 3 ] && [ "$(grep -c '"event_type":"HISTORY_CARRY"'
     pass RH-14 "init turns telemetry, its chain and history on, and a refusal there is remembered"
 else
     fail RH-14 "init does not make history automatic" "presets missing it:${bad:- none} rc=$RC"
+fi
+
+# ---- RH-15 remembered code met again in an imported module ---------------------------------
+# validate's stub is refused in the entry file, then moved unchanged into a
+# module as `export fn`. The module text starts at `export`; the fingerprint
+# must read through it, or moved code is never recognised.
+p_mod_stub() { printf 'export fn validate(items) {\n    return true\n}\n' > "$1/mod.naab"
+               printf 'import "mod.naab" as m\nmain {\n    print(m.validate([1, 2]))\n    print("RAN")\n}\n' > "$1/t.naab"; }
+p_mod_loop() { printf 'export fn validate(items) {\n    let ok = true\n    for i in items {\n        if i < 0 { ok = false }\n    }\n    return ok\n}\n' > "$1/mod.naab"
+               printf 'import "mod.naab" as m\nmain {\n    print(m.validate([1, 2]))\n    print("RAN")\n}\n' > "$1/t.naab"; }
+M="$TEST_TMP/m"; proj "$M"; PL_OFF=1 cfg "$M"; p_stub "$M"; runp "$M"; M1=$RC
+p_mod_stub "$M"; runp "$M"; M2=$RC; M2OUT=$OUT
+MF="$TEST_TMP/m_fresh"; proj "$MF"; PL_OFF=1 cfg "$MF"; p_mod_stub "$MF"; runp "$MF"
+MC="$TEST_TMP/m_other"; proj "$MC"; PL_OFF=1 cfg "$MC"; p_stub "$MC"; runp "$MC"; p_mod_loop "$MC"; runp "$MC"
+MO=$("$GOV" history "$M/tele.jsonl" 2>&1)
+if [ "$(subj "$MF" seen_in_module validate)" = 0 ] && [ "$(subj "$MC" seen_in_module validate)" = 0 ]; then
+    pass RH-15c "CONTROL: no sighting in a fresh project, nor for other code under the same name"
+else
+    fail RH-15c "a sighting with nothing remembered, or for changed code, so RH-15 measures nothing" "fresh=$(subj "$MF" seen_in_module validate) other=$(subj "$MC" seen_in_module validate)"
+fi
+if [ "$M1" = 3 ] && [ "$(subj "$M" seen_in_module validate)" = 1 ] && grep -q 'met in an imported module' <<<"$MO" && \
+   grep -q '^RAN' <<<"$M2OUT" && [ "$M2" = 0 ]; then
+    pass RH-15 "refused code moved unchanged into a module is recognised there (seen_in_module); the verdict is unchanged"
+else
+    fail RH-15 "moved code was not recognised in the module" "refused=$M1 moved=$M2 seen=$(subj "$M" seen_in_module validate)"
 fi
 
 echo "Result: $PASS passed, $FAIL failed, $UNM unmeasurable"

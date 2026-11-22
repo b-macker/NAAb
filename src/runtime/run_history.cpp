@@ -39,6 +39,11 @@ Fingerprint fingerprintNaab(const std::string& text, const std::string& own_name
         if (t.type == TokenType::NEWLINE || t.type == TokenType::COMMENT ||
             t.type == TokenType::END_OF_FILE)
             continue;
+        // A leading `export` says where the function is visible, not what it
+        // does: a module's text starts there (declarationText() takes the
+        // declaration's line), and the same function in the entry file must
+        // read the same, or code moved into a module is never recognised.
+        if (out.tokens == 0 && t.type == TokenType::EXPORT) continue;
         std::string piece;
         if (t.type == TokenType::IDENTIFIER) {
             const bool after_dot = i > 0 && (toks[i - 1].type == TokenType::DOT ||

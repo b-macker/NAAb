@@ -48,10 +48,12 @@ constexpr size_t kBackwardScanBytes = 64u * 1024 * 1024;   // with no anchor
 // whitespace dropped, identifiers renamed in order of first use (members after
 // `.` and anything followed by `.` -- a module or receiver -- kept), the
 // function's own name replaced, string and number literals reduced to their
-// kind, polyglot bodies kept with whitespace collapsed. Equal fingerprints mean
-// the same code under other local names and other literal values. Empty `fp`
-// when the text does not lex. `stream_out`, when given, receives the text that
-// was hashed (the caller checks it holds no secret before keeping the hash).
+// kind, polyglot bodies kept with whitespace collapsed, a leading `export`
+// dropped (a module function reads as the same function in the entry file).
+// Equal fingerprints mean the same code under other local names and other
+// literal values. Empty `fp` when the text does not lex. `stream_out`, when
+// given, receives the text that was hashed (the caller checks it holds no
+// secret before keeping the hash).
 struct Fingerprint {
     std::string fp;
     int tokens = 0;
