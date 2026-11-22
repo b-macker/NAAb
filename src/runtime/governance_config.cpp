@@ -4982,6 +4982,13 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
     }
 
     // --- Governance Baseline (Feature 4) ---
+    // Bundle 20: run history (run_history.h). On by default; it reads and
+    // writes nothing unless telemetry and its chain are on.
+    if (j.contains("history") && j["history"].is_object()) {
+        const auto& hj = j["history"];
+        if (hj.contains("enabled") && hj["enabled"].is_boolean())
+            rules_.history.enabled = hj["enabled"].get<bool>();
+    }
     if (j.contains("governance_baseline") && j["governance_baseline"].is_object()) { rules_.explicitly_set.insert("governance_baseline");
         auto& gb = j["governance_baseline"];
         if (gb.contains("enabled") && gb["enabled"].is_boolean()) rules_.governance_baseline.enabled = gb["enabled"].get<bool>();

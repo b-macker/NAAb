@@ -72,13 +72,13 @@ A46 in `docs/open-investigations.md`.
 
 | Group | Stream | Shape (verified unless marked) |
 |---|---|---|
-| Load | stderr | `[governance] Warning: ...` one-liners (unknown key with a "did you mean"); CONTRA findings in the full advisory shape; `[governance] Loaded:` banner; integrity blocks |
+| Load | stderr | `[governance] Warning: ...` one-liners (unknown key with a "did you mean"); CONTRA findings in the full advisory shape; `[governance] Loaded:` banner; integrity blocks; run history (Bundle 20, `naab-lang run` only): `[governance] History: reset -- <reason>; earlier refusals are not remembered` when the anchor no longer matches the telemetry file, or `[governance] History: not read -- ...` when telemetry or its chain is off where history existed (traced, `test_run_history.sh` RH-05..RH-07, RH-12) |
 | Static checks | stderr | `[governance] WARNING <rule>`, the `formatError` block, then `Project guidance (<source> > <section>):` |
 | Pre-flight | stderr | type-check, lockfile, `[scanner]` pre-flight notes (VM, traced), agent review block and `[hint]` rejected findings |
 | Runtime | stderr | the same advisory shape, `(occurrence n/m)`, `ESCALATED`; `[hint] dict.get("k") returned null -- did you mean "..."?` (both engines, capped at 3); DX notes |
 | Polyglot | **stdout** | a block's own stderr as `[shell stderr]: ...` while its stdout becomes the block's value; `[PY ADAPTER ERROR]` before a Python error |
 | Fatal | **stdout** | `Error: ...` in one of four shapes: governance (`formatError`; a refusal during the run names its line, `At: line N`, since A171), runtime (hand-written Got/Help/Example), parse (location plus source excerpt), polyglot (passed through, no help). A refused run then prints its Summary and `-- Governance: REFUSED (rule) --` on stderr (A174) |
-| End of run | stderr | grouped advisories, guidance block, voice, Summary (counted by disposition: passed / warned / [overridden / approved / audit-only] / refused, A39(c)), `-- Governance: PASS (...; after-run audit: N findings) --` |
+| End of run | stderr | grouped advisories, guidance block, voice, Summary (counted by disposition: passed / warned / [overridden / approved / audit-only] / refused, A39(c)), then, when earlier runs left history, `-- History: N refusal(s) remembered from earlier runs, M repaired in this run (naab-gov history FILE) --` just before the verdict, then `-- Governance: PASS (...; after-run audit: N findings) --` or `-- Governance: REFUSED (rule) --` (Bundle 20; counts only -- which function moved where goes to telemetry and `naab-gov history`, never the terminal) |
 
 A pipe carrying both streams kept program lines and warnings in order (one
 sample).

@@ -100,6 +100,10 @@ static void printHelp() {
         "                                         config writes, where its rule repeated\n"
         "                                         in a verified run (report only; --min N,\n"
         "                                         --json)\n"
+        "  naab-gov history <telemetry> [opts]    What the run history holds: refusals the\n"
+        "                                         next run starts from, their repairs, and\n"
+        "                                         where remembered code was met again\n"
+        "                                         (report only; --hmac-key, --json)\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
         "\n"
@@ -749,6 +753,8 @@ int cmdExplain(const std::vector<std::string>& args, const char* argv0);
 int cmdPatchCheck(const std::vector<std::string>& args, const char* argv0);
 // gov_heal.cpp: a repeated advisory -> a stricter written level (report only).
 int cmdHeal(const std::vector<std::string>& args, const char* argv0);
+// gov_history.cpp: what the run history holds (Bundle 20, report only).
+int cmdHistory(const std::vector<std::string>& args);
 // gov_diff.cpp (Bundle 13)
 int cmdDiff(const std::vector<std::string>& args);
 // gov_manifest.cpp (Bundle 11 PR 2)
@@ -976,6 +982,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "heal") {
             return cmdHeal(rest, argv[0]);
+        }
+
+        if (cmd == "history") {
+            return cmdHistory(rest);
         }
     } catch (const naab::governance::GovernanceHardError& e) {
         std::cerr << e.what() << "\n";

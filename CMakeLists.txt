@@ -443,6 +443,7 @@ add_library(naab_security
     src/runtime/curl_egress.cpp            # Shared curl proxy/CA/SSRF settings for every outbound connection
     src/runtime/project_context.cpp          # Project context awareness (LLM files, linters, manifests)
     src/runtime/governance_guidance.cpp      # Live guidance (docs/plan-live-guidance.md)
+    src/runtime/run_history.cpp              # Run history (Bundle 20): what earlier runs refused
     src/utils/safe_regex.cpp                # Phase 1 Item 7: Regex timeout protection
     src/runtime/tamper_evident_logger.cpp    # Phase 1 Item 8: Tamper-evident logging
     src/runtime/ffi_callback_validator.cpp   # Phase 1 Item 9: FFI callback safety
@@ -948,7 +949,7 @@ install(TARGETS libnaab
 message(STATUS "  ✓ libnaab shared library (Phase 8.1)")
 
 # naab-gov — Standalone governance + scanning CLI (Phase 8.2)
-add_executable(naab-gov src/cli/gov_main.cpp src/cli/gov_contracts.cpp src/cli/gov_manifest.cpp src/cli/gov_taint.cpp src/cli/gov_diff.cpp src/cli/gov_replay.cpp src/cli/gov_explain.cpp src/cli/gov_patch_check.cpp src/cli/gov_heal.cpp)
+add_executable(naab-gov src/cli/gov_main.cpp src/cli/gov_contracts.cpp src/cli/gov_manifest.cpp src/cli/gov_taint.cpp src/cli/gov_diff.cpp src/cli/gov_replay.cpp src/cli/gov_explain.cpp src/cli/gov_patch_check.cpp src/cli/gov_heal.cpp src/cli/gov_history.cpp)
 target_include_directories(naab-gov PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
     ${CMAKE_CURRENT_SOURCE_DIR}/include

@@ -982,6 +982,8 @@
 "guidance\x1f""sources\x1f""[]\x1f""timeout_ms",
 "guidance\x1f""sources\x1f""[]\x1f""type",
 "guidance\x1f""sources\x1f""[]\x1f""url",
+"history",
+"history\x1f""enabled",
 "hooks",
 "hooks\x1f""on_complete",
 "hooks\x1f""on_complete\x1f""args",

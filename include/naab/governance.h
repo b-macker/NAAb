@@ -22,6 +22,7 @@
 #include <regex>
 #include "naab/rx.h"
 #include <mutex>
+#include "naab/run_history.h"
 #include <atomic>
 #include <memory>
 #include <optional>
@@ -2903,6 +2904,10 @@ struct GovernanceRules {
     BaselinesConfig baselines;
     ProjectContextConfig project_context;
     GuidanceConfig guidance;
+    // Bundle 20: run history -- what earlier runs of this project refused, read
+    // at `naab-lang run` start from their chained telemetry (run_history.h).
+    // It needs telemetry and its chain on; with either off it reads nothing.
+    struct HistoryConfig { bool enabled = true; } history;
     ApprovalConfig approval;
     TrustPolicyConfig trust_policy;
     PrerequisitesConfig prerequisites;
@@ -3103,6 +3108,14 @@ struct CheckResult {
     // decided (recordPass(), enforce()); dispositionOf() covers a result
     // recorded any other way.
     std::string disposition;
+    // Bundle 20: the function-body subject a check judged (empty when the
+    // check was not about one function). Set from ScopedCheckSubject. A
+    // secret or PII rule keeps the function and file only.
+    std::string subject_function;
+    std::string subject_file;      // relative to govern.json's directory, '/' separators
+    std::string subject_sha256;    // of the function's text, CRLF read as LF
+    std::string subject_fp;        // naab::history::fingerprintNaab()
+    int subject_tokens = 0;
 };
 
 // A193: what the check-result cap (V-GOV-024) has evicted, tallied at the one
@@ -3661,6 +3674,30 @@ public:
     };
     // Swap this thread's explicit location, returning the previous one (ScopedCheckContext).
     static ThreadCheckContext exchangeThreadCheckContext(ThreadCheckContext next);
+    // Bundle 20: the function-body subject the checks on this thread judge
+    // (ScopedCheckSubject). `text` points at the parsed text for the scope.
+    struct CheckSubject {
+        std::string function;
+        std::string file;
+        std::string sha256;
+        std::string fp;
+        int tokens = 0;
+        const std::string* text = nullptr;
+        bool set = false;
+    };
+    static CheckSubject exchangeThreadCheckSubject(CheckSubject next);
+    // Run history (Bundle 20). Read only by a process that runs a program:
+    // `naab-lang run` turns this on before it loads governance, like the
+    // external guidance and prerequisites switches. naab-gov, lint and the
+    // contract-search worker never read history.
+    static void allowRunHistory(bool on);
+    // Reads the history when it is allowed, enabled and the telemetry chain is
+    // on; prints one line when history existed and stopped, or was reset.
+    void loadRunHistory();
+    bool historyActive() const { return history_active_.load(); }
+    // The `-- History: ... --` line, or "" when there is nothing to say.
+    std::string historyClosingLine() const;
+    std::string historyClosingLineFrom(const std::vector<CheckResult>& results) const;
     // The source a live location is read from; null fn = none.
     struct CheckLocationSource {
         using Fn = bool (*)(const void* self, std::string& file, int& line, std::string& function);
@@ -3789,6 +3826,9 @@ public:
     std::string modelOutputSecretFinding(const std::string& text) const;
     std::string firstSecretPattern(const std::string& text) const;  // the match both share; no switch
     std::string piiFinding(const std::string& text) const;
+    // Whether the PII patterns match, whether or not no_pii is on: the run
+    // history never stores a subject they match (Bundle 20).
+    bool piiPresentUngated(const std::string& text) const;
     std::string checkPlaceholders(const std::string& code, int line = 0, bool code_starts_at_line = false);
     std::string checkHardcodedResults(const std::string& code, int line = 0);
 
@@ -4861,6 +4901,38 @@ private:
     // appended between two dumps that the erase moved below it was never
     // written. Record numbers only grow, so a later dump resumes by number.
     mutable uint64_t telemetry_last_record_dumped_ = 0;
+    // Run history (Bundle 20). run_history_ is immutable once loaded, so
+    // worker threads read it without a lock; the run's own state is guarded by
+    // history_mutex_.
+    std::shared_ptr<const naab::history::RunHistory> run_history_;
+    std::atomic<bool> history_active_{false};
+    mutable std::mutex history_mutex_;
+    // rule \x1f file \x1f function -> {strictest level a pass was recorded at, sha256}
+    mutable std::map<std::string, std::pair<std::string, std::string>> history_passed_;
+    // A carry another run wrote while this one ran, merged into this run's
+    // carry (writeHistoryLocked), and the runs already merged.
+    mutable naab::history::RunHistory history_other_;
+    mutable std::set<std::string> history_merged_runs_;
+    mutable std::vector<naab::history::Sighting> history_seen_in_module_;
+    mutable std::map<std::string, std::string> history_row_hashes_;  // rule \x1f file \x1f function -> row hash
+    mutable bool history_line_printed_ = false;
+    mutable std::set<std::string> history_events_written_;     // sighting keys, once each
+    mutable std::string history_last_carry_;                  // what the last carry held
+    mutable std::vector<naab::history::Repair> history_repairs_this_run_;
+    std::atomic<size_t> history_store_bytes_{0};
+    // Writes this run's HISTORY_SUBJECT sightings and, when it changed, the
+    // HISTORY_CARRY, sealed on the telemetry file writeTelemetry() holds.
+    // Returns the lines it wrote (the stderr total counts them).
+    long long writeHistoryLocked(FILE* fp, const std::string& timestamp,
+                                 const std::vector<CheckResult>& results) const;
+    // What this run does to the remembered set, from the results so far.
+    void historyOutcome(const std::vector<CheckResult>& results,
+                        std::vector<naab::history::Remembered>& carry,
+                        std::vector<naab::history::Repair>& repaired,
+                        std::vector<std::pair<std::string, naab::history::Remembered>>& sightings) const;
+    std::string historyRelativePath(const std::string& file) const;
+    void storeSubjectText(const std::string& sha256, const std::string& text);
+    void stampSubject(CheckResult& r, const std::string& rule_name) const;
     mutable std::unordered_set<std::string> telemetry_dedup_seen_;
     // Score at the last ScoringSnapshot; -1 = none emitted yet.
     mutable int scoring_snapshot_last_score_ = -1;
@@ -5115,6 +5187,18 @@ private:
 // A runtime call's own location, for an engine with no instruction pointer to
 // ask (the tree-walker): explicit for its duration, but a runtime event like
 // the VM's live location (never de-duplicated; names "At: line N").
+// Bundle 20: the function-body subject every check made in this scope judges.
+class ScopedCheckSubject {
+public:
+    explicit ScopedCheckSubject(GovernanceEngine::CheckSubject subject)
+        : prev_(GovernanceEngine::exchangeThreadCheckSubject(std::move(subject))) {}
+    ~ScopedCheckSubject() { GovernanceEngine::exchangeThreadCheckSubject(std::move(prev_)); }
+    ScopedCheckSubject(const ScopedCheckSubject&) = delete;
+    ScopedCheckSubject& operator=(const ScopedCheckSubject&) = delete;
+private:
+    GovernanceEngine::CheckSubject prev_;
+};
+
 class ScopedLiveCheckContext {
 public:
     ScopedLiveCheckContext(std::string file, int line)

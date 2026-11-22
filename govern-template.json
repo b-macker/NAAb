@@ -1697,6 +1697,12 @@
     "_comment_rules": "Optional, and not shown as a key on purpose: listing ANY rule replaces the automatic routes, so an example entry here would switch them off in every config copied from this file. A rule pins a section to a trigger: \"rules\": [{\"on\": \"signal:mandate_alignment\", \"from\": \"agent-playbook#stay-on-task\", \"to\": [\"agent\"], \"agents\": [], \"max_entries\": 1}]. on: start | signal:<context_drift signal key, or *> | validation_failed | violation:<rule, trailing * = prefix>. from: \"source#slug\" (that section, subsections included) or \"source\" (the section whose own text best overlaps the trigger's keywords); a source's name is its file name without the extension unless the entry gives one. to: agent (start, signal, validation_failed) and/or terminal (violation). agents: limit to these agent names (empty = all). max_entries: sections per trigger (1-10)."
   },
 
+  "_comment_history": "Run history (Bundle 20). Each `naab-lang run` reads what earlier runs of this project refused from the chained telemetry (telemetry.enabled and telemetry.tamper_evidence.enabled must be on; with either off there is no history), and records whether each refusal was refused again, repaired, or met again in an imported module. A refused function's text is kept in .naab_cache/ beside govern.json (never a secret or PII match), its hash in the chain. History never changes a verdict: every verdict is the real check under the current govern.json. See it with: naab-gov history telemetry.jsonl. Only `naab-lang run` reads it; naab-gov, --lint-only and the contract search do not.",
+  "history": {
+    "_comment_enabled": "On by default. Read once when the run starts; a mid-run reload may not switch it off.",
+    "enabled": true
+  },
+
   "_comment_quality_gate": "Quality Gate — aggregate pass/fail for CI/CD pipelines. Exit code 2 on failure.",
   "quality_gate": {
     "enabled": false,
