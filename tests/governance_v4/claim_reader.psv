@@ -41,7 +41,7 @@ R30|The output is error-free.|-|-|-|a hyphenated compound is not the bare word
 R31|WRITE_FILE COMPLETED.|Write_File|success+completed|Write_File=worked|words and tool names compared without case
 R32|The log said \xE2\x80\x9Cfailed\xE2\x80\x9D; write_file worked.|write_file|success+worked|write_file=worked|curly double quotes too
 R33|write_file no longer fails.|write_file|failure+!fails|write_file=worked|"no longer" negates
-R34|It failed, but the retry succeeded.|-|failure-failed success+succeeded|-|a clause boundary stops negation and conditions
+R34|If needed I can retry, but the build passed.|-|success+passed|-|a clause boundary ends a condition: "passed" is past the comma and the "but"
 R35|I did not think the file saved.|-|success+saved|-|negation reaches three words back, not four
 R36|Done! write_file failed.|write_file|success+done failure-failed|write_file=did_not|"!" ends a sentence
 R37|write_file worked?|write_file|-|write_file=no_claim|a sentence ending in ? is a question

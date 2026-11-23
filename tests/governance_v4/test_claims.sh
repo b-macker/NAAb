@@ -38,8 +38,8 @@
 #
 # KILL TABLE (each mutant applied alone, rebuilt, the suite re-run; the arms
 # that turned red):
-#   M1  S19 back on the keyword set (the reading not consulted)      -> CL-01 CL-02
-#   M2  S19 counts a named tool with no claim as accurate            -> CL-03
+#   M1  S19 skips the reading                                    -> CL-01b CL-01 CL-02
+#   M2  S19 counts a named tool with no claim as accurate        -> CL-03 CL-04
 #   M3  S19 judges a mixed reply as success                          -> CL-04
 #   M4  settleClaims() keeps the claims pending (settled twice)      -> CL-05
 #   M5  S24 charges any failed validation (contradiction ignored)    -> CL-07

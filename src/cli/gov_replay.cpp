@@ -639,7 +639,12 @@ public:
 
     void validationRecorded(const json& ev, RunState& st, const std::string& run, long long line) {
         std::string settles, turn, handle, passed, only, contradicts;
-        if (!field(ev, "settles", settles)) return;   // a writer before claims were recorded
+        if (!ev.contains("settles")) return;          // a writer before claims were recorded
+        if (!field(ev, "settles", settles)) {
+            note("claims", Verdict::Unmeasurable, run, line,
+                 "a validation's settles field is not a string of at most 256 bytes, so what it settles was not read");
+            return;
+        }
         field(ev, "turn", turn);
         field(ev, "handle_id", handle);
         field(ev, "passed", passed);

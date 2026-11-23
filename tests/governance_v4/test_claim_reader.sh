@@ -14,19 +14,19 @@
 # KILL TABLE (each mutant applied alone to src/runtime/claim_reader.cpp,
 # naab-gov rebuilt, the suite re-run; the rows that turned red):
 #   C1  negation ignored (negated always false)          -> R02 R03 R04 R05 R28 R33 R42
-#   C2  questions read                                     -> R08 R37
+#   C2  questions read                                     -> R37
 #   C3  conditionals read                                  -> R09 R10
 #   C4  quotes and inline code read                        -> R11 R12 R32
 #   C5  fenced blocks and block quotes read                -> R13 R14
-#   C6  the infinitive rule removed                        -> R15 R29
+#   C6  the infinitive rule removed                        -> R15
 #   C7  no modal: predictions read as success              -> R16 R17 R41 R42
 #   C8  the fixed-clause object rule removed               -> R06 R07
-#   C9  tool names split at '_' and '-' (the old S19)      -> R01 R06 R11 R12 R21 R22 R23 R24 R25 R28 R31 R32 R33 R36 R39
+#   C9  tool names split at '_' and '-' (the old S19)      -> R01 R02 R03 R06 R08 R09 R11 R12 R21 R22 R23 R24 R25 R26 R28 R31 R32 R33 R36 R37 R39
 #   C10 the next-sentence fallback removed                 -> R24
 #   C11 the other-tool guard on the fallback removed       -> R25
 #   C12 failure verbs negate failure words                 -> R27
 #   C13 a negation window of four words                    -> R35
-#   C14 clause boundaries removed                          -> R34
+#   C14 clause boundaries removed                          -> R32 R34
 # ============================================================
 set -u
 

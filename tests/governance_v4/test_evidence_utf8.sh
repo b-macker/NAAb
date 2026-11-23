@@ -23,7 +23,7 @@
 # KILL TABLE (each mutant applied alone, rebuilt, the suite re-run; the arms
 # that turned red):
 #   U1  writeTelemetry dumps strictly (the RuleViolation rows)       -> EU-01 EU-02
-#   U2  generateJsonReport dumps strictly                            -> EU-01
+#   U2  generateJsonReport dumps strictly                            -> EU-01 EU-02
 #   U3  writeAgentTelemetry fields not made valid (strict dump)      -> EU-03
 #   U4  recorded_sha256 over the text before validUtf8()             -> EU-03
 # ============================================================
