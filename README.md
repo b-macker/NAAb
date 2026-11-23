@@ -172,7 +172,7 @@ naab-lang --signing-key ./keys/governance --sign-governance   # writes govern.js
 | Tainted data reaching a shell | `env.get(...)` passed into a `<<shell>>` block | Taint tracking |
 | Capability abuse | a shell command, a socket, a file write | `capabilities.*`; `shell.enabled: false` refuses every language that runs as a separate process |
 | Secrets in agent traffic | a key in a reply, a propose candidate or a tool call's arguments; in a prompt or a tool result | What the model writes is scanned unless `govern.json` says `"no_secrets": false`; prompts and tool results with `code_quality.no_secrets` on. A hit ends the run |
-| Agent drift | repetition, circular actions, mandate drift, failed validations | Context drift detection, 23 signals; output admissibility can quarantine or block the reply |
+| Agent drift | repetition, circular actions, mandate drift, failed validations | Context drift detection, 24 signals; output admissibility can quarantine or block the reply |
 
 The demo runs six of these mistakes, each blocked for its own reason, and one clean program:
 

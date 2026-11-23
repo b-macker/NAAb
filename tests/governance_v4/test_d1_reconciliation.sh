@@ -306,10 +306,13 @@ fi
 
 # A06: govern-template.json contains all D1 fields
 # What this tests: govern-template.json is the canonical reference for all config keys.
-# D1 added 5 fields. Verify they are present.
+# D1 added 5 fields. Verify they are present -- except claim_accuracy_min,
+# which no check ever read: Bundle 20 PR 5 (A202) warns at load when a config
+# sets it and left it out of the template (settings-liveness step 3's rule;
+# test_no_effect_settings.sh checks the warning).
 TEMPLATE="$SCRIPT_DIR/../../govern-template.json"
 A06_PASS=true
-for field in "claim_result_reconciliation" "claim_accuracy_min" "step_up_contextual" "step_up_contextual_threshold"; do
+for field in "claim_result_reconciliation" "step_up_contextual" "step_up_contextual_threshold"; do
     if ! grep -q "\"$field\"" "$TEMPLATE" 2>/dev/null; then
         A06_PASS=false
         break

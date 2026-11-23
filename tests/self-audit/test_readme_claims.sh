@@ -50,7 +50,7 @@
 #   RC-15  CONTRA-013 is printed for a config with path rules
 #   RC-16  the MCP server lists exactly the tools the README names
 #   RC-17  the error text the tour quotes is the engine's
-#   RC-18  the "16 built-in patterns" and "23 signals" counts (screened: read
+#   RC-18  the "16 built-in patterns" and "24 signals" counts (screened: read
 #          from the source)
 #   RC-19  Go and PHP blocks run without `package main` / `<?php`
 #   RC-20  live guidance: a violation shows the section named for its rule,

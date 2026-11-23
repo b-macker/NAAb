@@ -4,6 +4,8 @@
 // Requires "agents" section in govern.json for configuration
 
 #include "naab/thread_vm.h"
+#include "naab/utf8_text.h"
+#include "naab/claim_reader.h"
 #include "naab/stdlib_new_modules.h"
 #include "naab/error_sanitizer.h"
 #include "naab/naab_val.h"
@@ -1582,7 +1584,7 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
         if (!config->context_drift_signals.empty()) cfg["context_drift_signals"] = config->context_drift_signals;
         te["config"] = cfg;
 
-        engine->writeAgentTranscript(te.dump());
+        engine->writeAgentTranscript(naab::text::dumpEvidence(te));
     }
 
     return NaabVal::makeDict(std::move(handle));
@@ -1706,6 +1708,46 @@ static NaabVal agentExtractCode(std::vector<NaabVal>& args) {
 // agent.send(handle, message) → response dict
 // ============================================================================
 
+// Claims (Bundle 20 PR 5). A scored reply is read once by the claim reader
+// (include/naab/claim_reader.h): the reading goes on the AGENT_RESPONSE event,
+// where S19 reads it; its claims become the handle's pending claims, which the
+// next agent.record_validation() settles (S24); and each claim is written as a
+// chained AGENT_CLAIM -- its kind, direction, negation and byte span, never the
+// text. `text` is what the drift signals score at that site: the raw reply on
+// the send path, the committed candidate on the commit path. Null for an empty
+// reply, which claims nothing and still replaces the pending claims.
+static std::shared_ptr<const naab::claims::ClaimReading> readReplyClaims(
+        governance::GovernanceEngine* gov_engine, int handle_id,
+        const std::string& config_name, int turn, const std::string& model,
+        const std::string& text) {
+    if (!gov_engine || !gov_engine->isActive()) return nullptr;
+    auto reading = std::make_shared<naab::claims::ClaimReading>(
+        text.empty() ? naab::claims::ClaimReading{} : naab::claims::readClaims(text));
+    const auto ids = gov_engine->recordReplyClaims(handle_id, turn, *reading);
+    if (gov_engine->getRules().telemetry_output.enabled && !ids.empty()) {
+        const std::string reply_sha256 = security::CryptoUtils::sha256(text);
+        for (size_t k = 0; k < ids.size(); ++k) {
+            const auto& c = reading->claims[k];
+            gov_engine->writeAgentTelemetry("AGENT_CLAIM", {
+                {"claim_id",        ids[k]},
+                {"handle_id",       std::to_string(handle_id)},
+                {"config_name",     config_name},
+                {"turn_at_request", std::to_string(turn)},
+                {"model",           model},
+                {"kind",            naab::claims::kindName(c.kind)},
+                {"positive",        c.positive ? "true" : "false"},
+                {"negated",         c.negated ? "true" : "false"},
+                {"span",            std::to_string(c.begin) + "-" + std::to_string(c.end)},
+                {"index",           std::to_string(k)},
+                {"of",              std::to_string(reading->claims.size())},
+                {"reply_sha256",    reply_sha256},
+            });
+        }
+    }
+    if (text.empty()) return nullptr;
+    return reading;
+}
+
 // Live guidance: a drift signal that PAID a penalty on a turn CDD actually
 // analysed queues `signal:<key>` guidance for the handle's next send. Gated on
 // `analyzed` because an interval-skipped turn re-shows the previous turn's
@@ -1828,7 +1870,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
             transcript_entry["timestamp"] = std::string(ts_buf);
             transcript_entry["run_id"] = gov_for_transcript->getRunId();
-            gov_for_transcript->writeAgentTranscript(transcript_entry.dump());
+            gov_for_transcript->writeAgentTranscript(naab::text::dumpEvidence(transcript_entry));
         } catch (...) {} // never mask the real error
     };
 
@@ -4812,6 +4854,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // that runs (so the signal-recurrence field is fresh), else just after it.
     bool guidance_reply_logged = false;
 
+    // Claims (Bundle 20 PR 5): read before the drift block so the reading is
+    // recorded, and its claims pending settlement, whether or not sequence
+    // detection runs; the same reading goes on the event S19 scores.
+    const auto reply_claims = readReplyClaims(gov_engine, handle_id, config_name,
+                                              turn_at_request, replyModel(agent_resp),
+                                              agent_resp.content);
+
     // Behavioral sequence: emit agent.response event + context drift check
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().behavioral_sequences.enabled) {
@@ -4837,7 +4886,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             "agent.response('" + config_name + "', tokens=" +
             std::to_string(resp_output_tokens) + ")", "", 0, cfp,
             resp_output_tokens, agent_resp.thinking_tokens, response_keywords,
-            agent_resp.input_tokens, agent_resp.thinking_reported);
+            agent_resp.input_tokens, agent_resp.thinking_reported, reply_claims);
         // Context drift check — include json parse failures as coherence signals
         std::string cdd_error = agent_resp.success ? json_error_signal : agent_resp.error;
         // Read governance level before CDD (for change detection)
@@ -5685,7 +5734,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
         transcript_entry["timestamp"] = std::string(ts_buf);
         transcript_entry["run_id"] = gov_for_transcript->getRunId();
-        gov_for_transcript->writeAgentTranscript(transcript_entry.dump());
+        gov_for_transcript->writeAgentTranscript(naab::text::dumpEvidence(transcript_entry));
     }
 
     return NaabVal::makeDict(std::move(result));
@@ -6233,7 +6282,7 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
         te["candidates"] = static_cast<int>(candidate_dicts.size());
         te["admissible_count"] = admissible_count;
         te["run_id"] = gov_engine->getRunId();
-        gov_engine->writeAgentTranscript(te.dump());
+        gov_engine->writeAgentTranscript(naab::text::dumpEvidence(te));
     }
 
     std::unordered_map<std::string, NaabVal> result;
@@ -6422,6 +6471,10 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
             "  - Or enable step_up challenges to allow lease renewal\n");
     }
 
+    // Claims (Bundle 20 PR 5): the committed candidate is the scored reply.
+    const auto reply_claims = readReplyClaims(gov_engine, handle_id, config_name,
+                                              current_turn, selected.model, selected.content);
+
     // Post-receive pipeline: BSD response event + CDD at the pre-increment turn
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().behavioral_sequences.enabled) {
@@ -6440,7 +6493,7 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
             std::to_string(selected.output_tokens) + ")", "", 0, cfp,
             // One candidate's counts, each at most 10M (reportedTokenCount()).
             static_cast<int>(selected.output_tokens), 0, response_keywords,
-            static_cast<int>(selected.input_tokens));
+            static_cast<int>(selected.input_tokens), true, reply_claims);
         const unsigned long long cdd_seq_before = gov_engine->cddAnalysisSeq(handle_id);
         std::string drift_err = gov_engine->checkContextDrift(handle_id, event_turn, "");
         const bool cdd_analyzed = gov_engine->cddAnalysisSeq(handle_id) != cdd_seq_before;
@@ -6622,7 +6675,7 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
             te["content_hash"] = selected.content_hash;
             te["history_committed"] = commit_history;
             te["run_id"] = gov_engine->getRunId();
-            gov_engine->writeAgentTranscript(te.dump());
+            gov_engine->writeAgentTranscript(naab::text::dumpEvidence(te));
         }
         if (gov_engine->getRules().taint_tracking.enabled)
             gov_engine->setLastReturnTainted(true, "agent.commit");
@@ -7633,7 +7686,7 @@ static NaabVal agentReset(std::vector<NaabVal>& args) {
         std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
         te["timestamp"] = std::string(ts_buf);
         te["run_id"] = gov_engine->getRunId();
-        gov_engine->writeAgentTranscript(te.dump());
+        gov_engine->writeAgentTranscript(naab::text::dumpEvidence(te));
     }
 
     return args[0];
@@ -7700,12 +7753,16 @@ static NaabVal agentRecordValidation(std::vector<NaabVal>& args) {
 
     auto* gov_engine = governance::GovernanceEngine::getCurrent();
     bool applied = true;
+    governance::ContextDriftAnalyzer::ClaimSettlement settlement;
     if (gov_engine && gov_engine->isActive()) {
         // False when an unconsumed FAILURE was preserved rather than replaced by
         // this pass. Reported so a superseded result is visible instead of
         // looking like a recorded pass that CDD then ignored.
         applied = gov_engine->recordValidationOutcome(handle_id, passed, detail_keywords,
                                                       evidence_count);
+        // Claims (Bundle 20 PR 5): this validation settles the claims of the
+        // handle's latest scored reply, once (S24 reads the contradiction).
+        settlement = gov_engine->settleClaims(handle_id, passed);
         // Live guidance: a failed validation queues `validation_failed`
         // guidance for this handle's next send; the detail's keywords pick the
         // section when a rule selects by keyword. The detail can steer WHICH
@@ -7725,6 +7782,17 @@ static NaabVal agentRecordValidation(std::vector<NaabVal>& args) {
                 {"detail_keywords", std::to_string(detail_keywords.size())},
                 {"applied",         applied ? "true" : "false"},
                 {"evidence_count",  std::to_string(evidence_count)},
+                // Bundle 20 PR 5: the reply this validation follows, and the
+                // AGENT_CLAIM ids it settles (only the latest reply's; empty
+                // when it claimed nothing or a validation already settled it).
+                {"turn",            std::to_string(settlement.turn)},
+                {"settles",         [&] {
+                    std::string j;
+                    for (const auto& id : settlement.ids) { if (!j.empty()) j += ","; j += id; }
+                    return j;
+                }()},
+                {"claims_only_positive", settlement.only_positive ? "true" : "false"},
+                {"contradicts",     settlement.contradicted ? "true" : "false"},
             });
         }
     }

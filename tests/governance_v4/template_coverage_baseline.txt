@@ -231,6 +231,7 @@ audit.log_events.checks_failed
 audit.log_events.checks_passed
 audit.provenance.record_decisions
 audit.provenance.record_proof_objects
+context_drift.thresholds.claim_accuracy_min
 limits.data.input_size
 limits.execution.total_executions
 limits.memory.per_block_mb

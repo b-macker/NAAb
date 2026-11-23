@@ -33,6 +33,7 @@ const std::vector<std::pair<const char*, const char*>>& eventClassTable() {
         {"AGENT_CHALLENGE_FAIL", "intervention"},     // a challenge prompt was sent
         {"AGENT_CHALLENGE_PASS", "intervention"},     // ... and a pass recovers coherence
         {"AGENT_CHALLENGE_SKIPPED", "observation"},   // no challenge reached the agent
+        {"AGENT_CLAIM", "observation"},               // what a reply claimed (Bundle 20 PR 5)
         {"AGENT_FALLBACK", "observation"},            // a model change: MIXED_MODEL judges it
         {"AGENT_HARD_STOP", "observation"},
         {"AGENT_KEY_DISABLED", "observation"},

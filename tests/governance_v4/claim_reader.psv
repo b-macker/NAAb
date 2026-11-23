@@ -1,0 +1,52 @@
+# The claim reader's table (include/naab/claim_reader.h, Bundle 20 PR 5).
+# One row per rule, run by test_claim_reader.sh through `naab-gov claims`,
+# the same function the engine reads replies with.
+#
+#   id | reply (\n is a line break) | tools | claims | what it says per tool | why
+#
+# claims: one token per claim, in order: KIND then + (says it worked) or -
+# (says it did not), then ! when negated, then the word lowercased; "-" none.
+# tools: NAME=VERDICT, comma separated and sorted by name (worked / did_not / mixed / no_claim /
+# not_mentioned); "-" when the row passes no tools.
+R01|I called write_file and it completed successfully.|write_file|success+completed success+successfully|write_file=worked|success words, the tool named in the sentence
+R02|write_file was not successful.|write_file|success-!successful|write_file=did_not|"not" before a success word says it did not work (A202: read as success)
+R03|write_file ran with no errors.|write_file|failure+!errors|write_file=worked|"no" before a failure word says it worked (A202)
+R04|The batch finished without errors.|-|success+finished failure+!errors|-|"without" negates
+R05|It didn't work.|-|success-!work|-|a word ending in n't negates; the base verb "work" needs a negator or a modal
+R06|I fixed the error in write_file.|write_file|fixed+fixed|write_file=worked|a failure noun in a clause with a fixed word is what was fixed
+R07|The error is fixed now.|-|fixed+fixed|-|the object before the fixed word too
+R08|Did write_file succeed?|write_file|-|write_file=no_claim|a question is not a claim
+R09|If write_file fails, retry it.|write_file|-|write_file=no_claim|a conditional clause is not a claim
+R10|Retry unless the upload failed.|-|-|-|"unless" too
+R11|The log printed "error" and write_file worked.|write_file|success+worked|write_file=worked|a word in double quotes is quoted, not claimed
+R12|The flag `failed` is set and write_file completed.|write_file|success+completed|write_file=worked|inline code is not claimed
+R13|```\nerror failed\n```\nDone.|-|success+done|-|a fenced block is code
+R14|> the build failed\nAll checks passed.|-|success+passed|-|a block-quoted line is someone else's text
+R15|I need the tests to pass.|-|-|-|an infinitive is not a claim
+R16|The tests should pass now.|-|prediction+pass|-|a modal makes a prediction
+R17|I'll fix it next.|-|prediction+fix|-|'ll is a modal
+R18|Fix the bug in parse.|-|-|-|a bare base verb is an instruction or intention
+R19|It is done.|-|success+done|-|"done" is read (A202: a stop word in the keyword set)
+R20|I could write the file.|-|-|-|"could" is not a failure word (A202: it was)
+R21|write_file completed.|write_file|success+completed|write_file=worked|a snake_case tool is one name (A202: split into words and never checked)
+R22|send-email failed.|send-email|failure-failed|send-email=did_not|a hyphenated tool name too
+R23|`write_file` failed.|write_file|failure-failed|write_file=did_not|a tool named in inline code is still named
+R24|I ran write_file. It completed.|write_file|success+completed|write_file=worked|no claim beside the name: the next sentence
+R25|I ran write_file. send_email failed.|write_file,send_email|failure-failed|send_email=did_not,write_file=no_claim|the next sentence names another tool: not attributed
+R26|write_file succeeded but the upload failed.|write_file|success+succeeded failure-failed|write_file=mixed|both in one sentence: mixed, which neither signal judges
+R27|The call failed with an error.|-|failure-failed failure-error|-|a failure verb does not negate a failure word
+R28|I cannot complete the write_file call.|write_file|failure-cannot success-!complete|write_file=did_not|"cannot" is a failure word and negates what follows
+R29|Unable to save the file.|-|failure-unable|-|"to save" is an infinitive; "unable" is the claim
+R30|The output is error-free.|-|-|-|a hyphenated compound is not the bare word
+R31|WRITE_FILE COMPLETED.|Write_File|success+completed|Write_File=worked|words and tool names compared without case
+R32|The log said \xE2\x80\x9Cfailed\xE2\x80\x9D; write_file worked.|write_file|success+worked|write_file=worked|curly double quotes too
+R33|write_file no longer fails.|write_file|failure+!fails|write_file=worked|"no longer" negates
+R34|If needed I can retry, but the build passed.|-|success+passed|-|a clause boundary ends a condition: "passed" is past the comma and the "but"
+R35|I did not think the file saved.|-|success+saved|-|negation reaches three words back, not four
+R36|Done! write_file failed.|write_file|success+done failure-failed|write_file=did_not|"!" ends a sentence
+R37|write_file worked?|write_file|-|write_file=no_claim|a sentence ending in ? is a question
+R38|The tests are passing.|-|success+passing|-|"passing"
+R39|write_file returned an error.|write_file|success+returned failure-error|write_file=mixed|"returned" kept from S19's list: with an error, mixed
+R40|Access was denied.|-|failure-denied|-|"denied"
+R41|This will not break anything and the tests will pass.|-|prediction+pass|-|"break" is not a word the reader knows; "pass" after "will" is a prediction
+R42|The migration won't fail.|-|prediction+!fail|-|won't is a modal and a negator: a positive prediction

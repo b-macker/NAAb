@@ -1860,6 +1860,8 @@
       "validation_outcome": true,
       "_comment_response_degenerate": "S23: near-empty response (output_tokens below response_min_output_tokens). OFF by default -- terse-by-design agents would fire constantly.",
       "response_degenerate": false,
+      "_comment_claim_validation": "S24: a reply that claimed only success (fixed, tests pass, this should work) when the next agent.record_validation() fails. OFF by default. Settled claims are recorded (AGENT_CLAIM, VALIDATION_RECORDED.settles) whether or not it is on.",
+      "claim_validation": false,
       "exclude_infrastructure_errors": true
     },
     "weights": {
@@ -1888,7 +1890,9 @@
       "_comment_validation_outcome": "S22 penalty weight: a flat penalty, never absorbed by the adaptive baseline.",
       "validation_outcome": 0.15,
       "_comment_response_degenerate": "S23 penalty weight (only when signals.response_degenerate is enabled).",
-      "response_degenerate": 0.08
+      "response_degenerate": 0.08,
+      "_comment_claim_validation": "S24 penalty weight: a flat penalty, never absorbed by the adaptive baseline (only when signals.claim_validation is enabled).",
+      "claim_validation": 0.10
     },
     "thresholds": {
       "velocity_drop": -0.15,
@@ -1914,7 +1918,6 @@
       "instruction_conflict_window": 10,
       "persona_deviation_factor": 2.0,
       "tool_result_recall_min": 0.15,
-      "claim_accuracy_min": 0.70,
       "_comment_entity_context_window": "S15: how many recent per-sighting contexts of an entity are compared against (max Jaccard).",
       "entity_context_window": 5,
       "_comment_persona_history_window": "S17: response window for the persona baseline (independent of thinking_history_window).",

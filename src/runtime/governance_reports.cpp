@@ -6,6 +6,7 @@
 #include "naab/bounded_jsonl.h"
 #include "naab/env_snapshot.h"
 #include "naab/governance.h"
+#include "naab/utf8_text.h"
 #include "naab/paths.h"
 #include "naab/telemetry_forwarder.h"
 #include "naab/error_sanitizer.h"
@@ -151,14 +152,14 @@ void GovernanceEngine::logAuditEvent(const std::string& event_type,
         entry["prev_hash"] = last_audit_hash_.empty()
             ? rules().audit.tamper_evidence.chain_genesis
             : last_audit_hash_;
-        last_audit_hash_ = computeAuditHash(entry.dump());
+        last_audit_hash_ = computeAuditHash(naab::text::dumpEvidence(entry));
         entry["hash"] = last_audit_hash_;
     }
 
     try {
         std::ofstream ofs(output_file, std::ios::app);
         if (ofs.is_open()) {
-            ofs << entry.dump() << "\n";
+            ofs << naab::text::dumpEvidence(entry) << "\n";
             if (ofs.fail()) {
                 audit_write_failures_.fetch_add(1, std::memory_order_relaxed);
                 fmt::print(stderr, "[governance] AUDIT WRITE FAILURE: write to {} failed\n",
@@ -345,13 +346,13 @@ std::string GovernanceEngine::chainPrevLocked(FILE* fp) const {
         rs["pid"] = static_cast<long>(getpid());
 #endif
         rs["prev_hash"] = prev;
-        last_telemetry_hash_ = computeHash(rs.dump(), te);
+        last_telemetry_hash_ = computeHash(naab::text::dumpEvidence(rs), te);
         rs["hash"] = last_telemetry_hash_;
-        if (checkedWrite(fp, rs.dump() + "\n", telemetry_write_failures_))
+        if (checkedWrite(fp, naab::text::dumpEvidence(rs) + "\n", telemetry_write_failures_))
             agent_events_written_.fetch_add(1, std::memory_order_relaxed);
         // Forwarded before the event that triggered it, as in the file; a
         // SIEM that never saw RunStart cannot anchor the chain it receives.
-        forwardTelemetry(rs.dump());
+        forwardTelemetry(naab::text::dumpEvidence(rs));
         chained_events_this_run_++;
         prev = last_telemetry_hash_;
     }
@@ -384,13 +385,13 @@ void GovernanceEngine::emitRunEnd(FILE* fp, const std::string& timestamp) const 
     re["prev_hash"] = chainPrevLocked(fp);
     // Count includes RunStart, all chained events, and this RunEnd itself.
     re["chained_events"] = chained_events_this_run_ + 1;
-    last_telemetry_hash_ = computeHash(re.dump(), te);
+    last_telemetry_hash_ = computeHash(naab::text::dumpEvidence(re), te);
     re["hash"] = last_telemetry_hash_;
-    if (checkedWrite(fp, re.dump() + "\n", telemetry_write_failures_))
+    if (checkedWrite(fp, naab::text::dumpEvidence(re) + "\n", telemetry_write_failures_))
         agent_events_written_.fetch_add(1, std::memory_order_relaxed);
     // The forwarded stream settles a run the same way the file does (F53).
     fflush(fp);
-    forwardTelemetry(re.dump());
+    forwardTelemetry(naab::text::dumpEvidence(re));
     chained_events_this_run_++;
     run_end_declared_ = chained_events_this_run_;
 }
@@ -601,7 +602,7 @@ void GovernanceEngine::emitAttestation(const std::string& action_type,
             if (kf.is_open()) {
                 std::string pem((std::istreambuf_iterator<char>(kf)),
                                  std::istreambuf_iterator<char>());
-                att["signature"] = security::CryptoUtils::ed25519Sign(att.dump(), pem);
+                att["signature"] = security::CryptoUtils::ed25519Sign(naab::text::dumpEvidence(att), pem);
                 // Fingerprint the PUBLIC half. ed25519Fingerprint() reads with
                 // PEM_read_bio_PUBKEY and deliberately refuses private keys, so
                 // handing it the signing key silently produced "" — a valid
@@ -612,7 +613,7 @@ void GovernanceEngine::emitAttestation(const std::string& action_type,
         } catch (...) {}
     }
 
-    logAuditEvent("execution_attestation", "agent." + action_type, att.dump(), "", 0);
+    logAuditEvent("execution_attestation", "agent." + action_type, naab::text::dumpEvidence(att), "", 0);
 }
 
 void GovernanceEngine::emitRefusalAttestation(
@@ -701,7 +702,7 @@ void GovernanceEngine::emitRefusalAttestation(
             if (kf.is_open()) {
                 std::string pem((std::istreambuf_iterator<char>(kf)),
                                  std::istreambuf_iterator<char>());
-                ev["signature"] = security::CryptoUtils::ed25519Sign(ev.dump(), pem);
+                ev["signature"] = security::CryptoUtils::ed25519Sign(naab::text::dumpEvidence(ev), pem);
                 // Public half — see emitAttestation() for why.
                 ev["key_fingerprint"] = security::CryptoUtils::ed25519Fingerprint(
                     security::CryptoUtils::ed25519PublicFromPrivate(pem));
@@ -717,18 +718,18 @@ void GovernanceEngine::emitRefusalAttestation(
     if (rules().telemetry_output.tamper_evidence.enabled) {
         hlock.lock();
         ev["prev_hash"] = chainPrevLocked(fp.get());
-        last_telemetry_hash_ = computeHash(ev.dump(),
+        last_telemetry_hash_ = computeHash(naab::text::dumpEvidence(ev),
             rules().telemetry_output.tamper_evidence);
         ev["hash"] = last_telemetry_hash_;
         chained_events_this_run_++;
     }
 
-    std::string line = ev.dump() + "\n";
+    std::string line = naab::text::dumpEvidence(ev) + "\n";
     if (checkedWrite(fp.get(), line, telemetry_write_failures_))
         agent_events_written_.fetch_add(1, std::memory_order_relaxed);
 
     fflush(fp.get());
-    forwardTelemetry(ev.dump());
+    forwardTelemetry(naab::text::dumpEvidence(ev));
 }
 
 void GovernanceEngine::emitOutputAdmissibilityAttestation(
@@ -786,7 +787,7 @@ void GovernanceEngine::emitOutputAdmissibilityAttestation(
             if (kf.is_open()) {
                 std::string pem((std::istreambuf_iterator<char>(kf)),
                                  std::istreambuf_iterator<char>());
-                ev["signature"] = security::CryptoUtils::ed25519Sign(ev.dump(), pem);
+                ev["signature"] = security::CryptoUtils::ed25519Sign(naab::text::dumpEvidence(ev), pem);
                 // Public half — see emitAttestation() for why.
                 ev["key_fingerprint"] = security::CryptoUtils::ed25519Fingerprint(
                     security::CryptoUtils::ed25519PublicFromPrivate(pem));
@@ -802,18 +803,18 @@ void GovernanceEngine::emitOutputAdmissibilityAttestation(
     if (rules().telemetry_output.tamper_evidence.enabled) {
         hlock.lock();
         ev["prev_hash"] = chainPrevLocked(fp.get());
-        last_telemetry_hash_ = computeHash(ev.dump(),
+        last_telemetry_hash_ = computeHash(naab::text::dumpEvidence(ev),
             rules().telemetry_output.tamper_evidence);
         ev["hash"] = last_telemetry_hash_;
         chained_events_this_run_++;
     }
 
-    std::string line = ev.dump() + "\n";
+    std::string line = naab::text::dumpEvidence(ev) + "\n";
     if (checkedWrite(fp.get(), line, telemetry_write_failures_))
         agent_events_written_.fetch_add(1, std::memory_order_relaxed);
 
     fflush(fp.get());
-    forwardTelemetry(ev.dump());
+    forwardTelemetry(naab::text::dumpEvidence(ev));
 }
 
 // --- Hooks ---
@@ -1190,7 +1191,7 @@ std::string GovernanceEngine::generateJsonReport() const {
         if (!r.explanation.empty()) entry["explanation"] = r.explanation;
         report["results"].push_back(entry);
     }
-    return report.dump(2);
+    return naab::text::dumpEvidence(report, 2);
 }
 
 std::string GovernanceEngine::generateSarifReport() const {
@@ -1396,7 +1397,7 @@ std::string GovernanceEngine::generateSarifReport() const {
     });
 
     sarif["runs"] = nlohmann::json::array({run});
-    return sarif.dump(2);
+    return naab::text::dumpEvidence(sarif, 2);
 }
 
 std::string GovernanceEngine::generateJunitReport() const {
@@ -1772,18 +1773,18 @@ void GovernanceEngine::writeTelemetry() const {
         if (rules().telemetry_output.tamper_evidence.enabled) {
             hlock.lock();
             ev["prev_hash"] = chainPrevLocked(fp.get());
-            last_telemetry_hash_ = computeHash(ev.dump(),
+            last_telemetry_hash_ = computeHash(naab::text::dumpEvidence(ev),
                 rules().telemetry_output.tamper_evidence);
             ev["hash"] = last_telemetry_hash_;
             chained_events_this_run_++;
         }
 
-        std::string line = ev.dump() + "\n";
+        std::string line = naab::text::dumpEvidence(ev) + "\n";
         if (checkedWrite(fp.get(), line, telemetry_write_failures_))
             events_written++;
 
         fflush(fp.get());
-        forwardTelemetry(ev.dump());
+        forwardTelemetry(naab::text::dumpEvidence(ev));
         // Bundle 20: the chained row a remembered refusal points back to.
         if (!r.passed && !r.subject_fp.empty() && ev.contains("hash") &&
             naab::history::rememberedRule(r.rule_name)) {
@@ -1818,16 +1819,16 @@ void GovernanceEngine::writeTelemetry() const {
         if (rules().telemetry_output.tamper_evidence.enabled) {
             hlock.lock();
             summary["prev_hash"] = chainPrevLocked(fp.get());
-            last_telemetry_hash_ = computeHash(summary.dump(),
+            last_telemetry_hash_ = computeHash(naab::text::dumpEvidence(summary),
                 rules().telemetry_output.tamper_evidence);
             summary["hash"] = last_telemetry_hash_;
             chained_events_this_run_++;
         }
-        std::string sline = summary.dump() + "\n";
+        std::string sline = naab::text::dumpEvidence(summary) + "\n";
         if (checkedWrite(fp.get(), sline, telemetry_write_failures_))
             events_written++;
         fflush(fp.get());
-        forwardTelemetry(summary.dump());
+        forwardTelemetry(naab::text::dumpEvidence(summary));
     }
 
     // Everything above this point has now been committed to the file.
@@ -1863,16 +1864,16 @@ void GovernanceEngine::writeTelemetry() const {
         if (rules().telemetry_output.tamper_evidence.enabled) {
             hlock.lock();
             snap["prev_hash"] = chainPrevLocked(fp.get());
-            last_telemetry_hash_ = computeHash(snap.dump(),
+            last_telemetry_hash_ = computeHash(naab::text::dumpEvidence(snap),
                 rules().telemetry_output.tamper_evidence);
             snap["hash"] = last_telemetry_hash_;
             chained_events_this_run_++;
         }
-        std::string sline = snap.dump() + "\n";
+        std::string sline = naab::text::dumpEvidence(snap) + "\n";
         if (checkedWrite(fp.get(), sline, telemetry_write_failures_))
             events_written++;
         fflush(fp.get());
-        forwardTelemetry(snap.dump());
+        forwardTelemetry(naab::text::dumpEvidence(snap));
     }
 
     // Bundle 20: this run's history events and carry, before RunEnd counts them.
@@ -1961,7 +1962,9 @@ void GovernanceEngine::writeAgentTelemetry(
                 continue;
             } catch (...) { /* fall through to string */ }
         }
-        ev[k] = error::ErrorSanitizer::sanitizeFilePaths(v);
+        // Path sanitiser first, then valid UTF-8 (A207): a guidance delivery's
+        // recorded_sha256 is computed over the same two steps in this order.
+        ev[k] = naab::text::validUtf8(error::ErrorSanitizer::sanitizeFilePaths(v));
     }
 
     // Tamper-evident hash chain
@@ -1972,18 +1975,18 @@ void GovernanceEngine::writeAgentTelemetry(
     if (rules().telemetry_output.tamper_evidence.enabled) {
         hlock.lock();
         ev["prev_hash"] = chainPrevLocked(fp.get());
-        last_telemetry_hash_ = computeHash(ev.dump(),
+        last_telemetry_hash_ = computeHash(naab::text::dumpEvidence(ev),
             rules().telemetry_output.tamper_evidence);
         ev["hash"] = last_telemetry_hash_;
         chained_events_this_run_++;
     }
 
-    std::string line = ev.dump() + "\n";
+    std::string line = naab::text::dumpEvidence(ev) + "\n";
     if (checkedWrite(fp.get(), line, telemetry_write_failures_))
         agent_events_written_.fetch_add(1, std::memory_order_relaxed);
 
     fflush(fp.get());
-    forwardTelemetry(ev.dump());
+    forwardTelemetry(naab::text::dumpEvidence(ev));
 }
 
 // --- Agent Interaction Transcript ---
@@ -2004,7 +2007,7 @@ void GovernanceEngine::writeAgentTranscript(const std::string& json_line) {
     try {
         auto j = nlohmann::json::parse(json_line);
         j["entry_hash"] = entry_hash;
-        out_line = j.dump();
+        out_line = naab::text::dumpEvidence(j);
         // Correlation fields for matching the reference to the entry
         if (j.contains("type") && j["type"].is_string())
             ref_fields["entry_type"] = j["type"].get<std::string>();
@@ -2473,7 +2476,7 @@ void GovernanceEngine::writeProfileEntry(const std::string& language,
     // Write back
     std::ofstream out(path);
     if (out.is_open()) {
-        out << entries.dump(2);
+        out << naab::text::dumpEvidence(entries, 2);
     }
 }
 
@@ -2984,7 +2987,7 @@ void GovernanceEngine::writeDriftEvent(
     {
         std::ofstream out(path, std::ios::app);
         if (out.is_open()) {
-            out << entry.dump() << "\n";
+            out << naab::text::dumpEvidence(entry) << "\n";
         }
     }
 
@@ -3620,7 +3623,7 @@ long long GovernanceEngine::writeHistoryLocked(FILE* fp, const std::string& time
         if (te.enabled) {
             hlock.lock();
             ev["prev_hash"] = chainPrevLocked(fp);
-            last_telemetry_hash_ = computeHash(ev.dump(), te);
+            last_telemetry_hash_ = computeHash(naab::text::dumpEvidence(ev), te);
             ev["hash"] = last_telemetry_hash_;
             h = last_telemetry_hash_;
             chained_events_this_run_++;
@@ -3628,10 +3631,10 @@ long long GovernanceEngine::writeHistoryLocked(FILE* fp, const std::string& time
         fflush(fp);
         fseek(fp, 0, SEEK_END);
         const long long offset = static_cast<long long>(ftell(fp));
-        const std::string line = ev.dump() + "\n";
+        const std::string line = naab::text::dumpEvidence(ev) + "\n";
         if (checkedWrite(fp, line, telemetry_write_failures_)) ++written;
         fflush(fp);
-        forwardTelemetry(ev.dump());
+        forwardTelemetry(naab::text::dumpEvidence(ev));
         return {offset, h};
     };
 

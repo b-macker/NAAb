@@ -321,6 +321,7 @@
 {"context_drift.weights.prompt_compliance", DeclaredOrder::Higher, nullptr, nullptr},
 {"context_drift.weights.repeated_failure", DeclaredOrder::Higher, nullptr, nullptr},
 {"context_drift.weights.response_degenerate", DeclaredOrder::Higher, nullptr, nullptr},
+{"context_drift.weights.claim_validation", DeclaredOrder::Higher, nullptr, nullptr},
 {"context_drift.weights.response_quality", DeclaredOrder::Higher, nullptr, nullptr},
 {"context_drift.weights.response_repetition", DeclaredOrder::Higher, nullptr, nullptr},
 {"context_drift.weights.scope_creep", DeclaredOrder::Higher, nullptr, nullptr},

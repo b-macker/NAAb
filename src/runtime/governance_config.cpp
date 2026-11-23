@@ -1156,6 +1156,9 @@ static const NoEffectSetting kNoEffectSettings[] = {
     // naab-lang api is a plain HTTP server (rest_api.cpp, httplib::Server):
     // the dangerous direction, an operator who sets a certificate believes the
     // API keys travel encrypted.
+    // Bundle 20 PR 5 (A202): parsed since S19 was built and read by nothing.
+    {"context_drift.thresholds.claim_accuracy_min",
+     " S19 charges each reply that misstates a tool's outcome; no accuracy threshold applies."},
     {"api.tls_cert", " The REST server has no TLS: requests and API keys travel in plaintext."},
     {"api.tls_key", " The REST server has no TLS: requests and API keys travel in plaintext."},
 };
@@ -4721,6 +4724,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sig.contains("response_repetition") && sig["response_repetition"].is_boolean()) cfg.signals.response_repetition = sig["response_repetition"].get<bool>();
             if (sig.contains("validation_outcome") && sig["validation_outcome"].is_boolean()) cfg.signals.validation_outcome = sig["validation_outcome"].get<bool>();
             if (sig.contains("response_degenerate") && sig["response_degenerate"].is_boolean()) cfg.signals.response_degenerate = sig["response_degenerate"].get<bool>();
+            if (sig.contains("claim_validation") && sig["claim_validation"].is_boolean()) cfg.signals.claim_validation = sig["claim_validation"].get<bool>();
             if (sig.contains("exclude_infrastructure_errors") && sig["exclude_infrastructure_errors"].is_boolean()) cfg.signals.exclude_infrastructure_errors = sig["exclude_infrastructure_errors"].get<bool>();
         }
         if (cd.contains("weights") && cd["weights"].is_object()) {
@@ -4748,6 +4752,17 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (w.contains("response_repetition") && w["response_repetition"].is_number()) cfg.weights.response_repetition = std::clamp(w["response_repetition"].get<double>(), 0.0, 1.0);
             if (w.contains("validation_outcome") && w["validation_outcome"].is_number()) cfg.weights.validation_outcome = std::clamp(w["validation_outcome"].get<double>(), 0.0, 1.0);
             if (w.contains("response_degenerate") && w["response_degenerate"].is_number()) cfg.weights.response_degenerate = std::clamp(w["response_degenerate"].get<double>(), 0.0, 1.0);
+            if (w.contains("claim_validation") && w["claim_validation"].is_number()) cfg.weights.claim_validation = std::clamp(w["claim_validation"].get<double>(), 0.0, 1.0);
+            // A negative weight charges nothing -- every signal pays only a
+            // penalty above zero -- so the signal reads on and never pays
+            // (Bundle 20 PR 5, A202). Said, not changed: raising a weight the
+            // operator wrote is not the loader's call.
+            for (auto it = w.begin(); it != w.end(); ++it) {
+                if (it.value().is_number() && it.value().get<double>() < 0.0) {
+                    fprintf(stderr, "[governance] Warning: \"context_drift.weights.%s\" is negative, "
+                            "so that signal never costs coherence when it fires.\n", it.key().c_str());
+                }
+            }
         }
         if (cd.contains("reality_checkpoint") && cd["reality_checkpoint"].is_object()) {
             auto& rc = cd["reality_checkpoint"];
@@ -5161,6 +5176,7 @@ static bool cddSignalValue(const ContextDriftConfig::Signals& s, int idx) {
         case SIG_RESPONSE_REPETITION:  return s.response_repetition;
         case SIG_VALIDATION:           return s.validation_outcome;
         case SIG_RESPONSE_DEGENERATE:  return s.response_degenerate;
+        case SIG_CLAIM_VALIDATION:     return s.claim_validation;
         default:                       return true;
     }
 }
