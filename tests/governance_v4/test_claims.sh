@@ -35,6 +35,16 @@
 #   CL-13  S24's latch is consumed while S24 is off: a reload that turns S24
 #          on later charges nothing stale (A203's shape); CL-13c S24 on from the
 #          start charges the same contradiction
+#   CL-IO  the suite's own readers give the same answers with Windows' streams
+#          injected (stdin decoded as cp1252, "\n" written as "\r\n")
+#
+# THE INSTRUMENT. Every Python reader takes the engine's output as BYTES and
+# writes its answer as bytes; `tq` prints through a print() that writes UTF-8
+# bytes. The first version read and printed text, which a native Windows
+# python turns into a different answer: test_evidence_utf8.sh failed that way
+# on build-windows at 46ffbbdd, and this suite failed CL-00, CL-10 and CL-11
+# on Linux with the same two stream behaviours injected (it is stub-backed, so
+# Windows does not run it yet).
 #
 # KILL TABLE (each mutant applied alone, rebuilt, the suite re-run; the arms
 # that turned red):
@@ -48,6 +58,11 @@
 #   M8  AGENT_CLAIM writes the span of the sentence, not the word    -> CL-00 CL-10
 #   M9  replay's settlement check accepts a partial settlement       -> CL-11
 #   M10 replay's re-read skipped (always MATCH)                      -> CL-11 (the span edit)
+#   M11 tq's print() writes text (the builtin)                       -> CL-IO
+#   M12 CL-10's reader prints text                                    -> CL-IO
+#   Not measured here: a reader that decodes stdin as text. This
+#   suite's files are ASCII, which cp1252 decodes the same; EU-IO in
+#   test_evidence_utf8.sh measures that half on non-ASCII data.
 # ============================================================
 set -u
 
@@ -59,7 +74,9 @@ TEST_TMP="$(mktemp -d)"
 
 PASS_COUNT=0; FAIL_COUNT=0; SKIP_COUNT=0
 pass() { PASS_COUNT=$((PASS_COUNT + 1)); echo "  PASS [$1] $2"; }
-fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && echo "       -> $3"; }
+# The detail is on the FAIL line, with any CR shown as \r, so run-all-tests.sh's
+# summary (which quotes lines that say "fail") carries it.
+fail() { local d="${3:-}"; d="${d//$'\r'/\\r}"; FAIL_COUNT=$((FAIL_COUNT + 1)); echo "  FAIL [$1] $2${d:+ -- $d}"; }
 skip() { SKIP_COUNT=$((SKIP_COUNT + 1)); echo "  SKIP [$1] UNMEASURABLE: $2"; }
 
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
@@ -86,12 +103,21 @@ fi
 source "$SCRIPT_DIR/../helpers/stub_launch.sh"
 export FAKE_KEY_CL="fake-key-claims"
 
-# tq FILE EXPR: EXPR sees `ev`, the events in file order.
+# py CODE: run a reader with stdin and stdout as given. PY_PRE (and TQ_PRE for
+# tq) is empty except in CL-IO, which injects Windows' stream behaviour.
+PY_PRE=""; TQ_PRE=""
+py() { python3 -I -c "$PY_PRE$1"; }
+# tq FILE EXPR: EXPR sees `ev`, the events in file order; its print() writes
+# UTF-8 bytes, so no platform's text stream changes the answer.
 tq() {
-    python3 -I - "$1" "$2" <<'PYEOF'
+    python3 -I - "$1" "$2" "$TQ_PRE" <<'PYEOF'
 import json, sys
+if len(sys.argv) > 3 and sys.argv[3]:
+    exec(sys.argv[3])
+def print(*a, sep=" ", end="\n"):
+    sys.stdout.buffer.write((sep.join(str(x) for x in a) + end).encode("utf-8"))
 ev = []
-for line in open(sys.argv[1], encoding="utf-8"):
+for line in open(sys.argv[1], encoding="utf-8", errors="strict"):
     try:
         ev.append(json.loads(line))
     except ValueError:
@@ -144,8 +170,11 @@ TXT0='I fixed the parser and the tests pass now, with no errors.'
 reply_fixture "$TEST_TMP/c0.json" "$TXT0"
 crun "$TEST_TMP/cl00" "$TEST_TMP/c0.json" '{}' '    let r = agent.send(h, "fix it")' >/dev/null
 GOT0="$(tq "$TEST_TMP/cl00/tele.jsonl" 'print(" ".join("%s%s%s@%s" % (e["kind"], "+" if e["positive"] == "true" else "-", "!" if e["negated"] == "true" else "", e["span"]) for e in of("AGENT_CLAIM")))')"
-WANT0="$(printf '%s' "$TXT0" | "$NAAB_GOV" claims - --json | python3 -I -c 'import json,sys
-d=json.load(sys.stdin); print(" ".join("%s%s%s@%s" % (c["kind"], "+" if c["positive"] else "-", "!" if c["negated"] else "", c["span"]) for c in d["claims"]))')"
+printf '%s' "$TXT0" | "$NAAB_GOV" claims - --json > "$TEST_TMP/cl00/claims.json" 2>/dev/null
+PY_WANT0='import json,sys
+d=json.load(sys.stdin.buffer)
+sys.stdout.buffer.write(" ".join("%s%s%s@%s" % (c["kind"], "+" if c["positive"] else "-", "!" if c["negated"] else "", c["span"]) for c in d["claims"]).encode("utf-8"))'
+WANT0="$(py "$PY_WANT0" < "$TEST_TMP/cl00/claims.json")"
 if [ -n "$WANT0" ] && [ "$GOT0" = "$WANT0" ] && [ "$(tq "$TEST_TMP/cl00/tele.jsonl" 'print(len(of("AGENT_CLAIM", claim_id="1.0.0")))')" = 1 ]; then
     pass "CL-00" "AGENT_CLAIM records the claims the reader reads from the same reply ($GOT0)"
 else
@@ -296,9 +325,11 @@ fi
 # ------------------------------------------------------------------
 RJ="$TEST_TMP/cl06/replay.json"
 (cd "$TEST_TMP/cl06" && "$NAAB_GOV" replay tele.jsonl --transcript transcript.jsonl --json > replay.json 2>/dev/null)
-R10="$(python3 -I -c 'import json,sys
-d=json.load(sys.stdin); c=d["checks"]
-print(c["claims"]["match"], c["claims"]["diverged"], c["claims"]["unmeasurable"], c["coherence"]["diverged"], c["coherence"]["match"], d["claims"]["settled"])' < "$RJ" 2>/dev/null)"
+PY_R10='import json,sys
+d=json.load(sys.stdin.buffer); c=d["checks"]
+v=(c["claims"]["match"], c["claims"]["diverged"], c["claims"]["unmeasurable"], c["coherence"]["diverged"], c["coherence"]["match"], d["claims"]["settled"])
+sys.stdout.buffer.write(" ".join(str(x) for x in v).encode("ascii"))'
+R10="$(py "$PY_R10" < "$RJ" 2>/dev/null)"
 read -r CM CD CU COD COM CS <<<"${R10:-x x x x x x}"
 if [ "${CM:-0}" -ge 3 ] && [ "$CD" = 0 ] && [ "$CU" = 0 ] && [ "$COD" = 0 ] && [ "${COM:-0}" -ge 2 ] && [ "$CS" = 2 ]; then
     pass "CL-10" "replay: every claim decision MATCHes, the reply re-read from the transcript included, and coherence reconciles with S24 listed"
@@ -314,15 +345,15 @@ fi
 edit_copy() {
     local d="$TEST_TMP/cl11_$1"; mkdir -p "$d"
     cp "$TEST_TMP/cl06/transcript.jsonl" "$d/"
-    python3 -I -c "import json,sys
+    py "import json,sys
 out=[]
-for l in sys.stdin:
+for l in sys.stdin.buffer:
     e=json.loads(l)
 $2
     out.append(json.dumps(e, separators=(',', ':')))
-sys.stdout.write('\n'.join(out)+'\n')" < "$TEST_TMP/cl06/tele.jsonl" > "$d/tele.jsonl"
-    (cd "$d" && "$NAAB_GOV" replay tele.jsonl --transcript transcript.jsonl --json 2>/dev/null) |
-        python3 -I -c 'import json,sys; print(json.load(sys.stdin)["checks"]["claims"]["diverged"])' 2>/dev/null
+sys.stdout.buffer.write(('\n'.join(out)+'\n').encode('utf-8'))" < "$TEST_TMP/cl06/tele.jsonl" > "$d/tele.jsonl"
+    (cd "$d" && "$NAAB_GOV" replay tele.jsonl --transcript transcript.jsonl --json > replay.json 2>/dev/null)
+    py 'import json,sys; sys.stdout.buffer.write(str(json.load(sys.stdin.buffer)["checks"]["claims"]["diverged"]).encode("ascii"))' < "$d/replay.json" 2>/dev/null
 }
 E1="$(edit_copy positive '    if e.get("claim_id") == "1.0.0": e["positive"] = "false"')"
 E2="$(edit_copy contradicts '    if e.get("event_type") == "VALIDATION_RECORDED": e["contradicts"] = "false"')"
@@ -340,10 +371,10 @@ fi
 # CL-12 -- a negative weight is said
 # ------------------------------------------------------------------
 crun "$TEST_TMP/cl12" "$TEST_TMP/c0.json" '{}' '    let r = agent.send(h, "x")' >/dev/null
-python3 -I -c 'import json,sys
-c=json.load(sys.stdin); c["context_drift"]["weights"]={"claim_result_reconciliation": -0.1}; print(json.dumps(c))' < "$TEST_TMP/cl12/govern.json" > "$TEST_TMP/cl12/neg.json"
-python3 -I -c 'import json,sys
-c=json.load(sys.stdin); c["context_drift"]["weights"]={"claim_result_reconciliation": 0.2}; print(json.dumps(c))' < "$TEST_TMP/cl12/govern.json" > "$TEST_TMP/cl12/pos.json"
+py 'import json,sys
+c=json.load(sys.stdin.buffer); c["context_drift"]["weights"]={"claim_result_reconciliation": -0.1}; sys.stdout.buffer.write(json.dumps(c).encode("utf-8"))' < "$TEST_TMP/cl12/govern.json" > "$TEST_TMP/cl12/neg.json"
+py 'import json,sys
+c=json.load(sys.stdin.buffer); c["context_drift"]["weights"]={"claim_result_reconciliation": 0.2}; sys.stdout.buffer.write(json.dumps(c).encode("utf-8"))' < "$TEST_TMP/cl12/govern.json" > "$TEST_TMP/cl12/pos.json"
 printf 'main {\n    print("ok")\n}\n' > "$TEST_TMP/cl12/q.naab"
 W_NEG="$( (cd "$TEST_TMP/cl12" && cp neg.json govern.json && "$NAAB" q.naab 2>&1) )"
 W_POS="$( (cd "$TEST_TMP/cl12" && cp pos.json govern.json && "$NAAB" q.naab 2>&1) )"
@@ -415,6 +446,38 @@ if grep -q RUN_DONE "$TEST_TMP/cl13/out.txt" && [[ "$T13" == *"] 1" ]] && [[ "$T
     pass "CL-13" "the reload turned S24 on, and the contradiction consumed while it was off charged nothing"
 else
     fail "CL-13" "a contradiction consumed while S24 was off charged after the reload, or the reload did not land" "$T13 $(tail -2 "$TEST_TMP/cl13/err.txt")"
+fi
+
+# ------------------------------------------------------------------
+# CL-IO -- the readers do not depend on the platform's streams
+# ------------------------------------------------------------------
+# CL-00's two readers, CL-10's and one CL-11 edit again, over the same files,
+# with stdin decoded as cp1252 and "\n" written as "\r\n" -- what a native
+# Windows python does under MSYS2. reconfigure, not a new wrapper: a replaced
+# wrapper that is collected closes the stream under it. tq reads its program
+# from stdin, so it gets the stdout half only.
+WIN_OUT='import sys
+sys.stdout.reconfigure(newline="\r\n")
+'
+WIN_PRE='import sys
+sys.stdin.reconfigure(encoding="cp1252", errors="replace")
+sys.stdout.reconfigure(newline="\r\n")
+'
+EXPR0='print(" ".join("%s%s%s@%s" % (e["kind"], "+" if e["positive"] == "true" else "-", "!" if e["negated"] == "true" else "", e["span"]) for e in of("AGENT_CLAIM")))'
+plain_io() {
+    printf '%s|%s|%s|%s' "$(tq "$TEST_TMP/cl00/tele.jsonl" "$EXPR0")" "$(py "$PY_WANT0" < "$TEST_TMP/cl00/claims.json")" \
+        "$(py "$PY_R10" < "$RJ" 2>/dev/null)" "$(edit_copy io_positive '    if e.get("claim_id") == "1.0.0": e["positive"] = "false"')"
+}
+IO_PLAIN="$(plain_io)"
+PY_PRE="$WIN_PRE"; TQ_PRE="$WIN_OUT"
+IO_SHAPED="$(plain_io)"
+PY_PRE=""; TQ_PRE=""
+if [ "$IO_PLAIN" != "$GOT0|$WANT0|$R10|$E1" ] || [ -z "$GOT0" ] || [ -z "$R10" ]; then
+    fail "CL-IO" "UNMEASURABLE: the plain readers did not repeat CL-00, CL-10 and CL-11, so there is nothing to compare" "$IO_PLAIN"
+elif [ "$IO_SHAPED" = "$IO_PLAIN" ]; then
+    pass "CL-IO" "the readers answer the same with Windows' streams injected (cp1252 stdin, CRLF stdout)"
+else
+    fail "CL-IO" "a reader depends on the platform's streams" "plain=[$IO_PLAIN] windows-shaped=[$IO_SHAPED]"
 fi
 
 echo ""

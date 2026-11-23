@@ -19,6 +19,16 @@
 #   EU-03   a guidance section holding the byte is delivered by a pull with
 #           telemetry on (it ended the run with exit 1), and its recorded
 #           text hashes to recorded_sha256
+#   EU-IO   the suite's own readers give the same answers with Windows'
+#           streams injected (stdin decoded as cp1252, "\n" written as "\r\n"),
+#           so a platform cannot turn the instrument into the finding
+#
+# THE INSTRUMENT. Every Python reader here takes the engine's output as BYTES
+# (sys.stdin.buffer), keeps its own source ASCII ("\ufffd", not the character)
+# and writes its answer as bytes with no newline. The first version read text
+# and printed: build-windows (cp1252 stdin, CRLF stdout) failed EU-01 and EU-03
+# while the engine had written every file (observed on 46ffbbdd, reproduced on
+# Linux with the same two arms red by injecting those two stream behaviours).
 #
 # KILL TABLE (each mutant applied alone, rebuilt, the suite re-run; the arms
 # that turned red):
@@ -26,6 +36,8 @@
 #   U2  generateJsonReport dumps strictly                            -> EU-01 EU-02
 #   U3  writeAgentTelemetry fields not made valid (strict dump)      -> EU-03
 #   U4  recorded_sha256 over the text before validUtf8()             -> EU-03
+#   U5  replaced() reads stdin as text and prints (the first version) -> EU-IO
+#   U6  the replay reader reads stdin as text and prints             -> EU-IO
 # ============================================================
 set -u
 
@@ -37,7 +49,10 @@ TEST_TMP="$(mktemp -d)"
 
 PASS_COUNT=0; FAIL_COUNT=0
 pass() { PASS_COUNT=$((PASS_COUNT + 1)); echo "  PASS [$1] $2"; }
-fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && echo "       -> $3"; }
+# The detail is on the FAIL line, with any CR shown as \r: run-all-tests.sh
+# quotes a failing suite's lines that say "fail", and a detail on its own line
+# never reached the CI summary.
+fail() { local d="${3:-}"; d="${d//$'\r'/\\r}"; FAIL_COUNT=$((FAIL_COUNT + 1)); echo "  FAIL [$1] $2${d:+ -- $d}"; }
 
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
@@ -59,9 +74,16 @@ prog() {  # $1 file, $2 the byte or letter in the comment
 run() { (cd "$1" && timeout 60s "$NAAB" run --governance-report rep.json --governance-sarif rep.sarif p.naab > out.txt 2>&1); echo $?; }
 files_ok() { [ -s "$1/tele.jsonl" ] && [ -s "$1/rep.json" ] && [ -s "$1/rep.sarif" ]; }
 chain_ok() { (cd "$1" && "$NAAB" --verify-telemetry-chain tele.jsonl > chain.txt 2>&1); }
+# py CODE: run a reader. PY_PRE is empty except in EU-IO, which injects
+# Windows' stream behaviour ahead of the reader.
+PY_PRE=""
+py() { python3 -I -c "$PY_PRE$1"; }
 # U+FFFD (EF BF BD) recorded where the byte was, in the RuleViolation row.
-replaced() { python3 -I -c 'import json,sys
-print(any(e.get("event_type") == "RuleViolation" and "caf� later" in json.dumps(e, ensure_ascii=False) for e in map(json.loads, sys.stdin)))' < "$1/tele.jsonl" 2>/dev/null; }
+PY_REPLACED='import json,sys
+want="caf\ufffd later"
+hit=any(e.get("event_type") == "RuleViolation" and want in json.dumps(e, ensure_ascii=False) for e in map(json.loads, sys.stdin.buffer))
+sys.stdout.buffer.write(b"True" if hit else b"False")'
+replaced() { py "$PY_REPLACED" < "$1/tele.jsonl" 2>/dev/null; }
 
 # ------------------------------------------------------------------
 # EU-00c / EU-01 -- advisory
@@ -112,14 +134,44 @@ printf '# Playbook\n\n## No placeholders\nCaf\xe9 rule: write the real logic.\n'
 printf '{"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"},\n "telemetry": {"enabled": true, "output_file": "tele.jsonl", "tamper_evidence": {"enabled": true}},\n "guidance": {"sources": ["docs/playbook.md"]}}\n' > "$d3/govern.json"
 printf 'use governance\nmain {\n    let g = governance.guidance("no placeholders")\n    print("GOT " + string(len(g)))\n}\n' > "$d3/p.naab"
 r3="$( (cd "$d3" && timeout 60s "$NAAB" p.naab > out.txt 2>&1); echo $?)"
-AGREE="$(python3 -I -c 'import hashlib,json,sys
-ok=[e for e in map(json.loads, sys.stdin) if e.get("event_type") == "GUIDANCE_DELIVERED"]
-print(len(ok) == 1 and "�" in ok[0]["text"] and hashlib.sha256(ok[0]["text"].encode("utf-8")).hexdigest() == ok[0]["recorded_sha256"])' < "$d3/tele.jsonl" 2>/dev/null)"
-DIV="$( (cd "$d3" && "$NAAB_GOV" replay tele.jsonl --json 2>/dev/null) | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["checks"]["guidance"]["diverged"])' 2>/dev/null)"
+# The one delivery: its recorded text holds U+FFFD and hashes to recorded_sha256.
+PY_AGREE='import hashlib,json,sys
+ok=[e for e in map(json.loads, sys.stdin.buffer) if e.get("event_type") == "GUIDANCE_DELIVERED"]
+hit=len(ok) == 1 and "\ufffd" in ok[0]["text"] and hashlib.sha256(ok[0]["text"].encode("utf-8")).hexdigest() == ok[0]["recorded_sha256"]
+sys.stdout.buffer.write(b"True" if hit else b"False")'
+PY_DIV='import json,sys
+sys.stdout.buffer.write(str(json.load(sys.stdin.buffer)["checks"]["guidance"]["diverged"]).encode("ascii"))'
+(cd "$d3" && "$NAAB_GOV" replay tele.jsonl --json > replay.json 2>/dev/null)
+AGREE="$(py "$PY_AGREE" < "$d3/tele.jsonl" 2>/dev/null)"
+DIV="$(py "$PY_DIV" < "$d3/replay.json" 2>/dev/null)"
 if [ "$r3" = 0 ] && grep -q 'GOT 1' "$d3/out.txt" && [ "$AGREE" = True ] && [ "$DIV" = 0 ]; then
     pass "EU-03" "a section holding the byte is delivered with telemetry on, and its recorded text hashes to recorded_sha256"
 else
     fail "EU-03" "the guidance pull failed, or the recorded text and its hash disagree" "rc=$r3 agree=$AGREE diverged=$DIV $(grep -m1 -o 'json.exception[^]]*\]' "$d3/out.txt")"
+fi
+
+# ------------------------------------------------------------------
+# EU-IO -- the readers do not depend on the platform's streams
+# ------------------------------------------------------------------
+# The same readers over the same files, with stdin decoded as cp1252 and "\n"
+# written as "\r\n" -- what a native Windows python does under MSYS2. Run only
+# when the plain readers saw what they look for, or there is nothing to compare.
+# reconfigure, not a new wrapper: a replaced wrapper that is collected closes
+# the stream under it.
+WIN_PRE='import sys
+sys.stdin.reconfigure(encoding="cp1252", errors="replace")
+sys.stdout.reconfigure(newline="\r\n")
+'
+PLAIN="$(replaced "$d1") $AGREE $DIV"
+PY_PRE="$WIN_PRE"
+SHAPED="$(replaced "$d1") $(py "$PY_AGREE" < "$d3/tele.jsonl" 2>/dev/null) $(py "$PY_DIV" < "$d3/replay.json" 2>/dev/null)"
+PY_PRE=""
+if [ "$PLAIN" != "True True 0" ]; then
+    fail "EU-IO" "UNMEASURABLE: the plain readers did not answer True True 0, so there is nothing to compare" "$PLAIN"
+elif [ "$SHAPED" = "$PLAIN" ]; then
+    pass "EU-IO" "the readers answer the same with Windows' streams injected (cp1252 stdin, CRLF stdout)"
+else
+    fail "EU-IO" "a reader depends on the platform's streams" "plain=[$PLAIN] windows-shaped=[$SHAPED]"
 fi
 
 echo ""

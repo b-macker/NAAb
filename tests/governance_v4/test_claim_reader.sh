@@ -37,7 +37,9 @@ TABLE="$SCRIPT_DIR/claim_reader.psv"
 
 PASS_COUNT=0; FAIL_COUNT=0
 pass() { PASS_COUNT=$((PASS_COUNT + 1)); echo "  PASS [$1] $2"; }
-fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); echo "  FAIL [$1] $2"; [ -n "${3:-}" ] && echo "       -> $3"; }
+# The detail is on the FAIL line, with any CR shown as \r, so run-all-tests.sh's
+# summary (which quotes lines that say "fail") carries it.
+fail() { local d="${3:-}"; d="${d//$'\r'/\\r}"; FAIL_COUNT=$((FAIL_COUNT + 1)); echo "  FAIL [$1] $2${d:+ -- $d}"; }
 
 [ -x "$GOV" ] || { echo "naab-gov not built ($GOV): UNMEASURABLE, not a pass"; exit 1; }
 [ -f "$TABLE" ] || { echo "claim_reader.psv missing"; exit 1; }
@@ -46,12 +48,14 @@ echo "=== the claim reader (Bundle 20 PR 5) ==="
 
 # The JSON report, as one line: the claim tokens, then '|', then the tools.
 # Python reads stdin only: under MSYS2 it is a native program that cannot open
-# the shell's paths (CLAUDE.md, output-channel gotcha).
+# the shell's paths (CLAUDE.md, output-channel gotcha). It reads and writes
+# BYTES, so a native Windows python's cp1252 stdin and CRLF stdout cannot
+# change the answer (test_evidence_utf8.sh EU-IO, test_claims.sh CL-IO).
 SUMMARISE='import json,sys
-d=json.load(sys.stdin)
+d=json.load(sys.stdin.buffer)
 cl=" ".join(c["kind"]+("+" if c["positive"] else "-")+("!" if c["negated"] else "")+c["word"].lower() for c in d["claims"]) or "-"
 tl=",".join(k+"="+v for k,v in sorted(d["tools"].items())) or "-"
-sys.stdout.write(cl+"|"+tl)'
+sys.stdout.buffer.write((cl+"|"+tl).encode("utf-8"))'
 
 # ------------------------------------------------------------------
 # CR-00 -- the table is readable and complete
