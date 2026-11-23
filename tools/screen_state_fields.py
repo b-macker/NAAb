@@ -186,13 +186,38 @@ def struct_members(rel_path, start, end):
     return sorted(set(out))
 
 
+def struct_bounds(rel_path, name):
+    """(line of `struct NAME {`, line of its closing `};`), found by name.
+
+    The bounds used to be written as line numbers, so any edit above a struct
+    moved it out from under the screen: two include lines added to
+    agent_impl.cpp pushed AgentTracker's last members past the range, and the
+    screen reported a flagged field as gone -- a broken probe reported as a
+    finding (Bundle 20 PR 5). Returns None when the struct is not found."""
+    fh = open(os.path.join(REPO, rel_path), encoding="utf-8", errors="replace")
+    start = None
+    for i, line in enumerate(fh, 1):
+        if start is None:
+            if re.match(r'^struct\s+' + re.escape(name) + r'\s*\{', line):
+                start = i
+        elif line.startswith("};"):
+            return start, i
+    return None
+
+
 def main():
     targets = [
-        ("DriftState", "include/naab/behavioral_sequence.h", 158, 484, DRIFT_ACC),
-        ("AgentTracker", "src/stdlib/agent_impl.cpp", 77, 102, TRACK_ACC),
+        ("DriftState", "include/naab/behavioral_sequence.h", DRIFT_ACC),
+        ("AgentTracker", "src/stdlib/agent_impl.cpp", TRACK_ACC),
     ]
     failures = 0
-    for name, rel, a, b, acc in targets:
+    for name, rel, acc in targets:
+        bounds = struct_bounds(rel, name)
+        if bounds is None:
+            print(f"UNMEASURABLE: struct {name} not found in {rel}")
+            failures += 1
+            continue
+        a, b = bounds
         members = struct_members(rel, a, b)
         res = scan(members, acc, rel, a, b)
 
