@@ -73,5 +73,26 @@ std::string dumpEvidence(Json& j, int indent = -1) {
     return j.dump(indent, ' ', false, Json::error_handler_t::replace);
 }
 
+// The one serialisation for a request a model receives (A209): the same
+// repair, so one stray byte no longer ends the run before anything is sent
+// (`[json.exception.type_error.316]`, exit 1). The body's request_sha256 is
+// taken over this output, the bytes actually sent.
+//
+// This is the BACKSTOP, not the rule. Text a scan judges -- a prompt, a tool's
+// result, a guidance section -- is made valid where it ENTERS the request,
+// before its scan, so the scan judges the bytes the request carries: under
+// byte-wise matching (rx.cpp runs RE2 as Latin-1) one invalid byte and its
+// three-byte U+FFFD can decide a length-bounded pattern differently. What
+// reaches dumpRequest() unrepaired is text no scan reads.
+template <class Json>
+std::string dumpRequest(Json& j) {
+    return dumpEvidence(j);
+}
+
+// The first `max` bytes of `s`, shortened to the last character boundary at
+// or before them, so a cut never splits a multi-byte character (the cut of a
+// valid string is valid). `s` unchanged when it is no longer than `max`.
+std::string truncateUtf8(std::string_view s, size_t max);
+
 }  // namespace text
 }  // namespace naab

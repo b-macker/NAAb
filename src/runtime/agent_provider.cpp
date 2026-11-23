@@ -4,6 +4,7 @@
 #include <climits>
 #include <cstdint>
 #include "naab/loopback_url.h"
+#include "naab/utf8_text.h"   // dumpRequest(): A209
 #include "naab/curl_egress.h"
 #include "naab/agent_provider.h"
 #include "naab/paths.h"
@@ -281,7 +282,7 @@ static json callAnthropic(
 
     return httpPost(
         anthropicUrl(config),
-        request_body.dump(),
+        naab::text::dumpRequest(request_body),
         {
             "x-api-key: " + api_key,
             "anthropic-version: 2023-06-01",
@@ -342,7 +343,7 @@ static json callGemini(
 
     std::string url = geminiUrl(config);
 
-    return httpPost(url, request_body.dump(),
+    return httpPost(url, naab::text::dumpRequest(request_body),
         {"content-type: application/json", "User-Agent: NAAb/1.0",
          "x-goog-api-key: " + api_key},
         static_cast<long>(config.timeout_seconds));
@@ -621,7 +622,7 @@ ProviderResult callAgentWithStatus(
             }
 
             std::string url = geminiUrl(config);
-            http_result = httpPostRaw(url, request_body.dump(),
+            http_result = httpPostRaw(url, naab::text::dumpRequest(request_body),
                 {"content-type: application/json", "User-Agent: NAAb/1.0",
                  "x-goog-api-key: " + api_key},
                 static_cast<long>(config.timeout_seconds));
@@ -637,7 +638,7 @@ ProviderResult callAgentWithStatus(
 
             http_result = httpPostRaw(
                 anthropicUrl(config),
-                request_body.dump(),
+                naab::text::dumpRequest(request_body),
                 {
                     "x-api-key: " + api_key,
                     "anthropic-version: 2023-06-01",
@@ -806,7 +807,7 @@ ProviderResult callAgentWithTools(
             }
 
             std::string url = geminiUrl(config);
-            http_result = httpPostRaw(url, request_body.dump(),
+            http_result = httpPostRaw(url, naab::text::dumpRequest(request_body),
                 {"content-type: application/json", "User-Agent: NAAb/1.0",
                  "x-goog-api-key: " + api_key},
                 static_cast<long>(config.timeout_seconds));
@@ -842,7 +843,7 @@ ProviderResult callAgentWithTools(
 
             http_result = httpPostRaw(
                 anthropicUrl(config),
-                request_body.dump(),
+                naab::text::dumpRequest(request_body),
                 {
                     "x-api-key: " + api_key,
                     "anthropic-version: 2023-06-01",

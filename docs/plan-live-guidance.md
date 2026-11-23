@@ -236,6 +236,10 @@ penalises it can learn to avoid the signal rather than the behaviour.
    it (screened: `telemetry_forwarder.cpp` has no host-policy reference). A
    command source does NOT -- *decided 2026-10-13*, below.
 4. **Outward**: a `naab_guidance` tool on `naab-lang mcp`.
+   Bundle 21 PR 4 (proposed 2026-11-23, `docs/plan-bundles.md`) builds
+   `naab-gov context TARGET` first and this tool on the same builder: what
+   governs a file, language, rule or role, from govern.json, its `extends`
+   chain, `project_context` and the guidance sources, report only.
 
 ## Alignment review after slice 1 (2026-10-12, #309 merged as `76c9617e`)
 

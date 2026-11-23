@@ -68,3 +68,30 @@ TEST(Utf8Text, DumpEvidenceNeverThrowsAndAgreesWithTheHelper) {
     nlohmann::json ok = {{"a", "b"}, {"n", 1}};
     EXPECT_EQ(tx::dumpEvidence(ok), ok.dump());
 }
+
+TEST(Utf8Text, TruncateCutsOnACharacterBoundary) {
+    // A209: a tool result cut by tool_result_max_chars inside a multi-byte
+    // character used to be cut by byte, which made the request invalid.
+    const std::string e_acute = "caf\xC3\xA9";          // 5 bytes, 4 characters
+    EXPECT_EQ(tx::truncateUtf8(e_acute, 10), e_acute);  // no cut
+    EXPECT_EQ(tx::truncateUtf8(e_acute, 5), e_acute);   // the whole string fits
+    EXPECT_EQ(tx::truncateUtf8(e_acute, 4), "caf");     // inside the 2-byte sequence
+    EXPECT_EQ(tx::truncateUtf8(e_acute, 3), "caf");     // exactly on the boundary
+    const std::string euro = "a\xE2\x82\xAC" "b";       // 3-byte sequence
+    EXPECT_EQ(tx::truncateUtf8(euro, 2), "a");
+    EXPECT_EQ(tx::truncateUtf8(euro, 3), "a");
+    EXPECT_EQ(tx::truncateUtf8(euro, 4), "a\xE2\x82\xAC");
+    EXPECT_EQ(tx::truncateUtf8(euro, 0), "");
+    // The cut of a valid string is valid.
+    for (size_t m = 0; m <= euro.size(); ++m) EXPECT_TRUE(tx::isValidUtf8(tx::truncateUtf8(euro, m)));
+}
+
+TEST(Utf8Text, DumpRequestRepairsAndNeverThrows) {
+    nlohmann::json j = {{"contents", {{{"parts", {{{"text", std::string("caf\xE9")}}}}}}}};
+    std::string out;
+    EXPECT_NO_THROW(out = tx::dumpRequest(j));
+    EXPECT_TRUE(tx::isValidUtf8(out));
+    EXPECT_NE(out.find("caf\xEF\xBF\xBD"), std::string::npos);
+    nlohmann::json ok = {{"a", "b"}};
+    EXPECT_EQ(tx::dumpRequest(ok), ok.dump());
+}

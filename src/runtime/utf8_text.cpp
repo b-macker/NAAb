@@ -56,5 +56,12 @@ std::string validUtf8(std::string_view s) {
     return out;
 }
 
+std::string truncateUtf8(std::string_view s, size_t max) {
+    if (s.size() <= max) return std::string(s);
+    size_t cut = max;
+    while (cut > 0 && (static_cast<unsigned char>(s[cut]) & 0xC0) == 0x80) --cut;
+    return std::string(s.substr(0, cut));
+}
+
 }  // namespace text
 }  // namespace naab
