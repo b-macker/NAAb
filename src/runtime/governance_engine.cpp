@@ -7,6 +7,7 @@
 //   ADVISORY  - Warn only. Execution continues.
 
 #include "naab/governance.h"
+#include "naab/utf8_text.h"
 #include "naab/host_match.h"
 #include "naab/language_descriptors.h"
 #include "naab/path_policy.h"
@@ -4081,16 +4082,24 @@ void GovernanceEngine::scoreUnconsumedValidations() {
             : "'" + r.config_name + "' (handle " + std::to_string(r.handle_id) + ")";
         {
             std::lock_guard<std::mutex> lock(results_mutex_);
-            pushCheckResultLocked({"context_drift.validation_outcome", EnforcementLevel::ADVISORY,
+            const bool s24 = r.signal == SIG_CLAIM_VALIDATION;
+            pushCheckResultLocked({s24 ? "context_drift.claim_validation"
+                                       : "context_drift.validation_outcome",
+                EnforcementLevel::ADVISORY,
                 false,
-                fmt::format("A failed validation for agent {} was recorded after its last turn, "
-                            "so it was scored at the end of the run: coherence {:.4f} -> {:.4f}",
-                            who, r.coherence_before, r.coherence_after),
+                s24 ? fmt::format("A failed validation for agent {} contradicted the success its "
+                                  "last reply claimed; recorded after its last turn, so it was "
+                                  "scored at the end of the run: coherence {:.4f} -> {:.4f}",
+                                  who, r.coherence_before, r.coherence_after)
+                    : fmt::format("A failed validation for agent {} was recorded after its last turn, "
+                                  "so it was scored at the end of the run: coherence {:.4f} -> {:.4f}",
+                                  who, r.coherence_before, r.coherence_after),
                 "context_drift", "medium", 0, "<agent:" + r.config_name + ">", {}, {}});
             capCheckResultsLocked();
         }
         if (rules().telemetry_output.enabled) {
             writeAgentTelemetry("VALIDATION_SCORED_AT_EXIT", {
+                {"signal",           ContextDriftAnalyzer::signalName(r.signal)},
                 {"handle_id",        std::to_string(r.handle_id)},
                 {"config_name",      r.config_name},
                 {"coherence_before", fmt::format("{:.4f}", r.coherence_before)},
@@ -4098,8 +4107,11 @@ void GovernanceEngine::scoreUnconsumedValidations() {
                 {"penalty",          fmt::format("{:.4f}", r.penalty)},
             });
         }
-        fprintf(stderr, "[governance] Validation failure for agent %s was recorded after "
+        fprintf(stderr, "[governance] %s for agent %s was recorded after "
                         "its last turn; scored at exit (coherence %.4f -> %.4f)\n",
+                r.signal == SIG_CLAIM_VALIDATION
+                    ? "A claim of success contradicted by a failed validation"
+                    : "Validation failure",
                 who.c_str(), r.coherence_before, r.coherence_after);
     }
 }
@@ -4617,7 +4629,7 @@ void GovernanceEngine::runGovernanceVoice() {
         data["violation_count"] = static_cast<int>(violations.size());
         data["source_hash"] = source_hash;
 
-        std::string data_str = data.dump(2);
+        std::string data_str = naab::text::dumpEvidence(data, 2);
         std::string hmac_key = security::CryptoUtils::sha256(
             config_hash + ":" + source_hash);
         std::string hmac = security::CryptoUtils::hmacSha256(data_str, hmac_key);
@@ -4629,7 +4641,7 @@ void GovernanceEngine::runGovernanceVoice() {
         std::string cpath = govern_json_dir_ + "/.naab_cache/" + cache_key + ".voice.json";
         std::ofstream out(cpath);
         if (out.is_open()) {
-            out << wrapper.dump(2);
+            out << naab::text::dumpEvidence(wrapper, 2);
         }
     }
 
@@ -5286,7 +5298,7 @@ void GovernanceEngine::saveScoringCalibration() const {
 
     std::ofstream ofs(path);
     if (ofs.is_open()) {
-        ofs << j.dump(2) << "\n";
+        ofs << naab::text::dumpEvidence(j, 2) << "\n";
         fprintf(stderr, "[governance] Scoring calibration saved to %s\n", path.c_str());
     }
 }
@@ -5417,7 +5429,7 @@ void GovernanceEngine::saveGovernanceBaseline() const {
 
     std::ofstream ofs(rules().governance_baseline.path);
     if (ofs.is_open()) {
-        ofs << baseline.dump(2) << "\n";
+        ofs << naab::text::dumpEvidence(baseline, 2) << "\n";
         fprintf(stderr, "[governance] Baseline saved to %s\n",
                 rules().governance_baseline.path.c_str());
     }
@@ -7578,7 +7590,7 @@ void GovernanceEngine::saveDriftBaseline(
 
     std::ofstream ofs(resolved);
     if (ofs.is_open()) {
-        ofs << baseline.dump(2) << "\n";
+        ofs << naab::text::dumpEvidence(baseline, 2) << "\n";
         fprintf(stderr, "[governance] Drift baseline saved for '%s' to %s\n",
                 key.c_str(), resolved.c_str());
         ofs.close();
@@ -9111,7 +9123,8 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
                                          const std::string& content_fingerprint,
                                          int output_tokens, int thinking_tokens,
                                          const std::unordered_set<std::string>& content_keywords,
-                                         int input_tokens, bool thinking_reported) {
+                                         int input_tokens, bool thinking_reported,
+                                         std::shared_ptr<const naab::claims::ClaimReading> claims) {
     if (!bsd_enabled_.load(std::memory_order_acquire)) return "";
 
     // B9(a): this action was already recorded by checkPreExecution, which tested
@@ -9136,6 +9149,7 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
     ev.thinking_tokens = thinking_tokens;
     ev.thinking_reported = thinking_reported;
     ev.content_keywords = content_keywords;
+    ev.claims = std::move(claims);
     ev.turn = t_event_agent_turn;
     ev.agent_handle = t_event_agent_handle;
     {
@@ -9793,12 +9807,12 @@ void GovernanceEngine::emitEndOfRunHealthWarnings(FILE* fp, const std::string& t
         if (rules().telemetry_output.tamper_evidence.enabled) {
             hlock.lock();
             ev["prev_hash"] = chainPrevLocked(fp);
-            last_telemetry_hash_ = computeHash(ev.dump(),
+            last_telemetry_hash_ = computeHash(naab::text::dumpEvidence(ev),
                 rules().telemetry_output.tamper_evidence);
             ev["hash"] = last_telemetry_hash_;
             chained_events_this_run_++;
         }
-        std::string line = ev.dump() + "\n";
+        std::string line = naab::text::dumpEvidence(ev) + "\n";
         size_t written = fwrite(line.c_str(), 1, line.size(), fp);
         if (written != line.size()) {
             telemetry_write_failures_.fetch_add(1, std::memory_order_relaxed);
@@ -9806,7 +9820,7 @@ void GovernanceEngine::emitEndOfRunHealthWarnings(FILE* fp, const std::string& t
             agent_events_written_.fetch_add(1, std::memory_order_relaxed);
         }
         fflush(fp);
-        forwardTelemetry(ev.dump());
+        forwardTelemetry(naab::text::dumpEvidence(ev));
     };
 
     // Check 1: CDD enabled but never analyzed any turns
@@ -10730,6 +10744,15 @@ bool GovernanceEngine::recordValidationOutcome(int handle_id, bool passed,
     const std::unordered_set<std::string>& detail_keywords, int evidence_count) {
     return drift_analyzer_.recordValidationOutcome(handle_id, passed, detail_keywords,
                                                    evidence_count);
+}
+
+std::vector<std::string> GovernanceEngine::recordReplyClaims(
+        int handle_id, int turn, const naab::claims::ClaimReading& reading) {
+    return drift_analyzer_.recordReplyClaims(handle_id, turn, reading);
+}
+
+ContextDriftAnalyzer::ClaimSettlement GovernanceEngine::settleClaims(int handle_id, bool passed) {
+    return drift_analyzer_.settleClaims(handle_id, passed);
 }
 
 void GovernanceEngine::setTurnPromptKeywords(

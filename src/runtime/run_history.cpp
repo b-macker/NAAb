@@ -1,5 +1,6 @@
 // Run history (Bundle 20): see include/naab/run_history.h.
 #include "naab/run_history.h"
+#include "naab/utf8_text.h"
 
 #include "naab/bounded_jsonl.h"
 #include "naab/crypto_utils.h"
@@ -620,7 +621,7 @@ std::string carryTalliesJson(const std::vector<naab::guidance::SectionTally>& ta
                      {"undetermined", t.undetermined}, {"incomplete", t.incomplete},
                      {"mixed_model", t.mixed_model}, {"not_judged", t.not_judged}});
     }
-    return a.dump();
+    return naab::text::dumpEvidence(a);
 }
 
 bool knownResetReason(const std::string& reason) {
@@ -780,7 +781,7 @@ std::string carryEntriesJson(const std::vector<Remembered>& entries) {
                      {"sha256", r.sha256}, {"line", r.line}, {"origin_run", r.origin_run},
                      {"origin_hash", r.origin_hash}, {"unseen", r.unseen}});
     }
-    return a.dump();
+    return naab::text::dumpEvidence(a);
 }
 
 std::string carryRepairsJson(const std::vector<Repair>& repairs) {
@@ -793,14 +794,14 @@ std::string carryRepairsJson(const std::vector<Repair>& repairs) {
         if (r.golden_case > 0) e["golden_case"] = r.golden_case;
         a.push_back(e);
     }
-    return a.dump();
+    return naab::text::dumpEvidence(a);
 }
 
 std::string anchorJson(const std::string& telemetry_path, long long offset,
                        const std::string& hash, const std::string& run_id) {
     json a = {{"v", 1}, {"telemetry", telemetry_path}, {"offset", offset},
               {"hash", hash}, {"run_id", run_id}};
-    return a.dump() + "\n";
+    return naab::text::dumpEvidence(a) + "\n";
 }
 
 }  // namespace history

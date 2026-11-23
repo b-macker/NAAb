@@ -967,6 +967,7 @@ static bool globalSignalEnabled(const ContextDriftConfig::Signals& sg, CddSignal
         case SIG_RESPONSE_REPETITION:   return sg.response_repetition;
         case SIG_VALIDATION:            return sg.validation_outcome;
         case SIG_RESPONSE_DEGENERATE:   return sg.response_degenerate;
+        case SIG_CLAIM_VALIDATION:      return sg.claim_validation;
     }
     return true;
 }
@@ -1227,6 +1228,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         note(SIG_CONTRADICTIONS,      sg.intent_contradictions,      !turn_events.empty());
         note(SIG_COHERENCE_VELOCITY,  sg.coherence_velocity,         state.coherence_history.size() >= 2);
         note(SIG_VALIDATION,          sg.validation_outcome,         state.has_validation_result);
+        note(SIG_CLAIM_VALIDATION,    sg.claim_validation,           state.claim_validation_latched);
         note(SIG_MANDATE_ALIGNMENT,   sg.mandate_alignment,          !state.mandate_keywords.empty());
         note(SIG_INSTRUCTION_RECALL,  sg.instruction_recall,         !state.instruction_keywords.empty());
         note(SIG_PLAN_DRIFT,          sg.plan_drift,                 !state.plan_step_keywords.empty());
@@ -1895,6 +1897,32 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         state.has_validation_result = false;
     }
 
+    // Signal 24 (Bundle 20 PR 5): a claim a failed validation contradicts.
+    // The handle's latest reply said only that things worked ("fixed",
+    // "the tests pass", "this should work") and the validation the script
+    // recorded next failed (settleClaims). Ground truth, like S22: a flat
+    // penalty, never baseline-absorbed. Not double-counting S22: S22 charges
+    // the failure, S24 that the agent said otherwise -- a reply that admitted
+    // the failure, or claimed nothing, pays S22 alone.
+    //
+    // The latch is consumed here whether or not S24 is on (A203: S22's latch,
+    // cleared only inside its gated block, stays set for the rest of the run
+    // when S22 is off).
+    if (state.claim_validation_latched) {
+        state.claim_validation_latched = false;
+        if (sig_on(config_->signals.claim_validation, SIG_CLAIM_VALIDATION)) {
+            state.claim_validation_count++;
+            turn_fired[SIG_CLAIM_VALIDATION]++;
+            double p = base_penalty(config_->weights.claim_validation,
+                                    state.claim_validation_count);
+            if (p > 0.0) {
+                state.coherence_score -= p;
+                turn_penalties[SIG_CLAIM_VALIDATION] += p;
+                state.signals_fired_this_turn++;
+            }
+        }
+    }
+
     // Signal 11: Mandate alignment — continuous system_prompt keyword adherence
     if (sig_on(config_->signals.mandate_alignment, SIG_MANDATE_ALIGNMENT) && !state.mandate_keywords.empty()) {
         for (const auto& ev : turn_events) {
@@ -2241,41 +2269,27 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // agent says "successfully updated" when tool returned an error.
     if (sig_on(config_->signals.claim_result_reconciliation, SIG_CLAIM_RESULT) && !state.tool_last_outcome.empty()) {
         for (const auto& ev : turn_events) {
-            if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE && ev.claims) {
                 bool mismatch_detected = false;
                 int tools_checked = 0;
                 int tools_matched = 0;
 
-                static const std::vector<std::string> success_words = {
-                    "success", "succeeded", "completed", "done", "created",
-                    "wrote", "saved", "passed", "found", "returned", "worked"
-                };
-                static const std::vector<std::string> failure_words = {
-                    "error", "failed", "failure", "exception", "unable",
-                    "could", "cannot", "denied", "blocked", "timeout"
-                };
-
+                // Bundle 20 PR 5 (A202): the claim reader over the reply text
+                // (include/naab/claim_reader.h), not the keyword set. That set
+                // dropped "done" (a stop word) and split a snake_case tool name
+                // into words, so such a tool was never checked; it read "not
+                // successful" as success; and a reply that named a tool with
+                // no status word counted as accurate. A tool counts only when
+                // the reply names it and says one thing about it -- worked, or
+                // did not; both, or neither, is not judged either way.
+                std::vector<std::string> tool_names;
+                tool_names.reserve(state.tool_last_outcome.size());
+                for (const auto& kv : state.tool_last_outcome) tool_names.push_back(kv.first);
                 for (const auto& [tool_name, succeeded] : state.tool_last_outcome) {
-                    // Only check if response mentions the tool
-                    std::string tool_lower = tool_name;
-                    for (auto& c : tool_lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-                    if (!ev.content_keywords.count(tool_lower)) continue;
+                    const auto tc = naab::claims::claimsAboutTool(*ev.claims, tool_name, tool_names);
+                    if (!tc.mentioned || tc.positive == tc.negative) continue;
                     tools_checked++;
-
-                    bool claims_success = false;
-                    bool claims_failure = false;
-                    for (const auto& w : success_words) {
-                        if (ev.content_keywords.count(w)) { claims_success = true; break; }
-                    }
-                    for (const auto& w : failure_words) {
-                        if (ev.content_keywords.count(w)) { claims_failure = true; break; }
-                    }
-
-                    // Mismatch: claims success but tool failed (and no failure words),
-                    // OR claims failure but tool succeeded (and no success words).
-                    // Ambiguous cases (both or neither) do NOT fire.
-                    if ((claims_success && !succeeded && !claims_failure) ||
-                        (claims_failure && succeeded && !claims_success)) {
+                    if ((tc.positive && !succeeded) || (tc.negative && succeeded)) {
                         mismatch_detected = true;
                     } else {
                         tools_matched++;
@@ -2716,6 +2730,9 @@ std::string ContextDriftAnalyzer::snapshotState(int handle_id) const {
     counts["response_repetition"] = s.response_repetition_count;
     counts["validation_failure"] = s.validation_failure_count;
     counts["response_degenerate"] = s.response_degenerate_count;
+    counts["claim_validation"] = s.claim_validation_count;
+    counts["claims_read"] = s.claims_read;
+    counts["claims_settled"] = s.claims_settled;
     counts["response_quality"] = s.response_quality_count;
     counts["thinking_collapse"] = s.thinking_collapse_count;
     counts["context_growth"] = s.context_growth_count;
@@ -2813,7 +2830,8 @@ const char* ContextDriftAnalyzer::signalName(int idx) {
         "prompt_compliance",     // 19 S20
         "response_repetition",   // 20 S21
         "validation_outcome",    // 21 S22
-        "response_degenerate"    // 22 S23
+        "response_degenerate",   // 22 S23
+        "claim_validation"       // 23 S24 (the config key: no second name)
     };
     if (idx < 0 || idx >= NUM_CDD_SIGNALS) return "unknown";
     return names[idx];
@@ -3293,6 +3311,31 @@ ContextDriftAnalyzer::scoreUnconsumedValidationsAtExit() {
     std::vector<ExitScoredValidation> out;
     std::lock_guard<std::mutex> lock(mutex_);
     for (auto& [hid, state] : drift_states_) {
+        // S24 first: its latch is set by the same validation S22 scores, and
+        // is cleared whether or not S24 is on (A203's shape avoided).
+        if (state.claim_validation_latched) {
+            state.claim_validation_latched = false;
+            const bool s24_on = (state.signal_override_mask & (1u << SIG_CLAIM_VALIDATION))
+                ? (((state.signal_override_values >> SIG_CLAIM_VALIDATION) & 1u) != 0)
+                : config_->signals.claim_validation;
+            if (s24_on) {
+                state.claim_validation_count++;
+                double p = config_->weights.claim_validation;
+                if (config_->rate_normalized && state.turns_analyzed > 1) {
+                    double rate = static_cast<double>(state.claim_validation_count) / state.turns_analyzed;
+                    p = std::max(rate, config_->rate_normalized_floor) * p;
+                }
+                ExitScoredValidation r;
+                r.signal = SIG_CLAIM_VALIDATION;
+                r.handle_id = hid;
+                r.config_name = state.config_name;
+                r.coherence_before = state.coherence_score;
+                state.coherence_score = std::max(0.0, state.coherence_score - p);
+                r.coherence_after = state.coherence_score;
+                r.penalty = r.coherence_before - r.coherence_after;
+                out.push_back(r);
+            }
+        }
         if (!state.has_validation_result) continue;
         state.has_validation_result = false;
         const bool enabled = (state.signal_override_mask & (1u << SIG_VALIDATION))
@@ -3378,6 +3421,46 @@ bool ContextDriftAnalyzer::recordValidationOutcome(int handle_id, bool passed,
         state.validation_failure_keywords = detail_keywords;
     }
     return true;
+}
+
+std::vector<std::string> ContextDriftAnalyzer::recordReplyClaims(
+        int handle_id, int turn, const naab::claims::ClaimReading& reading) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& state = drift_states_[handle_id];
+    // A new scored reply: its claims are the ones the next validation settles.
+    // Claims of an earlier reply never settled are dropped from the pending
+    // set (they stay in telemetry, unsettled).
+    state.pending_claims_turn = turn;
+    state.pending_claim_ids.clear();
+    state.pending_claims_only_positive = naab::claims::onlyPositiveClaims(reading);
+    state.claims_read += static_cast<int>(reading.claims.size());
+    const size_t named = std::min(reading.claims.size(), kMaxRecordedClaims);
+    for (size_t k = 0; k < named; ++k) {
+        state.pending_claim_ids.push_back(std::to_string(handle_id) + "." +
+                                          std::to_string(turn) + "." + std::to_string(k));
+    }
+    return state.pending_claim_ids;
+}
+
+ContextDriftAnalyzer::ClaimSettlement ContextDriftAnalyzer::settleClaims(int handle_id, bool passed) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    ClaimSettlement out;
+    auto it = drift_states_.find(handle_id);
+    if (it == drift_states_.end()) return out;
+    auto& state = it->second;
+    out.turn = state.pending_claims_turn;
+    if (state.pending_claim_ids.empty()) return out;
+    out.ids = std::move(state.pending_claim_ids);
+    state.pending_claim_ids.clear();
+    out.only_positive = state.pending_claims_only_positive;
+    state.claims_settled += static_cast<int>(out.ids.size());
+    // Settled once: the claims leave the pending set whatever the outcome.
+    if (!passed && out.only_positive) {
+        out.contradicted = true;
+        state.claim_validation_latched = true;
+    }
+    state.pending_claims_only_positive = false;
+    return out;
 }
 
 void ContextDriftAnalyzer::setTurnPromptKeywords(

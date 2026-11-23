@@ -1633,6 +1633,12 @@ struct ContextDriftConfig {
         // baselining structural terseness self-absorbs, so configs that enable this
         // should typically also enable adaptive_baseline.
         bool response_degenerate = false;
+        // S24 (Bundle 20 PR 5): charge a reply whose claims were only positive
+        // ("fixed", "tests pass", "this should work") when the next recorded
+        // validation fails. DEFAULT OFF -- the owner's plan: a claim settled
+        // against ground truth is new evidence about an agent, and turning it
+        // on changes coherence for every validated agent.
+        bool claim_validation = false;
         bool exclude_infrastructure_errors = true; // exclude API/network errors from repeated_failures signal
     } signals;
     // Weights control how much each signal reduces coherence per occurrence.
@@ -1670,6 +1676,7 @@ struct ContextDriftConfig {
         double response_repetition = 0.15;           // moderate-high — verbatim repetition is a strong drift indicator
         double validation_outcome = 0.15;            // S22: high — a failed test is unambiguous ground-truth that the output is wrong. Flat penalty (base_penalty), never baseline-absorbed.
         double response_degenerate = 0.08;           // S23: a near-empty response from an agent whose baseline is substantive output.
+        double claim_validation = 0.10;              // S24: a claim of success the next validation contradicts. Flat penalty, never baseline-absorbed (objective, like S22).
     } weights;
 
     // Signal detection thresholds — tune sensitivity of individual CDD signals.
@@ -4369,7 +4376,8 @@ public:
                           const std::string& content_fingerprint = "",
                           int output_tokens = 0, int thinking_tokens = 0,
                           const std::unordered_set<std::string>& content_keywords = {},
-                          int input_tokens = 0, bool thinking_reported = true);
+                          int input_tokens = 0, bool thinking_reported = true,
+                          std::shared_ptr<const naab::claims::ClaimReading> claims = nullptr);
     void setAgentTurn(int handle_id, int turn);
     void setAgentContext(int handle_id, int turn, const std::string& config_name);
     int getCurrentAgentTurn() const { return current_agent_turn_.load(std::memory_order_relaxed); }
@@ -4519,6 +4527,11 @@ public:
     bool recordValidationOutcome(int handle_id, bool passed,
         const std::unordered_set<std::string>& detail_keywords = {},
         int evidence_count = -1);
+    // Claims (Bundle 20 PR 5): see ContextDriftAnalyzer::recordReplyClaims /
+    // settleClaims.
+    std::vector<std::string> recordReplyClaims(int handle_id, int turn,
+                                               const naab::claims::ClaimReading& reading);
+    ContextDriftAnalyzer::ClaimSettlement settleClaims(int handle_id, bool passed);
 
     // Set per-turn prompt keywords (for prompt compliance signal)
     void setTurnPromptKeywords(int handle_id, const std::unordered_set<std::string>& keywords);

@@ -10,6 +10,9 @@
 #include <chrono>
 #include <optional>
 #include <set>
+#include <memory>
+
+#include "naab/claim_reader.h"
 
 namespace naab {
 namespace governance {
@@ -66,6 +69,10 @@ struct RuntimeEvent {
     int thinking_tokens = 0;          // thinking tokens consumed (agent events only)
     bool thinking_reported = true;    // provider reported a thinking count for this response
     std::unordered_set<std::string> content_keywords;  // keywords from response (agent events only)
+    // What the reply claims (include/naab/claim_reader.h), read once from the
+    // text the drift signals score; shared, so copying the event is cheap.
+    // S19 reads it (agent responses only; null for every other event).
+    std::shared_ptr<const naab::claims::ClaimReading> claims;
 };
 
 // --- FSM State Per Pattern ---
@@ -94,7 +101,7 @@ struct SequenceMatchResult {
 };
 
 // CDD signal indices for generic adaptive baseline
-static constexpr int NUM_CDD_SIGNALS = 23;
+static constexpr int NUM_CDD_SIGNALS = 24;
 enum CddSignalId : int {
     SIG_CIRCULAR = 0,              // S1
     SIG_REPEATED_FAILURES = 1,     // S2
@@ -118,7 +125,8 @@ enum CddSignalId : int {
     SIG_PROMPT_COMPLIANCE = 19,    // S20 — off-topic prompt compliance
     SIG_RESPONSE_REPETITION = 20,  // S21 — verbatim response repetition
     SIG_VALIDATION = 21,           // S22 — external validation (pytest/convergence) failure
-    SIG_RESPONSE_DEGENERATE = 22   // S23 — degenerate (near-empty) response
+    SIG_RESPONSE_DEGENERATE = 22,  // S23 — degenerate (near-empty) response
+    SIG_CLAIM_VALIDATION = 23      // S24 — a claim of success a failed validation contradicts
 };
 
 // Canonical govern.json signal config keys, indexed by CddSignalId. These are
@@ -149,7 +157,8 @@ static constexpr const char* kCddSignalKeys[NUM_CDD_SIGNALS] = {
     "prompt_compliance",             // SIG_PROMPT_COMPLIANCE
     "response_repetition",           // SIG_RESPONSE_REPETITION
     "validation_outcome",            // SIG_VALIDATION
-    "response_degenerate"            // SIG_RESPONSE_DEGENERATE
+    "response_degenerate",           // SIG_RESPONSE_DEGENERATE
+    "claim_validation"               // SIG_CLAIM_VALIDATION
 };
 
 // Per-handle signal override bitmasks fit in 32 bits.
@@ -298,6 +307,22 @@ struct DriftState {
     // Recovery on fail→pass transition only: pass-spam earns at most one credit
     // per preceding failure (credits <= failures), so recording passes cannot
     // pump coherence.
+
+    // Claims (Bundle 20 PR 5). The claims of the handle's latest scored reply,
+    // until the next agent.record_validation() settles them -- once: a later
+    // validation settles nothing more. Replaced by each scored reply, so only
+    // the latest turn's claims are ever settled.
+    int pending_claims_turn = -1;               // turn_at_request of that reply
+    std::vector<std::string> pending_claim_ids; // AGENT_CLAIM ids, in reply order
+    bool pending_claims_only_positive = false;  // a positive claim and no negative one
+    // S24's own latch, set when a failed validation settles only-positive
+    // claims and consumed by the next recordTurn whether or not S24 is on
+    // (A203: S22's latch, cleared only inside its gated block, never clears
+    // with S22 off).
+    bool claim_validation_latched = false;
+    int claim_validation_count = 0;             // contradicted claims charged (S24)
+    int claims_read = 0;                        // claims read from this handle's replies
+    int claims_settled = 0;                     // of those, settled by a validation
     bool last_consumed_validation_failed = false;  // most recently CONSUMED outcome was a failure
     double last_validation_recovery = 0.0;         // recovery credit applied this turn (telemetry)
     // Every other movement of coherence_score, so an analyzed CDD_TURN row can
@@ -742,6 +767,7 @@ public:
     // returns what changed. Passes are consumed without credit: a recovery
     // earned after the last turn has nothing left to steer. Idempotent.
     struct ExitScoredValidation {
+        int signal = SIG_VALIDATION;   // SIG_VALIDATION (S22) or SIG_CLAIM_VALIDATION (S24)
         int handle_id = 0;
         std::string config_name;
         double coherence_before = 1.0;
@@ -753,6 +779,24 @@ public:
     bool recordValidationOutcome(int handle_id, bool passed,
         const std::unordered_set<std::string>& detail_keywords = {},
         int evidence_count = -1);
+
+    // Bundle 20 PR 5. The claims of a handle's newly scored reply replace its
+    // pending ones; returns the ids given to them ("<handle>.<turn>.<n>", in
+    // reply order, at most kMaxRecordedClaims -- the rest are counted, not
+    // named).
+    static constexpr size_t kMaxRecordedClaims = 16;
+    std::vector<std::string> recordReplyClaims(int handle_id, int turn,
+                                               const naab::claims::ClaimReading& reading);
+    // A validation settles the pending claims once. `contradicted` is true when
+    // it failed and the reply's claims were only positive: S24's latch is set
+    // (consumed by the next recordTurn, or scored at exit).
+    struct ClaimSettlement {
+        int turn = -1;                   // the settled reply's turn_at_request, -1 none
+        std::vector<std::string> ids;    // empty: nothing pending
+        bool only_positive = false;
+        bool contradicted = false;
+    };
+    ClaimSettlement settleClaims(int handle_id, bool passed);
 
     // Set per-turn prompt keywords (for prompt compliance signal)
     void setTurnPromptKeywords(int handle_id, const std::unordered_set<std::string>& keywords);

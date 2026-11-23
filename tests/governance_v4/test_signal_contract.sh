@@ -286,7 +286,7 @@ SIGNALS=(
   context_growth instruction_recall plan_drift entity_consistency
   instruction_conflict persona_fingerprint tool_chain_integrity
   claim_result_reconciliation prompt_compliance response_repetition
-  validation_outcome response_degenerate
+  validation_outcome response_degenerate claim_validation
 )
 TURNS=8
 

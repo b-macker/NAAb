@@ -674,6 +674,7 @@ context_drift.signals.plan_drift                 ratchet "context_drift.signals.
 context_drift.signals.prompt_compliance          ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
 context_drift.signals.repeated_failures          ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
 context_drift.signals.response_degenerate        ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
+context_drift.signals.claim_validation           ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch (S24, Bundle 20 PR 5)
 context_drift.signals.response_quality           ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
 context_drift.signals.response_repetition        ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
 context_drift.signals.scope_creep                ratchet "context_drift.signals.{}" -- traced: the per-signal loop over kCddSignalKeys compares each signal's effective switch
@@ -723,7 +724,7 @@ context_drift.thresholds.prompt_compliance_mandate_min  order higher -- traced: 
 context_drift.thresholds.prompt_compliance_response_min_tokens  order lower -- traced: gate 2 of S20 needs a reply at least this long; lower lets shorter replies fire
 context_drift.thresholds.repeated_failure_count  order lower -- rule: failures before repeated_failures fires
 context_drift.thresholds.circular_lookback       fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
-context_drift.thresholds.claim_accuracy_min      fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
+context_drift.thresholds.claim_accuracy_min      fixed -- enforces nothing: no check reads it and the loader warns (Bundle 20 PR 5, A202); kept fixed, so a reload still cannot change it
 context_drift.thresholds.coherence_history_size  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
 context_drift.thresholds.entity_context_window   fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
 context_drift.thresholds.entropy_contraction_ratio  fixed -- untraced: no single tighter direction established for this key; any mid-run change refused (fail closed)
@@ -752,6 +753,7 @@ context_drift.weights.plan_drift                 order higher -- traced: the coh
 context_drift.weights.prompt_compliance          order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
 context_drift.weights.repeated_failure           order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
 context_drift.weights.response_degenerate        order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
+context_drift.weights.claim_validation           order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more (S24)
 context_drift.weights.response_quality           order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
 context_drift.weights.response_repetition        order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more
 context_drift.weights.scope_creep                order higher -- traced: the coherence a firing signal costs (its base penalty); a higher weight costs more

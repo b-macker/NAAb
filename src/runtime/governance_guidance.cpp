@@ -20,6 +20,7 @@
 //   * every delivery is logged (GUIDANCE_DELIVERED, sha256 of the text).
 
 #include "naab/governance.h"
+#include "naab/utf8_text.h"
 #include "naab/keyword_extract.h"
 #include "naab/bounded_read.h"
 #include "naab/crypto_utils.h"
@@ -983,13 +984,16 @@ static const GuidanceDoc* guidanceLoadSqliteDoc(GovernanceEngine& eng,
 // A200 (Bundle 20 PR 4): what identifies a delivery's text and its section.
 // `sha256` is the text as delivered; `recorded_sha256` the text as the event
 // records it (the telemetry writer passes every field through the path
-// sanitiser); `section_key` names the section across runs -- its source, its
-// heading compared loosely and the hash of its whole text before truncation --
-// as hex, a shape no recorded value can turn into display text.
+// sanitiser and then makes it valid UTF-8); `section_key` names the section
+// across runs -- its source, its heading compared loosely and the hash of its
+// whole text before truncation -- as hex, a shape no recorded value can turn
+// into display text.
 static void stampIdentity(GuidanceDelivery& d, const std::string& section_text) {
     d.sha256 = security::CryptoUtils::sha256(d.text);
-    d.recorded_sha256 = security::CryptoUtils::sha256(
-        naab::error::ErrorSanitizer::sanitizeFilePaths(d.text));
+    // The writer passes every field through the path sanitiser, then through
+    // naab::text::validUtf8() (A207): the same two steps, in the same order.
+    d.recorded_sha256 = security::CryptoUtils::sha256(naab::text::validUtf8(
+        naab::error::ErrorSanitizer::sanitizeFilePaths(d.text)));
     d.section_sha256 = security::CryptoUtils::sha256(section_text);
     d.section_key = security::CryptoUtils::sha256(
         d.source + "\n" + normName(d.heading) + "\n" + d.section_sha256).substr(0, 32);

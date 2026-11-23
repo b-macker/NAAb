@@ -25,6 +25,15 @@
 //                  CDD_TURN paid; a holdout draw recomputes from the run id and
 //                  ordinal, falls on the recorded side of the holdout, and the
 //                  run's ordinals run 0..N once each under one holdout value
+//   claims         each AGENT_CLAIM's id names its own handle, turn and index;
+//                  a reply's claims agree on the reply and their count; each
+//                  validation's `settles` names claims of that handle's reply
+//                  at its `turn`, all of them, none settled before; its
+//                  claims_only_positive and contradicts follow from the settled
+//                  claims and the outcome; the reply is one an AGENT_RESPONSE
+//                  or the transcript records; and with --transcript the claim
+//                  reader, re-run on the reply's text, reads the claims
+//                  recorded (Bundle 20 PR 5)
 //
 // Each is MATCH, DIVERGED or UNMEASURABLE. A decision whose evidence is not in
 // the files given -- no snapshot and no CDD_TURN, no transcript, a chain sealed
@@ -45,6 +54,7 @@
 // file holds nothing to check); else 0. 4 for a usage error or a file that
 // cannot be opened.
 #include "naab/bounded_jsonl.h"
+#include "naab/claim_reader.h"
 #include "naab/crypto_utils.h"
 #include "naab/governance.h"
 #include "naab/guidance_efficacy.h"
@@ -161,6 +171,14 @@ bool sumTerms(const std::string& list, bool penalties, double& sum, int& count) 
     return true;
 }
 
+// An AGENT_CLAIM (Bundle 20 PR 5): decision fields only, never text.
+struct ClaimRec {
+    std::string handle, turn, kind, positive, negated, span, reply;
+    long long index = -1, of = -1;
+    bool settled = false;
+    long long line = 0;
+};
+
 // A GUIDANCE_RESPONSE, judged once the whole file is read.
 struct GuidanceReply {
     std::string id, handle, turn, trigger, recurred;
@@ -181,6 +199,9 @@ struct RunState {
     std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> request_rows;
     std::map<long long, int> holdout_ordinals;                      // ordinal -> times recorded
     std::set<std::string> holdout_values;                           // as printed
+    // claims (Bundle 20 PR 5)
+    std::unordered_map<std::string, ClaimRec> claims;               // claim id -> claim
+    std::map<std::string, std::vector<std::string>> reply_claims;   // handle|turn -> ids, file order
 };
 
 std::string replyKey(const std::string& content, const std::string& request,
@@ -296,7 +317,8 @@ public:
             } else if (!field(ev, "sha256", delivered) || delivered != recorded) {
                 note("guidance", Verdict::Unmeasurable, run, line,
                      "delivery " + plain(id) + ": the record holds its own hash, but the text "
-                     "delivered differs from it (a path the telemetry writer sanitised), so what "
+                     "delivered differs from it (a path the telemetry writer sanitised, or bytes "
+                     "that were not UTF-8, recorded as U+FFFD), so what "
                      "was delivered is not in the file");
             } else {
                 note("guidance", Verdict::Match, run, line, "");
@@ -476,6 +498,10 @@ public:
     bool transcript_partial = false;                 // a line was not read
     std::unordered_set<std::string> entry_hashes;    // of entries as written
     long long transcript_edited = 0;
+    // A reply's text by its hash, for re-reading claims: an agent_send entry's
+    // raw_response.content and processed_response. At most 64 MiB held.
+    std::unordered_map<std::string, std::string> transcript_texts;
+    size_t transcript_text_bytes = 0;
 
     bool loadTranscript(const std::string& path) {
         std::ifstream in(path, std::ios::binary);
@@ -507,6 +533,19 @@ public:
                         note("transcript", Verdict::Diverged, "", n,
                              "transcript entry does not hash to its own entry_hash");
                     }
+                }
+                if (j.is_object()) {
+                    auto keep = [&](const json& t) {
+                        if (!t.is_string()) return;
+                        const std::string& text = t.get_ref<const std::string&>();
+                        if (text.empty() || transcript_text_bytes + text.size() > (64u << 20)) return;
+                        auto h = naab::security::CryptoUtils::sha256(text);
+                        if (transcript_texts.emplace(h, text).second) transcript_text_bytes += text.size();
+                    };
+                    if (j.contains("processed_response")) keep(j["processed_response"]);
+                    if (j.contains("raw_response") && j["raw_response"].is_object() &&
+                        j["raw_response"].contains("content"))
+                        keep(j["raw_response"]["content"]);
                 }
             } catch (const json::exception&) {
                 // keep the bare line's hash
@@ -547,6 +586,182 @@ public:
         } else if (type == "TRANSCRIPT_REF") transcriptRef(ev, run, line);
         else if (type == "AGENT_RESPONSE") agentResponse(ev, st);
         else if (type == "CODEGEN_EXEC" || type == "POLYGLOT_EXEC") execEvent(ev, st, run, line);
+        else if (type == "AGENT_CLAIM") agentClaim(ev, st, run, line);
+        else if (type == "VALIDATION_RECORDED") validationRecorded(ev, st, run, line);
+    }
+
+    // --- claims (Bundle 20 PR 5) ---------------------------------------
+    long long claims_recorded = 0, claims_settled = 0;
+
+    static bool count(const std::string& s, long long& out) {
+        if (s.empty() || s.size() > 9) return false;
+        long long v = 0;
+        for (char c : s) {
+            if (c < '0' || c > '9') return false;
+            v = v * 10 + (c - '0');
+        }
+        out = v;
+        return true;
+    }
+
+    void agentClaim(const json& ev, RunState& st, const std::string& run, long long line) {
+        std::string id, idx, of;
+        ClaimRec c;
+        c.line = line;
+        field(ev, "claim_id", id);
+        field(ev, "handle_id", c.handle);
+        field(ev, "turn_at_request", c.turn);
+        field(ev, "kind", c.kind);
+        field(ev, "positive", c.positive);
+        field(ev, "negated", c.negated);
+        field(ev, "span", c.span);
+        field(ev, "reply_sha256", c.reply);
+        field(ev, "index", idx);
+        field(ev, "of", of);
+        ++claims_recorded;
+        const std::string where = "claim " + plain(id);
+        if (!count(idx, c.index) || !count(of, c.of) || c.index >= c.of) {
+            note("claims", Verdict::Diverged, run, line, where + ": its index and count are not a position in the reply");
+            return;
+        }
+        if (id != c.handle + "." + c.turn + "." + idx) {
+            note("claims", Verdict::Diverged, run, line, where + ": the id does not name the claim's own handle, turn and index");
+            return;
+        }
+        if (st.claims.count(id)) {
+            note("claims", Verdict::Diverged, run, line, where + ": recorded twice");
+            return;
+        }
+        if (st.claims.size() >= 200000) return;
+        st.claims.emplace(id, c);
+        st.reply_claims[c.handle + "|" + c.turn].push_back(id);
+    }
+
+    void validationRecorded(const json& ev, RunState& st, const std::string& run, long long line) {
+        std::string settles, turn, handle, passed, only, contradicts;
+        if (!field(ev, "settles", settles)) return;   // a writer before claims were recorded
+        field(ev, "turn", turn);
+        field(ev, "handle_id", handle);
+        field(ev, "passed", passed);
+        field(ev, "claims_only_positive", only);
+        field(ev, "contradicts", contradicts);
+        if (settles.empty()) {
+            if (contradicts == "true")
+                note("claims", Verdict::Diverged, run, line,
+                     "a validation that settles no claim records a contradiction");
+            return;
+        }
+        std::vector<std::string> ids;
+        for (size_t p = 0; p <= settles.size();) {
+            size_t e = settles.find(',', p);
+            if (e == std::string::npos) e = settles.size();
+            ids.push_back(settles.substr(p, e - p));
+            p = e + 1;
+        }
+        const std::string where = "validation settling " + std::to_string(ids.size()) + " claim(s)";
+        for (const auto& id : ids) {
+            auto it = st.claims.find(id);
+            if (it == st.claims.end()) {
+                note("claims", lines_skipped ? Verdict::Unmeasurable : Verdict::Diverged, run, line,
+                     where + ": " + plain(id) + " is no earlier AGENT_CLAIM of this run" +
+                     (lines_skipped ? std::string(", and some lines were not read") : ""));
+                return;
+            }
+            if (it->second.handle != handle || it->second.turn != turn) {
+                note("claims", Verdict::Diverged, run, line,
+                     where + ": " + plain(id) + " is another handle's or another turn's claim");
+                return;
+            }
+            if (it->second.settled) {
+                note("claims", Verdict::Diverged, run, line, where + ": " + plain(id) + " was settled before");
+                return;
+            }
+        }
+        const auto& group = st.reply_claims[handle + "|" + turn];
+        if (ids.size() != group.size()) {
+            note("claims", Verdict::Diverged, run, line,
+                 where + ": the reply's " + std::to_string(group.size()) +
+                 " recorded claim(s) are not all settled");
+            return;
+        }
+        bool any = false, all_positive = true;
+        for (const auto& id : ids) {
+            auto& c = st.claims[id];
+            c.settled = true;
+            ++claims_settled;
+            any = true;
+            if (c.positive != "true") all_positive = false;
+        }
+        const long long of = st.claims[ids.front()].of;
+        if (of != static_cast<long long>(ids.size())) {
+            note("claims", Verdict::Unmeasurable, run, line,
+                 where + ": the reply holds " + std::to_string(of) +
+                 " claims and only the first were recorded, so whether all were positive is not known");
+            return;
+        }
+        const bool only_positive = any && all_positive;
+        const bool expect = passed == "false" && only_positive;
+        if ((only == "true") != only_positive) {
+            note("claims", Verdict::Diverged, run, line,
+                 where + ": claims_only_positive " + plain(only) + ", and the settled claims say otherwise");
+        } else if ((contradicts == "true") != expect) {
+            note("claims", Verdict::Diverged, run, line,
+                 where + ": contradicts " + plain(contradicts) + " does not follow from passed " +
+                 plain(passed) + " and the settled claims");
+        } else {
+            note("claims", Verdict::Match, run, line, "");
+        }
+    }
+
+    void finishClaims() {
+        for (auto& [run, st] : runs) {
+            for (const auto& [key, ids] : st.reply_claims) {
+                const ClaimRec& first = st.claims[ids.front()];
+                const std::string where = "the claims of handle " + plain(first.handle) +
+                                          " turn " + plain(first.turn);
+                bool consistent = true;
+                std::set<long long> seen;
+                for (const auto& id : ids) {
+                    const ClaimRec& c = st.claims[id];
+                    if (c.reply != first.reply || c.of != first.of || !seen.insert(c.index).second)
+                        consistent = false;
+                }
+                if (!consistent) {
+                    note("claims", Verdict::Diverged, run, first.line,
+                         where + ": they disagree on the reply, their count, or an index");
+                    continue;
+                }
+                auto text = transcript_texts.find(first.reply);
+                if (st.reply_hashes.count(first.reply) || text != transcript_texts.end()) {
+                    note("claims", Verdict::Match, run, first.line, "");
+                } else {
+                    note("claims", Verdict::Unmeasurable, run, first.line,
+                         where + ": no AGENT_RESPONSE of this run, and no transcript entry, "
+                         "records the reply (a tool-loop turn or a committed proposal writes none)");
+                }
+                if (text == transcript_texts.end()) {
+                    note("claims", Verdict::Unmeasurable, run, first.line,
+                         where + (transcript_given
+                                  ? std::string(": no transcript text hashes to the reply, so it was not re-read")
+                                  : std::string(": no transcript was given, so the reply was not re-read")));
+                    continue;
+                }
+                const auto reading = naab::claims::readClaims(text->second);
+                bool same = static_cast<long long>(reading.claims.size()) == first.of;
+                for (const auto& id : ids) {
+                    if (!same) break;
+                    const ClaimRec& c = st.claims[id];
+                    const auto& r = reading.claims[static_cast<size_t>(c.index)];
+                    same = c.kind == naab::claims::kindName(r.kind) &&
+                           c.positive == (r.positive ? "true" : "false") &&
+                           c.negated == (r.negated ? "true" : "false") &&
+                           c.span == std::to_string(r.begin) + "-" + std::to_string(r.end);
+                }
+                if (same) note("claims", Verdict::Match, run, first.line, "");
+                else note("claims", Verdict::Diverged, run, first.line,
+                          where + ": the claim reader, re-run on the reply, reads other claims than were recorded");
+            }
+        }
     }
 
     void cddTurn(const json& ev, RunState& st, const std::string& run, long long line) {
@@ -853,6 +1068,7 @@ int cmdReplay(const std::vector<std::string>& args) {
     }
 
     rp.finishGuidance();
+    rp.finishClaims();
 
     long long matched = 0, diverged = 0, unmeasurable = 0;
     for (const auto& kv : rp.totals.match) matched += kv.second;
@@ -864,13 +1080,14 @@ int cmdReplay(const std::vector<std::string>& args) {
     const char* overall = rc == 1 ? "DIVERGED" : rc == 2 ? "UNMEASURABLE" : "MATCH";
 
     static const char* kChecks[] = {"chain", "admissibility", "coherence", "transcript",
-                                    "provenance", "guidance"};
+                                    "provenance", "guidance", "claims"};
     static const char* kNotChecked =
         "Not checked: the scorer is not re-run, so a penalty that should not have been "
         "charged, or one that was never listed, is not seen; governance level changes, "
         "step-up challenges, contracts, sequence matches and every other event type; which "
         "section guidance selection should have chosen, and what followed a delivery after "
-        "the reply's own turn (naab-gov efficacy reports that); whether the files are the "
+        "the reply's own turn (naab-gov efficacy reports that); whether S24 charged a "
+        "contradiction (whether it is on is not recorded); whether the files are the "
         "ones the run wrote, beyond the chain.";
 
     if (as_json) {
@@ -897,6 +1114,8 @@ int cmdReplay(const std::vector<std::string>& args) {
         }
         out["findings"] = list;
         out["findings_listed"] = static_cast<long long>(rp.findings.size());
+        out["claims"] = {{"recorded", rp.claims_recorded}, {"settled", rp.claims_settled},
+                         {"never_settled", rp.claims_recorded - rp.claims_settled}};
         out["not_checked"] = kNotChecked;
         std::cout << out.dump(2) << "\n";
         return rc;
@@ -913,6 +1132,9 @@ int cmdReplay(const std::vector<std::string>& args) {
         printf("  %-14s MATCH %lld  DIVERGED %lld  UNMEASURABLE %lld\n", c,
                get(rp.totals.match), get(rp.totals.diverged), get(rp.totals.unmeasurable));
     }
+    if (rp.claims_recorded > 0)
+        printf("\n  claims: %lld recorded, %lld settled by a validation, %lld never settled\n",
+               rp.claims_recorded, rp.claims_settled, rp.claims_recorded - rp.claims_settled);
     fflush(stdout);
     if (!rp.findings.empty()) std::cout << "\n";
     for (const auto& f : rp.findings) {
