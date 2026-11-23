@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed -- what CLAUDE.md and the setup files add to governance holds (Bundle 21 PR 1: A212, A213, A214; migration notes)
+- **A CLAUDE.md ban NAAb cannot tie to one language now applies (A212).** "Never use eval()" was reported `[APPLIED]` and written to no rule; it is now added to the banned list of every language a block can be written in. Indentation, line length and function length read from those files are reported `[NOT ENFORCED]`: no rule reads them.
+  - **Migration:** with `project_context` on, a block in any language calling a function such a line bans is now refused.
+- **The project files whose text became a rule are read-only to the program (A213).** While `project_context` is on, a program may read but not write, delete or rename a CLAUDE.md (or linter file) that added a ban, `no_console_log` or `strict_mode`; a rewrite used to drop the rule for the next run. Manifests and files that added no rule stay writable.
+- **A project file can only add a language-choice refusal, never lift one (A213).** The language-choice check (`polyglot_optimization`) decides with and without the project's preferences (CLAUDE.md "prefer X for Y", a manifest's +5) and refuses when either does; a preference or a `pyproject.toml` used to let a refused block run.
+- **The HARD language-choice refusal is HARD (A214).** It went through no `enforce()`: a NAAb `try` caught it, uncaught it exited 1, and with `helper_errors.enabled: false` nothing was refused. It now exits 3 and cannot be caught; `soft` stays advisory.
+  - **Migration:** at `enforcement_level: "hard"`, a block the check refuses now ends the run even inside a `try`, and even with the hint text switched off.
+- Tests: `tests/governance_v4/test_project_context_integrity.sh`; `tests/project_context/edge_case_tests.sh` is now run by `run-all-tests.sh` (it passed and ran nowhere).
+
 ### Fixed -- a request a model receives carries text that is not UTF-8 (A209; migration note)
 - **One byte that is not UTF-8 no longer ends the run before a request is sent.** A Latin-1 byte in a prompt, a tool's result, a guidance section, a tool's description, history the program wrote or the program's own source made the request builder throw (exit 1, `[json.exception.type_error.316]`), and the model received nothing; a valid result cut by `tool_result_max_chars` inside a multi-byte character did the same, and a dict result holding the byte reached the model as `Error: failed to serialize tool result`. The byte is now sent as U+FFFD, and the cut lands on a character boundary.
 - **Agent review now reviews a program whose source holds such a byte.** Every reviewer call failed on it, so under the default `fail_policy: "open"` the program ran unreviewed.

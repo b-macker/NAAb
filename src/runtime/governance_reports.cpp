@@ -2159,75 +2159,95 @@ std::string GovernanceEngine::checkPolyglotOptimization(
     int line
 ) {
     if (!active_) return "";
-    if (!rules().polyglot_optimization.enabled) return "";
+    const auto& po = rules().polyglot_optimization;
+    if (!po.enabled) return "";
 
-    // Create detector with task→language matrix from config
-    std::map<std::string, std::map<std::string, int>> matrix;
-    for (const auto& [task, lang_scores] : rules().polyglot_optimization.task_language_matrix) {
-        for (const auto& [lang, score_data] : lang_scores) {
-            matrix[task][lang] = score_data.score;
-        }
+    if (po.calibration.enabled) {
+        const_cast<GovernanceEngine*>(this)->loadCalibration();
     }
 
-    // Phase 2: Fuse calibration data — measured scores override hardcoded defaults
-    // Priority: calibration > govern.json matrix > hardcoded defaults
-    if (rules().polyglot_optimization.calibration.enabled) {
-        const_cast<GovernanceEngine*>(this)->loadCalibration();
-        for (const auto& [task, lang_entries] : calibration_data_) {
-            for (const auto& [lang, entry] : lang_entries) {
-                if (entry.score > 0) {
-                    matrix[task][lang] = entry.score;
+    // The task->language table the detector reads: govern.json's, then -- when
+    // `with_project` -- the project's own preferences (project_context: a
+    // CLAUDE.md "prefer X for Y", a manifest's +5), applied in order exactly
+    // as they used to be written into the table, then calibration over both.
+    // Priority: calibration > govern.json matrix > hardcoded defaults.
+    auto buildMatrix = [&](bool with_project) {
+        std::map<std::string, std::map<std::string, int>> matrix;
+        for (const auto& [task, lang_scores] : po.task_language_matrix) {
+            for (const auto& [lang, score_data] : lang_scores) {
+                matrix[task][lang] = score_data.score;
+            }
+        }
+        if (with_project) {
+            for (const auto& pref : po.project_preferences) {
+                int& score = matrix[pref.task][pref.language];  // absent: 0
+                score = std::min(100, score + pref.boost);
+            }
+        }
+        if (po.calibration.enabled) {
+            for (const auto& [task, lang_entries] : calibration_data_) {
+                for (const auto& [lang, entry] : lang_entries) {
+                    if (entry.score > 0) {
+                        matrix[task][lang] = entry.score;
+                    }
                 }
             }
         }
+        return matrix;
+    };
+
+    // Whether a result names a substantially better language for the block.
+    auto shouldSuggest = [&](const analyzer::DetectionResult& r) {
+        // Never suggest switching to the same language or when there's no real improvement
+        if (r.optimal_language == language ||
+            r.improvement_percent <= 0 ||
+            r.optimal_language_score <= r.current_language_score) {
+            return false;
+        }
+        bool suggest = false;
+        // Only suggest when improvement is substantial (>50%) to avoid
+        // driving LLMs into infinite language-switching loops over marginal gains.
+        // A 25% improvement (40->50) is not worth the code rewrite.
+        if (r.improvement_percent > 50) {
+            suggest = true;
+        } else if (r.current_language_score < 40 && r.optimal_language_score > 80) {
+            // Only flag truly bad choices (score < 40 vs optimal > 80)
+            suggest = true;
+        }
+        // Never suggest a language that is blocked by governance
+        if (suggest && rules().blocked_languages.count(r.optimal_language)) {
+            suggest = false;
+        }
+        return suggest;
+    };
+
+    auto result = analyzer::ComprehensiveTaskDetector(buildMatrix(true)).analyze(code, language);
+    bool should_suggest = shouldSuggest(result);
+
+    // A213: the project's preferences come from files the program can write
+    // (CLAUDE.md, a manifest). Decided without them as well, and refused when
+    // either decision refuses, so such a file can add a refusal but never lift
+    // one: before this, a CLAUDE.md preference or a pyproject.toml let a block
+    // this check refused at hard run (observed).
+    if (!should_suggest && !po.project_preferences.empty()) {
+        auto base = analyzer::ComprehensiveTaskDetector(buildMatrix(false)).analyze(code, language);
+        if (shouldSuggest(base)) {
+            result = base;
+            should_suggest = true;
+        }
     }
+    if (!should_suggest) return "";
 
-    analyzer::ComprehensiveTaskDetector detector(matrix);
+    const std::string& level = po.enforcement_level;
+    const bool show_suggestions = po.helper_errors.enabled;
 
-    // Analyze code
-    auto result = detector.analyze(code, language);
-
-    // Check enforcement level
-    std::string level = rules().polyglot_optimization.enforcement_level;
-
-    // Helper errors config
-    bool show_suggestions = rules().polyglot_optimization.helper_errors.enabled;
-
-    // Determine if we should suggest different language
-    bool should_suggest = false;
-    std::string message;
-
-    // Never suggest switching to the same language or when there's no real improvement
-    if (result.optimal_language == language ||
-        result.improvement_percent <= 0 ||
-        result.optimal_language_score <= result.current_language_score) {
-        should_suggest = false;
-    }
-    // Only suggest when improvement is substantial (>50%) to avoid
-    // driving LLMs into infinite language-switching loops over marginal gains.
-    // A 25% improvement (40→50) is not worth the code rewrite.
-    else if (result.improvement_percent > 50) {
-        should_suggest = true;
-    } else if (result.current_language_score < 40 && result.optimal_language_score > 80) {
-        // Only flag truly bad choices (score < 40 vs optimal > 80)
-        should_suggest = true;
-    }
-
-    // Never suggest a language that is blocked by governance
-    if (should_suggest && rules().blocked_languages.count(result.optimal_language)) {
-        should_suggest = false;
-    }
-
-    if (should_suggest && show_suggestions) {
-        // Build concise note for all levels
-        std::string note = fmt::format(
-            "Consider using {} instead of {} (score: {}/100 vs {}/100, +{}% improvement)",
-            result.optimal_language, language,
-            result.optimal_language_score, result.current_language_score,
-            result.improvement_percent);
-
-        if (level == "hard") {
-            // Verbose hint block only for hard enforcement
+    if (level == "hard") {
+        // A214: refused through enforce(), so a NAAb try cannot catch it and
+        // the run ends with exit 3. It used to be a returned message: a try
+        // caught it, uncaught it exited 1, and with helper_errors off (a
+        // setting for the hint text) nothing was refused at all (observed).
+        if (show_suggestions) {
+            // Verbose hint block
             suggestBetterLanguage(
                 language, code,
                 analyzer::taskIntentToString(result.primary_task),
@@ -2235,17 +2255,33 @@ std::string GovernanceEngine::checkPolyglotOptimization(
                 result.improvement_percent,
                 result.reasons
             );
-            message = fmt::format(
-                "HARD violation: Suboptimal language choice\n"
-                "  Current: {} (score: {}/100)\n"
-                "  Optimal: {} (score: {}/100)\n"
-                "  Improvement: +{}%\n\n"
-                "  This code MUST use a more appropriate language.",
-                language, result.current_language_score,
-                result.optimal_language, result.optimal_language_score,
-                result.improvement_percent
-            );
-        } else if (level == "soft") {
+        }
+        return enforce("polyglot_optimization", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                fmt::format("Suboptimal language choice: {} scores {}/100 for this block's task, "
+                            "{} scores {}/100 (+{}%)",
+                            language, result.current_language_score,
+                            result.optimal_language, result.optimal_language_score,
+                            result.improvement_percent),
+                line > 0 ? fmt::format("line {}", line) : "",
+                "polyglot_optimization",
+                fmt::format("This code must use a more appropriate language for its task.\n"
+                            "Rewrite the block in {}.", result.optimal_language),
+                fmt::format("<<{} ... >>", language),
+                fmt::format("<<{} ... >>", result.optimal_language)));
+    }
+
+    if (show_suggestions) {
+        // Build concise note for all levels
+        std::string note = fmt::format(
+            "Consider using {} instead of {} (score: {}/100 vs {}/100, +{}% improvement)",
+            result.optimal_language, language,
+            result.optimal_language_score, result.current_language_score,
+            result.improvement_percent);
+
+        // SOFT optimization is advisory (53d081fb): printed, recorded, not blocking.
+        std::string message;
+        if (level == "soft") {
             // 1-line advisory via centralized emitAdvisory
             emitAdvisory(fmt::format("[governance] {}", note));
             message = note;
@@ -2257,9 +2293,7 @@ std::string GovernanceEngine::checkPolyglotOptimization(
         // Record check result
         CheckResult check;
         check.rule_name = "polyglot_optimization";
-        check.level = level == "hard" ? EnforcementLevel::HARD :
-                     level == "soft" ? EnforcementLevel::SOFT :
-                                      EnforcementLevel::ADVISORY;
+        check.level = level == "soft" ? EnforcementLevel::SOFT : EnforcementLevel::ADVISORY;
         check.passed = (level == "advisory");  // advisory suggestions aren't failures
         check.message = message;
         check.category = "polyglot";
@@ -2271,11 +2305,6 @@ std::string GovernanceEngine::checkPolyglotOptimization(
             std::lock_guard<std::mutex> lock(results_mutex_);
             pushCheckResultLocked(check);
             capCheckResultsLocked();  // V-GOV-024
-        }
-
-        // Only HARD blocks execution
-        if (level == "hard") {
-            return message;
         }
     }
 
@@ -2611,6 +2640,11 @@ std::string GovernanceEngine::classifyTaskForVerification(
         for (const auto& [lang, score_data] : lang_scores) {
             matrix[task][lang] = score_data.score;
         }
+    }
+    // The project's preferences, as they used to be written into the table.
+    for (const auto& pref : rules().polyglot_optimization.project_preferences) {
+        int& score = matrix[pref.task][pref.language];
+        score = std::min(100, score + pref.boost);
     }
 
     analyzer::ComprehensiveTaskDetector detector(matrix);

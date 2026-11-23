@@ -5,6 +5,11 @@
 NAAB="$(cd "$(dirname "$0")/../.." && pwd)/build/naab-lang"
 DIR="$(cd "$(dirname "$0")" && pwd)"
 EDGE="$DIR/edge_cases"
+# Every config this suite writes is unsigned: an isolated trust store keeps a
+# key installed elsewhere from turning them into integrity blocks.
+source "$DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
+trap 'teardown_isolated_trust' EXIT
 PASS=0
 FAIL=0
 TOTAL=0
@@ -108,11 +113,13 @@ else
 fi
 
 # CLAUDE.md says "use 4 spaces", .cursorrules says "use 2 spaces"
-# CLAUDE.md should win (discovered first in priority order)
-if echo "$OUT" | grep -q "indent_size=4.*APPLIED"; then
-    pass "Style conflict: CLAUDE.md indent_size=4 wins (higher priority)"
+# CLAUDE.md should win (discovered first in priority order). No rule reads
+# indentation, so the winner is reported NOT ENFORCED: this arm used to assert
+# APPLIED, which pinned A212's mislabel.
+if grep -q "indent_size=4.*NOT ENFORCED" <<<"$OUT"; then
+    pass "Style conflict: CLAUDE.md indent_size=4 wins (higher priority), reported not enforced"
 else
-    fail "Style conflict: CLAUDE.md indent_size=4 not applied" "First-file-wins should apply CLAUDE.md"
+    fail "Style conflict: CLAUDE.md indent_size=4 not reported as the winner" "First-file-wins should pick CLAUDE.md"
 fi
 
 if echo "$OUT" | grep -q "indent_size=2.*SKIP"; then

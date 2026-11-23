@@ -52,6 +52,11 @@ struct ContextExtraction {
     std::string language;        // Normalized language name
     std::string task;            // Task category (if task-specific)
     int score_boost = 0;         // Optimization score boost
+
+    // Set by applyToRules() when this extraction wrote a rule (a ban,
+    // no_console_log, strict_mode). The files such extractions came from are
+    // protected from program writes while project_context is on (A213).
+    bool wrote_rule = false;
 };
 
 // ============================================================================

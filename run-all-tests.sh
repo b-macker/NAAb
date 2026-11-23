@@ -2219,6 +2219,26 @@ else
     echo "  test_signed_governance.sh: not found, skipping"
 fi
 
+# --- Project context: CLAUDE.md, linter files, manifests (Bundle 21 PR 1) ---
+# It existed and passed, and ran nowhere until A212: one of its arms asserted
+# the APPLIED label of a setting no rule reads.
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Project Context Edge Cases (what CLAUDE.md and setup files add)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+PC_EDGE_SCRIPT="tests/project_context/edge_case_tests.sh"
+if [ -f "$PC_EDGE_SCRIPT" ]; then
+    if run_shell_test "$PC_EDGE_SCRIPT" 2>&1; then
+        echo "  edge_case_tests.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("edge_case_tests.sh")
+    fi
+else
+    echo "  edge_case_tests.sh: not found, skipping"
+fi
+
 # --- Governance Comment Style Stripping (V-GOV-002) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

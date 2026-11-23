@@ -10,6 +10,7 @@
 #include "naab/project_context.h"
 #include "naab/governance.h"
 #include "naab/bounded_read.h"
+#include "naab/language_descriptors.h"
 
 #include <filesystem>
 #include <fstream>
@@ -1303,6 +1304,31 @@ void ProjectContextLoader::applyToRules(
             std::string func_lower = ext.directive;
             if (func_lower.substr(0, 4) == "ban ") func_lower = func_lower.substr(4);
 
+            // A212: a ban NAAb cannot tie to one language ("Never use
+            // eval()" -- eval exists in several) used to be labelled APPLIED
+            // and written to no rule. It is added to the banned list of every
+            // language a block can be written in: a ban only ever refuses
+            // more, so the wider reading is the safe one.
+            if (ext.language.empty()) {
+                bool added = false;
+                for (const auto& d : naab::lang::allLanguages()) {
+                    if (d.governance_only) continue;
+                    auto& list = rules.languages.per_language[d.canonical].banned_functions;
+                    if (std::find(list.begin(), list.end(), func_lower) == list.end()) {
+                        list.push_back(func_lower);
+                        added = true;
+                    }
+                }
+                if (added) {
+                    ext.status = "applied";
+                    ext.wrote_rule = true;
+                } else {
+                    ext.status = "redundant";
+                    ext.skip_reason = "Already in govern.json";
+                }
+                continue;
+            }
+
             bool already_banned = false;
             // Check per-language banned lists
             if (!ext.language.empty()) {
@@ -1332,6 +1358,7 @@ void ProjectContextLoader::applyToRules(
                     }
                 }
                 ext.status = "applied";
+                ext.wrote_rule = true;
             }
             continue;
         }
@@ -1361,6 +1388,7 @@ void ProjectContextLoader::applyToRules(
                     continue;
                 }
             }
+            bool wrote = false;
             if (ext.mapped_rule.find("no_console_log") != std::string::npos) {
                 auto it = rules.languages.per_language.find("javascript");
                 if (it != rules.languages.per_language.end() && it->second.no_console_log) {
@@ -1369,6 +1397,7 @@ void ProjectContextLoader::applyToRules(
                     continue;
                 }
                 rules.languages.per_language["javascript"].no_console_log = true;
+                wrote = true;
             }
             if (ext.mapped_rule.find("strict_mode") != std::string::npos) {
                 auto it = rules.languages.per_language.find("javascript");
@@ -1378,8 +1407,18 @@ void ProjectContextLoader::applyToRules(
                     continue;
                 }
                 rules.languages.per_language["javascript"].strict_mode = true;
+                wrote = true;
             }
-            ext.status = "applied";
+            // A212: every other style extraction -- indent_size, indent_style,
+            // max_line_length, max_lines_per_block -- is written to no rule.
+            // It used to be labelled APPLIED; it is reported as not enforced.
+            if (wrote) {
+                ext.status = "applied";
+                ext.wrote_rule = true;
+            } else {
+                ext.status = "unenforced";
+                ext.skip_reason = "NAAb does not check this setting";
+            }
             continue;
         }
 
@@ -1407,13 +1446,12 @@ void ProjectContextLoader::applyOptimizationHints(
         if (ext.score_boost == 0) continue;
         if (ext.language.empty()) continue;
 
+        // A213: recorded apart from the configured table, which the
+        // language-choice check reads both without and with these, so a
+        // project file can add a refusal but never lift one.
         if (!ext.task.empty()) {
             // Task-specific boost
-            auto& score = opt_config.task_language_matrix[ext.task][ext.language];
-            score.score = std::min(100, score.score + ext.score_boost);
-            if (score.reason.empty()) {
-                score.reason = fmt::format("project context: {}", ext.directive);
-            }
+            opt_config.project_preferences.push_back({ext.task, ext.language, ext.score_boost});
         } else {
             // All-task boost
             static const std::vector<std::string> all_tasks = {
@@ -1422,8 +1460,7 @@ void ProjectContextLoader::applyOptimizationHints(
                 "json_processing", "cli_tools"
             };
             for (auto& task : all_tasks) {
-                auto& score = opt_config.task_language_matrix[task][ext.language];
-                score.score = std::min(100, score.score + ext.score_boost);
+                opt_config.project_preferences.push_back({task, ext.language, ext.score_boost});
             }
         }
     }
@@ -1468,6 +1505,7 @@ std::string ProjectContextLoader::formatReport(
         if (status == "skipped:suppressed") return "[SKIPPED: suppressed]";
         if (status == "redundant") return "[REDUNDANT]";
         if (status == "dry_run") return "[DRY RUN]";
+        if (status == "unenforced") return "[NOT ENFORCED]";
         return "[" + status + "]";
     };
 
@@ -1549,19 +1587,21 @@ std::string ProjectContextLoader::formatReport(
     }
 
     // Summary
-    int applied = 0, skipped = 0, suppressed = 0, redundant = 0;
+    int applied = 0, skipped = 0, suppressed = 0, redundant = 0, unenforced = 0;
     for (auto& ext : extractions) {
         if (ext.status == "applied") applied++;
         else if (ext.status.find("skipped") != std::string::npos) skipped++;
         else if (ext.status == "redundant") redundant++;
+        else if (ext.status == "unenforced") unenforced++;
     }
     // Count suppressed separately from other skips
     for (auto& ext : extractions) {
         if (ext.status == "skipped:suppressed") { suppressed++; skipped--; }
     }
 
-    out += fmt::format("[project-context] Summary: {} extracted, {} applied, {} skipped, {} suppressed, {} redundant\n",
-        extractions.size(), applied, skipped, suppressed, redundant);
+    out += fmt::format("[project-context] Summary: {} extracted, {} applied, {} skipped, {} suppressed, {} redundant{}\n",
+        extractions.size(), applied, skipped, suppressed, redundant,
+        unenforced > 0 ? fmt::format(", {} not enforced", unenforced) : std::string());
 
     if (is_dry_run) {
         out += "[project-context] DRY RUN COMPLETE - set \"dry_run\": false to apply\n";

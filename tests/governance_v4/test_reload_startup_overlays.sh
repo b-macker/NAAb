@@ -57,8 +57,12 @@
 #   PC-c   project_context off: the block runs
 #   PC-c1  on, no reload: the block is refused (banned function)
 #   PC-01  on, no-op reload: still refused (before: ran, nothing refused)
-#   PC-02  the program rewrites CLAUDE.md before the reload: the ban still
-#          holds -- a reload replays what startup read, it does not re-read
+#   PC-02  CLAUDE.md is rewritten before the reload: the ban still holds -- a
+#          reload replays what startup read, it does not re-read. The rewrite
+#          comes from the test's operator, outside the program's path gate (as
+#          a subprocess language with shell on could, CONTRA-013): since A213
+#          the program's own file.write over a CLAUDE.md that added a ban is
+#          refused (test_project_context_integrity.sh PC-03).
 #   Baselines flags (the VM, which reads them since A56; the tree-walker, where
 #   the bug was, is refused under enforce, so BL-01t measures it under audit):
 #   BL-c   no flag: a changed output runs
@@ -153,6 +157,10 @@ def _swap(src, dst):
     raise RuntimeError("config swap operator did not respond")
 if os.path.exists(".do_swap"):
     time.sleep(1.1)
+    if os.path.exists(".extra_swap"):
+        for _ln in open(".extra_swap").read().splitlines():
+            _s, _t = _ln.split("\t")
+            _swap(_s, _t)
     if os.path.exists("$n/govern.json.sig"):
         _swap("$n/govern.json.sig", "$d/govern.json.sig")
     _swap("$n/govern.json", "$d/govern.json")
@@ -422,14 +430,15 @@ if expect_reload "PC-01" "project context"; then
     else bad "PC-01" "after the reload the banned function ran (rc=$RC)" "$OUT"; fi
 fi
 
-setup pc_2 "$PC_ON" "=" '    file.write("CLAUDE.md", "Nothing is banned here.\n")
-'"$PC_TAIL"
+setup pc_2 "$PC_ON" "=" "$PC_TAIL"
 printf 'Never use subprocess.getoutput() in this project.\n' > "$W/pc_2/CLAUDE.md"
+printf 'Nothing is banned here.\n' > "$W/pc_2.claude"
+printf '%s\t%s\n' "$W/pc_2.claude" "$W/pc_2/CLAUDE.md" > "$W/pc_2/.extra_swap"
 go pc_2
 if expect_reload "PC-02" "CLAUDE.md rewritten"; then
     if [ "$RC" -eq 3 ] && [[ "$OUT" == *banned_functions* ]] && grep -q "Nothing is banned" "$W/pc_2/CLAUDE.md"; then
-        ok "PC-02" "a CLAUDE.md the program rewrote does not change what the reload applies"
-    else bad "PC-02" "after the program rewrote CLAUDE.md the ban did not hold (rc=$RC)" "$OUT"; fi
+        ok "PC-02" "a CLAUDE.md rewritten during the run does not change what the reload applies"
+    else bad "PC-02" "after CLAUDE.md was rewritten the ban did not hold (rc=$RC)" "$OUT"; fi
 fi
 
 # ---- Baselines flags ----------------------------------------------------------
