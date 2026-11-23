@@ -31,10 +31,14 @@
 # file can only ADD a refusal. Its HARD refusal goes through enforce().
 #
 #   PC-00   CONTROL: Python blocks run here, and a govern.json ban on eval
-#           refuses one (the matcher sees eval)
+#           refuses one (the matcher sees eval). On a build without embedded
+#           Python (every Windows build) PC-00 and every arm that needs a
+#           Python block read UNMEASURABLE and the rest still run; Python
+#           present but not running is a failure
 #   PC-01   CLAUDE.md "Never use eval()" refuses eval in a Python block
-#   PC-01j  ... and in a JavaScript block (every language)
-#   PC-01c  CONTROL: without that line the same block runs
+#   PC-01jc CONTROL: without that line a JavaScript eval block runs
+#   PC-01j  ... and the line refuses it (every language)
+#   PC-01c  CONTROL: without that line the Python block runs
 #   PC-02   "Use 4 spaces for indentation" is reported NOT ENFORCED, not APPLIED
 #   PC-03b  CONTROL: CLAUDE.md "Never use pickle" refuses import pickle
 #   PC-03   file.write over that CLAUDE.md is refused (exit 3) and it is unchanged
@@ -47,12 +51,17 @@
 #   PC-04n  CONTROL: a CLAUDE.md that adds no rule stays writable
 #   PC-05   an .eslintrc.json that switches no_console_log on is protected
 #   PC-06   CONTROL: a manifest stays writable (pyproject.toml)
+#   PC-09c  CONTROL: a CLAUDE.md with CRLF line endings is read (its ban)
+#   PC-09r  ... and its "Prefer go for concurrency" line is applied (A232: the
+#           CR stayed on the task name and the line was dropped)
 #   PC-07c  CONTROL: the configured score table refuses a Python JSON block at
 #           hard with no project files
 #   PC-07   ... and still refuses it with a pyproject.toml beside it
 #   PC-07p  ... and with a CLAUDE.md preference for Python (table at 62)
 #   PC-07t  CONTROL: a project preference still ADDS a refusal (a block the
 #           table allows is refused once CLAUDE.md prefers another language)
+#   PC-09p  ... and so does the same preference in a CRLF file with nothing
+#           after the task (A232)
 #   PC-08   the HARD refusal exits 3
 #   PC-08t  ... and a NAAb try does not catch it
 #   PC-08s  CONTROL: at soft the same block runs (soft stays advisory)
@@ -60,17 +69,23 @@
 #           refusal still happens
 #
 # Kill table (mutant applied alone, naab-lang rebuilt, this suite run;
-# observed 2026-11-23 on the default build):
+# observed 2026-11-23 on the default build, rerun after the suite gained
+# PC-01jc and PC-09):
 #   M1  an unattributed ban added to no list               -> PC-01 PC-01j
 #   M2  an unread style setting labelled APPLIED            -> PC-02
 #   M3  the files that added a rule not recorded            -> PC-03 PC-03a PC-03d PC-03p PC-05
 #   M4  the write gate removed                              -> PC-03 PC-03a PC-03d PC-03p PC-05
 #   M5  every file with an extraction recorded              -> PC-04n PC-06
 #   M6  decided with the project's preferences only         -> PC-07 PC-07p
-#   M7  decided without them only                           -> PC-07t
+#   M7  decided without them only                           -> PC-07t PC-09p
 #   M8  the HARD refusal returned, not enforced             -> PC-08 PC-08t PC-08h
 #   M9  the HARD refusal gated on helper_errors             -> PC-08h
 #   M10 an unattributed ban added to Python only            -> PC-01j
+#   M11 the CR kept by the Markdown reader                  -> PC-09r PC-09p
+# Not mutated: the same CR drop in the .editorconfig and go.mod readers, whose
+# values reach no rule (labels and a version string).
+# Against a stand-in for a Python-less build (the program run with its Python
+# blocks replaced by null): 14 pass, 14 UNMEASURABLE, 0 fail, exit 0.
 # On master 31c90c23: the 12 subject arms then written red, the 11 controls
 # green; PC-08h was added with A214(b), red on master too (observed by hand).
 # ============================================================
@@ -158,42 +173,70 @@ $JSON_BODY
 }"
 
 # ---- PC-00 control -----------------------------------------------------------
+# A build without embedded Python (every Windows build) prints this warning on
+# every run and runs no Python block: the arms that need one read UNMEASURABLE
+# there (py_arm), and the rest -- the file protection, the labels, CRLF -- are
+# still measured. Python present but not running is a failure, not a skip.
+PY=1
 fresh pc00 false elevated ', "languages": {"per_language": {"python": {"banned_functions": ["eval"]}}}'
 printf 'main {\n    let r = <<python\n2 + 3\n>>\n    print("RAN " + r)\n}\n' > "$D/t.naab"; run
-if [ "$RC" != 0 ] || ! grep -q 'RAN 5' <<<"$OUT"; then
-    unm PC-00 "a Python block does not run here; nothing below can be read (rc=$RC)"
+if grep -q 'Python support not available' <<<"$OUT"; then
+    PY=0
+    unm PC-00 "Python is not embedded in this build: the arms that need a Python block are UNMEASURABLE"
+elif [ "$RC" != 0 ] || ! grep -q 'RAN 5' <<<"$OUT"; then
+    fail PC-00 "a Python block does not run here; nothing below can be read" "rc=$RC"
     echo "Result: $PASS passed, $FAIL failed, $UNM unmeasurable"; exit 1
-fi
-printf '%s\n' "$PY_EVAL" > "$D/t.naab"; run
-if [ "$RC" = 3 ] && grep -q 'Banned function' <<<"$OUT" && ! grep -q 'RAN' <<<"$OUT"; then
-    pass PC-00 "CONTROL: Python runs, and a govern.json ban on eval refuses the eval block (exit 3)"
 else
-    fail PC-00 "the ban matcher did not refuse eval; nothing below can be read" "rc=$RC"
-    echo "Result: $PASS passed, $FAIL failed, $UNM unmeasurable"; exit 1
+    printf '%s\n' "$PY_EVAL" > "$D/t.naab"; run
+    if [ "$RC" = 3 ] && grep -q 'Banned function' <<<"$OUT" && ! grep -q 'RAN' <<<"$OUT"; then
+        pass PC-00 "CONTROL: Python runs, and a govern.json ban on eval refuses the eval block (exit 3)"
+    else
+        fail PC-00 "the ban matcher did not refuse eval; nothing below can be read" "rc=$RC"
+        echo "Result: $PASS passed, $FAIL failed, $UNM unmeasurable"; exit 1
+    fi
 fi
+# py_arm ID TEXT: true when the arm can run here; otherwise it is UNMEASURABLE
+py_arm() { [ "$PY" = 1 ] && return 0; unm "$1" "$2 (no embedded Python in this build)"; return 1; }
 
 # ---- PC-01 an unattributed ban applies ----------------------------------------
 fresh pc01 true
 printf '# Rules\n\n## Restrictions\n- Never use eval()\n' > "$D/CLAUDE.md"
-printf '%s\n' "$PY_EVAL" > "$D/t.naab"; run
-if [ "$RC" = 3 ] && grep -q 'Banned function' <<<"$OUT" && ! grep -q 'RAN' <<<"$OUT"; then
-    pass PC-01 "CLAUDE.md 'Never use eval()' refuses eval in a Python block"
-else
-    fail PC-01 "the CLAUDE.md ban did not reach the Python block" "rc=$RC $(grep -m1 -E 'ban eval|RAN' <<<"$OUT")"
-fi
-printf '%s\n' "$JS_EVAL" > "$D/t.naab"; run
-if [ "$RC" = 3 ] && grep -q 'Banned function' <<<"$OUT" && ! grep -q 'RAN' <<<"$OUT"; then
-    pass PC-01j "the same ban refuses eval in a JavaScript block"
-else
-    fail PC-01j "the CLAUDE.md ban did not reach the JavaScript block" "rc=$RC $(grep -m1 -E 'RAN|rror' <<<"$OUT")"
+if py_arm PC-01 "CLAUDE.md 'Never use eval()' refuses eval in a Python block"; then
+    printf '%s\n' "$PY_EVAL" > "$D/t.naab"; run
+    if [ "$RC" = 3 ] && grep -q 'Banned function' <<<"$OUT" && ! grep -q 'RAN' <<<"$OUT"; then
+        pass PC-01 "CLAUDE.md 'Never use eval()' refuses eval in a Python block"
+    else
+        fail PC-01 "the CLAUDE.md ban did not reach the Python block" "rc=$RC $(grep -m1 -E 'ban eval|RAN' <<<"$OUT")"
+    fi
 fi
 fresh pc01c true
 printf '# Rules\n' > "$D/CLAUDE.md"
-printf '%s\n' "$PY_EVAL" > "$D/t.naab"; run
+printf '%s\n' "$JS_EVAL" > "$D/t.naab"; run
+JS_OK=0
 if [ "$RC" = 0 ] && grep -q 'RAN 5' <<<"$OUT"; then
-    pass PC-01c "CONTROL: without the line the eval block runs"
+    JS_OK=1
+    pass PC-01jc "CONTROL: without the line the JavaScript eval block runs"
 else
-    fail PC-01c "the eval block is refused without any ban" "rc=$RC"
+    unm PC-01jc "a JavaScript block does not run here (rc=$RC); PC-01j cannot be read"
+fi
+if py_arm PC-01c "CONTROL: without the line the Python eval block runs"; then
+    printf '%s\n' "$PY_EVAL" > "$D/t.naab"; run
+    if [ "$RC" = 0 ] && grep -q 'RAN 5' <<<"$OUT"; then
+        pass PC-01c "CONTROL: without the line the Python eval block runs"
+    else
+        fail PC-01c "the eval block is refused without any ban" "rc=$RC"
+    fi
+fi
+if [ "$JS_OK" = 1 ]; then
+    D="$TEST_TMP/pc01"
+    printf '%s\n' "$JS_EVAL" > "$D/t.naab"; run
+    if [ "$RC" = 3 ] && grep -q 'Banned function' <<<"$OUT" && ! grep -q 'RAN' <<<"$OUT"; then
+        pass PC-01j "the same CLAUDE.md ban refuses eval in a JavaScript block"
+    else
+        fail PC-01j "the CLAUDE.md ban did not reach the JavaScript block" "rc=$RC $(grep -m1 -E 'RAN|rror' <<<"$OUT")"
+    fi
+else
+    unm PC-01j "no JavaScript control (PC-01jc)"
 fi
 
 # ---- PC-02 labels ---------------------------------------------------------------
@@ -211,11 +254,13 @@ fi
 fresh pc03 true
 printf '# Rules\n\n## Restrictions\n- Never use pickle\n' > "$D/CLAUDE.md"
 CL_SUM=$(sum "$D/CLAUDE.md")
-printf '%s\n' "$PY_PICKLE" > "$D/t.naab"; run
-if [ "$RC" = 3 ] && ! grep -q 'RAN' <<<"$OUT"; then
-    pass PC-03b "CONTROL: the CLAUDE.md ban refuses import pickle"
-else
-    fail PC-03b "the CLAUDE.md pickle ban did not refuse; the protection arms cannot be read" "rc=$RC"
+if py_arm PC-03b "CONTROL: the CLAUDE.md ban refuses import pickle"; then
+    printf '%s\n' "$PY_PICKLE" > "$D/t.naab"; run
+    if [ "$RC" = 3 ] && ! grep -q 'RAN' <<<"$OUT"; then
+        pass PC-03b "CONTROL: the CLAUDE.md ban refuses import pickle"
+    else
+        fail PC-03b "the CLAUDE.md pickle ban did not refuse; the protection arms cannot be read" "rc=$RC"
+    fi
 fi
 printf 'main {\n    file.write("CLAUDE.md", "# Rules\\n")\n    print("WROTE")\n}\n' > "$D/t.naab"; run
 if [ "$RC" = 3 ] && grep -q 'governance.project_context_files' <<<"$OUT" && [ "$(sum "$D/CLAUDE.md")" = "$CL_SUM" ]; then
@@ -300,6 +345,26 @@ else
     fail PC-06 "a manifest was protected" "rc=$RC"
 fi
 
+# ---- PC-09 a CLAUDE.md with Windows line endings (A232) ----------------------
+# std::getline keeps the CR, and a directive whose capture runs to the end of
+# the line then held it: "Prefer go for concurrency" named the task
+# "concurrency\r" and was dropped. The ban survived only because its pattern
+# does not run to the end of the line.
+fresh pc09 true
+printf '# Rules\r\n\r\n## Restrictions\r\n- Never use eval()\r\n- Prefer go for concurrency\r\n' > "$D/CLAUDE.md"
+printf 'main {\n    print("OK")\n}\n' > "$D/t.naab"; run
+if grep -q 'ban eval' <<<"$OUT"; then
+    pass PC-09c "CONTROL: a CLAUDE.md with CRLF line endings is read (its ban is reported)"
+    if grep -qi 'prefer go for concurrency.*APPLIED' <<<"$OUT"; then
+        pass PC-09r "... and a preference that runs to the end of its line is applied too"
+    else
+        fail PC-09r "a CRLF line lost its preference" "$(grep -m3 -E 'Language|Summary' <<<"$OUT" | tr '\n' ' ')"
+    fi
+else
+    fail PC-09c "the CRLF CLAUDE.md was not read; PC-09r cannot be read" "rc=$RC"
+fi
+
+if [ "$PY" = 1 ]; then
 # ---- PC-07 project preferences cannot lift a language-choice refusal ----------
 fresh pc07c true elevated "$(po hard 72 100)"
 printf '%s\n' "$PY_JSON" > "$D/t.naab"; run
@@ -324,7 +389,9 @@ else
 fi
 fresh pc07t true elevated "$(po hard 50 55)"
 printf '%s\n' "$PY_JSON" > "$D/t.naab"; run
+T07_OK=0
 if [ "$RC" = 0 ] && grep -q 'RAN' <<<"$OUT"; then
+    T07_OK=1
     printf '# Rules\n- Prefer javascript for json processing.\n' > "$D/CLAUDE.md"; run
     if [ "$RC" != 0 ] && grep -qi 'suboptimal language' <<<"$OUT" && ! grep -q 'RAN' <<<"$OUT"; then
         pass PC-07t "CONTROL: a project preference still adds a refusal"
@@ -333,6 +400,21 @@ if [ "$RC" = 0 ] && grep -q 'RAN' <<<"$OUT"; then
     fi
 else
     fail PC-07t "the table refused the block before any preference; the control cannot be read" "rc=$RC"
+fi
+
+# PC-09p: the same preference in a CRLF file with nothing after the task, the
+# shape A232 dropped; PC-07t's first half is its control (same table)
+if [ "$T07_OK" = 1 ]; then
+    fresh pc09p true elevated "$(po hard 50 55)"
+    printf '%s\n' "$PY_JSON" > "$D/t.naab"
+    printf '# Rules\r\n- Prefer javascript for json processing\r\n' > "$D/CLAUDE.md"; run
+    if [ "$RC" != 0 ] && grep -qi 'suboptimal language' <<<"$OUT" && ! grep -q 'RAN' <<<"$OUT"; then
+        pass PC-09p "a CRLF preference still adds its refusal"
+    else
+        fail PC-09p "the CRLF preference was lost: the block the preference refuses ran" "rc=$RC"
+    fi
+else
+    unm PC-09p "no control (PC-07t's first half did not run)"
 fi
 
 # ---- PC-08 the HARD refusal is HARD -------------------------------------------
@@ -363,6 +445,11 @@ if [ "$RC" = 3 ] && ! grep -q 'RAN' <<<"$OUT"; then
     pass PC-08h "with helper_errors off the HARD refusal still happens"
 else
     fail PC-08h "turning the hint text off removed the HARD refusal" "rc=$RC"
+fi
+else
+    for a in PC-07c PC-07 PC-07p PC-07t PC-09p PC-08 PC-08t PC-08s PC-08h; do
+        unm "$a" "needs a Python block (no embedded Python in this build)"
+    done
 fi
 
 echo "Result: $PASS passed, $FAIL failed, $UNM unmeasurable"

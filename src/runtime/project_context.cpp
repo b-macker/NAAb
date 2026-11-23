@@ -29,6 +29,16 @@ namespace governance {
 
 namespace fs = std::filesystem;
 
+// A file written on Windows ends each line in CRLF, and std::getline keeps the
+// CR. A directive whose last capture runs to the end of the line then holds it
+// ("Prefer Go for concurrency" named the task "concurrency\r", which matches
+// no task), so the directive was dropped without a word (A232, observed when
+// build-windows checked the fixtures out with CRLF). Every line reader here
+// drops it.
+static void dropTrailingCR(std::string& line) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+}
+
 // ============================================================================
 // Language Normalization
 // ============================================================================
@@ -292,6 +302,7 @@ std::vector<ContextExtraction> ProjectContextLoader::parseMarkdownFile(
     std::string current_section;
 
     while (std::getline(ifs, line)) {
+        dropTrailingCR(line);
         line_num++;
 
         // Track code blocks (``` fences)
@@ -753,6 +764,7 @@ std::vector<ContextExtraction> ProjectContextLoader::parseEditorConfig(const std
 
     std::string line;
     while (std::getline(ifs, line)) {
+        dropTrailingCR(line);
         // Trim whitespace
         size_t start = line.find_first_not_of(" \t");
         if (start == std::string::npos) continue;
@@ -1086,6 +1098,7 @@ std::vector<ContextExtraction> ProjectContextLoader::parseManifestFile(
             std::ifstream ifs(path);
             std::string line;
             while (std::getline(ifs, line)) {
+                dropTrailingCR(line);
                 if (line.substr(0, 3) == "go ") {
                     version_info = fmt::format("Go {}", line.substr(3));
                     break;
