@@ -1785,7 +1785,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
     std::string message;
     if (args[1].isString()) {
-        message = args[1].asString();
+        // A209: valid UTF-8 from here on, so the prompt scan below judges the
+        // bytes the request carries (one U+FFFD per invalid byte; under
+        // byte-wise matching a length-bounded pattern can read the two
+        // differently). It used to end the run when the request was built.
+        message = naab::text::validUtf8(args[1].asString());
     } else {
         throw std::runtime_error(
             "Agent error: Message must be a string\n\n"
@@ -2614,7 +2618,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 }
                                 const auto ch_start = std::chrono::steady_clock::now();
                                 challenge_result = runtime::callAgentWithStatus(
-                                    challenge_config, challenge_key, challenge_msgs.dump());
+                                    challenge_config, challenge_key,
+                                    naab::text::dumpRequest(challenge_msgs));
                                 chargeTimeBudget(gov_engine->getRules().agent_dispatch.hard_stop,
                                                  msSince(ch_start));
                                 if (challenge_result.response.success) {
@@ -2906,10 +2911,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         for (const auto& tool_name : config->tools) {
             auto it = s_registered_tools.find(tool_name);
             if (it != s_registered_tools.end()) {
+                // A209: repaired where serialised (see the tool loop's copy).
+                json schema = it->second.input_schema;
                 initial_tool_defs.push_back({
                     it->second.name,
                     it->second.description,
-                    it->second.input_schema.dump()
+                    naab::text::dumpRequest(schema)
                 });
             }
         }
@@ -3105,7 +3112,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // Set by any attempt that failed for a reason that counts toward the
     // run-level consecutive_failure_limit. Charged ONCE, after the retry loop.
     bool send_countable_failure = false;
-    std::string messages_str = messages_json.dump();
+    std::string messages_str = naab::text::dumpRequest(messages_json);
 
     // Get hard stop config
     const auto& hs = gov_engine && gov_engine->isActive()
@@ -3567,7 +3574,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         // Build tool definitions for the provider
         std::vector<runtime::ToolDefinition> tool_defs;
         for (const auto& [name, reg] : tool_snapshot) {
-            tool_defs.push_back({name, reg.description, reg.input_schema.dump()});
+            // A209: no scan reads a declaration, so it is repaired where it
+            // is serialised: the schema here, the description with the body.
+            json schema = reg.input_schema;
+            tool_defs.push_back({name, reg.description, naab::text::dumpRequest(schema)});
         }
 
         // One provider call of the tool loop. F48/F54: the loop's calls use the
@@ -3940,7 +3950,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                     }
                                     return "<unsupported>";
                                 };
-                                tool_result_str = toJson(result_val).dump();
+                                json result_json = toJson(result_val);
+                                tool_result_str = naab::text::dumpRequest(result_json);
                             } catch (...) {
                                 tool_result_str = "Error: failed to serialize tool result";
                                 tool_success = false;
@@ -3975,10 +3986,19 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 // Ensure non-zero latency when tool actually executed (sub-ms functions round to 0)
                 if (tool_latency_ms == 0) tool_latency_ms = 1;
 
+                // A209: the result is made valid BEFORE the cut and the
+                // result scan, so the scan judges the bytes the request
+                // carries; the cut lands on a character boundary, so a valid
+                // result cut inside a multi-byte character stays valid (a
+                // byte cut there used to end the run when the request was
+                // built).
+                tool_result_str = naab::text::validUtf8(tool_result_str);
+
                 // Step 7: Truncation (Gap L)
                 bool truncated = false;
                 if (static_cast<int>(tool_result_str.size()) > config->tool_result_max_chars) {
-                    tool_result_str = tool_result_str.substr(0, static_cast<size_t>(config->tool_result_max_chars))
+                    tool_result_str = naab::text::truncateUtf8(
+                        tool_result_str, static_cast<size_t>(config->tool_result_max_chars))
                         + "\n[truncated]";
                     truncated = true;
                 }
@@ -4152,7 +4172,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             }
 
             // Make next LLM API call (with tool definitions)
-            messages_str = messages_json.dump();
+            messages_str = naab::text::dumpRequest(messages_json);
 
             // Retry loop for the tool-loop's LLM call (simplified — single attempt)
             std::string key_env_loop;
@@ -4300,7 +4320,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 runtime::ProviderResult final_result;
                 std::string final_error;
                 bool final_hard_stop = false;
-                if (callToolLoopTurn(final_messages.dump(), /*forbid_tools=*/true,
+                if (callToolLoopTurn(naab::text::dumpRequest(final_messages), /*forbid_tools=*/true,
                                      final_result, final_error, final_hard_stop)) {
                     if (!loop_resp_accounted) {
                         std::lock_guard<std::mutex> lock(s_agent_mutex);
@@ -5820,7 +5840,8 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
     // see ScopedCheckContext (governance.h).
     governance::ScopedCheckContext agent_check_ctx("<agent:" + config_name + ">");
     auto& handle = args[0].asDict();
-    std::string message = args[1].asString();
+    // A209: valid before the prompt scan, as agent.send()'s.
+    std::string message = naab::text::validUtf8(args[1].asString());
 
     const auto* config = findAgentConfig(config_name);
     if (!config) {
@@ -6053,7 +6074,7 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
     user_msg["role"] = "user";
     user_msg["content"] = message;
     messages_json.push_back(user_msg);
-    std::string messages_str = messages_json.dump();
+    std::string messages_str = naab::text::dumpRequest(messages_json);
 
     // Key / model resolution (first alive key, primary model)
     std::vector<std::string> keys = config->api_key_envs;

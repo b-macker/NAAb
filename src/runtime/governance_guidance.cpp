@@ -135,7 +135,12 @@ std::string trimBlankLines(const std::string& s) {
 // Sections at ATX headings (# .. ######) outside fenced code blocks. A
 // section's body runs to the next heading of the same or a higher level, so a
 // parent section includes its subsections.
-std::vector<GuidanceSection> parseSections(const std::string& text) {
+std::vector<GuidanceSection> parseSections(const std::string& text_in) {
+    // A209: a section is text a scan judges (secretFinding/piiFinding at
+    // selection) and a request carries, so it is made valid HERE, before
+    // either: the scan then judges the bytes delivered. One U+FFFD per byte
+    // that is not UTF-8 (a playbook saved in a legacy encoding).
+    const std::string text = naab::text::validUtf8(text_in);
     std::vector<std::string> lines;
     {
         std::istringstream in(text);
@@ -212,13 +217,9 @@ bool agentMatches(const GuidanceRuleConfig& rc, const std::string& agent) {
     return std::find(rc.agents.begin(), rc.agents.end(), agent) != rc.agents.end();
 }
 
-// Truncate at a UTF-8 boundary so a cut never splits a multi-byte character.
-std::string truncateUtf8(const std::string& s, size_t max) {
-    if (s.size() <= max) return s;
-    size_t cut = max;
-    while (cut > 0 && (static_cast<unsigned char>(s[cut]) & 0xC0) == 0x80) --cut;
-    return s.substr(0, cut);
-}
+// Truncate at a UTF-8 boundary so a cut never splits a multi-byte character:
+// one copy, shared with the tool-result cut (naab/utf8_text.h, A209).
+using naab::text::truncateUtf8;
 
 const char* kTruncMark = "\n[... guidance truncated]";
 
@@ -234,8 +235,12 @@ constexpr int kMaxRowSections = 5000;
 
 // Append one row as a section. Empty text or name -> skipped (false).
 bool appendRowSection(std::vector<GuidanceSection>& out, std::map<std::string, int>& seen,
-                      const std::string& topic, const std::string& heading_in,
-                      const std::string& text) {
+                      const std::string& topic_in, const std::string& heading_raw,
+                      const std::string& text_in) {
+    // A209: valid before any scan or request reads it, as parseSections().
+    const std::string topic = naab::text::validUtf8(topic_in);
+    const std::string heading_in = naab::text::validUtf8(heading_raw);
+    const std::string text = naab::text::validUtf8(text_in);
     GuidanceSection sec;
     sec.topic = topic;
     sec.heading = heading_in.empty() ? topic : heading_in;
@@ -839,9 +844,11 @@ static bool guidanceQuery(GovernanceEngine& eng, GovernanceEngine::GuidanceState
     int n = 0;
     while ((rc = sqlite3_step(closer.s)) == SQLITE_ROW && n < src.max_rows) {
         const int cols = sqlite3_column_count(closer.s);
+        // SQLite does not validate TEXT, and a query's rows reach the scan and
+        // the request without appendRowSection(): valid here (A209).
         auto colText = [&](int c) -> std::string {
             const unsigned char* t = sqlite3_column_text(closer.s, c);
-            return t ? std::string(reinterpret_cast<const char*>(t)) : std::string();
+            return t ? naab::text::validUtf8(reinterpret_cast<const char*>(t)) : std::string();
         };
         std::string heading = cols >= 2 ? colText(0) : "row " + std::to_string(n + 1);
         std::string text = cols >= 2 ? colText(1) : colText(0);

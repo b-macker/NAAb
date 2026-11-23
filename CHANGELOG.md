@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed -- a request a model receives carries text that is not UTF-8 (A209; migration note)
+- **One byte that is not UTF-8 no longer ends the run before a request is sent.** A Latin-1 byte in a prompt, a tool's result, a guidance section, a tool's description, history the program wrote or the program's own source made the request builder throw (exit 1, `[json.exception.type_error.316]`), and the model received nothing; a valid result cut by `tool_result_max_chars` inside a multi-byte character did the same, and a dict result holding the byte reached the model as `Error: failed to serialize tool result`. The byte is now sent as U+FFFD, and the cut lands on a character boundary.
+- **Agent review now reviews a program whose source holds such a byte.** Every reviewer call failed on it, so under the default `fail_policy: "open"` the program ran unreviewed.
+  - **Migration:** such a program can now be refused by its review. A scan now judges the text as sent, with U+FFFD in place of each invalid byte, so a value at the edge of a length-bounded pattern can now be refused (`password = "abcdef<byte>"` matches the 8-or-more Hardcoded Password pattern under `no_secrets`). A cut tool result can be up to three bytes shorter than `tool_result_max_chars`.
+- Tests: `tests/governance_v4/test_request_utf8.sh`. Recorded while fixing it: A211 (a program can write an agent handle's history, which no scan reads; open).
+
 ### Changed -- Bundle 19 PR 2: init, a run past 10,000 results, plugins that cannot load (migration notes)
 - **`naab-lang init --governance-preset standard`, `strict` and `paranoid` write taint tracking and sequence detection on (A75)**, as plain `naab-lang init` already did; `relaxed` turns them on only with `--taint`. `init` and the generated file now say what the standard sandbox refuses -- shell blocks, `env.get()`, reading outside this directory, home and the temp directory -- and that `"security": {"sandbox_level": "elevated"}` allows them.
   - **Migration:** a project generated with a preset now refuses a taint flow, such as file contents passed into a `<<python>>` block, unless a `sanitize_`/`validate_`/`escape_` function cleans it; regenerate with `--governance-preset relaxed`, or edit `taint_tracking`, if that is not wanted.
