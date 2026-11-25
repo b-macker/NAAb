@@ -199,6 +199,10 @@ VM::VM()
     , frames_(std::make_unique<CallFrame[]>(FRAMES_MAX))
     , gc_detector_(std::make_unique<interpreter::CycleDetector>())  // V-RT-008
 {
+    // F46: debug.env/stack/snapshot/trace read this VM (stdlib cannot name it).
+    stdlib::DebugModule::setVMDebugHooks(
+        [](void* vm) { return static_cast<VM*>(vm)->debugStack(); },
+        [](void* vm) { return static_cast<VM*>(vm)->debugScope(); });
     std::memset(taint_stack_.get(), 0, STACK_MAX * sizeof(bool));
 }
 
@@ -2946,6 +2950,9 @@ interpreter::NaabVal VM::run() {
                             }
                         }
                         interpreter::NaabVal member_result;
+                        // As route A: the flag says what THIS call read (F46).
+                        if (governance_ && governance_->isActive())
+                            governance_->setLastReturnTainted(false);
                         try {
                             member_result = callStdlibMethod(mod, name, 0, no_args);
                         } catch (...) {
@@ -2961,6 +2968,10 @@ interpreter::NaabVal VM::run() {
                             } else if (governance_->isSanitizer(full_name)) {
                                 peekTaint(0) = false;
                                 sanitizer_applied = true;
+                            } else if (governance_->lastReturnWasTainted()) {
+                                // The call read tainted data (debug.env, F46).
+                                peekTaint(0) = true;
+                                governance_->setLastReturnTainted(false);
                             }
                         }
                         if (governance_) {
@@ -4017,6 +4028,7 @@ static void deepCopyFunctionTree(
     copy->source_file = src->source_file;
     copy->source_line = src->source_line;
     copy->local_names = src->local_names;
+    copy->local_ranges = src->local_ranges;
     copy->has_main_block = src->has_main_block;
 
     // requires / ensures: each clause's check function is a function tree of
@@ -6090,6 +6102,46 @@ std::map<std::string, interpreter::NaabVal> VM::getCurrentScopeVariables() const
         }
     }
     return vars;
+}
+
+// F46: the call stack and the live locals, in the tree-walker's format
+// (StackFrame::toString: "  at NAME (FILE:LINE)"), for the debug module.
+std::vector<std::string> VM::debugStack() const {
+    std::vector<std::string> out;
+    for (int i = 0; i < frame_count_; ++i) {
+        const CallFrame& cf = frames_[i];
+        if (!cf.function) continue;
+        const auto& code = cf.function->chunk.code;
+        int off = cf.ip ? static_cast<int>(cf.ip - code.data()) - 1 : 0;
+        if (off < 0) off = 0;
+        const int line = cf.function->chunk.getLine(off);
+        const std::string name = cf.function->name.empty() ? "<script>" : cf.function->name;
+        const std::string& file = cf.source_file.empty() ? current_file_ : cf.source_file;
+        out.push_back("  at " + name + " (" + file + ":" + std::to_string(line) + ")");
+    }
+    return out;
+}
+
+std::vector<stdlib::DebugLocal> VM::debugScope() const {
+    std::vector<stdlib::DebugLocal> out;
+    if (frame_count_ <= 0) return out;
+    const CallFrame& cf = frames_[frame_count_ - 1];
+    if (!cf.function || !cf.ip) return out;
+    const int off = static_cast<int>(cf.ip - cf.function->chunk.code.data()) - 1;
+    const size_t base = static_cast<size_t>(cf.slots - stack_.get());
+    // A later range shadows an earlier one of the same name.
+    std::map<std::string, stdlib::DebugLocal> live;
+    for (const auto& r : cf.function->local_ranges) {
+        if (r.name.empty() || r.name.compare(0, 2, "__") == 0) continue;
+        if (off < r.start || (r.end >= 0 && off >= r.end)) continue;
+        if (&cf.slots[r.slot] >= stack_top_) continue;
+        const interpreter::NaabVal& v = cf.slots[r.slot];
+        // The taint a load of this local would carry (OP_GET_LOCAL).
+        const bool t = taint_stack_[base + static_cast<size_t>(r.slot)] || containerTainted(v);
+        live[r.name] = {r.name, v, t};
+    }
+    for (auto& [n, l] : live) out.push_back(std::move(l));
+    return out;
 }
 
 // ============================================================================

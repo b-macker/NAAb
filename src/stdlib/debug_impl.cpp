@@ -2,6 +2,7 @@
 // Provides debugging utilities for inspecting complex types,
 // scope inspection, timing, snapshot/compare, and more.
 
+#include "naab/thread_vm.h"
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
 #include "naab/governance.h"
@@ -26,9 +27,40 @@ static std::unordered_map<std::string, std::chrono::steady_clock::time_point> g_
 
 // Static storage for snapshots (label -> {var_name -> value_string})
 static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> g_snapshots;
+static std::unordered_map<std::string, bool> g_snapshot_tainted;
 
 interpreter::Interpreter* DebugModule::getInterpreter() {
     return g_debug_interpreter;
+}
+
+static DebugModule::VMStackFn g_vm_stack = nullptr;
+static DebugModule::VMScopeFn g_vm_scope = nullptr;
+
+void DebugModule::setVMDebugHooks(VMStackFn stack, VMScopeFn scope) {
+    g_vm_stack = stack;
+    g_vm_scope = scope;
+}
+
+// F46: the engine running on this thread -- the VM when one does (the
+// default engine; debug.env/stack/snapshot/trace answered nothing there),
+// else the tree-walker.
+static std::vector<std::string> engineStack() {
+    void* vm = runtime::currentThreadVM().vm;
+    if (vm && g_vm_stack) return g_vm_stack(vm);
+    if (g_debug_interpreter) return g_debug_interpreter->getCallStackInfo();
+    return {};
+}
+
+// Each local with its run-time taint. The tree-walker keeps no value taint
+// (its taint is by name, decided before the run), so its entries read clean
+// there, as they always did.
+static std::vector<DebugModule::DebugLocal> engineScope() {
+    void* vm = runtime::currentThreadVM().vm;
+    if (vm && g_vm_scope) return g_vm_scope(vm);
+    std::vector<DebugModule::DebugLocal> out;
+    if (g_debug_interpreter)
+        for (auto& [n, v] : g_debug_interpreter->getCurrentScopeVariables()) out.push_back({n, v, false});
+    return out;
 }
 
 void DebugModule::setInterpreter(interpreter::Interpreter* interp) {
@@ -37,6 +69,7 @@ void DebugModule::setInterpreter(interpreter::Interpreter* interp) {
     g_watch_values.clear();
     g_timers.clear();
     g_snapshots.clear();
+    g_snapshot_tainted.clear();
 }
 
 // Helper to serialize any value to a debug string
@@ -314,15 +347,13 @@ interpreter::NaabVal DebugModule::call(
             );
         }
         std::string location = "<unknown>";
-        if (g_debug_interpreter) {
-            // Bug 7: Use call stack info for file:line, not just filename
-            auto stack = g_debug_interpreter->getCallStackInfo();
-            if (!stack.empty()) {
-                location = stack.back();
-            } else {
-                location = g_debug_interpreter->getCurrentFilename();
-                if (location.empty()) location = "<repl>";
-            }
+        // Bug 7: Use call stack info for file:line, not just filename
+        auto stack = engineStack();
+        if (!stack.empty()) {
+            location = stack.back();
+        } else if (g_debug_interpreter && !runtime::currentThreadVM().vm) {
+            location = g_debug_interpreter->getCurrentFilename();
+            if (location.empty()) location = "<repl>";
         }
         fprintf(stderr, "[TRACE] %s -> %s\n", location.c_str(), valueToDebugString(args[0]).c_str());
         fflush(stderr);
@@ -429,10 +460,11 @@ interpreter::NaabVal DebugModule::call(
             );
         }
         std::unordered_map<std::string, interpreter::NaabVal> result;
-        if (g_debug_interpreter) {
+        bool any_tainted = false;
+        {
             // Bug 1: Filter out internal markers and functions (same as snapshot)
-            auto all_vars = g_debug_interpreter->getCurrentScopeVariables();
-            for (const auto& [name, val] : all_vars) {
+            auto all_vars = engineScope();
+            for (const auto& [name, val, tainted] : all_vars) {
                 if (val.isString()) {
                     const auto& s = val.asString();
                     if (s.size() >= 18 && s.substr(0, 18) == "__stdlib_module__:") continue;
@@ -440,7 +472,17 @@ interpreter::NaabVal DebugModule::call(
                 }
                 if (val.isFunction()) continue;
                 result[name] = val;
+                any_tainted = any_tainted || tainted;
             }
+        }
+        // F46: a copy of a tainted local is tainted data. Without this the
+        // dict was a clean route past every sink (observed: a tainted local
+        // read back through debug.env() reached a print sink, exit 0). The
+        // return flag is how a stdlib call taints its result from what it
+        // read (both VM call routes read it after the call).
+        if (any_tainted) {
+            if (auto* gov = governance::GovernanceEngine::getCurrent())
+                gov->setLastReturnTainted(true, "debug.env");
         }
         return interpreter::NaabVal::makeDict(std::move(result));
 
@@ -453,8 +495,8 @@ interpreter::NaabVal DebugModule::call(
             );
         }
         std::vector<interpreter::NaabVal> frames;
-        if (g_debug_interpreter) {
-            auto stack_info = g_debug_interpreter->getCallStackInfo();
+        {
+            auto stack_info = engineStack();
             for (const auto& frame : stack_info) {
                 frames.push_back(interpreter::NaabVal::makeString(frame));
             }
@@ -498,9 +540,10 @@ interpreter::NaabVal DebugModule::call(
         }
         std::string label = args[0].toString();
         std::unordered_map<std::string, std::string> snap;
-        if (g_debug_interpreter) {
-            auto vars = g_debug_interpreter->getCurrentScopeVariables();
-            for (const auto& [name, val] : vars) {
+        bool snap_tainted = false;
+        {
+            auto vars = engineScope();
+            for (const auto& [name, val, tainted] : vars) {
                 // Skip stdlib module markers
                 if (val.isString()) {
                     const auto& s = val.asString();
@@ -510,9 +553,13 @@ interpreter::NaabVal DebugModule::call(
                 // Skip functions
                 if (val.isFunction()) continue;
                 snap[name] = valueToDebugString(val);
+                snap_tainted = snap_tainted || tainted;
             }
         }
         g_snapshots[label] = snap;
+        // F46: debug.compare() returns this text, so it remembers whether
+        // any value it holds was tainted.
+        g_snapshot_tainted[label] = snap_tainted;
         fprintf(stderr, "[SNAPSHOT] '%s' captured (%zu variables)\n", label.c_str(), snap.size());
         fflush(stderr);
         return interpreter::NaabVal::makeBool(true);
@@ -558,6 +605,11 @@ interpreter::NaabVal DebugModule::call(
 
         std::string result = oss.str();
         if (result.empty()) result = "(no changes between snapshots)";
+        // F46: the diff carries the snapshots' values, so it carries their taint.
+        if (g_snapshot_tainted[l1] || g_snapshot_tainted[l2]) {
+            if (auto* gov = governance::GovernanceEngine::getCurrent())
+                gov->setLastReturnTainted(true, "debug.compare");
+        }
         return interpreter::NaabVal::makeString(result);
     }
 
@@ -611,6 +663,16 @@ interpreter::NaabVal DebugModule::call(
             throw std::runtime_error(
                 "debug.is_tainted requires a string argument (variable name)\n\n"
                 "  Example: debug.is_tainted(\"user_input\")\n");
+        }
+        // On the VM, a local of the running function answers with its VALUE's
+        // taint (F35's rule): the name lookup below knows only globals, so
+        // where the compiler could not route the call to OP_TAINT_OF -- a
+        // prelude `debug` (no `use debug`), a computed name -- it answered
+        // false for a tainted local (A199). A local shadows a global.
+        if (runtime::currentThreadVM().vm) {
+            const std::string& want = args[0].asString();
+            for (const auto& l : engineScope())
+                if (l.name == want) return interpreter::NaabVal::makeBool(l.tainted);
         }
         return interpreter::NaabVal::makeBool(checkTainted(args[0].asString()));
     }

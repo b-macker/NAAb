@@ -15,6 +15,7 @@
 #include <optional>
 
 #include "naab_val.h"
+#include "debug_local.h"
 #include "ast.h"
 
 namespace naab {
@@ -308,6 +309,12 @@ struct CompiledFunction {
 
     // Debug info: slot index → variable name (for debugger variable inspection)
     std::vector<std::string> local_names;
+    // F46: each local's slot, name and the instructions where it is live
+    // [start, end). local_names keeps only the names left at the function's
+    // end (a block's locals are popped before it), so debug.env() read none
+    // of main's variables.
+    struct LocalRange { int slot; std::string name; int start; int end; };
+    std::vector<LocalRange> local_ranges;
 
     // contracts.<name>.requires / ensures, compiled when this function was
     // (Bundle 11). Non-empty only when govern.json gives the function a
@@ -453,6 +460,9 @@ public:
 
     // Debugger: get current scope variables (slot → name mapping)
     std::map<std::string, interpreter::NaabVal> getCurrentScopeVariables() const;
+    // F46: the debug module's view of this VM (debug.env/stack/snapshot/trace).
+    std::vector<std::string> debugStack() const;
+    std::vector<stdlib::DebugLocal> debugScope() const;
 
     // --contract-search (Bundle 11, `naab-gov contracts`): after the program's
     // definitions run (main is not compiled in this mode), call each case's

@@ -11,8 +11,12 @@
 # whose argument is a string literal naming a local or an upvalue compiles to
 # "push that variable, OP_TAINT_OF", which answers from the value's own taint,
 # the taint every sink check reads. A computed name, or a global, keeps the
-# runtime lookup (globals are recorded by name, so that answers; a computed
-# name for a local still reads false -- DT-07 pins that limit).
+# runtime call. Since Bundle 19 PR 3 (A199) the runtime call answers a local
+# of the running function from the VM's frame (VM::debugScope(), F46) before
+# the name lookup, so a computed name for a local (DT-07) and a `debug` taken
+# from the prelude rather than `use debug` (DT-08) answer from the value too;
+# both read false before. A computed name for an UPVALUE still reads false
+# (DT-07u pins that limit).
 #
 #   DT-01  POSITIVE CONTROL: the tree-walker reports tainted data as tainted,
 #          at BOTH main scope and function scope. If this fails the fixture
@@ -22,18 +26,25 @@
 #   DT-03  the VM answers true for tainted data, at main and function scope
 #          (red on c1312132: false at both)
 #   DT-04  the two engines agree
-#   DT-05  SCOPE PIN: debug.env()/debug.stack() are still tree-walker-only.
-#          That is register row F46, a different and larger job
+#   DT-05  debug.env() names the same variables on both engines (F46: it
+#          was empty on the VM; this arm pinned that until Bundle 19 PR 3)
 #   DT-06  an upvalue: a closure reading a captured tainted local answers true
 #          on the VM (red on c1312132)
-#   DT-07  PINNED, not endorsed: a computed name for a tainted local still
-#          answers false on the VM (the runtime lookup); F35 records the limit
+#   DT-07  a computed name for a tainted local answers true on the VM (A199;
+#          pinned false until Bundle 19 PR 3)
+#   DT-07u PINNED, not endorsed: a computed name for a tainted UPVALUE still
+#          answers false on the VM (the frame lists locals only)
+#   DT-08  `debug` from the prelude (no `use debug`): a tainted local answers
+#          true (A199; false on d32f8603); DT-08c CONTROL: a clean one false
 #
-# Kill table (mutants, run by hand, revert-checked 2026-11-20):
+# Kill table (mutants, run by hand, revert-checked 2026-11-20; T5-T7 2026-11-25):
 #   T1 the compiler special case removed               -> DT-03, DT-04, DT-06
 #   T2 OP_TAINT_OF pushes false                        -> DT-03, DT-04, DT-06
 #   T3 OP_TAINT_OF pushes true                         -> DT-02
 #   T4 upvalues left out of the special case           -> DT-06
+#   T5 the runtime frame lookup removed (debug_impl)   -> DT-07, DT-08
+#   T6 the frame lookup answers true for every local   -> DT-08c
+#   T7 VM::debugScope() lists nothing                  -> DT-05, DT-07, DT-08
 # ============================================================
 set -uo pipefail
 
@@ -155,8 +166,8 @@ else
     fail "DT-04" "the engines agree on tainted data" "vm main='$VM_UNTRUSTED' fn='$VM_FNLOCAL', tw main='$TW_UNTRUSTED' fn='$TW_FNLOCAL'"
 fi
 
-# DT-05 -- scope pin. These need interpreter scope/stack, are NOT fixed here,
-# and this arm exists so that changing them is a deliberate edit to this file.
+# DT-05 -- debug.env() on both engines (F46). Each engine orders the keys its
+# own way, so they are compared as sets.
 cat > "$W/s.naab" <<'NAAB_EOF'
 use debug
 main {
@@ -165,16 +176,16 @@ main {
   print("ENVKEYS=" + debug.inspect(debug.keys(debug.env())))
 }
 NAAB_EOF
+keyset() { sed -n 's/^ENVKEYS=//p' <<<"$1" | tr -d '[]" ' | tr ',' '\n' | sort | tr '\n' ' '; }
 vm_env=$(cd "$W" && timeout 60s "$NAAB" s.naab 2>&1 | grep "^ENVKEYS=" | head -1)
 tw_env=$(cd "$W" && timeout 60s "$NAAB" --tree-walk s.naab 2>&1 | grep "^ENVKEYS=" | head -1)
 if [ -z "$vm_env" ] || [ -z "$tw_env" ]; then
-    fail "DT-05" "SCOPE PIN: debug.env() is still tree-walker-only" \
+    fail "DT-05" "debug.env() parity" \
          "UNMEASURED -- one of the engines printed no marker (vm='$vm_env' tw='$tw_env')"
-elif [ "$vm_env" = "ENVKEYS=[]" ] && [ "$tw_env" != "ENVKEYS=[]" ]; then
-    pass "DT-05" "SCOPE PIN: debug.env() is still tree-walker-only (not fixed here, by design)"
+elif [ "$(keyset "$vm_env")" = "n outer_var " ] && [ "$(keyset "$tw_env")" = "n outer_var " ]; then
+    pass "DT-05" "debug.env() names the same variables on both engines"
 else
-    fail "DT-05" "SCOPE PIN: debug.env() is still tree-walker-only" \
-         "vm='$vm_env' tw='$tw_env' -- if the VM now populates scope, update this suite's scope note deliberately"
+    fail "DT-05" "debug.env() parity" "vm='$vm_env' tw='$tw_env'"
 fi
 
 # DT-06 / DT-07: an upvalue, and a computed name
@@ -193,9 +204,45 @@ vm_u=$(cd "$W" && timeout 60s "$NAAB" u.naab 2>&1)
 up=$(grep -m1 '^UPVALUE=' <<<"$vm_u"); co=$(grep -m1 '^COMPUTED=' <<<"$vm_u")
 if [ "$up" = "UPVALUE=true" ]; then pass "DT-06" "an upvalue's taint is answered from its value on the VM"
 else fail "DT-06" "an upvalue's taint is answered from its value on the VM" "got '${up:-UNMEASURED}'"; fi
-if [ "$co" = "COMPUTED=false" ]; then pass "DT-07" "PINNED, not endorsed: a computed name for a tainted local still reads false on the VM"
-elif [ -z "$co" ]; then fail "DT-07" "computed-name pin" "UNMEASURED -- no marker printed"
-else fail "DT-07" "computed-name pin" "now '$co' -- if the VM answers computed names too, update F35 and this arm"; fi
+if [ "$co" = "COMPUTED=true" ]; then pass "DT-07" "a computed name for a tainted local answers true on the VM"
+elif [ -z "$co" ]; then fail "DT-07" "computed name" "UNMEASURED -- no marker printed"
+else fail "DT-07" "computed name" "got '$co'"; fi
+
+# DT-07u: a computed name for a captured (upvalue) tainted variable.
+cat > "$W/uc.naab" <<'NAAB_EOF'
+use file
+use debug
+main {
+  let captured = file.read("input.txt")
+  let probe = fn() {
+    let nm = "capt" + "ured"
+    return debug.is_tainted(nm)
+  }
+  print("UPCOMP=" + probe())
+}
+NAAB_EOF
+uc=$(cd "$W" && timeout 60s "$NAAB" uc.naab 2>&1 | grep -m1 '^UPCOMP=')
+if [ "$uc" = "UPCOMP=false" ]; then pass "DT-07u" "PINNED, not endorsed: a computed name for a tainted upvalue still reads false on the VM"
+elif [ -z "$uc" ]; then fail "DT-07u" "computed upvalue pin" "UNMEASURED -- no marker printed"
+else fail "DT-07u" "computed upvalue pin" "now '$uc' -- if the VM answers it too, update A199 and this arm"; fi
+
+# DT-08: `debug` from the prelude, no `use debug` (the compiler's special
+# case needs the `use` binding, so this is the runtime call).
+cat > "$W/p.naab" <<'NAAB_EOF'
+use file
+main {
+  let untrusted = file.read("input.txt")
+  let clean = "literal constant"
+  print("PU=" + debug.is_tainted("untrusted"))
+  print("PC=" + debug.is_tainted("clean"))
+}
+NAAB_EOF
+vm_p=$(cd "$W" && timeout 60s "$NAAB" p.naab 2>&1)
+pu=$(grep -m1 '^PU=' <<<"$vm_p"); pc=$(grep -m1 '^PC=' <<<"$vm_p")
+if [ "$pu" = "PU=true" ]; then pass "DT-08" "a prelude debug.is_tainted answers true for a tainted local"
+else fail "DT-08" "prelude debug.is_tainted" "got '${pu:-UNMEASURED}'"; fi
+if [ "$pc" = "PC=false" ]; then pass "DT-08c" "CONTROL: a prelude debug.is_tainted answers false for a clean local"
+else fail "DT-08c" "prelude clean control" "got '${pc:-UNMEASURED}'"; fi
 
 echo ""
 echo -e "${CYAN}--------------------------------------------------------------${NC}"

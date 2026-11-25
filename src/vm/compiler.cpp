@@ -204,12 +204,23 @@ int Compiler::addLocal(const std::string& name) {
     // function. Start clean; popLocal() puts the outer state back.
     local.outer_tainted = tainted_vars_.count(name) > 0;
     tainted_vars_.erase(name);
+    const int slot = static_cast<int>(current_->locals.size());
+    if (current_->function) {   // F46: live from here until popLocal()
+        current_->function->local_ranges.push_back(
+            {slot, name, static_cast<int>(currentChunk().codeSize()), -1});
+        local.range_index = static_cast<int>(current_->function->local_ranges.size()) - 1;
+    }
     current_->locals.push_back(std::move(local));
-    return static_cast<int>(current_->locals.size()) - 1;
+    return slot;
 }
 
 void Compiler::popLocal() {
     const auto& local = current_->locals.back();
+    if (current_->function && local.range_index >= 0 &&
+        local.range_index < static_cast<int>(current_->function->local_ranges.size())) {
+        current_->function->local_ranges[local.range_index].end =
+            static_cast<int>(currentChunk().codeSize());
+    }
     if (local.outer_tainted) tainted_vars_[local.name] = true;
     else tainted_vars_.erase(local.name);
     current_->locals.pop_back();

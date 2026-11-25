@@ -3403,6 +3403,20 @@ else
     echo "  test_range_loop.sh: not found, skipping"
 fi
 
+# debug.env/stack/snapshot/trace answer from the VM's frames, and what they
+# copy out of a tainted local stays tainted (F46).
+DEBUGVM_SCRIPT="tests/vm/test_debug_vm_scope.sh"
+if [ -f "$DEBUGVM_SCRIPT" ]; then
+    if run_shell_test "$DEBUGVM_SCRIPT" 2>&1; then
+        echo "  test_debug_vm_scope.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_debug_vm_scope.sh")
+    fi
+else
+    echo "  test_debug_vm_scope.sh: not found, skipping"
+fi
+
 # VM arithmetic between a float and a non-number is a type error (A196).
 FLOATNN_SCRIPT="tests/vm/test_float_nonnumber.sh"
 if [ -f "$FLOATNN_SCRIPT" ]; then
