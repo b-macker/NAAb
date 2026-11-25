@@ -22,6 +22,7 @@
 #include "naab/block_search_index.h"
 
 #include <gtest/gtest.h>
+#include <sqlite3.h>
 
 #include <atomic>
 #include <chrono>
@@ -180,18 +181,26 @@ TEST(BlockSearchIndexTest, IndexesTheFixtureAndSearchesIt) {
     const auto every = index.search(all);
     EXPECT_EQ(every.size(), 2u);
 
-    // PINNED, not endorsed (A170): a TEXT query finds nothing. The full-text
-    // table is declared with content='blocks' and columns (keywords,
-    // use_cases) the blocks table lacks, so every query that reads it fails
-    // inside SQLite and search() returns an empty list -- `naab-lang blocks
-    // search metadata` answers "No blocks found" for these two blocks
-    // (observed). When A170 is fixed this fails: assert the match instead.
+    // A170: a text query reads the full-text table. It was declared with
+    // content='blocks' and columns the blocks table lacks, so every text query
+    // failed inside SQLite and search() returned an empty list (observed:
+    // `naab-lang blocks search metadata` said "No blocks found").
     SearchQuery text;
     text.query = "metadata";
     text.limit = 10;
-    EXPECT_TRUE(index.search(text).empty())
-        << "A170 looks fixed: a text search found blocks. Confirm, then assert that "
-           "'metadata' finds TEST-ENHANCED-META here.";
+    const auto found = index.search(text);
+    ASSERT_EQ(found.size(), 1u) << "'metadata' is in TEST-ENHANCED-META's text only";
+    EXPECT_EQ(found[0].metadata.block_id, "TEST-ENHANCED-META");
+    SearchQuery json_q;
+    json_q.query = "object";   // TEST-BASIC-BLOCK only ("... return object")
+    json_q.limit = 10;
+    const auto found_json = index.search(json_q);
+    ASSERT_EQ(found_json.size(), 1u);
+    EXPECT_EQ(found_json[0].metadata.block_id, "TEST-BASIC-BLOCK");
+    SearchQuery none;
+    none.query = "zzqqnotawordanywhere";
+    none.limit = 10;
+    EXPECT_TRUE(index.search(none).empty()) << "control: a word in neither block finds nothing";
 
     SearchQuery js;
     js.query = "";
@@ -215,4 +224,65 @@ TEST(BlockSearchIndexTest, IndexesTheFixtureAndSearchesIt) {
     auto after = index.getBlock("TEST-ENHANCED-META");
     ASSERT_TRUE(after.has_value());
     EXPECT_EQ(after->times_used, before + 1);
+}
+
+// A170: re-indexing replaces a block's text row instead of adding a second
+// one, so a search lists each block once.
+TEST(BlockSearchIndexTest, ReindexingDoesNotDuplicateResults) {
+    const fs::path dir = copyFixtures("search_reindex");
+    RemoveOnExit cleanup{dir};
+    BlockSearchIndex index((dir / "index.db").string());
+    ASSERT_EQ(index.buildIndex(dir.string()), 2);
+    ASSERT_EQ(index.buildIndex(dir.string()), 2);
+    SearchQuery text;
+    text.query = "metadata";
+    text.limit = 10;
+    EXPECT_EQ(index.search(text).size(), 1u);
+}
+
+// A170: a query that cannot run is an error, not "no blocks found"; and "*"
+// (what `blocks list --language X` sends) means every block.
+TEST(BlockSearchIndexTest, AFailedQueryIsReportedAndStarMeansAll) {
+    const fs::path dir = copyFixtures("search_errors");
+    RemoveOnExit cleanup{dir};
+    BlockSearchIndex index((dir / "index.db").string());
+    ASSERT_EQ(index.buildIndex(dir.string()), 2);
+    SearchQuery bad;
+    bad.query = "\"unbalanced";   // an unterminated FTS5 string
+    bad.limit = 10;
+    EXPECT_THROW(index.search(bad), std::runtime_error);
+    SearchQuery star;
+    star.query = "*";
+    star.language = "javascript";
+    star.limit = 10;
+    EXPECT_EQ(index.search(star).size(), 2u);
+}
+
+// A170: an index an earlier build made (the external-content table) is
+// rebuilt when it is opened, from the tables that hold the same text.
+TEST(BlockSearchIndexTest, AnOldFormatIndexIsRebuiltOnOpen) {
+    const fs::path dir = copyFixtures("search_migrate");
+    RemoveOnExit cleanup{dir};
+    const std::string db = (dir / "index.db").string();
+    {
+        BlockSearchIndex index(db);
+        ASSERT_EQ(index.buildIndex(dir.string()), 2);
+    }
+    {   // put back the definition earlier builds wrote
+        sqlite3* h = nullptr;
+        ASSERT_EQ(sqlite3_open(db.c_str(), &h), SQLITE_OK);
+        const char* old_def =
+            "DROP TABLE blocks_fts;"
+            "CREATE VIRTUAL TABLE blocks_fts USING fts5(block_id UNINDEXED, name, description,"
+            " short_desc, keywords, use_cases, content='blocks', content_rowid='rowid');";
+        ASSERT_EQ(sqlite3_exec(h, old_def, nullptr, nullptr, nullptr), SQLITE_OK);
+        sqlite3_close(h);
+    }
+    BlockSearchIndex reopened(db);
+    SearchQuery text;
+    text.query = "metadata";
+    text.limit = 10;
+    const auto found = reopened.search(text);
+    ASSERT_EQ(found.size(), 1u) << "the old table was rebuilt and filled from the index's tables";
+    EXPECT_EQ(found[0].metadata.block_id, "TEST-ENHANCED-META");
 }

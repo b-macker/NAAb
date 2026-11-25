@@ -953,6 +953,19 @@ else
     echo "  test_flag_position.sh: not found, skipping"
 fi
 
+# `naab-lang blocks search` finds blocks; a failed query is reported (A170).
+BLOCKSEARCH_SCRIPT="tests/cli/test_blocks_search.sh"
+if [ -f "$BLOCKSEARCH_SCRIPT" ]; then
+    if run_shell_test "$BLOCKSEARCH_SCRIPT" 2>&1; then
+        echo "  test_blocks_search.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_blocks_search.sh")
+    fi
+else
+    echo "  test_blocks_search.sh: not found, skipping"
+fi
+
 # `naab-lang check` agrees with the run: imports, the prelude, string + any (A188).
 CHECKMODS_SCRIPT="tests/cli/test_check_modules.sh"
 if [ -f "$CHECKMODS_SCRIPT" ]; then
