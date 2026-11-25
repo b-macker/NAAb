@@ -3394,6 +3394,19 @@ fi
 
 # A JavaScript block's value is its last expression, whatever statements
 # precede it (A125, Bundle 16).
+# A TypeScript block's value is not also printed (D18). UNMEASURABLE without tsx.
+TSVALUE_SCRIPT="tests/vm/test_typescript_value.sh"
+if [ -f "$TSVALUE_SCRIPT" ]; then
+    if run_shell_test "$TSVALUE_SCRIPT" 2>&1; then
+        echo "  test_typescript_value.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_typescript_value.sh")
+    fi
+else
+    echo "  test_typescript_value.sh: not found, skipping"
+fi
+
 JSLAST_SCRIPT="tests/vm/test_js_last_expression.sh"
 if [ -f "$JSLAST_SCRIPT" ]; then
     if run_shell_test "$JSLAST_SCRIPT" 2>&1; then

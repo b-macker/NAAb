@@ -13,7 +13,8 @@
 #include <stdexcept>    // For std::runtime_error
 #include <fmt/core.h>   // For fmt::print
 #include <fstream>      // For temporary file I/O
-#include <sstream>      // For string stream
+#include <sstream>
+#include <random>      // For string stream
 #include <string_view>  // For string_view
 #include <filesystem>   // For std::filesystem::path and temp_directory_path
 
@@ -232,6 +233,12 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
     std::string stdout_output;
     std::string stderr_output;
     int exit_code;
+    // D18: when this executor itself prints the block's last expression (the
+    // TypeScript console.log wrapper), a marker line precedes that print, so
+    // the value is what follows it and only the block's own output before it
+    // is forwarded. Before, the wrapper's line was the value AND was printed:
+    // `print("TS=" + string(r))` printed "5TS=5".
+    std::string value_marker;
 
     if (file_extension_.empty()) {
         // Run directly from code string
@@ -316,6 +323,21 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
 
         // TypeScript-specific wrapping: wrap expressions in console.log()
         if ((language_id_ == "typescript" || language_id_ == "ts")) {
+            std::string marker;
+            {
+                std::random_device rd;
+                marker = fmt::format("__NAAB_VALUE_{:08x}{:08x}__", rd(), rd());
+            }
+            // The expression is evaluated BEFORE the marker is printed, so
+            // anything it prints is the block's output, not the value. Set
+            // only when the wrapper prints the value: a block whose last line
+            // is its own console.log keeps its output as the value, as before.
+            auto printValue = [&](const std::string& expr) {
+                value_marker = marker;
+                const std::string tmp = value_marker + "v";
+                return "const " + tmp + " = (" + expr + ");\nconsole.log(\"" + value_marker +
+                       "\");\nconsole.log(" + tmp + ");\n";
+            };
             // Check if multi-line
             if (code.find('\n') != std::string::npos) {
                 // Multi-line: wrap last expression in console.log()
@@ -373,7 +395,7 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
                                 trimmed.find("process.stdout") == 0) {
                                 wrapped_code += trimmed + ";\n";
                             } else {
-                                wrapped_code += "console.log(" + trimmed + ");\n";
+                                wrapped_code += printValue(trimmed);
                             }
                         }
                     } else {
@@ -391,7 +413,7 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
                 if (!expr.empty() && expr.back() == ';') {
                     expr.pop_back();
                 }
-                wrapped_code = "console.log(" + expr + ");\n";
+                wrapped_code = printValue(expr);
             }
         }
 
@@ -421,6 +443,21 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
         if (jitless) dropJitlessWasmNotice(stderr_output);
     }
 
+    // D18: split the block's own output from the value this executor printed.
+    std::string value_output = stdout_output;
+    if (!value_marker.empty()) {
+        const std::string line = value_marker + "\n";
+        size_t at = stdout_output.rfind(line);
+        if (at != std::string::npos && (at == 0 || stdout_output[at - 1] == '\n')) {
+            value_output = stdout_output.substr(at + line.size());
+            stdout_output.erase(at);
+        } else {
+            // No marker: the wrapper did not run to the value (an exception,
+            // an early exit). Nothing printed is the value.
+            value_output.clear();
+        }
+    }
+
     // Buffer output for flushExecutorOutput (don't print raw)
     if (!stdout_output.empty()) {
         stdout_buffer_.append(stdout_output);
@@ -435,7 +472,7 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
     }
 
     // Trim trailing whitespace/newlines
-    std::string result = stdout_output;
+    std::string result = value_output;
     while (!result.empty() && (result.back() == '\n' || result.back() == '\r' || result.back() == ' ' || result.back() == '\t')) {
         result.pop_back();
     }
