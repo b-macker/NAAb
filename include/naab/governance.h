@@ -3881,7 +3881,10 @@ public:
     // history never stores a subject they match (Bundle 20).
     bool piiPresentUngated(const std::string& text) const;
     std::string checkPlaceholders(const std::string& code, int line = 0, bool code_starts_at_line = false);
-    std::string checkHardcodedResults(const std::string& code, int line = 0);
+    // text_with_strings: the same code with its string literals kept, which
+    // the status and score sub-checks read (U-014); defaults to `code`.
+    std::string checkHardcodedResults(const std::string& code, int line = 0,
+                                      const std::string* text_with_strings = nullptr);
 
     // --- New v3.0 checks ---
     std::string checkPii(const std::string& code, int line = 0, bool code_starts_at_line = false);

@@ -2476,6 +2476,9 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (hr.contains("level")) { auto lv = parseLevelOnly(hr["level"]); rules_.code_quality.no_hardcoded_results.level = lv; rules_.no_hardcoded_results_level = lv; }
             if (hr.contains("check_return_true_false") && hr["check_return_true_false"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_return_true_false = hr["check_return_true_false"].get<bool>();
             if (hr.contains("check_dict_success_fields") && hr["check_dict_success_fields"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_dict_success_fields = hr["check_dict_success_fields"].get<bool>();
+            // U-014: read by checkHardcodedResults() (decision 14).
+            if (hr.contains("check_dict_status_fields") && hr["check_dict_status_fields"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_dict_status_fields = hr["check_dict_status_fields"].get<bool>();
+            if (hr.contains("check_perfect_scores") && hr["check_perfect_scores"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_perfect_scores = hr["check_perfect_scores"].get<bool>();
             parseRationale(hr, rules_.code_quality.no_hardcoded_results.rationale);
         }
 

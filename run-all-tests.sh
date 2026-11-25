@@ -5769,6 +5769,19 @@ if [ -f "$WIRED_SETTINGS_SCRIPT" ]; then
 else
     echo "  test_wired_settings.sh: not found, skipping"
 fi
+HCSS_SCRIPT="tests/governance_v4/test_hardcoded_status_score.sh"
+if [ -f "$HCSS_SCRIPT" ]; then
+    # U-014 (Bundle 19 PR 3, decision 14): no_hardcoded_results flags a
+    # constant success dict and a constant perfect score.
+    if run_shell_test "$HCSS_SCRIPT" 2>&1; then
+        echo "  test_hardcoded_status_score.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_hardcoded_status_score.sh")
+    fi
+else
+    echo "  test_hardcoded_status_score.sh: not found, skipping"
+fi
 B19_ENV_READ_OFF_SCRIPT="tests/security/test_env_read_off_refusal.sh"
 if [ -f "$B19_ENV_READ_OFF_SCRIPT" ]; then
     # A183 (Bundle 19): env_vars.read false is a HARD, recorded refusal at every env function, not a catchable sandbox error.

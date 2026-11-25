@@ -7881,7 +7881,7 @@ std::string GovernanceEngine::checkPolyglotBlockScan(
     // instead of `stripped_all` (comments removed) which made them 100% dead
     err = checkPlaceholders(stripped, line);
     if (!err.empty()) return err;
-    err = checkHardcodedResults(stripped, line);
+    err = checkHardcodedResults(stripped, line, &views.normalized);  // U-014: strings kept for the status/score sub-checks
     if (!err.empty()) return err;
     err = runBlockCheck(*this, BlockCheck::DangerousCalls, views, line);  // stripped, then normalized
     if (!err.empty()) return err;
