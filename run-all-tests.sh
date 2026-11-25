@@ -831,7 +831,7 @@ else
     echo "  test_reported_lines.sh: not found, skipping"
 fi
 
-# The scanner's missing_imports reads NAAb code, not comments or strings (A195).
+# The scanner's missing_imports reads NAAb code, not comments or strings (A218).
 MISSIMP_SCRIPT="tests/scanner/test_missing_imports_code_only.sh"
 if [ -f "$MISSIMP_SCRIPT" ]; then
     if run_shell_test "$MISSIMP_SCRIPT" 2>&1; then
@@ -3430,7 +3430,7 @@ else
     echo "  test_debug_vm_scope.sh: not found, skipping"
 fi
 
-# VM arithmetic between a float and a non-number is a type error (A196).
+# VM arithmetic between a float and a non-number is a type error (A215).
 FLOATNN_SCRIPT="tests/vm/test_float_nonnumber.sh"
 if [ -f "$FLOATNN_SCRIPT" ]; then
     if run_shell_test "$FLOATNN_SCRIPT" 2>&1; then

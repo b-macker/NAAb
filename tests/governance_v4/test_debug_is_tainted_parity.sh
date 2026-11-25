@@ -11,7 +11,7 @@
 # whose argument is a string literal naming a local or an upvalue compiles to
 # "push that variable, OP_TAINT_OF", which answers from the value's own taint,
 # the taint every sink check reads. A computed name, or a global, keeps the
-# runtime call. Since Bundle 19 PR 3 (A199) the runtime call answers a local
+# runtime call. Since Bundle 19 PR 3 (A219) the runtime call answers a local
 # of the running function from the VM's frame (VM::debugScope(), F46) before
 # the name lookup, so a computed name for a local (DT-07) and a `debug` taken
 # from the prelude rather than `use debug` (DT-08) answer from the value too;
@@ -30,12 +30,12 @@
 #          was empty on the VM; this arm pinned that until Bundle 19 PR 3)
 #   DT-06  an upvalue: a closure reading a captured tainted local answers true
 #          on the VM (red on c1312132)
-#   DT-07  a computed name for a tainted local answers true on the VM (A199;
+#   DT-07  a computed name for a tainted local answers true on the VM (A219;
 #          pinned false until Bundle 19 PR 3)
 #   DT-07u PINNED, not endorsed: a computed name for a tainted UPVALUE still
 #          answers false on the VM (the frame lists locals only)
 #   DT-08  `debug` from the prelude (no `use debug`): a tainted local answers
-#          true (A199; false on d32f8603); DT-08c CONTROL: a clean one false
+#          true (A219; false on d32f8603); DT-08c CONTROL: a clean one false
 #
 # Kill table (mutants, run by hand, revert-checked 2026-11-20; T5-T7 2026-11-25):
 #   T1 the compiler special case removed               -> DT-03, DT-04, DT-06
@@ -224,7 +224,7 @@ NAAB_EOF
 uc=$(cd "$W" && timeout 60s "$NAAB" uc.naab 2>&1 | grep -m1 '^UPCOMP=')
 if [ "$uc" = "UPCOMP=false" ]; then pass "DT-07u" "PINNED, not endorsed: a computed name for a tainted upvalue still reads false on the VM"
 elif [ -z "$uc" ]; then fail "DT-07u" "computed upvalue pin" "UNMEASURED -- no marker printed"
-else fail "DT-07u" "computed upvalue pin" "now '$uc' -- if the VM answers it too, update A199 and this arm"; fi
+else fail "DT-07u" "computed upvalue pin" "now '$uc' -- if the VM answers it too, update A219 and this arm"; fi
 
 # DT-08: `debug` from the prelude, no `use debug` (the compiler's special
 # case needs the `use` binding, so this is the runtime call).

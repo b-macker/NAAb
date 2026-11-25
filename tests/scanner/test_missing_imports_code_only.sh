@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test_missing_imports_code_only.sh -- the scanner's missing_imports reads
-# NAAb code, not comments or string text (A195, U-012).
+# NAAb code, not comments or string text (A218, U-012).
 #
 # redundancy.missing_imports searched every line for `<module>.`, so a comment
 # or a string naming a stdlib module the file does not `use` was reported as a

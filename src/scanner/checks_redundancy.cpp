@@ -11,7 +11,7 @@
 namespace naab {
 namespace scanner {
 
-// A195: each line with NAAb comments (#, //, /* */) and string text blanked
+// A218: each line with NAAb comments (#, //, /* */) and string text blanked
 // to spaces, so a pattern searched in it sees code only. The code inside a
 // string's ${...} is kept (it runs); a string nested in it is blanked. Line
 // count and columns are unchanged; a string ends at its line's end, so an
@@ -601,7 +601,7 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
         imported.insert("debug"); // auto-imported prelude
 
         // Find usages of non-imported modules (lines are polyglot-stripped).
-        // A195: searched in the CODE only -- a comment or a string naming
+        // A218: searched in the CODE only -- a comment or a string naming
         // `json.parse` used to be reported as a use (U-012); the code inside a
         // string's ${...} is kept, since it runs.
         const std::vector<std::string> code_lines = naabCodeOnlyLines(lines);

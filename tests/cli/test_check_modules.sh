@@ -27,7 +27,7 @@
 #     string * int only).
 # The checker binds only the names an import writes. On the VM an import
 # also makes every function of the module callable by its bare name, exported
-# or not (A197, observed; the tree-walker refuses) -- a defect, not semantics
+# or not (A216, observed; the tree-walker refuses) -- a defect, not semantics
 # for the checker to copy, so no arm pins it here.
 #
 # Kill table (mutants of src/semantic/type_checker.cpp, run by hand):
@@ -153,8 +153,8 @@ prog CK-14 'main {
     let r = "a" * 2.5
     print(r)
 }'
-# "a" * 2.5 fails on the tree-walker and, since A196, on the VM; the run
-# oracle reads the VM, so on a build before A196 this arm is UNMEASURABLE.
+# "a" * 2.5 fails on the tree-walker and, since A215, on the VM; the run
+# oracle reads the VM, so on a build before A215 this arm is UNMEASURABLE.
 check_arm CK-14 "CONTROL: string * float" refuse
 
 echo

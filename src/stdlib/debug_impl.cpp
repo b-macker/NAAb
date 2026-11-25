@@ -668,7 +668,7 @@ interpreter::NaabVal DebugModule::call(
         // taint (F35's rule): the name lookup below knows only globals, so
         // where the compiler could not route the call to OP_TAINT_OF -- a
         // prelude `debug` (no `use debug`), a computed name -- it answered
-        // false for a tainted local (A199). A local shadows a global.
+        // false for a tainted local (A219). A local shadows a global.
         if (runtime::currentThreadVM().vm) {
             const std::string& want = args[0].asString();
             for (const auto& l : engineScope())

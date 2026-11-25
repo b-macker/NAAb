@@ -13,6 +13,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Migration:** such a program can now be refused by its review. A scan now judges the text as sent, with U+FFFD in place of each invalid byte, so a value at the edge of a length-bounded pattern can now be refused (`password = "abcdef<byte>"` matches the 8-or-more Hardcoded Password pattern under `no_secrets`). A cut tool result can be up to three bytes shorter than `tool_result_max_chars`.
 - Tests: `tests/governance_v4/test_request_utf8.sh`. Recorded while fixing it: A211 (a program can write an agent handle's history, which no scan reads; open).
 
+### Changed -- Bundle 19 PR 3: language, tooling, VM correctness (migration notes)
+- **`codegen.run()` treats text equal to a model output as tainted, whatever route brought it (A161).** It looks the code up in the model-output ledger when the argument carries no taint, so a plain `agent.send()` reply passed to `codegen.run()` is refused unless `codegen.allow_tainted_code` is set; before, only a reply after a tool loop was.
+  - **Migration:** a program that runs model-written code through codegen sets `"codegen": {"allow_tainted_code": true}`, deliberately.
+- **`no_hardcoded_results` reads `check_dict_status_fields` and `check_perfect_scores` (U-014).** Both defaulted to true, were written by the template and `init`, and were read by nothing. A block returning a constant success dict (`return {"status": "success"}`, every value a literal) or setting a score-like name to a constant 100, 100.0 or 1.0 is now flagged at the check's level. Measured on the repository's 1,698 polyglot blocks first: 2 flagged, both constant scores in test fixtures.
+  - **Migration:** compute the status or score from the input, or set the key to `false` in `no_hardcoded_results`.
+- **`custom_patterns` on a simple `code_quality` check add to its built-in patterns instead of replacing them (A105).** Seven checks: `no_temporary_code`, `no_simulation_markers`, `no_dead_code`, `no_debug_artifacts`, `no_unsafe_deserialization`, `no_sql_injection`, `no_path_traversal`. `patterns` still replaces.
+  - **Migration:** a config that used `custom_patterns` to REPLACE the built-ins uses `patterns`; one that meant to extend them gets the built-ins back (no config in this repository set either).
+- **VM arithmetic between a float and a non-number is a type error (A215).** `"a" * 2.5` printed 20 and `[1] - 1.5` printed 33.5 (the value's handle read as a number), exit 0; the tree-walker already refused them.
+  - **Migration:** a program that produced such a value now stops with the type error the int forms already gave.
+- **On the tree-walker, `d.merge(x)` returns a new dict and leaves `d` unchanged (A69)**, as the VM always did.
+  - **Migration:** a program that relied on `merge` changing its receiver assigns the result (`d = d.merge(x)`).
+- **A `for` over a range on the VM is not array growth (A66).** `for i in 0..n` counts without building the list, so `limits.array_size` no longer refuses the loop; a range VALUE (`let xs = 0..n`) is still capped.
+- **`naab-lang check` binds what imports write and exactly the VM's prelude (A188).** `use`/`import` aliases are known names, `use codegen` and local modules check, and `string + any` / `string * int` are strings; a module the VM's prelude lacks, used without `use` (`regex.match` with no `use regex`), is now refused by `check`, as the run refuses it.
+  - **Migration:** add the `use` line `check` asks for.
+- **An object or array argument of a tool call reaches the NAAb function as a dict or a list (F52)**, not as JSON text, read within the 64-level nesting bound; a deeper call is refused with an error result.
+  - **Migration:** a tool that called `json.parse()` on such an argument uses it directly.
+- **`debug.env()`, `debug.stack()`, `debug.snapshot()` and `debug.trace()` answer on the VM (F46)**, from its frames; they returned `{}`, `[]`, nothing and `<repl>`. What `debug.env()` and `debug.compare()` return carries the taint of any tainted local they read.
+  - **Migration:** under a taint sink, printing `debug.env()` output while a tainted local is in scope is refused, as printing the local is.
+- **The display sanitizer leaves the engine's own help text alone (A39(a)).** A `Rule:` line, and a `Help:` or `Example:` section, keep their values; the secret shapes are still redacted everywhere, and a program's own values outside those sections still are.
+
+### Fixed -- Bundle 19 PR 3
+- **`x |> mod.fn(a)` means `mod.fn(x, a)` on the VM (A67)**, and meets every gate the direct call meets; the README's own `"hello world" |> string.upper() |> string.split(" ")` failed. The tree-walker still refuses a member target.
+- **A line break after a dict `:`, a `let`/`const` `=`, a parameter default `=`, an enum `=`, a struct field `:` or a destructuring `=` parses (A190).**
+- **A one-line JavaScript block with two statements returns its last expression (A179)**, and a one-line statement has the value null.
+- **A TypeScript block's value is no longer also printed (D18).**
+- **Block search works (A170):** the FTS5 index no longer returned nothing, re-indexing no longer duplicates results, an index in the old format is rebuilt when opened, and a failed query is reported instead of returning nothing.
+- **`debug.is_tainted("x")` answers from the value with `debug` from the prelude, and for a computed name (A219)**; it answered false for a tainted local there.
+- **The scanner's `missing_imports` reads code, not comments or string text (A218).**
+- **`agent_review` warns at load when it is enabled with no detection agents, or its `scorer` names no enabled `scorers` entry (A29(d)).** What runs is unchanged.
+- Tests: `tests/parser/test_line_breaks.sh`, `tests/cli/test_check_modules.sh`, `tests/cli/test_blocks_search.sh`, `tests/cli/test_error_redaction.sh`, `tests/vm/test_float_nonnumber.sh`, `tests/vm/test_pipeline_module.sh`, `tests/vm/test_range_loop.sh`, `tests/vm/test_typescript_value.sh`, `tests/vm/test_debug_vm_scope.sh`, `tests/governance_v4/test_tool_loop_reply.sh`, `tests/governance_v4/test_hardcoded_status_score.sh`, `tests/governance_v4/test_custom_patterns_add.sh`, `tests/scanner/test_missing_imports_code_only.sh`. Recorded while building it, open: A216 (each engine's import exposes unexported functions), A217 (the VM's `merge` method drops its argument's run-time taint), A220, A221, A222, A223.
+
+### Documentation -- Bundle 19 PR 3
+- `docs/API_REFERENCE.md`: regex patterns are ECMAScript (`[^\]]` is any character but `]`); a POSIX class such as `[[:alpha:]]` works only where the pattern has no lookaround or backreference (A222).
+
 ### Changed -- Bundle 19 PR 2: init, a run past 10,000 results, plugins that cannot load (migration notes)
 - **`naab-lang init --governance-preset standard`, `strict` and `paranoid` write taint tracking and sequence detection on (A75)**, as plain `naab-lang init` already did; `relaxed` turns them on only with `--taint`. `init` and the generated file now say what the standard sandbox refuses -- shell blocks, `env.get()`, reading outside this directory, home and the temp directory -- and that `"security": {"sandbox_level": "elevated"}` allows them.
   - **Migration:** a project generated with a preset now refuses a taint flow, such as file contents passed into a `<<python>>` block, unless a `sanitize_`/`validate_`/`escape_` function cleans it; regenerate with `--governance-preset relaxed`, or edit `taint_tracking`, if that is not wanted.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test_float_nonnumber.sh -- VM arithmetic between a float and a non-number (A196).
+# test_float_nonnumber.sh -- VM arithmetic between a float and a non-number (A215).
 #
 # OP_ADD/SUB/MUL/DIV each had a float branch that needed only ONE double
 # operand and read the other with asInt(). On a string, list, dict or null

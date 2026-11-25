@@ -54,7 +54,7 @@
 namespace naab {
 namespace vm {
 
-// A196: the float branch of + - * / used to need only ONE double operand and
+// A215: the float branch of + - * / used to need only ONE double operand and
 // read the other with asInt(), which on a string, list, dict or null is the
 // value's handle, not a number: "a" * 2.5 was 20 and [1] - 1.5 was 33.5, exit
 // 0. Both operands must be numbers (a bool is already an int by then); any
@@ -1080,7 +1080,7 @@ interpreter::NaabVal VM::run() {
                             av, bv, av, bv);
                     }
                     push(interpreter::NaabVal::makeInt(av + bv));
-                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A196
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A215
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av + bv));
@@ -1170,7 +1170,7 @@ interpreter::NaabVal VM::run() {
                             av, bv, av, bv);
                     }
                     push(interpreter::NaabVal::makeInt(av - bv));
-                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A196
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A215
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av - bv));
@@ -1215,7 +1215,7 @@ interpreter::NaabVal VM::run() {
                             av, bv, av, bv);
                     }
                     push(interpreter::NaabVal::makeInt(static_cast<int32_t>(result64)));
-                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A196
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A215
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av * bv));
@@ -1275,7 +1275,7 @@ interpreter::NaabVal VM::run() {
                     // Division always produces a double, matching the tree-walker
                     push(interpreter::NaabVal::makeDouble(
                         static_cast<double>(a.asInt()) / static_cast<double>(b.asInt())));
-                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A196
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A215
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     if (bv == 0.0) runtimeError("Division by zero");
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
