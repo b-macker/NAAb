@@ -3351,6 +3351,19 @@ else
     echo "  test_default_params.sh: not found, skipping"
 fi
 
+# The pipeline operator feeds a module function, through the same gates (A67).
+PIPEMOD_SCRIPT="tests/vm/test_pipeline_module.sh"
+if [ -f "$PIPEMOD_SCRIPT" ]; then
+    if run_shell_test "$PIPEMOD_SCRIPT" 2>&1; then
+        echo "  test_pipeline_module.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_pipeline_module.sh")
+    fi
+else
+    echo "  test_pipeline_module.sh: not found, skipping"
+fi
+
 # VM arithmetic between a float and a non-number is a type error (A196).
 FLOATNN_SCRIPT="tests/vm/test_float_nonnumber.sh"
 if [ -f "$FLOATNN_SCRIPT" ]; then

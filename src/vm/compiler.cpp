@@ -983,6 +983,44 @@ void Compiler::visit(ast::BinaryExpr& node) {
 
     // Pipeline: x |> fn  → fn(x), or x |> fn(a,b) → fn(x, a, b)
     if (node.getOp() == ast::BinaryOp::Pipeline) {
+        // A67: a member target -- x |> mod.fn(a), x |> mod.fn -- is a METHOD
+        // call with the piped value first, compiled as obj.fn(x, a) is. The
+        // generic path below compiled the callee on its own, and on the VM a
+        // module member without parentheses CALLS the function with no
+        // arguments: "hello" |> string.upper() failed with "upper() takes
+        // exactly 1 argument". An optional member (obj?.fn) keeps that path.
+        {
+            ast::MemberExpr* member = nullptr;
+            const std::vector<std::unique_ptr<ast::Expr>>* rest = nullptr;
+            if (auto* call = dynamic_cast<ast::CallExpr*>(node.getRight())) {
+                member = dynamic_cast<ast::MemberExpr*>(call->getCallee());
+                rest = &call->getArgs();
+            } else {
+                member = dynamic_cast<ast::MemberExpr*>(node.getRight());
+            }
+            if (member && !member->isOptional()) {
+                member->getObject()->accept(*this);       // the object
+                TempHold hold(current_->expr_temps, 1);
+                node.getLeft()->accept(*this);            // x, the first argument
+                emitStaticTaintMark(node.getLeft(), line);
+                hold.add();
+                size_t argc = 1;
+                if (rest) {
+                    for (auto& arg : *rest) {
+                        arg->accept(*this);
+                        emitStaticTaintMark(arg.get(), line);
+                        hold.add();
+                        ++argc;
+                    }
+                }
+                int name_idx = identifierConstant(member->getMember());
+                uint32_t packed = (static_cast<uint32_t>(name_idx) << 8) |
+                                  (static_cast<uint32_t>(argc) & 0xFF);
+                recordCallName(member);
+                emitWide(OpCode::OP_CALL_METHOD, packed, line);
+                return;
+            }
+        }
         if (auto* call = dynamic_cast<ast::CallExpr*>(node.getRight())) {
             // Right side is a call: x |> fn(a, b) → fn(x, a, b)
             call->getCallee()->accept(*this);   // push fn
