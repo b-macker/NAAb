@@ -3,6 +3,7 @@
 // agent.batch(), agent.fan_out(), agent.pipeline()
 // Requires "agents" section in govern.json for configuration
 
+#include "naab/bounded_jsonl.h"
 #include "naab/thread_vm.h"
 #include "naab/utf8_text.h"
 #include "naab/claim_reader.h"
@@ -41,6 +42,8 @@
 
 namespace naab {
 namespace stdlib {
+
+interpreter::NaabVal jsonToValue(const nlohmann::json& j);  // json_impl.cpp (F52)
 
 using interpreter::NaabVal;
 using json = nlohmann::json;
@@ -3621,6 +3624,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 chargeTimeBudget(hs_tool, msSince(call_start));
                 if (out.response.success) {
                     out.response.answered_by_model = loop_config.model;
+                    // A162: the reply agent.send() returns after a tool loop is
+                    // this call's, so its trace describes this call, as the
+                    // send's own call fills it. trace.model was empty here.
+                    out.response.actual_model = loop_config.model;
+                    out.response.actual_provider = config->provider;
+                    out.response.actual_api_key_env = lkey_env;
+                    out.response.latency_ms = msSince(call_start);
+                    out.response.attempts = attempt + 1;
+                    out.response.fallback_used = (loop_config.model != models[0]);
+                    out.response.original_model = models[0];
                     // A46: the loop's later calls and the final tool-less turn
                     // spend tokens too; the run total used to see the first only.
                     chargeTokenBudget(hs_tool, out.response.input_tokens,
@@ -3735,9 +3748,15 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     continue;
                 }
 
-                // Step 2: Parse arguments with depth guard (Gap J)
+                // Step 2: Parse arguments with depth guard (Gap J; the comment came with
+                // 2d3a9d64 and no check did until F52 below)
                 json tool_args;
                 try {
+                    // F52: a nested argument becomes a NAAb dict or list
+                    // (recursively), so its depth is bounded first, as every
+                    // reader of untrusted JSON is (naab/bounded_jsonl.h).
+                    if (!naab::evidence::jsonNestingWithin(tc.arguments, naab::evidence::kMaxJsonDepth))
+                        throw std::runtime_error("tool arguments nested too deeply");
                     tool_args = json::parse(tc.arguments);
                 } catch (const governance::GovernanceHardError&) {
                     throw;  // uncatchable — propagate to main
@@ -3844,7 +3863,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 else if (val.is_number_float()) naab_args.push_back(NaabVal::makeDouble(val.get<double>()));
                                 else if (val.is_boolean()) naab_args.push_back(NaabVal::makeBool(val.get<bool>()));
                                 else if (val.is_null()) naab_args.push_back(NaabVal::makeNull());
-                                else naab_args.push_back(NaabVal::makeString(val.dump()));
+                                // F52: an object or array argument is a dict or a
+                                // list, as json.parse() makes it (it was the JSON
+                                // text). The arguments were read within the
+                                // nesting bound above (jsonNestingWithin).
+                                else naab_args.push_back(jsonToValue(val));
                             } else {
                                 naab_args.push_back(NaabVal::makeNull());
                             }

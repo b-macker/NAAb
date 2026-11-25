@@ -2653,6 +2653,19 @@ fi
 # hash of the code it ran and whether that text equals a model output of the
 # run; every expected hash is computed by the suite from the fixture and from
 # the request body the stub received. CP-04/05/03n are the negative arms.
+# What a tool loop hands back: the trace, object and array arguments (A162, F52).
+TOOLLOOP_REPLY_SCRIPT="tests/governance_v4/test_tool_loop_reply.sh"
+if [ -f "$TOOLLOOP_REPLY_SCRIPT" ]; then
+    if run_shell_test "$TOOLLOOP_REPLY_SCRIPT" 2>&1; then
+        echo "  test_tool_loop_reply.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_tool_loop_reply.sh")
+    fi
+else
+    echo "  test_tool_loop_reply.sh: not found, skipping"
+fi
+
 CODE_PROV_SCRIPT="tests/governance_v4/test_code_provenance.sh"
 if [ -f "$CODE_PROV_SCRIPT" ]; then
     if run_shell_test "$CODE_PROV_SCRIPT" 2>&1; then
