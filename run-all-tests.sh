@@ -831,6 +831,19 @@ else
     echo "  test_reported_lines.sh: not found, skipping"
 fi
 
+# The scanner's missing_imports reads NAAb code, not comments or strings (A195).
+MISSIMP_SCRIPT="tests/scanner/test_missing_imports_code_only.sh"
+if [ -f "$MISSIMP_SCRIPT" ]; then
+    if run_shell_test "$MISSIMP_SCRIPT" 2>&1; then
+        echo "  test_missing_imports_code_only.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_missing_imports_code_only.sh")
+    fi
+else
+    echo "  test_missing_imports_code_only.sh: not found, skipping"
+fi
+
 STATIC_REPORT_SCRIPT="tests/cli/test_static_block_reports.sh"
 if [ -f "$STATIC_REPORT_SCRIPT" ]; then
     if run_shell_test "$STATIC_REPORT_SCRIPT" 2>&1; then
