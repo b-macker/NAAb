@@ -5782,6 +5782,19 @@ if [ -f "$HCSS_SCRIPT" ]; then
 else
     echo "  test_hardcoded_status_score.sh: not found, skipping"
 fi
+CPADD_SCRIPT="tests/governance_v4/test_custom_patterns_add.sh"
+if [ -f "$CPADD_SCRIPT" ]; then
+    # A105 (Bundle 19 PR 3, decision 16): custom_patterns add to a simple
+    # code_quality check's patterns instead of replacing them.
+    if run_shell_test "$CPADD_SCRIPT" 2>&1; then
+        echo "  test_custom_patterns_add.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_custom_patterns_add.sh")
+    fi
+else
+    echo "  test_custom_patterns_add.sh: not found, skipping"
+fi
 B19_ENV_READ_OFF_SCRIPT="tests/security/test_env_read_off_refusal.sh"
 if [ -f "$B19_ENV_READ_OFF_SCRIPT" ]; then
     # A183 (Bundle 19): env_vars.read false is a HARD, recorded refusal at every env function, not a catchable sandbox error.

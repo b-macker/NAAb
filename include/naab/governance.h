@@ -701,6 +701,7 @@ struct NoDeadCodeConfig {
     bool detect_unused_variables = false;
     bool detect_commented_out_code = true;
     std::vector<std::string> patterns;
+    std::vector<std::string> custom_patterns;  // A105: added to the patterns in use
 };
 
 struct NoDebugArtifactsConfig {
@@ -719,6 +720,7 @@ struct NoUnsafeDeserializationConfig {
     EnforcementLevel level = EnforcementLevel::HARD;
     std::string rationale;
     std::vector<std::string> patterns;
+    std::vector<std::string> custom_patterns;  // A105: added to the patterns in use
 };
 
 struct NoSqlInjectionConfig {
@@ -726,6 +728,7 @@ struct NoSqlInjectionConfig {
     EnforcementLevel level = EnforcementLevel::HARD;
     std::string rationale;
     std::vector<std::string> patterns;
+    std::vector<std::string> custom_patterns;  // A105: added to the patterns in use
     std::vector<std::string> allowlist;
 };
 
@@ -734,6 +737,7 @@ struct NoPathTraversalConfig {
     EnforcementLevel level = EnforcementLevel::HARD;
     std::string rationale;
     std::vector<std::string> patterns;
+    std::vector<std::string> custom_patterns;  // A105: added to the patterns in use
 };
 
 struct NoHardcodedUrlsConfig {
@@ -741,6 +745,7 @@ struct NoHardcodedUrlsConfig {
     EnforcementLevel level = EnforcementLevel::ADVISORY;
     std::string rationale;
     std::vector<std::string> patterns;
+    std::vector<std::string> custom_patterns;  // A105: added to the patterns in use
     std::vector<std::string> allowlist;
     bool check_internal_urls = false;
 };
@@ -750,6 +755,7 @@ struct NoHardcodedIpsConfig {
     EnforcementLevel level = EnforcementLevel::ADVISORY;
     std::string rationale;
     std::vector<std::string> patterns;
+    std::vector<std::string> custom_patterns;  // A105: added to the patterns in use
     std::vector<std::string> allowlist;
 };
 

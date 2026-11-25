@@ -495,7 +495,7 @@
       "detect_empty_except_blocks": true,
       "detect_unused_variables": false,
       "detect_commented_out_code": true,
-      "_comment_patterns": "patterns and custom_patterns are merged into ONE list; when non-empty it REPLACES the built-in patterns rather than extending them.",
+      "_comment_patterns": "patterns, when non-empty, REPLACES the built-in patterns; custom_patterns ADD to the patterns in use (built-in or patterns).",
       "patterns": [],
       "custom_patterns": []
     },
@@ -511,7 +511,7 @@
     "no_unsafe_deserialization": {
       "enabled": true,
       "level": "hard",
-      "_comment_patterns": "patterns and custom_patterns are merged into ONE list; when non-empty it REPLACES the built-in patterns rather than extending them.",
+      "_comment_patterns": "patterns, when non-empty, REPLACES the built-in patterns; custom_patterns ADD to the patterns in use (built-in or patterns).",
       "patterns": [],
       "custom_patterns": []
     },
@@ -519,7 +519,7 @@
       "enabled": true,
       "level": "hard",
       "allowlist": [],
-      "_comment_patterns": "patterns and custom_patterns are merged into ONE list; when non-empty it REPLACES the built-in patterns rather than extending them.",
+      "_comment_patterns": "patterns, when non-empty, REPLACES the built-in patterns; custom_patterns ADD to the patterns in use (built-in or patterns).",
       "patterns": [],
       "custom_patterns": []
     },
@@ -527,7 +527,7 @@
     "no_path_traversal": {
       "enabled": true,
       "level": "hard",
-      "_comment_patterns": "patterns and custom_patterns are merged into ONE list; when non-empty it REPLACES the built-in patterns rather than extending them.",
+      "_comment_patterns": "patterns, when non-empty, REPLACES the built-in patterns; custom_patterns ADD to the patterns in use (built-in or patterns).",
       "patterns": [],
       "custom_patterns": []
     },

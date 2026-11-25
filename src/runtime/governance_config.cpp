@@ -2327,8 +2327,14 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     if (obj.contains("level")) { auto lv = parseLevelOnly(obj["level"]); config.level = lv; }
                     if (obj.contains("patterns"))
                         for (auto& p : obj["patterns"]) if (p.is_string()) config.patterns.push_back(p.get<std::string>());
+                    // A105 (decision 16): custom_patterns ADD to the check's
+                    // patterns (the built-in ones, or `patterns` when given),
+                    // as no_oversimplification's and no_incomplete_logic's do.
+                    // They were pushed into `patterns`, which replaces the
+                    // built-in list, so extending a check switched its
+                    // defaults off.
                     if (obj.contains("custom_patterns"))
-                        for (auto& p : obj["custom_patterns"]) if (p.is_string()) config.patterns.push_back(p.get<std::string>());
+                        for (auto& p : obj["custom_patterns"]) if (p.is_string()) config.custom_patterns.push_back(p.get<std::string>());
                     parseRationale(obj, config.rationale);
                 }
             }
