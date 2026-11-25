@@ -9404,6 +9404,34 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
                     fmt::print(stderr, "[WARN] A scope has an empty pattern — will match nothing.\n");
                 }
             }
+            // A29(d): an enabled review that cannot run, or that scores with
+            // settings other than the ones named, said nothing: a review with
+            // no detection agents sent nothing and printed nothing (AR-02c),
+            // and a scorer name that matches no enabled `scorers` entry fell
+            // back to the global scoring settings in silence (AR-06c; the
+            // template names "security" against an entry "security_review").
+            // Checked here, on the rules after `extends`, because that is the
+            // set runAgentReview() reads. Warnings only: what runs is unchanged.
+            const auto& ar = rules().agent_review;
+            if (ar.enabled && ar.detection.empty()) {
+                fmt::print(stderr,
+                    "[governance] Warning: agent_review is enabled but names no detection agents - "
+                    "nothing is reviewed. List the agents to ask in \"detection\".\n");
+            }
+            if (ar.enabled && !ar.scorer.empty()) {
+                bool named = false, enabled = false;
+                for (const auto& sc : rules().scorers) {
+                    if (sc.name != ar.scorer) continue;
+                    named = true;
+                    enabled = enabled || sc.enabled;
+                }
+                if (!enabled) {
+                    fmt::print(stderr,
+                        "[governance] Warning: agent_review scorer \"{}\" {} - the review scores "
+                        "with the global scoring settings instead.\n",
+                        ar.scorer, named ? "is disabled" : "names no scorers entry");
+                }
+            }
         }
 
         // Contradiction Detection: static analysis of config conflicts

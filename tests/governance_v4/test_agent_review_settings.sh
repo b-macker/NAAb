@@ -50,12 +50,8 @@
 # Each asserts TODAY's behaviour and reads "PINNED, not endorsed" in its pass
 # line. A fix flips the arm red; confirm the fix, then update the arm.
 #
-#   AR-02c  `enabled: true` with no `detection` list sends nothing and prints
-#           nothing — a review that cannot run is indistinguishable from one
-#           that found no issues.
-#   AR-06c  a `scorer` naming no `scorers` entry falls back silently. The
-#           template ships exactly that: `"scorer": "security"` against a
-#           scorer keyed `security_review`.
+#   (AR-02c and AR-06c pinned silence until Bundle 19 PR 3; the load now
+#   warns, A29(d), and they assert the warning -- see "A29(d)" below.)
 #   AR-15d  see fail_strategy above.
 #   AR-15e  (the fail_policy half) under continue, fail_policy "closed" does
 #           not fire on a partial failure; the failure is now reported.
@@ -110,9 +106,17 @@
 #                                                    asserts it, as decided)
 #   P2  "CLOSED" also blocks                         AR-12d
 #   P3  partial failures under continue reported     AR-15a AR-15e
-#   P4  an empty detection list is an error          AR-02c
-#   P5  an unknown scorer name is warned about       AR-06c
+#   (P4, P5 retired: A29(d) made both warnings; their mutants are W1-W3.)
 #   P6  sequential mode honours continue             AR-15d
+#
+# A29(d) (Bundle 19 PR 3): the load warns about an enabled review with no
+# detection agents, and about a scorer name with no enabled scorers entry.
+# Mutants of governance_config.cpp, run by hand 2026-11-25:
+#
+#   W1  no detection warning                         AR-02c
+#   W2  no scorer warning                            AR-06c AR-06d
+#   W3  a scorer warning for every name              AR-06w
+#   W4  "names no entry" for a disabled scorer too   AR-06d
 #
 # The unset arms are the other half of each pair, and the mutants above cannot
 # kill them: removing a setting's effect is what an unset arm expects. They
@@ -331,7 +335,8 @@ else skip "AR-01c" "stub failed to start"; fi
 echo -e "${CYAN}--- AR-02 detection ---${NC}"
 run_review ar02a '{"enabled": true, "detection": ["det_a"]}' "$FX_MULTI"
 if [ "$R_OK" = 1 ]; then
-    if asked det_a && ! asked det_b && in_err "agent_review.cat_alpha" && ! in_err "agent_review.cat_gamma"; then
+    if asked det_a && ! asked det_b && in_err "agent_review.cat_alpha" && ! in_err "agent_review.cat_gamma" \
+       && ! in_err "names no detection agents"; then
         pass "AR-02a" "detection [det_a] — only det_a asked, only its findings enforced"
     else
         fail "AR-02a" "single-agent detection wrong" "$(tr '\n' ' ' < "$R_DIR/routes.log" 2>/dev/null)"
@@ -349,10 +354,10 @@ else skip "AR-02b" "stub failed to start"; fi
 
 run_review ar02c '{"enabled": true}' "$FX_MULTI"
 if [ "$R_OK" = 1 ]; then
-    if [ "$R_REQ" -eq 0 ] && ! in_err "Agent review" && ran; then
-        pass "AR-02c" "detection absent — nothing reviewed and nothing said (PINNED, not endorsed)"
+    if [ "$R_REQ" -eq 0 ] && ran && in_err "agent_review is enabled but names no detection agents"; then
+        pass "AR-02c" "detection absent — nothing reviewed, and the load says so (A29(d))"
     else
-        fail "AR-02c" "detection-less review changed behaviour — confirm and update this arm" "requests=$R_REQ"
+        fail "AR-02c" "detection-less review: no warning, or it reviewed something" "requests=$R_REQ"
     fi
 else skip "AR-02c" "stub failed to start"; fi
 
@@ -432,6 +437,11 @@ if [ "$R_OK" = 1 ]; then
     else
         fail "AR-06a" "named scorer not applied" "exit=$R_EXIT"
     fi
+    if ! in_err 'agent_review scorer "strict"'; then
+        pass "AR-06w" "CONTROL: a scorer name that resolves is not warned about"
+    else
+        fail "AR-06w" "a resolving scorer name was warned about"
+    fi
     # Second observable: the scorer's rule_weights become the detection
     # prompt's category list.
     if grep -q 'Categories: [^"]*cat_zeta' "$R_DIR/req_1.json" 2>/dev/null; then
@@ -452,12 +462,23 @@ else skip "AR-06u" "stub failed to start"; fi
 
 run_review ar06c '{"enabled": true, "detection": ["det_a"], "scorer": "no_such_scorer", "enforcement": {"red": "hard"}}' "$FX_ONE" "$SCORERS"
 if [ "$R_OK" = 1 ]; then
-    if [ "$R_EXIT" -eq 0 ] && ran && ! in_err "no_such_scorer"; then
-        pass "AR-06c" "CONTROL: an unknown scorer name resolves nothing — AR-06a is name resolution (silent fallback PINNED, not endorsed)"
+    if [ "$R_EXIT" -eq 0 ] && ran && in_err 'agent_review scorer "no_such_scorer" names no scorers entry'; then
+        pass "AR-06c" "an unknown scorer name resolves nothing (AR-06a is name resolution), and the load warns (A29(d))"
     else
-        fail "AR-06c" "unknown scorer name changed behaviour — confirm and update this arm" "exit=$R_EXIT"
+        fail "AR-06c" "unknown scorer name: no warning, or the fallback changed" "exit=$R_EXIT"
     fi
 else skip "AR-06c" "stub failed to start"; fi
+
+# AR-06d: the scorer exists but is disabled -- resolveScorerConfig() skips it.
+SCORERS_OFF='"scorers": {"strict": {"enabled": false, "red_threshold": 1, "yellow_threshold": 1, "rule_weights": {"cat_alpha": 5}}}'
+run_review ar06d '{"enabled": true, "detection": ["det_a"], "scorer": "strict", "enforcement": {"red": "hard"}}' "$FX_ONE" "$SCORERS_OFF"
+if [ "$R_OK" = 1 ]; then
+    if [ "$R_EXIT" -eq 0 ] && ran && in_err 'agent_review scorer "strict" is disabled'; then
+        pass "AR-06d" "a disabled scorer is not used (program ran), and the load warns"
+    else
+        fail "AR-06d" "disabled scorer: no warning, or it was used" "exit=$R_EXIT"
+    fi
+else skip "AR-06d" "stub failed to start"; fi
 
 # ============================================================
 # AR-07..AR-10 enforcement.{green,yellow,red}
