@@ -790,7 +790,7 @@ main {
 Error: Governance error: Placeholder "TODO" found in code [SOFT-MANDATORY]
 
   At: line 3: // TODO: handle discounts
-  Rule: code_quality.no_placeholders = <redacted>
+  Rule: code_quality.no_placeholders = "soft"
 
   Help:
   - Code must be complete — no placeholder markers allowed.
