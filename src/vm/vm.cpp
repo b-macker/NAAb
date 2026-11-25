@@ -63,6 +63,15 @@ static inline bool bothNumbers(const interpreter::NaabVal& a, const interpreter:
     return (a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble());
 }
 
+// A39(a): the hint goes under the message convention's "Help:" heading, so
+// the display sanitizer reads it as the engine's own text and leaves its
+// example code alone (it printed `let msg = <redacted> + name + "!"`).
+static std::string withHelpHeading(const std::string& hint) {
+    const size_t a = hint.find_first_not_of('\n');
+    if (a == std::string::npos) return "";
+    return "\n  Help:\n" + hint.substr(a);
+}
+
 // ============================================================================
 // Chunk
 // ============================================================================
@@ -1608,7 +1617,7 @@ interpreter::NaabVal VM::run() {
                 const std::string& name = READ_CONSTANT_STRING(arg);
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
-                    std::string helper = getVariableHelper(name);
+                    std::string helper = withHelpHeading(getVariableHelper(name));
                     if (helper.empty()) {
                         runtimeError("Undefined variable '%s'", name.c_str());
                     } else {
@@ -1636,7 +1645,7 @@ interpreter::NaabVal VM::run() {
                 const std::string& name = READ_CONSTANT_STRING(arg);
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
-                    std::string helper = getVariableHelper(name);
+                    std::string helper = withHelpHeading(getVariableHelper(name));
                     if (helper.empty()) {
                         runtimeError("Undefined variable '%s'", name.c_str());
                     } else {

@@ -966,6 +966,19 @@ else
     echo "  test_blocks_search.sh: not found, skipping"
 fi
 
+# The display sanitizer leaves the engine's own help alone, keeps redacting values (A39(a)).
+REDACT_SCRIPT="tests/cli/test_error_redaction.sh"
+if [ -f "$REDACT_SCRIPT" ]; then
+    if run_shell_test "$REDACT_SCRIPT" 2>&1; then
+        echo "  test_error_redaction.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_error_redaction.sh")
+    fi
+else
+    echo "  test_error_redaction.sh: not found, skipping"
+fi
+
 # `naab-lang check` agrees with the run: imports, the prelude, string + any (A188).
 CHECKMODS_SCRIPT="tests/cli/test_check_modules.sh"
 if [ -f "$CHECKMODS_SCRIPT" ]; then
