@@ -34,6 +34,9 @@
 #          naab-gov taint. The VM's print check read the NEXT instruction's
 #          line -- the match's jump, line 5 -- the one site A121(d)'s `- 1`
 #          sweep missed (found by taint_flow.psv v_shadow_match_list_arm)
+#   TL-07  the assignment sink (`variable.assign`) names the let's line when its
+#          value is on the next line; mutant: OP_GOV_TAINT_CHECK_ASSIGN reading
+#          `- 4` names 4 (A82 re-check, Bundle 19 PR 3)
 #   TL-TW  under the enforce config --tree-walk is refused before it runs
 #
 # Red first (observed 2026-11-05, the pre-change parser and VM): TL-04 named
@@ -216,6 +219,21 @@ if [ "$RC" -eq 3 ] && [ "$L_run" = "6" ] && [ "$L_rep" = "6" ]; then
     ok "TL-06" "a print inside a match arm names its own line (6) in the run and in naab-gov taint"
 else
     bad "TL-06" "expected the run and the report at line 6" "rc=$RC run=${L_run:-none} report=${L_rep:-none}"
+fi
+
+# --- TL-07: the line the assignment sink names (A82 re-check, Bundle 19 PR 3) ------
+# `let w =` with its value on the next line: the check carries the let's line
+# (3), and the three instructions before it are the source call on line 4, so
+# a check that reads three instructions back names 4.
+mkdir -p "$W/asg"
+printf '{"version":"3.0","mode":"enforce","security":{"sandbox_level":"elevated"},"taint_tracking":{"enabled":true,"level":"hard","sources":["env.get"],"sinks":["variable.assign"]}}\n' > "$W/asg/govern.json"
+printf 'use env\nmain {\n    let w =\n        env.get("TL_SECRET")\n    print("ASSIGNED")\n}\n' > "$W/asg/a.naab"
+out=$(cd "$W/asg" && TL_SECRET=x timeout 20 "$NAAB" a.naab 2>&1); RC=$?
+L_run="$(grep -oE 'a\.naab:[0-9]+' <<<"$out" | head -1 | sed 's/.*://')"
+if [ "$RC" -eq 3 ] && [ "$L_run" = "3" ] && ! grep -q '^ASSIGNED$' <<<"$out"; then
+    ok "TL-07" "the assignment sink names the let's line (3), not its value's (4)"
+else
+    bad "TL-07" "expected a refusal at line 3" "rc=$RC run=${L_run:-none}"
 fi
 
 out=$(cd "$W/p" && TL_SECRET=x timeout 20 "$NAAB" tainted.naab --tree-walk 2>&1); rc=$?

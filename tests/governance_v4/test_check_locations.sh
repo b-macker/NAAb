@@ -42,6 +42,10 @@
 #   CL-15  a dangerous-call refusal at a NAAb stdlib call names the call's
 #          line in its message when the argument was bound on the line before
 #          (the line VM::stdlibCallGates() passes; A82 re-check, Bundle 19 PR 3)
+#   CL-16  a behavioural-sequence pre-check refusal names the call's line (the
+#          live location). The line the VM hands the pre-check itself goes only
+#          into the event's `line`, which no report a suite reads carries
+#          (BSD_MATCH has none): its `- 4` mutant survives, unobservable.
 #
 # KILL TABLE (mutants, each turns the named arms red; observed 2026-11-16,
 # each reverted alone and rebuilt -- the first driver restored sources with an
@@ -54,6 +58,8 @@
 #   M6 the contract check's location left unscoped        CL-01..CL-05, CL-08, CL-11
 #   M7 stdlibCallGates' line read 3 instructions back     CL-15 (Bundle 19 PR 3; the
 #      A82 offset, `- 4`; no arm caught it before CL-15)
+#   (the BSD pre-check's own line read 3 instructions back: SURVIVES -- nothing
+#    any suite reads carries it; see CL-16)
 # ============================================================
 set -uo pipefail
 
@@ -308,6 +314,20 @@ elif [ "$RC" -ne 3 ]; then
     fail "CL-15" "the call was not refused (rc=$RC) -- the fixture did not reach the check" "$(head -3 "$W/err.txt" | tr '\n' ' ')"
 else
     fail "CL-15" "the refusal named another line" "$(grep -h 'At: line' "$W/out.txt" "$W/err.txt" | head -2 | tr '\n' ' ')"
+fi
+
+# ---------- CL-16: the line the BSD pre-check is given (A82) ----------
+W="$TEST_TMP/cl16"
+write_arm "$W" '"behavioral_sequences":{"enabled":true,"patterns":[{"name":"one_read","sequence":["file.read"],"level":"hard"}]}' \
+$'use file\n'"$RET_FN"$'main {\n    let p = "in.txt"\n    let k = file.read(p)\n}\n'
+printf 'x\n' > "$W/in.txt"
+run_arm "$W"
+if [ "$RC" -eq 3 ] && grep -q 'blocked before execution' "$W/out.txt" "$W/err.txt" && grep -qx '  At: line 7' "$W/out.txt" "$W/err.txt"; then
+    pass "CL-16" "a sequence pre-check refusal names the stdlib call's line (line 7)"
+elif [ "$RC" -ne 3 ]; then
+    fail "CL-16" "the call was not refused (rc=$RC) -- the fixture did not reach the check" "$(head -3 "$W/err.txt" | tr '\n' ' ')"
+else
+    fail "CL-16" "the refusal named another line" "$(grep -h 'At: line' "$W/out.txt" "$W/err.txt" | head -2 | tr '\n' ' ')"
 fi
 
 echo
