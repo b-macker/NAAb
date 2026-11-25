@@ -1596,6 +1596,54 @@ void Compiler::visit(ast::DestructureStmt& node) {
 void Compiler::visit(ast::ForStmt& node) {
     int line = node.getLocation().line;
 
+    // A66 (decision 17): a plain `for x in a..b` counts instead of building
+    // the list (an index or destructuring keeps the list path below).
+    if (auto* range = dynamic_cast<ast::RangeExpr*>(node.getIter());
+        range && !node.isDestructuring() && !node.hasIndex()) {
+        range->getStart()->accept(*this);
+        if (governance_ && governance_->isActive() && exprContainsTaint(range->getStart())) {
+            emitOp(OpCode::OP_GOV_TAINT_MARK, line);
+        }
+        {
+            TempHold hold(current_->expr_temps, 1);  // the start
+            range->getEnd()->accept(*this);
+            if (governance_ && governance_->isActive() && exprContainsTaint(range->getEnd())) {
+                emitOp(OpCode::OP_GOV_TAINT_MARK, line);
+            }
+        }
+        emitWide(OpCode::OP_RANGE_ITER, range->isInclusive() ? 1u : 0u, line);
+        addLocal("__iter_list__");   // the bound
+        markInitialized();
+        addLocal("__iter_idx__");    // the counter
+        markInitialized();
+
+        int loop_start = currentChunk().codeSize();
+        current_->loops.push_back({loop_start, {}, current_->scope_depth});
+        const uint32_t incl_bit = range->isInclusive() ? (1u << 23) : 0u;
+        int next_offset = currentChunk().codeSize();
+        currentChunk().emit(encodeWide(OpCode::OP_RANGE_NEXT, incl_bit), line);
+
+        beginScope();
+        addLocal(node.getVar());
+        markInitialized();
+        node.getBody()->accept(*this);
+        endScope();
+        emitLoop(loop_start, line);
+
+        int after_loop = currentChunk().codeSize();
+        int jump_dist = after_loop - next_offset - 1;
+        currentChunk().code[next_offset] = encodeWide(OpCode::OP_RANGE_NEXT,
+            incl_bit | (static_cast<uint32_t>(jump_dist) & 0x7FFFFFu));
+        auto& loop = current_->loops.back();
+        for (int offset : loop.break_jumps) patchJump(offset);
+        current_->loops.pop_back();
+        emitOp(OpCode::OP_POP, line);
+        emitOp(OpCode::OP_POP, line);
+        popLocal();   // __iter_idx__
+        popLocal();   // __iter_list__
+        return;
+    }
+
     // Compile the iterable and convert to iterator state (list + index on stack)
     node.getIter()->accept(*this);
     // Pre-flight: if iterable expression is tainted, mark it so iterator elements inherit taint

@@ -3364,6 +3364,19 @@ else
     echo "  test_pipeline_module.sh: not found, skipping"
 fi
 
+# `for x in a..b` iterates without building a list (A66).
+RANGELOOP_SCRIPT="tests/vm/test_range_loop.sh"
+if [ -f "$RANGELOOP_SCRIPT" ]; then
+    if run_shell_test "$RANGELOOP_SCRIPT" 2>&1; then
+        echo "  test_range_loop.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_range_loop.sh")
+    fi
+else
+    echo "  test_range_loop.sh: not found, skipping"
+fi
+
 # VM arithmetic between a float and a non-number is a type error (A196).
 FLOATNN_SCRIPT="tests/vm/test_float_nonnumber.sh"
 if [ -f "$FLOATNN_SCRIPT" ]; then

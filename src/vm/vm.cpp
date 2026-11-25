@@ -822,6 +822,7 @@ interpreter::NaabVal VM::run() {
         &&vm_OP_CONTRACT_ENTRY,                                            // 81
         &&vm_OP_COND_TAINT,                                                // 82
         &&vm_OP_TAINT_OF,                                                  // 83
+        &&vm_OP_RANGE_ITER, &&vm_OP_RANGE_NEXT,                           // 84-85 (A66)
     };
 
     #define VM_CASE(opcode) vm_##opcode
@@ -2660,6 +2661,55 @@ interpreter::NaabVal VM::run() {
                 }
                 push(interpreter::NaabVal::makeList(std::move(range_list)));
                 if (governance_) peekTaint(0) = range_taint;
+            }
+                VM_NEXT();
+
+            // A66: the counted form of OP_RANGE + OP_GET_ITER + OP_ITER_NEXT for
+            // `for x in a..b`. The same bounds check and taint (the loop
+            // variable carries the bounds' taint, as each element of the list
+            // did); no list, so no limits.array_size check.
+            VM_CASE(OP_RANGE_ITER): {
+                bool range_taint = governance_ ? (peekTaint(0) || peekTaint(1)) : false;
+                interpreter::NaabVal end_val = pop();
+                interpreter::NaabVal start_val = pop();
+                if (!start_val.isInt() || !end_val.isInt()) {
+                    runtimeError("Range bounds must be integers");
+                }
+                push(end_val);                                    // the bound
+                if (governance_) peekTaint(0) = range_taint;
+                push(start_val);                                  // the counter
+                if (governance_) peekTaint(0) = range_taint;
+            }
+                VM_NEXT();
+
+            VM_CASE(OP_RANGE_NEXT): {
+                const bool inclusive = (arg >> 23) & 1u;
+                const int jump_offset = static_cast<int>(arg & 0x7FFFFFu);
+                bool range_taint = governance_ ? peekTaint(1) : false;
+                interpreter::NaabVal bound_val = peek(1);
+                interpreter::NaabVal counter_val = peek(0);
+                // The bound is null once an inclusive range has yielded its
+                // last value, which cannot be counted past (INT32_MAX).
+                if (bound_val.isNull()) {
+                    frame->ip += jump_offset;
+                } else {
+                    if (!bound_val.isInt() || !counter_val.isInt()) {
+                        runtimeError("Iterator corruption: range bounds must be integers");
+                    }
+                    const int64_t end = bound_val.asInt();
+                    const int64_t counter = counter_val.asInt();
+                    if (inclusive ? counter > end : counter >= end) {
+                        frame->ip += jump_offset;
+                    } else {
+                        if (inclusive && counter == end) {
+                            *(stack_top_ - 2) = interpreter::NaabVal::makeNull();
+                        } else {
+                            *(stack_top_ - 1) = interpreter::NaabVal::makeInt(counter + 1);
+                        }
+                        push(interpreter::NaabVal::makeInt(counter));
+                        if (governance_) peekTaint(0) = range_taint;
+                    }
+                }
             }
                 VM_NEXT();
 
@@ -6008,6 +6058,8 @@ static const char* opcodeName(OpCode op) {
         case OpCode::OP_CONTRACT_ENTRY: return "OP_CONTRACT_ENTRY";
         case OpCode::OP_COND_TAINT: return "OP_COND_TAINT";
         case OpCode::OP_TAINT_OF: return "OP_TAINT_OF";
+        case OpCode::OP_RANGE_ITER: return "OP_RANGE_ITER";
+        case OpCode::OP_RANGE_NEXT: return "OP_RANGE_NEXT";
     }
     return "OP_UNKNOWN";
 }

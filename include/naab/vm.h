@@ -175,6 +175,13 @@ enum class OpCode : uint8_t {
     // (taint_stack_), not under its name, so the name lookup the runtime call
     // makes answered false for every tainted local.
     OP_TAINT_OF,
+    // A66 (decision 17): `for x in a..b` iterates without building the list.
+    // OP_RANGE built every element first, so a loop counted against
+    // limits.array_size and the VM refused `for i in 0..5000` under a limit of
+    // 1000 that the tree-walker's lazy range never met. A range VALUE (`let
+    // xs = 0..n`, range()) still builds its list and stays capped.
+    OP_RANGE_ITER,      // [inclusive:24] pop end, start (ints): push [end, start]
+    OP_RANGE_NEXT,      // [inclusive:1, jump:23] counter past end ? jump : push counter, counter + 1
 };
 
 // ============================================================================
