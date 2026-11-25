@@ -3624,16 +3624,6 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 chargeTimeBudget(hs_tool, msSince(call_start));
                 if (out.response.success) {
                     out.response.answered_by_model = loop_config.model;
-                    // A162: the reply agent.send() returns after a tool loop is
-                    // this call's, so its trace describes this call, as the
-                    // send's own call fills it. trace.model was empty here.
-                    out.response.actual_model = loop_config.model;
-                    out.response.actual_provider = config->provider;
-                    out.response.actual_api_key_env = lkey_env;
-                    out.response.latency_ms = msSince(call_start);
-                    out.response.attempts = attempt + 1;
-                    out.response.fallback_used = (loop_config.model != models[0]);
-                    out.response.original_model = models[0];
                     // A46: the loop's later calls and the final tool-less turn
                     // spend tokens too; the run total used to see the first only.
                     chargeTokenBudget(hs_tool, out.response.input_tokens,

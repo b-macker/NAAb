@@ -3,8 +3,10 @@
 #
 # A162: after a tool loop, agent.send()'s trace.model was empty (and
 #   api_key_env): the trace read fields only the send's FIRST call set, and the
-#   reply returned is the loop turn's (observed with the stub, trace.model=[]).
-#   The loop's call now fills them as the send's own call does.
+#   reply returned is the loop turn's (observed with the stub on d32f8603,
+#   trace.model=[]). Fixed on master by A199 (Bundle 20 PR 4, #397,
+#   keepSendTrace()) while this was being built; TR-01 stays as a second
+#   check of that fix through this suite's stub fixture.
 # F52: a tool argument that is an object or an array reached the NAAb function
 #   as JSON TEXT (observed: type string, '{"a":1,"b":[2,3]}'); it is now a dict
 #   or a list, as json.parse() makes it. The comment "Parse arguments with depth
@@ -13,7 +15,7 @@
 #   a call nested deeper is refused with an error result (TR-04).
 #
 #   TR-00  CONTROL: the tool ran and the reply arrived.
-#   TR-01  trace.model and trace.api_key_env name the loop turn's call.
+#   TR-01  trace.model and trace.api_key_env are set after a tool loop.
 #   TR-01c CONTROL: a plain send's trace (it always had them).
 #   TR-02  an object argument is a dict; TR-03 an array argument is a list.
 #   TR-02c CONTROL: a string argument is still a string.
@@ -21,8 +23,7 @@
 #          send still completes.
 #
 # Kill table (mutants of src/stdlib/agent_impl.cpp, run by hand):
-#   T1 the loop's call sets no actual_model             -> TR-01
-#   T2 the loop's call sets no actual_api_key_env       -> TR-01
+#   T1 keepSendTrace() not called after the loop        -> TR-01 (A199's fix)
 #   T3 nested arguments passed as JSON text again       -> TR-02, TR-03
 #   T4 no nesting bound before parsing                  -> TR-04
 
