@@ -23,6 +23,34 @@ namespace runtime {
 
 namespace {
 
+// A221: is a TypeScript block's last line (comment, whitespace and a trailing
+// `;` already stripped) a statement rather than an expression? The wrapper
+// evaluates the last line as `(expr)`, so a block ending in `for (...) {...}`,
+// a declaration or a closing `}` failed to compile. Such a block has the value
+// null, as a JavaScript block ending in a statement does (A125). Lexical, by
+// the statement's first word: TypeScript's own statement keywords, the
+// declaration forms, and a lone `}` (which closes a block -- an expression
+// spanning lines ends in `})` or `)`, not a bare brace).
+bool tsLastLineIsStatement(const std::string& line) {
+    if (line == "}") return true;
+    static const char* const kStatementWords[] = {
+        "for", "while", "do", "if", "else", "switch", "try", "catch", "finally",
+        "function", "class", "abstract", "let", "const", "var", "return", "throw",
+        "import", "export", "interface", "type", "enum", "declare", "namespace",
+        "module", "break", "continue", "debugger", "async function",
+    };
+    for (const char* w : kStatementWords) {
+        const std::string word(w);
+        if (line.compare(0, word.size(), word) != 0) continue;
+        if (line.size() == word.size()) return true;
+        const char next = line[word.size()];
+        // `type` as a statement is `type X = ...`; `typeof x` is an expression.
+        if (next == ' ' || next == '\t' || next == '(' || next == '{' || next == ';')
+            return true;
+    }
+    return false;
+}
+
 // The language's required file opener (php: "<?php"), from the language
 // table, unless the code already contains it. Without it PHP prints the block
 // as literal TEXT: `<<php echo 1 + 1; >>` "returned" the string
@@ -334,6 +362,12 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
             // is its own console.log keeps its output as the value, as before.
             auto printValue = [&](const std::string& expr) {
                 value_marker = marker;
+                if (tsLastLineIsStatement(expr)) {
+                    // A221: no value to print; the marker alone ends the
+                    // block's output, so the value is null and what the block
+                    // printed is forwarded as output.
+                    return expr + ";\nconsole.log(\"" + value_marker + "\");\n";
+                }
                 const std::string tmp = value_marker + "v";
                 return "const " + tmp + " = (" + expr + ");\nconsole.log(\"" + value_marker +
                        "\");\nconsole.log(" + tmp + ");\n";

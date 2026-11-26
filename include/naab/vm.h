@@ -584,6 +584,28 @@ private:
     std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>> module_cache_;
     // Public API cache: only exported names (for module dict access via mod.func())
     std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>> module_public_api_;
+    // A224: per module path, the exported names whose values were tainted when
+    // the module finished running; and, per module dict this VM pushed (by
+    // identity, holding the dict alive), the same set, for a named import.
+    std::unordered_map<std::string, std::shared_ptr<std::unordered_set<std::string>>> module_tainted_exports_;
+    std::unordered_map<const void*, std::pair<interpreter::NaabVal,
+        std::shared_ptr<std::unordered_set<std::string>>>> module_dict_tainted_keys_;
+    // A module dict holding a tainted export is a dict holding tainted data:
+    // tainted as a whole, as any such dict is (its other members read tainted,
+    // a call of one of its functions is decided by its arguments).
+    void taintImportedModuleDict(const std::string& module_key);
+    // A216: a module's unexported functions, by global name, with the file
+    // that owns them. Every module global is merged into the importer's
+    // globals so the module's own functions can call its helpers by name
+    // (8669f246); a bare-name read of one of these from code that is not
+    // the owning module's is refused, as `m.hidden` already was.
+    struct PrivateModuleFunction { interpreter::NaabVal value; std::string owner; };
+    std::unordered_map<std::string, PrivateModuleFunction> module_private_functions_;
+    // Refuses (runtimeError) when `name` holds a module's private function and
+    // the running frame's code is not that module's.
+    void refusePrivateModuleRead(const std::string& name, const interpreter::NaabVal& value,
+                                 const CallFrame* frame);
+    bool importedExportTainted(const interpreter::NaabVal& module_dict, const std::string& name) const;
     // naab-29 D-03: Circular import detection — shared between parent/child VMs
     std::shared_ptr<std::unordered_set<std::string>> modules_executing_ = std::make_shared<std::unordered_set<std::string>>();
     // Keep compiled functions alive so VMClosure pointers remain valid after module compilation

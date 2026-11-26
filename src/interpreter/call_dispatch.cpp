@@ -3306,7 +3306,10 @@ void Interpreter::visit(ast::MemberExpr& node) {
                 throw std::runtime_error("Module not executed: " + module_path);
             }
 
-            if (!module_env->has(member_name)) {
+            // A216: a function the module does not export is not one of its
+            // members from here (the module's own code calls it by name).
+            if (!module_env->has(member_name) ||
+                privateModuleFunctions(module->getAST()).count(member_name)) {
                 throw std::runtime_error(
                     fmt::format("Module '{}' has no member '{}'\n\n", module_path, member_name) +
                     "  Help:\n"

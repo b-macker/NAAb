@@ -8,6 +8,7 @@
 #include "naab/governance.h"
 #include "naab/utils/error_formatter.h"
 #include <atomic>
+#include <mutex>
 #include <sstream>
 #include <iomanip>
 #include <chrono>
@@ -29,6 +30,10 @@ static std::unordered_map<std::string, std::chrono::steady_clock::time_point> g_
 // Static storage for snapshots (label -> {var_name -> value_string})
 static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> g_snapshots;
 static std::unordered_map<std::string, bool> g_snapshot_tainted;
+// The four maps above are shared by every engine thread (debug.* from
+// concurrent async fns), so one lock guards them -- held only around the map
+// operations, never around a call into the engine (F46's record).
+static std::mutex g_debug_state_mutex;
 
 interpreter::Interpreter* DebugModule::getInterpreter() {
     return g_debug_interpreter;
@@ -72,6 +77,7 @@ static std::vector<DebugModule::DebugLocal> engineScope() {
 void DebugModule::setInterpreter(interpreter::Interpreter* interp) {
     g_debug_interpreter = interp;
     // Bug 3: Clear stale state from previous runs
+    std::lock_guard<std::mutex> lock(g_debug_state_mutex);
     g_watch_values.clear();
     g_timers.clear();
     g_snapshots.clear();
@@ -440,10 +446,12 @@ interpreter::NaabVal DebugModule::call(
             );
         }
         std::string label = args[0].toString();
+        std::unique_lock<std::mutex> lock(g_debug_state_mutex);
         auto it = g_timers.find(label);
         if (it == g_timers.end()) {
             // Start timer
             g_timers[label] = std::chrono::steady_clock::now();
+            lock.unlock();
             fprintf(stderr, "[TIMER] %s: started\n", label.c_str());
             fflush(stderr);
             return interpreter::NaabVal::makeDouble(0.0);
@@ -452,6 +460,7 @@ interpreter::NaabVal DebugModule::call(
             auto end = std::chrono::steady_clock::now();
             double ms = std::chrono::duration<double, std::milli>(end - it->second).count();
             g_timers.erase(it);
+            lock.unlock();
             fprintf(stderr, "[TIMER] %s: %.2fms\n", label.c_str(), ms);
             fflush(stderr);
             return interpreter::NaabVal::makeDouble(ms);
@@ -519,6 +528,7 @@ interpreter::NaabVal DebugModule::call(
         }
         std::string label = args[0].toString();
         std::string current = valueToDebugString(args[1]);
+        std::lock_guard<std::mutex> lock(g_debug_state_mutex);
         auto it = g_watch_values.find(label);
         if (it == g_watch_values.end()) {
             // First time seeing this watch
@@ -562,11 +572,15 @@ interpreter::NaabVal DebugModule::call(
                 snap_tainted = snap_tainted || tainted;
             }
         }
-        g_snapshots[label] = snap;
-        // F46: debug.compare() returns this text, so it remembers whether
-        // any value it holds was tainted.
-        g_snapshot_tainted[label] = snap_tainted;
-        fprintf(stderr, "[SNAPSHOT] '%s' captured (%zu variables)\n", label.c_str(), snap.size());
+        const size_t snap_size = snap.size();
+        {
+            std::lock_guard<std::mutex> lock(g_debug_state_mutex);
+            g_snapshots[label] = std::move(snap);
+            // F46: debug.compare() returns this text, so it remembers whether
+            // any value it holds was tainted.
+            g_snapshot_tainted[label] = snap_tainted;
+        }
+        fprintf(stderr, "[SNAPSHOT] '%s' captured (%zu variables)\n", label.c_str(), snap_size);
         fflush(stderr);
         return interpreter::NaabVal::makeBool(true);
 
@@ -579,17 +593,22 @@ interpreter::NaabVal DebugModule::call(
             );
         }
         std::string l1 = args[0].toString(), l2 = args[1].toString();
-        auto it1 = g_snapshots.find(l1);
-        auto it2 = g_snapshots.find(l2);
-        if (it1 == g_snapshots.end()) {
-            throw std::runtime_error("Snapshot '" + l1 + "' not found. Call debug.snapshot(\"" + l1 + "\") first.");
+        std::unordered_map<std::string, std::string> s1, s2;
+        bool compared_tainted = false;
+        {
+            std::lock_guard<std::mutex> lock(g_debug_state_mutex);
+            auto it1 = g_snapshots.find(l1);
+            auto it2 = g_snapshots.find(l2);
+            if (it1 == g_snapshots.end()) {
+                throw std::runtime_error("Snapshot '" + l1 + "' not found. Call debug.snapshot(\"" + l1 + "\") first.");
+            }
+            if (it2 == g_snapshots.end()) {
+                throw std::runtime_error("Snapshot '" + l2 + "' not found. Call debug.snapshot(\"" + l2 + "\") first.");
+            }
+            s1 = it1->second;
+            s2 = it2->second;
+            compared_tainted = g_snapshot_tainted[l1] || g_snapshot_tainted[l2];
         }
-        if (it2 == g_snapshots.end()) {
-            throw std::runtime_error("Snapshot '" + l2 + "' not found. Call debug.snapshot(\"" + l2 + "\") first.");
-        }
-
-        const auto& s1 = it1->second;
-        const auto& s2 = it2->second;
         std::ostringstream oss;
 
         // Check for added/removed/changed variables
@@ -612,7 +631,7 @@ interpreter::NaabVal DebugModule::call(
         std::string result = oss.str();
         if (result.empty()) result = "(no changes between snapshots)";
         // F46: the diff carries the snapshots' values, so it carries their taint.
-        if (g_snapshot_tainted[l1] || g_snapshot_tainted[l2]) {
+        if (compared_tainted) {
             if (auto* gov = governance::GovernanceEngine::getCurrent())
                 gov->setLastReturnTainted(true, "debug.compare");
         }

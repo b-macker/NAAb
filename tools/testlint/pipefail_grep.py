@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Find `PRODUCER | grep -q` pipelines in shell scripts that run under pipefail.
+"""Find `PRODUCER | grep -q` pipelines in shell scripts that run under pipefail,
+and (A223(a), kind `status-filter`) a command piped into a filter whose EXIT
+STATUS is the verdict -- `python3 -c` that calls sys.exit with something other
+than 0, or `jq -e`. Both lose their verdict to a failing producer.
 
 Under `set -o pipefail` a pipeline's status is the last non-zero status in it,
 so a pipeline whose last stage is `grep -q` (or --quiet/--silent) does not
@@ -165,6 +168,31 @@ def _early_exit_grep(rest):
     return False
 
 
+STATUS_FILTER = re.compile(r"(python3?)\s+(?:-[A-Za-z]+\s+)*-c\s*(['\"])|jq\s+(?:-[A-Za-z]*\s+)*-[A-Za-z]*e\b")
+VERDICT_EXIT = re.compile(r"(?:sys\.exit|raise\s+SystemExit)\(\s*(?!0\s*\))[^)]")
+NOT_A_FAILING_PRODUCER = re.compile(r"^(?:echo|printf|cat)\b|^<")
+
+
+def _status_filter(rest, text_after):
+    """rest starts just after a pipe (A223(a)). True when the stage's EXIT
+    STATUS is a verdict: a python -c whose code calls sys.exit with something
+    other than 0, or jq -e. text_after is the raw text from rest on, so a
+    quoted program spanning lines is read whole."""
+    rest = rest.lstrip()
+    m = STATUS_FILTER.match(rest)
+    if not m:
+        return False
+    if not m.group(1):
+        return True                      # jq -e: status is the verdict
+    q = m.group(2)
+    body_at = text_after.find(rest) + m.end()
+    end = text_after.find(q, body_at)
+    while q == '"' and end > 0 and text_after[end - 1] == "\\":
+        end = text_after.find(q, end + 1)
+    code = text_after[body_at:end if end >= 0 else body_at + 4000]
+    return bool(VERDICT_EXIT.search(code))
+
+
 def scan_text(text):
     """Return (pipefail_enabled, [(lineno, kind, line)])."""
     lines = text.replace("\r\n", "\n").split("\n")
@@ -211,6 +239,17 @@ def scan_text(text):
             if rest.startswith("&"):          # |& pipes stderr too
                 rest = rest[1:]
             if not _early_exit_grep(rest):
+                # A223(a): a filter whose exit status is the verdict, fed by
+                # a command that can exit non-zero. Under pipefail the
+                # command's status replaces the verdict: a blocking
+                # `naab-gov check | python3 -c '...sys.exit(...)'` read every
+                # finding as "not flagged". echo/printf/cat producers do not
+                # fail, and a filter that reads all its input takes no SIGPIPE.
+                before = line[:i]
+                producer = before.split("|")[-1].strip().lstrip("(").strip()
+                if before.strip() and not NOT_A_FAILING_PRODUCER.match(producer) and \
+                        _status_filter(rest, "\n".join([line[i + 1:]] + lines[no:no + 60])):
+                    sites.append((no, "status-filter", line))
                 continue
             before = line[:i]
             if before.strip() == "":
@@ -401,6 +440,19 @@ SELFTEST = [
      ["command"], None),
     ("here-string is not a heredoc", "set -o pipefail\ngrep <<<\"$x\" -q y\na | grep -q x\n",
      ["command"], None),
+    # A223(a): a filter whose exit status is the verdict, after a command
+    ("python verdict after a command",
+     "set -o pipefail\nf() {\n  x | python3 -c 'import sys; sys.exit(0 if 1 else 1)'\n}\n",
+     ["status-filter"], None),
+    ("python verdict spanning lines",
+     "set -o pipefail\ncmd | python3 -c '\nimport sys\nsys.exit(1)\n'\n", ["status-filter"], None),
+    ("python that only prints", "set -o pipefail\nv=$(cmd | python3 -c 'print(1)')\n", [], None),
+    ("python exiting 0 only",
+     "set -o pipefail\nv=$(cmd | python3 -c '\nimport sys\nsys.exit(0)\n')\n", [], None),
+    ("printf into a verdict filter",
+     "set -o pipefail\nprintf '%s' \"$o\" | python3 -c 'import sys; sys.exit(1)'\n", [], None),
+    ("jq -e after a command", "set -o pipefail\ncmd | jq -e .a\n", ["status-filter"], None),
+    ("jq without -e", "set -o pipefail\nv=$(cmd | jq .a)\n", [], None),
 ]
 
 

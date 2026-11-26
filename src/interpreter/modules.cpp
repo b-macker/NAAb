@@ -335,6 +335,7 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
 
         // Store module environment for member access (module.function)
         current_env_->define(module_name, NaabVal::makeString("__module__:" + module_path));
+        markImportBindingTainted(module_path, module_name);  // A224
 
         return;
     }
@@ -402,6 +403,13 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
                 for (const auto& export_stmt : program->getExports()) {
                     export_stmt->accept(*this);
                 }
+                // A224: which of its names hold tainted data, read now
+                // (an exported variable is the only module-level value).
+                if (governance_ && governance_->isActive()) {
+                    auto& tainted = module_tainted_exports_[dep_module->getName()];
+                    for (const auto& name : module_env->getOwnNames())
+                        if (governance_->isTainted(name)) tainted.insert(name);
+                }
 
                 // Note: Main block is NOT executed for imported modules
                 // Only declarations are processed
@@ -449,6 +457,7 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
 
     // Store module environment reference for member access
     current_env_->define(module_name, NaabVal::makeString("__module__:" + module_path));
+    markImportBindingTainted(module_path, module_name);  // A224
 
     // ISS-024 Fix: Store alias mapping for module-qualified types
     // loaded_modules_ uses module_path as key, so if an alias is used,
@@ -585,8 +594,11 @@ void Interpreter::visit(ast::ImportStmt& node) {
         // Create a dictionary containing all exports from the module
         std::unordered_map<std::string, NaabVal> module_dict;
 
-        // Get only module's own names (not inherited from global_env_)
+        // Get only module's own names (not inherited from global_env_), less
+        // the functions it does not export (A216)
+        const auto& private_fns = privateModuleFunctions(import_module_programs_[canonical_path]);
         for (const auto& name : module_env->getOwnNames()) {
+            if (private_fns.count(name)) continue;
             module_dict[name] = module_env->get(name);
         }
 
@@ -602,6 +614,7 @@ void Interpreter::visit(ast::ImportStmt& node) {
 
         auto dict_value = NaabVal::makeDict(module_dict);
         current_env_->define(alias, dict_value);
+        markImportBindingTainted(canonical_path, alias);  // A224
 
         // Define aliased names for 3-level dot access from own dotted keys
         for (const auto& [key, val] : module_dict) {
@@ -626,8 +639,12 @@ void Interpreter::visit(ast::ImportStmt& node) {
 
         // Get the imported symbol from module environment
         try {
+            // A216: a function the module does not export is not importable.
+            if (privateModuleFunctions(import_module_programs_[canonical_path]).count(import_name))
+                throw std::runtime_error("'" + import_name + "' is a function the module does not export");
             auto value = module_env->get(import_name);
             current_env_->define(local_name, value);
+            markImportBindingTainted(canonical_path, local_name, import_name);  // A224
 
             LOG_DEBUG("[SUCCESS] Imported {} as '{}' from {}\n",
                       import_name, local_name, node.getModulePath());
@@ -763,6 +780,37 @@ void Interpreter::visit(ast::ExportStmt& node) {
     }
 }
 
+const std::unordered_set<std::string>& Interpreter::privateModuleFunctions(ast::Program* program) {
+    static const std::unordered_set<std::string> none;
+    if (!program) return none;
+    auto cached = private_module_functions_.find(program);
+    if (cached != private_module_functions_.end()) return cached->second;
+    auto& out = private_module_functions_[program];
+    if (program->getExports().empty()) return out;
+    std::unordered_set<std::string> exported;
+    for (const auto& ex : program->getExports()) {
+        if (ex->getKind() == ast::ExportStmt::ExportKind::Function && ex->getFunctionDecl())
+            exported.insert(ex->getFunctionDecl()->getName());
+    }
+    for (const auto& fn : program->getFunctions())
+        if (!exported.count(fn->getName())) out.insert(fn->getName());
+    return out;
+}
+
+// A224: the binding an import makes carries its module's taint -- the module
+// value when any export is tainted (as any value holding tainted data is), a
+// named import when THAT export is. Only the importer's own binding is
+// marked: BUG-O keeps the module's internal names out of the caller's set.
+void Interpreter::markImportBindingTainted(const std::string& module_key,
+                                           const std::string& binding,
+                                           const std::string& export_name) {
+    if (!governance_ || !governance_->isActive()) return;
+    auto it = module_tainted_exports_.find(module_key);
+    if (it == module_tainted_exports_.end() || it->second.empty()) return;
+    if (!export_name.empty() && !it->second.count(export_name)) return;
+    governance_->markTainted(binding, "module export", export_name, current_file_, 0);
+}
+
 // Phase 3.1: Load and execute a module
 std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string& module_path) {
     // Check if module is already loaded
@@ -827,6 +875,14 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
         // Copy module exports to module environment
         for (const auto& [name, value] : module_exports_) {
             module_env->define(name, value);
+        }
+        import_module_programs_[module_path] = module->ast.get();  // A216
+        // A224: which exports hold tainted data, read now -- BUG-O restores
+        // the caller's taint set below, dropping the module's names.
+        if (governance_ && governance_->isActive()) {
+            auto& tainted = module_tainted_exports_[module_path];
+            for (const auto& [name, value] : module_exports_)
+                if (governance_->isTainted(name)) tainted.insert(name);
         }
 
         // Cache the module environment

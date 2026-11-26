@@ -32,7 +32,11 @@
 # fix is mechanical (`tools/testlint/pipefail_grep.py fix` rewrites the
 # echo/printf ones), so a new site is a regression, not legacy.
 #
-#   PG-00  the scanner's own self-test (planted sites found, look-alikes not)
+#   PG-00  the scanner's own self-test (planted sites found, look-alikes not),
+#          including the `status-filter` kind (A223(a), Bundle 19 PR 4): a
+#          command piped into a python3 -c that calls sys.exit with a verdict,
+#          or jq -e -- the shape that read every finding of a blocking
+#          naab-gov check as "not flagged"; PG-03 holds it to zero too
 #   PG-01  PREMISE, measured here: under pipefail a producer that exits
 #          non-zero after printing the match makes `| grep -q` false, and the
 #          here-string form true. If bash ever stops doing this the guard is
