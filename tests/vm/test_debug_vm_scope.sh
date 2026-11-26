@@ -29,6 +29,11 @@
 #   DV-03   debug.stack() lists the function, innermost last, with its file.
 #   DV-04   debug.snapshot()/compare() see the change of a local.
 #   DV-05   debug.trace() names the function and line it was called from.
+#   DV-06   inside two concurrent async fns, debug.env() names each worker's
+#           own locals, and main's in main (each answers from its own VM).
+#           The hooks were first written by every VM constructor, a data
+#           race the TSan job reported on b7c18a91; they are now registered
+#           once and atomic, and this suite is in tests/tsan/suites.txt.
 #   DV-T0   CONTROL: printing the tainted local directly is refused (exit 3),
 #           so the fixture taints and the sink fires.
 #   DV-T1   a tainted local read back through debug.env() is refused at the
@@ -49,6 +54,10 @@
 #   F7 debugScope() reports every local clean        -> DV-T1, DV-T1m, DV-T2, DV-T3
 #   F8 the VM does not register its hooks            -> DV-01..DV-05
 #   F9 debugScope() reports every local tainted      -> DV-T4
+#   F10 the hooks answer from the first VM that asked, -> DV-06
+#       not the one running on the calling thread
+# The registration race itself is not a mutant here: only a ThreadSanitizer
+# build shows it (tests/tsan/run_tsan.sh, red on b7c18a91, green after).
 
 set -uo pipefail
 PASS=0; FAIL=0
@@ -115,6 +124,31 @@ nr snap.naab
 if [ "$RC" -eq 0 ] && grep -q 'Changed: w: "plain" -> "changed"' <<<"$OUT" && grep -q "captured (1 variables)" <<<"$OUT"; then
     ok DV-04 "debug.snapshot()/compare() see the local's change"
 else bad DV-04 "snapshot/compare (rc=$RC)" "$OUT"; fi
+
+# DV-06: inside concurrent async fns each worker answers from ITS OWN VM.
+# Every async fn runs a fresh VM on a worker thread; the hooks are shared by
+# all of them, so this is also the read path ThreadSanitizer checks when the
+# TSan job runs this suite (tests/tsan/suites.txt).
+cat > "$W/free/async.naab" <<'EOF'
+async fn worker(tag) {
+    let mine = tag + "_local"
+    return tag + ":" + string(debug.keys(debug.env()))
+}
+main {
+    let outer_only = 1
+    let f1 = worker("w1")
+    let f2 = worker("w2")
+    print("A1=" + await f1)
+    print("A2=" + await f2)
+    print("M=" + string(debug.keys(debug.env())))
+}
+EOF
+nr async.naab
+a1=$(sed -n 's/^A1=w1://p' <<<"$OUT" | head -1 | tr -d '[] ' | tr ',' '\n' | sort | tr '\n' ' ')
+a2=$(sed -n 's/^A2=w2://p' <<<"$OUT" | head -1 | tr -d '[] ' | tr ',' '\n' | sort | tr '\n' ' ')
+if [ "$RC" -eq 0 ] && [ "$a1" = "mine tag " ] && [ "$a2" = "mine tag " ] && [ "$(keyset M "$OUT")" = "f1 f2 outer_only " ]; then
+    ok DV-06 "debug.env() in concurrent async fns names each worker's own locals, and main's in main"
+else bad DV-06 "async scopes (rc=$RC, w1 '$a1', w2 '$a2', main '$(keyset M "$OUT")')" "$OUT"; fi
 
 printf 'fn inner(n) {\n    let x = debug.trace(n + 1)\n    return x\n}\nmain {\n    inner(3)\n}\n' > "$W/free/trace.naab"
 nr trace.naab

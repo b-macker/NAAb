@@ -31,7 +31,9 @@
 #           now`), so the check is on and the harness reads its rule.
 #   HS-01   a NAAb program whose python block returns a constant success dict
 #           with a perfect score is refused (exit 3) and the block's value is
-#           never printed; HS-01c CONTROL: the same program computing both runs.
+#           never printed; HS-01c CONTROL: the same program computing both runs
+#           (UNMEASURABLE, a SKIP line, where a <<python>> block has no value:
+#           no embedded executor, as on build-windows).
 #   HS-02   a constant success dict is flagged: python, javascript (unquoted
 #           key), ruby (=>); HS-02c CONTROL: a computed value in the dict, or an
 #           error status, is not.
@@ -127,12 +129,21 @@ OUT=$(cd "$W/run" && "$NAAB" run const.naab 2>&1); RC=$?
 if [ "$RC" -eq 3 ] && ! grep -q '^RAN=' <<<"$OUT" && grep -q 'code_quality.no_hardcoded_results' <<<"$OUT"; then
     ok HS-01 "a block returning a constant success dict with a perfect score is refused (exit 3)"
 else bad HS-01 "the constant result ran (rc=$RC)" "$OUT"; fi
-OUT=$(cd "$W/run" && "$NAAB" run comp.naab 2>&1); RC=$?
-if [ "$RC" -eq 0 ] && grep -q "^RAN=.*'status': 'failed'" <<<"$OUT"; then
-    ok HS-01c "CONTROL: the same program computing status and score runs"
-elif grep -qi 'python.*not available\|No executor found' <<<"$OUT"; then
-    bad HS-01c "UNMEASURABLE: no python executor here" "$OUT"
-else bad HS-01c "the computed result did not run (rc=$RC)" "$OUT"; fi
+# HS-01c needs a <<python>> block's VALUE, which only the embedded executor
+# gives (a build without it -- every Windows build -- evaluates the block to
+# null). Asked of the same directory and config with a probe block first; the
+# warning a no-Python build prints on every run is not the probe, since it
+# says nothing about whether this block runs.
+printf 'main {\n    let v = <<python\n1+1\n>>\n    print("PROBE=" + string(v))\n}\n' > "$W/run/probe.naab"
+PROBE=$(cd "$W/run" && "$NAAB" run probe.naab 2>&1)
+if ! grep -qx 'PROBE=2' <<<"$PROBE"; then
+    echo "  SKIP [HS-01c] UNMEASURABLE: a <<python>> block has no value here (no embedded Python executor)"
+else
+    OUT=$(cd "$W/run" && "$NAAB" run comp.naab 2>&1); RC=$?
+    if [ "$RC" -eq 0 ] && grep -q "^RAN=.*'status': 'failed'" <<<"$OUT"; then
+        ok HS-01c "CONTROL: the same program computing status and score runs"
+    else bad HS-01c "the computed result did not run (rc=$RC)" "$OUT"; fi
+fi
 
 expect HS-02a yes python on $'def check(x):\n    return {"status": "success"}' "a constant success dict (python) is flagged"
 expect HS-02b yes javascript on $'function check(x) {\n  return {status: "ok"};\n}' "a constant success object (javascript, unquoted key) is flagged"

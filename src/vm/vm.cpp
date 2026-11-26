@@ -199,10 +199,18 @@ VM::VM()
     , frames_(std::make_unique<CallFrame[]>(FRAMES_MAX))
     , gc_detector_(std::make_unique<interpreter::CycleDetector>())  // V-RT-008
 {
-    // F46: debug.env/stack/snapshot/trace read this VM (stdlib cannot name it).
-    stdlib::DebugModule::setVMDebugHooks(
-        [](void* vm) { return static_cast<VM*>(vm)->debugStack(); },
-        [](void* vm) { return static_cast<VM*>(vm)->debugScope(); });
+    // F46: debug.env/stack/snapshot/trace read the VM running on their thread
+    // (stdlib cannot name the class). Registered ONCE per process: a VM is
+    // built on every async fn's worker thread, and writing the hooks from
+    // each constructor raced with those threads' own reads (ThreadSanitizer,
+    // CI on b7c18a91). The pointers are atomics as well (debug_impl.cpp).
+    static const bool debug_hooks_registered = [] {
+        stdlib::DebugModule::setVMDebugHooks(
+            [](void* vm) { return static_cast<VM*>(vm)->debugStack(); },
+            [](void* vm) { return static_cast<VM*>(vm)->debugScope(); });
+        return true;
+    }();
+    (void)debug_hooks_registered;
     std::memset(taint_stack_.get(), 0, STACK_MAX * sizeof(bool));
 }
 

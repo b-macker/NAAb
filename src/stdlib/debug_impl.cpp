@@ -7,6 +7,7 @@
 #include "naab/interpreter.h"
 #include "naab/governance.h"
 #include "naab/utils/error_formatter.h"
+#include <atomic>
 #include <sstream>
 #include <iomanip>
 #include <chrono>
@@ -33,12 +34,15 @@ interpreter::Interpreter* DebugModule::getInterpreter() {
     return g_debug_interpreter;
 }
 
-static DebugModule::VMStackFn g_vm_stack = nullptr;
-static DebugModule::VMScopeFn g_vm_scope = nullptr;
+// Read on every thread that runs a VM (async fn workers, lent tool VMs) and
+// written by the first VM constructed, so atomic: plain pointers here were a
+// data race ThreadSanitizer reported (CI on b7c18a91).
+static std::atomic<DebugModule::VMStackFn> g_vm_stack{nullptr};
+static std::atomic<DebugModule::VMScopeFn> g_vm_scope{nullptr};
 
 void DebugModule::setVMDebugHooks(VMStackFn stack, VMScopeFn scope) {
-    g_vm_stack = stack;
-    g_vm_scope = scope;
+    g_vm_stack.store(stack, std::memory_order_release);
+    g_vm_scope.store(scope, std::memory_order_release);
 }
 
 // F46: the engine running on this thread -- the VM when one does (the
@@ -46,7 +50,8 @@ void DebugModule::setVMDebugHooks(VMStackFn stack, VMScopeFn scope) {
 // else the tree-walker.
 static std::vector<std::string> engineStack() {
     void* vm = runtime::currentThreadVM().vm;
-    if (vm && g_vm_stack) return g_vm_stack(vm);
+    auto stack_fn = g_vm_stack.load(std::memory_order_acquire);
+    if (vm && stack_fn) return stack_fn(vm);
     if (g_debug_interpreter) return g_debug_interpreter->getCallStackInfo();
     return {};
 }
@@ -56,7 +61,8 @@ static std::vector<std::string> engineStack() {
 // there, as they always did.
 static std::vector<DebugModule::DebugLocal> engineScope() {
     void* vm = runtime::currentThreadVM().vm;
-    if (vm && g_vm_scope) return g_vm_scope(vm);
+    auto scope_fn = g_vm_scope.load(std::memory_order_acquire);
+    if (vm && scope_fn) return scope_fn(vm);
     std::vector<DebugModule::DebugLocal> out;
     if (g_debug_interpreter)
         for (auto& [n, v] : g_debug_interpreter->getCurrentScopeVariables()) out.push_back({n, v, false});
