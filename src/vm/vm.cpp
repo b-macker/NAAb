@@ -1,6 +1,7 @@
 #include "naab/block_time_limit.h"
 #include "naab/sql_executor.h"
 #include "naab/vm.h"
+#include "naab/stdlib_prelude.h"
 #include "naab/value_equality.h"
 #include "naab/string_interpolation.h"
 #include "naab/taint_rule.h"
@@ -52,6 +53,24 @@
 
 namespace naab {
 namespace vm {
+
+// A215: the float branch of + - * / used to need only ONE double operand and
+// read the other with asInt(), which on a string, list, dict or null is the
+// value's handle, not a number: "a" * 2.5 was 20 and [1] - 1.5 was 33.5, exit
+// 0. Both operands must be numbers (a bool is already an int by then); any
+// other pair falls through to the type error the int path raises.
+static inline bool bothNumbers(const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
+    return (a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble());
+}
+
+// A39(a): the hint goes under the message convention's "Help:" heading, so
+// the display sanitizer reads it as the engine's own text and leaves its
+// example code alone (it printed `let msg = <redacted> + name + "!"`).
+static std::string withHelpHeading(const std::string& hint) {
+    const size_t a = hint.find_first_not_of('\n');
+    if (a == std::string::npos) return "";
+    return "\n  Help:\n" + hint.substr(a);
+}
 
 // ============================================================================
 // Chunk
@@ -180,6 +199,18 @@ VM::VM()
     , frames_(std::make_unique<CallFrame[]>(FRAMES_MAX))
     , gc_detector_(std::make_unique<interpreter::CycleDetector>())  // V-RT-008
 {
+    // F46: debug.env/stack/snapshot/trace read the VM running on their thread
+    // (stdlib cannot name the class). Registered ONCE per process: a VM is
+    // built on every async fn's worker thread, and writing the hooks from
+    // each constructor raced with those threads' own reads (ThreadSanitizer,
+    // CI on b7c18a91). The pointers are atomics as well (debug_impl.cpp).
+    static const bool debug_hooks_registered = [] {
+        stdlib::DebugModule::setVMDebugHooks(
+            [](void* vm) { return static_cast<VM*>(vm)->debugStack(); },
+            [](void* vm) { return static_cast<VM*>(vm)->debugScope(); });
+        return true;
+    }();
+    (void)debug_hooks_registered;
     std::memset(taint_stack_.get(), 0, STACK_MAX * sizeof(bool));
 }
 
@@ -221,11 +252,7 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
 
     // Register stdlib prelude modules (same as tree-walker's auto-import)
     // Skip names that conflict with builtins (string is both a module and a function)
-    static const char* prelude_modules[] = {
-        "array", "dict", "io", "file", "debug", "bolo", "env",
-        "math", "json", "http", "crypto", "time", "os"
-    };
-    for (auto mod : prelude_modules) {
+    for (auto mod : naab::stdlib::kVmPreludeModules) {   // naab/stdlib_prelude.h
         // Don't overwrite block imports injected via setGlobal()
         auto it = globals_.find(mod);
         if (it != globals_.end() && it->second.isBlock()) continue;
@@ -816,6 +843,7 @@ interpreter::NaabVal VM::run() {
         &&vm_OP_CONTRACT_ENTRY,                                            // 81
         &&vm_OP_COND_TAINT,                                                // 82
         &&vm_OP_TAINT_OF,                                                  // 83
+        &&vm_OP_RANGE_ITER, &&vm_OP_RANGE_NEXT,                           // 84-85 (A66)
     };
 
     #define VM_CASE(opcode) vm_##opcode
@@ -1060,7 +1088,7 @@ interpreter::NaabVal VM::run() {
                             av, bv, av, bv);
                     }
                     push(interpreter::NaabVal::makeInt(av + bv));
-                } else if (a.isDouble() || b.isDouble()) {
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A215
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av + bv));
@@ -1150,7 +1178,7 @@ interpreter::NaabVal VM::run() {
                             av, bv, av, bv);
                     }
                     push(interpreter::NaabVal::makeInt(av - bv));
-                } else if (a.isDouble() || b.isDouble()) {
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A215
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av - bv));
@@ -1195,7 +1223,7 @@ interpreter::NaabVal VM::run() {
                             av, bv, av, bv);
                     }
                     push(interpreter::NaabVal::makeInt(static_cast<int32_t>(result64)));
-                } else if (a.isDouble() || b.isDouble()) {
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A215
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av * bv));
@@ -1255,7 +1283,7 @@ interpreter::NaabVal VM::run() {
                     // Division always produces a double, matching the tree-walker
                     push(interpreter::NaabVal::makeDouble(
                         static_cast<double>(a.asInt()) / static_cast<double>(b.asInt())));
-                } else if (a.isDouble() || b.isDouble()) {
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A215
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     if (bv == 0.0) runtimeError("Division by zero");
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
@@ -1601,7 +1629,7 @@ interpreter::NaabVal VM::run() {
                 const std::string& name = READ_CONSTANT_STRING(arg);
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
-                    std::string helper = getVariableHelper(name);
+                    std::string helper = withHelpHeading(getVariableHelper(name));
                     if (helper.empty()) {
                         runtimeError("Undefined variable '%s'", name.c_str());
                     } else {
@@ -1629,7 +1657,7 @@ interpreter::NaabVal VM::run() {
                 const std::string& name = READ_CONSTANT_STRING(arg);
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
-                    std::string helper = getVariableHelper(name);
+                    std::string helper = withHelpHeading(getVariableHelper(name));
                     if (helper.empty()) {
                         runtimeError("Undefined variable '%s'", name.c_str());
                     } else {
@@ -2657,6 +2685,55 @@ interpreter::NaabVal VM::run() {
             }
                 VM_NEXT();
 
+            // A66: the counted form of OP_RANGE + OP_GET_ITER + OP_ITER_NEXT for
+            // `for x in a..b`. The same bounds check and taint (the loop
+            // variable carries the bounds' taint, as each element of the list
+            // did); no list, so no limits.array_size check.
+            VM_CASE(OP_RANGE_ITER): {
+                bool range_taint = governance_ ? (peekTaint(0) || peekTaint(1)) : false;
+                interpreter::NaabVal end_val = pop();
+                interpreter::NaabVal start_val = pop();
+                if (!start_val.isInt() || !end_val.isInt()) {
+                    runtimeError("Range bounds must be integers");
+                }
+                push(end_val);                                    // the bound
+                if (governance_) peekTaint(0) = range_taint;
+                push(start_val);                                  // the counter
+                if (governance_) peekTaint(0) = range_taint;
+            }
+                VM_NEXT();
+
+            VM_CASE(OP_RANGE_NEXT): {
+                const bool inclusive = (arg >> 23) & 1u;
+                const int jump_offset = static_cast<int>(arg & 0x7FFFFFu);
+                bool range_taint = governance_ ? peekTaint(1) : false;
+                interpreter::NaabVal bound_val = peek(1);
+                interpreter::NaabVal counter_val = peek(0);
+                // The bound is null once an inclusive range has yielded its
+                // last value, which cannot be counted past (INT32_MAX).
+                if (bound_val.isNull()) {
+                    frame->ip += jump_offset;
+                } else {
+                    if (!bound_val.isInt() || !counter_val.isInt()) {
+                        runtimeError("Iterator corruption: range bounds must be integers");
+                    }
+                    const int64_t end = bound_val.asInt();
+                    const int64_t counter = counter_val.asInt();
+                    if (inclusive ? counter > end : counter >= end) {
+                        frame->ip += jump_offset;
+                    } else {
+                        if (inclusive && counter == end) {
+                            *(stack_top_ - 2) = interpreter::NaabVal::makeNull();
+                        } else {
+                            *(stack_top_ - 1) = interpreter::NaabVal::makeInt(counter + 1);
+                        }
+                        push(interpreter::NaabVal::makeInt(counter));
+                        if (governance_) peekTaint(0) = range_taint;
+                    }
+                }
+            }
+                VM_NEXT();
+
             VM_CASE(OP_GET_ITER): {
                 bool iter_taint = governance_ ? peekTaint(0) : false;
                 interpreter::NaabVal iterable = pop();
@@ -2881,6 +2958,9 @@ interpreter::NaabVal VM::run() {
                             }
                         }
                         interpreter::NaabVal member_result;
+                        // As route A: the flag says what THIS call read (F46).
+                        if (governance_ && governance_->isActive())
+                            governance_->setLastReturnTainted(false);
                         try {
                             member_result = callStdlibMethod(mod, name, 0, no_args);
                         } catch (...) {
@@ -2896,6 +2976,10 @@ interpreter::NaabVal VM::run() {
                             } else if (governance_->isSanitizer(full_name)) {
                                 peekTaint(0) = false;
                                 sanitizer_applied = true;
+                            } else if (governance_->lastReturnWasTainted()) {
+                                // The call read tainted data (debug.env, F46).
+                                peekTaint(0) = true;
+                                governance_->setLastReturnTainted(false);
                             }
                         }
                         if (governance_) {
@@ -3952,6 +4036,7 @@ static void deepCopyFunctionTree(
     copy->source_file = src->source_file;
     copy->source_line = src->source_line;
     copy->local_names = src->local_names;
+    copy->local_ranges = src->local_ranges;
     copy->has_main_block = src->has_main_block;
 
     // requires / ensures: each clause's check function is a function tree of
@@ -4669,10 +4754,9 @@ VM::importModule(const std::string& module_path) {
             if (sv.size() >= 18 && sv.substr(0, 18) == "__stdlib_module__:") {
                     // Only filter prelude modules (every VM already has them)
                     // Let non-prelude use bindings (csv, regex, uuid, etc.) propagate
-                    static const std::unordered_set<std::string> prelude = {
-                        "array", "dict", "io", "file", "debug", "bolo", "env",
-                        "math", "json", "http", "crypto", "time", "os"
-                    };
+                    static const std::unordered_set<std::string> prelude(
+                        std::begin(naab::stdlib::kVmPreludeModules),
+                        std::end(naab::stdlib::kVmPreludeModules));
                     std::string mod_name = sv.substr(18);
                     if (prelude.count(mod_name)) continue;
                 }
@@ -6003,6 +6087,8 @@ static const char* opcodeName(OpCode op) {
         case OpCode::OP_CONTRACT_ENTRY: return "OP_CONTRACT_ENTRY";
         case OpCode::OP_COND_TAINT: return "OP_COND_TAINT";
         case OpCode::OP_TAINT_OF: return "OP_TAINT_OF";
+        case OpCode::OP_RANGE_ITER: return "OP_RANGE_ITER";
+        case OpCode::OP_RANGE_NEXT: return "OP_RANGE_NEXT";
     }
     return "OP_UNKNOWN";
 }
@@ -6024,6 +6110,46 @@ std::map<std::string, interpreter::NaabVal> VM::getCurrentScopeVariables() const
         }
     }
     return vars;
+}
+
+// F46: the call stack and the live locals, in the tree-walker's format
+// (StackFrame::toString: "  at NAME (FILE:LINE)"), for the debug module.
+std::vector<std::string> VM::debugStack() const {
+    std::vector<std::string> out;
+    for (int i = 0; i < frame_count_; ++i) {
+        const CallFrame& cf = frames_[i];
+        if (!cf.function) continue;
+        const auto& code = cf.function->chunk.code;
+        int off = cf.ip ? static_cast<int>(cf.ip - code.data()) - 1 : 0;
+        if (off < 0) off = 0;
+        const int line = cf.function->chunk.getLine(off);
+        const std::string name = cf.function->name.empty() ? "<script>" : cf.function->name;
+        const std::string& file = cf.source_file.empty() ? current_file_ : cf.source_file;
+        out.push_back("  at " + name + " (" + file + ":" + std::to_string(line) + ")");
+    }
+    return out;
+}
+
+std::vector<stdlib::DebugLocal> VM::debugScope() const {
+    std::vector<stdlib::DebugLocal> out;
+    if (frame_count_ <= 0) return out;
+    const CallFrame& cf = frames_[frame_count_ - 1];
+    if (!cf.function || !cf.ip) return out;
+    const int off = static_cast<int>(cf.ip - cf.function->chunk.code.data()) - 1;
+    const size_t base = static_cast<size_t>(cf.slots - stack_.get());
+    // A later range shadows an earlier one of the same name.
+    std::map<std::string, stdlib::DebugLocal> live;
+    for (const auto& r : cf.function->local_ranges) {
+        if (r.name.empty() || r.name.compare(0, 2, "__") == 0) continue;
+        if (off < r.start || (r.end >= 0 && off >= r.end)) continue;
+        if (&cf.slots[r.slot] >= stack_top_) continue;
+        const interpreter::NaabVal& v = cf.slots[r.slot];
+        // The taint a load of this local would carry (OP_GET_LOCAL).
+        const bool t = taint_stack_[base + static_cast<size_t>(r.slot)] || containerTainted(v);
+        live[r.name] = {r.name, v, t};
+    }
+    for (auto& [n, l] : live) out.push_back(std::move(l));
+    return out;
 }
 
 // ============================================================================

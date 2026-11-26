@@ -39,6 +39,13 @@
 #          explicit location wins over the live one)
 #   CL-13  a module compiled at run time keeps the module's file and line
 #   CL-14  tree-walker (audit): the call's line
+#   CL-15  a dangerous-call refusal at a NAAb stdlib call names the call's
+#          line in its message when the argument was bound on the line before
+#          (the line VM::stdlibCallGates() passes; A82 re-check, Bundle 19 PR 3)
+#   CL-16  a behavioural-sequence pre-check refusal names the call's line (the
+#          live location). The line the VM hands the pre-check itself goes only
+#          into the event's `line`, which no report a suite reads carries
+#          (BSD_MATCH has none): its `- 4` mutant survives, unobservable.
 #
 # KILL TABLE (mutants, each turns the named arms red; observed 2026-11-16,
 # each reverted alone and rebuilt -- the first driver restored sources with an
@@ -49,6 +56,10 @@
 #   M4 formatError adds no "At: line N"                   CL-07m, CL-08
 #   M5 tree-walker stdlib branch scopes no location       CL-14
 #   M6 the contract check's location left unscoped        CL-01..CL-05, CL-08, CL-11
+#   M7 stdlibCallGates' line read 3 instructions back     CL-15 (Bundle 19 PR 3; the
+#      A82 offset, `- 4`; no arm caught it before CL-15)
+#   (the BSD pre-check's own line read 3 instructions back: SURVIVES -- nothing
+#    any suite reads carries it; see CL-16)
 # ============================================================
 set -uo pipefail
 
@@ -286,6 +297,38 @@ MODE=audit write_arm "$W" '"capabilities":{"env_vars":{"allowed_read":["HOME"]}}
 $'use env\n'"$RET_FN"$'main {\n    let r = a()\n    let pad = 0\n    let k = env.get("VAR_ONE")\n}\n'
 run_arm "$W" --tree-walk
 expect_lines "CL-14" "tree-walker (audit): the call's line" "$W" "capabilities.env_vars.allowed_read" json 8
+
+# ---------- CL-15: the line a stdlib call's gates are given (A82) ----------
+# The message's "At: line N" comes from the line stdlibCallGates() passes to
+# the dangerous-call check (the report row's line is the live location, which
+# CL-01 covers). The argument is bound on the line before, so an offset that
+# reads three instructions back lands there.
+W="$TEST_TMP/cl15"
+write_arm "$W" '"restrictions":{"dangerous_calls":{"level":"hard","blocklist_extra":["file.read"]}}' \
+$'use file\n'"$RET_FN"$'main {\n    let p = "in.txt"\n    let k = file.read(p)\n}\n'
+printf 'x\n' > "$W/in.txt"
+run_arm "$W"
+if [ "$RC" -eq 3 ] && grep -q 'At: line 7: naab block' "$W/out.txt" "$W/err.txt"; then
+    pass "CL-15" "a dangerous-call refusal names the stdlib call's line (line 7)"
+elif [ "$RC" -ne 3 ]; then
+    fail "CL-15" "the call was not refused (rc=$RC) -- the fixture did not reach the check" "$(head -3 "$W/err.txt" | tr '\n' ' ')"
+else
+    fail "CL-15" "the refusal named another line" "$(grep -h 'At: line' "$W/out.txt" "$W/err.txt" | head -2 | tr '\n' ' ')"
+fi
+
+# ---------- CL-16: the line the BSD pre-check is given (A82) ----------
+W="$TEST_TMP/cl16"
+write_arm "$W" '"behavioral_sequences":{"enabled":true,"patterns":[{"name":"one_read","sequence":["file.read"],"level":"hard"}]}' \
+$'use file\n'"$RET_FN"$'main {\n    let p = "in.txt"\n    let k = file.read(p)\n}\n'
+printf 'x\n' > "$W/in.txt"
+run_arm "$W"
+if [ "$RC" -eq 3 ] && grep -q 'blocked before execution' "$W/out.txt" "$W/err.txt" && grep -qx '  At: line 7' "$W/out.txt" "$W/err.txt"; then
+    pass "CL-16" "a sequence pre-check refusal names the stdlib call's line (line 7)"
+elif [ "$RC" -ne 3 ]; then
+    fail "CL-16" "the call was not refused (rc=$RC) -- the fixture did not reach the check" "$(head -3 "$W/err.txt" | tr '\n' ' ')"
+else
+    fail "CL-16" "the refusal named another line" "$(grep -h 'At: line' "$W/out.txt" "$W/err.txt" | head -2 | tr '\n' ' ')"
+fi
 
 echo
 echo "=== $PASS_COUNT passed, $FAIL_COUNT failed, $SKIP_COUNT unmeasurable ==="

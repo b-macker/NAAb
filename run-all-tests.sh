@@ -831,6 +831,19 @@ else
     echo "  test_reported_lines.sh: not found, skipping"
 fi
 
+# The scanner's missing_imports reads NAAb code, not comments or strings (A218).
+MISSIMP_SCRIPT="tests/scanner/test_missing_imports_code_only.sh"
+if [ -f "$MISSIMP_SCRIPT" ]; then
+    if run_shell_test "$MISSIMP_SCRIPT" 2>&1; then
+        echo "  test_missing_imports_code_only.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_missing_imports_code_only.sh")
+    fi
+else
+    echo "  test_missing_imports_code_only.sh: not found, skipping"
+fi
+
 STATIC_REPORT_SCRIPT="tests/cli/test_static_block_reports.sh"
 if [ -f "$STATIC_REPORT_SCRIPT" ]; then
     if run_shell_test "$STATIC_REPORT_SCRIPT" 2>&1; then
@@ -951,6 +964,45 @@ if [ -f "$FLAGPOS_SCRIPT" ]; then
     fi
 else
     echo "  test_flag_position.sh: not found, skipping"
+fi
+
+# `naab-lang blocks search` finds blocks; a failed query is reported (A170).
+BLOCKSEARCH_SCRIPT="tests/cli/test_blocks_search.sh"
+if [ -f "$BLOCKSEARCH_SCRIPT" ]; then
+    if run_shell_test "$BLOCKSEARCH_SCRIPT" 2>&1; then
+        echo "  test_blocks_search.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_blocks_search.sh")
+    fi
+else
+    echo "  test_blocks_search.sh: not found, skipping"
+fi
+
+# The display sanitizer leaves the engine's own help alone, keeps redacting values (A39(a)).
+REDACT_SCRIPT="tests/cli/test_error_redaction.sh"
+if [ -f "$REDACT_SCRIPT" ]; then
+    if run_shell_test "$REDACT_SCRIPT" 2>&1; then
+        echo "  test_error_redaction.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_error_redaction.sh")
+    fi
+else
+    echo "  test_error_redaction.sh: not found, skipping"
+fi
+
+# `naab-lang check` agrees with the run: imports, the prelude, string + any (A188).
+CHECKMODS_SCRIPT="tests/cli/test_check_modules.sh"
+if [ -f "$CHECKMODS_SCRIPT" ]; then
+    if run_shell_test "$CHECKMODS_SCRIPT" 2>&1; then
+        echo "  test_check_modules.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_check_modules.sh")
+    fi
+else
+    echo "  test_check_modules.sh: not found, skipping"
 fi
 
 # Every CLI option main.cpp parses is classified against govern.json's policy
@@ -2614,6 +2666,19 @@ fi
 # hash of the code it ran and whether that text equals a model output of the
 # run; every expected hash is computed by the suite from the fixture and from
 # the request body the stub received. CP-04/05/03n are the negative arms.
+# What a tool loop hands back: the trace, object and array arguments (A162, F52).
+TOOLLOOP_REPLY_SCRIPT="tests/governance_v4/test_tool_loop_reply.sh"
+if [ -f "$TOOLLOOP_REPLY_SCRIPT" ]; then
+    if run_shell_test "$TOOLLOOP_REPLY_SCRIPT" 2>&1; then
+        echo "  test_tool_loop_reply.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_tool_loop_reply.sh")
+    fi
+else
+    echo "  test_tool_loop_reply.sh: not found, skipping"
+fi
+
 CODE_PROV_SCRIPT="tests/governance_v4/test_code_provenance.sh"
 if [ -f "$CODE_PROV_SCRIPT" ]; then
     if run_shell_test "$CODE_PROV_SCRIPT" 2>&1; then
@@ -3325,6 +3390,59 @@ else
     echo "  test_default_params.sh: not found, skipping"
 fi
 
+# The pipeline operator feeds a module function, through the same gates (A67).
+PIPEMOD_SCRIPT="tests/vm/test_pipeline_module.sh"
+if [ -f "$PIPEMOD_SCRIPT" ]; then
+    if run_shell_test "$PIPEMOD_SCRIPT" 2>&1; then
+        echo "  test_pipeline_module.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_pipeline_module.sh")
+    fi
+else
+    echo "  test_pipeline_module.sh: not found, skipping"
+fi
+
+# `for x in a..b` iterates without building a list (A66).
+RANGELOOP_SCRIPT="tests/vm/test_range_loop.sh"
+if [ -f "$RANGELOOP_SCRIPT" ]; then
+    if run_shell_test "$RANGELOOP_SCRIPT" 2>&1; then
+        echo "  test_range_loop.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_range_loop.sh")
+    fi
+else
+    echo "  test_range_loop.sh: not found, skipping"
+fi
+
+# debug.env/stack/snapshot/trace answer from the VM's frames, and what they
+# copy out of a tainted local stays tainted (F46).
+DEBUGVM_SCRIPT="tests/vm/test_debug_vm_scope.sh"
+if [ -f "$DEBUGVM_SCRIPT" ]; then
+    if run_shell_test "$DEBUGVM_SCRIPT" 2>&1; then
+        echo "  test_debug_vm_scope.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_debug_vm_scope.sh")
+    fi
+else
+    echo "  test_debug_vm_scope.sh: not found, skipping"
+fi
+
+# VM arithmetic between a float and a non-number is a type error (A215).
+FLOATNN_SCRIPT="tests/vm/test_float_nonnumber.sh"
+if [ -f "$FLOATNN_SCRIPT" ]; then
+    if run_shell_test "$FLOATNN_SCRIPT" 2>&1; then
+        echo "  test_float_nonnumber.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_float_nonnumber.sh")
+    fi
+else
+    echo "  test_float_nonnumber.sh: not found, skipping"
+fi
+
 # == and != compare lists, dictionaries and structs by value, both engines (A72).
 VALEQ_SCRIPT="tests/vm/test_value_equality.sh"
 if [ -f "$VALEQ_SCRIPT" ]; then
@@ -3368,6 +3486,19 @@ fi
 
 # A JavaScript block's value is its last expression, whatever statements
 # precede it (A125, Bundle 16).
+# A TypeScript block's value is not also printed (D18). UNMEASURABLE without tsx.
+TSVALUE_SCRIPT="tests/vm/test_typescript_value.sh"
+if [ -f "$TSVALUE_SCRIPT" ]; then
+    if run_shell_test "$TSVALUE_SCRIPT" 2>&1; then
+        echo "  test_typescript_value.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_typescript_value.sh")
+    fi
+else
+    echo "  test_typescript_value.sh: not found, skipping"
+fi
+
 JSLAST_SCRIPT="tests/vm/test_js_last_expression.sh"
 if [ -f "$JSLAST_SCRIPT" ]; then
     if run_shell_test "$JSLAST_SCRIPT" 2>&1; then
@@ -4980,6 +5111,20 @@ else
     echo "  test_string_interp_escape.sh: not found, skipping"
 fi
 
+# A190 (Bundle 19 PR 3): a line break after '=' or a key's ':'.
+PARSER_LINE_BREAKS_SCRIPT="tests/parser/test_line_breaks.sh"
+if [ -f "$PARSER_LINE_BREAKS_SCRIPT" ]; then
+    if run_shell_test "$PARSER_LINE_BREAKS_SCRIPT" 2>&1; then
+        echo "  test_line_breaks.sh: ALL PASSED"
+    else
+        echo "  test_line_breaks.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_line_breaks.sh")
+    fi
+else
+    echo "  test_line_breaks.sh: not found, skipping"
+fi
+
 PARSER_POLYGLOT_LINES_SCRIPT="tests/parser/test_polyglot_line_numbers.sh"
 if [ -f "$PARSER_POLYGLOT_LINES_SCRIPT" ]; then
     if run_shell_test "$PARSER_POLYGLOT_LINES_SCRIPT" 2>&1; then
@@ -5636,6 +5781,32 @@ if [ -f "$WIRED_SETTINGS_SCRIPT" ]; then
     fi
 else
     echo "  test_wired_settings.sh: not found, skipping"
+fi
+HCSS_SCRIPT="tests/governance_v4/test_hardcoded_status_score.sh"
+if [ -f "$HCSS_SCRIPT" ]; then
+    # U-014 (Bundle 19 PR 3, decision 14): no_hardcoded_results flags a
+    # constant success dict and a constant perfect score.
+    if run_shell_test "$HCSS_SCRIPT" 2>&1; then
+        echo "  test_hardcoded_status_score.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_hardcoded_status_score.sh")
+    fi
+else
+    echo "  test_hardcoded_status_score.sh: not found, skipping"
+fi
+CPADD_SCRIPT="tests/governance_v4/test_custom_patterns_add.sh"
+if [ -f "$CPADD_SCRIPT" ]; then
+    # A105 (Bundle 19 PR 3, decision 16): custom_patterns add to a simple
+    # code_quality check's patterns instead of replacing them.
+    if run_shell_test "$CPADD_SCRIPT" 2>&1; then
+        echo "  test_custom_patterns_add.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_custom_patterns_add.sh")
+    fi
+else
+    echo "  test_custom_patterns_add.sh: not found, skipping"
 fi
 B19_ENV_READ_OFF_SCRIPT="tests/security/test_env_read_off_refusal.sh"
 if [ -f "$B19_ENV_READ_OFF_SCRIPT" ]; then

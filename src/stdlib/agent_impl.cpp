@@ -3,6 +3,7 @@
 // agent.batch(), agent.fan_out(), agent.pipeline()
 // Requires "agents" section in govern.json for configuration
 
+#include "naab/bounded_jsonl.h"
 #include "naab/thread_vm.h"
 #include "naab/utf8_text.h"
 #include "naab/claim_reader.h"
@@ -41,6 +42,8 @@
 
 namespace naab {
 namespace stdlib {
+
+interpreter::NaabVal jsonToValue(const nlohmann::json& j);  // json_impl.cpp (F52)
 
 using interpreter::NaabVal;
 using json = nlohmann::json;
@@ -3735,9 +3738,15 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     continue;
                 }
 
-                // Step 2: Parse arguments with depth guard (Gap J)
+                // Step 2: Parse arguments with depth guard (Gap J; the comment came with
+                // 2d3a9d64 and no check did until F52 below)
                 json tool_args;
                 try {
+                    // F52: a nested argument becomes a NAAb dict or list
+                    // (recursively), so its depth is bounded first, as every
+                    // reader of untrusted JSON is (naab/bounded_jsonl.h).
+                    if (!naab::evidence::jsonNestingWithin(tc.arguments, naab::evidence::kMaxJsonDepth))
+                        throw std::runtime_error("tool arguments nested too deeply");
                     tool_args = json::parse(tc.arguments);
                 } catch (const governance::GovernanceHardError&) {
                     throw;  // uncatchable — propagate to main
@@ -3844,7 +3853,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 else if (val.is_number_float()) naab_args.push_back(NaabVal::makeDouble(val.get<double>()));
                                 else if (val.is_boolean()) naab_args.push_back(NaabVal::makeBool(val.get<bool>()));
                                 else if (val.is_null()) naab_args.push_back(NaabVal::makeNull());
-                                else naab_args.push_back(NaabVal::makeString(val.dump()));
+                                // F52: an object or array argument is a dict or a
+                                // list, as json.parse() makes it (it was the JSON
+                                // text). The arguments were read within the
+                                // nesting bound above (jsonNestingWithin).
+                                else naab_args.push_back(jsonToValue(val));
                             } else {
                                 naab_args.push_back(NaabVal::makeNull());
                             }

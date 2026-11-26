@@ -67,6 +67,7 @@ private:
             // A121(a): the name's compile-time taint (tainted_vars_) before this
             // local was declared, put back when it goes out of scope.
             bool outer_tainted = false;
+            int range_index = -1;   // F46: its entry in function->local_ranges
         };
         std::vector<Local> locals;
         std::vector<UpvalueDesc> upvalues;

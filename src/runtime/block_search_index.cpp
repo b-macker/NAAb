@@ -35,11 +35,51 @@ public:
 
         // Create schema if not exists
         createSchema();
+        migrateFts();
     }
 
     ~Impl() {
         if (db_) {
             sqlite3_close(db_);
+        }
+    }
+
+    // A170: an index made by an earlier build declared blocks_fts as an
+    // external-content table over `blocks`, which no query can read. Such a
+    // table is dropped, made again as createSchema() makes it, and filled from
+    // the tables that hold the same text, so an existing index works without
+    // `blocks index` being run again.
+    void migrateFts() {
+        sqlite3_stmt* q = nullptr;
+        std::string sql;
+        if (sqlite3_prepare_v2(db_, "SELECT sql FROM sqlite_master WHERE name = 'blocks_fts'",
+                               -1, &q, nullptr) == SQLITE_OK) {
+            if (sqlite3_step(q) == SQLITE_ROW && sqlite3_column_text(q, 0))
+                sql = reinterpret_cast<const char*>(sqlite3_column_text(q, 0));
+            sqlite3_finalize(q);
+        }
+        if (sql.find("content=") == std::string::npos) return;
+        const char* rebuild = R"(
+            BEGIN;
+            DROP TABLE blocks_fts;
+            CREATE VIRTUAL TABLE blocks_fts USING fts5(
+                block_id UNINDEXED, name, description, short_desc, keywords, use_cases
+            );
+            INSERT INTO blocks_fts (block_id, name, description, short_desc, keywords, use_cases)
+            SELECT b.block_id, b.name, COALESCE(b.description, ''), COALESCE(b.short_desc, ''),
+                   COALESCE((SELECT group_concat(keyword, ' ') FROM block_keywords k
+                             WHERE k.block_id = b.block_id), ''),
+                   COALESCE((SELECT group_concat(use_case, ' ') FROM block_use_cases u
+                             WHERE u.block_id = b.block_id), '')
+            FROM blocks b;
+            COMMIT;
+        )";
+        char* err = nullptr;
+        if (sqlite3_exec(db_, rebuild, nullptr, nullptr, &err) != SQLITE_OK) {
+            std::string msg = err ? err : "unknown error";
+            sqlite3_free(err);
+            sqlite3_exec(db_, "ROLLBACK;", nullptr, nullptr, nullptr);
+            throw std::runtime_error("could not rebuild the block search index: " + msg);
         }
     }
 
@@ -79,16 +119,18 @@ public:
                 is_active INTEGER DEFAULT 1
             );
 
-            -- FTS5 virtual table for full-text search
+            -- FTS5 virtual table for full-text search. It stores its own text
+            -- (A170): it was an external-content table over `blocks`, which
+            -- has no keywords or use_cases column, so every query reading it
+            -- failed with "no such column: T.keywords" and search() returned
+            -- nothing. migrateFts() rebuilds an index made that way.
             CREATE VIRTUAL TABLE IF NOT EXISTS blocks_fts USING fts5(
                 block_id UNINDEXED,
                 name,
                 description,
                 short_desc,
                 keywords,
-                use_cases,
-                content='blocks',
-                content_rowid='rowid'
+                use_cases
             );
 
             -- Separate tables for vector fields (many-to-many)
@@ -290,6 +332,16 @@ public:
                 VALUES (?, ?, ?, ?, ?, ?)
             )";
 
+            // A re-index replaces the block's row in `blocks`; its text row
+            // here is replaced too, or every search would list it twice.
+            sqlite3_stmt* del_stmt;
+            if (sqlite3_prepare_v2(db_, "DELETE FROM blocks_fts WHERE block_id = ?", -1,
+                                   &del_stmt, nullptr) == SQLITE_OK) {
+                sqlite3_bind_text(del_stmt, 1, block_id.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_step(del_stmt);
+                sqlite3_finalize(del_stmt);
+            }
+
             sqlite3_stmt* fts_stmt;
             if (sqlite3_prepare_v2(db_, fts_sql, -1, &fts_stmt, nullptr) == SQLITE_OK) {
                 sqlite3_bind_text(fts_stmt, 1, block_id.c_str(), -1, SQLITE_TRANSIENT);
@@ -383,7 +435,9 @@ std::vector<SearchResult> BlockSearchIndex::search(const SearchQuery& query) {
     std::stringstream sql;
     sql << "SELECT b.* FROM blocks b ";
 
-    bool use_fts = !query.query.empty();
+    // "*" is how `blocks list --language/--category` asks for every block;
+    // it is not FTS5 syntax ("fts5: syntax error near *").
+    bool use_fts = !query.query.empty() && query.query != "*";
     if (use_fts) {
         sql << "JOIN blocks_fts f ON b.block_id = f.block_id ";
         sql << "WHERE f.blocks_fts MATCH ? ";
@@ -411,7 +465,8 @@ std::vector<SearchResult> BlockSearchIndex::search(const SearchQuery& query) {
 
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(pimpl_->db_, sql.str().c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        return results;
+        // A170: a query that cannot run is an error, not "no blocks found".
+        throw std::runtime_error(std::string("block search failed: ") + sqlite3_errmsg(pimpl_->db_));
     }
 
     // Bind parameters
@@ -435,7 +490,8 @@ std::vector<SearchResult> BlockSearchIndex::search(const SearchQuery& query) {
     sqlite3_bind_int(stmt, param_idx++, query.offset);
 
     // Execute query and build results
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    int step_rc;
+    while ((step_rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         SearchResult result;
 
         // Parse BlockMetadata — V-SQ-002: NULL-guard all sqlite3_column_text results
@@ -497,6 +553,13 @@ std::vector<SearchResult> BlockSearchIndex::search(const SearchQuery& query) {
         results.push_back(result);
     }
 
+    if (step_rc != SQLITE_DONE) {
+        // A170: a query that fails while running (an FTS5 syntax error in the
+        // text, a damaged index) is an error, not an empty result.
+        std::string err = sqlite3_errmsg(pimpl_->db_);
+        sqlite3_finalize(stmt);
+        throw std::runtime_error("block search failed: " + err);
+    }
     sqlite3_finalize(stmt);
 
     // Sort by final score

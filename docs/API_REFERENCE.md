@@ -366,7 +366,11 @@ main {
 **Import:** `use regex`
 
 **Note:** `groups(text, pattern)` returns `[full_match, group1, group2, ...]` — full match is
-at index 0. All patterns use ECMAScript/POSIX regex syntax.
+at index 0. Patterns use ECMAScript syntax: inside a bracket expression a backslash escapes, so
+`[^\]]` is any character except `]` (in POSIX it would be "not a backslash" followed by `]`).
+Do not rely on POSIX classes such as `[[:alpha:]]`: they work only in a pattern with no
+lookaround or backreference, and are read as ECMAScript — a different pattern — otherwise.
+Write `[A-Za-z]` instead.
 
 | Function | Arguments | Returns | Description |
 |----------|-----------|---------|-------------|

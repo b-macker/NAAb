@@ -74,6 +74,7 @@
 #   the model not recorded for a tool-loop turn  -> CP-14
 #   the raw reply not recorded                   -> CP-01
 # CP-13 and CP-14 were added because the first run left their two mutants alive.
+#   codegen does not consult the ledger (A161)    -> CP-16
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -108,16 +109,25 @@ mkfix() { python3 -c 'import json,sys; json.dump({"responses":[json.loads(a) for
 N=0; D=""
 # $1 = telemetry on|off, $2 = agent extras, $3 = prelude, $4 = main body,
 # rest = fixture specs. Sets RC, OUT, D (the case directory).
+# The config grants codegen.allow_tainted_code unless CG_EXTRA is SET (empty
+# withholds it): since A161 a model's reply is model output for codegen
+# whatever its run-time taint, so without the grant codegen refuses every
+# reply these arms run. The arms are about what is RECORDED; CP-16 is the
+# refusal itself.
 run_case() {
     local tel="$1" agent_extra="$2" prelude="$3" body="$4"; shift 4
     N=$((N+1)); D="$W/c$N"; mkdir -p "$D"
     mkfix "$D/fixture.json" "$@"
     if ! start_stub "$D/fixture.json" "$D"; then stop_stub; RC=-1; OUT="stub did not start"; return; fi
+    # Computed here, not inside the heredoc: a ${var-...} expansion there eats
+    # the quotes it inserts (CLAUDE.md, the heredoc gotcha).
+    local cg_grant=', "allow_tainted_code": true'
+    [ "${CG_EXTRA+set}" = set ] && cg_grant="$CG_EXTRA"
     local telcfg='"telemetry": {"enabled": true, "output_file": "tel.jsonl", "tamper_evidence": true},'
     [ "$tel" = off ] && telcfg=''
     cat > "$D/govern.json" <<EOF
 { "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "elevated" },
-  "codegen": {"enabled": true${CG_EXTRA:-}},
+  "codegen": {"enabled": true${cg_grant}},
   $telcfg
   "agents": { "worker": { "provider": "gemini", "model": "stub-model",
       "api_base": "http://127.0.0.1:$STUB_PORT", "api_key_env": "CP_FAKE_KEY",
@@ -323,7 +333,7 @@ CODE6='9 - 4'
 # operator allows it (observed: without the grant the tool's call is refused
 # and no CODEGEN_EXEC is written). The arm is about what is recorded when the
 # operator has allowed it.
-CG_EXTRA=', "allow_tainted_code": true'
+unset CG_EXTRA   # the default carries the grant (see run_case)
 run_case on "$TOOLS" "$TOOL_PRELUDE" "$TOOL_BODY" \
     "{\"tool_calls\": [{\"name\": \"runit\", \"args\": {\"code\": \"$CODE6\"}}]}" '{"content": "all done"}'
 if [ "$RC" -ge 0 ] && ! grep -q '^TOOL_RAN$' <<<"$OUT"; then
@@ -335,7 +345,7 @@ else
         "CODEGEN_EXEC origin_model = stub-model" \
         "CODEGEN_EXEC origin_request_sha256 = shafile:req_1.json"
 fi
-CG_EXTRA=""
+unset CG_EXTRA
 
 # ---- CP-07: a proposal candidate --------------------------------------------
 CODE7='8 + 8'
@@ -409,7 +419,7 @@ arm CP-13 "run_with_args: the hash is of the code as passed, not of the engine's
 CODE14='3 * 3'
 # Observed: a reply that follows a tool loop is tainted (the plain reply of
 # CP-01 is not), so codegen refuses it without the operator's grant (A161).
-CG_EXTRA=', "allow_tainted_code": true'
+unset CG_EXTRA   # the default carries the grant (see run_case)
 run_case on ', "tools_enabled": true, "tools": ["note"], "max_turns": 10' 'fn note(s) {
     print("TOOL_RAN")
     return "noted"
@@ -430,7 +440,7 @@ else
         "CODEGEN_EXEC origin_request_sha256 = shafile:req_2.json" \
         "CODEGEN_EXEC origin_content_sha256 = sha:$CODE14"
 fi
-CG_EXTRA=""
+unset CG_EXTRA
 
 # ---- CP-12: telemetry off ---------------------------------------------------
 run_case off "" "" "$SEND
@@ -439,6 +449,29 @@ if [ "$RC" -eq -1 ]; then unm CP-12 "the agent stub did not start"
 elif [ "$RC" -eq 0 ] && grep -q '^END$' <<<"$OUT" && [ ! -e "$D/tel.jsonl" ]; then
     pass CP-12 "with telemetry off the program runs and nothing is written"
 else fail CP-12 "telemetry off: rc=$RC, tel.jsonl $( [ -e "$D/tel.jsonl" ] && echo present || echo absent )" "$OUT"; fi
+
+# ---- CP-16: a model's reply is model output for codegen (A161) --------------
+# Without the operator's grant a PLAIN reply -- no tool loop, so no run-time
+# taint -- is refused like the reply after a tool loop (decision 19). Before,
+# only the post-loop reply carried taint (through the tool's arguments), so the
+# same text ran or was refused by whether a tool had been called.
+CG_EXTRA=""
+run_case on "" "" "$SEND
+$RUN" "{\"content\": \"$CODE1\"}"
+if [ "$RC" -eq -1 ]; then unm CP-16 "the agent stub did not start"
+elif [ "$RC" -eq 3 ] && ! grep -q '^END$' <<<"$OUT" && grep -q 'tainted code string' <<<"$OUT"; then
+    pass CP-16 "without the grant a plain model reply is refused by codegen"
+else fail CP-16 "the plain reply ran or was refused for another reason (rc=$RC)" "$OUT"; fi
+# CP-16c: the rule is the provenance ledger's -- exact text. A reply the program
+# changed is not a model output, so it runs (a known limit, pinned).
+run_case on "" "" "$SEND
+    let x = codegen.run(\"javascript\", r[\"content\"] + \" + 0\")
+    print(\"END\")" "{\"content\": \"$CODE1\"}"
+if [ "$RC" -eq -1 ]; then unm CP-16c "the agent stub did not start"
+elif [ "$RC" -eq 0 ] && grep -q '^END$' <<<"$OUT"; then
+    pass CP-16c "CONTROL: an edited reply is not matched, so it runs (exact text only)"
+else fail CP-16c "the edited reply did not run (rc=$RC)" "$OUT"; fi
+unset CG_EXTRA
 
 echo
 echo "  Passed: $PASS  Failed: $FAIL  Unmeasurable: $UNM"

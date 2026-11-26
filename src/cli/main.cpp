@@ -4186,9 +4186,23 @@ int main(int argc, char** argv) {
                     return 1;
                 }
 
-                // Search using the block's description and keywords
+                // Search using the block's description: its words, each quoted,
+                // any of them (FTS5 syntax). The raw description is not a
+                // query -- its punctuation is FTS5 syntax, and since A170 a
+                // query that fails is reported rather than read as "none".
                 naab::runtime::SearchQuery query;
-                query.query = block_opt->description;
+                {
+                    std::string words, w;
+                    auto flush = [&] {
+                        if (w.size() >= 3) words += (words.empty() ? "" : " OR ") + ("\"" + w + "\"");
+                        w.clear();
+                    };
+                    for (unsigned char c : block_opt->description) {
+                        if (std::isalnum(c)) w += static_cast<char>(std::tolower(c)); else flush();
+                    }
+                    flush();
+                    query.query = words;   // empty: every block in the language
+                }
                 if (!block_opt->language.empty()) {
                     query.language = block_opt->language;
                 }

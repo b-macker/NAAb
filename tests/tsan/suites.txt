@@ -11,3 +11,4 @@ tests/vm/test_async_javascript.sh
 tests/vm/test_async_throw.sh
 tests/vm/test_async_engine_semantics.sh
 tests/security/test_queue_cap_async002.sh
+tests/vm/test_debug_vm_scope.sh

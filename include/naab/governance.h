@@ -701,6 +701,7 @@ struct NoDeadCodeConfig {
     bool detect_unused_variables = false;
     bool detect_commented_out_code = true;
     std::vector<std::string> patterns;
+    std::vector<std::string> custom_patterns;  // A105: added to the patterns in use
 };
 
 struct NoDebugArtifactsConfig {
@@ -719,6 +720,7 @@ struct NoUnsafeDeserializationConfig {
     EnforcementLevel level = EnforcementLevel::HARD;
     std::string rationale;
     std::vector<std::string> patterns;
+    std::vector<std::string> custom_patterns;  // A105: added to the patterns in use
 };
 
 struct NoSqlInjectionConfig {
@@ -726,6 +728,7 @@ struct NoSqlInjectionConfig {
     EnforcementLevel level = EnforcementLevel::HARD;
     std::string rationale;
     std::vector<std::string> patterns;
+    std::vector<std::string> custom_patterns;  // A105: added to the patterns in use
     std::vector<std::string> allowlist;
 };
 
@@ -734,6 +737,7 @@ struct NoPathTraversalConfig {
     EnforcementLevel level = EnforcementLevel::HARD;
     std::string rationale;
     std::vector<std::string> patterns;
+    std::vector<std::string> custom_patterns;  // A105: added to the patterns in use
 };
 
 struct NoHardcodedUrlsConfig {
@@ -741,6 +745,7 @@ struct NoHardcodedUrlsConfig {
     EnforcementLevel level = EnforcementLevel::ADVISORY;
     std::string rationale;
     std::vector<std::string> patterns;
+    std::vector<std::string> custom_patterns;  // A105: added to the patterns in use
     std::vector<std::string> allowlist;
     bool check_internal_urls = false;
 };
@@ -750,6 +755,7 @@ struct NoHardcodedIpsConfig {
     EnforcementLevel level = EnforcementLevel::ADVISORY;
     std::string rationale;
     std::vector<std::string> patterns;
+    std::vector<std::string> custom_patterns;  // A105: added to the patterns in use
     std::vector<std::string> allowlist;
 };
 
@@ -3881,7 +3887,10 @@ public:
     // history never stores a subject they match (Bundle 20).
     bool piiPresentUngated(const std::string& text) const;
     std::string checkPlaceholders(const std::string& code, int line = 0, bool code_starts_at_line = false);
-    std::string checkHardcodedResults(const std::string& code, int line = 0);
+    // text_with_strings: the same code with its string literals kept, which
+    // the status and score sub-checks read (U-014); defaults to `code`.
+    std::string checkHardcodedResults(const std::string& code, int line = 0,
+                                      const std::string* text_with_strings = nullptr);
 
     // --- New v3.0 checks ---
     std::string checkPii(const std::string& code, int line = 0, bool code_starts_at_line = false);

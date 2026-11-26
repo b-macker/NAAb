@@ -1,6 +1,7 @@
 // NAAb Type Checker Implementation - Stub
 // Provides basic type validation framework
 
+#include "naab/stdlib_prelude.h"
 #include "naab/type_checker.h"
 #include <fmt/core.h>
 #include <sstream>
@@ -196,13 +197,14 @@ TypeChecker::TypeChecker()
     env_->define("error", Type::makeFunction({Type::makeAny()}, Type::makeVoid()));
     env_->define("type", Type::makeFunction({Type::makeAny()}, Type::makeString()));
     env_->define("toString", Type::makeFunction({Type::makeAny()}, Type::makeString()));
-    // Module namespaces (treated as Any — no cross-module type propagation)
-    for (const auto& mod : {"io", "math", "array", "string", "env", "json",
-                             "file", "regex", "http", "path", "os", "time",
-                             "crypto", "base64", "csv", "xml", "yaml",
-                             "agent", "process", "uuid", "validate", "log", "bolo"}) {
+    // Module namespaces (treated as Any -- no cross-module type propagation):
+    // exactly the modules the VM binds without `use` (naab/stdlib_prelude.h),
+    // plus `string`, a builtin as well as a module. Every other module is
+    // bound by the `use`/`import` that names it, as the run binds it (A188).
+    for (const char* mod : naab::stdlib::kVmPreludeModules) {
         env_->define(mod, Type::makeAny());
     }
+    env_->define("string", Type::makeAny());
     // Constants
     env_->define("null", Type::makeNull());
     env_->define("true", Type::makeBool());
@@ -218,6 +220,11 @@ std::vector<TypeError> TypeChecker::check(std::shared_ptr<ast::Program> program)
 }
 
 void TypeChecker::visit(ast::Program& node) {
+    // Imports bind names every function and main may use (A188): before, none
+    // was visited, so a module a program imported read as undefined.
+    for (const auto& u : node.getImports()) u->accept(*this);
+    for (const auto& u : node.getModuleImports()) u->accept(*this);
+    for (const auto& u : node.getModuleUses()) u->accept(*this);
     // Visit structs first (needed for field type lookups)
     for (const auto& s : node.getStructs()) {
         s->accept(*this);
@@ -245,7 +252,11 @@ void TypeChecker::visit(ast::Program& node) {
     current_type_ = Type::makeVoid();
 }
 
-void TypeChecker::visit(ast::UseStatement&) { current_type_ = Type::makeVoid(); }
+void TypeChecker::visit(ast::UseStatement& node) {
+    // `use BLOCK as alias` binds the alias (Compiler::visit(UseStatement)).
+    if (!node.getAlias().empty()) env_->define(node.getAlias(), Type::makeAny());
+    current_type_ = Type::makeVoid();
+}
 void TypeChecker::visit(ast::FunctionDecl& node) {
     auto loc = node.getLocation();
 
@@ -452,7 +463,19 @@ void TypeChecker::visit(ast::VarDeclStmt& node) {
 
     current_type_ = Type::makeVoid();
 }
-void TypeChecker::visit(ast::ImportStmt&) { current_type_ = Type::makeVoid(); }
+void TypeChecker::visit(ast::ImportStmt& node) {
+    // The names Compiler::visit(ImportStmt) defines: the wildcard alias, or
+    // each item under its alias, else its own name. An alias-less wildcard
+    // import does not parse, so every name an import binds is written here.
+    if (node.isWildcard()) {
+        if (!node.getWildcardAlias().empty())
+            env_->define(node.getWildcardAlias(), Type::makeAny());
+    } else {
+        for (const auto& item : node.getItems())
+            env_->define(item.alias.empty() ? item.name : item.alias, Type::makeAny());
+    }
+    current_type_ = Type::makeVoid();
+}
 
 void TypeChecker::visit(ast::ExportStmt& node) {
     // Visit the exported declaration based on kind
@@ -472,7 +495,17 @@ void TypeChecker::visit(ast::ExportStmt& node) {
     current_type_ = Type::makeVoid();
 }
 
-void TypeChecker::visit(ast::ModuleUseStmt&) { current_type_ = Type::makeVoid(); }
+void TypeChecker::visit(ast::ModuleUseStmt& node) {
+    // `use a.b` binds `b`, `use a.b as c` binds `c` (Compiler::visit(ModuleUseStmt)).
+    std::string bind_name = node.getAlias();
+    if (bind_name.empty()) {
+        const std::string& path = node.getModulePath();
+        auto dot = path.rfind('.');
+        bind_name = dot == std::string::npos ? path : path.substr(dot + 1);
+    }
+    env_->define(bind_name, Type::makeAny());
+    current_type_ = Type::makeVoid();
+}
 
 void TypeChecker::visit(ast::TryStmt& node) {
     auto loc = node.getLocation();
@@ -1011,8 +1044,15 @@ std::shared_ptr<Type> TypeChecker::inferBinaryOpType(
             return Type::makeInt();
         }
 
-        // String concatenation: string + string = string
-        if (op == "+" && left->kind == TypeKind::String && right->kind == TypeKind::String) {
+        // String concatenation: `+` with a string on either side is a string,
+        // whatever the other operand -- both engines stringify it ("a" + 3 is
+        // "a3", [1] + "a" is "[1]a"; A188, observed).
+        if (op == "+" && (left->kind == TypeKind::String || right->kind == TypeKind::String)) {
+            return Type::makeString();
+        }
+        // String repetition: string * int and int * string (both engines).
+        if (op == "*" && ((left->kind == TypeKind::String && right->kind == TypeKind::Int) ||
+                          (left->kind == TypeKind::Int && right->kind == TypeKind::String))) {
             return Type::makeString();
         }
 

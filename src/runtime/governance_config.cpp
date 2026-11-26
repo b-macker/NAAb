@@ -2327,8 +2327,14 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     if (obj.contains("level")) { auto lv = parseLevelOnly(obj["level"]); config.level = lv; }
                     if (obj.contains("patterns"))
                         for (auto& p : obj["patterns"]) if (p.is_string()) config.patterns.push_back(p.get<std::string>());
+                    // A105 (decision 16): custom_patterns ADD to the check's
+                    // patterns (the built-in ones, or `patterns` when given),
+                    // as no_oversimplification's and no_incomplete_logic's do.
+                    // They were pushed into `patterns`, which replaces the
+                    // built-in list, so extending a check switched its
+                    // defaults off.
                     if (obj.contains("custom_patterns"))
-                        for (auto& p : obj["custom_patterns"]) if (p.is_string()) config.patterns.push_back(p.get<std::string>());
+                        for (auto& p : obj["custom_patterns"]) if (p.is_string()) config.custom_patterns.push_back(p.get<std::string>());
                     parseRationale(obj, config.rationale);
                 }
             }
@@ -2476,6 +2482,9 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (hr.contains("level")) { auto lv = parseLevelOnly(hr["level"]); rules_.code_quality.no_hardcoded_results.level = lv; rules_.no_hardcoded_results_level = lv; }
             if (hr.contains("check_return_true_false") && hr["check_return_true_false"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_return_true_false = hr["check_return_true_false"].get<bool>();
             if (hr.contains("check_dict_success_fields") && hr["check_dict_success_fields"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_dict_success_fields = hr["check_dict_success_fields"].get<bool>();
+            // U-014: read by checkHardcodedResults() (decision 14).
+            if (hr.contains("check_dict_status_fields") && hr["check_dict_status_fields"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_dict_status_fields = hr["check_dict_status_fields"].get<bool>();
+            if (hr.contains("check_perfect_scores") && hr["check_perfect_scores"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_perfect_scores = hr["check_perfect_scores"].get<bool>();
             parseRationale(hr, rules_.code_quality.no_hardcoded_results.rationale);
         }
 
@@ -9402,6 +9411,34 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
             for (const auto& scope : rules().scopes) {
                 if (scope.glob_pattern.empty()) {
                     fmt::print(stderr, "[WARN] A scope has an empty pattern — will match nothing.\n");
+                }
+            }
+            // A29(d): an enabled review that cannot run, or that scores with
+            // settings other than the ones named, said nothing: a review with
+            // no detection agents sent nothing and printed nothing (AR-02c),
+            // and a scorer name that matches no enabled `scorers` entry fell
+            // back to the global scoring settings in silence (AR-06c; the
+            // template names "security" against an entry "security_review").
+            // Checked here, on the rules after `extends`, because that is the
+            // set runAgentReview() reads. Warnings only: what runs is unchanged.
+            const auto& ar = rules().agent_review;
+            if (ar.enabled && ar.detection.empty()) {
+                fmt::print(stderr,
+                    "[governance] Warning: agent_review is enabled but names no detection agents - "
+                    "nothing is reviewed. List the agents to ask in \"detection\".\n");
+            }
+            if (ar.enabled && !ar.scorer.empty()) {
+                bool named = false, enabled = false;
+                for (const auto& sc : rules().scorers) {
+                    if (sc.name != ar.scorer) continue;
+                    named = true;
+                    enabled = enabled || sc.enabled;
+                }
+                if (!enabled) {
+                    fmt::print(stderr,
+                        "[governance] Warning: agent_review scorer \"{}\" {} - the review scores "
+                        "with the global scoring settings instead.\n",
+                        ar.scorer, named ? "is disabled" : "names no scorers entry");
                 }
             }
         }

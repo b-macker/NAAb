@@ -306,6 +306,7 @@ NaabVal Environment::get(const std::string& name) {
 
     // Generate helpful error message with suggestions
     std::string error_msg = "Undefined variable: " + name;
+    const size_t header_len = error_msg.size();
 
     // LLM-friendly hints for common non-existent globals
     if (name == "Sys" || name == "System" || name == "sys") {
@@ -466,6 +467,13 @@ NaabVal Environment::get(const std::string& name) {
         // ALL_CAPS: almost always shell/env syntax NAAb interpolated out of a
         // string ("echo ${HOME}"). Same hint as the VM.
         if (interp::isAllCapsName(name)) error_msg += interp::undefinedCapsHint(name);
+    }
+    // A39(a): the hint goes under the "Help:" heading (as on the VM), so the
+    // display sanitizer leaves its example code alone.
+    if (error_msg.size() > header_len) {
+        const size_t a = error_msg.find_first_not_of('\n', header_len);
+        if (a != std::string::npos)
+            error_msg = error_msg.substr(0, header_len) + "\n\n  Help:\n" + error_msg.substr(a);
     }
     throw std::runtime_error(error_msg);
 }
