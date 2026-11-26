@@ -18,6 +18,11 @@
 # Each agent's system_prompt carries a unique TOKEN_<name>, so the stub routes
 # each agent to its own scripted reply and logs which agents were asked.
 #
+# AR-17 (A29(e), Bundle 19 PR 4) runs govern-template.json's own section,
+# switched on: it names agents and a scorer the template defines (red on the
+# template before, which named agents it lacked); AR-17c, the old names in the
+# same harness, asks no agent.
+#
 # CLASSIFICATION (each verified by a run in this file, not by reading code)
 #
 #   enabled             LIVE  AR-01
@@ -859,6 +864,58 @@ if [ "$R_OK" = 1 ]; then
         fail "AR-16" "--tree-walk should be refused under enforce" "exit=$R_EXIT requests=$R_REQ"
     fi
 else skip "AR-16" "stub failed to start"; fi
+
+# ============================================================
+# AR-17 the template's own section (A29(e), Bundle 19 PR 4)
+# ============================================================
+# The template's agent_review named agents its agents block does not define
+# (redteam, testing, analyst, voice) and the scorer "security" where its
+# scorers key is security_review, so switching the section on reviewed
+# nothing. It now names `reviewer` and `security_review`. Everything here is
+# read from govern-template.json; only the reviewer's endpoint is pointed at
+# the stub, with a provider the stub speaks. AR-17c is the control: the old
+# names, in the same harness, ask no agent.
+echo -e "${CYAN}--- AR-17 the template's section ---${NC}"
+TEMPLATE="$SCRIPT_DIR/../../govern-template.json"
+ar17() {  # $1=arm  $2=python that edits `ar` (the template section) or ""
+    R_DIR="$TEST_TMP/$1"; R_OK=0; R_REQ=0; mkdir -p "$R_DIR"
+    printf '%s' '{"responses": [{"content": "FINDING|cat_tpl|template issue"}]}' > "$R_DIR/fixture.json"
+    start_stub "$R_DIR/fixture.json" "$R_DIR" || return 0
+    python3 -I -c '
+import json, sys
+t = json.load(sys.stdin.buffer)
+ar = t["agent_review"]; ar["enabled"] = True
+exec(sys.argv[2])
+ag = dict(t["agents"]["reviewer"])
+ag.update({"provider": "gemini", "model": "stub-model", "api_key_env": "FAKE_AR_KEY",
+           "api_base": "http://127.0.0.1:" + sys.argv[1]})
+cfg = {"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"},
+       "agents": {"reviewer": ag}, "scorers": t["scorers"], "agent_review": ar}
+sys.stdout.buffer.write(json.dumps(cfg).encode("utf-8"))' "$STUB_PORT" "$2" < "$TEMPLATE" > "$R_DIR/govern.json"
+    printf 'main {\n    print("PROGRAM_RAN")\n}\n' > "$R_DIR/test.naab"
+    (cd "$R_DIR" && timeout 60 "$NAAB" test.naab > out1.txt 2> err1.txt); R_EXIT=$?
+    stop_stub
+    R_OUT="$R_DIR/out1.txt"; R_ERR="$R_DIR/err1.txt"
+    R_REQ=$(grep -c . "$R_DIR/routes.log" 2>/dev/null || true); R_REQ=${R_REQ:-0}
+    R_OK=1
+}
+ar17 ar17 ""
+if [ "$R_OK" = 1 ]; then
+    if [ "$R_REQ" -ge 1 ] && [ "$R_EXIT" -eq 0 ] && ran && in_err "cat_tpl" \
+       && ! in_err "not found in govern.json" && ! in_err "names no scorers entry"; then
+        pass "AR-17" "the template's section, switched on, asks its reviewer and reports the finding (scorer security_review resolves)"
+    else
+        fail "AR-17" "the template's section did not review" "exit=$R_EXIT requests=$R_REQ: $(tail -3 "$R_ERR" | tr '\n' ' ' | cut -c1-200)"
+    fi
+else skip "AR-17" "stub failed to start"; fi
+ar17 ar17c 'ar.update({"detection": ["redteam", "testing"], "validation": "analyst", "voice": "voice", "scorer": "security"})'
+if [ "$R_OK" = 1 ]; then
+    if [ "$R_REQ" -eq 0 ] && ! in_err "cat_tpl"; then
+        pass "AR-17c" "CONTROL: the section's old names ask no agent in the same harness"
+    else
+        fail "AR-17c" "the old names reviewed something -- AR-17 proves nothing" "requests=$R_REQ"
+    fi
+else skip "AR-17c" "stub failed to start"; fi
 
 echo ""
 echo -e "${CYAN}==============================================================${NC}"

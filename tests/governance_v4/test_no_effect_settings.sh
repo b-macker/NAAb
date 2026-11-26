@@ -39,6 +39,18 @@
 #     g  limits.memory.per_block_mb          vs runtime.memory_limit (a child
 #        process allocating 300 MB; UNMEASURABLE where rlimits do not bind, or
 #        where the control is refused without the child's own MemoryError)
+#   NE-06   A175(b): each never-parsed WARNED key of template_retired_keys.txt,
+#           at a value that asks for its effect, is named by exactly one "is
+#           not read" warning, and draws no unknown-key line
+#   NE-07   CONTROL: the same keys at a value that asks for nothing (false, 0,
+#           []) draw none -- an old init config is told only what it asked for
+#   NE-08   all of them at once: the names are exactly the record's group
+#   NE-09   the never-parsed MOVED OUT keys, all set, draw no line at all (they
+#           stay known to the nested unknown-key validator); NE-09c is the
+#           control that this probe sees an unknown key beside them
+#   NE-10   no init preset (every language, taint on) writes a never-parsed key
+#   NE-11*  the hint names a setting that works: a imports.blocked_from vs
+#           imports.blocked; b custom_rules[].multiline vs (?:^|\n)
 #   Traced only, no arm: input_size (no defined meaning), max_parallel_blocks,
 #   the persistent_runtime limits, max_bound_variables, require_naab_return,
 #   validate_encoding, record_decisions, record_proof_objects -- each has no
@@ -59,6 +71,17 @@
 #   K8 the g control refused for another reason (shell disabled, so
 #      process.run itself is refused; harness mutant)     -> NE-05g UNMEASURABLE
 #      (before the MemoryError check it PASSED: a refusal of any kind counted)
+# Added for A175(b) (Bundle 19 PR 4; each run by hand, each turned its arm red):
+#   K9  never-parsed entries printed with the parsed wording -> NE-06, NE-08
+#   K10 the ask ignored (every entry warns on presence)      -> NE-07
+#   K11 "*" matched literally                                 -> NE-06[per_language], NE-08
+#   K12 "[]" not walked                                       -> NE-06[custom_rules], NE-08
+#   K13 config_known_keys.py without the retired groups      -> NE-09 (and
+#       test_nested_unknown_keys.sh: the .inc is stale)
+#   K14 init writes capabilities.time again                   -> NE-10
+#   K15 restrictions.crypto.block_hardcoded_ivs dropped from the table -> NE-06, NE-08
+#   K16 UNKNOWN_RE matching the top-level wording only (harness mutant; it was
+#       the first version of this suite) -> NE-09c
 #
 # OUTPUT CHANNEL. build-windows at fbe08de5 failed NE-01/NE-02 with the engine
 # right: the group lists were print()ed, Windows ends each line with CRLF, and
@@ -368,6 +391,187 @@ else
     if [ "$RC" = 0 ]; then pass NE-05g "limits.memory.per_block_mb: 64 lets a child allocate 300 MB, while runtime.memory_limit: 64 does not"
     else fail NE-05g "limits.memory.per_block_mb changed the run" "rc=$RC: $(tail -2 <<<"$OUT" | tr '\n' ' ' | cut -c1-200)"; fi
 fi
+
+# =====================================================================
+# A175(b), Bundle 19 PR 4: template keys the loader never parses.
+# The record is template_retired_keys.txt: a WARNED line is "PATH ASK", the
+# warning fires only for a value that asks for the effect; MOVED OUT keys
+# draw no line at all. "*" is set as "shell", "[]" as a one-element array.
+# =====================================================================
+RETIRED="$SCRIPT_DIR/template_retired_keys.txt"
+NR_RE='is not read -- nothing enforces it'
+# Both of the validator's wordings: a top-level key and a nested one.
+UNKNOWN_RE='Warning: Unknown key|is not a setting the engine reads'
+rgroup() {  # HEADING-PREFIX -> the lines listed under it
+    python3 -I - "$RETIRED" "$1" <<'PY'
+import sys
+lines = open(sys.argv[1], encoding="utf-8").read().splitlines()
+on = False
+out = []
+for l in lines:
+    if l.startswith("# --- "):
+        on = l.startswith(sys.argv[2])
+        continue
+    if on and l.strip() and not l.startswith("#"):
+        out.append(" ".join(l.split()))
+sys.stdout.buffer.write(("\n".join(out) + "\n").encode("ascii"))
+PY
+}
+RWARN="$(rgroup '# --- WARNED, never parsed')"
+RQUIET="$(rgroup '# --- MOVED OUT, never parsed')"
+NRW=$(grep -c . <<<"$RWARN"); NRQ=$(grep -c . <<<"$RQUIET")
+if [ "$NRW" -lt 40 ] || [ "$NRQ" -lt 80 ]; then
+    echo "  the retired-key groups were not found (warned=$NRW quiet=$NRQ)"; exit 1
+fi
+case "$RWARN$RQUIET" in
+    *$'\r'*) echo "  a retired key carries a carriage return"; exit 1 ;;
+esac
+
+# json_at PATH VALUE [BASE_JSON] -> BASE with PATH set ("*" -> shell, "[]" -> [ {} ])
+json_at() { python3 -I -c '
+import json, sys
+o = json.loads(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] else {}
+segs = sys.argv[1].split(".")
+cur = o
+for i, s in enumerate(segs[:-1]):
+    s = "shell" if s == "*" else s
+    nxt = segs[i + 1]
+    if nxt == "[]":
+        cur = cur.setdefault(s, [{}])[0]
+        continue
+    if s == "[]":
+        continue
+    cur = cur.setdefault(s, {})
+last = "shell" if segs[-1] == "*" else segs[-1]
+cur[last] = json.loads(sys.argv[2])
+print(json.dumps(o))' "$1" "$2" "${3:-}"; }
+shown_of() { sed -e 's/\.\*\./.shell./g' -e 's/\.\[\]\./[0]./g' <<<"$1"; }
+ask_value()   { case "$1" in any) echo 1 ;; true) echo true ;; false) echo false ;; positive) echo 5 ;; nonempty) echo '["x"]' ;; esac; }
+quiet_value() { case "$1" in true) echo false ;; false) echo true ;; positive) echo 0 ;; nonempty) echo '[]' ;; *) echo "" ;; esac; }
+not_read_names() { grep -o "\"[^\"]*\" $NR_RE" <<<"$OUT" | sed 's/^"\([^"]*\)".*/\1/' | sort -u; }
+
+# --- NE-06: each WARNED key, asking, is named by exactly one warning ------
+bad=""; n=0
+while read -r k a; do
+    [ -z "$k" ] && continue
+    n=$((n+1)); d="$TEST_TMP/ne06_$n"; mk "$d" "$(json_at "$k" "$(ask_value "$a")")"
+    run "$d" "$HELLO"
+    want="$(shown_of "$k")"; names="$(not_read_names)"
+    if [ "$names" != "$want" ] || [ "$(grep -c "$NR_RE" <<<"$OUT")" != 1 ] || ! grep -q HELLO_OK <<<"$OUT" \
+       || grep -qE "$UNKNOWN_RE" <<<"$OUT" || grep -q "$WARN_RE" <<<"$OUT"; then
+        bad="$bad $k[rc=$RC named=$(tr '\n' ',' <<<"$names")]"
+    fi
+done <<<"$RWARN"
+if [ -z "$bad" ]; then pass NE-06 "each of the $NRW never-parsed WARNED keys, asking, is named by exactly one 'is not read' warning (and the program runs)"
+else fail NE-06 "a never-parsed WARNED key is not named by exactly one warning" "$bad"; fi
+
+# --- NE-07: the same keys at a value that asks for nothing draw none -----
+bad=""; n=0; skipped=0
+while read -r k a; do
+    [ -z "$k" ] && continue
+    v="$(quiet_value "$a")"; [ -z "$v" ] && { skipped=$((skipped+1)); continue; }
+    n=$((n+1)); d="$TEST_TMP/ne07_$n"; mk "$d" "$(json_at "$k" "$v")"
+    run "$d" "$HELLO"
+    if grep -q "$NR_RE" <<<"$OUT" || grep -qE "$UNKNOWN_RE" <<<"$OUT" || ! grep -q HELLO_OK <<<"$OUT"; then
+        bad="$bad $k=$v[rc=$RC]"
+    fi
+done <<<"$RWARN"
+if [ -z "$bad" ]; then pass NE-07 "CONTROL: the same $n keys at a value that asks for nothing draw no warning ($skipped warn on presence alone)"
+else fail NE-07 "a key that asks for nothing is warned about" "$bad"; fi
+
+# --- NE-08: all at once ---------------------------------------------------
+all="{}"
+while read -r k a; do
+    [ -z "$k" ] && continue
+    all="$(json_at "$k" "$(ask_value "$a")" "$all")"
+done <<<"$RWARN"
+d="$TEST_TMP/ne08"; mk "$d" "$all"; run "$d" "$HELLO"
+got="$(not_read_names)"; want="$(while read -r k a; do [ -n "$k" ] && shown_of "$k"; done <<<"$RWARN" | sort -u)"
+if [ "$got" = "$want" ] && grep -q HELLO_OK <<<"$OUT"; then pass NE-08 "all $NRW at once: the warned names are exactly the record's never-parsed WARNED group"
+else fail NE-08 "warned names differ from the record" "$(diff <(echo "$want") <(echo "$got") | tr '\n' ' ' | cut -c1-300)"; fi
+
+# --- NE-09: the quiet group draws no line at all --------------------------
+# Every MOVED OUT key at once (value 1). The keys stay known to the nested
+# unknown-key validator (tools/config_known_keys.py reads this record), so a
+# config an earlier naab-lang init wrote loads without noise. NE-09c is the
+# control that this probe sees an unknown key when there is one.
+# Values of the shape an earlier init wrote: a level key holds a level name and
+# an enabled key a boolean (since A111 a number there refuses the config, and
+# context_isolation's children are known keys now).
+quiet_set() { case "$1" in *.enabled) echo true ;; *.level|*_level) echo '"advisory"' ;; *) echo 1 ;; esac; }
+all="{}"
+while read -r k; do
+    [ -z "$k" ] && continue
+    all="$(json_at "$k" "$(quiet_set "$k")" "$all")"
+done <<<"$RQUIET"
+d="$TEST_TMP/ne09"; mk "$d" "$all"; run "$d" "$HELLO"
+if [ "$RC" = 0 ] && grep -q HELLO_OK <<<"$OUT" && ! grep -q "$NR_RE" <<<"$OUT" \
+   && ! grep -q "$WARN_RE" <<<"$OUT" && ! grep -qE "$UNKNOWN_RE" <<<"$OUT"; then
+    pass NE-09 "the $NRQ never-parsed MOVED OUT keys, all set, load with no warning and no unknown-key line"
+else
+    fail NE-09 "a MOVED OUT key draws a line" "rc=$RC: $(grep -E "$NR_RE|$WARN_RE|$UNKNOWN_RE" <<<"$OUT" | head -3 | tr '\n' ' ' | cut -c1-300)"
+fi
+d="$TEST_TMP/ne09c"; mk "$d" "$(json_at "$(head -1 <<<"$RQUIET" | sed 's/\.[^.]*$//').naab_not_a_key" 1 "$all")"; run "$d" "$HELLO"
+if grep -qE "$UNKNOWN_RE" <<<"$OUT"; then pass NE-09c "CONTROL: a key nothing knows, beside them, draws an unknown-key line"
+else fail NE-09c "the unknown-key probe saw nothing for a key nothing knows -- NE-09 proves nothing" "rc=$RC"; fi
+
+# --- NE-10: init writes none of them --------------------------------------
+bad=""
+for preset in relaxed standard strict paranoid; do
+    d="$TEST_TMP/ne10_$preset"; mkdir -p "$d"
+    (cd "$d" && "$NAAB" init --governance-preset "$preset" --governance --taint \
+        --languages python,javascript,shell,go,ruby,php,rust,cpp,csharp,nim </dev/null >/dev/null 2>&1)
+    if [ ! -f "$d/govern.json" ]; then bad="$bad $preset[no govern.json]"; continue; fi
+    hits="$(python3 -I - "$d/govern.json" <<PY
+import json, sys
+j = json.load(open(sys.argv[1], encoding="utf-8"))
+keys = [l.split()[0] for l in """$RWARN
+$RQUIET""".splitlines() if l.strip()]
+def has(n, segs):
+    if not segs: return True
+    s = segs[0]
+    if isinstance(n, list): return any(has(e, segs[1:]) for e in n)
+    if not isinstance(n, dict): return False
+    return any(has(n[k], segs[1:]) for k in (list(n) if s == "*" else [s]) if k in n)
+for k in keys:
+    if has(j, k.split(".")): print(k)
+PY
+)"
+    [ -n "$hits" ] && bad="$bad $preset[$(tr '\n' ',' <<<"$hits")]"
+    (cd "$d" && "$NAAB" run /dev/null >/dev/null 2>&1); true
+done
+if [ -z "$bad" ]; then pass NE-10 "no init preset (every language, taint on) writes a never-parsed key ($((NRW+NRQ)) keys)"
+else fail NE-10 "init writes a never-parsed key" "$bad"; fi
+
+# --- NE-11: the hints name a setting that works ----------------------------
+# a: imports.blocked_from is not read; imports.blocked refuses the module.
+PYIMP='main {
+  let r = <<python
+from os import path
+path.sep
+>>
+  print("DONE")
+}'
+d0="$TEST_TMP/ne11a_0"; mk "$d0" ''; run "$d0" "$PYIMP"
+if [ "$RC" != 0 ] || ! grep -q DONE <<<"$OUT"; then
+    unm NE-11a "imports.blocked_from: a python block does not run here with no restriction (rc=$RC)"
+else
+    truth NE-11a "languages.per_language.python.imports.blocked_from: [os:path]" \
+        '{"languages": {"per_language": {"python": {"imports": {"blocked": ["os"]}}}}}' \
+        '{"languages": {"per_language": {"python": {"imports": {"blocked_from": ["os:path"]}}}}}' "$PYIMP"
+fi
+# b: custom_rules[].multiline is not read; (?:^|\n) matches at a line start.
+MLINE='main {
+  let r = <<javascript
+var a = 1;
+let evil_call = 2;
+a + evil_call
+>>
+  print("DONE")
+}'
+truth NE-11b "custom_rules[].multiline: true with a ^ anchor on line 2" \
+    '{"custom_rules": [{"id": "ML", "name": "ml", "pattern": "(?:^|\\n)\\s*let evil_call", "languages": ["javascript"], "level": "hard", "message": "no"}]}' \
+    '{"custom_rules": [{"id": "ML", "name": "ml", "pattern": "^\\s*let evil_call", "languages": ["javascript"], "level": "hard", "message": "no", "multiline": true}]}' "$MLINE"
 
 echo
 echo "=== Results: $PASS passed, $FAIL failed, $UNM unmeasurable ==="

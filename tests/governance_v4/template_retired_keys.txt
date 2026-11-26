@@ -1,0 +1,232 @@
+# Template keys that loadFromJson() never parses (A175(b), Bundle 19 PR 4).
+#
+# `python3 tools/template_coverage.py --unread` lists the template keys with no
+# read path in the loader. On 36e09b37 it listed 140. Each was traced by hand
+# across every reader of govern.json, not only loadFromJson(): the scanner's
+# own loader, agent review, project context, the REST server, the reload's
+# evaluateReload() and the raw-JSON declared-order ratchet. Each key's quoted
+# name was searched in every source file, and no reader builds a key name at
+# run time (no "_level" or "detect_" concatenation; checked by grep).
+#
+# Four are read elsewhere and stay in the template (READ ELSEWHERE, pinned by
+# test_template_coverage.sh TC-07: `--unread` must print exactly these). The
+# other 136 are parsed by nothing. By the owner's decision 6 (Bundle 19, the
+# settings-liveness step-3 rule): a key that asks for a refusal, a detection,
+# a limit, an isolation, an integrity check or an evidence record that nothing
+# provides gets a load warning (WARNED); the rest leave the template and
+# `naab-lang init` quietly (MOVED OUT). None is wired.
+#
+# tools/config_known_keys.py reads the WARNED and MOVED OUT groups, so the
+# nested unknown-key validator keeps accepting these keys: a config written by
+# an earlier `naab-lang init` still loads, warned only where it asks for
+# something it does not get. test_no_effect_settings.sh reads the WARNED group
+# and compares it with the loader's table (warnNoEffectSettings(),
+# governance_config.cpp) by behaviour.
+#
+# FORMAT. `*` is any key of an object (a language name), `[]` any element of an
+# array. A WARNED line is `PATH ASK`: the warning fires only when the value
+# asks for the effect --
+#   any       the key is present
+#   true      the value is boolean true
+#   false     the value is boolean false (an allow_* switch asking for less)
+#   positive  the value is a number above 0 (a limit)
+#   nonempty  the value is a non-empty array or string (patterns to add)
+# A value that asks for nothing (false, 0, []) draws no warning: a config that
+# writes the template's old defaults is told only about what it asked for.
+
+# --- READ ELSEWHERE: in the template, and read by a reader the extractor does
+# not walk. Kept.
+# The scanner's own loader, ScannerEngine::loadConfigFromPath() (scanner.cpp).
+scanner
+# evaluateReload() reads it from the new file; CONFIG_ADJUSTMENT carries it.
+update_reason
+# must_differentiate reads `a` and `b` whole as the function's arguments
+# (input_a_json); `message` is the example's argument name, not a setting.
+contracts.functions.classify_event.must_differentiate.[].a.message
+contracts.functions.classify_event.must_differentiate.[].b.message
+
+# --- WARNED, never parsed (A175(b)): asks for something nothing provides.
+# The audit trail records approvals, contract checks, overrides, polyglot runs,
+# reloads and taint decisions (logAuditEvent's types, grep), and none of these.
+audit.log_events.checks_warned true
+audit.log_events.config_loaded true
+audit.log_events.execution_start true
+audit.log_events.execution_end true
+# Capability sections with no reader; the sandbox has no mmap, shared-memory,
+# sleep or request-size control.
+capabilities.memory any
+capabilities.time any
+capabilities.network.http_allowed false
+capabilities.network.max_request_size positive
+capabilities.network.max_response_size positive
+capabilities.shell.allow_backgrounding false
+# The circuit breaker escalates on pressure (critical_threshold), never on a
+# coherence floor.
+circuit_breaker.critical_coherence positive
+# checkEncoding() refuses null bytes and bidirectional overrides only.
+code_quality.encoding.require_utf8 true
+code_quality.encoding.block_control_characters true
+code_quality.encoding.block_homoglyph_attacks true
+code_quality.encoding.block_bom true
+# No PII pattern for these kinds.
+code_quality.no_pii.detect_drivers_license true
+code_quality.no_pii.detect_iban true
+code_quality.no_pii.detect_medical_record true
+code_quality.no_pii.detect_passport true
+# Patterns that would add to a check; custom_rules adds a pattern that works.
+code_quality.no_pii.custom_pii_patterns nonempty
+code_quality.no_secrets.custom_patterns nonempty
+code_quality.no_mock_data.custom_patterns nonempty
+code_quality.no_mock_data.custom_prefixes nonempty
+code_quality.no_apologetic_language.custom_patterns nonempty
+# No check reads code_quality.no_secrets.entropy_check at all: its threshold
+# and min_length are parsed into a struct nothing consults (grep, A227, open).
+code_quality.no_secrets.entropy_check.enabled true
+# A custom rule is matched against the whole block, so ^ is the block's start.
+custom_rules.[].multiline true
+# Per-language keys the language parser does not read; banned_imports,
+# imports.blocked and restrictions.shell_injection do the job.
+languages.per_language.*.banned_includes nonempty
+languages.per_language.*.imports.blocked_from nonempty
+languages.per_language.*.shell_injection true
+# Integrity: a signed govern.json is what is verified at every load.
+meta.config_immutability.verify_on_load true
+meta.config_immutability.block_on_mismatch true
+# Isolation the polyglot executors do not provide: a persistent shell, node or
+# ruby child keeps its state between blocks.
+polyglot.context_isolation.enabled true
+polyglot.persistent_runtime.allow_state_persistence false
+# Struct fields no check reads (governance.h), sub-detections the parent check
+# does not perform.
+restrictions.crypto.block_hardcoded_ivs true
+restrictions.crypto.require_secure_random true
+restrictions.dangerous_calls.check_chained_calls true
+restrictions.dangerous_calls.check_string_formatting true
+restrictions.data_exfiltration.block_url_encode_secrets true
+restrictions.data_exfiltration.max_encoded_output_length positive
+restrictions.information_disclosure.block_directory_listing true
+restrictions.information_disclosure.block_error_stack_traces true
+restrictions.privilege_escalation.block_capability_changes true
+restrictions.resource_abuse.block_infinite_loops true
+restrictions.resource_abuse.block_recursive_file_ops true
+restrictions.resource_abuse.max_temp_files positive
+restrictions.resource_abuse.max_temp_file_size positive
+restrictions.shell_injection.check_variable_expansion true
+restrictions.shell_injection.require_quoting true
+
+# --- MOVED OUT, never parsed (A175(b)): guards nothing, fails closed, or is
+# already in force.
+# Output formatting and report files.
+output.errors.show_fix_suggestions
+output.errors.show_line_preview
+output.errors.show_rule_path
+output.errors.truncate_long_lines
+output.file_output.report_csv
+output.file_output.report_html
+output.formatting.indent
+output.summary.show_skipped
+output.summary.sort_by
+# Loader options. allow_circular would only loosen: a cycle in extends is always
+# refused (the visited set in the extends loader, governance_config.cpp).
+meta.feature_flags.legacy_compatibility
+meta.inheritance.allow_circular
+meta.schema_validation.strict_types
+# The rest of two blocks whose switch is warned above.
+meta.config_immutability.hash
+polyglot.context_isolation.level
+polyglot.context_isolation.no_shared_state
+polyglot.context_isolation.no_env_pollution
+polyglot.context_isolation.clean_temp_files
+# Retention would delete evidence; the trail is never rotated or deleted.
+audit.retention
+# Documented in the template as not read: the scorer is its key in the map.
+scorers.*.name
+scorers.*.description
+scorers.*.weights
+scorers.*.thresholds
+# Sub-options of the code-quality heuristics (the step-3 precedent: check
+# sub-options leave quietly), and requirements with no detector that are
+# style or quality, like requirements.naming_conventions.
+code_quality.max_complexity.max_cognitive_complexity
+code_quality.max_complexity.max_cyclomatic_complexity
+code_quality.max_complexity.max_local_variables
+code_quality.no_dead_code.detect_always_false_conditions
+code_quality.no_dead_code.detect_always_true_conditions
+code_quality.no_dead_code.detect_commented_out_code
+code_quality.no_dead_code.detect_empty_except_blocks
+code_quality.no_dead_code.detect_unreachable_after_return
+code_quality.no_dead_code.detect_unused_variables
+code_quality.no_debug_artifacts.check_naab_code
+code_quality.no_debug_artifacts.check_polyglot_only
+code_quality.no_hardcoded_results.check_return_empty_collections
+code_quality.no_hardcoded_results.check_return_none_null
+code_quality.no_hardcoded_results.check_round_numbers
+code_quality.no_hardcoded_results.check_zero_counts
+code_quality.no_hardcoded_urls.check_internal_urls
+code_quality.no_apologetic_language.categories
+code_quality.no_placeholders.ignore_in_comments_only
+code_quality.no_placeholders.max_violations_before_block
+code_quality.no_simulation_markers.case_sensitive
+code_quality.no_temporary_code.case_sensitive
+languages.per_language.*.allow_f_strings
+languages.per_language.*.allow_walrus
+languages.per_language.*.indent_size
+languages.per_language.*.indent_style
+languages.per_language.*.max_string_length
+languages.per_language.*.no_star_imports
+languages.per_language.*.required_imports
+languages.per_language.*.require_quoting
+languages.per_language.*.require_set_pipefail
+languages.per_language.*.require_set_u
+polyglot.output.strip_whitespace
+polyglot.variable_binding.validate_types
+requirements.documentation
+requirements.no_global_state
+requirements.strict_types
+requirements.version_pinning
+custom_rules.[].trigger
+# Sub-options of the entropy check, which no check reads (warned above through
+# its enabled flag).
+code_quality.no_secrets.entropy_check.check_base64
+code_quality.no_secrets.entropy_check.check_hex
+code_quality.no_secrets.entropy_check.check_url_encoded
+code_quality.no_secrets.entropy_check.max_length
+# Exemptions that exempt nothing: the check reads an empty list, so ignoring
+# the key refuses more, never less.
+code_quality.no_debug_artifacts.allowlist
+code_quality.no_hardcoded_ips.allowlist
+code_quality.no_hardcoded_urls.allowlist
+code_quality.no_sql_injection.allowlist
+code_quality.no_secrets.entropy_check.ignore_comments
+code_quality.no_secrets.entropy_check.ignore_urls
+restrictions.shell_injection.allowlist
+restrictions.information_disclosure.suppressions
+# Every propagation listed is always on; switching one off would loosen.
+taint_tracking.propagation
+# In force already: the struct default is true and the check reads it, so true
+# is applied and false cannot switch it off.
+restrictions.crypto.block_hardcoded_keys
+restrictions.crypto.block_weak_encryption
+restrictions.crypto.block_weak_hashing
+restrictions.privilege_escalation.block_chmod_suid
+restrictions.privilege_escalation.block_setuid
+# Bound variables are written into each block as declarations, so parallel
+# blocks share no variable whatever this says.
+polyglot.parallel.allow_shared_variables
+# Level siblings: the switch's own value sets the level, and `true` is hard, so
+# ignoring a sibling never lowers a level the switch applies.
+languages.per_language.*.no_console_log_level
+languages.per_language.*.no_var_level
+languages.per_language.*.strict_mode_level
+languages.per_language.*.no_star_imports_level
+languages.per_language.*.no_curl_pipe_sh_level
+languages.per_language.*.no_wget_pipe_bash_level
+languages.per_language.*.require_quoting_level
+languages.per_language.*.require_set_e_level
+languages.per_language.*.require_set_pipefail_level
+languages.per_language.*.require_set_u_level
+languages.per_language.*.shell_injection_level
+polyglot.variable_binding.require_explicit_level
+restrictions.crypto.secure_random_level
+restrictions.information_disclosure.directory_listing_level
+restrictions.resource_abuse.infinite_loops_level

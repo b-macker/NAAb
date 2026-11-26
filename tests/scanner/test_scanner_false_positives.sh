@@ -130,15 +130,19 @@ main {
 }
 NAAB
 
+# One predicate for T6 and its control. The scan prints the rule id and the
+# variable on separate lines, so the first version's `assigned_never_read.*x`
+# could never match: T6 passed whatever the scanner did (X1 survived it).
+x_flagged() { grep -q "Variable 'x' is assigned but never read" <<<"$1"; }
 OUTPUT=$(cd "$WORK_DIR" && "$NAAB" --scan t6_binding.naab naab 2>&1)
-if echo "$OUTPUT" | grep -q 'assigned_never_read.*\bx\b'; then
+if x_flagged "$OUTPUT"; then
     fail "T6: polyglot binding var 'x' falsely flagged as assigned_never_read" "$OUTPUT"
 else
     pass "T6: polyglot binding var 'x' not flagged"
 fi
 sed 's/let result = <<python\[x\]/let result = <<python/' "$WORK_DIR/t6_binding.naab" > "$WORK_DIR/t6c_unbound.naab"
 OUTPUT=$(cd "$WORK_DIR" && "$NAAB" --scan t6c_unbound.naab naab 2>&1)
-if grep -q 'assigned_never_read' <<<"$OUTPUT"; then
+if x_flagged "$OUTPUT"; then
     pass "T6c: CONTROL: the same 'x' NOT bound into the block is flagged"
 else
     fail "T6c: CONTROL: an unread, unbound variable was not flagged -- T6 proves nothing" "$OUTPUT"
@@ -159,7 +163,10 @@ except ValueError:
     print("ERROR"); sys.exit(0)
 print(" ".join(sorted({v.get("rule", "") for v in d.get("violations", [])})))'
 }
-R=$(rules naab 'let args = env.get_args()')
+# `use env` names the module bare: the dump pattern is \benv\b not followed
+# by a dot, so env.get_args() alone could never match it (X2 survived that).
+R=$(rules naab 'use env
+let args = env.get_args()')
 if [ "$R" != "ERROR" ] && ! grep -q 'information_disclosure' <<<"$R"; then
     pass "T7: NAAb's env module is not information_disclosure"
 else
@@ -176,7 +183,11 @@ fi
 # T8: reading a file and hashing it, with no VCS command, is not
 # vcs_secret_extraction (the has_vcs prerequisite). A block check, asked of
 # naab-gov check; the C++ scanner `--scan` ran before does not run it.
-R=$(rules python 'content = open("data.txt").read()
+# Three of the four signals and not the VCS one -- history (a .log file),
+# search (open/read), secret (key) -- so only the has_vcs prerequisite keeps
+# it unflagged: three with a secret is an advisory finding (X3 survived the
+# first fixture, which had two).
+R=$(rules python 'content = open("audit.log").read()
 key = hashlib.sha256(content.encode()).hexdigest()')
 if [ "$R" != "ERROR" ] && ! grep -q 'vcs_secret_extraction' <<<"$R"; then
     pass "T8: file read + key without git not flagged"

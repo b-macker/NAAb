@@ -23,6 +23,11 @@ WHAT IS "KNOWN". Two sources, merged:
      question (docs/findings/inert-config-keys.md), not a schema error, and the
      shipped template must load without warnings. Template keys under a value
      the loader reads whole (contract fixtures, example data) are not learned.
+  3. the template keys the loader never parses, retired from the template by
+     A175(b) (tests/governance_v4/template_retired_keys.txt, its WARNED and
+     MOVED OUT groups): a config an earlier `naab-lang init` wrote still loads
+     without an "unknown key" line, and the loader's own no-effect warning
+     names the ones that ask for something nothing provides.
 
 WHAT THE VALIDATOR DOES WITH IT (governance_checks.cpp, validateSchema):
   a key is reported only when its parent is a CLOSED level -- one where the
@@ -47,6 +52,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(REPO, "src", "runtime", "governance_known_keys.inc")
 TEMPLATE = os.path.join(REPO, "govern-template.json")
+RETIRED = os.path.join(REPO, "tests", "governance_v4", "template_retired_keys.txt")
 SEP = "\x1f"   # path separator: config keys may contain '.' or '/'
 
 
@@ -108,6 +114,25 @@ def build():
 
     with open(TEMPLATE, "r", encoding="utf-8", errors="strict") as f:
         seed(json.load(f), {()})
+
+    retired = 0
+    with open(RETIRED, "r", encoding="utf-8", errors="strict") as f:
+        group = None
+        for line in f.read().splitlines():
+            if line.startswith("# --- "):
+                group = line[6:]
+                continue
+            if not line.strip() or line.startswith("#"):
+                continue
+            if not (group.startswith("WARNED, never parsed") or group.startswith("MOVED OUT, never parsed")):
+                continue
+            q = tuple(line.split()[0].split("."))
+            for i in range(1, len(q) + 1):
+                known.add(q[:i])
+            retired += 1
+    if retired < 100:
+        raise SystemExit("config_known_keys: only %d retired keys read from %s -- "
+                         "its group headings changed" % (retired, RETIRED))
     return sorted(SEP.join(k) for k in known)
 
 

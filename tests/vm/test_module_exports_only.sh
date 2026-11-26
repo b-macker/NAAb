@@ -40,7 +40,9 @@
 #   P2 importModule() records no private function           -> EO-01, EO-02, EO-03
 #   P3 the owner check is dropped (every frame refused)     -> EO-00
 #   P4 the async VM does not take the record                -> EO-02
-#   P5 a function from another module counts as private     -> EO-03c
+#   P5 a function from another module counts as private     -> EO-03 (the
+#      importing module re-records b's helper as its own, so a reaches it;
+#      predicted EO-03c, observed EO-03)
 #   P6 privateModuleFunctions() ignores the exports         -> EO-05 (a module
 #      with no export)
 #   P7 the tree-walker's member route does not ask it       -> EO-06
