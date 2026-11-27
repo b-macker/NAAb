@@ -110,6 +110,11 @@ struct AgentTracker {
     int truncation_count = 0;  // times response was truncated (MAX_TOKENS)
     int last_reinforcement_turn = -100;  // mandate reinforcement cooldown
     int last_correction_turn = -100;     // coherence correction cooldown
+    // A211: the conversation the agent has had, (role, content) in order --
+    // the history every request carries. The handle's "messages" list is a
+    // copy the program can read; send, propose and commit refuse a handle
+    // whose list differs from this (requireEngineHistory()).
+    std::vector<std::pair<std::string, std::string>> history;
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
@@ -899,6 +904,10 @@ static const governance::AgentConfig* findAgentConfig(const std::string& name) {
 
 // Forward declaration — validates handle and verifies HMAC nonce
 static std::pair<std::string, int> validateHandle(NaabVal& handle_val);
+// A211: the engine's copy of a handle's history (see AgentTracker::history)
+static void requireEngineHistory(NaabVal& handle_val, int handle_id);
+static std::vector<std::pair<std::string, std::string>> engineHistory(int handle_id);
+static void appendEngineHistory(int handle_id, const std::string& role, const std::string& content);
 
 // ============================================================================
 // Helper: Build environment dict for agent self-awareness
@@ -1819,6 +1828,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             "  - Use a different agent handle for delegation\n");
     }
 
+    // A211: refuse a handle whose list is not the engine's history
+    requireEngineHistory(args[0], validated_id);
+
     // Server-side governance enforcement (immune to handle mutation)
     // Lock to validate tracker state; released before slow API call
     int handle_id = validated_id;
@@ -1986,8 +1998,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     } // unlock before API call
 
-    // Build messages array from handle history + new message
-    // V-AG-003: Guard messages key access
+    // Build messages array from the engine's history + new message. A211:
+    // never from the handle's list, which the program can write (the check
+    // at the top refused a handle whose list differs); the list is kept as
+    // the program's readable copy and appended to beside the engine's.
     json messages_json = json::array();
     auto msgs_it = handle.find("messages");
     if (msgs_it == handle.end() || !msgs_it->second.isList()) {
@@ -1996,36 +2010,26 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             "  Help:\n  - Use a handle returned by agent.create()\n");
     }
     auto& msg_list = msgs_it->second.asList();
+    const auto engine_hist = engineHistory(handle_id);
 
     // Context windowing: limit history sent per API call
     size_t start_idx = 0;
     bool windowing_active = config && config->context_strategy != "full" &&
                              config->context_window > 0 &&
-                             msg_list.size() > static_cast<size_t>(config->context_window);
+                             engine_hist.size() > static_cast<size_t>(config->context_window);
 
     if (windowing_active) {
-        start_idx = msg_list.size() - static_cast<size_t>(config->context_window);
-        // Even alignment: msg_list is always even (paired user/assistant appends).
+        start_idx = engine_hist.size() - static_cast<size_t>(config->context_window);
+        // Even alignment: the history is always even (paired user/assistant appends).
         // Positions 0,2,4... are "user", 1,3,5... are "assistant".
         // Starting on odd index would make first message "assistant" → Gemini HTTP 400.
         if (start_idx % 2 != 0) start_idx++;
     }
 
-    for (size_t i = start_idx; i < msg_list.size(); i++) {
-        auto& msg = msg_list[i];
-        auto& msg_dict = msg.asDict();
-        // V-AG-002: Guard message dict key access
-        auto role_it = msg_dict.find("role");
-        auto content_it = msg_dict.find("content");
-        if (role_it == msg_dict.end() || !role_it->second.isString() ||
-            content_it == msg_dict.end() || !content_it->second.isString()) {
-            throw std::runtime_error(
-                "Agent error: each message must be a dict with 'role' and 'content' string keys\n\n"
-                "  Help:\n  - Use {role: \"user\", content: \"message\"}\n");
-        }
+    for (size_t i = start_idx; i < engine_hist.size(); i++) {
         json msg_obj;
-        msg_obj["role"] = role_it->second.asString();
-        msg_obj["content"] = content_it->second.asString();
+        msg_obj["role"] = engine_hist[i].first;
+        msg_obj["content"] = engine_hist[i].second;
         messages_json.push_back(msg_obj);
     }
     // Append new user message
@@ -2529,23 +2533,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         json challenge_msgs = json::array();
                         size_t history_message_count = 0;
                         {
-                            auto hist_it = handle.find("messages");
-                            if (hist_it != handle.end() && hist_it->second.isList()) {
-                                auto& hlist = hist_it->second.asList();
+                            // A211: the engine's history, as the send's own request
+                            {
                                 std::vector<json> all_msgs;
-                                for (auto& hmsg : hlist) {
-                                    if (hmsg.isDict()) {
-                                        auto& hd = hmsg.asDict();
-                                        auto hr_it = hd.find("role");
-                                        auto hc_it = hd.find("content");
-                                        if (hr_it != hd.end() && hr_it->second.isString() &&
-                                            hc_it != hd.end() && hc_it->second.isString()) {
-                                            json hm;
-                                            hm["role"] = hr_it->second.asString();
-                                            hm["content"] = hc_it->second.asString();
-                                            all_msgs.push_back(std::move(hm));
-                                        }
-                                    }
+                                for (const auto& [hrole, hcontent] : engineHistory(handle_id)) {
+                                    json hm;
+                                    hm["role"] = hrole;
+                                    hm["content"] = hcontent;
+                                    all_msgs.push_back(std::move(hm));
                                 }
                                 if (cb.step_up_challenge_history == "full") {
                                     // All messages, no cap
@@ -2647,22 +2642,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         // Extract recent user messages for context-aware scoring
                         std::vector<std::string> recent_prompts;
                         {
-                            auto msgs_it2 = handle.find("messages");
-                            if (msgs_it2 != handle.end() && msgs_it2->second.isList()) {
-                                auto& mlist = msgs_it2->second.asList();
-                                int count = 0;
-                                for (auto rit = mlist.rbegin(); rit != mlist.rend() && count < 5; ++rit) {
-                                    if (rit->isDict()) {
-                                        auto& d = rit->asDict();
-                                        auto r_it = d.find("role");
-                                        auto c_it = d.find("content");
-                                        if (r_it != d.end() && r_it->second.isString() &&
-                                            r_it->second.asString() == "user" &&
-                                            c_it != d.end() && c_it->second.isString()) {
-                                            recent_prompts.push_back(c_it->second.asString());
-                                            count++;
-                                        }
-                                    }
+                            // A211: from the engine's history
+                            const auto hist = engineHistory(handle_id);
+                            int count = 0;
+                            for (auto rit = hist.rbegin(); rit != hist.rend() && count < 5; ++rit) {
+                                if (rit->first == "user") {
+                                    recent_prompts.push_back(rit->second);
+                                    count++;
                                 }
                             }
                         }
@@ -5480,6 +5466,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         asst_msg_val["role"] = NaabVal::makeString("assistant");
         asst_msg_val["content"] = NaabVal::makeString(content);
         msg_list.push_back(NaabVal::makeDict(std::move(asst_msg_val)));
+        // A211: the engine's history, which the next request is built from
+        appendEngineHistory(handle_id, "user", message);
+        appendEngineHistory(handle_id, "assistant", content);
     }
     if (transcript_active) {
         transcript_entry["history_committed"] = commit_history;
@@ -5915,6 +5904,8 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
             "  Help:\n"
             "  - A tool function cannot call agent.propose() on the agent that invoked it\n");
     }
+    // A211: refuse a handle whose list is not the engine's history
+    requireEngineHistory(args[0], handle_id);
 
     int current_turn = 0;
     {
@@ -6092,24 +6083,13 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
         if (!exposure_block.empty()) throw std::runtime_error(exposure_block);
     }
 
-    // Build messages array (full history + new user message; no tools sent)
+    // Build messages array (full history + new user message; no tools sent),
+    // from the engine's history (A211), never the handle's list
     json messages_json = json::array();
-    auto msgs_it = handle.find("messages");
-    if (msgs_it == handle.end() || !msgs_it->second.isList()) {
-        throw std::runtime_error(
-            "Agent error: handle missing 'messages' list\n\n"
-            "  Help:\n  - Use a handle returned by agent.create()\n");
-    }
-    for (auto& msg : msgs_it->second.asList()) {
-        if (!msg.isDict()) continue;
-        auto& msg_dict = msg.asDict();
-        auto role_it = msg_dict.find("role");
-        auto content_it = msg_dict.find("content");
-        if (role_it == msg_dict.end() || !role_it->second.isString() ||
-            content_it == msg_dict.end() || !content_it->second.isString()) continue;
+    for (const auto& [hrole, hcontent] : engineHistory(handle_id)) {
         json msg_obj;
-        msg_obj["role"] = role_it->second.asString();
-        msg_obj["content"] = content_it->second.asString();
+        msg_obj["role"] = hrole;
+        msg_obj["content"] = hcontent;
         messages_json.push_back(msg_obj);
     }
     json user_msg;
@@ -6383,6 +6363,8 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
             "  - A tool function cannot call agent.commit() on the agent that invoked it\n"
             "  - The orchestration script calls it, after the agent's turn\n");
     }
+    // A211: refuse a handle whose list is not the engine's history
+    requireEngineHistory(args[0], handle_id);
     // Every check recorded during this commit is the agent's, not the script's:
     // see ScopedCheckContext (governance.h).
     governance::ScopedCheckContext agent_check_ctx("<agent:" + config_name + ">");
@@ -6717,6 +6699,9 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
             asst_msg_val["content"] = NaabVal::makeString(selected.content);
             msg_list.push_back(NaabVal::makeDict(std::move(asst_msg_val)));
         }
+        // A211: the engine's history, which the next request is built from
+        if (!user_message.empty()) appendEngineHistory(handle_id, "user", user_message);
+        appendEngineHistory(handle_id, "assistant", selected.content);
     }
 
     if (gov_engine && gov_engine->isActive()) {
@@ -6813,12 +6798,19 @@ static NaabVal agentMessages(std::vector<NaabVal>& args) {
             "  Expected: agent.messages(handle)\n");
     }
 
-    auto& handle = args[0].asDict();
-    auto it = handle.find("messages");
-    if (it == handle.end()) {
-        return NaabVal::makeList({});
+    // A211: the conversation the agent has had -- the engine's history, which
+    // is what every request carries -- not the handle's list, which the
+    // program can write.
+    auto [config_name, handle_id] = validateHandle(args[0]);
+    (void)config_name;
+    std::vector<NaabVal> out;
+    for (const auto& [hrole, hcontent] : engineHistory(handle_id)) {
+        std::unordered_map<std::string, NaabVal> m;
+        m["role"] = NaabVal::makeString(hrole);
+        m["content"] = NaabVal::makeString(hcontent);
+        out.push_back(NaabVal::makeDict(std::move(m)));
     }
-    return it->second;
+    return NaabVal::makeList(std::move(out));
 }
 
 // ============================================================================
@@ -7132,6 +7124,66 @@ static std::pair<std::string, int> validateHandle(NaabVal& handle_val) {
     }
 
     return {config_name, handle_id};
+}
+
+// A211: every request is built from the history the engine recorded, never
+// from the handle's list: the nonce covers the handle's id and agent name,
+// not the list, so a program could write any text into it and the next send
+// carried it to the model past the prompt scan, which reads the new message
+// only. A handle whose list differs is refused before anything is sent -- a
+// program that edits the list, or uses a stale copy (`let h2 = h` keeps its
+// own list, so the other copy's sends drop turns), is told so rather than
+// sending something it did not mean. Catchable, like the tampered-handle
+// refusal (the owner's decision of 2026-11-27): nothing is sent either way.
+static void requireEngineHistory(NaabVal& handle_val, int handle_id) {
+    auto& handle = handle_val.asDict();
+    auto it = handle.find("messages");
+    bool same = it != handle.end() && it->second.isList();
+    if (same) {
+        const auto& list = it->second.asList();
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto tracker_it = s_trackers.find(handle_id);
+        if (tracker_it == s_trackers.end()) {
+            same = false;
+        } else {
+            const auto& hist = tracker_it->second.history;
+            same = list.size() == hist.size();
+            for (size_t i = 0; same && i < list.size(); ++i) {
+                const auto& entry = list[i];
+                if (!entry.isDict()) { same = false; break; }
+                const auto& d = entry.asDictConst();
+                auto r = d.find("role");
+                auto c = d.find("content");
+                same = r != d.end() && r->second.isString() && r->second.asString() == hist[i].first &&
+                       c != d.end() && c->second.isString() && c->second.asString() == hist[i].second;
+            }
+        }
+    }
+    if (!same) {
+        throw std::runtime_error(
+            "Agent error: this handle's message history differs from the conversation the agent has had\n\n"
+            "  A request carries the history the agent was sent and gave; a list written into the\n"
+            "  handle is not sent, so this call was refused before anything was sent.\n\n"
+            "  Help:\n"
+            "  - Pass the same handle to every call: a copy made with 'let h2 = h' keeps its own\n"
+            "    list, which goes out of date when the other copy is used\n"
+            "  - To send less history with each request, give the agent a context window\n"
+            "    (context_window, context_strategy)\n"
+            "  - To start the conversation over, call agent.reset(handle)\n");
+    }
+}
+
+static std::vector<std::pair<std::string, std::string>> engineHistory(int handle_id) {
+    std::lock_guard<std::mutex> lock(s_agent_mutex);
+    auto it = s_trackers.find(handle_id);
+    if (it == s_trackers.end()) return {};
+    return it->second.history;
+}
+
+static void appendEngineHistory(int handle_id, const std::string& role, const std::string& content) {
+    std::lock_guard<std::mutex> lock(s_agent_mutex);
+    auto it = s_trackers.find(handle_id);
+    if (it != s_trackers.end()) it->second.history.emplace_back(role, content);
 }
 
 // ============================================================================
@@ -7673,6 +7725,7 @@ static NaabVal agentReset(std::vector<NaabVal>& args) {
             auto& t = it->second;
             turn_at_reset = t.turns;
             t.turns = 0;
+            t.history.clear();  // A211: the engine's history, with the handle's list
             t.input_tokens = 0;
             t.output_tokens = 0;
             t.truncation_count = 0;
