@@ -9225,6 +9225,16 @@ bool GovernanceEngine::seedSequenceEvents(const std::string& path) {
     return true;
 }
 
+// B7: set by AgentTurnEventScope (agentSend); read by emitEvent on the same
+// thread, so a batch worker's own send marks its own events only.
+static thread_local bool t_in_agent_turn = false;
+
+bool GovernanceEngine::exchangeInAgentTurn(bool in_turn) {
+    bool prev = t_in_agent_turn;
+    t_in_agent_turn = in_turn;
+    return prev;
+}
+
 std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string& detail,
                                          const std::string& file, int line,
                                          const std::string& content_fingerprint,
@@ -9257,6 +9267,7 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
     ev.thinking_reported = thinking_reported;
     ev.content_keywords = content_keywords;
     ev.claims = std::move(claims);
+    ev.in_agent_turn = t_in_agent_turn;
     ev.turn = t_event_agent_turn;
     ev.agent_handle = t_event_agent_handle;
     {

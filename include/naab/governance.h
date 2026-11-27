@@ -4389,6 +4389,9 @@ public:
                           std::shared_ptr<const naab::claims::ClaimReading> claims = nullptr);
     void setAgentTurn(int handle_id, int turn);
     void setAgentContext(int handle_id, int turn, const std::string& config_name);
+    // B7: sets this thread's "inside an agent turn" mark, returns the old one
+    // (AgentTurnEventScope is the only caller).
+    static bool exchangeInAgentTurn(bool in_turn);
     int getCurrentAgentTurn() const { return current_agent_turn_.load(std::memory_order_relaxed); }
     void setInheritedPressure(int handle_id, double pressure);
     void recoverCoherence(int handle_id);  // F15: coherence recovery at pipeline transitions
@@ -5251,6 +5254,22 @@ private:
 // exception. Agent entry points open one with "<agent:NAME>" so that response,
 // prompt and tool scans and CDD are attributed to the agent rather than to
 // whatever the script checked last.
+// B7 (Bundle 19 PR 5): every behavioural event recorded on this thread while
+// one is alive is marked as raised inside an agent's turn
+// (RuntimeEvent::in_agent_turn) -- the send, the tool calls the model makes and
+// what those tools do -- so a drift signal can tell the agent's own actions
+// from the orchestration script's between sends; by handle alone it cannot.
+// agentSend() opens one; nests.
+class AgentTurnEventScope {
+public:
+    AgentTurnEventScope() : prev_(GovernanceEngine::exchangeInAgentTurn(true)) {}
+    ~AgentTurnEventScope() { GovernanceEngine::exchangeInAgentTurn(prev_); }
+    AgentTurnEventScope(const AgentTurnEventScope&) = delete;
+    AgentTurnEventScope& operator=(const AgentTurnEventScope&) = delete;
+private:
+    bool prev_;
+};
+
 class ScopedCheckContext {
 public:
     explicit ScopedCheckContext(std::string file, int line = 0)

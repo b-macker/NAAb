@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed -- Bundle 19 PR 5: the drift signals (migration note)
+- **`circular_actions` (S1) also fires when an agent makes the same tool calls and gets the same results turn after turn, whatever its reply says (B7, the owner's decision 30).** S1 compared each turn's reply content, so an agent repeating a call while rewording its reply never looked repeated. Ten identical calls with identical results drew no firing. S1 now also fires when the last `circular_lookback` (3) turns made the same calls (name and arguments) and got the same results. A re-read whose result changed is not a repeat. `CDD_TURN` gives `circular_kind` (`reply`, `tool_calls` or `both`).
+  - **Migration:** an agent that polls an unchanged value with the same call three turns running now pays S1 from that third turn on. As S1 always has, it pays inside the baseline window too. Turn S1 off for that agent with `context_drift_signals: {"circular_actions": false}`.
+- The events raised inside an agent's turn are marked as the agent's own (`RuntimeEvent::in_agent_turn`). Under `event_feed: since_last_check`, the script's events between sends no longer hide the agent's loop.
+- Closed with no change of behaviour: A4 (S7's granted set has been seeded since #196, and S7 stays off by default by the owner's decision 29) and A5 (S4's blocked-then-retried capability has been recorded since #196). Each one's suite arm was re-checked by removing its mechanism. V3a (S20's gate-1 denominator is the mandate's keyword count) is documented in CLAUDE.md.
+- Tests: `tests/governance_v4/test_tool_call_loop.sh` (9 arms, 6 mutants in its header).
+
 ### Changed -- Bundle 19 PR 4: module boundaries, template clean-up, test debt (migration notes)
 - **An importer reaches only the functions a module exports, on both engines (A216).** On the VM a read of a module's unexported function from code outside that module is refused; on the tree-walker `m.hidden()`, `import {hidden}` and the import dicts refuse it. A module with no `export` at all keeps every function public, as before.
   - **Migration:** `export` the function the importer calls.

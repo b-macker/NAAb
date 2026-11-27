@@ -2224,6 +2224,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         transcript_entry["config"] = cfg;
     }
 
+    // B7: every behavioural event from here to this send's return -- the send,
+    // the tool calls the model makes, what each tool does, the response -- is
+    // marked as the agent's own, not the orchestration script's.
+    governance::AgentTurnEventScope agent_turn_events;
+
     // Behavioral sequence: emit agent.send event (once, before retry loop)
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().behavioral_sequences.enabled) {
@@ -3819,8 +3824,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
                 // Emit TOOL_CALL BSD event (Gap F)
                 if (gov_engine) {
+                    // B7: the call by name and arguments, so S1 can see the
+                    // same call made turn after turn.
+                    const bool bsd_on = gov_engine->getRules().behavioral_sequences.enabled;
                     gov_engine->emitEvent(governance::RuntimeEventType::TOOL_CALL,
-                        "tool_call('" + tc.name + "')", "", 0);
+                        "tool_call('" + tc.name + "')", "", 0,
+                        bsd_on ? security::CryptoUtils::sha256(tc.name + '\x1f' + tc.arguments)
+                               : std::string());
                     gov_engine->writeAgentTelemetry("AGENT_TOOL_CALL", {
                         {"tool_name", tc.name},
                         {"handle_id", std::to_string(handle_id)},
@@ -4038,8 +4048,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
                 // Step 11: BSD event (Gap F)
                 if (gov_engine) {
+                    // B7: what came back, as the model receives it, so a
+                    // re-read whose result changed is not a repeat.
+                    const bool bsd_on = gov_engine->getRules().behavioral_sequences.enabled;
                     gov_engine->emitEvent(governance::RuntimeEventType::TOOL_RESULT,
-                        "tool_result('" + tc.name + "')", "", 0);
+                        "tool_result('" + tc.name + "')", "", 0,
+                        bsd_on ? security::CryptoUtils::sha256(tc.name + '\x1f' +
+                                     (tool_success ? "ok" : "error") + '\x1f' + tool_result_str)
+                               : std::string());
                     gov_engine->writeAgentTelemetry("AGENT_TOOL_RESULT", {
                         {"tool_name", tc.name},
                         {"handle_id", std::to_string(handle_id)},
@@ -5110,6 +5126,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"pressure",         pres},
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
                     {"signals_detail",   fired_names},
+                    // B7: which repeat S1 fired on -- "reply", "tool_calls"
+                    // (the same calls and results, whatever the reply said)
+                    // or "both"; empty when it did not fire this turn.
+                    {"circular_kind",    drift_state->last_circular_kind},
                     {"penalties_detail", penalty_detail},
                     {"coherence_adjustments", coherenceAdjustments(*drift_state)},
                     // Calibration state, declared per turn.
@@ -6582,6 +6602,7 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                     {"pressure",         fmt::format("{:.4f}", drift_state->last_pressure_score)},
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
                     {"signals_detail",   c_fired},
+                    {"circular_kind",    drift_state->last_circular_kind},  // B7
                     {"penalties_detail", c_penalty},
                     {"coherence_adjustments", coherenceAdjustments(*drift_state)},
                     {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},

@@ -1088,6 +1088,45 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         state.turn_fingerprints.pop_front();
     }
 
+    // B7 (decision 30): what the agent did this turn -- each tool call by its
+    // name and arguments, the result it got, and what the tool itself did
+    // (its file, env, network ... events, by call and first argument) --
+    // read from the events marked as raised inside the agent's turn. The
+    // orchestration script's own events between sends carry the same handle
+    // and land in the same turn bucket, so without the mark a script that
+    // varies its own actions would hide the agent's loop (the 28/30 -> 9/30
+    // of #181). The fingerprint above cannot see this loop either: it holds
+    // the reply's content hash, so an agent that repeats the same calls while
+    // rewording its reply never repeats. Empty for a turn with no tool call.
+    {
+        std::vector<std::string> parts;
+        bool any_call = false;
+        for (const auto& ev : turn_events) {
+            if (!ev.in_agent_turn) continue;
+            switch (ev.type) {
+                case RuntimeEventType::AGENT_SEND:
+                case RuntimeEventType::AGENT_RESPONSE:
+                    break;  // the reply is the fingerprint's
+                case RuntimeEventType::TOOL_CALL:
+                    any_call = true;
+                    parts.push_back("TC:" + ev.content_fingerprint.substr(0, 16));
+                    break;
+                case RuntimeEventType::TOOL_RESULT:
+                    parts.push_back("TR:" + ev.content_fingerprint.substr(0, 16));
+                    break;
+                default:
+                    parts.push_back(std::to_string(static_cast<int>(ev.type)) + ":" + ev.detail);
+            }
+        }
+        if (!any_call) parts.clear();
+        std::sort(parts.begin(), parts.end());
+        std::string sig;
+        for (const auto& p : parts) sig += p;
+        state.turn_tool_signatures.push_back(std::move(sig));
+        if (static_cast<int>(state.turn_tool_signatures.size()) > config_->fingerprint_window)
+            state.turn_tool_signatures.pop_front();
+    }
+
     // Base penalty: flat weight or rate-normalized. Makes early turns more
     // tolerant and sustained bad behavior more penalizing.
     auto base_penalty = [&](double weight, int count) -> double {
@@ -1258,9 +1297,19 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
     }
 
-    // Signal 1: Circular actions (same fingerprint repeats)
-    if (sig_on(config_->signals.circular_actions, SIG_CIRCULAR) && isCircular(state, fp)) {
+    // Signal 1: Circular actions -- the same reply and actions again
+    // (isCircular), or the same tool calls getting the same results turn after
+    // turn (toolCallsRepeat, B7). One firing per turn either way.
+    state.last_circular_kind.clear();
+    bool circular_reply = false, circular_tools = false;
+    if (sig_on(config_->signals.circular_actions, SIG_CIRCULAR)) {
+        circular_reply = isCircular(state, fp);
+        circular_tools = toolCallsRepeat(state);
+    }
+    if (circular_reply || circular_tools) {
         state.circular_action_count++;
+        if (circular_tools) state.circular_tool_count++;
+        state.last_circular_kind = circular_reply ? (circular_tools ? "both" : "reply") : "tool_calls";
         turn_fired[SIG_CIRCULAR]++;
         // Charged even DURING the baseline window — see is_objective_signal().
         // Byte-identical output is categorically pathological, so there is no
@@ -2737,6 +2786,7 @@ std::string ContextDriftAnalyzer::snapshotState(int handle_id) const {
     counts["thinking_collapse"] = s.thinking_collapse_count;
     counts["context_growth"] = s.context_growth_count;
     counts["circular_action"] = s.circular_action_count;
+    counts["circular_tool_calls"] = s.circular_tool_count;
     counts["scope_creep"] = s.scope_creep_count;
     j["counts"] = counts;
 
@@ -2757,6 +2807,7 @@ std::string ContextDriftAnalyzer::snapshotState(int handle_id) const {
 
     nlohmann::json windows;
     windows["turn_fingerprints"] = s.turn_fingerprints.size();
+    windows["turn_tool_signatures"] = s.turn_tool_signatures.size();
     windows["recent_errors"] = s.recent_errors.size();
     windows["coherence_history"] = s.coherence_history.size();
     windows["semantic_stability_history"] = s.semantic_stability_history.size();
@@ -2884,6 +2935,19 @@ bool ContextDriftAnalyzer::isCircular(const DriftState& state,
         }
     }
     return matches >= 2;
+}
+
+bool ContextDriftAnalyzer::toolCallsRepeat(const DriftState& state) const {
+    // The last circular_lookback turns (at least two) each made tool calls,
+    // and the same ones with the same results. Every turn of the window, not
+    // two of three as for the reply: a repeated tool call is often legitimate
+    // once (a re-read), so it takes a run of them.
+    const size_t need = static_cast<size_t>(std::max(2, config_->thresholds.circular_lookback));
+    const auto& sigs = state.turn_tool_signatures;
+    if (sigs.size() < need || sigs.back().empty()) return false;
+    for (size_t i = sigs.size() - need; i < sigs.size(); i++)
+        if (sigs[i] != sigs.back()) return false;
+    return true;
 }
 
 void ContextDriftAnalyzer::reset() {
