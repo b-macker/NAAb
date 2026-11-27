@@ -24,6 +24,27 @@ fail() {
     echo "        $2"
 }
 
+UNM=0
+unm() {
+    UNM=$((UNM + 1))
+    TOTAL=$((TOTAL + 1))
+    echo "  UNMEASURABLE: $1"
+}
+
+# check_ran OUT PASS_TEXT FAIL_TEXT FAIL_DETAIL -- the test script's Python
+# block ran ("ok=4"). A build without embedded Python (every Windows build)
+# cannot run it, which says nothing about project context: UNMEASURABLE there,
+# never a pass. Any other way of not printing ok=4 is a failure.
+check_ran() {
+    if grep -q "ok=4" <<<"$1"; then
+        pass "$2"
+    elif grep -q "Python support not available" <<<"$1"; then
+        unm "$2 (no embedded Python in this build)"
+    else
+        fail "$3" "$4"
+    fi
+}
+
 # Helper: write a temp govern.json, run a test script, capture stderr
 run_test() {
     local govern_json="$1"
@@ -110,11 +131,13 @@ else
 fi
 
 # CLAUDE.md says "use 4 spaces", .cursorrules says "use 2 spaces"
-# CLAUDE.md should win (discovered first in priority order)
-if echo "$OUT" | grep -q "indent_size=4.*APPLIED"; then
-    pass "Style conflict: CLAUDE.md indent_size=4 wins (higher priority)"
+# CLAUDE.md should win (discovered first in priority order). No rule reads
+# indentation, so the winner is reported NOT ENFORCED: this arm used to assert
+# APPLIED, which pinned A212's mislabel.
+if grep -q "indent_size=4.*NOT ENFORCED" <<<"$OUT"; then
+    pass "Style conflict: CLAUDE.md indent_size=4 wins (higher priority), reported not enforced"
 else
-    fail "Style conflict: CLAUDE.md indent_size=4 not applied" "First-file-wins should apply CLAUDE.md"
+    fail "Style conflict: CLAUDE.md indent_size=4 not reported as the winner" "First-file-wins should pick CLAUDE.md"
 fi
 
 if echo "$OUT" | grep -q "indent_size=2.*SKIP"; then
@@ -194,11 +217,8 @@ echo "Test 6: Manifest detection is advisory-only"
 # go.mod exists, but user writes Python — should work fine
 OUT=$(run_test '{"project_context":{"enabled":true,"show_extractions":true,"sources":{"llm":false,"linters":false,"manifests":true}}}' "$EDGE/_test.naab")
 
-if echo "$OUT" | grep -q "ok=4"; then
-    pass "Manifest advisory: Python block runs despite go.mod being detected"
-else
-    fail "Manifest advisory: Python block failed" "Manifests should NEVER block languages"
-fi
+check_ran "$OUT" "Manifest advisory: Python block runs despite go.mod being detected" \
+    "Manifest advisory: Python block failed" "Manifests should NEVER block languages"
 
 if echo "$OUT" | grep -q "go.*detected\|Go.*detected"; then
     pass "Manifest advisory: Go detected from go.mod"
@@ -240,11 +260,8 @@ echo "Test 8: Robustness — empty and malformed files"
 # Add empty file to watch_files
 OUT=$(run_test '{"project_context":{"enabled":true,"watch_files":["empty_file.md"],"show_extractions":true,"sources":{"llm":true,"linters":false,"manifests":false}}}' "$EDGE/_test.naab")
 
-if echo "$OUT" | grep -q "ok=4"; then
-    pass "Empty file: Script runs successfully with empty watch_file"
-else
-    fail "Empty file: Script failed" "Empty files should be handled gracefully"
-fi
+check_ran "$OUT" "Empty file: Script runs successfully with empty watch_file" \
+    "Empty file: Script failed" "Empty files should be handled gracefully"
 
 echo ""
 
@@ -316,11 +333,8 @@ else
     pass "Disabled: No project-context output when enabled=false"
 fi
 
-if echo "$OUT" | grep -q "ok=4"; then
-    pass "Disabled: Script runs normally"
-else
-    fail "Disabled: Script failed" "Should run without any interference"
-fi
+check_ran "$OUT" "Disabled: Script runs normally" \
+    "Disabled: Script failed" "Should run without any interference"
 
 echo ""
 
@@ -368,11 +382,8 @@ else
     fail "All layers: No summary line" "Should show extraction summary"
 fi
 
-if echo "$OUT" | grep -q "ok=4"; then
-    pass "All layers: Script executes successfully with all layers"
-else
-    fail "All layers: Script failed" "All layers should not break execution"
-fi
+check_ran "$OUT" "All layers: Script executes successfully with all layers" \
+    "All layers: Script failed" "All layers should not break execution"
 
 echo ""
 
@@ -419,6 +430,7 @@ echo "════════════════════════�
 echo "  Total:  $TOTAL"
 echo "  Passed: $PASS"
 echo "  Failed: $FAIL"
+echo "  Unmeasurable: $UNM"
 echo ""
 
 if [ "$FAIL" -eq 0 ]; then

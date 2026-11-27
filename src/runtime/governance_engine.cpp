@@ -1022,6 +1022,27 @@ bool GovernanceEngine::loadFoundConfig(const std::string& config_path,
                         startup_context_hints_ = rules().project_context.feed_optimization;
                         loader.applyToRules(getMutableRules(), extractions, ctx_level);
 
+                        // A213: the files whose text became a rule are the
+                        // program's to read, not to write -- a program that
+                        // rewrote CLAUDE.md lost its ban for the next run
+                        // (observed). Manifests and preference-only files are
+                        // left writable: the language-choice check decides
+                        // without their preferences too, so they can only add
+                        // a refusal. Grow-only, like the other protected lists.
+                        {
+                            std::lock_guard<std::mutex> lk(evidence_paths_mutex_);
+                            for (const auto& ext : extractions) {
+                                if (!ext.wrote_rule || ext.source_path.empty()) continue;
+                                std::error_code ec;
+                                auto abs = std::filesystem::absolute(ext.source_path, ec);
+                                if (ec) continue;
+                                const std::string p = abs.lexically_normal().string();
+                                if (std::find(project_context_paths_.begin(), project_context_paths_.end(), p) ==
+                                    project_context_paths_.end())
+                                    project_context_paths_.push_back(p);
+                            }
+                        }
+
                         if (rules().project_context.feed_optimization) {
                             loader.applyOptimizationHints(
                                 getMutableRules().polyglot_optimization, extractions);
@@ -1276,6 +1297,15 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
                 engine_state_dirs_.push_back(d);
         }
     }
+}
+
+bool GovernanceEngine::isProjectContextPath(const std::string& canon_n) const {
+    std::vector<std::string> paths;
+    {
+        std::lock_guard<std::mutex> lk(evidence_paths_mutex_);
+        paths = project_context_paths_;
+    }
+    return recordedPathMatches(paths, canon_n);
 }
 
 bool GovernanceEngine::isEngineStatePath(const std::string& canon_n) const {
@@ -3295,6 +3325,26 @@ std::string GovernanceEngine::checkPathAccessImpl(const std::string& filepath,
                 "file.write(\"" + filepath + "\", text)",
                 "file.write(\"output/notes.txt\", text)"),
             "governance plugin is not writable by the program: " + filepath);
+    }
+
+    // A213: a project file whose text project_context turned into a rule (a
+    // CLAUDE.md ban, an .eslintrc that switched no_console_log on). A program
+    // that could rewrite or delete it would load fewer rules on its next run:
+    // observed before this, import pickle refused, CLAUDE.md rewritten with
+    // exit 0, then allowed. Reads stay allowed. Subprocess languages do not
+    // reach this gate (CONTRA-013).
+    if (mode == "write" && isProjectContextPath(canon_n)) {
+        return deny("governance.project_context_files", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Writing a project instruction file is blocked: " + filepath,
+                currentFunction().empty() ? std::string()
+                                          : ("in function '" + currentFunction() + "'"),
+                "the project's governance turned this file's text into rules the program runs under",
+                "A governed program can read this file but cannot change, move or delete it.\n"
+                "The operator edits it outside the program; write your output to another file.",
+                "file.write(\"" + filepath + "\", text)",
+                "file.write(\"output/notes.md\", text)"),
+            "project instruction file is not writable by the program: " + filepath);
     }
 
     // Governance evidence -- the telemetry output, the agent transcript, the

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed -- what CLAUDE.md and the setup files add to governance holds (Bundle 21 PR 1: A212, A213, A214, A232; migration notes)
+- **A CLAUDE.md ban NAAb cannot tie to one language now applies (A212).** "Never use eval()" was reported `[APPLIED]` and written to no rule; it is now added to the banned list of every language a block can be written in. Indentation, line length and function length read from those files are reported `[NOT ENFORCED]`: no rule reads them.
+  - **Migration:** with `project_context` on, a block in any language calling a function such a line bans is now refused.
+- **The project files whose text became a rule are read-only to the program (A213).** While `project_context` is on, a program may read but not write, delete or rename a CLAUDE.md (or linter file) that added a ban, `no_console_log` or `strict_mode`; a rewrite used to drop the rule for the next run. Manifests and files that added no rule stay writable.
+- **A project file can only add a language-choice refusal, never lift one (A213).** The language-choice check (`polyglot_optimization`) decides with and without the project's preferences (CLAUDE.md "prefer X for Y", a manifest's +5) and refuses when either does; a preference or a `pyproject.toml` used to let a refused block run.
+- **The HARD language-choice refusal is HARD (A214).** It went through no `enforce()`: a NAAb `try` caught it, uncaught it exited 1, and with `helper_errors.enabled: false` nothing was refused. It now exits 3 and cannot be caught; `soft` stays advisory.
+  - **Migration:** at `enforcement_level: "hard"`, a block the check refuses now ends the run even inside a `try`, and even with the hint text switched off.
+- **A CLAUDE.md with Windows line endings keeps its directives (A232).** The line readers kept each line's carriage return, so a directive that runs to the end of its line lost it: "Prefer Go for concurrency" named the task `concurrency\r` and was dropped. Found when build-windows checked the test fixtures out with CRLF.
+  - **Migration:** with `project_context` on, a preference in a CRLF file now applies, and a preference can add a language-choice refusal.
+- Tests: `tests/governance_v4/test_project_context_integrity.sh`; `tests/project_context/edge_case_tests.sh` is now run by `run-all-tests.sh` (it passed and ran nowhere). On a build without embedded Python both read UNMEASURABLE for the checks that need a Python block.
+
 ### Changed -- Bundle 19 PR 5: the drift signals (migration note)
 - **`circular_actions` (S1) also fires when an agent makes the same tool calls and gets the same results turn after turn, whatever its reply says (B7, the owner's decision 30).** S1 compared each turn's reply content, so an agent repeating a call while rewording its reply never looked repeated. Ten identical calls with identical results drew no firing. S1 now also fires when the last `circular_lookback` (3) turns made the same calls (name and arguments) and got the same results. A re-read whose result changed is not a repeat. `CDD_TURN` gives `circular_kind` (`reply`, `tool_calls` or `both`).
   - **Migration:** an agent that polls an unchanged value with the same call three turns running now pays S1 from that third turn on. As S1 always has, it pays inside the baseline window too. Turn S1 off for that agent with `context_drift_signals: {"circular_actions": false}`.
