@@ -3,6 +3,7 @@
 // agent.batch(), agent.fan_out(), agent.pipeline()
 // Requires "agents" section in govern.json for configuration
 
+#include "naab/bounded_jsonl.h"
 #include "naab/thread_vm.h"
 #include "naab/utf8_text.h"
 #include "naab/claim_reader.h"
@@ -41,6 +42,8 @@
 
 namespace naab {
 namespace stdlib {
+
+interpreter::NaabVal jsonToValue(const nlohmann::json& j);  // json_impl.cpp (F52)
 
 using interpreter::NaabVal;
 using json = nlohmann::json;
@@ -2221,6 +2224,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         transcript_entry["config"] = cfg;
     }
 
+    // B7: every behavioural event from here to this send's return -- the send,
+    // the tool calls the model makes, what each tool does, the response -- is
+    // marked as the agent's own, not the orchestration script's.
+    governance::AgentTurnEventScope agent_turn_events;
+
     // Behavioral sequence: emit agent.send event (once, before retry loop)
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().behavioral_sequences.enabled) {
@@ -3735,9 +3743,15 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     continue;
                 }
 
-                // Step 2: Parse arguments with depth guard (Gap J)
+                // Step 2: Parse arguments with depth guard (Gap J; the comment came with
+                // 2d3a9d64 and no check did until F52 below)
                 json tool_args;
                 try {
+                    // F52: a nested argument becomes a NAAb dict or list
+                    // (recursively), so its depth is bounded first, as every
+                    // reader of untrusted JSON is (naab/bounded_jsonl.h).
+                    if (!naab::evidence::jsonNestingWithin(tc.arguments, naab::evidence::kMaxJsonDepth))
+                        throw std::runtime_error("tool arguments nested too deeply");
                     tool_args = json::parse(tc.arguments);
                 } catch (const governance::GovernanceHardError&) {
                     throw;  // uncatchable — propagate to main
@@ -3810,8 +3824,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
                 // Emit TOOL_CALL BSD event (Gap F)
                 if (gov_engine) {
+                    // B7: the call by name and arguments, so S1 can see the
+                    // same call made turn after turn.
+                    const bool bsd_on = gov_engine->getRules().behavioral_sequences.enabled;
                     gov_engine->emitEvent(governance::RuntimeEventType::TOOL_CALL,
-                        "tool_call('" + tc.name + "')", "", 0);
+                        "tool_call('" + tc.name + "')", "", 0,
+                        bsd_on ? security::CryptoUtils::sha256(tc.name + '\x1f' + tc.arguments)
+                               : std::string());
                     gov_engine->writeAgentTelemetry("AGENT_TOOL_CALL", {
                         {"tool_name", tc.name},
                         {"handle_id", std::to_string(handle_id)},
@@ -3844,7 +3863,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 else if (val.is_number_float()) naab_args.push_back(NaabVal::makeDouble(val.get<double>()));
                                 else if (val.is_boolean()) naab_args.push_back(NaabVal::makeBool(val.get<bool>()));
                                 else if (val.is_null()) naab_args.push_back(NaabVal::makeNull());
-                                else naab_args.push_back(NaabVal::makeString(val.dump()));
+                                // F52: an object or array argument is a dict or a
+                                // list, as json.parse() makes it (it was the JSON
+                                // text). The arguments were read within the
+                                // nesting bound above (jsonNestingWithin).
+                                else naab_args.push_back(jsonToValue(val));
                             } else {
                                 naab_args.push_back(NaabVal::makeNull());
                             }
@@ -4025,8 +4048,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
                 // Step 11: BSD event (Gap F)
                 if (gov_engine) {
+                    // B7: what came back, as the model receives it, so a
+                    // re-read whose result changed is not a repeat.
+                    const bool bsd_on = gov_engine->getRules().behavioral_sequences.enabled;
                     gov_engine->emitEvent(governance::RuntimeEventType::TOOL_RESULT,
-                        "tool_result('" + tc.name + "')", "", 0);
+                        "tool_result('" + tc.name + "')", "", 0,
+                        bsd_on ? security::CryptoUtils::sha256(tc.name + '\x1f' +
+                                     (tool_success ? "ok" : "error") + '\x1f' + tool_result_str)
+                               : std::string());
                     gov_engine->writeAgentTelemetry("AGENT_TOOL_RESULT", {
                         {"tool_name", tc.name},
                         {"handle_id", std::to_string(handle_id)},
@@ -4873,6 +4902,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // is linked to it (GUIDANCE_RESPONSE). Logged inside the drift block when
     // that runs (so the signal-recurrence field is fresh), else just after it.
     bool guidance_reply_logged = false;
+    // The turn this send's drift check analysed (A229): the reality checkpoint
+    // records the turn it fired at as this pre-increment event turn, so the
+    // response asks about this one -- the tracker's count below is one ahead.
+    // -1 when no drift check ran, which no checkpoint turn equals.
+    int cdd_analysed_turn = -1;
 
     // Claims (Bundle 20 PR 5): read before the drift block so the reading is
     // recorded, and its claims pending settlement, whether or not sequence
@@ -4902,6 +4936,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         // Events are emitted at the turn set by setAgentContext (pre-increment).
         // CDD must query the same turn to find these events.
         int event_turn = gov_engine->getCurrentAgentTurn();
+        cdd_analysed_turn = event_turn;
         gov_engine->emitEvent(governance::RuntimeEventType::AGENT_RESPONSE,
             "agent.response('" + config_name + "', tokens=" +
             std::to_string(resp_output_tokens) + ")", "", 0, cfp,
@@ -5091,6 +5126,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"pressure",         pres},
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
                     {"signals_detail",   fired_names},
+                    // B7: which repeat S1 fired on -- "reply", "tool_calls"
+                    // (the same calls and results, whatever the reply said)
+                    // or "both"; empty when it did not fire this turn.
+                    {"circular_kind",    drift_state->last_circular_kind},
                     {"penalties_detail", penalty_detail},
                     {"coherence_adjustments", coherenceAdjustments(*drift_state)},
                     // Calibration state, declared per turn.
@@ -5620,9 +5659,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         result["guidance"] = NaabVal::makeList(std::move(gl));
     }
 
-    // Reality checkpoint: add pressure data if checkpoint fired at ADVISORY
+    // Reality checkpoint: add pressure data if checkpoint fired at ADVISORY.
+    // Asked with the turn the drift check analysed, not current_turn: #49
+    // (30802675) moved the check to the event turn and left this call on the
+    // tracker's, one ahead, so `fired` was never true (A229).
     if (gov_engine && gov_engine->isActive()) {
-        auto cp = gov_engine->getCheckpointData(handle_id, current_turn);
+        auto cp = gov_engine->getCheckpointData(handle_id, cdd_analysed_turn);
         if (cp.fired) {
             std::unordered_map<std::string, NaabVal> cp_dict;
             cp_dict["pressure"] = NaabVal::makeDouble(cp.pressure);
@@ -6560,6 +6602,7 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                     {"pressure",         fmt::format("{:.4f}", drift_state->last_pressure_score)},
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
                     {"signals_detail",   c_fired},
+                    {"circular_kind",    drift_state->last_circular_kind},  // B7
                     {"penalties_detail", c_penalty},
                     {"coherence_adjustments", coherenceAdjustments(*drift_state)},
                     {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},

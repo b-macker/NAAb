@@ -3,6 +3,8 @@
 # must be consumed by stripStringLiterals() before pattern matching.
 # Without fix: f"dangerous()" → prefix 'f' remains in stripped output after
 # string-literal stripping. With fix: prefix replaced with space — no residue.
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -euo pipefail
 
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"

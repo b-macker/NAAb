@@ -1112,10 +1112,36 @@ static void checkRestrictionTypes(const nlohmann::json& j) {
 // made the loader warn, where no clear meaning, no detector, or a working
 // setting that does the job argued against wiring them. A setting that is
 // later made to work leaves this table in the same change.
+//
+// A175(b), Bundle 19 PR 4 (the owner's decision 6): the second group below is
+// template keys the loader never parses at all. They left the template and
+// init; the ones that ask for a refusal, a detection, a limit, an isolation,
+// an integrity check or an evidence record nothing provides are warned here,
+// only when the value asks for it (a config that writes an old default such
+// as `false` or `0` asked for nothing). The record, with the reason for each
+// key and the quiet group, is tests/governance_v4/template_retired_keys.txt;
+// test_no_effect_settings.sh compares the two by behaviour.
+enum class NoEffectAsk { Present, True, False, Positive, NonEmpty };
 struct NoEffectSetting {
-    const char* path;  // dotted path in govern.json
+    const char* path;  // dotted path; "*" = any key of an object, "[]" = any array element
     const char* hint;  // the working setting to use, or "" when there is none
+    NoEffectAsk ask = NoEffectAsk::Present;  // which values draw the warning
+    bool parsed = true;                      // false: the loader never reads it
 };
+static constexpr NoEffectAsk kAskTrue = NoEffectAsk::True;
+static constexpr NoEffectAsk kAskFalse = NoEffectAsk::False;
+static constexpr NoEffectAsk kAskPositive = NoEffectAsk::Positive;
+static constexpr NoEffectAsk kAskNonEmpty = NoEffectAsk::NonEmpty;
+static constexpr NoEffectAsk kAskPresent = NoEffectAsk::Present;
+static constexpr const char* kAuditNoRunRecord =
+    " The audit trail records no run start or end; the telemetry file records RunStart and RunEnd.";
+static constexpr const char* kEncodingOnly =
+    " The encoding check refuses null bytes and bidirectional overrides only.";
+static constexpr const char* kUseCustomRules =
+    " \"custom_rules\" adds a pattern a run refuses.";
+static constexpr const char* kNoPiiKind = " No check detects this kind of PII.";
+static constexpr const char* kSignTheConfig =
+    " A signed govern.json is verified at every load.";
 static const NoEffectSetting kNoEffectSettings[] = {
     {"limits.memory.per_block_mb",
      " \"runtime.memory_limit\" bounds what a child process may allocate."},
@@ -1161,25 +1187,134 @@ static const NoEffectSetting kNoEffectSettings[] = {
      " S19 charges each reply that misstates a tool's outcome; no accuracy threshold applies."},
     {"api.tls_cert", " The REST server has no TLS: requests and API keys travel in plaintext."},
     {"api.tls_key", " The REST server has no TLS: requests and API keys travel in plaintext."},
+
+    // --- never parsed (A175(b)) ---------------------------------------------
+    {"audit.log_events.checks_warned",
+     " The audit trail records no check results; the telemetry file records each one.", kAskTrue, false},
+    {"audit.log_events.config_loaded", kAuditNoRunRecord, kAskTrue, false},
+    {"audit.log_events.execution_start", kAuditNoRunRecord, kAskTrue, false},
+    {"audit.log_events.execution_end", kAuditNoRunRecord, kAskTrue, false},
+    {"capabilities.memory",
+     " \"runtime.memory_limit\" bounds what a child process may allocate.", kAskPresent, false},
+    {"capabilities.time", " \"limits.timeout.per_block\" bounds one block's time.", kAskPresent, false},
+    {"capabilities.network.http_allowed",
+     " \"capabilities.network.https_only\" refuses plain http.", kAskFalse, false},
+    {"capabilities.network.max_request_size", "", kAskPositive, false},
+    {"capabilities.network.max_response_size", "", kAskPositive, false},
+    {"capabilities.shell.allow_backgrounding", "", kAskFalse, false},
+    {"circuit_breaker.critical_coherence",
+     " \"circuit_breaker.critical_threshold\" sets the pressure at which the level becomes CRITICAL.",
+     kAskPositive, false},
+    {"code_quality.encoding.require_utf8", kEncodingOnly, kAskTrue, false},
+    {"code_quality.encoding.block_control_characters", kEncodingOnly, kAskTrue, false},
+    {"code_quality.encoding.block_homoglyph_attacks", kEncodingOnly, kAskTrue, false},
+    {"code_quality.encoding.block_bom", kEncodingOnly, kAskTrue, false},
+    {"code_quality.no_pii.detect_drivers_license", kNoPiiKind, kAskTrue, false},
+    {"code_quality.no_pii.detect_iban", kNoPiiKind, kAskTrue, false},
+    {"code_quality.no_pii.detect_medical_record", kNoPiiKind, kAskTrue, false},
+    {"code_quality.no_pii.detect_passport", kNoPiiKind, kAskTrue, false},
+    {"code_quality.no_pii.custom_pii_patterns", kUseCustomRules, kAskNonEmpty, false},
+    {"code_quality.no_secrets.custom_patterns", kUseCustomRules, kAskNonEmpty, false},
+    {"code_quality.no_mock_data.custom_patterns", kUseCustomRules, kAskNonEmpty, false},
+    {"code_quality.no_mock_data.custom_prefixes",
+     " \"variable_prefixes\" and \"function_prefixes\" add the names the check looks for.",
+     kAskNonEmpty, false},
+    {"code_quality.no_apologetic_language.custom_patterns", kUseCustomRules, kAskNonEmpty, false},
+    {"code_quality.no_secrets.entropy_check.enabled",
+     " No check measures a string's entropy.", kAskTrue, false},
+    {"custom_rules.[].multiline",
+     " A rule's pattern is matched against the whole block, so ^ is the block's start; (?:^|\\n) matches at a line start.",
+     kAskTrue, false},
+    {"languages.per_language.*.banned_includes",
+     " \"banned_imports\" refuses an include that matches it.", kAskNonEmpty, false},
+    {"languages.per_language.*.imports.blocked_from",
+     " \"imports.blocked\" refuses a module, and \"banned_functions\" a call by name.", kAskNonEmpty, false},
+    {"languages.per_language.*.shell_injection",
+     " \"restrictions.shell_injection\" checks shell code for injection.", kAskTrue, false},
+    {"meta.config_immutability.verify_on_load", kSignTheConfig, kAskTrue, false},
+    {"meta.config_immutability.block_on_mismatch", kSignTheConfig, kAskTrue, false},
+    {"polyglot.context_isolation.enabled", "", kAskTrue, false},
+    {"polyglot.persistent_runtime.allow_state_persistence",
+     " A persistent shell, node or ruby process keeps its state between blocks.", kAskFalse, false},
+    {"restrictions.crypto.block_hardcoded_ivs", " No check detects a hard-coded IV.", kAskTrue, false},
+    {"restrictions.crypto.require_secure_random",
+     " No check detects an insecure random source.", kAskTrue, false},
+    {"restrictions.dangerous_calls.check_chained_calls", "", kAskTrue, false},
+    {"restrictions.dangerous_calls.check_string_formatting", "", kAskTrue, false},
+    {"restrictions.data_exfiltration.block_url_encode_secrets",
+     " The check detects base64 and hex encoding of secrets, not URL encoding.", kAskTrue, false},
+    {"restrictions.data_exfiltration.max_encoded_output_length", "", kAskPositive, false},
+    {"restrictions.information_disclosure.block_directory_listing", "", kAskTrue, false},
+    {"restrictions.information_disclosure.block_error_stack_traces", "", kAskTrue, false},
+    {"restrictions.privilege_escalation.block_capability_changes",
+     " The check detects sudo, su, setuid and a set-id chmod, not capability changes.", kAskTrue, false},
+    {"restrictions.resource_abuse.block_infinite_loops", "", kAskTrue, false},
+    {"restrictions.resource_abuse.block_recursive_file_ops",
+     " The check detects fork bombs and disk filling only.", kAskTrue, false},
+    {"restrictions.resource_abuse.max_temp_files", "", kAskPositive, false},
+    {"restrictions.resource_abuse.max_temp_file_size", "", kAskPositive, false},
+    {"restrictions.shell_injection.check_variable_expansion", "", kAskTrue, false},
+    {"restrictions.shell_injection.require_quoting", "", kAskTrue, false},
 };
+
+static bool noEffectValueAsks(const nlohmann::json& v, NoEffectAsk ask) {
+    switch (ask) {
+        case NoEffectAsk::Present:  return true;
+        case NoEffectAsk::True:     return v.is_boolean() && v.get<bool>();
+        case NoEffectAsk::False:    return v.is_boolean() && !v.get<bool>();
+        case NoEffectAsk::Positive: return v.is_number() && v.get<double>() > 0;
+        case NoEffectAsk::NonEmpty:
+            return (v.is_array() || v.is_string() || v.is_object()) && !v.empty();
+    }
+    return false;
+}
+
+// Walks PATH's segments from NODE, collecting the display path of every value
+// the path reaches ("*" over an object's keys, "[]" over an array's elements).
+static void collectNoEffectHits(const nlohmann::json& node, const std::vector<std::string>& segs,
+                                size_t i, const std::string& shown, NoEffectAsk ask,
+                                std::vector<std::string>& hits) {
+    if (i == segs.size()) {
+        if (noEffectValueAsks(node, ask)) hits.push_back(shown);
+        return;
+    }
+    const std::string& seg = segs[i];
+    if (seg == "[]") {
+        if (!node.is_array()) return;
+        for (size_t k = 0; k < node.size(); ++k)
+            collectNoEffectHits(node[k], segs, i + 1, shown + "[" + std::to_string(k) + "]", ask, hits);
+        return;
+    }
+    if (!node.is_object()) return;
+    const std::string sep = shown.empty() ? "" : ".";
+    if (seg == "*") {
+        for (auto it = node.begin(); it != node.end(); ++it)
+            collectNoEffectHits(it.value(), segs, i + 1, shown + sep + it.key(), ask, hits);
+        return;
+    }
+    auto it = node.find(seg);
+    if (it != node.end()) collectNoEffectHits(*it, segs, i + 1, shown + sep + seg, ask, hits);
+}
 
 static void warnNoEffectSettings(const nlohmann::json& j) {
     for (const auto& s : kNoEffectSettings) {
-        const nlohmann::json* node = &j;
+        std::vector<std::string> segs;
         std::string rest = s.path;
-        bool present = true;
-        while (present) {
-            const auto dot = rest.find('.');
-            const std::string key = rest.substr(0, dot);
-            if (!node->is_object() || !node->contains(key)) { present = false; break; }
-            node = &(*node)[key];
-            if (dot == std::string::npos) break;
-            rest = rest.substr(dot + 1);
+        for (size_t dot; (dot = rest.find('.')) != std::string::npos; rest = rest.substr(dot + 1))
+            segs.push_back(rest.substr(0, dot));
+        segs.push_back(rest);
+        std::vector<std::string> hits;
+        collectNoEffectHits(j, segs, 0, "", s.ask, hits);
+        for (const auto& shown : hits) {
+            if (s.parsed)
+                fprintf(stderr,
+                        "[governance] Warning: \"%s\" is parsed but not enforced -- no check reads it.%s\n",
+                        shown.c_str(), s.hint);
+            else
+                fprintf(stderr,
+                        "[governance] Warning: \"%s\" is not read -- nothing enforces it.%s\n",
+                        shown.c_str(), s.hint);
         }
-        if (!present) continue;
-        fprintf(stderr,
-                "[governance] Warning: \"%s\" is parsed but not enforced -- no check reads it.%s\n",
-                s.path, s.hint);
     }
 }
 
@@ -2327,8 +2462,14 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
                     if (obj.contains("level")) { auto lv = parseLevelOnly(obj["level"]); config.level = lv; }
                     if (obj.contains("patterns"))
                         for (auto& p : obj["patterns"]) if (p.is_string()) config.patterns.push_back(p.get<std::string>());
+                    // A105 (decision 16): custom_patterns ADD to the check's
+                    // patterns (the built-in ones, or `patterns` when given),
+                    // as no_oversimplification's and no_incomplete_logic's do.
+                    // They were pushed into `patterns`, which replaces the
+                    // built-in list, so extending a check switched its
+                    // defaults off.
                     if (obj.contains("custom_patterns"))
-                        for (auto& p : obj["custom_patterns"]) if (p.is_string()) config.patterns.push_back(p.get<std::string>());
+                        for (auto& p : obj["custom_patterns"]) if (p.is_string()) config.custom_patterns.push_back(p.get<std::string>());
                     parseRationale(obj, config.rationale);
                 }
             }
@@ -2476,6 +2617,9 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
             if (hr.contains("level")) { auto lv = parseLevelOnly(hr["level"]); rules_.code_quality.no_hardcoded_results.level = lv; rules_.no_hardcoded_results_level = lv; }
             if (hr.contains("check_return_true_false") && hr["check_return_true_false"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_return_true_false = hr["check_return_true_false"].get<bool>();
             if (hr.contains("check_dict_success_fields") && hr["check_dict_success_fields"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_dict_success_fields = hr["check_dict_success_fields"].get<bool>();
+            // U-014: read by checkHardcodedResults() (decision 14).
+            if (hr.contains("check_dict_status_fields") && hr["check_dict_status_fields"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_dict_status_fields = hr["check_dict_status_fields"].get<bool>();
+            if (hr.contains("check_perfect_scores") && hr["check_perfect_scores"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_perfect_scores = hr["check_perfect_scores"].get<bool>();
             parseRationale(hr, rules_.code_quality.no_hardcoded_results.rationale);
         }
 
@@ -9402,6 +9546,34 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
             for (const auto& scope : rules().scopes) {
                 if (scope.glob_pattern.empty()) {
                     fmt::print(stderr, "[WARN] A scope has an empty pattern — will match nothing.\n");
+                }
+            }
+            // A29(d): an enabled review that cannot run, or that scores with
+            // settings other than the ones named, said nothing: a review with
+            // no detection agents sent nothing and printed nothing (AR-02c),
+            // and a scorer name that matches no enabled `scorers` entry fell
+            // back to the global scoring settings in silence (AR-06c; the
+            // template names "security" against an entry "security_review").
+            // Checked here, on the rules after `extends`, because that is the
+            // set runAgentReview() reads. Warnings only: what runs is unchanged.
+            const auto& ar = rules().agent_review;
+            if (ar.enabled && ar.detection.empty()) {
+                fmt::print(stderr,
+                    "[governance] Warning: agent_review is enabled but names no detection agents - "
+                    "nothing is reviewed. List the agents to ask in \"detection\".\n");
+            }
+            if (ar.enabled && !ar.scorer.empty()) {
+                bool named = false, enabled = false;
+                for (const auto& sc : rules().scorers) {
+                    if (sc.name != ar.scorer) continue;
+                    named = true;
+                    enabled = enabled || sc.enabled;
+                }
+                if (!enabled) {
+                    fmt::print(stderr,
+                        "[governance] Warning: agent_review scorer \"{}\" {} - the review scores "
+                        "with the global scoring settings instead.\n",
+                        ar.scorer, named ? "is disabled" : "names no scorers entry");
                 }
             }
         }

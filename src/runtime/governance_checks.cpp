@@ -1241,6 +1241,16 @@ std::string GovernanceEngine::scanPii(const std::string& code, int line,
 }
 
 // --- Temporary Code ---
+// A105: the patterns a simple check uses -- its built-in list, or `patterns`
+// when the config gives one -- plus its custom_patterns.
+static std::vector<std::string> withCustomPatterns(const std::vector<std::string>& base,
+                                                   const std::vector<std::string>& extra) {
+    if (extra.empty()) return base;
+    std::vector<std::string> all = base;
+    all.insert(all.end(), extra.begin(), extra.end());
+    return all;
+}
+
 static const std::vector<std::string> DEFAULT_TEMP_PATTERNS = {
     // EVA-5: Comment-prefix-agnostic patterns — match # (Python/Shell/Ruby)
     // and // (JS/Go/Rust/NAAb/C++/C#/Java) comment styles
@@ -1261,7 +1271,7 @@ std::string GovernanceEngine::checkTemporaryCode(const std::string& code, int li
     auto& cfg = rules().code_quality.no_temporary_code;
     if (!cfg.enabled) return "";
     clearTrace();
-    auto& pats = cfg.patterns.empty() ? DEFAULT_TEMP_PATTERNS : cfg.patterns;
+    const auto pats = withCustomPatterns(cfg.patterns.empty() ? DEFAULT_TEMP_PATTERNS : cfg.patterns, cfg.custom_patterns);
     std::string found = searchPatterns(code, pats, !cfg.case_sensitive);
     if (!found.empty()) {
         addTrace(fmt::format("matched temporary code pattern: \"{}\"", found));
@@ -1291,7 +1301,7 @@ std::string GovernanceEngine::checkSimulationMarkers(const std::string& code, in
     auto& cfg = rules().code_quality.no_simulation_markers;
     if (!cfg.enabled) return "";
     clearTrace();
-    auto& pats = cfg.patterns.empty() ? DEFAULT_SIMULATION_PATTERNS : cfg.patterns;
+    const auto pats = withCustomPatterns(cfg.patterns.empty() ? DEFAULT_SIMULATION_PATTERNS : cfg.patterns, cfg.custom_patterns);
     std::string found = searchPatterns(code, pats, !cfg.case_sensitive);
     if (!found.empty()) {
         addTrace(fmt::format("matched simulation pattern: \"{}\"", found));
@@ -1403,7 +1413,7 @@ std::string GovernanceEngine::checkDeadCode(const std::string& code, int line) {
         "//\\s*return\\s+\\w",                               // // return value (commented return)
     };
 
-    auto& pats = cfg.patterns.empty() ? default_dead_patterns : cfg.patterns;
+    const auto pats = withCustomPatterns(cfg.patterns.empty() ? default_dead_patterns : cfg.patterns, cfg.custom_patterns);
     std::string found = searchPatterns(code, pats);
     if (!found.empty()) {
         return enforce("code_quality.no_dead_code", cfg.level,
@@ -1435,7 +1445,7 @@ std::string GovernanceEngine::checkDebugArtifacts(const std::string& language,
     if (!cfg.enabled) return "";
     clearTrace();
 
-    auto& pats = cfg.patterns.empty() ? DEFAULT_DEBUG_PATTERNS : cfg.patterns;
+    const auto pats = withCustomPatterns(cfg.patterns.empty() ? DEFAULT_DEBUG_PATTERNS : cfg.patterns, cfg.custom_patterns);
     for (const auto& pat : pats) {
         try {
             naab::rx::regex re(pat, naab::rx::regex::icase);
@@ -1477,7 +1487,7 @@ std::string GovernanceEngine::checkUnsafeDeserialization(const std::string& code
     auto& cfg = rules().code_quality.no_unsafe_deserialization;
     if (!cfg.enabled) return "";
     clearTrace();
-    auto& pats = cfg.patterns.empty() ? DEFAULT_DESER_PATTERNS : cfg.patterns;
+    const auto pats = withCustomPatterns(cfg.patterns.empty() ? DEFAULT_DESER_PATTERNS : cfg.patterns, cfg.custom_patterns);
     std::string found = searchPatterns(code, pats);
     if (!found.empty()) {
         return enforce("code_quality.no_unsafe_deserialization", cfg.level,
@@ -1504,7 +1514,7 @@ std::string GovernanceEngine::checkSqlInjection(const std::string& code, int lin
     auto& cfg = rules().code_quality.no_sql_injection;
     if (!cfg.enabled) return "";
     clearTrace();
-    auto& pats = cfg.patterns.empty() ? DEFAULT_SQL_PATTERNS : cfg.patterns;
+    const auto pats = withCustomPatterns(cfg.patterns.empty() ? DEFAULT_SQL_PATTERNS : cfg.patterns, cfg.custom_patterns);
     std::string found = searchPatterns(code, pats);
     if (!found.empty()) {
         return enforce("code_quality.no_sql_injection", cfg.level,
@@ -1531,7 +1541,7 @@ std::string GovernanceEngine::checkPathTraversal(const std::string& code, int li
     auto& cfg = rules().code_quality.no_path_traversal;
     if (!cfg.enabled) return "";
     clearTrace();
-    auto& pats = cfg.patterns.empty() ? DEFAULT_PATH_PATTERNS : cfg.patterns;
+    const auto pats = withCustomPatterns(cfg.patterns.empty() ? DEFAULT_PATH_PATTERNS : cfg.patterns, cfg.custom_patterns);
     std::string found = searchPatterns(code, pats);
     if (!found.empty()) {
         // FIX 29: Include matched text in error for easier debugging
@@ -7881,7 +7891,7 @@ std::string GovernanceEngine::checkPolyglotBlockScan(
     // instead of `stripped_all` (comments removed) which made them 100% dead
     err = checkPlaceholders(stripped, line);
     if (!err.empty()) return err;
-    err = checkHardcodedResults(stripped, line);
+    err = checkHardcodedResults(stripped, line, &views.normalized);  // U-014: strings kept for the status/score sub-checks
     if (!err.empty()) return err;
     err = runBlockCheck(*this, BlockCheck::DangerousCalls, views, line);  // stripped, then normalized
     if (!err.empty()) return err;

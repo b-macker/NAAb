@@ -1,6 +1,8 @@
 #!/bin/bash
 # Tests for --pipe mode: io.write() → stderr, io.output() → stdout
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB_BIN="${SCRIPT_DIR}/../../build/naab-lang"
 PASS=0

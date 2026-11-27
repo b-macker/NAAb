@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # test_pass2_audit.sh — Governance Pass 2: Post-Execution Validation Audit
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -uo pipefail
 # Note: no set -e — tests check exit codes and output patterns manually
 

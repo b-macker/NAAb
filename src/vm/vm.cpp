@@ -1,6 +1,7 @@
 #include "naab/block_time_limit.h"
 #include "naab/sql_executor.h"
 #include "naab/vm.h"
+#include "naab/stdlib_prelude.h"
 #include "naab/value_equality.h"
 #include "naab/string_interpolation.h"
 #include "naab/taint_rule.h"
@@ -52,6 +53,24 @@
 
 namespace naab {
 namespace vm {
+
+// A215: the float branch of + - * / used to need only ONE double operand and
+// read the other with asInt(), which on a string, list, dict or null is the
+// value's handle, not a number: "a" * 2.5 was 20 and [1] - 1.5 was 33.5, exit
+// 0. Both operands must be numbers (a bool is already an int by then); any
+// other pair falls through to the type error the int path raises.
+static inline bool bothNumbers(const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
+    return (a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble());
+}
+
+// A39(a): the hint goes under the message convention's "Help:" heading, so
+// the display sanitizer reads it as the engine's own text and leaves its
+// example code alone (it printed `let msg = <redacted> + name + "!"`).
+static std::string withHelpHeading(const std::string& hint) {
+    const size_t a = hint.find_first_not_of('\n');
+    if (a == std::string::npos) return "";
+    return "\n  Help:\n" + hint.substr(a);
+}
 
 // ============================================================================
 // Chunk
@@ -180,6 +199,18 @@ VM::VM()
     , frames_(std::make_unique<CallFrame[]>(FRAMES_MAX))
     , gc_detector_(std::make_unique<interpreter::CycleDetector>())  // V-RT-008
 {
+    // F46: debug.env/stack/snapshot/trace read the VM running on their thread
+    // (stdlib cannot name the class). Registered ONCE per process: a VM is
+    // built on every async fn's worker thread, and writing the hooks from
+    // each constructor raced with those threads' own reads (ThreadSanitizer,
+    // CI on b7c18a91). The pointers are atomics as well (debug_impl.cpp).
+    static const bool debug_hooks_registered = [] {
+        stdlib::DebugModule::setVMDebugHooks(
+            [](void* vm) { return static_cast<VM*>(vm)->debugStack(); },
+            [](void* vm) { return static_cast<VM*>(vm)->debugScope(); });
+        return true;
+    }();
+    (void)debug_hooks_registered;
     std::memset(taint_stack_.get(), 0, STACK_MAX * sizeof(bool));
 }
 
@@ -221,11 +252,7 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
 
     // Register stdlib prelude modules (same as tree-walker's auto-import)
     // Skip names that conflict with builtins (string is both a module and a function)
-    static const char* prelude_modules[] = {
-        "array", "dict", "io", "file", "debug", "bolo", "env",
-        "math", "json", "http", "crypto", "time", "os"
-    };
-    for (auto mod : prelude_modules) {
+    for (auto mod : naab::stdlib::kVmPreludeModules) {   // naab/stdlib_prelude.h
         // Don't overwrite block imports injected via setGlobal()
         auto it = globals_.find(mod);
         if (it != globals_.end() && it->second.isBlock()) continue;
@@ -816,6 +843,7 @@ interpreter::NaabVal VM::run() {
         &&vm_OP_CONTRACT_ENTRY,                                            // 81
         &&vm_OP_COND_TAINT,                                                // 82
         &&vm_OP_TAINT_OF,                                                  // 83
+        &&vm_OP_RANGE_ITER, &&vm_OP_RANGE_NEXT,                           // 84-85 (A66)
     };
 
     #define VM_CASE(opcode) vm_##opcode
@@ -1060,7 +1088,7 @@ interpreter::NaabVal VM::run() {
                             av, bv, av, bv);
                     }
                     push(interpreter::NaabVal::makeInt(av + bv));
-                } else if (a.isDouble() || b.isDouble()) {
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A215
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av + bv));
@@ -1150,7 +1178,7 @@ interpreter::NaabVal VM::run() {
                             av, bv, av, bv);
                     }
                     push(interpreter::NaabVal::makeInt(av - bv));
-                } else if (a.isDouble() || b.isDouble()) {
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A215
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av - bv));
@@ -1195,7 +1223,7 @@ interpreter::NaabVal VM::run() {
                             av, bv, av, bv);
                     }
                     push(interpreter::NaabVal::makeInt(static_cast<int32_t>(result64)));
-                } else if (a.isDouble() || b.isDouble()) {
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A215
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av * bv));
@@ -1255,7 +1283,7 @@ interpreter::NaabVal VM::run() {
                     // Division always produces a double, matching the tree-walker
                     push(interpreter::NaabVal::makeDouble(
                         static_cast<double>(a.asInt()) / static_cast<double>(b.asInt())));
-                } else if (a.isDouble() || b.isDouble()) {
+                } else if ((a.isDouble() || b.isDouble()) && bothNumbers(a, b)) {   // A215
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     if (bv == 0.0) runtimeError("Division by zero");
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
@@ -1601,16 +1629,24 @@ interpreter::NaabVal VM::run() {
                 const std::string& name = READ_CONSTANT_STRING(arg);
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
-                    std::string helper = getVariableHelper(name);
+                    std::string helper = withHelpHeading(getVariableHelper(name));
                     if (helper.empty()) {
                         runtimeError("Undefined variable '%s'", name.c_str());
                     } else {
                         runtimeError("Undefined variable '%s'\n%s", name.c_str(), helper.c_str());
                     }
                 }
-                push(it->second);
+                const interpreter::NaabVal* value = &it->second;
+                interpreter::NaabVal own_fn;
+                if (frame->function && frame->function->module_functions &&
+                    ownModuleFunction(*frame->function, name, it->second, own_fn)) {
+                    value = &own_fn;  // A231: the module's own, never another file's
+                } else if (!module_private_functions_.empty()) {
+                    refusePrivateModuleRead(name, it->second, frame);  // A216
+                }
+                push(*value);
                 if (governance_ && governance_->isActive()) {
-                    bool tainted = governance_->isTainted(name) || containerTainted(it->second);
+                    bool tainted = governance_->isTainted(name) || containerTainted(*value);
                     peekTaint(0) = tainted;
                     // Restore lineage from governance engine's per-variable metadata
                     if (tainted && governance_->getRules().taint_tracking.lineage) {
@@ -1629,7 +1665,7 @@ interpreter::NaabVal VM::run() {
                 const std::string& name = READ_CONSTANT_STRING(arg);
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
-                    std::string helper = getVariableHelper(name);
+                    std::string helper = withHelpHeading(getVariableHelper(name));
                     if (helper.empty()) {
                         runtimeError("Undefined variable '%s'", name.c_str());
                     } else {
@@ -2361,10 +2397,17 @@ interpreter::NaabVal VM::run() {
                     // A callback a method runs (sort's comparator, find's
                     // predicate) is given the receiver's and arguments' data.
                     bool method_data_tainted = false;
+                    // A217: the result takes its arguments' taint as well as
+                    // its receiver's, as the static rule has always judged a
+                    // call (taint_rule.h) and every other VM call route does:
+                    // d.merge({"x": t}) returned a clean dict when t's taint
+                    // lived only in the run (a callback's result).
+                    bool method_args_tainted = false;
                     if (governance_) {
-                        method_data_tainted = obj_tainted || containerTainted(obj);
-                        for (int ai = 0; ai < argc && !method_data_tainted; ai++)
-                            method_data_tainted = peekTaint(argc - 1 - ai);
+                        for (int ai = 0; ai < argc && !method_args_tainted; ai++)
+                            method_args_tainted = peekTaint(argc - 1 - ai) ||
+                                                  containerTainted(args_ptr[ai]);
+                        method_data_tainted = obj_tainted || containerTainted(obj) || method_args_tainted;
                     }
                     interpreter::NaabVal result;
                     {
@@ -2397,8 +2440,10 @@ interpreter::NaabVal VM::run() {
                         if (is_read && containerTainted(obj_held)) {
                             peekTaint(0) = true;
                         } else {
-                            // Built-in methods propagate taint from object
-                            peekTaint(0) = obj_tainted || containerTainted(obj_held);
+                            // Built-in methods propagate taint from the object
+                            // and from their arguments (A217)
+                            peekTaint(0) = obj_tainted || containerTainted(obj_held) ||
+                                           method_args_tainted;
                         }
                     }
                 }
@@ -2657,6 +2702,55 @@ interpreter::NaabVal VM::run() {
             }
                 VM_NEXT();
 
+            // A66: the counted form of OP_RANGE + OP_GET_ITER + OP_ITER_NEXT for
+            // `for x in a..b`. The same bounds check and taint (the loop
+            // variable carries the bounds' taint, as each element of the list
+            // did); no list, so no limits.array_size check.
+            VM_CASE(OP_RANGE_ITER): {
+                bool range_taint = governance_ ? (peekTaint(0) || peekTaint(1)) : false;
+                interpreter::NaabVal end_val = pop();
+                interpreter::NaabVal start_val = pop();
+                if (!start_val.isInt() || !end_val.isInt()) {
+                    runtimeError("Range bounds must be integers");
+                }
+                push(end_val);                                    // the bound
+                if (governance_) peekTaint(0) = range_taint;
+                push(start_val);                                  // the counter
+                if (governance_) peekTaint(0) = range_taint;
+            }
+                VM_NEXT();
+
+            VM_CASE(OP_RANGE_NEXT): {
+                const bool inclusive = (arg >> 23) & 1u;
+                const int jump_offset = static_cast<int>(arg & 0x7FFFFFu);
+                bool range_taint = governance_ ? peekTaint(1) : false;
+                interpreter::NaabVal bound_val = peek(1);
+                interpreter::NaabVal counter_val = peek(0);
+                // The bound is null once an inclusive range has yielded its
+                // last value, which cannot be counted past (INT32_MAX).
+                if (bound_val.isNull()) {
+                    frame->ip += jump_offset;
+                } else {
+                    if (!bound_val.isInt() || !counter_val.isInt()) {
+                        runtimeError("Iterator corruption: range bounds must be integers");
+                    }
+                    const int64_t end = bound_val.asInt();
+                    const int64_t counter = counter_val.asInt();
+                    if (inclusive ? counter > end : counter >= end) {
+                        frame->ip += jump_offset;
+                    } else {
+                        if (inclusive && counter == end) {
+                            *(stack_top_ - 2) = interpreter::NaabVal::makeNull();
+                        } else {
+                            *(stack_top_ - 1) = interpreter::NaabVal::makeInt(counter + 1);
+                        }
+                        push(interpreter::NaabVal::makeInt(counter));
+                        if (governance_) peekTaint(0) = range_taint;
+                    }
+                }
+            }
+                VM_NEXT();
+
             VM_CASE(OP_GET_ITER): {
                 bool iter_taint = governance_ ? peekTaint(0) : false;
                 interpreter::NaabVal iterable = pop();
@@ -2881,6 +2975,9 @@ interpreter::NaabVal VM::run() {
                             }
                         }
                         interpreter::NaabVal member_result;
+                        // As route A: the flag says what THIS call read (F46).
+                        if (governance_ && governance_->isActive())
+                            governance_->setLastReturnTainted(false);
                         try {
                             member_result = callStdlibMethod(mod, name, 0, no_args);
                         } catch (...) {
@@ -2896,6 +2993,10 @@ interpreter::NaabVal VM::run() {
                             } else if (governance_->isSanitizer(full_name)) {
                                 peekTaint(0) = false;
                                 sanitizer_applied = true;
+                            } else if (governance_->lastReturnWasTainted()) {
+                                // The call read tainted data (debug.env, F46).
+                                peekTaint(0) = true;
+                                governance_->setLastReturnTainted(false);
                             }
                         }
                         if (governance_) {
@@ -3571,6 +3672,7 @@ interpreter::NaabVal VM::run() {
                     auto& dict_src = (api_it != module_public_api_.end()) ? api_it->second : cache_it->second;
                     push(interpreter::NaabVal::makeDict(
                         std::unordered_map<std::string, interpreter::NaabVal>(*dict_src)));
+                    taintImportedModuleDict(module_path);
                     goto done_import;
                 }
 
@@ -3643,6 +3745,7 @@ interpreter::NaabVal VM::run() {
                     auto& dict_src = (api_it != module_public_api_.end()) ? api_it->second : cache_it->second;
                     push(interpreter::NaabVal::makeDict(
                         std::unordered_map<std::string, interpreter::NaabVal>(*dict_src)));
+                    taintImportedModuleDict(canonical);
                     goto done_import;
                 }
 
@@ -3653,6 +3756,9 @@ interpreter::NaabVal VM::run() {
                 module_cache_[module_path] = all_globals;
                 if (module_public_api_.count(canonical)) {
                     module_public_api_[module_path] = module_public_api_[canonical];
+                }
+                if (module_tainted_exports_.count(canonical)) {
+                    module_tainted_exports_[module_path] = module_tainted_exports_[canonical];
                 }
 
                 // Re-register function evaluator — module VM may have overwritten it
@@ -3669,6 +3775,7 @@ interpreter::NaabVal VM::run() {
                 auto& api = module_public_api_.count(canonical) ? module_public_api_[canonical] : all_globals;
                 push(interpreter::NaabVal::makeDict(
                     std::unordered_map<std::string, interpreter::NaabVal>(*api)));
+                taintImportedModuleDict(canonical);
             }
             done_import:
                 VM_NEXT();
@@ -3683,8 +3790,12 @@ interpreter::NaabVal VM::run() {
                     auto& dict = module_val.asDict();
                     auto it = dict.find(name);
                     if (it != dict.end()) {
+                        // A224: a named import is decided per name -- the
+                        // module's own export, not the whole module dict.
+                        bool export_tainted = importedExportTainted(module_val, name);
                         // Push extracted value on top (module stays below)
                         push(it->second);
+                        if (export_tainted) peekTaint(0) = true;
                     } else {
                         runtimeError("Module does not export '%s'", name.c_str());
                     }
@@ -3710,6 +3821,12 @@ interpreter::NaabVal VM::run() {
                         // Skip internal metadata keys
                         if (name.substr(0, 2) == "__") continue;
                         globals_[name] = val;
+                        // A224: each name this binds carries its export's taint,
+                        // by name, as OP_DEFINE_GLOBAL records a global's. A
+                        // precaution: the compiler emits this opcode only for
+                        // `import *` without an alias, which the parser refuses.
+                        if (importedExportTainted(module_val, name))
+                            governance_->markTainted(name, "module export", "", current_file_, 0);
                     }
                 } else {
                     runtimeError("Wildcard import requires a module dict");
@@ -3951,7 +4068,9 @@ static void deepCopyFunctionTree(
     copy->is_async = src->is_async;
     copy->source_file = src->source_file;
     copy->source_line = src->source_line;
+    copy->module_functions = src->module_functions;  // A231: names the originals
     copy->local_names = src->local_names;
+    copy->local_ranges = src->local_ranges;
     copy->has_main_block = src->has_main_block;
 
     // requires / ensures: each clause's check function is a function tree of
@@ -4167,6 +4286,7 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             interpreter::PendingEngine async_pending;
             auto shared_future = std::async(std::launch::async,
                 [closure_copy, args, arg_taint, return_taint, async_stdlib, file, globals_copy,
+                 private_fns_copy = module_private_functions_,
                  async_sandbox_config, async_governance, async_vm_governance,
                  owned_fns = async_owned_fns,
                  pending = std::move(async_pending)]() mutable -> interpreter::NaabVal {
@@ -4193,6 +4313,7 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                         async_vm.setGovernance(async_vm_governance);
                         async_vm.setCurrentFile(file);
                         async_vm.setGlobals(globals_copy);
+                        async_vm.module_private_functions_ = private_fns_copy;  // A216
                         auto result = async_vm.callNaabFunction(
                             interpreter::NaabVal::makeVMClosure(closure_copy), args,
                             /*taint_all_args=*/false, &arg_taint);
@@ -4587,6 +4708,77 @@ interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
     return result;
 }
 
+void VM::taintImportedModuleDict(const std::string& module_key) {
+    if (!governance_ || !governance_->isActive()) return;
+    auto it = module_tainted_exports_.find(module_key);
+    if (it == module_tainted_exports_.end() || !it->second || it->second->empty()) return;
+    const interpreter::NaabVal& dict = peek(0);
+    if (!dict.isDict()) return;
+    peekTaint(0) = true;  // the binding (OP_DEFINE_GLOBAL) records it by name
+    tainted_containers_.insert_or_assign(dict.toLegacy().get(), dict);
+    module_dict_tainted_keys_[dict.toLegacy().get()] = {dict, it->second};
+}
+
+void VM::refusePrivateModuleRead(const std::string& name, const interpreter::NaabVal& value,
+                                 const CallFrame* frame) {
+    auto it = module_private_functions_.find(name);
+    if (it == module_private_functions_.end()) return;
+    // The global holds one of those functions (the program may have defined
+    // its own of the same name since: then it is the program's). Compared by
+    // the compiled function, which an async fn's copy of the globals shares.
+    if (!value.isVMClosure()) return;
+    const auto& now = value.asVMClosureConst();
+    if (!now || !now->function) return;
+    const PrivateModuleFunction* rec = nullptr;
+    for (const auto& r : it->second)
+        if (r.fn == now->function) { rec = &r; break; }
+    if (!rec) return;
+    if (frame && frame->function && frame->function->source_file == rec->owner) return;
+    runtimeError("Undefined variable '%s'\n\n"
+                 "  Help:\n"
+                 "  - '%s' is a function of the module %s that the module does not\n"
+                 "    export, so only that module's own functions can call it.\n"
+                 "  - Export it there to call it from here.\n\n"
+                 "  Example:\n"
+                 "    x Wrong: fn %s(...) { ... }\n"
+                 "    v Right: export fn %s(...) { ... }\n",
+                 name.c_str(), name.c_str(), rec->owner.c_str(),
+                 name.c_str(), name.c_str());
+}
+
+void VM::notePrivateModuleFunction(const std::string& name, const PrivateModuleFunction& rec) {
+    auto& recs = module_private_functions_[name];
+    for (const auto& r : recs)
+        if (r.fn == rec.fn) return;
+    recs.push_back(rec);
+}
+
+bool VM::ownModuleFunction(const CompiledFunction& running, const std::string& name,
+                           const interpreter::NaabVal& current, interpreter::NaabVal& out) {
+    auto own = running.module_functions->find(name);
+    if (own == running.module_functions->end() || !own->second) return false;
+    // Only where ANOTHER FILE's function holds the slot. The module's own
+    // function there is read as before, and so is a value the module itself
+    // put there; this replaces nothing else.
+    if (!current.isVMClosure()) return false;
+    const auto& c = current.asVMClosureConst();
+    if (!c || !c->function || c->function == own->second) return false;
+    if (c->function->source_file == own->second->source_file) return false;
+    // A top-level function captures nothing, so a closure over it alone is
+    // the function the module defined.
+    out = interpreter::NaabVal::makeVMClosure(std::make_shared<VMClosure>(
+        own->second, std::vector<std::shared_ptr<ObjUpvalue>>{}));
+    return true;
+}
+
+bool VM::importedExportTainted(const interpreter::NaabVal& module_dict,
+                               const std::string& name) const {
+    if (!governance_ || !governance_->isActive() || !module_dict.isDict()) return false;
+    auto it = module_dict_tainted_keys_.find(module_dict.toLegacy().get());
+    return it != module_dict_tainted_keys_.end() && it->second.second &&
+           it->second.second->count(name) > 0;
+}
+
 std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>
 VM::importModule(const std::string& module_path) {
     // Check cache
@@ -4638,6 +4830,8 @@ VM::importModule(const std::string& module_path) {
     // Share the module cache so sub-imports can find already-loaded modules
     module_vm.module_cache_ = module_cache_;
     module_vm.module_public_api_ = module_public_api_;
+    module_vm.module_tainted_exports_ = module_tainted_exports_;
+    module_vm.module_private_functions_ = module_private_functions_;
     // naab-29 D-03: Share executing set for cycle detection
     module_vm.modules_executing_ = modules_executing_;
 
@@ -4648,7 +4842,10 @@ VM::importModule(const std::string& module_path) {
 
     // Take ownership of compiled functions so VMClosure pointers remain valid
     auto compiled_fns = module_compiler.takeCompiledFunctions();
+    std::vector<CompiledFunction*> module_fns;  // A231, below
+    module_fns.reserve(compiled_fns.size());
     for (auto& fn : compiled_fns) {
+        module_fns.push_back(fn.get());
         owned_functions_.push_back(std::move(fn));
     }
     // Also take functions from the sub-VM (from any sub-imports it did)
@@ -4669,10 +4866,9 @@ VM::importModule(const std::string& module_path) {
             if (sv.size() >= 18 && sv.substr(0, 18) == "__stdlib_module__:") {
                     // Only filter prelude modules (every VM already has them)
                     // Let non-prelude use bindings (csv, regex, uuid, etc.) propagate
-                    static const std::unordered_set<std::string> prelude = {
-                        "array", "dict", "io", "file", "debug", "bolo", "env",
-                        "math", "json", "http", "crypto", "time", "os"
-                    };
+                    static const std::unordered_set<std::string> prelude(
+                        std::begin(naab::stdlib::kVmPreludeModules),
+                        std::end(naab::stdlib::kVmPreludeModules));
                     std::string mod_name = sv.substr(18);
                     if (prelude.count(mod_name)) continue;
                 }
@@ -4693,6 +4889,59 @@ VM::importModule(const std::string& module_path) {
         }
     }
 
+    // A224: which exports hold tainted data, read where the module VM left
+    // them -- its globals' taint is recorded by name (OP_DEFINE_GLOBAL), and
+    // the module VM ends here. Read once, now; the engine's name set changes
+    // as the program runs. The container-identity half is a precaution, not
+    // a route measured today: a module's top level runs only declarations,
+    // so it cannot fill a container by mutation, the one way taint lives in
+    // tainted_containers_ alone. If it ever can, the caller holds the same
+    // values, so it takes their identities with them.
+    auto tainted_exports = std::make_shared<std::unordered_set<std::string>>();
+    if (governance_ && governance_->isActive()) {
+        for (auto& [name, val] : *public_api) {
+            if (governance_->isTainted(name) || module_vm.containerTainted(val))
+                tainted_exports->insert(name);
+        }
+        for (auto& [key, held] : module_vm.tainted_containers_)
+            tainted_containers_.insert_or_assign(key, held);
+    }
+
+    // A216: the module's unexported functions stay its own. Only when it
+    // declares exports (with none, everything is public, as for the module
+    // dict above), and only functions compiled from this module's own file:
+    // its globals also hold what IT imported, and another module's export
+    // is not private here, while that module's helpers were recorded by its
+    // own import (merged back from the module VM).
+    for (auto& [name, recs] : module_vm.module_private_functions_)
+        for (const auto& rec : recs) notePrivateModuleFunction(name, rec);
+    if (!module_exported_names.empty()) {
+        for (auto& [name, val] : *all_globals) {
+            if (public_api->count(name) || !val.isVMClosure()) continue;
+            const auto& c = val.asVMClosureConst();
+            if (!c || !c->function || c->function->source_file != module_path) continue;
+            notePrivateModuleFunction(name, {c->function, module_path});
+        }
+    }
+
+    // A231: the module's own functions resolve to themselves in its code,
+    // whatever another file merges into the same global names later (the
+    // importer's own functions, another module's helpers). Each is a
+    // top-level declaration, so it captures nothing.
+    {
+        auto own = std::make_shared<std::unordered_map<std::string, CompiledFunction*>>();
+        for (auto& [name, val] : *all_globals) {
+            if (!val.isVMClosure()) continue;
+            const auto& c = val.asVMClosureConst();
+            if (!c || !c->function || c->function->source_file != module_path ||
+                !c->upvalues.empty()) continue;
+            (*own)[name] = c->function;
+        }
+        std::shared_ptr<const std::unordered_map<std::string, CompiledFunction*>> shared_own = own;
+        for (CompiledFunction* fn : module_fns)
+            if (fn && fn->source_file == module_path) fn->module_functions = shared_own;
+    }
+
     // Merge sub-module caches back
     for (auto& [path, cached] : module_vm.module_cache_) {
         module_cache_[path] = cached;
@@ -4700,9 +4949,13 @@ VM::importModule(const std::string& module_path) {
     for (auto& [path, api] : module_vm.module_public_api_) {
         module_public_api_[path] = api;
     }
+    for (auto& [path, names] : module_vm.module_tainted_exports_) {
+        module_tainted_exports_[path] = names;
+    }
 
     module_cache_[module_path] = all_globals;
     module_public_api_[module_path] = public_api;
+    module_tainted_exports_[module_path] = tainted_exports;
     return all_globals;
 }
 
@@ -6003,6 +6256,8 @@ static const char* opcodeName(OpCode op) {
         case OpCode::OP_CONTRACT_ENTRY: return "OP_CONTRACT_ENTRY";
         case OpCode::OP_COND_TAINT: return "OP_COND_TAINT";
         case OpCode::OP_TAINT_OF: return "OP_TAINT_OF";
+        case OpCode::OP_RANGE_ITER: return "OP_RANGE_ITER";
+        case OpCode::OP_RANGE_NEXT: return "OP_RANGE_NEXT";
     }
     return "OP_UNKNOWN";
 }
@@ -6024,6 +6279,46 @@ std::map<std::string, interpreter::NaabVal> VM::getCurrentScopeVariables() const
         }
     }
     return vars;
+}
+
+// F46: the call stack and the live locals, in the tree-walker's format
+// (StackFrame::toString: "  at NAME (FILE:LINE)"), for the debug module.
+std::vector<std::string> VM::debugStack() const {
+    std::vector<std::string> out;
+    for (int i = 0; i < frame_count_; ++i) {
+        const CallFrame& cf = frames_[i];
+        if (!cf.function) continue;
+        const auto& code = cf.function->chunk.code;
+        int off = cf.ip ? static_cast<int>(cf.ip - code.data()) - 1 : 0;
+        if (off < 0) off = 0;
+        const int line = cf.function->chunk.getLine(off);
+        const std::string name = cf.function->name.empty() ? "<script>" : cf.function->name;
+        const std::string& file = cf.source_file.empty() ? current_file_ : cf.source_file;
+        out.push_back("  at " + name + " (" + file + ":" + std::to_string(line) + ")");
+    }
+    return out;
+}
+
+std::vector<stdlib::DebugLocal> VM::debugScope() const {
+    std::vector<stdlib::DebugLocal> out;
+    if (frame_count_ <= 0) return out;
+    const CallFrame& cf = frames_[frame_count_ - 1];
+    if (!cf.function || !cf.ip) return out;
+    const int off = static_cast<int>(cf.ip - cf.function->chunk.code.data()) - 1;
+    const size_t base = static_cast<size_t>(cf.slots - stack_.get());
+    // A later range shadows an earlier one of the same name.
+    std::map<std::string, stdlib::DebugLocal> live;
+    for (const auto& r : cf.function->local_ranges) {
+        if (r.name.empty() || r.name.compare(0, 2, "__") == 0) continue;
+        if (off < r.start || (r.end >= 0 && off >= r.end)) continue;
+        if (&cf.slots[r.slot] >= stack_top_) continue;
+        const interpreter::NaabVal& v = cf.slots[r.slot];
+        // The taint a load of this local would carry (OP_GET_LOCAL).
+        const bool t = taint_stack_[base + static_cast<size_t>(r.slot)] || containerTainted(v);
+        live[r.name] = {r.name, v, t};
+    }
+    for (auto& [n, l] : live) out.push_back(std::move(l));
+    return out;
 }
 
 // ============================================================================

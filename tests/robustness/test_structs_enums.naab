@@ -348,18 +348,19 @@ fn test_dict_methods() {
     }
     if sum == 3 { passed = passed + 1 }
 
-    // dict.merge() combines two dicts
+    // dict.merge() returns a new dict combining both; the receiver is
+    // unchanged (A69, decision 18 -- the tree-walker used to change it)
     total = total + 1
     let d1 = {"x": 10}
     let d2 = {"y": 20}
-    d1.merge(d2)
-    if d1.get("x") == 10 && d1.get("y") == 20 { passed = passed + 1 }
+    let m1 = d1.merge(d2)
+    if m1.get("x") == 10 && m1.get("y") == 20 && d1.get("y") == null { passed = passed + 1 }
 
-    // merge overwrites existing keys
+    // merge overwrites existing keys in the result
     total = total + 1
     let d3 = {"a": 1}
-    d3.merge({"a": 99, "b": 2})
-    if d3.get("a") == 99 && d3.get("b") == 2 { passed = passed + 1 }
+    let m3 = d3.merge({"a": 99, "b": 2})
+    if m3.get("a") == 99 && m3.get("b") == 2 && d3.get("a") == 1 { passed = passed + 1 }
 
     // entries on empty dict
     total = total + 1
@@ -410,4 +411,8 @@ main {
 
     print("")
     print("Structs/Enums: " + string(total_passed) + "/" + string(total_tests))
+    // A69: a short count fails the run (it printed 34/40 and exited 0).
+    if total_passed != total_tests {
+        throw "Structs/Enums: " + string(total_tests - total_passed) + " check(s) failed"
+    }
 }

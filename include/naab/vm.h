@@ -15,6 +15,7 @@
 #include <optional>
 
 #include "naab_val.h"
+#include "debug_local.h"
 #include "ast.h"
 
 namespace naab {
@@ -175,6 +176,13 @@ enum class OpCode : uint8_t {
     // (taint_stack_), not under its name, so the name lookup the runtime call
     // makes answered false for every tainted local.
     OP_TAINT_OF,
+    // A66 (decision 17): `for x in a..b` iterates without building the list.
+    // OP_RANGE built every element first, so a loop counted against
+    // limits.array_size and the VM refused `for i in 0..5000` under a limit of
+    // 1000 that the tree-walker's lazy range never met. A range VALUE (`let
+    // xs = 0..n`, range()) still builds its list and stays capped.
+    OP_RANGE_ITER,      // [inclusive:24] pop end, start (ints): push [end, start]
+    OP_RANGE_NEXT,      // [inclusive:1, jump:23] counter past end ? jump : push counter, counter + 1
 };
 
 // ============================================================================
@@ -296,11 +304,26 @@ struct CompiledFunction {
     std::string source_file;
     int source_line = 0;
 
+    // A231: the module's own top-level functions by name, set by
+    // VM::importModule() on every function compiled from that module's file;
+    // null for the main program's. Every module global is merged into the
+    // importer's one table, so another file's function of the same name can
+    // hold the slot where this module's own should be -- a private helper of
+    // another module, or the importer's -- and the module's code called that
+    // one. OP_GET_GLOBAL reads this first in a module's frame.
+    std::shared_ptr<const std::unordered_map<std::string, CompiledFunction*>> module_functions;
+
     // Default parameter expressions (compiled as sub-chunks)
     std::vector<std::optional<Chunk>> default_chunks;
 
     // Debug info: slot index → variable name (for debugger variable inspection)
     std::vector<std::string> local_names;
+    // F46: each local's slot, name and the instructions where it is live
+    // [start, end). local_names keeps only the names left at the function's
+    // end (a block's locals are popped before it), so debug.env() read none
+    // of main's variables.
+    struct LocalRange { int slot; std::string name; int start; int end; };
+    std::vector<LocalRange> local_ranges;
 
     // contracts.<name>.requires / ensures, compiled when this function was
     // (Bundle 11). Non-empty only when govern.json gives the function a
@@ -446,6 +469,9 @@ public:
 
     // Debugger: get current scope variables (slot → name mapping)
     std::map<std::string, interpreter::NaabVal> getCurrentScopeVariables() const;
+    // F46: the debug module's view of this VM (debug.env/stack/snapshot/trace).
+    std::vector<std::string> debugStack() const;
+    std::vector<stdlib::DebugLocal> debugScope() const;
 
     // --contract-search (Bundle 11, `naab-gov contracts`): after the program's
     // definitions run (main is not compiled in this mode), call each case's
@@ -567,6 +593,37 @@ private:
     std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>> module_cache_;
     // Public API cache: only exported names (for module dict access via mod.func())
     std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>> module_public_api_;
+    // A224: per module path, the exported names whose values were tainted when
+    // the module finished running; and, per module dict this VM pushed (by
+    // identity, holding the dict alive), the same set, for a named import.
+    std::unordered_map<std::string, std::shared_ptr<std::unordered_set<std::string>>> module_tainted_exports_;
+    std::unordered_map<const void*, std::pair<interpreter::NaabVal,
+        std::shared_ptr<std::unordered_set<std::string>>>> module_dict_tainted_keys_;
+    // A module dict holding a tainted export is a dict holding tainted data:
+    // tainted as a whole, as any such dict is (its other members read tainted,
+    // a call of one of its functions is decided by its arguments).
+    void taintImportedModuleDict(const std::string& module_key);
+    // A216: a module's unexported functions, by global name, with the file
+    // that owns them. Every module global is merged into the importer's
+    // globals so the module's own functions can call its helpers by name
+    // (8669f246); a bare-name read of one of these from code that is not
+    // the owning module's is refused, as `m.hidden` already was. Every
+    // module's function of a name is kept, by its compiled function (no value
+    // handle, so an async fn's copy reads it from its own thread): with one
+    // record per name, a cached re-import put an earlier module's helper back
+    // in the slot while the record named a later one, and the read passed.
+    struct PrivateModuleFunction { const CompiledFunction* fn; std::string owner; };
+    std::unordered_map<std::string, std::vector<PrivateModuleFunction>> module_private_functions_;
+    void notePrivateModuleFunction(const std::string& name, const PrivateModuleFunction& rec);
+    // Refuses (runtimeError) when `name` holds a module's private function and
+    // the running frame's code is not that module's.
+    void refusePrivateModuleRead(const std::string& name, const interpreter::NaabVal& value,
+                                 const CallFrame* frame);
+    // A231: in a module's frame, the module's own function `name` when the
+    // shared slot holds another file's function (`current`); false otherwise.
+    static bool ownModuleFunction(const CompiledFunction& running, const std::string& name,
+                                  const interpreter::NaabVal& current, interpreter::NaabVal& out);
+    bool importedExportTainted(const interpreter::NaabVal& module_dict, const std::string& name) const;
     // naab-29 D-03: Circular import detection — shared between parent/child VMs
     std::shared_ptr<std::unordered_set<std::string>> modules_executing_ = std::make_shared<std::unordered_set<std::string>>();
     // Keep compiled functions alive so VMClosure pointers remain valid after module compilation

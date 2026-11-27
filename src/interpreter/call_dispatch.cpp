@@ -735,18 +735,14 @@ void Interpreter::visit(ast::CallExpr& node) {
                     return;
                 }
                 if (method_name == "merge") {
+                    // A69 (decision 18): a new dict; `dict` itself is unchanged,
+                    // as on the VM and in dict.merge(a, b). It used to write the
+                    // other dict's entries into the receiver here.
                     if (args.empty()) throw std::runtime_error("dict.merge() requires 1 argument (another dict)");
-                    if (args[0].isDict()) {
-                        auto& other_dict = args[0].asDict();
-                        for (const auto& pair : other_dict) {
-                            dict[pair.first] = pair.second;
-                        }
-                        auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
-                        if (obj_id && current_env_->has(obj_id->getName())) {
-                            current_env_->set(obj_id->getName(), obj_val);
-                        }
-                    }
-                    result_ = obj_val;
+                    if (!args[0].isDict()) throw std::runtime_error("dict.merge() argument must be a dict");
+                    auto merged = dict;
+                    for (const auto& pair : args[0].asDictConst()) merged[pair.first] = pair.second;
+                    result_ = NaabVal::makeDict(std::move(merged));
                     return;
                 }
                 // Not a built-in - fall through to check if it's a function stored in dict
@@ -1709,20 +1705,13 @@ void Interpreter::visit(ast::CallExpr& node) {
                 return;
             }
             if (method_name == "merge") {
+                // A69 (decision 18): a new dict, the receiver unchanged (this
+                // path also returned null instead of the merged dict).
                 if (args.empty()) throw std::runtime_error("dict.merge() requires 1 argument (another dict)");
-                if (args[0].isDict()) {
-                    auto& other_dict = args[0].asDict();
-                    for (const auto& pair : other_dict) {
-                        dict[pair.first] = pair.second;
-                    }
-                    auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
-                    if (obj_id && current_env_->has(obj_id->getName())) {
-                        current_env_->set(obj_id->getName(), obj);
-                    }
-                } else {
-                    throw std::runtime_error("dict.merge() argument must be a dict");
-                }
-                result_ = NaabVal::makeNull();
+                if (!args[0].isDict()) throw std::runtime_error("dict.merge() argument must be a dict");
+                auto merged = dict;
+                for (const auto& pair : args[0].asDictConst()) merged[pair.first] = pair.second;
+                result_ = NaabVal::makeDict(std::move(merged));
                 return;
             }
             // Helper: dict.update() does not exist
@@ -3317,7 +3306,10 @@ void Interpreter::visit(ast::MemberExpr& node) {
                 throw std::runtime_error("Module not executed: " + module_path);
             }
 
-            if (!module_env->has(member_name)) {
+            // A216: a function the module does not export is not one of its
+            // members from here (the module's own code calls it by name).
+            if (!module_env->has(member_name) ||
+                privateModuleFunctions(module->getAST()).count(member_name)) {
                 throw std::runtime_error(
                     fmt::format("Module '{}' has no member '{}'\n\n", module_path, member_name) +
                     "  Help:\n"

@@ -5,6 +5,8 @@
 #   V-SC-002 — NAAB_LOCK_KEY blocked in env stdlib
 #   V-LSP-002 — handleWorkspaceSymbol result cap (build presence check)
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

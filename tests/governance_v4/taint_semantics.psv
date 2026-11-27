@@ -29,6 +29,8 @@ un_neg|UnaryExpr|-|let n = string.length(t)|-n|assign|tainted|the operand
 call_arg|CallExpr|-|-|string.upper(t)|assign|tainted|an argument
 call_method|CallExpr|-|-|t.upper()|assign|tainted|a method's receiver
 call_method_clean|CallExpr|-|-|"c".upper()|assign|clean|a clean receiver (control)
+call_method_arg|CallExpr|-|-|"cx".replace("x", t)|assign|tainted|a method's argument: its result is built from it (A217: the VM's built-in method route took only its receiver's run-time taint)
+call_method_dict_arg|CallExpr|-|let d = {"k": "c"}|d.merge({"x": t})|assign|tainted|a dict method's argument (A217, the case found)
 call_userfn_arg|CallExpr|fn idf(v) { return v }|-|idf(t)|assign|tainted|a user function returns its tainted argument
 call_userfn_ret|CallExpr|fn getr() { return env.get("HOME") }|-|getr()|assign|tainted|a user function returns a source
 call_userfn_ignores|CallExpr|fn k(v) { return "c" }|-|k(t)|assign|tainted|a call's result is tainted when an argument is, whatever the body returns (the rule does not look inside)

@@ -2,6 +2,8 @@
 # Tests for governance exit codes 2 (quality gate) and 3 (HARD block)
 # Exit codes: 0=success 1=runtime 2=quality-gate 3=HARD-block 4=config-error
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB_BIN="${SCRIPT_DIR}/../../build/naab-lang"
 

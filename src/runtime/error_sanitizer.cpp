@@ -19,7 +19,8 @@ const std::vector<naab::rx::regex> ErrorSanitizer::sensitive_patterns_ = {
     naab::rx::regex(patterns::EMAIL),
     naab::rx::regex(patterns::CREDIT_CARD),
     naab::rx::regex(patterns::MEMORY_ADDRESS),
-    naab::rx::regex(patterns::QUOTED_VALUE, naab::rx::regex::icase),
+    // QUOTED_VALUE is a keyword pattern, not a secret's shape: redactValues()
+    // applies it with the other generic value patterns (A39(a)).
     naab::rx::regex(patterns::IP_ADDRESS),  // V-ERR-001: was defined in header but never added
 };
 
@@ -104,24 +105,51 @@ std::string ErrorSanitizer::redactValues(
         return msg;
     }
 
-    std::string redacted = msg;
-
-    // Redact sensitive patterns
-    for (const auto& pattern : sensitive_patterns_) {
-        redacted = redactPattern(redacted, pattern);
-    }
-
-    // Redact values in quotes (e.g., "token: 'secret123'")
+    // A39(a): the engine's own help keeps its text. A value pattern
+    // (`name = "value"`, `key: 'value'`) rewrote the fix an error message
+    // teaches -- an example's `let msg = "Hello " + name` read
+    // `let msg = <redacted> + name`, and a HARD block's rule read
+    // `Rule: code_quality.no_placeholders = <redacted>`. The generic value
+    // patterns are skipped in a "Help:" or "Example:" section (to the next
+    // blank line) and on the "Rule:" line; the secret shapes
+    // (sensitive_patterns_: API keys, emails, card numbers, addresses) still
+    // apply to every line, so a program that writes "Help:" into its own
+    // message cannot carry a key-shaped value past this.
+    static const naab::rx::regex quoted_value(patterns::QUOTED_VALUE, naab::rx::regex::icase);
     // V-ERR-001: expanded keyword list to match sensitive key names; icase for Token/TOKEN/etc.
-    naab::rx::regex value_pattern(
+    static const naab::rx::regex value_pattern(
         R"((value|content|data|token|key|secret|pass|password|auth|authorization|bearer|apikey|api_key|credential|access_token|refresh_token)['"]?\s*[:=]\s*['"]([^'"]+)['"])",
         naab::rx::regex::icase);
-    redacted = naab::rx::regex_replace(redacted, value_pattern, "$1: <redacted>");
+    static const naab::rx::regex assignment_pattern(R"(([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*['"]([^'"]+)['"])");
 
-    // Redact variable assignments (e.g., "password = 'secret'")
-    naab::rx::regex assignment_pattern(R"(([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*['"]([^'"]+)['"])");
-    redacted = naab::rx::regex_replace(redacted, assignment_pattern, "$1 = <redacted>");
+    std::string redacted;
+    redacted.reserve(msg.size());
+    bool in_engine_section = false;
+    size_t start = 0;
+    while (start <= msg.size()) {
+        size_t nl = msg.find('\n', start);
+        const bool last = (nl == std::string::npos);
+        std::string line = msg.substr(start, last ? std::string::npos : nl - start);
+        const size_t a = line.find_first_not_of(" \t\r");
+        const std::string trimmed = a == std::string::npos ? "" : line.substr(a);
+        if (trimmed.empty()) in_engine_section = false;
+        if (trimmed == "Help:" || trimmed == "Example:") in_engine_section = true;
+        const bool engine_line = in_engine_section ||
+            line.compare(0, 8, "  Rule: ") == 0;
 
+        for (const auto& pattern : sensitive_patterns_) {
+            line = redactPattern(line, pattern);
+        }
+        if (!engine_line) {
+            line = redactPattern(line, quoted_value);
+            line = naab::rx::regex_replace(line, value_pattern, "$1: <redacted>");
+            line = naab::rx::regex_replace(line, assignment_pattern, "$1 = <redacted>");
+        }
+        redacted += line;
+        if (last) break;
+        redacted += '\n';
+        start = nl + 1;
+    }
     return redacted;
 }
 

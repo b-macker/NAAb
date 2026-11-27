@@ -12,6 +12,8 @@
 # Usage: bash run-naab37.sh [--cat N]
 # ============================================================================
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../helpers/trust_setup.sh"; isolate_trust_store
 LANG_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
 NAAB="$LANG_DIR/build/naab-lang"
 TMPBASE="${TMPDIR:-/tmp}"

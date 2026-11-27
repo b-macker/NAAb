@@ -31,7 +31,17 @@
 #   JL-10  `var b = function(x) {...}` then `(41)` is one statement (no
 #          semicolon is inserted before `(`): null, never 41 -- the split must
 #          not cut where JavaScript does not end a statement
+#   JL-11..JL-16 one line holding several statements (A179, Bundle 19 PR 3):
+#          `var x = 2; "J" + x`, `var x = 2; x`, `let y = 3; y + 1`, `1; 2`,
+#          a function value then its call, `x = 5; x`. The single-line path
+#          wrapped the whole line as `(...)`, a SyntaxError (observed on
+#          d32f8603, all six); it now splits as the multi-line path does, and
+#          only when `(...)` does not compile.
+#   JL-17  one line that is only a declaration: null (as JL-09)
 #   Controls that already worked and must not change:
+#   JL-C6  a one-line call with a function argument and no ';' (the `(...)`
+#          form compiles, so it is never split)
+#   JL-C7  a ';' inside a string on one line
 #   JL-C1  the call's result assigned, the name on the last line
 #   JL-C2  an arrow function
 #   JL-C3  a multi-line object literal as the last expression (7b82a8d5)
@@ -49,6 +59,10 @@
 #   M52 no split in the no-`;` branch          -> JL-01, -02, -04..-07
 #   M53 newline boundaries not restricted      -> JL-10 (returns 41)
 #   M54 declarations not statements            -> JL-08, JL-09, JL-10
+#   M55 single-line path not split (A179)      -> JL-11..JL-16
+#   M56 single-line split tried before (...)   -> none of these arms: the
+#       split is the same value for every one-line control here, so the
+#       "only when (...) fails" rule is pinned by reasoning, not an arm
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -119,6 +133,17 @@ arm JL-09 null "the same, a one-line declaration last" \
 # split at that newline would compile and return 41 -- other code.
 arm JL-10 null "a newline before ( continues the statement (an IIFE): not split" \
     'var b = function(x) { return x + 1; }' '(41)'
+# A179: one line, several statements (the single-line path).
+arm JL-11 J2 "one line: var, then an expression" 'var x = 2; "J" + x'
+arm JL-12 2 "one line: var, then the name" 'var x = 2; x'
+arm JL-13 4 "one line: let, then an expression" 'let y = 3; y + 1'
+arm JL-14 2 "one line: two expression statements" '1; 2'
+arm JL-15 5 "one line: a function value, then its call" 'var f = function(a) { return a }; f(5)'
+arm JL-16 5 "one line: an assignment, then the name" 'x = 5; x'
+arm JL-17 null "one line: only a declaration" 'var x = 2;'
+arm JL-C6 '[2,3]' "CONTROL: one line, a call given a function, no ;" \
+    'JSON.stringify([1, 2].map(function(x) { return x + 1 }))'
+arm JL-C7 3 "CONTROL: a ; inside a string on one line" '"a;b".length'
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

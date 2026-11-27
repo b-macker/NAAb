@@ -11,6 +11,69 @@
 namespace naab {
 namespace scanner {
 
+// A218: each line with NAAb comments (#, //, /* */) and string text blanked
+// to spaces, so a pattern searched in it sees code only. The code inside a
+// string's ${...} is kept (it runs); a string nested in it is blanked. Line
+// count and columns are unchanged; a string ends at its line's end, so an
+// unbalanced quote cannot blank the rest of the file.
+static std::vector<std::string> naabCodeOnlyLines(const std::vector<std::string>& lines) {
+    std::vector<std::string> out;
+    out.reserve(lines.size());
+    bool in_block = false;
+    for (const auto& line : lines) {
+        std::string o = line;
+        size_t i = 0;
+        const size_t n = line.size();
+        auto blank = [&](size_t a, size_t b) { for (size_t k = a; k < b && k < n; ++k) o[k] = ' '; };
+        while (i < n) {
+            if (in_block) {
+                size_t e = line.find("*/", i);
+                if (e == std::string::npos) { blank(i, n); i = n; break; }
+                blank(i, e + 2); i = e + 2; in_block = false; continue;
+            }
+            const char c = line[i];
+            if (c == '#' || (c == '/' && i + 1 < n && line[i + 1] == '/')) { blank(i, n); break; }
+            if (c == '/' && i + 1 < n && line[i + 1] == '*') { blank(i, i + 2); i += 2; in_block = true; continue; }
+            if (c == '"' || c == '\'') {
+                const char q = c;
+                size_t j = i + 1;
+                blank(i, i + 1);
+                while (j < n && line[j] != q) {
+                    if (line[j] == '\\') { blank(j, j + 2); j += 2; continue; }
+                    if (line[j] == '$' && j + 1 < n && line[j + 1] == '{') {
+                        // Interpolated code: kept, up to its matching brace.
+                        int depth = 0;
+                        size_t k = j + 1;
+                        for (; k < n; ++k) {
+                            if (line[k] == '{') ++depth;
+                            else if (line[k] == '}') { if (--depth == 0) break; }
+                            else if (line[k] == '"' || line[k] == '\'') {
+                                const char nq = line[k];
+                                size_t m2 = k + 1;
+                                while (m2 < n && line[m2] != nq) m2 += (line[m2] == '\\') ? 2 : 1;
+                                blank(k, std::min(m2 + 1, n));
+                                k = std::min(m2, n - 1);
+                            }
+                        }
+                        blank(j, j + 2);           // the "${"
+                        if (k < n) blank(k, k + 1); // its "}"
+                        j = k + 1;
+                        continue;
+                    }
+                    blank(j, j + 1);
+                    ++j;
+                }
+                if (j < n) blank(j, j + 1);
+                i = j + 1;
+                continue;
+            }
+            ++i;
+        }
+        out.push_back(std::move(o));
+    }
+    return out;
+}
+
 static inline std::string trim(const std::string& s) {
     size_t start = s.find_first_not_of(" \t\r");
     if (start == std::string::npos) return "";
@@ -537,12 +600,16 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
         }
         imported.insert("debug"); // auto-imported prelude
 
-        // Find usages of non-imported modules (lines are polyglot-stripped)
+        // Find usages of non-imported modules (lines are polyglot-stripped).
+        // A218: searched in the CODE only -- a comment or a string naming
+        // `json.parse` used to be reported as a use (U-012); the code inside a
+        // string's ${...} is kept, since it runs.
+        const std::vector<std::string> code_lines = naabCodeOnlyLines(lines);
         for (const auto& mod : known_modules) {
             if (imported.count(mod)) continue;
             naab::rx::regex usage_pat("\\b" + mod + "\\.");
-            for (size_t i = 0; i < lines.size(); ++i) {
-                if (naab::rx::regex_search(lines[i], usage_pat)) {
+            for (size_t i = 0; i < code_lines.size(); ++i) {
+                if (naab::rx::regex_search(code_lines[i], usage_pat)) {
                     addIssue(issues, filepath, i + 1, "missing_imports", CAT,
                         fmt::format("'{}' is used but module '{}' is not imported",
                             mod, mod),

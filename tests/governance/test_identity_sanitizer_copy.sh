@@ -4,6 +4,8 @@
 # match the copy-and-return identity sanitizer pattern.
 # NOTE: These patterns are checked via searchPatterns() regex matching.
 # The test uses naab-gov lint (scanner) or bolo.scan to verify pattern matching.
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -e
 
 NAAB="$(dirname "$0")/../../build/naab-lang"

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Security R22 Fix Verification Tests
 # Tests: V-GOV-017 (symlink info disclosure), V-RT-013 (OOM read cap), V-GOV-018 (agent shell bypass)
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

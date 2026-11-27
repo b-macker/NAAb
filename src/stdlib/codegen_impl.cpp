@@ -254,6 +254,19 @@ interpreter::NaabVal CodegenModule::call(
         }
 
         // Step 3: Taint check on code_string (Gap 1)
+        // A161 (decision 19): code that IS a model's reply -- the reply as
+        // returned, a proposal, a tool argument, agent.extract_code() of one
+        // (the provenance ledger, naab/code_provenance.h) -- is model output
+        // whatever the run-time taint says. Only a reply that followed a tool
+        // loop carried taint (through the tool's arguments), so a plain reply
+        // ran where the same reply after a tool call was refused. Exact text:
+        // edited code is not matched (that is the ledger's rule too).
+        if (!arg_was_tainted && !code.empty()) {
+            governance::ModelOutputOrigin origin;
+            size_t replies = 0;
+            arg_was_tainted = governance::CodeProvenanceLedger::instance().lookup(
+                security::CryptoUtils::sha256(code), origin, replies);
+        }
         if (gov_engine && gov_engine->isActive()) {
             if (arg_was_tainted && !codegen_cfg.allow_tainted_code) {
                 t_codegen_blocked_count++;

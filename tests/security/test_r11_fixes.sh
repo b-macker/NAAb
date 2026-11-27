@@ -2,6 +2,8 @@
 # Test R11 fixes: V-API-001 (REST auth), V-GOV-009 (naab-gov CWD discovery), V-ERR-002 (ErrorSanitizer wired).
 # Skips gracefully when binaries, compiler, or curl are unavailable.
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NAAB_BIN="$PROJECT_DIR/build/naab-lang"

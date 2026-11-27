@@ -18,6 +18,11 @@
 # Each agent's system_prompt carries a unique TOKEN_<name>, so the stub routes
 # each agent to its own scripted reply and logs which agents were asked.
 #
+# AR-17 (A29(e), Bundle 19 PR 4) runs govern-template.json's own section,
+# switched on: it names agents and a scorer the template defines (red on the
+# template before, which named agents it lacked); AR-17c, the old names in the
+# same harness, asks no agent.
+#
 # CLASSIFICATION (each verified by a run in this file, not by reading code)
 #
 #   enabled             LIVE  AR-01
@@ -50,12 +55,8 @@
 # Each asserts TODAY's behaviour and reads "PINNED, not endorsed" in its pass
 # line. A fix flips the arm red; confirm the fix, then update the arm.
 #
-#   AR-02c  `enabled: true` with no `detection` list sends nothing and prints
-#           nothing — a review that cannot run is indistinguishable from one
-#           that found no issues.
-#   AR-06c  a `scorer` naming no `scorers` entry falls back silently. The
-#           template ships exactly that: `"scorer": "security"` against a
-#           scorer keyed `security_review`.
+#   (AR-02c and AR-06c pinned silence until Bundle 19 PR 3; the load now
+#   warns, A29(d), and they assert the warning -- see "A29(d)" below.)
 #   AR-15d  see fail_strategy above.
 #   AR-15e  (the fail_policy half) under continue, fail_policy "closed" does
 #           not fire on a partial failure; the failure is now reported.
@@ -110,9 +111,17 @@
 #                                                    asserts it, as decided)
 #   P2  "CLOSED" also blocks                         AR-12d
 #   P3  partial failures under continue reported     AR-15a AR-15e
-#   P4  an empty detection list is an error          AR-02c
-#   P5  an unknown scorer name is warned about       AR-06c
+#   (P4, P5 retired: A29(d) made both warnings; their mutants are W1-W3.)
 #   P6  sequential mode honours continue             AR-15d
+#
+# A29(d) (Bundle 19 PR 3): the load warns about an enabled review with no
+# detection agents, and about a scorer name with no enabled scorers entry.
+# Mutants of governance_config.cpp, run by hand 2026-11-25:
+#
+#   W1  no detection warning                         AR-02c
+#   W2  no scorer warning                            AR-06c AR-06d
+#   W3  a scorer warning for every name              AR-06w
+#   W4  "names no entry" for a disabled scorer too   AR-06d
 #
 # The unset arms are the other half of each pair, and the mutants above cannot
 # kill them: removing a setting's effect is what an unset arm expects. They
@@ -331,7 +340,8 @@ else skip "AR-01c" "stub failed to start"; fi
 echo -e "${CYAN}--- AR-02 detection ---${NC}"
 run_review ar02a '{"enabled": true, "detection": ["det_a"]}' "$FX_MULTI"
 if [ "$R_OK" = 1 ]; then
-    if asked det_a && ! asked det_b && in_err "agent_review.cat_alpha" && ! in_err "agent_review.cat_gamma"; then
+    if asked det_a && ! asked det_b && in_err "agent_review.cat_alpha" && ! in_err "agent_review.cat_gamma" \
+       && ! in_err "names no detection agents"; then
         pass "AR-02a" "detection [det_a] — only det_a asked, only its findings enforced"
     else
         fail "AR-02a" "single-agent detection wrong" "$(tr '\n' ' ' < "$R_DIR/routes.log" 2>/dev/null)"
@@ -349,10 +359,10 @@ else skip "AR-02b" "stub failed to start"; fi
 
 run_review ar02c '{"enabled": true}' "$FX_MULTI"
 if [ "$R_OK" = 1 ]; then
-    if [ "$R_REQ" -eq 0 ] && ! in_err "Agent review" && ran; then
-        pass "AR-02c" "detection absent — nothing reviewed and nothing said (PINNED, not endorsed)"
+    if [ "$R_REQ" -eq 0 ] && ran && in_err "agent_review is enabled but names no detection agents"; then
+        pass "AR-02c" "detection absent — nothing reviewed, and the load says so (A29(d))"
     else
-        fail "AR-02c" "detection-less review changed behaviour — confirm and update this arm" "requests=$R_REQ"
+        fail "AR-02c" "detection-less review: no warning, or it reviewed something" "requests=$R_REQ"
     fi
 else skip "AR-02c" "stub failed to start"; fi
 
@@ -432,6 +442,11 @@ if [ "$R_OK" = 1 ]; then
     else
         fail "AR-06a" "named scorer not applied" "exit=$R_EXIT"
     fi
+    if ! in_err 'agent_review scorer "strict"'; then
+        pass "AR-06w" "CONTROL: a scorer name that resolves is not warned about"
+    else
+        fail "AR-06w" "a resolving scorer name was warned about"
+    fi
     # Second observable: the scorer's rule_weights become the detection
     # prompt's category list.
     if grep -q 'Categories: [^"]*cat_zeta' "$R_DIR/req_1.json" 2>/dev/null; then
@@ -452,12 +467,23 @@ else skip "AR-06u" "stub failed to start"; fi
 
 run_review ar06c '{"enabled": true, "detection": ["det_a"], "scorer": "no_such_scorer", "enforcement": {"red": "hard"}}' "$FX_ONE" "$SCORERS"
 if [ "$R_OK" = 1 ]; then
-    if [ "$R_EXIT" -eq 0 ] && ran && ! in_err "no_such_scorer"; then
-        pass "AR-06c" "CONTROL: an unknown scorer name resolves nothing — AR-06a is name resolution (silent fallback PINNED, not endorsed)"
+    if [ "$R_EXIT" -eq 0 ] && ran && in_err 'agent_review scorer "no_such_scorer" names no scorers entry'; then
+        pass "AR-06c" "an unknown scorer name resolves nothing (AR-06a is name resolution), and the load warns (A29(d))"
     else
-        fail "AR-06c" "unknown scorer name changed behaviour — confirm and update this arm" "exit=$R_EXIT"
+        fail "AR-06c" "unknown scorer name: no warning, or the fallback changed" "exit=$R_EXIT"
     fi
 else skip "AR-06c" "stub failed to start"; fi
+
+# AR-06d: the scorer exists but is disabled -- resolveScorerConfig() skips it.
+SCORERS_OFF='"scorers": {"strict": {"enabled": false, "red_threshold": 1, "yellow_threshold": 1, "rule_weights": {"cat_alpha": 5}}}'
+run_review ar06d '{"enabled": true, "detection": ["det_a"], "scorer": "strict", "enforcement": {"red": "hard"}}' "$FX_ONE" "$SCORERS_OFF"
+if [ "$R_OK" = 1 ]; then
+    if [ "$R_EXIT" -eq 0 ] && ran && in_err 'agent_review scorer "strict" is disabled'; then
+        pass "AR-06d" "a disabled scorer is not used (program ran), and the load warns"
+    else
+        fail "AR-06d" "disabled scorer: no warning, or it was used" "exit=$R_EXIT"
+    fi
+else skip "AR-06d" "stub failed to start"; fi
 
 # ============================================================
 # AR-07..AR-10 enforcement.{green,yellow,red}
@@ -838,6 +864,58 @@ if [ "$R_OK" = 1 ]; then
         fail "AR-16" "--tree-walk should be refused under enforce" "exit=$R_EXIT requests=$R_REQ"
     fi
 else skip "AR-16" "stub failed to start"; fi
+
+# ============================================================
+# AR-17 the template's own section (A29(e), Bundle 19 PR 4)
+# ============================================================
+# The template's agent_review named agents its agents block does not define
+# (redteam, testing, analyst, voice) and the scorer "security" where its
+# scorers key is security_review, so switching the section on reviewed
+# nothing. It now names `reviewer` and `security_review`. Everything here is
+# read from govern-template.json; only the reviewer's endpoint is pointed at
+# the stub, with a provider the stub speaks. AR-17c is the control: the old
+# names, in the same harness, ask no agent.
+echo -e "${CYAN}--- AR-17 the template's section ---${NC}"
+TEMPLATE="$SCRIPT_DIR/../../govern-template.json"
+ar17() {  # $1=arm  $2=python that edits `ar` (the template section) or ""
+    R_DIR="$TEST_TMP/$1"; R_OK=0; R_REQ=0; mkdir -p "$R_DIR"
+    printf '%s' '{"responses": [{"content": "FINDING|cat_tpl|template issue"}]}' > "$R_DIR/fixture.json"
+    start_stub "$R_DIR/fixture.json" "$R_DIR" || return 0
+    python3 -I -c '
+import json, sys
+t = json.load(sys.stdin.buffer)
+ar = t["agent_review"]; ar["enabled"] = True
+exec(sys.argv[2])
+ag = dict(t["agents"]["reviewer"])
+ag.update({"provider": "gemini", "model": "stub-model", "api_key_env": "FAKE_AR_KEY",
+           "api_base": "http://127.0.0.1:" + sys.argv[1]})
+cfg = {"version": "5.0", "mode": "enforce", "security": {"sandbox_level": "elevated"},
+       "agents": {"reviewer": ag}, "scorers": t["scorers"], "agent_review": ar}
+sys.stdout.buffer.write(json.dumps(cfg).encode("utf-8"))' "$STUB_PORT" "$2" < "$TEMPLATE" > "$R_DIR/govern.json"
+    printf 'main {\n    print("PROGRAM_RAN")\n}\n' > "$R_DIR/test.naab"
+    (cd "$R_DIR" && timeout 60 "$NAAB" test.naab > out1.txt 2> err1.txt); R_EXIT=$?
+    stop_stub
+    R_OUT="$R_DIR/out1.txt"; R_ERR="$R_DIR/err1.txt"
+    R_REQ=$(grep -c . "$R_DIR/routes.log" 2>/dev/null || true); R_REQ=${R_REQ:-0}
+    R_OK=1
+}
+ar17 ar17 ""
+if [ "$R_OK" = 1 ]; then
+    if [ "$R_REQ" -ge 1 ] && [ "$R_EXIT" -eq 0 ] && ran && in_err "cat_tpl" \
+       && ! in_err "not found in govern.json" && ! in_err "names no scorers entry"; then
+        pass "AR-17" "the template's section, switched on, asks its reviewer and reports the finding (scorer security_review resolves)"
+    else
+        fail "AR-17" "the template's section did not review" "exit=$R_EXIT requests=$R_REQ: $(tail -3 "$R_ERR" | tr '\n' ' ' | cut -c1-200)"
+    fi
+else skip "AR-17" "stub failed to start"; fi
+ar17 ar17c 'ar.update({"detection": ["redteam", "testing"], "validation": "analyst", "voice": "voice", "scorer": "security"})'
+if [ "$R_OK" = 1 ]; then
+    if [ "$R_REQ" -eq 0 ] && ! in_err "cat_tpl"; then
+        pass "AR-17c" "CONTROL: the section's old names ask no agent in the same harness"
+    else
+        fail "AR-17c" "the old names reviewed something -- AR-17 proves nothing" "requests=$R_REQ"
+    fi
+else skip "AR-17c" "stub failed to start"; fi
 
 echo ""
 echo -e "${CYAN}==============================================================${NC}"

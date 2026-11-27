@@ -6,6 +6,8 @@
 #   V-RCE-003 — env var checks are case-insensitive (ld_preload blocked on Windows too)
 #   V-API-003 — constantTimeCompare no longer early-returns on length mismatch
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

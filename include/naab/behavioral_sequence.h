@@ -63,7 +63,13 @@ struct RuntimeEvent {
     std::string agent_config;   // agent config name ("risk_assessor", etc.)
     size_t sequence_id = 0;     // global monotonic counter
     std::chrono::steady_clock::time_point timestamp;
-    std::string content_fingerprint;  // hash of response content (agent events only)
+    std::string content_fingerprint;  // hash of response content (agent events only);
+                                      // for TOOL_CALL, of the tool's name and arguments,
+                                      // for TOOL_RESULT, of its name, success and result (B7)
+    // B7: raised inside an agent's turn (governance::AgentTurnEventScope):
+    // the agent's send, its tool calls and what its tools did, as against the
+    // orchestration script's own events between sends.
+    bool in_agent_turn = false;
     int input_tokens = 0;             // input/prompt tokens (agent events only)
     int output_tokens = 0;            // total output tokens (agent events only)
     int thinking_tokens = 0;          // thinking tokens consumed (agent events only)
@@ -182,6 +188,14 @@ struct DriftState {
     int circular_action_count = 0;
     int scope_creep_count = 0;
     std::deque<std::string> turn_fingerprints;  // hash of actions per turn
+    // B7 (decision 30): the tool calls the agent made each turn -- each call's
+    // name and arguments and the result it got -- as one signature per turn,
+    // empty when it made none. S1 also fires when the last circular_lookback
+    // turns' signatures are the same: the same calls, getting the same results,
+    // whatever the reply says.
+    std::deque<std::string> turn_tool_signatures;
+    int circular_tool_count = 0;        // S1 firings on repeated tool calls
+    std::string last_circular_kind;     // this turn: "", "reply", "tool_calls" or "both"
     std::deque<std::string> recent_errors;      // last N error messages
     int last_checked_turn = -1;  // -1 so turn 0 is analyzed: agent event turns
                                  // start at 0, and 0 - 0 < check_interval made
@@ -414,6 +428,7 @@ struct DriftState {
     // that pass today.
     int cb_sustained_turns[3] = {0, 0, 0};
     int last_checkpoint_turn = -100;   // init negative for no initial cooldown
+    int last_checkpoint_sustained = 0; // sustained turns when it last fired (A229)
     int signals_fired_this_turn = 0;
     // Consecutive post-baseline checks where a firing signal was fully absorbed
     // by the adaptive baseline (penalty 0). Reset when the signal pays or goes
@@ -695,7 +710,10 @@ public:
     std::vector<std::pair<std::string, int>> incompleteBaselines() const;
 
     // Update checkpoint state fields on DriftState (thread-safe)
-    void updateCheckpointState(int handle_id, double pressure, int consecutive, int checkpoint_turn);
+    // sustained_at_fire: the sustained count when a checkpoint fires (the
+    // counter itself is reset to `consecutive`, 0, at that moment).
+    void updateCheckpointState(int handle_id, double pressure, int consecutive, int checkpoint_turn,
+                               int sustained_at_fire = 0);
     // Circuit-breaker per-level sustained counters (0=ELEVATED, 1=HIGH, 2=CRITICAL).
     // Deliberately separate from updateCheckpointState so the checkpoint's counter
     // and the circuit breaker's cannot drift into sharing a gate again.
@@ -866,6 +884,7 @@ private:
 
     std::string computeFingerprint(const std::vector<RuntimeEvent>& events) const;
     bool isCircular(const DriftState& state, const std::string& fingerprint) const;
+    bool toolCallsRepeat(const DriftState& state) const;  // B7
     static void snapshotSignalCounters(DriftState& state);
 };
 

@@ -88,7 +88,7 @@ done
 # writes one.
 check "Has no top-level 'scopes' (read by nothing)" "python3 -c 'import json; d=json.load(open(\"govern.json\")); assert \"scopes\" not in d' 2>/dev/null"
 
-# --- Test 4: capabilities has 7 sub-sections ---
+# --- Test 4: sub-section counts ---
 echo ""
 echo "Test 4: Sub-section counts"
 # Argv-based helper: the previous inline f-strings nested double quotes
@@ -102,14 +102,26 @@ section_count() {
 # block is enabled by its presence), and settings no check reads (the process
 # block, requirements.error_handling and naming_conventions). Test 9 is the
 # behavioural half: each preset loads with no such warning and runs Hello World.
-check "capabilities has 6 sub-sections"  "section_count capabilities 6"
+# Bundle 19 PR 4 (A175(b)): keys the loader never parses left too -- the time
+# and memory capabilities, requirements other than main_block, meta's
+# schema_validation / config_immutability / feature_flags, and polyglot's
+# output / context_isolation / parallel / persistent_runtime blocks
+# (tests/governance_v4/template_retired_keys.txt). What is left is named here.
+check "capabilities has 4 sub-sections"  "section_count capabilities 4"
 check "code_quality has 18 sub-sections" "section_count code_quality 18"
 check "restrictions has 7 sub-sections"  "section_count restrictions 7"
-check "requirements has 5 sub-sections"  "section_count requirements 5"
+check "requirements has 1 sub-section"   "section_count requirements 1"
 check "limits has 6 sub-sections"        "section_count limits 6"
-check "meta has 5 sub-sections"          "section_count meta 5"
+check "meta has 2 sub-sections"          "section_count meta 2"
 check "hooks has 5 sub-sections"         "section_count hooks 5"
-check "polyglot has 5 sub-sections"      "section_count polyglot 5"
+check "polyglot has 1 sub-section"       "section_count polyglot 1"
+section_names() {
+    python3 -c 'import json,sys; d=json.load(open("govern.json")); sys.exit(0 if sorted(d[sys.argv[1]]) == sorted(sys.argv[2].split(",")) else 1)' "$1" "$2" 2>/dev/null
+}
+check "capabilities: env_vars, filesystem, network, shell" "section_names capabilities env_vars,filesystem,network,shell"
+check "requirements: main_block"                           "section_names requirements main_block"
+check "meta: environment, inheritance"                     "section_names meta environment,inheritance"
+check "polyglot: variable_binding"                         "section_names polyglot variable_binding"
 
 # --- Test 5: Language selection ---
 echo ""

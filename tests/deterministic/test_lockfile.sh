@@ -2,6 +2,8 @@
 # Test naab.lock deterministic build support
 # Phase 8.4 — Deterministic Builds
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="${SCRIPT_DIR}/../.."
 NAAB="${ROOT}/build/naab-lang"

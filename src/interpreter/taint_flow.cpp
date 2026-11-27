@@ -101,7 +101,10 @@ constexpr int kMaxDepth = 64;
 
 bool isMutatingMethod(const std::string& m) {
     static const std::set<std::string> k = {
-        "push", "append", "add", "unshift", "insert", "extend", "set", "put", "update", "merge"};
+        "push", "append", "add", "unshift", "insert", "extend", "set", "put", "update"};
+    // Not "merge": d.merge(x) returns a new dict and leaves d unchanged on
+    // both engines (A69, decision 18), so it taints its result (the call
+    // rule), never d.
     return k.count(m) > 0;
 }
 

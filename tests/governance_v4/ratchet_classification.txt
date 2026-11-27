@@ -585,8 +585,10 @@ code_quality.no_oversimplification.check_identity_functions  order true -- trace
 code_quality.no_oversimplification.check_not_implemented  order true -- traced: each enables one sub-check of no_oversimplification
 code_quality.no_oversimplification.check_trivial_returns  order true -- traced: each enables one sub-check of no_oversimplification
 code_quality.no_oversimplification.min_function_lines  fixed -- untraced: which functions the check skips by length; direction not established; any mid-run change refused
-code_quality.no_hardcoded_results.check_dict_success_fields  order true -- traced: each enables one sub-check of no_hardcoded_results
-code_quality.no_hardcoded_results.check_return_true_false  order true -- traced: each enables one sub-check of no_hardcoded_results
+code_quality.no_hardcoded_results.check_dict_status_fields  order true default=true -- traced: enables the constant-success-dict sub-check of checkHardcodedResults() (U-014, wired 2026-11-25); struct default true (governance.h), changed only when the key is present
+code_quality.no_hardcoded_results.check_dict_success_fields  order true -- screened: parsed and read by no check (U-014 record, 2026-11-25; this line said "traced: enables a sub-check" before); kept so wiring it needs no new line
+code_quality.no_hardcoded_results.check_perfect_scores  order true default=true -- traced: enables the constant-perfect-score sub-check of checkHardcodedResults() (U-014, wired 2026-11-25); struct default true (governance.h), changed only when the key is present
+code_quality.no_hardcoded_results.check_return_true_false  order true -- screened: parsed and read by no check (U-014 record, 2026-11-25; this line said "traced: enables a sub-check" before); kept so wiring it needs no new line
 code_quality.no_pii.detect_credit_card           order true -- traced: each enables one PII detector (checkPii)
 code_quality.no_pii.detect_email                 order true -- traced: each enables one PII detector (checkPii)
 code_quality.no_pii.detect_ip_address            order true -- traced: each enables one PII detector (checkPii)

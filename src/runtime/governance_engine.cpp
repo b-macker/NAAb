@@ -40,6 +40,7 @@
 #include <chrono>
 #include <ctime>
 #include <algorithm>
+#include <cstring>
 #include <cmath>
 #include <mutex>            // std::once_flag, std::call_once (trust snapshot)
 #include <unordered_set>    // fingerprint snapshot
@@ -883,6 +884,82 @@ static const std::vector<HardcodedResultPattern> HARDCODED_RESULT_PATTERNS_DB = 
     {"(?:denominator|divisor|normalizer|scale_factor)\\s*=\\s*\\d{2,}",
      "Hardcoded normalization constant (should be computed)"},
 };
+
+// U-014 (decision 14): two sub-checks of no_hardcoded_results. Both read the
+// text WITH its string literals (the pattern table above reads it without),
+// because a status and its value are strings.
+//
+// check_dict_status_fields: a returned dict/object literal whose status-like
+// key holds a success-like string and whose every value is a literal -- the
+// same answer whatever the input (`return {"status": "success"}`). A dict
+// with any computed value (`{"status": "ok", "count": n}`) is not flagged.
+static bool returnsConstantSuccessDict(const std::string& text, std::string& found) {
+    static const naab::rx::regex ret_dict(R"(return\s*\(?\s*(\{[^{}]*\}))");
+    static const naab::rx::regex status_ok(
+        R"(["']?\b(?:status|state|result|outcome)\b["']?\s*(?::|=>)\s*["'](?:success|successful|ok|okay|passed|pass|done|complete|completed|valid)["'])",
+        naab::rx::regex::icase);
+    static const naab::rx::regex str_lit(R"("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')");
+    static const naab::rx::regex key_tok(R"([A-Za-z_][A-Za-z0-9_]*\s*(?::|=>))");
+    static const naab::rx::regex lit_word(R"(\b(?:true|false|none|null|nil)\b)", naab::rx::regex::icase);
+    static const naab::rx::regex num(R"(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)");
+    for (naab::rx::sregex_iterator it(text.begin(), text.end(), ret_dict), end; it != end; ++it) {
+        const std::string dict = (*it)[1].str();
+        if (!naab::rx::regex_search(dict, status_ok)) continue;
+        std::string rest = naab::rx::regex_replace(dict, str_lit, " ");
+        rest = naab::rx::regex_replace(rest, key_tok, " ");
+        rest = naab::rx::regex_replace(rest, lit_word, " ");
+        rest = naab::rx::regex_replace(rest, num, " ");
+        bool only_literals = true;
+        for (char c : rest) {
+            if (c == '{' || c == '}' || c == ':' || c == ',' || c == '=' || c == '>' ||
+                std::isspace(static_cast<unsigned char>(c))) continue;
+            only_literals = false;
+            break;
+        }
+        if (!only_literals) continue;
+        found = (*it)[0].str();
+        return true;
+    }
+    return false;
+}
+
+// check_perfect_scores: a score-like name (score, accuracy, confidence,
+// precision, recall, rating, with any prefix) set or mapped to a literal
+// perfect value (100, 100.0, 1.0) that ENDS the expression -- `1.0 - err` is
+// computed, not constant -- and, for an assignment, a name the code writes
+// nowhere else (`score = 100.0` then `score -= 20` is a starting value). A
+// comparison (==, <=, >=, !=) is not a setting and does not match. Measured
+// on the repository's 1,698 polyglot blocks before shipping (U-014): the
+// first version without the two exclusions flagged 7, 5 of them computed.
+static bool nameWrittenElsewhere(const std::string& text, const std::string& name,
+                                 std::size_t skip_at) {
+    for (std::size_t p = text.find(name); p != std::string::npos; p = text.find(name, p + 1)) {
+        if (p == skip_at) continue;
+        if (p > 0 && (std::isalnum(static_cast<unsigned char>(text[p - 1])) || text[p - 1] == '_')) continue;
+        std::size_t q = p + name.size();
+        if (q < text.size() && (std::isalnum(static_cast<unsigned char>(text[q])) || text[q] == '_')) continue;
+        while (q < text.size() && (text[q] == ' ' || text[q] == '\t')) ++q;
+        if (q < text.size() && std::strchr("+-*/%", text[q]) && q + 1 < text.size() && text[q + 1] == '=') return true;
+        if (q < text.size() && text[q] == '=' && (q + 1 >= text.size() || text[q + 1] != '=')) return true;
+    }
+    return false;
+}
+
+static bool setsPerfectScore(const std::string& text, std::string& found) {
+    static const naab::rx::regex perfect(
+        R"(["']?\b([A-Za-z_]*(?:score|accuracy|confidence|precision|recall|rating))["']?[ \t]*(:|=>|=)[ \t]*(?:100(?:\.0+)?|1\.0+)[ \t]*(?:[,;})\]]|#|//|\r?\n|$))",
+        naab::rx::regex::icase);
+    for (naab::rx::sregex_iterator it(text.begin(), text.end(), perfect), end; it != end; ++it) {
+        const std::string name = (*it)[1].str();
+        if ((*it)[2].str() == "=") {
+            const std::size_t at = static_cast<std::size_t>(it->position(1));
+            if (nameWrittenElsewhere(text, name, at)) continue;
+        }
+        found = (*it)[0].str();
+        return true;
+    }
+    return false;
+}
 
 // --- Core Engine Implementation (extracted from governance.cpp) ---
 
@@ -4057,10 +4134,40 @@ std::string GovernanceEngine::checkPlaceholders(
 }
 
 std::string GovernanceEngine::checkHardcodedResults(
-    const std::string& code, int line) {
+    const std::string& code, int line, const std::string* text_with_strings) {
     clearTrace();
 
     if (!rules().no_hardcoded_results) return "";
+
+    // U-014: the two sub-checks the template and init have always written.
+    {
+        const std::string& text = text_with_strings ? *text_with_strings : code;
+        const auto& hr = rules().code_quality.no_hardcoded_results;
+        std::string found, what;
+        if (hr.check_dict_status_fields && returnsConstantSuccessDict(text, found))
+            what = "a constant success status (the same answer whatever the input)";
+        else if (hr.check_perfect_scores && setsPerfectScore(text, found))
+            what = "a perfect score set as a constant";
+        if (!what.empty()) {
+            if (found.size() > 60) found = found.substr(0, 60) + "...";
+            while (!found.empty() && (found.back() == '\n' || found.back() == '\r')) found.pop_back();
+            std::string location = line > 0 ? fmt::format("line {}: {}", line, found) : found;
+            return enforce("code_quality.no_hardcoded_results",
+                rules().no_hardcoded_results_level,
+                formatError(rules().no_hardcoded_results_level,
+                    fmt::format("Hardcoded result: {}", what),
+                    location,
+                    fmt::format("code_quality.no_hardcoded_results = \"{}\"",
+                        levelToString(rules().no_hardcoded_results_level)),
+                    "A result must come from the work the code does\n"
+                    "Compute the status or score from the input instead",
+                    "def check(data):\n    return {\"status\": \"success\", \"score\": 100}",
+                    "def check(data):\n"
+                    "    errors = validate(data)\n"
+                    "    return {\"status\": \"success\" if not errors else \"failed\",\n"
+                    "            \"score\": 100 * (1 - len(errors) / max(len(data), 1))}"));
+        }
+    }
 
     for (const auto& pattern : HARDCODED_RESULT_PATTERNS_DB) {
         try {
@@ -9168,6 +9275,16 @@ bool GovernanceEngine::seedSequenceEvents(const std::string& path) {
     return true;
 }
 
+// B7: set by AgentTurnEventScope (agentSend); read by emitEvent on the same
+// thread, so a batch worker's own send marks its own events only.
+static thread_local bool t_in_agent_turn = false;
+
+bool GovernanceEngine::exchangeInAgentTurn(bool in_turn) {
+    bool prev = t_in_agent_turn;
+    t_in_agent_turn = in_turn;
+    return prev;
+}
+
 std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string& detail,
                                          const std::string& file, int line,
                                          const std::string& content_fingerprint,
@@ -9200,6 +9317,7 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
     ev.thinking_reported = thinking_reported;
     ev.content_keywords = content_keywords;
     ev.claims = std::move(claims);
+    ev.in_agent_turn = t_in_agent_turn;
     ev.turn = t_event_agent_turn;
     ev.agent_handle = t_event_agent_handle;
     {
@@ -10666,7 +10784,7 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                     (turn - last_cp_turn) >= rccfg.min_turns_between_checkpoints) {
 
                     // Reset and persist state
-                    drift_analyzer_.updateCheckpointState(handle_id, composite, 0, turn);
+                    drift_analyzer_.updateCheckpointState(handle_id, composite, 0, turn, consecutive);
 
                     clearTrace();
                     addTrace(fmt::format("reality_checkpoint: pressure={:.2f} (threshold={:.2f})",
@@ -10830,8 +10948,11 @@ GovernanceEngine::CheckpointData GovernanceEngine::getCheckpointData(
     auto state = drift_analyzer_.getDriftState(handle_id);
     if (!state) return data;
     data.pressure = state->last_pressure_score;
-    data.sustained_turns = state->consecutive_high_pressure_turns;
     data.fired = (state->last_checkpoint_turn == turn);
+    // Firing resets the counter, so a fired checkpoint reports the count it
+    // fired at; it read 0 on every fired turn (A229).
+    data.sustained_turns = data.fired ? state->last_checkpoint_sustained
+                                      : state->consecutive_high_pressure_turns;
     return data;
 }
 

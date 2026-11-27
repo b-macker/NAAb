@@ -5,6 +5,8 @@
 #   V-LSP-006 — LSP server JSON depth guard prevents stack overflow DoS
 #   V-GOV-011 — project context loader JSON depth guard prevents stack overflow DoS
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

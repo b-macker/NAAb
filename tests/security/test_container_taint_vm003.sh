@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # test_container_taint_vm003.sh — V-VM-003: taint must survive dict/list container mutation
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -euo pipefail
 
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"

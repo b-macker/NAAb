@@ -3,6 +3,7 @@
 // New stdlib modules declarations
 // Implementations are in src/stdlib/*_impl.cpp files
 
+#include "naab/debug_local.h"
 #include "naab/stdlib.h"
 #include <cstdint>
 #include <functional>
@@ -174,6 +175,15 @@ public:
 
     // Give debug module access to interpreter for scope inspection
     static void setInterpreter(interpreter::Interpreter* interp);
+    // F46: the VM registers how to read its stack and scope; the debug module
+    // asks the VM running on the calling thread (naab/thread_vm.h) first, and
+    // the tree-walker only when no VM runs there. The VM is type-erased: the
+    // standard library cannot name it.
+    // A local the VM reports, with its run-time taint (naab/debug_local.h).
+    using DebugLocal = stdlib::DebugLocal;
+    using VMStackFn = std::vector<std::string> (*)(void* vm);
+    using VMScopeFn = std::vector<DebugLocal> (*)(void* vm);
+    static void setVMDebugHooks(VMStackFn stack, VMScopeFn scope);
     // F40: needed so ~Interpreter can clear this pointer ONLY when it still
     // refers to the interpreter being destroyed. See the destructor's comment.
     static interpreter::Interpreter* getInterpreter();

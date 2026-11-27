@@ -204,12 +204,23 @@ int Compiler::addLocal(const std::string& name) {
     // function. Start clean; popLocal() puts the outer state back.
     local.outer_tainted = tainted_vars_.count(name) > 0;
     tainted_vars_.erase(name);
+    const int slot = static_cast<int>(current_->locals.size());
+    if (current_->function) {   // F46: live from here until popLocal()
+        current_->function->local_ranges.push_back(
+            {slot, name, static_cast<int>(currentChunk().codeSize()), -1});
+        local.range_index = static_cast<int>(current_->function->local_ranges.size()) - 1;
+    }
     current_->locals.push_back(std::move(local));
-    return static_cast<int>(current_->locals.size()) - 1;
+    return slot;
 }
 
 void Compiler::popLocal() {
     const auto& local = current_->locals.back();
+    if (current_->function && local.range_index >= 0 &&
+        local.range_index < static_cast<int>(current_->function->local_ranges.size())) {
+        current_->function->local_ranges[local.range_index].end =
+            static_cast<int>(currentChunk().codeSize());
+    }
     if (local.outer_tainted) tainted_vars_[local.name] = true;
     else tainted_vars_.erase(local.name);
     current_->locals.pop_back();
@@ -983,6 +994,44 @@ void Compiler::visit(ast::BinaryExpr& node) {
 
     // Pipeline: x |> fn  → fn(x), or x |> fn(a,b) → fn(x, a, b)
     if (node.getOp() == ast::BinaryOp::Pipeline) {
+        // A67: a member target -- x |> mod.fn(a), x |> mod.fn -- is a METHOD
+        // call with the piped value first, compiled as obj.fn(x, a) is. The
+        // generic path below compiled the callee on its own, and on the VM a
+        // module member without parentheses CALLS the function with no
+        // arguments: "hello" |> string.upper() failed with "upper() takes
+        // exactly 1 argument". An optional member (obj?.fn) keeps that path.
+        {
+            ast::MemberExpr* member = nullptr;
+            const std::vector<std::unique_ptr<ast::Expr>>* rest = nullptr;
+            if (auto* call = dynamic_cast<ast::CallExpr*>(node.getRight())) {
+                member = dynamic_cast<ast::MemberExpr*>(call->getCallee());
+                rest = &call->getArgs();
+            } else {
+                member = dynamic_cast<ast::MemberExpr*>(node.getRight());
+            }
+            if (member && !member->isOptional()) {
+                member->getObject()->accept(*this);       // the object
+                TempHold hold(current_->expr_temps, 1);
+                node.getLeft()->accept(*this);            // x, the first argument
+                emitStaticTaintMark(node.getLeft(), line);
+                hold.add();
+                size_t argc = 1;
+                if (rest) {
+                    for (auto& arg : *rest) {
+                        arg->accept(*this);
+                        emitStaticTaintMark(arg.get(), line);
+                        hold.add();
+                        ++argc;
+                    }
+                }
+                int name_idx = identifierConstant(member->getMember());
+                uint32_t packed = (static_cast<uint32_t>(name_idx) << 8) |
+                                  (static_cast<uint32_t>(argc) & 0xFF);
+                recordCallName(member);
+                emitWide(OpCode::OP_CALL_METHOD, packed, line);
+                return;
+            }
+        }
         if (auto* call = dynamic_cast<ast::CallExpr*>(node.getRight())) {
             // Right side is a call: x |> fn(a, b) → fn(x, a, b)
             call->getCallee()->accept(*this);   // push fn
@@ -1557,6 +1606,54 @@ void Compiler::visit(ast::DestructureStmt& node) {
 
 void Compiler::visit(ast::ForStmt& node) {
     int line = node.getLocation().line;
+
+    // A66 (decision 17): a plain `for x in a..b` counts instead of building
+    // the list (an index or destructuring keeps the list path below).
+    if (auto* range = dynamic_cast<ast::RangeExpr*>(node.getIter());
+        range && !node.isDestructuring() && !node.hasIndex()) {
+        range->getStart()->accept(*this);
+        if (governance_ && governance_->isActive() && exprContainsTaint(range->getStart())) {
+            emitOp(OpCode::OP_GOV_TAINT_MARK, line);
+        }
+        {
+            TempHold hold(current_->expr_temps, 1);  // the start
+            range->getEnd()->accept(*this);
+            if (governance_ && governance_->isActive() && exprContainsTaint(range->getEnd())) {
+                emitOp(OpCode::OP_GOV_TAINT_MARK, line);
+            }
+        }
+        emitWide(OpCode::OP_RANGE_ITER, range->isInclusive() ? 1u : 0u, line);
+        addLocal("__iter_list__");   // the bound
+        markInitialized();
+        addLocal("__iter_idx__");    // the counter
+        markInitialized();
+
+        int loop_start = currentChunk().codeSize();
+        current_->loops.push_back({loop_start, {}, current_->scope_depth});
+        const uint32_t incl_bit = range->isInclusive() ? (1u << 23) : 0u;
+        int next_offset = currentChunk().codeSize();
+        currentChunk().emit(encodeWide(OpCode::OP_RANGE_NEXT, incl_bit), line);
+
+        beginScope();
+        addLocal(node.getVar());
+        markInitialized();
+        node.getBody()->accept(*this);
+        endScope();
+        emitLoop(loop_start, line);
+
+        int after_loop = currentChunk().codeSize();
+        int jump_dist = after_loop - next_offset - 1;
+        currentChunk().code[next_offset] = encodeWide(OpCode::OP_RANGE_NEXT,
+            incl_bit | (static_cast<uint32_t>(jump_dist) & 0x7FFFFFu));
+        auto& loop = current_->loops.back();
+        for (int offset : loop.break_jumps) patchJump(offset);
+        current_->loops.pop_back();
+        emitOp(OpCode::OP_POP, line);
+        emitOp(OpCode::OP_POP, line);
+        popLocal();   // __iter_idx__
+        popLocal();   // __iter_list__
+        return;
+    }
 
     // Compile the iterable and convert to iterator state (list + index on stack)
     node.getIter()->accept(*this);

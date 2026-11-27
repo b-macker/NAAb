@@ -4,6 +4,8 @@
 # V-UB-001:  std::sort strict weak ordering crash
 # V-DOS-011: Unbounded string allocation DoS
 # V-DOS-012: ReDoS omission in regex stdlib
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

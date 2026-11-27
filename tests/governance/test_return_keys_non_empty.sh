@@ -1,6 +1,8 @@
 #!/bin/bash
 # Test: return_keys_non_empty and return_keys_non_null contract enforcement
 # Verifies that governance blocks functions returning dicts with null/empty values for required keys.
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -e
 
 NAAB="$(dirname "$0")/../../build/naab-lang"

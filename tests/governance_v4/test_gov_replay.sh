@@ -110,9 +110,11 @@ make_run() {
     mkdir -p "$d"
     python3 -c 'import json,sys; json.dump({"responses":[{"content":a,"output_tokens":20} for a in sys.argv[2:]]}, open(sys.argv[1],"w",encoding="utf-8"))' "$d/fixture.json" "$@"
     if ! start_stub "$d/fixture.json" "$d"; then stop_stub; return 1; fi
+    # allow_tainted_code: since A161 codegen refuses a model's reply without
+    # the operator's grant, and run A executes one (the provenance arms).
     cat > "$d/govern.json" <<EOF
 { "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "elevated" },
-  "codegen": {"enabled": true},
+  "codegen": {"enabled": true, "allow_tainted_code": true},
   "telemetry": {"enabled": true, "output_file": "tel.jsonl", "decision_snapshots": true,
      "tamper_evidence": {"enabled": true${tel_extra}},
      "transcript": {"enabled": true, "output_file": "tr.jsonl"}},

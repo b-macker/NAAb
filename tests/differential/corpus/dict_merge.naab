@@ -1,0 +1,19 @@
+// Differential probe: d.merge(other) returns a new dict and leaves d unchanged
+// (A69, the owner's decision 18). The tree-walker wrote other's entries into d
+// (and one of its two copies returned null); the VM and dict.merge(a, b) did
+// not. tests/robustness/test_structs_enums.naab T18.7 asserted the mutation and
+// printed 4/6 on the VM with exit 0.
+use dict
+main {
+    let d1 = {"x": 10}
+    let m = d1.merge({"y": 20})
+    print(d1)
+    print(m)
+    let d3 = {"a": 1}
+    let m3 = d3.merge({"a": 99, "b": 2})
+    print(d3)
+    print(m3)
+    d1.merge({"z": 1})
+    print(d1)
+    print(dict.merge({"p": 1}, {"q": 2}))
+}

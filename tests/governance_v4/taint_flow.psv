@@ -74,6 +74,8 @@ v_callback_sorted|-|let xs = [t, "b"]@@let ys = xs.sorted(fn(a, b) {@@    print(
 n_callback_find_clean|-|let xs = ["c"]@@let r = xs.find(fn(v) {@@    print(v)@@    return true@@})|none|none|a method's callback on clean data (control for the three above)
 v_push|-|let a = []@@a.push(t)@@print(a)|value@s3|s3|a list a tainted value was pushed into
 v_dict_set|-|let d = {"k": "c"}@@d["k"] = t@@print(d)|value@s3|s3|a dict entry set to tainted data
+v_merge_result|-|let d = {"k": "c"}@@let m = d.merge({"x": t})@@print(m)|value@s3|s3|d.merge(x) returns a new dict carrying x's taint (A69), under both origins: the VM's built-in method route takes its arguments' run-time taint (A217; it took only the receiver's, so the callback origin read clean)
+n_merge_receiver|-|let d = {"k": "c"}@@let m = d.merge({"x": t})@@print(d)|none|none|d.merge(x) leaves d unchanged on both engines, so d stays clean (A69: the report counted merge as changing d)
 v_struct_field|struct S {@@    a: string@@}|let s = S { a: "c" }@@s.a = t@@print(s)|value@s3|s3|a struct field set to tainted data taints the struct (A120(b): the VM's field store used to mark nothing)
 v_struct_field_read|struct S {@@    a: string@@}|let s = S { a: "c" }@@s.a = t@@print(s.a)|value@s3|s3|the tainted field read back
 n_struct_clean_store|struct S {@@    a: string@@}|let s = S { a: "c" }@@s.a = "d"@@print(s)|none|none|a clean value stored in a field (control: a store does not taint by itself)

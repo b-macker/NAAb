@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Test: Telemetry webhook forwarding
 # Verifies that governance telemetry events are forwarded to a webhook endpoint.
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
