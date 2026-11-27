@@ -11,6 +11,8 @@
 #
 # Run: bash tests/api/test_platform_fixes.sh
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 PASS=0
 FAIL=0
 LANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)"

@@ -38,7 +38,13 @@
 #        are safe; the rest inherit whatever the ambient store holds, so their
 #        result depends on what else has run (register D8). Measured
 #        2026-09-06: 81 of 165 such suites have no isolation. The register
-#        said ~35.
+#        said ~35. Since 2026-11-26 (Bundle 19 PR 4) the count is 0 and the
+#        gate is ABSOLUTE: a suite counts as isolated only when it calls
+#        setup_isolated_trust or isolate_trust_store, assigns
+#        NAAB_TRUST_STORE_DIR, or says where it inherits the store from
+#        ("is inherited from", a sub-script whose runner installs its key).
+#        Naming the variable or the helper in a comment is not isolation --
+#        the 2026-09-06 detector counted that.
 #
 # CV-03  REGISTERED SUITES THAT ARE NOT THERE.
 #        run-all-tests.sh registers 88 shell suites by path, and every one of
@@ -64,7 +70,7 @@
 #        exists only on the machine that wrote it, and skips silently for
 #        everyone else -- the same silence as CV-03 with a longer fuse.
 #
-# CV-01/CV-02 are BASELINE gates: they fail when the number GROWS, not while it
+# CV-01 is a BASELINE gate (and CV-02 was, until its count reached 0): it fails when the number GROWS, not while it
 # is nonzero. A gate that fails today would be switched off today. CV-03/CV-04
 # are ABSOLUTE: the correct count is zero and it is zero today, so there is no
 # baseline to erode.
@@ -83,7 +89,7 @@ bad() { FAIL=$((FAIL+1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] &
 
 # Baselines. Raise ONLY with a reason; lowering is progress and is expected.
 BASELINE_ORPHAN_DIRS=13
-BASELINE_UNISOLATED=81
+BASELINE_UNISOLATED=0
 
 # Support directories: sourced by other tests or developer tooling, never run
 # standalone. Not orphans.
@@ -148,19 +154,20 @@ fi
 # -- it missed a lowercase `$test_dir/govern.json`, a `$TMPDIR/gov/govern.json`
 # and a bare relative `> govern.json`. The broad form is a strict superset:
 # it caught those three and dropped none.
-UNISO=0
+UNISO=0; UNISO_LIST=""
 for f in $(grep -rl "govern.json" tests --include='*.sh' 2>/dev/null); do
     grep -qE '>[[:space:]]*"?[^"[:space:]]*govern\.json"?' "$f" || continue
-    grep -q "trust_setup.sh\|NAAB_TRUST_STORE_DIR" "$f" || UNISO=$((UNISO+1))
+    grep -qE 'setup_isolated_trust|isolate_trust_store|NAAB_TRUST_STORE_DIR=|NAAB_TRUST_STORE_DIR is inherited from' "$f" \
+        || { UNISO=$((UNISO+1)); UNISO_LIST="$UNISO_LIST $f"; }
 done
 echo "  suites writing an unsigned govern.json with no trust isolation: $UNISO"
 echo ""
 
 if [ "$UNISO" -le "$BASELINE_UNISOLATED" ]; then
-    ok "CV-02" "no new suite writes an unsigned govern.json unisolated ($UNISO <= $BASELINE_UNISOLATED)"
+    ok "CV-02" "every suite that writes an unsigned govern.json isolates the trust store ($UNISO unisolated)"
 else
     bad "CV-02" "a new suite writes an unsigned govern.json without isolating the trust store" \
-        "$UNISO unisolated, baseline $BASELINE_UNISOLATED — source tests/helpers/trust_setup.sh and call setup_isolated_trust, or its result depends on whatever else populated ~/.naab/trusted-keys"
+        "$UNISO unisolated:$UNISO_LIST — source tests/helpers/trust_setup.sh and call isolate_trust_store (no key installed) or setup_isolated_trust (the suite installs keys), or its result depends on whatever keys the machine trusts"
 fi
 
 # Computed in BASH, not Python. The first version shelled out to git from

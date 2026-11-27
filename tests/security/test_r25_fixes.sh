@@ -2,6 +2,8 @@
 # Security R25 Fix Verification Tests
 # V-RT-015:  readFileBounded TOCTOU — atomic open with O_NOFOLLOW
 # V-DOS-005: REST API token-bucket rate limiting
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

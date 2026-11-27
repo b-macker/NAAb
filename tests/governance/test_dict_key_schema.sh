@@ -1,6 +1,8 @@
 #!/bin/bash
 # Test: Dict key pre-flight scanner check
 # Verifies that the scanner detects .get() calls with wrong keys against actual JSON files
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -e
 
 NAAB_GOV="$(cd "$(dirname "$0")/../.." && pwd)/build/naab-gov"

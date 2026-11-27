@@ -43,6 +43,8 @@
 #          conditions that reproduced the bypass (--sandbox-level on the CLI)
 #   FG-07  the allowed_actions matrix gates csv as well, with its permit case
 # ============================================================
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

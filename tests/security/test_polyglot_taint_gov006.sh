@@ -2,6 +2,8 @@
 # Test V-GOV-006: All polyglot block outputs must be unconditionally tainted
 # when governance is active, regardless of whether the input was tainted.
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 NAAB="${NAAB_BIN:-$(dirname "$0")/../../build/naab-lang}"
 PASS=0; FAIL=0; SKIP=0
 

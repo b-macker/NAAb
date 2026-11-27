@@ -2,6 +2,8 @@
 # test_shell_injection_patterns.sh — V-SC-008: Shell injection detection (8→20 patterns)
 # Verifies expanded shell injection detection patterns.
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -euo pipefail
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
 PASS=0; FAIL=0

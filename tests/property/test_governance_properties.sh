@@ -9,6 +9,8 @@
 #   P5: Score integrity — no integrity mismatch for standard scoring
 #   P6: Governance transparency — pure computation output unchanged by governance
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

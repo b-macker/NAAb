@@ -414,6 +414,7 @@ struct DriftState {
     // that pass today.
     int cb_sustained_turns[3] = {0, 0, 0};
     int last_checkpoint_turn = -100;   // init negative for no initial cooldown
+    int last_checkpoint_sustained = 0; // sustained turns when it last fired (A229)
     int signals_fired_this_turn = 0;
     // Consecutive post-baseline checks where a firing signal was fully absorbed
     // by the adaptive baseline (penalty 0). Reset when the signal pays or goes
@@ -695,7 +696,10 @@ public:
     std::vector<std::pair<std::string, int>> incompleteBaselines() const;
 
     // Update checkpoint state fields on DriftState (thread-safe)
-    void updateCheckpointState(int handle_id, double pressure, int consecutive, int checkpoint_turn);
+    // sustained_at_fire: the sustained count when a checkpoint fires (the
+    // counter itself is reset to `consecutive`, 0, at that moment).
+    void updateCheckpointState(int handle_id, double pressure, int consecutive, int checkpoint_turn,
+                               int sustained_at_fire = 0);
     // Circuit-breaker per-level sustained counters (0=ELEVATED, 1=HIGH, 2=CRITICAL).
     // Deliberately separate from updateCheckpointState so the checkpoint's counter
     // and the circuit breaker's cannot drift into sharing a gate again.

@@ -2912,13 +2912,15 @@ size_t ContextDriftAnalyzer::totalTurnsAnalyzed() const {
 }
 
 void ContextDriftAnalyzer::updateCheckpointState(int handle_id, double pressure,
-                                                   int consecutive, int checkpoint_turn) {
+                                                   int consecutive, int checkpoint_turn,
+                                                   int sustained_at_fire) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto& state = drift_states_[handle_id];
     state.last_pressure_score = pressure;
     state.consecutive_high_pressure_turns = consecutive;
     if (checkpoint_turn >= 0) {
         state.last_checkpoint_turn = checkpoint_turn;
+        state.last_checkpoint_sustained = sustained_at_fire;
     }
 }
 

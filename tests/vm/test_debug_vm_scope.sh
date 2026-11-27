@@ -35,9 +35,13 @@
 #           race the TSan job reported on b7c18a91; they are now registered
 #           once and atomic, and this suite is in tests/tsan/suites.txt.
 #   DV-07   four concurrent async fns each use debug.snapshot/compare/watch/
-#           timer: each compare sees its own change. Under ThreadSanitizer it
-#           is the check that the module's tables, now under one lock
-#           (Bundle 19 PR 4), are not raced.
+#           timer, 200 times each: each compare sees its own change. Under
+#           ThreadSanitizer it is the check that the module's tables, under
+#           one lock since Bundle 19 PR 4, are not raced. The loop is what
+#           makes it one: with the lock removed, the earlier one-call-each
+#           program drew no report in 3 runs (the VM's other locks order those
+#           few accesses), and this one 166 and 161 reports in 2 runs; with
+#           the lock, 0 in 3 (2026-11-27, clang 18, observed).
 #   DV-T0   CONTROL: printing the tainted local directly is refused (exit 3),
 #           so the fixture taints and the sink fires.
 #   DV-T1   a tainted local read back through debug.env() is refused at the
@@ -62,7 +66,8 @@
 #       not the one running on the calling thread
 # The registration race itself is not a mutant here: only a ThreadSanitizer
 # build shows it (tests/tsan/run_tsan.sh, red on b7c18a91, green after); the
-# same holds for DV-07's lock (removing it is a TSan mutant, run under TSan).
+# same holds for DV-07's lock (removing it is a TSan mutant: each acquisition
+# given a fresh mutex, run under TSan by hand on 2026-11-27, red as above).
 
 set -uo pipefail
 PASS=0; FAIL=0
@@ -162,6 +167,13 @@ else bad DV-06 "async scopes (rc=$RC, w1 '$a1', w2 '$a2', main '$(keyset M "$OUT
 cat > "$W/free/conc.naab" <<'EOF'
 async fn worker(tag) {
     let w = tag
+    let i = 0
+    while i < 200 {
+        debug.snapshot(tag + string(i))
+        debug.watch(tag + string(i), w)
+        debug.timer(tag + string(i))
+        i = i + 1
+    }
     debug.snapshot(tag + "a")
     w = tag + "!"
     debug.snapshot(tag + "b")

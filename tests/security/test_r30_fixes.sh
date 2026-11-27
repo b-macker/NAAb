@@ -5,6 +5,8 @@
 # V-DOS-009:  JSON depth limit + cycle detection
 # V-API-005:  CSPRNG for crypto tokens
 # V-API-003:  compare_digest length-independent timing
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -5,6 +5,8 @@
 # governance scanners that use code_clean (comment-stripped) would still see
 # "DROP TABLE" as active code (false positive or bypass).
 # With fix: -- and rest of line are replaced with spaces, pattern not found.
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -euo pipefail
 
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"

@@ -4,12 +4,16 @@
 # (SNIPPETS in protmap.py) nor listed here, so a new executor cannot be added
 # without someone deciding whether its row of the map is needed.
 #
-# These five have no toolchain on the machine the map was built on, so a
-# snippet for them could not be checked against the real runtime. Do not add
-# one you cannot run: the control would report it UNMEASURABLE forever and the
-# row would look covered.
-csharp      no C# toolchain where the map was built (dotnet/mcs absent)
+# None of these had a toolchain on the machine the map was built on, so no
+# snippet could be checked against the real runtime. Do not add one you cannot
+# run: the control would report it UNMEASURABLE forever and the row would look
+# covered. Re-checked 2026-11-26 (D15) in a container that has four of them
+# (observed versions below): a probe for each could now be run there, but the
+# baseline keeps a root and a non-root half, and a new row is pinned only once
+# both halves are regenerated with that toolchain on PATH -- not done, so these
+# stay unprobed until someone runs both halves.
+csharp      unprobed: mcs 6.8.0.105 present 2026-11-26 (dotnet absent); both baseline halves not yet run with it
 julia       no Julia toolchain where the map was built
-nim         no Nim toolchain where the map was built
-typescript  tsx absent where the map was built
-zig         no Zig toolchain where the map was built; std API also unstable across versions
+nim         unprobed: nim 1.6.14 present 2026-11-26 (D12, one-line statements, fixed in Bundle 5); both baseline halves not yet run with it
+typescript  unprobed: tsx 4.23.15 on node 22.23.4 present 2026-11-26 (on node 24 a block needs runtime.memory_limit near 600, A145); both baseline halves not yet run with it
+zig         unprobed: zig 0.14.1 present 2026-11-26; std API unstable across versions, so a snippet pins one; both baseline halves not yet run with it

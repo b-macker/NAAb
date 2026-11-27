@@ -23,6 +23,8 @@
 # GROUP A PROVES NOTHING: deleting the pattern outright also stops the crash, so
 # the suite must fail if real PEM headers stop being detected.
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -uo pipefail
 PASS=0
 FAIL=0

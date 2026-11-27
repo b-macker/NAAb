@@ -1141,7 +1141,7 @@ static constexpr const char* kUseCustomRules =
     " \"custom_rules\" adds a pattern a run refuses.";
 static constexpr const char* kNoPiiKind = " No check detects this kind of PII.";
 static constexpr const char* kSignTheConfig =
-    " A signed govern.json is verified at every load (naab-lang --sign-governance).";
+    " A signed govern.json is verified at every load.";
 static const NoEffectSetting kNoEffectSettings[] = {
     {"limits.memory.per_block_mb",
      " \"runtime.memory_limit\" bounds what a child process may allocate."},

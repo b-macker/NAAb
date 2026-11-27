@@ -3456,6 +3456,32 @@ if [ -f "$MODEXP_SCRIPT" ]; then
 else
     echo "  test_module_exports_only.sh: not found, skipping"
 fi
+A64UT_SCRIPT="tests/governance_v4/test_a64_untested_paths.sh"
+if [ -f "$A64UT_SCRIPT" ]; then
+    # A64 (Bundle 19 PR 4): the governance functions no unit executed, each
+    # beside a control; kill table of 17 mutants in its header.
+    if run_shell_test "$A64UT_SCRIPT" 2>&1; then
+        echo "  test_a64_untested_paths.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_a64_untested_paths.sh")
+    fi
+else
+    echo "  test_a64_untested_paths.sh: not found, skipping"
+fi
+CKRESP_SCRIPT="tests/governance_v4/test_checkpoint_response.sh"
+if [ -f "$CKRESP_SCRIPT" ]; then
+    # A229 (Bundle 19 PR 4): a fired reality checkpoint reaches the reply and
+    # the next pipeline stage; kill table of 4 mutants in its header.
+    if run_shell_test "$CKRESP_SCRIPT" 2>&1; then
+        echo "  test_checkpoint_response.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_checkpoint_response.sh")
+    fi
+else
+    echo "  test_checkpoint_response.sh: not found, skipping"
+fi
 
 # VM arithmetic between a float and a non-number is a type error (A215).
 FLOATNN_SCRIPT="tests/vm/test_float_nonnumber.sh"

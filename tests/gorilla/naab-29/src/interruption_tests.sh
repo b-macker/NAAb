@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Cat 5: INTERRUPTION — 8 tests for mid-run disruption resilience
 # Args: $1=NAAB binary, $2=TMPBASE, $3=KEYGEN_DIR
+# Trust store: NAAB_TRUST_STORE_DIR is inherited from run-naab29.sh, which
+# installs the key the signed arms here use (D8: not to be isolated here).
 set -uo pipefail
 
 NAAB="$1"

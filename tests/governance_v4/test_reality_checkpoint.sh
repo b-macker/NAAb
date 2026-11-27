@@ -8,6 +8,8 @@
 # T1-T4: Config parsing + basic behavior (no API key needed)
 # T5-T8: Integration tests requiring live API (GK5 env var)
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB="$(cd "$(dirname "$SCRIPT_DIR/../../build/naab-lang")" && pwd)/naab-lang"
 PASSED=0

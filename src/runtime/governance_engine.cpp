@@ -10723,7 +10723,7 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                     (turn - last_cp_turn) >= rccfg.min_turns_between_checkpoints) {
 
                     // Reset and persist state
-                    drift_analyzer_.updateCheckpointState(handle_id, composite, 0, turn);
+                    drift_analyzer_.updateCheckpointState(handle_id, composite, 0, turn, consecutive);
 
                     clearTrace();
                     addTrace(fmt::format("reality_checkpoint: pressure={:.2f} (threshold={:.2f})",
@@ -10887,8 +10887,11 @@ GovernanceEngine::CheckpointData GovernanceEngine::getCheckpointData(
     auto state = drift_analyzer_.getDriftState(handle_id);
     if (!state) return data;
     data.pressure = state->last_pressure_score;
-    data.sustained_turns = state->consecutive_high_pressure_turns;
     data.fired = (state->last_checkpoint_turn == turn);
+    // Firing resets the counter, so a fired checkpoint reports the count it
+    // fired at; it read 0 on every fired turn (A229).
+    data.sustained_turns = data.fired ? state->last_checkpoint_sustained
+                                      : state->consecutive_high_pressure_turns;
     return data;
 }
 

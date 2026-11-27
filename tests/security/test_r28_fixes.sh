@@ -4,6 +4,8 @@
 # V-RCE-013: C++ macro #include evasion
 # V-RCE-014: Rust concat! macro evasion
 # V-ASYNC-006: catch(...) in executeParallel
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
