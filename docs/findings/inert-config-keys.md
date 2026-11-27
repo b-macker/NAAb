@@ -73,6 +73,8 @@ load warning), or **KEEP** (stated reason).
    server has no TLS, so API keys travel in plaintext while the operator
    believes HTTPS is on) and the `code_injection` LDAP/XPath/template trio
    (shipped `true`, matching nothing [V]).
+   *(Later: the TLS pair was built, not removed -- `naab-lang api` serves HTTPS
+   with it since Bundle 19 PR 6, 2026-11-27.)*
 
 ## Decision table
 

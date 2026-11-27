@@ -1862,7 +1862,7 @@
     "strict_types": false
   },
 
-  "_comment_api": "REST API server settings (naab-lang api). Single key via 'key' or multi-key via 'keys' array with scoped permissions (scopes: 'execute' (/api/v1/execute), 'check', 'blocks', 'stats'; a scoped key is refused every other endpoint). The server speaks plain HTTP and has no TLS: tls_cert and tls_key are accepted and read by nothing (the loader warns), so put it behind a TLS-terminating proxy if it leaves the machine. CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
+  "_comment_api": "REST API server settings (naab-lang api). Single key via 'key' or multi-key via 'keys' array with scoped permissions (scopes: 'execute' (/api/v1/execute), 'check', 'blocks', 'stats'; a scoped key is refused every other endpoint). HTTPS: tls_cert is a PEM certificate chain and tls_key its unencrypted PEM private key, relative to this file unless absolute; set both for HTTPS or neither for plain HTTP. The server never falls back to plain HTTP: only one of them, a file that is missing or not PEM, an encrypted key, or a key that does not match the certificate refuses to start (exit 4), and so does a build without HTTPS ('naab-lang version' says which). The key file is blocked to every program the server runs (/api/v1/execute). Each key's scopes must be a list of strings (an empty list is full access); a value of the wrong type refuses the config. CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
   "api": {
     "key": "",
     "keys": [
@@ -1872,6 +1872,8 @@
     "timeout": 10,
     "rate_limit": 0,
     "max_body": 1048576,
+    "tls_cert": "",
+    "tls_key": "",
     "_comment_max_concurrent": "naab-lang mcp: worker processes running at once (0 = one per CPU core). Concurrency only -- commits from one caller still run one at a time, in arrival order, while behavioral_sequences is enabled, so a sequence split across concurrent calls is still seen.",
     "max_concurrent": 0
   },

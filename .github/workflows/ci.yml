@@ -318,6 +318,14 @@ jobs:
             -DCMAKE_DISABLE_FIND_PACKAGE_Python3=TRUE
           ninja -C build naab-lang naab-gov -j%NUMBER_OF_PROCESSORS%
 
+      # naab-lang api serves HTTPS on every build (decision 28); this job builds
+      # the way the Windows release does, so a build that lost OpenSSL is red here.
+      - name: HTTPS for naab-lang api is built
+        shell: cmd
+        run: |
+          build\naab-lang.exe version
+          build\naab-lang.exe version | findstr /C:"HTTPS for naab-lang api: available"
+
   # The release builds for macOS (release.yml), and nothing else did: v2.0.0's
   # macOS job was the first macOS compile since v1.8.0 and failed on a
   # pthread_t cast. Same steps as the release, so a PR that breaks it is red here.
@@ -346,6 +354,8 @@ jobs:
           ./build/naab-gov --version
           printf 'main { print("hello macos") }\n' > hello.naab
           ./build/naab-lang --no-governance hello.naab
+          # naab-lang api serves HTTPS on every build (decision 28).
+          grep -q "HTTPS for naab-lang api: available" <<<"$(./build/naab-lang version)"
 
   vscode-extension:
     name: VS Code Extension Build

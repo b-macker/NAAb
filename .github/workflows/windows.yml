@@ -32,6 +32,7 @@ jobs:
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-sqlite3
             mingw-w64-x86_64-curl
+            mingw-w64-x86_64-openssl
             mingw-w64-x86_64-pkg-config
             mingw-w64-x86_64-dlfcn
             mingw-w64-x86_64-python

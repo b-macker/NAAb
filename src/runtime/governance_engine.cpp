@@ -1132,6 +1132,15 @@ void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules
     if (!target_rules.audit.provenance.signing_key.empty()) {
         addProtectedPath(resolvePolicyPath(target_rules.audit.provenance.signing_key));
     }
+    // The private key `naab-lang api` serves HTTPS with (Bundle 19 PR 6). Every
+    // /execute request runs a program under this same govern.json, so without
+    // this a request could file.read() the server's key and return it. The
+    // certificate is public and stays readable. Same limit as the signing key: a
+    // subprocess language with shell enabled is outside path policy
+    // (CONTRA-013).
+    if (!target_rules.api.tls_key_path.empty()) {
+        addProtectedPath(resolvePolicyPath(target_rules.api.tls_key_path));
+    }
     // Block trust store directory
     // paths::home() resolves USERPROFILE on Windows, where HOME is normally
     // unset -- the old guard silently skipped protecting the trusted-key store

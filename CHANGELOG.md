@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added -- Bundle 19 PR 6: HTTPS for `naab-lang api` (migration notes)
+- **`naab-lang api` serves HTTPS from `api.tls_cert` and `api.tls_key`** (the owner's decision 28). `tls_cert` is a PEM certificate chain and `tls_key` its unencrypted PEM private key, relative to govern.json unless absolute. Both keys were parsed and read by nothing: the server spoke plain HTTP, so every API key travelled in plain text, and since step 3 the loader only warned. **The server never falls back to plain HTTP**: it refuses to start (exit 4), saying why, when only one key is set, a file is missing or is not PEM, the key is encrypted (nothing prompts for a passphrase), or the key does not match the certificate. A build without OpenSSL 3 refuses the same way.
+  - **Migration:** a config that set the pair, believing it worked, now gets HTTPS, or a refusal to start if the files are wrong. Clients use `https://`. A config with no TLS keys is served as before, and the startup banner now says the traffic is unencrypted.
+- **The TLS private key is a protected path**: a program the server runs (`/api/v1/execute`) cannot read or write it. The certificate stays readable. Same limit as the signing key: a subprocess language with shell enabled is outside path policy (CONTRA-013).
+- **`naab-lang version` says whether this build has HTTPS** (`HTTPS for naab-lang api: available`), and CI checks it on every platform. build-windows installs `mingw-w64-x86_64-openssl`. Both template copies show the two keys again.
+- Tests: `tests/api/test_rest_tls.sh` (22 arms, 8 mutants in its header).
+
+### Fixed -- Bundle 19 PR 6 (migration notes)
+- **`naab-lang api` no longer starts beside a govern.json that does not load (A232, decision 31).** It started with none of the file's settings: observed, the file's API key was never applied, so `/api/v1/stats` answered without a key. It now refuses to start, exit 4 (3 for an integrity block), with or without `--no-governance`, as a run does.
+  - **Migration:** fix the config; the error above the refusal names what failed.
+- **An `api` value of the wrong type refuses the config (A233, decision 32).** The parser dropped it, and each drop loosened the server. Observed: a key written `"scopes": "check"` loaded with no scopes, which is full access, and ran code through `/execute`. Refused now: `api` that is not an object; `key`, `tls_cert` or `tls_key` that is not a string; a `keys` entry that is not an object with a string `key`; `scopes` that is not a list of strings.
+  - **Migration:** write `scopes` as a list (`["check"]`). An empty list still means full access.
+
 ### Changed -- Bundle 19 PR 5: the drift signals (migration note)
 - **`circular_actions` (S1) also fires when an agent makes the same tool calls and gets the same results turn after turn, whatever its reply says (B7, the owner's decision 30).** S1 compared each turn's reply content, so an agent repeating a call while rewording its reply never looked repeated. Ten identical calls with identical results drew no firing. S1 now also fires when the last `circular_lookback` (3) turns made the same calls (name and arguments) and got the same results. A re-read whose result changed is not a repeat. `CDD_TURN` gives `circular_kind` (`reply`, `tool_calls` or `both`).
   - **Migration:** an agent that polls an unchanged value with the same call three turns running now pays S1 from that third turn on. As S1 always has, it pays inside the baseline window too. Turn S1 off for that agent with `context_drift_signals: {"circular_actions": false}`.
