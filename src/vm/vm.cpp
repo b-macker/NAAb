@@ -1636,11 +1636,17 @@ interpreter::NaabVal VM::run() {
                         runtimeError("Undefined variable '%s'\n%s", name.c_str(), helper.c_str());
                     }
                 }
-                if (!module_private_functions_.empty())
+                const interpreter::NaabVal* value = &it->second;
+                interpreter::NaabVal own_fn;
+                if (frame->function && frame->function->module_functions &&
+                    ownModuleFunction(*frame->function, name, it->second, own_fn)) {
+                    value = &own_fn;  // A231: the module's own, never another file's
+                } else if (!module_private_functions_.empty()) {
                     refusePrivateModuleRead(name, it->second, frame);  // A216
-                push(it->second);
+                }
+                push(*value);
                 if (governance_ && governance_->isActive()) {
-                    bool tainted = governance_->isTainted(name) || containerTainted(it->second);
+                    bool tainted = governance_->isTainted(name) || containerTainted(*value);
                     peekTaint(0) = tainted;
                     // Restore lineage from governance engine's per-variable metadata
                     if (tainted && governance_->getRules().taint_tracking.lineage) {
@@ -4062,6 +4068,7 @@ static void deepCopyFunctionTree(
     copy->is_async = src->is_async;
     copy->source_file = src->source_file;
     copy->source_line = src->source_line;
+    copy->module_functions = src->module_functions;  // A231: names the originals
     copy->local_names = src->local_names;
     copy->local_ranges = src->local_ranges;
     copy->has_main_block = src->has_main_block;
@@ -4716,14 +4723,17 @@ void VM::refusePrivateModuleRead(const std::string& name, const interpreter::Naa
                                  const CallFrame* frame) {
     auto it = module_private_functions_.find(name);
     if (it == module_private_functions_.end()) return;
-    // The global still holds that function (the program may have defined its
-    // own of the same name since: then it is the program's). Compared by the
-    // compiled function, which an async fn's copy of the globals shares.
-    if (!value.isVMClosure() || !it->second.value.isVMClosure()) return;
+    // The global holds one of those functions (the program may have defined
+    // its own of the same name since: then it is the program's). Compared by
+    // the compiled function, which an async fn's copy of the globals shares.
+    if (!value.isVMClosure()) return;
     const auto& now = value.asVMClosureConst();
-    const auto& rec = it->second.value.asVMClosureConst();
-    if (!now || !rec || now->function != rec->function) return;
-    if (frame && frame->function && frame->function->source_file == it->second.owner) return;
+    if (!now || !now->function) return;
+    const PrivateModuleFunction* rec = nullptr;
+    for (const auto& r : it->second)
+        if (r.fn == now->function) { rec = &r; break; }
+    if (!rec) return;
+    if (frame && frame->function && frame->function->source_file == rec->owner) return;
     runtimeError("Undefined variable '%s'\n\n"
                  "  Help:\n"
                  "  - '%s' is a function of the module %s that the module does not\n"
@@ -4732,8 +4742,33 @@ void VM::refusePrivateModuleRead(const std::string& name, const interpreter::Naa
                  "  Example:\n"
                  "    x Wrong: fn %s(...) { ... }\n"
                  "    v Right: export fn %s(...) { ... }\n",
-                 name.c_str(), name.c_str(), it->second.owner.c_str(),
+                 name.c_str(), name.c_str(), rec->owner.c_str(),
                  name.c_str(), name.c_str());
+}
+
+void VM::notePrivateModuleFunction(const std::string& name, const PrivateModuleFunction& rec) {
+    auto& recs = module_private_functions_[name];
+    for (const auto& r : recs)
+        if (r.fn == rec.fn) return;
+    recs.push_back(rec);
+}
+
+bool VM::ownModuleFunction(const CompiledFunction& running, const std::string& name,
+                           const interpreter::NaabVal& current, interpreter::NaabVal& out) {
+    auto own = running.module_functions->find(name);
+    if (own == running.module_functions->end() || !own->second) return false;
+    // Only where ANOTHER FILE's function holds the slot. The module's own
+    // function there is read as before, and so is a value the module itself
+    // put there; this replaces nothing else.
+    if (!current.isVMClosure()) return false;
+    const auto& c = current.asVMClosureConst();
+    if (!c || !c->function || c->function == own->second) return false;
+    if (c->function->source_file == own->second->source_file) return false;
+    // A top-level function captures nothing, so a closure over it alone is
+    // the function the module defined.
+    out = interpreter::NaabVal::makeVMClosure(std::make_shared<VMClosure>(
+        own->second, std::vector<std::shared_ptr<ObjUpvalue>>{}));
+    return true;
 }
 
 bool VM::importedExportTainted(const interpreter::NaabVal& module_dict,
@@ -4807,7 +4842,10 @@ VM::importModule(const std::string& module_path) {
 
     // Take ownership of compiled functions so VMClosure pointers remain valid
     auto compiled_fns = module_compiler.takeCompiledFunctions();
+    std::vector<CompiledFunction*> module_fns;  // A231, below
+    module_fns.reserve(compiled_fns.size());
     for (auto& fn : compiled_fns) {
+        module_fns.push_back(fn.get());
         owned_functions_.push_back(std::move(fn));
     }
     // Also take functions from the sub-VM (from any sub-imports it did)
@@ -4875,15 +4913,33 @@ VM::importModule(const std::string& module_path) {
     // its globals also hold what IT imported, and another module's export
     // is not private here, while that module's helpers were recorded by its
     // own import (merged back from the module VM).
-    for (auto& [name, rec] : module_vm.module_private_functions_)
-        module_private_functions_[name] = rec;
+    for (auto& [name, recs] : module_vm.module_private_functions_)
+        for (const auto& rec : recs) notePrivateModuleFunction(name, rec);
     if (!module_exported_names.empty()) {
         for (auto& [name, val] : *all_globals) {
             if (public_api->count(name) || !val.isVMClosure()) continue;
             const auto& c = val.asVMClosureConst();
             if (!c || !c->function || c->function->source_file != module_path) continue;
-            module_private_functions_[name] = {val, module_path};
+            notePrivateModuleFunction(name, {c->function, module_path});
         }
+    }
+
+    // A231: the module's own functions resolve to themselves in its code,
+    // whatever another file merges into the same global names later (the
+    // importer's own functions, another module's helpers). Each is a
+    // top-level declaration, so it captures nothing.
+    {
+        auto own = std::make_shared<std::unordered_map<std::string, CompiledFunction*>>();
+        for (auto& [name, val] : *all_globals) {
+            if (!val.isVMClosure()) continue;
+            const auto& c = val.asVMClosureConst();
+            if (!c || !c->function || c->function->source_file != module_path ||
+                !c->upvalues.empty()) continue;
+            (*own)[name] = c->function;
+        }
+        std::shared_ptr<const std::unordered_map<std::string, CompiledFunction*>> shared_own = own;
+        for (CompiledFunction* fn : module_fns)
+            if (fn && fn->source_file == module_path) fn->module_functions = shared_own;
     }
 
     // Merge sub-module caches back

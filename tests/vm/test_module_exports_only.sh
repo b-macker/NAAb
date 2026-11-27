@@ -33,6 +33,13 @@
 #          hidden.
 #   EO-09  VM (unchanged, pinned): m.hidden(), import {hidden} and the
 #          `import * as` dict refuse it.
+#   EO-10  A231: two modules each with a private helper -- each module's code
+#          calls its own, on both engines (the VM called the last one merged).
+#   EO-11  A231: beside the program's own helper, the program calls its own
+#          and the module its own.
+#   EO-12  A231: the same from a module's async fn (run by its export).
+#   EO-13  A216: after a module is imported a second time, its private helper
+#          is still refused; EO-13c CONTROL: the second import works.
 #
 # Kill table (mutants of src/vm/vm.cpp, src/interpreter/modules.cpp and
 # call_dispatch.cpp, run by hand):
@@ -50,6 +57,10 @@
 #   P9 the import dicts keep private functions              -> EO-08
 #   P10 the value check is dropped (a same-named function   -> EO-04
 #       of the program is refused)
+#   P11 OP_GET_GLOBAL does not ask ownModuleFunction()      -> EO-10, EO-11, EO-12
+#   P12 importModule() sets no module_functions             -> EO-10, EO-11, EO-12
+#   P13 the async copy drops module_functions               -> EO-12
+#   P14 one private record per name (the shape before)      -> EO-13
 
 set -uo pipefail
 PASS=0; FAIL=0
@@ -151,6 +162,69 @@ miss=""
 for t in mem named wild; do run "$t"; grep -q '^OUT=H' <<<"$OUT" && miss="$miss $t"; [ "$RC" -eq 0 ] && miss="$miss $t(rc=0)"; done
 if [ -z "$miss" ]; then ok EO-09 "VM (pinned): m.hidden, import {hidden} and the import dict refuse it"
 else bad EO-09 "VM reached hidden through:$miss" "$OUT"; fi
+
+# --- A231: a module's code calls its own functions --------------------------
+# Every module global is merged into the importer's one table, so on the VM a
+# module's own call of its helper read whichever file's function of that
+# name was merged last: with two modules each defining a private helper, a's
+# code called b's (observed on 30962bcc: a_use->B), and beside a program's
+# own helper both modules called the program's. The tree-walker, which keeps
+# a namespace per module, is right throughout and is the oracle here.
+cat > "$W/ca.naab" <<'EOF'
+fn helper() {
+    return "A"
+}
+export fn a_use() {
+    return helper()
+}
+async fn a_worker() {
+    return helper()
+}
+export fn a_async() {
+    return await a_worker()
+}
+EOF
+cat > "$W/cb.naab" <<'EOF'
+fn helper() {
+    return "B"
+}
+export fn b_use() {
+    return helper()
+}
+EOF
+TWO='import "./ca.naab" as ca
+import "./cb.naab" as cb'
+
+prog two "$TWO" 'ca.a_use() + "," + cb.b_use()'; run two; t_vm=0; got 'A,B' && t_vm=1; t_out=$OUT
+run two --tree-walk
+if [ "$t_vm" = 1 ] && got 'A,B'; then ok EO-10 "two modules with a private helper each: each module's code calls its own, as on the tree-walker"
+else bad EO-10 "a module's code called another module's helper (VM ok=$t_vm, tree-walker rc=$RC)" "$t_out"; fi
+
+prog mine "$TWO
+fn helper() {
+    return \"MAIN\"
+}" 'helper() + "," + ca.a_use()'; run mine; m_vm=0; got 'MAIN,A' && m_vm=1; m_out=$OUT
+run mine --tree-walk
+if [ "$m_vm" = 1 ] && got 'MAIN,A'; then ok EO-11 "beside the program's own helper: the program calls its own and the module its own"
+else bad EO-11 "the program's or the module's call went to the other's helper (VM ok=$m_vm, tree-walker rc=$RC)" "$m_out"; fi
+
+prog asy "$TWO" 'ca.a_async()'; run asy
+if got A; then ok EO-12 "the same from a module's async fn (the async VM's copy of the function keeps it)"
+else bad EO-12 "the module's async fn called another module's helper (rc=$RC)" "$OUT"; fi
+
+# --- A216: every module's private function stays refused ---------------------
+# The record kept one function per name: after `import ca; import cb`, a
+# second import of ca (from the cache) put ca's helper back in the slot while
+# the record still named cb's, and the program's read of helper() passed
+# (observed on 80175946: OUT=A).
+prog again "$TWO
+import \"./ca.naab\" as ca2" 'helper()'; run again
+if refused "is a function of the module"; then ok EO-13 "after a module is imported a second time, its private helper is still refused"
+else bad EO-13 "the program reached a module's private helper after a re-import (rc=$RC)" "$OUT"; fi
+prog again_ok "$TWO
+import \"./ca.naab\" as ca2" 'ca2.a_use()'; run again_ok
+if got A; then ok EO-13c "CONTROL: the module imported again works through its new name"
+else bad EO-13c "the second import failed (rc=$RC)" "$OUT"; fi
 
 echo
 echo "module exports only: $PASS passed, $FAIL failed"
