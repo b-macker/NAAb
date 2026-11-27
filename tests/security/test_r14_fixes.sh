@@ -6,6 +6,8 @@
 #   V-RCE-001 — env.set_var blocks LD_PRELOAD and similar loader vars
 #   V-ASYNC-004 — executeParallel drains futures on queue-full exception
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

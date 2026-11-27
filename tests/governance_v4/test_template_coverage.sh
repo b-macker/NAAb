@@ -32,6 +32,12 @@
 #          removed must report exactly that setting. Without it TC-03 passes for
 #          a comparison that can never report anything.
 #   TC-05  the tool's output is pure ASCII (see tests/helpers/encoding_controls.sh).
+#   TC-06  the REVERSE direction (A175(b), Bundle 19 PR 4): the template keys no
+#          loader reads (`--unread`) are exactly template_retired_keys.txt's
+#          READ ELSEWHERE group -- keys a reader the extractor does not walk
+#          consumes. A key that comes back into the template unread fails here.
+#   TC-07  NEGATIVE CONTROL for TC-06: the same template with a retired key put
+#          back must report exactly that key.
 #
 # WHAT THIS DOES NOT CHECK: that a key the template shows does anything, or is
 # read at all (the reverse direction), or that the template's VALUES are the
@@ -148,6 +154,48 @@ if OFFENDERS="$(enc_has_non_ascii "$OUT")"; then
     echo "$OFFENDERS" | sed 's/^/       /'
 else
     ok "TC-05" "tool output is ASCII-only"
+fi
+
+# --- TC-06: template keys no loader reads are the pinned few ----------------
+RETIRED="$SCRIPT_DIR/template_retired_keys.txt"
+ELSEWHERE="$(python3 -I - "$RETIRED" <<'PY'
+import sys
+on = False
+out = []
+for l in open(sys.argv[1], encoding="utf-8").read().splitlines():
+    if l.startswith("# --- "):
+        on = l.startswith("# --- READ ELSEWHERE")
+        continue
+    if on and l.strip() and not l.startswith("#"):
+        out.append(l.split()[0])
+sys.stdout.buffer.write(("\n".join(sorted(out)) + "\n").encode("ascii"))
+PY
+)"
+python3 "$TOOL" --unread --template - < "$REPO/govern-template.json" > "$OUT.unread" 2>&1
+UNREAD="$(sed -n 's/^unread (screened): //p' "$OUT.unread" | enc_strip_cr | sort)"
+if [ "$(grep -c . <<<"$ELSEWHERE")" -lt 3 ]; then
+    bad "TC-06" "the READ ELSEWHERE group was not found in ${RETIRED#$REPO/}"
+elif [ "$UNREAD" = "$ELSEWHERE" ]; then
+    ok "TC-06" "template keys no loader reads are exactly the $(grep -c . <<<"$ELSEWHERE") read elsewhere (scanner, reload, contract data)"
+else
+    bad "TC-06" "template keys the loader never reads changed"
+    comm -13 <(printf '%s\n' "$ELSEWHERE") <(printf '%s\n' "$UNREAD") | sed 's/^/         + (in the template, read by nothing) /'
+    comm -23 <(printf '%s\n' "$ELSEWHERE") <(printf '%s\n' "$UNREAD") | sed 's/^/         - (pinned, no longer unread) /'
+fi
+
+# --- TC-07: negative control -- a retired key put back must be reported ----
+python3 -c '
+import json, sys
+t = json.loads(sys.stdin.buffer.read().decode("utf-8"))
+t["capabilities"]["shell"]["allow_backgrounding"] = False
+sys.stdout.buffer.write(json.dumps(t).encode("utf-8"))
+' < "$REPO/govern-template.json" > "$OUT.mut2" 2>"$OUT.muterr2"
+python3 "$TOOL" --unread --template - < "$OUT.mut2" > "$OUT.neg2" 2>&1
+NEG2="$(comm -13 <(printf '%s\n' "$UNREAD") <(sed -n 's/^unread (screened): //p' "$OUT.neg2" | enc_strip_cr | sort))"
+if [ "$NEG2" = "capabilities.shell.allow_backgrounding" ]; then
+    ok "TC-07" "a retired key put back into the template is reported (negative control)"
+else
+    bad "TC-07" "putting capabilities.shell.allow_backgrounding back reported [${NEG2:-nothing}]"
 fi
 
 echo ""

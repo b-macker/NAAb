@@ -4,6 +4,8 @@
 #   V-LSP-001 — handleRename DoS bounds (compile-time verification only)
 #   V-GOV-010 — ReDoS protection in governance custom rule patterns
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

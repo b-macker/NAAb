@@ -271,7 +271,6 @@
     "elevated_sustained": 2,
     "high_sustained": 3,
     "critical_sustained": 4,
-    "critical_coherence": 0.05,
     "step_up_enabled": true,
     "step_up_at_level": "elevated",
     "step_up_challenge": "Restate your current objective in one sentence, then continue helping.",

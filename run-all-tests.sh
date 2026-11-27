@@ -844,6 +844,20 @@ else
     echo "  test_missing_imports_code_only.sh: not found, skipping"
 fi
 
+# Scanner and governance false positives, each paired with a control that
+# fires (A223(b), Bundle 19 PR 4: never registered since f01391df).
+SCANFP_SCRIPT="tests/scanner/test_scanner_false_positives.sh"
+if [ -f "$SCANFP_SCRIPT" ]; then
+    if run_shell_test "$SCANFP_SCRIPT" 2>&1; then
+        echo "  test_scanner_false_positives.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_scanner_false_positives.sh")
+    fi
+else
+    echo "  test_scanner_false_positives.sh: not found, skipping"
+fi
+
 STATIC_REPORT_SCRIPT="tests/cli/test_static_block_reports.sh"
 if [ -f "$STATIC_REPORT_SCRIPT" ]; then
     if run_shell_test "$STATIC_REPORT_SCRIPT" 2>&1; then
@@ -3429,6 +3443,45 @@ if [ -f "$DEBUGVM_SCRIPT" ]; then
 else
     echo "  test_debug_vm_scope.sh: not found, skipping"
 fi
+MODEXP_SCRIPT="tests/vm/test_module_exports_only.sh"
+if [ -f "$MODEXP_SCRIPT" ]; then
+    # A216 (Bundle 19 PR 4): an importer reaches only the functions a module
+    # exports, on both engines.
+    if run_shell_test "$MODEXP_SCRIPT" 2>&1; then
+        echo "  test_module_exports_only.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_module_exports_only.sh")
+    fi
+else
+    echo "  test_module_exports_only.sh: not found, skipping"
+fi
+A64UT_SCRIPT="tests/governance_v4/test_a64_untested_paths.sh"
+if [ -f "$A64UT_SCRIPT" ]; then
+    # A64 (Bundle 19 PR 4): the governance functions no unit executed, each
+    # beside a control; kill table of 17 mutants in its header.
+    if run_shell_test "$A64UT_SCRIPT" 2>&1; then
+        echo "  test_a64_untested_paths.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_a64_untested_paths.sh")
+    fi
+else
+    echo "  test_a64_untested_paths.sh: not found, skipping"
+fi
+CKRESP_SCRIPT="tests/governance_v4/test_checkpoint_response.sh"
+if [ -f "$CKRESP_SCRIPT" ]; then
+    # A229 (Bundle 19 PR 4): a fired reality checkpoint reaches the reply and
+    # the next pipeline stage; kill table of 4 mutants in its header.
+    if run_shell_test "$CKRESP_SCRIPT" 2>&1; then
+        echo "  test_checkpoint_response.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_checkpoint_response.sh")
+    fi
+else
+    echo "  test_checkpoint_response.sh: not found, skipping"
+fi
 
 # VM arithmetic between a float and a non-number is a type error (A215).
 FLOATNN_SCRIPT="tests/vm/test_float_nonnumber.sh"
@@ -5807,6 +5860,19 @@ if [ -f "$CPADD_SCRIPT" ]; then
     fi
 else
     echo "  test_custom_patterns_add.sh: not found, skipping"
+fi
+MODTAINT_SCRIPT="tests/governance_v4/test_module_export_taint.sh"
+if [ -f "$MODTAINT_SCRIPT" ]; then
+    # A224 (Bundle 19 PR 4): a module's exported variable keeps its taint
+    # across the module boundary, on both engines.
+    if run_shell_test "$MODTAINT_SCRIPT" 2>&1; then
+        echo "  test_module_export_taint.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_module_export_taint.sh")
+    fi
+else
+    echo "  test_module_export_taint.sh: not found, skipping"
 fi
 B19_ENV_READ_OFF_SCRIPT="tests/security/test_env_read_off_refusal.sh"
 if [ -f "$B19_ENV_READ_OFF_SCRIPT" ]; then

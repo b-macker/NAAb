@@ -2,6 +2,8 @@
 # Project Context Awareness — Edge Case Tests
 # Tests frustration scenarios, conflict resolution, and robustness
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 NAAB="$(cd "$(dirname "$0")/../.." && pwd)/build/naab-lang"
 DIR="$(cd "$(dirname "$0")" && pwd)"
 EDGE="$DIR/edge_cases"

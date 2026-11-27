@@ -3,6 +3,8 @@
 # Verifies that checkPolyglotRate(), checkStdlibRate(), checkFileOpsRate()
 # are correctly wired and enforced.
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -euo pipefail
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/tree_walk_refusal.sh"

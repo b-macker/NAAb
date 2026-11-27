@@ -635,6 +635,19 @@ private:
     std::unordered_map<std::string, std::shared_ptr<Environment>> loaded_modules_;  // Module path -> exports
     std::unordered_set<std::string> modules_executing_;  // naab-29 D-03: Cycle detection for circular imports
     std::unordered_map<std::string, NaabVal> module_exports_;  // Exported symbols from current module
+    // A224: per module (path as loaded), its exported names whose values were
+    // tainted when it finished running. Read before BUG-O restores the
+    // caller's taint set, so the importer can mark exactly the binding it
+    // makes, never a module-internal name.
+    std::unordered_map<std::string, std::unordered_set<std::string>> module_tainted_exports_;
+    void markImportBindingTainted(const std::string& module_key, const std::string& binding,
+                                  const std::string& export_name = "");
+    // A216: the functions a module declares and does not export, when it
+    // exports anything (with no export, everything is public, as on the VM).
+    const std::unordered_set<std::string>& privateModuleFunctions(ast::Program* program);
+    std::unordered_map<const ast::Program*, std::unordered_set<std::string>> private_module_functions_;
+    // The program an `import` loaded, by path (the resolver keeps it alive).
+    std::unordered_map<std::string, ast::Program*> import_module_programs_;
     std::unordered_set<std::string> loaded_plugin_files_;  // Governance plugin files already loaded
 
     // Phase 4.0: Module system (Rust-style use statements)

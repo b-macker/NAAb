@@ -2,6 +2,8 @@
 # Security R33 Fix Verification Tests
 # V-DOS-014: process.exit() throws ExitException instead of std::exit()
 # V-RCE-020: file.create_dir symlink sandbox escape
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

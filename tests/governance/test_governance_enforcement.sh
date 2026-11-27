@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # test_governance_enforcement.sh — Comprehensive governance enforcement tests
 # Validates all governance check paths work correctly (BUG-1 through BUG-7, DX-1 through DX-4)
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

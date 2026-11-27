@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # test_tier4_design.sh — Tier 4 language design tests
 # Tests || value return, optional new, use "./path" in VM
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

@@ -34,6 +34,14 @@
 #           The hooks were first written by every VM constructor, a data
 #           race the TSan job reported on b7c18a91; they are now registered
 #           once and atomic, and this suite is in tests/tsan/suites.txt.
+#   DV-07   four concurrent async fns each use debug.snapshot/compare/watch/
+#           timer, 200 times each: each compare sees its own change. Under
+#           ThreadSanitizer it is the check that the module's tables, under
+#           one lock since Bundle 19 PR 4, are not raced. The loop is what
+#           makes it one: with the lock removed, the earlier one-call-each
+#           program drew no report in 3 runs (the VM's other locks order those
+#           few accesses), and this one 166 and 161 reports in 2 runs; with
+#           the lock, 0 in 3 (2026-11-27, clang 18, observed).
 #   DV-T0   CONTROL: printing the tainted local directly is refused (exit 3),
 #           so the fixture taints and the sink fires.
 #   DV-T1   a tainted local read back through debug.env() is refused at the
@@ -57,7 +65,9 @@
 #   F10 the hooks answer from the first VM that asked, -> DV-06
 #       not the one running on the calling thread
 # The registration race itself is not a mutant here: only a ThreadSanitizer
-# build shows it (tests/tsan/run_tsan.sh, red on b7c18a91, green after).
+# build shows it (tests/tsan/run_tsan.sh, red on b7c18a91, green after); the
+# same holds for DV-07's lock (removing it is a TSan mutant: each acquisition
+# given a fresh mutex, run under TSan by hand on 2026-11-27, red as above).
 
 set -uo pipefail
 PASS=0; FAIL=0
@@ -149,6 +159,49 @@ a2=$(sed -n 's/^A2=w2://p' <<<"$OUT" | head -1 | tr -d '[] ' | tr ',' '\n' | sor
 if [ "$RC" -eq 0 ] && [ "$a1" = "mine tag " ] && [ "$a2" = "mine tag " ] && [ "$(keyset M "$OUT")" = "f1 f2 outer_only " ]; then
     ok DV-06 "debug.env() in concurrent async fns names each worker's own locals, and main's in main"
 else bad DV-06 "async scopes (rc=$RC, w1 '$a1', w2 '$a2', main '$(keyset M "$OUT")')" "$OUT"; fi
+
+# DV-07: the module's snapshot, watch and timer tables are shared by every
+# engine thread; four concurrent async fns each use them. On a normal build
+# this checks the answers; under ThreadSanitizer (the TSan job runs this suite)
+# it is the race check -- the tables had no lock (F46's record).
+cat > "$W/free/conc.naab" <<'EOF'
+async fn worker(tag) {
+    let w = tag
+    let i = 0
+    while i < 200 {
+        debug.snapshot(tag + string(i))
+        debug.watch(tag + string(i), w)
+        debug.timer(tag + string(i))
+        i = i + 1
+    }
+    debug.snapshot(tag + "a")
+    w = tag + "!"
+    debug.snapshot(tag + "b")
+    let c = debug.compare(tag + "a", tag + "b")
+    debug.watch(tag, w)
+    debug.timer(tag)
+    debug.timer(tag)
+    return c
+}
+main {
+    let f1 = worker("p")
+    let f2 = worker("q")
+    let f3 = worker("r")
+    let f4 = worker("s")
+    let all = [await f1, await f2, await f3, await f4]
+    let n = 0
+    for c in all {
+        if c.contains("Changed: w") {
+            n = n + 1
+        }
+    }
+    print("CHANGED=" + string(n))
+}
+EOF
+nr conc.naab
+if [ "$RC" -eq 0 ] && grep -qx 'CHANGED=4' <<<"$OUT"; then
+    ok DV-07 "four concurrent async fns each snapshot, compare, watch and time their own values"
+else bad DV-07 "concurrent debug tables (rc=$RC)" "$OUT"; fi
 
 printf 'fn inner(n) {\n    let x = debug.trace(n + 1)\n    return x\n}\nmain {\n    inner(3)\n}\n' > "$W/free/trace.naab"
 nr trace.naab

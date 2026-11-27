@@ -10,7 +10,6 @@
         "timeout": 300,
         "max_lines": 50,
         "banned_commands": ["rm -rf /", "mkfs", "dd if=/dev/zero"],
-        "shell_injection": true,
         "shell_injection_level": "hard"
       }
     }
@@ -31,8 +30,7 @@
       "rationale": "Shell needed to invoke the gravity CLI via process.run",
       "blocked_commands": ["sudo", "su", "chmod +s", "rm -rf", "mkfs", "dd"],
       "allow_pipes": true,
-      "allow_redirects": true,
-      "allow_backgrounding": true
+      "allow_redirects": true
     },
     "env_vars": {
       "read": true,
@@ -111,8 +109,7 @@
       "block_sudo": true,
       "block_su": true,
       "block_chmod_suid": true,
-      "block_setuid": true,
-      "block_capability_changes": true
+      "block_setuid": true
     },
     "data_exfiltration": { "enabled": true },
     "code_injection": {
@@ -121,9 +118,7 @@
       "rationale": "NOT a repair — corrected after the claim failed verification. This was written up as fixing contradiction.CONTRA-010, which fired as an ADVISORY on parent runs 1788615440875 and 1788616335353. It does not. CONTRA-010 tests restrictions.code_injection.ENABLED (governance_engine.cpp), and governance_config.cpp sets that true unconditionally whenever a code_injection object is present, whatever it contains — so the parent config already silenced the advisory by having the section at all, and the two runs that fired it predate that section. Verified both directions on this config: 0 CONTRA-010 lines with block_command_injection present AND with it removed. block_command_injection also already defaults true (governance.h), so setting it changes nothing; it is kept only as an explicit statement of intent, matching what governance_init.cpp writes into a fresh config. The trap worth naming: CONTRA-010 resolution text says \"Enable restrictions.code_injection with block_command_injection: true\", which points at the wrong key — tracing to that sentence instead of to the condition is what produced the wrong claim."
     },
     "resource_abuse": {
-      "block_fork_bomb": true,
-      "block_infinite_loops": true,
-      "max_temp_files": 50
+      "block_fork_bomb": true
     }
   },
 
@@ -168,11 +163,7 @@
     "output_file": "hivemind-governed-audit.jsonl",
     "tamper_evidence": { "enabled": true },
     "log_events": {
-      "checks_warned": true,
       "overrides": true,
-      "config_loaded": true,
-      "execution_start": true,
-      "execution_end": true,
       "polyglot_executed": true
     }
   },

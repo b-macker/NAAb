@@ -25,3 +25,21 @@ teardown_isolated_trust() {
     [ -n "${NAAB_TRUST_STORE_DIR:-}" ] && rm -rf "$NAAB_TRUST_STORE_DIR"
     unset NAAB_TRUST_STORE_DIR
 }
+
+# isolate_trust_store -- for a suite that writes an UNSIGNED govern.json and
+# installs no key of its own. With any key trusted, an unsigned govern.json is an
+# INTEGRITY BLOCK (exit 3), so such a suite used to pass only on a machine whose
+# store was empty (D8: 50 of 81 changed verdict with one key installed). This
+# points the store at a directory that does not exist: the engine reads a
+# missing store as empty (TrustStore::hasKeys/loadKeys test is_directory first),
+# and nothing creates it, so there is nothing to remove -- no EXIT trap, which
+# would replace the caller's own (42 of those 50 set one). A suite that installs
+# keys calls setup_isolated_trust instead.
+isolate_trust_store() {
+    local d
+    while :; do
+        d="${_TRUST_SYSTMP}/naab-no-trust-store-$$-${RANDOM}${RANDOM}"
+        [ -e "$d" ] || break
+    done
+    export NAAB_TRUST_STORE_DIR="$d"
+}

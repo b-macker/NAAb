@@ -23,12 +23,20 @@
 #   TV-04  CONTROL: a block whose last line is its own console.log: the value
 #          and the printed text are that output (unchanged).
 #   TV-05  a multi-line value (an object) after the marker is the whole value.
+#   TV-06  a block ending in a statement (a one-line for) has the value null
+#          (A221: the wrapper evaluated it as an expression and the block
+#          failed; a JavaScript block ending in a statement is null, A125).
+#   TV-07  ... a multi-line block statement: its output printed, value null.
+#   TV-08  ... a declaration: null.   TV-09  ... a lone statement: null.
+#   TV-10  CONTROL: a last line starting with `typeof` is still an expression.
 #
 # Kill table (mutants of src/runtime/generic_subprocess_executor.cpp, run by hand):
 #   G1 no marker printed (wrapper as before)         -> TV-01, TV-02, TV-05
 #   G2 marker printed after evaluating, not before    -> TV-03
 #   G3 marker set for every TypeScript block          -> TV-04 (value lost)
 #   G4 stdout before the marker not forwarded         -> TV-02, TV-03
+#   G5 tsLastLineIsStatement() always false            -> TV-06..TV-09
+#   G6 ... true for any word prefix (no boundary test) -> TV-10
 #
 # Needs Linux and tsx on PATH (CI's Linux jobs install tsx 4.23.15); without
 # it every arm is UNMEASURABLE.
@@ -40,7 +48,7 @@ NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
 
 echo "=== A TypeScript block's value is not also printed (D18) ==="
 if [ "$(uname -s)" != "Linux" ] || ! command -v tsx >/dev/null 2>&1; then
-    for a in TV-00 TV-01 TV-02 TV-03 TV-04 TV-05; do
+    for a in TV-00 TV-01 TV-02 TV-03 TV-04 TV-05 TV-06 TV-07 TV-08 TV-09 TV-10; do
         echo "  SKIP [$a] needs Linux and tsx on PATH -- UNMEASURABLE"
     done
     exit 0
@@ -95,6 +103,38 @@ o'
 if [ "$RC" -eq 0 ] && grep -q 'TS={ a: 1, b: \[ 2, 3 \] }' <<<"$OUT" && [ "$(grep -o 'a: 1' <<<"$OUT" | wc -l)" -eq 1 ]; then
     pass TV-05 "a multi-line or object value is the whole value, printed once"
 else fail TV-05 "expected one TS={ a: 1, b: [ 2, 3 ] } line (rc=$RC)" "$OUT"; fi
+
+# A221: a block that ends in a statement has the value null (as a
+# JavaScript block does, A125); what it printed is its output.
+run TV-06 'let s = 0
+for (let i = 0; i < 3; i++) { s += i }'
+if [ "$RC" -eq 0 ] && grep -q '^TS=null$' <<<"$OUT"; then pass TV-06 "a block ending in a one-line for statement has the value null"
+else fail TV-06 "expected TS=null (rc=$RC)" "$OUT"; fi
+
+run TV-07 'console.log("LOOP")
+for (let i = 0; i < 1; i++) {
+  console.log("I" + i)
+}'
+# The block's last output line runs into the program's next print ("I0TS=null"):
+# parsePolyglotOutput() drops the final newline of every block's output, on
+# the base build too -- recorded (A226), not this arm's subject.
+if [ "$RC" -eq 0 ] && grep -q '^LOOP$' <<<"$OUT" && grep -q 'I0' <<<"$OUT" && grep -q 'TS=null$' <<<"$OUT" && ! grep -q 'TS=I0' <<<"$OUT"; then
+    pass TV-07 "a block ending in a multi-line block statement: its output printed, the value null"
+else fail TV-07 "expected LOOP, I0 and TS=null (rc=$RC)" "$OUT"; fi
+
+run TV-08 'const n: number = 4
+const m: number = n * 2'
+if [ "$RC" -eq 0 ] && grep -q '^TS=null$' <<<"$OUT"; then pass TV-08 "a block ending in a declaration has the value null"
+else fail TV-08 "expected TS=null (rc=$RC)" "$OUT"; fi
+
+run TV-09 'for (let i = 0; i < 2; i++) { }'
+if [ "$RC" -eq 0 ] && grep -q '^TS=null$' <<<"$OUT"; then pass TV-09 "a one-line block that is a single statement has the value null"
+else fail TV-09 "expected TS=null (rc=$RC)" "$OUT"; fi
+
+run TV-10 'const typeofResult = typeof 3
+typeofResult'
+if [ "$RC" -eq 0 ] && grep -q '^TS=number$' <<<"$OUT"; then pass TV-10 "CONTROL: an expression starting with a statement-like word (typeof) is still the value"
+else fail TV-10 "expected TS=number (rc=$RC)" "$OUT"; fi
 
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

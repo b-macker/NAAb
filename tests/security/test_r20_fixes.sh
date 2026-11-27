@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Security R20 Fix Verification Tests
 # Tests: V-GOV-013 (nested container taint), V-DOS-002 (REST API parallelism), V-GOV-015 (async taint)
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

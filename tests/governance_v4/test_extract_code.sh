@@ -15,6 +15,8 @@
 #   T4 — a bare ``` fence with no language tag  (old: guard rejected it)
 #   T5 — multiple matching blocks              (old: only the first)
 # ============================================================
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

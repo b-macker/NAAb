@@ -304,6 +304,15 @@ struct CompiledFunction {
     std::string source_file;
     int source_line = 0;
 
+    // A231: the module's own top-level functions by name, set by
+    // VM::importModule() on every function compiled from that module's file;
+    // null for the main program's. Every module global is merged into the
+    // importer's one table, so another file's function of the same name can
+    // hold the slot where this module's own should be -- a private helper of
+    // another module, or the importer's -- and the module's code called that
+    // one. OP_GET_GLOBAL reads this first in a module's frame.
+    std::shared_ptr<const std::unordered_map<std::string, CompiledFunction*>> module_functions;
+
     // Default parameter expressions (compiled as sub-chunks)
     std::vector<std::optional<Chunk>> default_chunks;
 
@@ -584,6 +593,37 @@ private:
     std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>> module_cache_;
     // Public API cache: only exported names (for module dict access via mod.func())
     std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>> module_public_api_;
+    // A224: per module path, the exported names whose values were tainted when
+    // the module finished running; and, per module dict this VM pushed (by
+    // identity, holding the dict alive), the same set, for a named import.
+    std::unordered_map<std::string, std::shared_ptr<std::unordered_set<std::string>>> module_tainted_exports_;
+    std::unordered_map<const void*, std::pair<interpreter::NaabVal,
+        std::shared_ptr<std::unordered_set<std::string>>>> module_dict_tainted_keys_;
+    // A module dict holding a tainted export is a dict holding tainted data:
+    // tainted as a whole, as any such dict is (its other members read tainted,
+    // a call of one of its functions is decided by its arguments).
+    void taintImportedModuleDict(const std::string& module_key);
+    // A216: a module's unexported functions, by global name, with the file
+    // that owns them. Every module global is merged into the importer's
+    // globals so the module's own functions can call its helpers by name
+    // (8669f246); a bare-name read of one of these from code that is not
+    // the owning module's is refused, as `m.hidden` already was. Every
+    // module's function of a name is kept, by its compiled function (no value
+    // handle, so an async fn's copy reads it from its own thread): with one
+    // record per name, a cached re-import put an earlier module's helper back
+    // in the slot while the record named a later one, and the read passed.
+    struct PrivateModuleFunction { const CompiledFunction* fn; std::string owner; };
+    std::unordered_map<std::string, std::vector<PrivateModuleFunction>> module_private_functions_;
+    void notePrivateModuleFunction(const std::string& name, const PrivateModuleFunction& rec);
+    // Refuses (runtimeError) when `name` holds a module's private function and
+    // the running frame's code is not that module's.
+    void refusePrivateModuleRead(const std::string& name, const interpreter::NaabVal& value,
+                                 const CallFrame* frame);
+    // A231: in a module's frame, the module's own function `name` when the
+    // shared slot holds another file's function (`current`); false otherwise.
+    static bool ownModuleFunction(const CompiledFunction& running, const std::string& name,
+                                  const interpreter::NaabVal& current, interpreter::NaabVal& out);
+    bool importedExportTainted(const interpreter::NaabVal& module_dict, const std::string& name) const;
     // naab-29 D-03: Circular import detection — shared between parent/child VMs
     std::shared_ptr<std::unordered_set<std::string>> modules_executing_ = std::make_shared<std::unordered_set<std::string>>();
     // Keep compiled functions alive so VMClosure pointers remain valid after module compilation

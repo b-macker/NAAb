@@ -9,6 +9,8 @@
 # so the suite could only ever abort, never report a FAIL. Measured: it died
 # at assertion 3 of 6, printing two passes, no failure, and exit 1 with no
 # stated reason.
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

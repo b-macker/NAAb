@@ -3,6 +3,8 @@
 # PROPERTY: Governance NEVER alters stdout of correct, pure-computation code.
 # Method: Generate programs, run with/without governance, diff stdout.
 
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

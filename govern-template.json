@@ -24,20 +24,11 @@
         "banned_functions": ["eval(", "exec(", "compile(", "__import__("],
         "banned_keywords": [],
         "banned_globals": [],
-        "required_imports": [],
         "imports": {
           "mode": "blocklist",
           "blocked": ["subprocess", "ctypes", "os.system"],
-          "allowed": [],
-          "blocked_from": ["os:system,popen,exec"]
-        },
-        "allow_f_strings": true,
-        "allow_walrus": true,
-        "max_string_length": 0,
-        "no_star_imports": true,
-        "no_star_imports_level": "advisory",
-        "indent_style": "spaces",
-        "indent_size": 4
+          "allowed": []
+        }
       },
       "javascript": {
         "timeout": 10,
@@ -48,30 +39,16 @@
           "blocked": ["child_process", "fs", "net"]
         },
         "strict_mode": true,
-        "strict_mode_level": "advisory",
         "no_var": true,
-        "no_var_level": "advisory",
-        "no_console_log": false,
-        "no_console_log_level": "advisory"
+        "no_console_log": false
       },
       "shell": {
         "timeout": 10,
         "max_lines": 50,
         "banned_commands": ["rm -rf /", "mkfs", "dd if=/dev/zero"],
-        "shell_injection": true,
-        "shell_injection_level": "hard",
         "require_set_e": false,
-        "require_set_e_level": "soft",
-        "require_set_u": false,
-        "require_set_u_level": "advisory",
-        "require_set_pipefail": false,
-        "require_set_pipefail_level": "advisory",
-        "require_quoting": false,
-        "require_quoting_level": "soft",
         "no_curl_pipe_sh": true,
-        "no_curl_pipe_sh_level": "hard",
-        "no_wget_pipe_bash": true,
-        "no_wget_pipe_bash_level": "hard"
+        "no_wget_pipe_bash": true
       },
       "go": {
         "timeout": 30,
@@ -103,7 +80,6 @@
       "cpp": {
         "timeout": 60,
         "max_lines": 300,
-        "banned_includes": ["<cstdlib>"],
         "banned_functions": ["system(", "exec("]
       },
       "csharp": {
@@ -123,14 +99,11 @@
     "network": {
       "enabled": true,
       "rationale": "Network access enabled for API integrations; blocked_hosts restricts cloud metadata endpoints (SSRF prevention)",
-      "_comment_reserved_network": "http_allowed, max_request_size, max_response_size are RESERVED — not yet enforced. Use allowed_hosts/blocked_hosts for access control.",
-      "http_allowed": true,
+      "_comment_reserved_network": "Not in this template: http_allowed, max_request_size and max_response_size are read by nothing (the loader warns when one asks for a refusal or a limit). https_only refuses plain http; allowed_hosts and blocked_hosts decide which hosts a program reaches.",
       "https_only": false,
       "allowed_hosts": [],
       "blocked_hosts": ["169.254.169.254", "metadata.google.internal"],
       "allowed_ports": [],
-      "max_request_size": 0,
-      "max_response_size": 0,
       "allow_websockets": true,
       "allow_raw_sockets": false
     },
@@ -154,8 +127,6 @@
       "blocked_commands": ["sudo", "su", "chmod +s"],
       "allow_pipes": true,
       "allow_redirects": true,
-      "_comment_allow_backgrounding": "RESERVED: allow_backgrounding is not yet enforced.",
-      "allow_backgrounding": false,
       "max_execution_time": 0
     },
     "_comment_env_vars": "Environment variable access control — enforced at runtime in all env.get/set/has/list functions. read=false blocks all reads (HARD). blocked_read: case-insensitive blocklist (HARD — env.get() throws, env.has() returns false, env.list()/get_all() filters; in enforce mode the variable is also withheld from every child process the program starts — polyglot blocks, process.run, async fn children, embedded Python's os.environ — but not from operator hooks). allowed_read: if non-empty, only listed vars are readable (SOFT). write=false blocks all writes (HARD). blocked_write/allowed_write: same semantics for env.set_var()/delete_var()/load_dotenv(). All four arrays, the subprocess scrub lists and mode, and read/write false participate in extends inheritance. A signed mid-run reload cannot loosen any of them: the reload ratchet compares them by effective access.",
@@ -181,19 +152,7 @@
     "functions": {
       "level": "advisory"
     },
-    "_comment_process": "RESERVED, not in this template: capabilities.process (spawn, signals, max_processes, allow_daemon) is parsed and enforced by nothing (the loader warns). Gate process execution with capabilities.shell.enabled; limits.execution and security.sandbox_level bound what runs.",
-    "_comment_time": "RESERVED: time sub-keys are not yet enforced. Sleep limits use limits.timeout.per_block instead.",
-    "time": {
-      "allow_sleep": true,
-      "max_sleep_seconds": 10,
-      "allow_timers": true
-    },
-    "_comment_memory": "RESERVED: memory sub-keys are not yet enforced. runtime.memory_limit bounds what a child process may allocate.",
-    "memory": {
-      "max_allocation_mb": 512,
-      "allow_mmap": false,
-      "allow_shared_memory": false
-    }
+    "_comment_process": "RESERVED, not in this template: capabilities.process (spawn, signals, max_processes, allow_daemon) is parsed and enforced by nothing (the loader warns). Gate process execution with capabilities.shell.enabled; limits.execution and security.sandbox_level bound what runs."
   },
 
   "_comment_taint_tracking": "Taint Tracking — track untrusted data from sources through to sinks",
@@ -205,13 +164,6 @@
     "sources": ["env.get", "io.read_line", "file.read", "polyglot_output"],
     "sinks": ["shell_exec", "python_exec", "go_exec", "javascript_exec", "nim_exec", "file.write", "file.append", "http.", "env.set_var"],
     "sanitizers": ["validate_", "sanitize_", "escape_"],
-    "propagation": {
-      "string_concat": true,
-      "string_interpolation": true,
-      "function_returns": true,
-      "for_loop_iterators": true,
-      "dict_array_access": true
-    },
     "gate_cross_block": false,
     "cross_block_level": "soft"
   },
@@ -262,31 +214,7 @@
       "level": "soft",
       "message": "Programs should have a main block"
     },
-    "_comment_error_handling": "RESERVED, not in this template: requirements.error_handling is accepted and enforced by nothing (the loader warns) -- code without try/catch is not blocked.",
-    "strict_types": {
-      "enabled": false,
-      "level": "advisory",
-      "message": "Use explicit type annotations"
-    },
-    "no_global_state": {
-      "enabled": false,
-      "level": "advisory",
-      "allow_global_constants": true,
-      "allow_global_functions": true,
-      "block_global_variables": true
-    },
-    "documentation": {
-      "enabled": false,
-      "level": "advisory",
-      "require_file_comment": false,
-      "require_function_comment": false,
-      "require_main_comment": false
-    },
-    "version_pinning": {
-      "enabled": false,
-      "level": "advisory",
-      "message": "Pin language versions in govern.json"
-    }
+    "_comment_error_handling": "RESERVED, not in this template: requirements.error_handling is accepted and enforced by nothing (the loader warns) -- code without try/catch is not blocked."
   },
 
   "restrictions": {
@@ -294,26 +222,18 @@
       "enabled": true,
       "level": "hard",
       "_comment_blocklist_extra": "Names the project adds to the dangerous calls, in any language, matched as literal text without case (as banned_functions is): \"os.popen\" refuses that text, and its dot is not a pattern. Refused at this block's level. A reload cannot remove an entry.",
-      "blocklist_extra": [],
-      "check_chained_calls": false,
-      "check_string_formatting": false
+      "blocklist_extra": []
     },
     "shell_injection": {
       "enabled": true,
       "level": "hard",
-      "patterns": [],
-      "allowlist": [],
-      "check_variable_expansion": false,
-      "require_quoting": false
+      "patterns": []
     },
     "privilege_escalation": {
       "enabled": true,
       "level": "hard",
       "block_sudo": true,
-      "block_su": true,
-      "block_chmod_suid": true,
-      "block_setuid": true,
-      "block_capability_changes": true
+      "block_su": true
     },
     "imports": {
       "enabled": true,
@@ -332,11 +252,9 @@
       "level": "hard",
       "block_base64_encode_secrets": true,
       "block_hex_encode_secrets": true,
-      "block_url_encode_secrets": true,
       "block_encoding_chains": true,
       "block_network_exfil": true,
       "block_socket_exfil": true,
-      "max_encoded_output_length": 0,
       "_comment_patterns": "patterns: custom regexes. When non-empty they are used EXCLUSIVELY -- the built-in block_* pattern categories are skipped.",
       "patterns": []
     },
@@ -352,23 +270,14 @@
       "enabled": true,
       "level": "hard",
       "block_fork_bomb": true,
-      "block_infinite_loops": false,
-      "infinite_loops_level": "advisory",
-      "block_recursive_file_ops": true,
-      "block_disk_filling": true,
-      "max_temp_files": 100,
-      "max_temp_file_size": 10485760
+      "block_disk_filling": true
     },
     "information_disclosure": {
       "enabled": false,
       "level": "soft",
       "block_env_dump": true,
       "block_process_listing": true,
-      "block_system_info_leak": true,
-      "block_directory_listing": false,
-      "directory_listing_level": "advisory",
-      "block_error_stack_traces": false,
-      "suppressions": []
+      "block_system_info_leak": true
     },
     "code_injection": {
       "_comment_reserved": "RESERVED, not in this template: block_template_injection, block_xpath_injection and block_ldap_injection are parsed and enforced by nothing -- no check detects those injections (the loader warns).",
@@ -382,14 +291,8 @@
     "crypto": {
       "enabled": true,
       "level": "advisory",
-      "block_weak_hashing": true,
       "weak_hashes": ["md5", "sha1"],
-      "block_weak_encryption": true,
-      "weak_ciphers": ["des", "rc4", "3des"],
-      "block_hardcoded_keys": true,
-      "block_hardcoded_ivs": true,
-      "require_secure_random": false,
-      "secure_random_level": "advisory"
+      "weak_ciphers": ["des", "rc4", "3des"]
     },
     "polyglot_output": {
       "_comment_reserved": "RESERVED, not in this template: max_size, require_structured and validate_json are parsed and enforced by nothing (the loader warns). limits.data.output_size caps what a block hands back; \"polyglot_output\": \"json\" requires a string result to be JSON.",
@@ -404,21 +307,13 @@
       "level": "hard",
       "rationale": "OWASP A07:2021 — hardcoded secrets are a critical risk. Hard block prevents any secret from reaching production.",
       "entropy_check": {
-        "enabled": true,
         "threshold": 4.5,
-        "min_length": 20,
-        "max_length": 500,
-        "check_base64": true,
-        "check_hex": true,
-        "check_url_encoded": true,
-        "ignore_comments": false,
-        "ignore_urls": true
+        "min_length": 20
       },
       "suspicious_variable_names": {
         "enabled": true,
         "names": ["password", "secret", "api_key", "token", "private_key"]
-      },
-      "custom_patterns": []
+      }
     },
     "no_placeholders": {
       "enabled": true,
@@ -426,19 +321,13 @@
       "rationale": "Production code must not contain TODO/FIXME markers — soft block allows override during development",
       "markers": ["TODO", "FIXME", "STUB", "PLACEHOLDER", "HACK", "XXX", "TEMP"],
       "custom_markers": [],
-      "ignore_in_comments_only": false,
-      "case_sensitive": false,
-      "max_violations_before_block": 0
+      "case_sensitive": false
     },
     "no_hardcoded_results": {
       "enabled": true,
       "level": "advisory",
-      "check_return_none_null": true,
-      "check_return_empty_collections": true,
       "check_dict_status_fields": true,
-      "check_perfect_scores": true,
-      "check_zero_counts": true,
-      "check_round_numbers": true
+      "check_perfect_scores": true
     },
     "no_pii": {
       "enabled": true,
@@ -449,11 +338,6 @@
       "detect_email": true,
       "detect_phone": true,
       "detect_ip_address": false,
-      "detect_drivers_license": false,
-      "detect_passport": false,
-      "detect_iban": false,
-      "detect_medical_record": false,
-      "custom_pii_patterns": [],
       "allowlist_patterns": [],
       "mask_in_errors": true
     },
@@ -461,40 +345,28 @@
       "enabled": true,
       "level": "soft",
       "patterns": [],
-      "custom_patterns": [],
-      "case_sensitive": false
+      "custom_patterns": []
     },
     "no_simulation_markers": {
       "enabled": true,
       "level": "hard",
       "patterns": [],
-      "custom_patterns": [],
-      "case_sensitive": false
+      "custom_patterns": []
     },
     "no_mock_data": {
       "enabled": true,
       "level": "advisory",
       "variable_prefixes": ["mock_", "fake_", "dummy_", "test_"],
       "function_prefixes": ["mock_", "fake_", "stub_"],
-      "literal_patterns": [],
-      "custom_prefixes": [],
-      "custom_patterns": []
+      "literal_patterns": []
     },
     "_comment_no_apologetic_language_presence": "This check is switched on by the presence of its block; an \"enabled\" key here has no effect. Remove the block to turn it off.",
     "no_apologetic_language": {
-      "level": "advisory",
-      "categories": {},
-      "custom_patterns": []
+      "level": "advisory"
     },
     "no_dead_code": {
       "enabled": true,
       "level": "advisory",
-      "detect_unreachable_after_return": true,
-      "detect_always_true_conditions": true,
-      "detect_always_false_conditions": true,
-      "detect_empty_except_blocks": true,
-      "detect_unused_variables": false,
-      "detect_commented_out_code": true,
       "_comment_patterns": "patterns, when non-empty, REPLACES the built-in patterns; custom_patterns ADD to the patterns in use (built-in or patterns).",
       "patterns": [],
       "custom_patterns": []
@@ -503,10 +375,7 @@
       "enabled": true,
       "level": "soft",
       "patterns": [],
-      "custom_patterns": [],
-      "allowlist": [],
-      "check_polyglot_only": true,
-      "check_naab_code": false
+      "custom_patterns": []
     },
     "no_unsafe_deserialization": {
       "enabled": true,
@@ -518,7 +387,6 @@
     "no_sql_injection": {
       "enabled": true,
       "level": "hard",
-      "allowlist": [],
       "_comment_patterns": "patterns, when non-empty, REPLACES the built-in patterns; custom_patterns ADD to the patterns in use (built-in or patterns).",
       "patterns": [],
       "custom_patterns": []
@@ -533,25 +401,17 @@
     },
     "_comment_no_hardcoded_urls_presence": "This check is switched on by the presence of its block; an \"enabled\" key here has no effect. Remove the block to turn it off.",
     "no_hardcoded_urls": {
-      "level": "advisory",
-      "_comment_allowlist": "NOT READ: the loader never parses this allowlist, so entries here exempt nothing. example.com, localhost, 127.0.0.1 and 0.0.0.0 are always allowed by the built-in pattern.",
-      "allowlist": ["https://example.com", "http://localhost"],
-      "check_internal_urls": false
+      "level": "advisory"
     },
     "_comment_no_hardcoded_ips_presence": "This check is switched on by the presence of its block; an \"enabled\" key here has no effect. Remove the block to turn it off.",
     "no_hardcoded_ips": {
-      "level": "advisory",
-      "_comment_allowlist": "NOT READ: the loader never parses this allowlist; the built-in list (127.0.0.1, 0.0.0.0, 255.255.255.0, 255.255.255.255) always applies.",
-      "allowlist": ["127.0.0.1", "0.0.0.0", "::1"]
+      "level": "advisory"
     },
     "_comment_max_complexity_presence": "This check is switched on by the presence of its block; an \"enabled\" key here has no effect. Remove the block to turn it off.",
     "max_complexity": {
       "level": "advisory",
       "max_lines_per_block": 100,
-      "max_nesting_depth": 5,
-      "max_local_variables": 15,
-      "max_cyclomatic_complexity": 10,
-      "max_cognitive_complexity": 15
+      "max_nesting_depth": 5
     },
     "complexity_floor": {
       "level": "soft",
@@ -613,6 +473,7 @@
     },
     "intent_validation": {
       "enabled": false,
+      "_comment_level": "Applies to a function named in function_intents, and, once that map is set, to a function with no @intent whose code shares no keyword with project_intent. With function_intents empty every intent finding is advisory, whatever level says; an @intent the program writes is advisory too.",
       "level": "soft",
       "min_overlap": 0.3,
       "missing_level": "soft",
@@ -632,12 +493,8 @@
     "encoding": {
       "enabled": true,
       "level": "advisory",
-      "require_utf8": true,
       "block_null_bytes": true,
-      "block_control_characters": true,
-      "block_bom": false,
-      "block_unicode_bidi": true,
-      "block_homoglyph_attacks": true
+      "block_unicode_bidi": true
     },
     "no_oversimplification": {
       "enabled": true,
@@ -920,7 +777,6 @@
       "name": "no_eval_python",
       "description": "Prevent eval() in Python blocks",
       "pattern": "\\beval\\s*\\(",
-      "trigger": "",
       "languages": ["python"],
       "level": "hard",
       "message": "eval() is forbidden — use ast.literal_eval() or json.loads()",
@@ -929,8 +785,7 @@
       "bad_example": "data = eval(input_str)",
       "tags": ["security", "injection"],
       "enabled": true,
-      "case_sensitive": false,
-      "multiline": false
+      "case_sensitive": false
     },
     {
       "id": "CUSTOM-002",
@@ -948,29 +803,11 @@
   "_comment_scopes": "There are no per-file scopes: a top-level \"scopes\" block is read by nothing, so nothing in it exempts any file (the loader warns). Every check applies to every file the program runs.",
 
   "output": {
-    "_comment_summary_reserved": "show_skipped and sort_by are RESERVED — not yet enforced.",
-    "summary": {
-      "show_skipped": false,
-      "sort_by": "severity"
-    },
-    "_comment_errors_reserved": "show_line_preview, show_rule_path, show_fix_suggestions, truncate_long_lines are RESERVED — not yet enforced.",
-    "errors": {
-      "show_line_preview": true,
-      "show_rule_path": true,
-      "show_fix_suggestions": true,
-      "truncate_long_lines": 120
-    },
-    "_comment_formatting_reserved": "indent is RESERVED — not yet enforced. color, unicode_symbols, width are active.",
-    "formatting": {
-      "indent": 2
-    },
-    "_comment_file_output_reserved": "report_csv and report_html are RESERVED — not yet implemented. Use report_json, report_sarif, or report_junit.",
+    "_comment_reserved": "Not in this template: the summary, errors and formatting options and report_csv / report_html are read by nothing. Reports are report_json, report_sarif and report_junit.",
     "file_output": {
       "report_json": "",
       "report_sarif": "",
-      "report_junit": "",
-      "report_csv": "",
-      "report_html": ""
+      "report_junit": ""
     },
     "max_advisories": 15,
     "advisory_summary": true,
@@ -991,19 +828,10 @@
     },
     "log_events": {
       "_comment_reserved": "RESERVED, not in this template: checks_passed and checks_failed are parsed and recorded by nothing (the loader warns) -- the audit trail holds no check results. The telemetry file records each one.",
-      "checks_warned": true,
-      "config_loaded": true,
-      "execution_start": true,
-      "execution_end": true,
       "polyglot_executed": true,
       "polyglot_timing": true,
       "taint_decisions": true,
       "contract_checks": true
-    },
-    "retention": {
-      "max_file_size_mb": 100,
-      "rotate_at_mb": 50,
-      "keep_rotated": 5
     },
     "provenance": {
       "_comment_reserved": "RESERVED, not in this template: record_decisions and record_proof_objects are parsed and recorded by nothing (the loader warns).",
@@ -1153,28 +981,24 @@
         "never_retry": [400],
         "key_retry_after_seconds": 0
       }
+    },
+    "_comment_reviewer": "The agent agent_review.detection names below: it reads the program and answers one finding per line, FINDING|category|description.",
+    "reviewer": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-20250514",
+      "api_key_env": "ANTHROPIC_API_KEY",
+      "max_tokens": 2048,
+      "system_prompt": "Review the program you are given for security and correctness problems. Report each one on its own line as FINDING|category|description, and nothing else."
     }
   },
   "_comment_agents_legacy": "Legacy 'agent_roles' key is still accepted for backward compat (permissions only, no LLM config)",
 
   "meta": {
-    "schema_validation": {
-      "strict_types": true
-    },
-    "config_immutability": {
-      "hash": "",
-      "verify_on_load": false,
-      "block_on_mismatch": false
-    },
     "_comment_inheritance": "Controls how 'extends' merges parent and child configs. merge_arrays: 'replace' (default — child array replaces parent) or 'append' (parent + child arrays concatenated with dedup). Applies to: blocked_commands, custom_rules, taint sources/sinks/sanitizers, agents, every env_vars list, filesystem allowed_paths/blocked_paths, network allowed_hosts/blocked_hosts. max_depth limits inheritance chain length. allow_circular is always rejected regardless of setting.",
     "inheritance": {
       "max_depth": 5,
       "merge_strategy": "child_wins",
-      "merge_arrays": "replace",
-      "allow_circular": false
-    },
-    "feature_flags": {
-      "legacy_compatibility": true
+      "merge_arrays": "replace"
     },
     "environment": {
       "allow_env_var_substitution": false
@@ -1239,25 +1063,7 @@
   "polyglot": {
     "_comment_reserved": "RESERVED, not in this template: polyglot.variable_binding.max_bound_variables, polyglot.output.max_output_lines / require_json_pipe / require_naab_return / validate_encoding, polyglot.parallel.max_parallel_blocks / timeout_per_block and every polyglot.persistent_runtime limit are parsed and enforced by nothing (the loader warns). limits.timeout.per_block bounds one block's time; limits.data.output_size what it returns.",
     "variable_binding": {
-      "require_explicit": false,
-      "require_explicit_level": "advisory",
-      "validate_types": false
-    },
-    "output": {
-      "strip_whitespace": false
-    },
-    "context_isolation": {
-      "enabled": false,
-      "level": "advisory",
-      "no_shared_state": false,
-      "no_env_pollution": true,
-      "clean_temp_files": true
-    },
-    "parallel": {
-      "allow_shared_variables": false
-    },
-    "persistent_runtime": {
-      "allow_state_persistence": true
+      "require_explicit": false
     }
   },
 
@@ -1739,19 +1545,7 @@
   "_comment_scorers": "Named Scorers — reusable scoring configurations for governance.scorer() introspection. Each scorer defines weights and thresholds for programmatic evaluation.",
   "scorers": {
     "security_review": {
-      "name": "security_review",
-      "description": "Security review scorer for governance introspection",
-      "weights": {
-        "vulnerability_count": 0.3,
-        "cvss_severity": 0.4,
-        "exploit_availability": 0.2,
-        "patch_availability": 0.1
-      },
-      "thresholds": {
-        "pass": 0.7,
-        "warn": 0.5
-      },
-      "_comment_read_keys": "The loader reads only the keys below; the scorer's name is its key in this map, and name/description/weights/thresholds above are not read. agent_review.scorer selects a scorer by that key; an unknown or disabled name falls back to the scoring section when it is enabled, else to built-in defaults.",
+      "_comment_read_keys": "The loader reads only the keys below; the scorer's name is its key in this map. agent_review.scorer selects a scorer by that key; an unknown or disabled name falls back to the scoring section when it is enabled, else to built-in defaults.",
       "_comment_enabled": "false = this scorer is skipped when looked up by name.",
       "enabled": true,
       "_comment_default_weight": "Score for a finding whose rule has no rule_weights entry.",
@@ -1963,10 +1757,11 @@
   "_comment_agent_review": "Agent Review — LLM-based governance phase. Detection agents analyze script source, validation agent filters false positives, voice agent synthesizes findings into one actionable remediation guide. Scored findings enforce at advisory/soft/hard tiers. Disabled by default. Cache uses SHA-256 of script source.",
   "agent_review": {
     "enabled": false,
-    "detection": ["redteam", "testing"],
-    "validation": "analyst",
-    "voice": "voice",
-    "scorer": "security",
+    "_comment_agents": "Each name is an entry of the agents block (reviewer, above). validation (an agent that confirms or rejects each finding) and voice are optional; empty = none. scorer names a scorers entry by its key.",
+    "detection": ["reviewer"],
+    "validation": "",
+    "voice": "",
+    "scorer": "security_review",
     "enforcement": {
       "green": "advisory",
       "yellow": "soft",
@@ -2116,7 +1911,6 @@
       "elevated_cdd_every_turn": true,
       "high_advisory_to_soft": true
     },
-    "critical_coherence": 0.2,
     "step_up_enabled": false,
     "step_up_at_level": "elevated",
     "step_up_challenge": "Before responding, restate your current objective in one sentence, then proceed.",

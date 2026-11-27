@@ -4,6 +4,8 @@
 # V-GOV-024:  Telemetry cap MAX_CHECK_RESULTS
 # V-CONC-006: NaabVal deepCopy for async isolation
 # V-DOS-013:  JSON struct cycle detection
+# The trust store this suite sees is empty, whatever keys this machine trusts (D8).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../helpers/trust_setup.sh"; isolate_trust_store
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

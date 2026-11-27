@@ -356,11 +356,8 @@ static json buildPerLanguage(const std::string& lang, StrictnessPreset s) {
         pl["banned_functions"] = json::array({"eval(", "exec(", "compile(", "__import__("});
         pl["imports"] = {
             {"mode", "blocklist"},
-            {"blocked", json::array({"subprocess", "ctypes", "os.system"})},
-            {"blocked_from", json::array({"os:system,popen,exec"})}
+            {"blocked", json::array({"subprocess", "ctypes", "os.system"})}
         };
-        pl["no_star_imports"] = true;
-        pl["no_star_imports_level"] = strict_plus ? "soft" : "advisory";
     } else if (lang == "javascript") {
         pl["timeout"] = strict_plus ? 8 : 10;
         pl["max_lines"] = strict_plus ? 100 : 150;
@@ -369,22 +366,19 @@ static json buildPerLanguage(const std::string& lang, StrictnessPreset s) {
             {"mode", "blocklist"},
             {"blocked", json::array({"child_process", "fs", "net"})}
         };
+        // The switch's own value is its level (true = hard); a separate
+        // "<switch>_level" key is read by nothing (A175(b)).
         pl["strict_mode"] = true;
-        pl["strict_mode_level"] = strict_plus ? "soft" : "advisory";
         pl["no_var"] = true;
-        pl["no_var_level"] = strict_plus ? "soft" : "advisory";
     } else if (lang == "shell") {
         pl["timeout"] = strict_plus ? 8 : 10;
         pl["max_lines"] = strict_plus ? 30 : 50;
         pl["banned_commands"] = json::array({"rm -rf /", "mkfs", "dd if=/dev/zero"});
-        pl["shell_injection"] = true;
-        pl["shell_injection_level"] = "hard";
+        // Shell injection is restrictions.shell_injection; a per-language
+        // shell_injection key is read by nothing (A175(b)).
         pl["require_set_e"] = strict_plus;
-        pl["require_set_e_level"] = strict_plus ? "soft" : "advisory";
         pl["no_curl_pipe_sh"] = true;
-        pl["no_curl_pipe_sh_level"] = "hard";
         pl["no_wget_pipe_bash"] = true;
-        pl["no_wget_pipe_bash_level"] = "hard";
     } else if (lang == "go") {
         pl["timeout"] = 30;
         pl["max_lines"] = strict_plus ? 150 : 200;
@@ -407,7 +401,6 @@ static json buildPerLanguage(const std::string& lang, StrictnessPreset s) {
     } else if (lang == "cpp") {
         pl["timeout"] = 60;
         pl["max_lines"] = strict_plus ? 200 : 300;
-        pl["banned_includes"] = json::array({"<cstdlib>"});
         pl["banned_functions"] = json::array({"system(", "exec("});
     } else if (lang == "csharp") {
         pl["timeout"] = 60;
@@ -493,7 +486,6 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         sh["blocked_commands"] = json::array({"sudo", "su", "chmod +s"});
         sh["allow_pipes"] = true;
         sh["allow_redirects"] = true;
-        sh["allow_backgrounding"] = false;
         root["capabilities"]["shell"] = sh;
     }
     // env_vars
@@ -508,27 +500,9 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
     // No "process" block and no filesystem "blocked_extensions": the engine
     // parses both and no check reads them (it says so at load), so a generated
     // file that set them told the operator something was limited that was not.
-    // Process starts are gated by capabilities.shell.enabled.
-    // time
-    {
-        json tm;
-        tm["allow_sleep"] = true;
-        int max_sleep = (cap == CapabilityLevel::MINIMAL) ? 5 :
-                        (cap == CapabilityLevel::FULL) ? 30 : 10;
-        tm["max_sleep_seconds"] = max_sleep;
-        tm["allow_timers"] = true;
-        root["capabilities"]["time"] = tm;
-    }
-    // memory
-    {
-        json mem;
-        int max_mb = (cap == CapabilityLevel::MINIMAL) ? 128 :
-                     (cap == CapabilityLevel::FULL) ? 1024 : 512;
-        mem["max_allocation_mb"] = max_mb;
-        mem["allow_mmap"] = (cap == CapabilityLevel::FULL);
-        mem["allow_shared_memory"] = false;
-        root["capabilities"]["memory"] = mem;
-    }
+    // Process starts are gated by capabilities.shell.enabled. No "time" or
+    // "memory" capability either: no reader exists (A175(b)); limits.timeout
+    // and runtime.memory_limit / limits.memory.total_mb bound both.
 
     // ── taint_tracking ─────────────────────────────────────────────
     {
@@ -541,13 +515,6 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         tt["sinks"] = config.taint_enabled ?
             json(config.taint_sinks) : json::array({"shell_exec", "python_exec", "file.write", "agent.send"});
         tt["sanitizers"] = json::array({"validate_", "sanitize_", "escape_"});
-        tt["propagation"] = {
-            {"string_concat", true},
-            {"string_interpolation", true},
-            {"function_returns", true},
-            {"for_loop_iterators", true},
-            {"dict_array_access", true}
-        };
         root["taint_tracking"] = tt;
     }
 
@@ -691,49 +658,20 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
     // No requirements.error_handling or requirements.naming_conventions: no
     // check enforces either (the engine warns "accepted but no check enforces
     // it"), so writing them on at strict promised a rule that does not exist.
-    {
-        root["requirements"]["strict_types"] = {
-            {"enabled", paranoid},
-            {"level", paranoid ? "advisory" : "off"}
-        };
-    }
-    {
-        root["requirements"]["no_global_state"] = {
-            {"enabled", strict_plus},
-            {"level", fixedLevel(s, "off", "off", "advisory", "soft")},
-            {"allow_global_constants", true},
-            {"allow_global_functions", true},
-            {"block_global_variables", strict_plus}
-        };
-    }
-    {
-        root["requirements"]["documentation"] = {
-            {"enabled", paranoid},
-            {"level", paranoid ? "advisory" : "off"}
-        };
-    }
-    {
-        root["requirements"]["version_pinning"] = {
-            {"enabled", strict_plus},
-            {"level", fixedLevel(s, "off", "off", "advisory", "soft")}
-        };
-    }
+    // No strict_types, no_global_state, documentation or version_pinning
+    // either: the loader reads none of them (A175(b)).
 
     // ── restrictions ───────────────────────────────────────────────
     {
         root["restrictions"]["dangerous_calls"] = {
             {"enabled", true},
-            {"level", fixedLevel(s, "advisory", "hard", "hard", "hard")},
-            {"check_chained_calls", strict_plus},
-            {"check_string_formatting", paranoid}
+            {"level", fixedLevel(s, "advisory", "hard", "hard", "hard")}
         };
     }
     {
         root["restrictions"]["shell_injection"] = {
             {"enabled", true},
-            {"level", fixedLevel(s, "advisory", "hard", "hard", "hard")},
-            {"check_variable_expansion", strict_plus},
-            {"require_quoting", paranoid}
+            {"level", fixedLevel(s, "advisory", "hard", "hard", "hard")}
         };
     }
     {
@@ -741,9 +679,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"enabled", isEnabled(s, 1)},
             {"level", fixedLevel(s, "off", "hard", "hard", "hard")},
             {"block_sudo", true},
-            {"block_su", true},
-            {"block_chmod_suid", true},
-            {"block_setuid", strict_plus}
+            {"block_su", true}
         };
     }
     // imports
@@ -766,8 +702,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"enabled", strict_plus},
             {"level", fixedLevel(s, "off", "off", "soft", "hard")},
             {"block_base64_encode_secrets", true},
-            {"block_hex_encode_secrets", true},
-            {"block_url_encode_secrets", strict_plus}
+            {"block_hex_encode_secrets", true}
         };
     }
     {
@@ -775,7 +710,6 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"enabled", isEnabled(s, 1)},
             {"level", fixedLevel(s, "off", "soft", "hard", "hard")},
             {"block_fork_bomb", true},
-            {"block_recursive_file_ops", true},
             {"block_disk_filling", true}
         };
     }
@@ -801,10 +735,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["restrictions"]["crypto"] = {
             {"enabled", strict_plus},
             {"level", fixedLevel(s, "off", "off", "advisory", "soft")},
-            {"block_weak_hashing", true},
-            {"weak_hashes", json::array({"md5", "sha1"})},
-            {"block_weak_encryption", true},
-            {"block_hardcoded_keys", true}
+            {"weak_hashes", json::array({"md5", "sha1"})}
         };
     }
     {
@@ -820,7 +751,6 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"enabled", true},
             {"level", fixedLevel(s, "advisory", "hard", "hard", "hard")},
             {"entropy_check", {
-                {"enabled", true},
                 {"threshold", 4.5},
                 {"min_length", 20}
             }},
@@ -843,8 +773,6 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["code_quality"]["no_hardcoded_results"] = {
             {"enabled", isEnabled(s, 1)},
             {"level", fixedLevel(s, "off", "advisory", "soft", "hard")},
-            {"check_return_none_null", true},
-            {"check_return_empty_collections", true},
             {"check_dict_status_fields", true},
             {"check_perfect_scores", true}
         };
@@ -898,20 +826,14 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
     {
         root["code_quality"]["no_dead_code"] = {
             {"enabled", isEnabled(s, 1)},
-            {"level", fixedLevel(s, "off", "advisory", "soft", "hard")},
-            {"detect_unreachable_after_return", true},
-            {"detect_always_true_conditions", strict_plus},
-            {"detect_always_false_conditions", strict_plus},
-            {"detect_empty_except_blocks", true},
-            {"detect_commented_out_code", strict_plus}
+            {"level", fixedLevel(s, "off", "advisory", "soft", "hard")}
         };
     }
     // no_debug_artifacts
     {
         root["code_quality"]["no_debug_artifacts"] = {
             {"enabled", isEnabled(s, 1)},
-            {"level", fixedLevel(s, "off", "soft", "hard", "hard")},
-            {"check_polyglot_only", true}
+            {"level", fixedLevel(s, "off", "soft", "hard", "hard")}
         };
     }
     // no_unsafe_deserialization
@@ -939,16 +861,14 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
     {
         root["code_quality"]["no_hardcoded_urls"] = {
             {"enabled", strict_plus},
-            {"level", fixedLevel(s, "off", "off", "advisory", "soft")},
-            {"allowlist", json::array({"https://example.com", "http://localhost"})}
+            {"level", fixedLevel(s, "off", "off", "advisory", "soft")}
         };
     }
     // no_hardcoded_ips
     {
         root["code_quality"]["no_hardcoded_ips"] = {
             {"enabled", strict_plus},
-            {"level", fixedLevel(s, "off", "off", "advisory", "soft")},
-            {"allowlist", json::array({"127.0.0.1", "0.0.0.0", "::1"})}
+            {"level", fixedLevel(s, "off", "off", "advisory", "soft")}
         };
     }
     // max_complexity
@@ -957,9 +877,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"enabled", strict_plus},
             {"level", fixedLevel(s, "off", "off", "advisory", "soft")},
             {"max_lines_per_block", 100},
-            {"max_nesting_depth", 5},
-            {"max_cyclomatic_complexity", 10},
-            {"max_cognitive_complexity", 15}
+            {"max_nesting_depth", 5}
         };
     }
     // no_oversimplification
@@ -1045,11 +963,8 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["code_quality"]["encoding"] = {
             {"enabled", isEnabled(s, 1)},
             {"level", fixedLevel(s, "off", "advisory", "soft", "hard")},
-            {"require_utf8", true},
             {"block_null_bytes", true},
-            {"block_control_characters", strict_plus},
-            {"block_unicode_bidi", true},
-            {"block_homoglyph_attacks", strict_plus}
+            {"block_unicode_bidi", true}
         };
     }
     // duplicate_calls
@@ -1113,24 +1028,10 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
 
     // ── output ─────────────────────────────────────────────────────
     {
-        root["output"]["summary"] = {
-            {"show_skipped", false},
-            {"sort_by", "severity"}
-        };
-        root["output"]["errors"] = {
-            {"show_line_preview", true},
-            {"show_rule_path", true},
-            {"show_fix_suggestions", true}
-        };
-        root["output"]["formatting"] = {
-            {"indent", 2}
-        };
         root["output"]["file_output"] = {
             {"report_json", ""},
             {"report_sarif", ""},
-            {"report_junit", ""},
-            {"report_csv", ""},
-            {"report_html", ""}
+            {"report_junit", ""}
         };
         int max_adv = paranoid ? 5 : strict_plus ? 10 :
                       (s == StrictnessPreset::STANDARD) ? 15 : 50;
@@ -1147,19 +1048,10 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"chain_genesis", "NAAB-GOVERNANCE-GENESIS"}
         };
         root["audit"]["log_events"] = {
-            {"checks_warned", true},
-            {"config_loaded", true},
-            {"execution_start", strict_plus},
-            {"execution_end", strict_plus},
             {"polyglot_executed", strict_plus},
             {"polyglot_timing", strict_plus},
             {"taint_decisions", strict_plus},
             {"contract_checks", config.contracts_enabled}
-        };
-        root["audit"]["retention"] = {
-            {"max_file_size_mb", 100},
-            {"rotate_at_mb", 50},
-            {"keep_rotated", 5}
         };
         root["audit"]["provenance"] = {
             {"enabled", paranoid},
@@ -1191,22 +1083,12 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
 
     // ── meta ───────────────────────────────────────────────────────
     {
-        root["meta"]["schema_validation"] = {
-            {"strict_types", true}
-        };
-        root["meta"]["config_immutability"] = {
-            {"hash", ""},
-            {"verify_on_load", paranoid},
-            {"block_on_mismatch", false}
-        };
+        // No config_immutability: a signed govern.json is what is verified at
+        // every load (A175(b)).
         root["meta"]["inheritance"] = {
             {"max_depth", 5},
             {"merge_strategy", "child_wins"},
-            {"merge_arrays", "replace"},
-            {"allow_circular", false}
-        };
-        root["meta"]["feature_flags"] = {
-            {"legacy_compatibility", true}
+            {"merge_arrays", "replace"}
         };
         root["meta"]["environment"] = {
             {"allow_env_var_substitution", false}
@@ -1225,26 +1107,11 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
 
     // ── polyglot ───────────────────────────────────────────────────
     {
+        // require_explicit's own value is its level (true = hard). No
+        // context_isolation, parallel or persistent_runtime block: the loader
+        // reads none of what init wrote there (A175(b)).
         root["polyglot"]["variable_binding"] = {
-            {"require_explicit", strict_plus},
-            {"require_explicit_level", strict_plus ? "soft" : "advisory"},
-            {"validate_types", paranoid}
-        };
-        root["polyglot"]["output"] = {
-            {"strip_whitespace", false}
-        };
-        root["polyglot"]["context_isolation"] = {
-            {"enabled", strict_plus},
-            {"level", strict_plus ? "soft" : "advisory"},
-            {"no_shared_state", paranoid},
-            {"no_env_pollution", true},
-            {"clean_temp_files", true}
-        };
-        root["polyglot"]["parallel"] = {
-            {"allow_shared_variables", false}
-        };
-        root["polyglot"]["persistent_runtime"] = {
-            {"allow_state_persistence", true}
+            {"require_explicit", strict_plus}
         };
     }
 
