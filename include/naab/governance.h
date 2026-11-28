@@ -2555,6 +2555,19 @@ struct PolyglotOptimizationConfig {
     // Task→Language scoring matrix loaded from JSON
     // Structure: task_language_matrix[task_name][language] = TaskLanguageScore
     std::map<std::string, std::map<std::string, TaskLanguageScore>> task_language_matrix;
+
+    // Language preferences read from the project's files (project_context:
+    // CLAUDE.md "prefer X for Y", a manifest's +5), in the order they were
+    // applied. Kept apart from task_language_matrix so the language-choice
+    // check can decide with and without them and refuse when either refuses:
+    // a file the program can write may add a refusal, never lift one (A213).
+    // Not read from govern.json.
+    struct ProjectPreference {
+        std::string task;
+        std::string language;
+        int boost = 0;
+    };
+    std::vector<ProjectPreference> project_preferences;
 };
 
 // ============================================================================
@@ -3631,6 +3644,11 @@ public:
     // as the operator's governance code, so the governed program may read it
     // but not write it (A192).
     bool isGovernancePluginPath(const std::string& canon_n) const;
+    // True when `canon_n` is a project file whose text project_context turned
+    // into a rule at load (a CLAUDE.md ban, an .eslintrc that switched
+    // no_console_log on). The governed program may read it but not write,
+    // delete or rename it: the next run would load fewer rules (A213).
+    bool isProjectContextPath(const std::string& canon_n) const;
     // The agent-channel text for a set of deliveries ("" for none).
     static std::string formatGuidance(const std::vector<GuidanceDelivery>& items);
     // Opaque outside governance_guidance.cpp.
@@ -5134,6 +5152,7 @@ private:
     std::vector<std::string> evidence_log_paths_;
     std::vector<std::string> engine_state_paths_;  // same mutex; writes refused, reads allowed
     std::vector<std::string> engine_state_dirs_;   // same mutex; the dir and all under it (A169)
+    std::vector<std::string> project_context_paths_; // same mutex; files that added a rule (A213)
     mutable std::mutex evidence_paths_mutex_;
     // Terminal channel: the guidance section appended to a block message in
     // enforce(). Computed without telemetry (enforce()'s advisory branch holds

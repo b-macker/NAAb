@@ -2285,6 +2285,26 @@ else
     echo "  test_signed_governance.sh: not found, skipping"
 fi
 
+# --- Project context: CLAUDE.md, linter files, manifests (Bundle 21 PR 1) ---
+# It existed and passed, and ran nowhere until A212: one of its arms asserted
+# the APPLIED label of a setting no rule reads.
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Project Context Edge Cases (what CLAUDE.md and setup files add)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+PC_EDGE_SCRIPT="tests/project_context/edge_case_tests.sh"
+if [ -f "$PC_EDGE_SCRIPT" ]; then
+    if run_shell_test "$PC_EDGE_SCRIPT" 2>&1; then
+        echo "  edge_case_tests.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("edge_case_tests.sh")
+    fi
+else
+    echo "  edge_case_tests.sh: not found, skipping"
+fi
+
 # --- Governance Comment Style Stripping (V-GOV-002) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -5113,7 +5133,7 @@ else
     echo "  test_rest_hard_block_survives.sh: not found, skipping"
 fi
 
-# naab-lang api over HTTPS (Bundle 19 PR 6, decision 28), and A232/A233.
+# naab-lang api over HTTPS (Bundle 19 PR 6, decision 28), and A233/A235.
 API_REST_TLS_SCRIPT="tests/api/test_rest_tls.sh"
 if [ -f "$API_REST_TLS_SCRIPT" ]; then
     if run_shell_test "$API_REST_TLS_SCRIPT" 2>&1; then

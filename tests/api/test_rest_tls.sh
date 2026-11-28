@@ -3,7 +3,7 @@
 # test_rest_tls.sh -- naab-lang api serves HTTPS from govern.json's
 # api.tls_cert / api.tls_key (Bundle 19 PR 6, the owner's decision 28), and
 # never falls back to plain HTTP. Plus two refusals found while building it:
-# a govern.json that does not load no longer starts the server (A232,
+# a govern.json that does not load no longer starts the server (A235,
 # decision 31), and an api value the loader would drop refuses the config
 # (A233, decision 32).
 #
@@ -30,7 +30,7 @@
 #          OpenSSL's default callback would prompt (UNMEASURABLE without
 #          `script`)
 #   TL-09  a certificate file that is not PEM refuses to start
-#   TL-10  A232: a govern.json that does not load refuses to start, with and
+#   TL-10  A235: a govern.json that does not load refuses to start, with and
 #          without --no-governance; TL-10c CONTROL: no govern.json at all
 #          still starts
 #   TL-11  A233: each api value the loader would drop refuses the config;
@@ -48,7 +48,7 @@
 #   K2  main.cpp skips checkTlsFiles() (makeServer() then
 #       throws: exit 1, not the refusal)                   -> TL-05a/b, TL-06..TL-09, TL-08p
 #   K3  paths resolved against the cwd, not govern.json    -> TL-04
-#   K4  the A232 refusal removed                           -> TL-10, TL-11 (a refused config
+#   K4  the A235 refusal removed                           -> TL-10, TL-11 (a refused config
 #       reaches the server only as one that did not load)
 #   K5  the api type checks removed                        -> TL-11
 #   K6  the TLS key not added to the protected paths       -> TL-12
@@ -280,15 +280,15 @@ else
     stop_api
 fi
 
-# --- TL-10: A232, a govern.json that does not load ----------------------------
+# --- TL-10: A235, a govern.json that does not load ----------------------------
 B="$W/broken"; mkdir -p "$B"
 printf '{"version": "5.0", "mode": "enforce", "api": {"key": "k-broken"}, BROKEN\n' > "$B/govern.json"
 refuse "$B"; RC1=$RC; L1="$LOG"
 refuse "$B" --no-governance; RC2=$RC; L2="$LOG"
 if [ "$RC1" = 4 ] && [ "$RC2" = 4 ] && grep -q "could not be loaded" <<<"$L1" && \
    grep -q "The server was not started" <<<"$L2"; then
-    pass TL-10 "A232: a govern.json that does not load refuses to start, with and without --no-governance"
-else fail TL-10 "A232: the server started beside a govern.json that does not load" "rc=$RC1/$RC2 $L1"; fi
+    pass TL-10 "A235: a govern.json that does not load refuses to start, with and without --no-governance"
+else fail TL-10 "A235: the server started beside a govern.json that does not load" "rc=$RC1/$RC2 $L1"; fi
 N="$W/none"; mkdir -p "$N"
 P=$(port); S=$(start_api "$N" http "$P")
 if [ "$S" = up ]; then pass TL-10c "CONTROL: with no govern.json at all the server still starts"

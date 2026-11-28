@@ -4433,7 +4433,7 @@ int main(int argc, char** argv) {
             const bool api_loaded = api_gov.discoverAndLoad(std::filesystem::current_path().string());
             // A govern.json that is FOUND and does not load refuses to start the
             // server, with or without --no-governance, as it refuses a run (A84).
-            // Before this (A232) the server started with none of the file's
+            // Before this (A235) the server started with none of the file's
             // settings: its API keys were never applied, so every endpoint but
             // /execute answered without a key (observed), and a config asking
             // for HTTPS would have been served as plain HTTP.
