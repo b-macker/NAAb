@@ -399,6 +399,7 @@ The owner asked (2026-11-20) for everything still open as one bundle: the open r
 - Found building it, checked before relying on the config for TLS: A235 (the server started beside a govern.json that does not load, with none of its keys) and A233 (an `api` value of the wrong type was dropped; `"scopes": "check"` was full access). Both fixed by the owner's decisions 31-32.
 - Found running the blast radius and recorded open: A234 (two unregistered suites, `test_rest_governance.sh` and `tests/integration/test_cli.sh`, fail identically on master for stale reasons).
 - Suite: `tests/api/test_rest_tls.sh` (22 arms; red on master d1656e9a where it is a subject; kill table of 8 mutants).
+- Found by its first build-windows run (769c41e0), and fixed in the suite: MSYS rewrote the client's `/`-leading URL paths into Windows paths, so 8 arms read "did not start" while the server answered (TL-00, the plain control, among them). The path now crosses without its slash; `TLS_SIMULATE_WINDOWS=1` reproduces the rewrite and CRLF output on Linux (harness mutant H1: the same 8 arms). The same run timed out at the shell step's 40 minutes, which master already ran within 3-5 minutes of (35-37 observed); the bound is 55, by the rule in `windows.yml`'s comment.
 
 ## Bundle 20 -- run history: what NAAb refused, what helped, what agents claimed
 

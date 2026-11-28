@@ -54,6 +54,9 @@
 #   K6  the TLS key not added to the protected paths       -> TL-12
 #   K7  the two warn-table entries kept                    -> TL-13
 #   K8  the no-passphrase callback removed                 -> TL-08p
+#   H1  (harness, 2026-11-28) the request path passed with its slash, as the
+#       first version did, under TLS_SIMULATE_WINDOWS=1    -> TL-00..TL-04, TL-10c, TL-11c, TL-12
+#       (12 passed, 8 failed: build-windows' result at 769c41e0, reproduced)
 #   Not mutated: SSL_CTX_set_min_proto_version (OpenSSL 3's default security
 #   level already refuses TLS 1.0/1.1, so no client here can tell); and
 #   makeServer()'s own refusal, which sits behind main.cpp's check -- removing
@@ -88,7 +91,7 @@ mode = sys.argv[1]
 if mode == "certsha":
     print(hashlib.sha256(ssl.PEM_cert_to_DER_cert(os.environ["TLS_CA_PEM"])).hexdigest())
     sys.exit(0)
-port, path = int(sys.argv[2]), sys.argv[3]
+port, path = int(sys.argv[2]), "/" + sys.argv[3]   # client() passes it without the slash
 key = sys.argv[4] if len(sys.argv) > 4 else ""
 body = sys.argv[5] if len(sys.argv) > 5 else ""
 headers = {"X-API-Key": key} if key else {}
@@ -112,7 +115,29 @@ try:
 except Exception as e:
     sys.stdout.write("ERROR %s\n" % type(e).__name__)
 PYEOF
-client() { python3 - "$@" < "$W/client.py"; }
+# MSYS (build-windows) rewrites an argument that starts with "/" into a Windows
+# path before a native program sees it, so the runner's python was asked for
+# "C:/.../health" instead of /health: no probe ever read 200, and every arm that
+# needs a running server read "did not start" while its server was answering
+# (first run on Windows, 769c41e0: 8 arms, TL-00 among them). The request path
+# therefore crosses without its leading slash and client.py puts it back.
+# TLS_SIMULATE_WINDOWS=1 reproduces what that runner does to the client, so
+# both shapes can be checked on Linux: every "/"-leading argument is rewritten
+# as MSYS rewrites it, and the client's stdout writes CRLF as a native Windows
+# python does (a captured line then ends in "\r").
+client() {
+    local a args=()
+    [ "$1" = certsha ] || set -- "$1" "$2" "${3#/}" "${@:4}"
+    for a in "$@"; do
+        if [ -n "${TLS_SIMULATE_WINDOWS:-}" ] && [ "${a#/}" != "$a" ]; then a="C:/msys64$a"; fi
+        args+=("$a")
+    done
+    if [ -n "${TLS_SIMULATE_WINDOWS:-}" ]; then
+        { echo 'import sys; sys.stdout.reconfigure(newline="\r\n")'; cat "$W/client.py"; } | python3 - "${args[@]}"
+    else
+        python3 - "${args[@]}" < "$W/client.py"
+    fi
+}
 
 # Certificates: a config file rather than -subj/-addext, so no argument starts
 # with "/" (MSYS would rewrite it as a path) and LibreSSL reads it too.
@@ -133,14 +158,15 @@ start_api() {
     local d=$1 scheme=$2 port=$3; shift 3
     ( cd "$d" && exec "$NAAB" api "$port" "$@" > "$d/server.log" 2>&1 ) &
     local pid=$!; echo "$pid" >> "$PIDS"
-    local r deadline=$(( $(date +%s) + 15 ))
+    local r="" deadline=$(( $(date +%s) + 15 ))
     while [ "$(date +%s)" -lt "$deadline" ]; do
         if ! kill -0 "$pid" 2>/dev/null; then wait "$pid"; echo "down rc=$?"; return; fi
         r=$(TLS_PROBE_TIMEOUT=2 client "$scheme" "$port" /health)
         case "$r" in STATUS\ 200*) echo up; return;; esac
         sleep 0.1
     done
-    echo "down rc=timeout"
+    r=${r%%$'\n'*}
+    echo "down rc=timeout, last probe: ${r%$'\r'}"
 }
 stop_api() { while read -r p; do [ -n "$p" ] && kill "$p" 2>/dev/null; done < "$PIDS"; : > "$PIDS"; sleep 0.2; }
 port() { echo $((20000 + RANDOM % 9000)); }
@@ -193,7 +219,7 @@ if [ "$HAVE_OPENSSL" != 1 ] || [ "$TLS_BUILT" != 1 ]; then
 else
     T="$W/tls"; mkdir -p "$T"; mkcert "$T" srv; mkcert "$T" alt
     export TLS_CA_PEM="$(cat "$T/srv.crt")"
-    CERT_SHA="$(client certsha)"
+    CERT_SHA="$(client certsha)"; CERT_SHA="${CERT_SHA%$'\r'}"   # CRLF on Windows
 
     # --- TL-01..03: HTTPS, the right certificate, no plain HTTP, auth ---
     cfg "$T" '{"key": "k-tls", "tls_cert": "srv.crt", "tls_key": "srv.key"}'
