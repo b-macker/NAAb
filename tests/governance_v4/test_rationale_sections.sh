@@ -67,7 +67,8 @@ source "$REPO/tests/helpers/trust_setup.sh"; isolate_trust_store
 
 PASS_COUNT=0; FAIL_COUNT=0; SKIP_COUNT=0
 pass() { PASS_COUNT=$((PASS_COUNT + 1)); echo "  PASS [$1] $2"; }
-fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); echo "  FAIL [$1] $2${3:+ -- $3}"; }
+# A CR in a FAIL line is shown as \r (a rule name read with its CR, 2026-11-28).
+fail() { local d="${3:-}"; d="${d//$'\r'/\\r}"; FAIL_COUNT=$((FAIL_COUNT + 1)); echo "  FAIL [$1] ${2//$'\r'/\\r}${d:+ -- $d}"; }
 
 echo "=== rationale sections (A233) ==="
 if [ ! -x "$GOV" ]; then
@@ -80,6 +81,7 @@ fi
 # ------------------------------------------------------------------
 RES="$TEST_TMP/resolved.txt"
 python3 -I "$REPO/tools/rationale_sections.py" "$REPO/src/runtime/governance_config.cpp" > "$RES" 2>&1
+tr -d '\r' < "$RES" > "$RES.lf" && mv "$RES.lf" "$RES"
 n_res=$(grep -c . "$RES" || true)
 if [ "$n_res" -ge 50 ] && grep -qx "capabilities.network" "$RES" && grep -qx "code_quality.no_temporary_code" "$RES" \
    && grep -qx "custom_rules\[\]" "$RES" && grep -qx "codegen" "$RES"; then
@@ -88,8 +90,10 @@ else
     fail "RS-00" "the resolver did not read the loader -- every arm below measures nothing" "$(head -3 "$RES" | tr '\n' ' ')"
     exit 1
 fi
-grep -v '^#' "$PSV" | grep . | cut -d'|' -f1 | sort -u > "$TEST_TMP/psv_paths.txt"
-sort -u "$RES" > "$TEST_TMP/res_sorted.txt"
+# A Windows checkout writes the table with CRLF and a native python3 prints
+# CRLF: every line is read with its CR removed, or each name carries one.
+tr -d '\r' < "$PSV" | grep -v '^#' | grep . | cut -d'|' -f1 | sort -u > "$TEST_TMP/psv_paths.txt"
+tr -d '\r' < "$RES" | sort -u > "$TEST_TMP/res_sorted.txt"
 missing=$(comm -23 "$TEST_TMP/res_sorted.txt" "$TEST_TMP/psv_paths.txt" | tr '\n' ' ')
 extra=$(comm -13 "$TEST_TMP/res_sorted.txt" "$TEST_TMP/psv_paths.txt" | tr '\n' ' ')
 if [ -z "$missing" ] && [ -z "$extra" ]; then
@@ -162,7 +166,7 @@ while IFS='|' read -r path rule; do
         row_fail=$((row_fail + 1))
         fail "RS-R" "$path ($rule): the section's rationale is not returned for the rule" "got [$got] $(head -c 200 "$d/err.txt")"
     fi
-done < "$PSV"
+done < <(tr -d '\r' < "$PSV")
 echo "  ($row rows)"
 
 # ------------------------------------------------------------------

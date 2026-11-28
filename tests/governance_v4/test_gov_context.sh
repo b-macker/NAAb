@@ -264,12 +264,22 @@ fi
 # CX-10 / CX-11 / CX-11c / CX-12 -- history; writes and runs nothing
 # ------------------------------------------------------------------
 d="$TEST_TMP/cx10"; mkdir -p "$d"
+# The hook is the platform's own shell, writing to a path the native binary
+# can open: under MSYS2 naab-lang is a Windows program, so /bin/sh and an MSYS
+# path are names it cannot start or open (build-windows, 2026-11-28).
+HOOK_CMD='"/bin/sh"'; HOOK_ARGS="[\"-c\",\"echo fired >> $d/hook_marker\"]"
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*)
+    source "$REPO/tests/helpers/native_path.sh"
+    HOOK_CMD='"cmd.exe"'; HOOK_ARGS="[\"/c\",\"echo fired>> $(native_path "$d/hook_marker")\"]"
+    ON_WINDOWS=1 ;;
+*) ON_WINDOWS=0 ;;
+esac
 cat > "$d/govern.json" <<EOF
 {"mode":"enforce","security":{"sandbox_level":"elevated"},
  "telemetry":{"enabled":true,"output_file":"tele.jsonl","tamper_evidence":{"enabled":true}},
  "code_quality":{"no_placeholders":{"enabled":true,"level":"hard","rationale":"CX_MARK_HIST"}},
  "guidance":{"sources":["docs/playbook.md"]},
- "hooks":{"on_violation":{"command":"/bin/sh","args":["-c","echo fired >> $d/hook_marker"]}}}
+ "hooks":{"on_violation":{"command":$HOOK_CMD,"args":$HOOK_ARGS}}}
 EOF
 mkdir -p "$d/docs"
 printf '# Playbook\n\n## Python\n\nPython blocks keep to the standard library.\n\n## No placeholders\n\nFinish the function.\n' > "$d/docs/playbook.md"
@@ -286,8 +296,14 @@ if [ "$(cat "$d/run_rc")" = 3 ] && [ "$h1" = "[('code_quality.no_placeholders', 
 else
     fail "CX-10" "the history report is wrong" "run_rc=$(cat "$d/run_rc") rule=$h1 file=$h2 other=$h3"
 fi
+HOOK_MEASURED=1
 if [ -s "$d/hook_marker" ]; then
     pass "CX-11c" "CONTROL: the hook fires on a real run of the project"
+elif [ "$ON_WINDOWS" = 1 ]; then
+    # Windows hook firing is measured by test_hook_tree_kill_windows.sh; here a
+    # hook that does not start leaves CX-11's hook half without a control.
+    HOOK_MEASURED=0; SKIP_COUNT=$((SKIP_COUNT + 1))
+    echo "  SKIP [CX-11c] UNMEASURABLE: the cmd.exe hook did not fire on a real run here -- CX-11's hook half is not measured ($(grep -m1 -i hook "$d/run.txt"))"
 else
     fail "CX-11c" "the hook did not fire on a real run -- CX-11 measures nothing" "$(grep -m2 -i hook "$d/run.txt")"
 fi
@@ -305,7 +321,11 @@ before=$(sha256sum "$d/tele.jsonl" | cut -d' ' -f1)
 for t in rule:code_quality.no_placeholders file:t.naab lang:python; do ctx "$d" "$t"; ctxj "$d" "$t"; done
 after=$(sha256sum "$d/tele.jsonl" | cut -d' ' -f1)
 if [ "$before" = "$after" ] && [ ! -e "$d/hook_marker" ]; then
-    pass "CX-11" "context writes no telemetry and fires no hook"
+    if [ "$HOOK_MEASURED" = 1 ]; then
+        pass "CX-11" "context writes no telemetry and fires no hook"
+    else
+        pass "CX-11" "context writes no telemetry (its hook half UNMEASURABLE here, CX-11c)"
+    fi
 else
     fail "CX-11" "context wrote telemetry or fired a hook" "tele changed: $([ "$before" = "$after" ] && echo no || echo yes) hook: $([ -e "$d/hook_marker" ] && echo yes || echo no)"
 fi
