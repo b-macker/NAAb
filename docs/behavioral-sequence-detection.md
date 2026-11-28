@@ -98,7 +98,7 @@ static std::unordered_map<int, AgentTracker> s_trackers;
 
 - Server-side (immune to handle mutation)
 - Enforces max_turns and max_total_tokens
-- Conversation history stored in handle["messages"]
+- Conversation history kept by the engine per handle (handle["messages"] is a readable copy; a handle whose copy differs is refused, A211)
 
 ### Telemetry JSONL (governance_reports.cpp:643-710)
 

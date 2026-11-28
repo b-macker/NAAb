@@ -724,7 +724,7 @@ The agent module provides governed LLM conversations with multi-provider support
 | `agent.batch` | `handle: dict`, `prompts: array` | `array` | Execute multiple prompts in parallel |
 | `agent.fan_out` | `handle: dict`, `fn: function`, `data: array` | `array` | Map a function over data using the agent |
 | `agent.pipeline` | `handle: dict`, `stages: array` | `dict` | Process data through sequential stages |
-| `agent.messages` | `handle: dict` | `array` | Get conversation history for an agent |
+| `agent.messages` | `handle: dict` | `array` | Get the conversation the agent has had: the history every request carries, kept by the engine (editing `h["messages"]` changes nothing sent; a handle whose list differs is refused) |
 | `agent.usage` | `handle: dict` | `dict` | Get token and turn usage statistics |
 
 ### Configuration Options
