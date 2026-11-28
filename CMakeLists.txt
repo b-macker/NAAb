@@ -831,6 +831,22 @@ target_link_libraries(naab_rest_api
     Threads::Threads
 )
 message(STATUS "  ✓ REST API library (Phase 4.7)")
+# HTTPS for `naab-lang api` (api.tls_cert / api.tls_key). cpp-httplib's TLS
+# server needs OpenSSL 3. rest_api.cpp is the only file that includes
+# httplib.h, so the definition is private to this library; another file that
+# included it without the definition would see different class layouts. A
+# build without it refuses a config that sets either key (rest_api.cpp), and
+# `naab-lang version` says which this build is.
+if(OPENSSL_FOUND AND OPENSSL_VERSION VERSION_GREATER_EQUAL "3.0")
+    target_compile_definitions(naab_rest_api PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT NAAB_API_TLS=1)
+    target_link_libraries(naab_rest_api OpenSSL::SSL OpenSSL::Crypto)
+    if(WIN32)
+        target_link_libraries(naab_rest_api crypt32)  # httplib's Windows certificate store
+    endif()
+    message(STATUS "  ✓ HTTPS for naab-lang api (OpenSSL ${OPENSSL_VERSION})")
+else()
+    message(STATUS "  ⚠ HTTPS for naab-lang api not built (needs OpenSSL 3): a config with api.tls_cert or api.tls_key refuses to start")
+endif()
 
 # (naab_testing, the BlockTester library, was linked into no binary and is gone: A58.)
 

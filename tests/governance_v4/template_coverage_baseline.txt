@@ -225,8 +225,6 @@ trust.check_revocation
 # setting that does the job): parsed, enforced by nothing, and the loader
 # WARNS when a config sets one (warnNoEffectSettings() in
 # governance_config.cpp). Verified or traced in docs/settings-liveness.md.
-api.tls_cert
-api.tls_key
 audit.log_events.checks_failed
 audit.log_events.checks_passed
 audit.provenance.record_decisions

@@ -4427,10 +4427,33 @@ int main(int argc, char** argv) {
 
         // Load govern.json API defaults from CWD
         std::vector<naab::governance::GovernanceRules::ApiKeyEntry> api_keys;
+        naab::api::TlsFiles api_tls;
         {
             naab::governance::GovernanceEngine api_gov;
-            if (api_gov.discoverAndLoad(std::filesystem::current_path().string())) {
+            const bool api_loaded = api_gov.discoverAndLoad(std::filesystem::current_path().string());
+            // A govern.json that is FOUND and does not load refuses to start the
+            // server, with or without --no-governance, as it refuses a run (A84).
+            // Before this (A235) the server started with none of the file's
+            // settings: its API keys were never applied, so every endpoint but
+            // /execute answered without a key (observed), and a config asking
+            // for HTTPS would have been served as plain HTTP.
+            // discoverAndLoad() has printed what failed.
+            if (!api_loaded && api_gov.getLastError() != "not_found") {
+                fprintf(stderr,
+                    "Error: govern.json was found but could not be loaded\n\n"
+                    "  Help:\n"
+                    "  - Fix the configuration error above. The server was not started.\n");
+                fflush(nullptr);
+                naab::exitProcess(naab::governance::g_governance_hard_block ? 3 : 4);
+            }
+            if (api_loaded) {
                 const auto& rules = api_gov.getRules();
+                // A relative path is relative to the project, like every path in
+                // govern.json (resolvePolicyPath), not to where the server started.
+                if (!rules.api.tls_cert_path.empty())
+                    api_tls.cert_path = api_gov.resolvePolicyPath(rules.api.tls_cert_path);
+                if (!rules.api.tls_key_path.empty())
+                    api_tls.key_path = api_gov.resolvePolicyPath(rules.api.tls_key_path);
                 if (!rules.api.key.empty() && api_key.empty()) api_key = rules.api.key;
                 if (rules.api.timeout != 10 && api_timeout == 10) api_timeout = static_cast<unsigned int>(rules.api.timeout);
                 if (rules.api.rate_limit > 0 && api_rate_limit == 0) api_rate_limit = static_cast<unsigned int>(rules.api.rate_limit);
@@ -4484,9 +4507,25 @@ int main(int argc, char** argv) {
             }
         }
 
+        // HTTPS from api.tls_cert / api.tls_key, or plain HTTP when neither is
+        // set (decision 28). Checked before anything listens: a server asked
+        // for TLS that cannot serve it is not started at all, never served as
+        // plain HTTP.
+        if (std::string tls_err = naab::api::checkTlsFiles(api_tls); !tls_err.empty()) {
+            fprintf(stderr,
+                "Error: naab-lang api cannot serve HTTPS: %s\n\n"
+                "  Help:\n"
+                "  - Set api.tls_cert to a PEM certificate chain and api.tls_key to its\n"
+                "    unencrypted PEM private key, or neither for plain HTTP.\n"
+                "  - The server was not started.\n",
+                tls_err.c_str());
+            fflush(nullptr);
+            naab::exitProcess(4);
+        }
+
         try {
             // Create REST API server
-            naab::api::RestApiServer server(port, "0.0.0.0");
+            naab::api::RestApiServer server(port, "0.0.0.0", api_tls);
 
             // V-API-001: apply body size cap and optional API key auth
             server.setMaxBodySize(max_body);
@@ -4550,6 +4589,13 @@ int main(int argc, char** argv) {
             fmt::print("║  NAAb REST API Server v{}                      ║\n", NAAB_VERSION_STRING);
             fmt::print("╚════════════════════════════════════════════════════╝\n");
             fmt::print("\n");
+            if (server.usesTls()) {
+                fmt::print("Serving HTTPS on port {}\n\n", port);
+            } else {
+                fmt::print("Serving plain HTTP on port {}: requests and API keys travel unencrypted.\n"
+                           "  For HTTPS, set api.tls_cert and api.tls_key in govern.json.\n\n", port);
+            }
+            fflush(stdout);
 
             // Start server (blocking)
             if (!server.start()) {
@@ -4576,6 +4622,9 @@ int main(int argc, char** argv) {
             fmt::print("{}", languages[i]);
         }
         fmt::print("\n");
+        // CI asserts this on every platform's build (decision 28).
+        fmt::print("HTTPS for naab-lang api: {}\n",
+                   naab::api::tlsSupported() ? "available" : "not built (needs OpenSSL 3)");
 
     } else if (command == "init") {
         // Parse init subflags

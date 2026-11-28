@@ -27,10 +27,128 @@ using json = nlohmann::json;
 namespace naab {
 namespace api {
 
+bool tlsSupported() {
+#ifdef NAAB_API_TLS
+    return true;
+#else
+    return false;
+#endif
+}
+
+#ifdef NAAB_API_TLS
+namespace {
+
+// An encrypted key fails to load instead of prompting: OpenSSL's default
+// callback reads a passphrase from the terminal, which would stall a server
+// started from one and is unanswerable in a service.
+int noPassphrase(char*, int, int, void*) { return 0; }
+
+std::string lastOpensslError() {
+    unsigned long e = ERR_peek_last_error();
+    ERR_clear_error();
+    if (e == 0) return "";
+    const char* reason = ERR_reason_error_string(e);
+    return reason ? std::string(" (OpenSSL: ") + reason + ")" : std::string();
+}
+
+// The one place a TLS context is set up: checkTlsFiles() runs it on a scratch
+// context before the server is built, and the server runs it on its own, so
+// what was checked is what is served. TLS 1.2 or later, as cpp-httplib's own
+// file-path constructor sets; the chain file may hold intermediates.
+bool setupTlsContext(SSL_CTX& ctx, const TlsFiles& tls, std::string& why) {
+    ERR_clear_error();
+    SSL_CTX_set_options(&ctx, SSL_OP_NO_COMPRESSION | SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
+    if (SSL_CTX_set_min_proto_version(&ctx, TLS1_2_VERSION) != 1) {
+        why = "TLS 1.2 could not be set as the minimum version" + lastOpensslError();
+        return false;
+    }
+    SSL_CTX_set_default_passwd_cb(&ctx, noPassphrase);
+    if (SSL_CTX_use_certificate_chain_file(&ctx, tls.cert_path.c_str()) != 1) {
+        why = "the certificate file " + tls.cert_path +
+              " could not be read as a PEM certificate" + lastOpensslError();
+        return false;
+    }
+    // Read the key on its own first: SSL_CTX_use_PrivateKey_file() also refuses
+    // a key that does not match the certificate, with the same failure, so an
+    // operator would be told a good key file is unreadable (TL-07).
+    EVP_PKEY* pkey = nullptr;
+    if (BIO* bio = BIO_new_file(tls.key_path.c_str(), "r")) {
+        pkey = PEM_read_bio_PrivateKey(bio, nullptr, noPassphrase, nullptr);
+        BIO_free(bio);
+    }
+    if (!pkey) {
+        why = "the private key file " + tls.key_path +
+              " could not be read as an unencrypted PEM key" + lastOpensslError();
+        return false;
+    }
+    const bool key_taken = SSL_CTX_use_PrivateKey(&ctx, pkey) == 1;
+    EVP_PKEY_free(pkey);
+    if (!key_taken || SSL_CTX_check_private_key(&ctx) != 1) {
+        why = "the private key in " + tls.key_path + " does not match the certificate in " +
+              tls.cert_path + lastOpensslError();
+        return false;
+    }
+    return true;
+}
+
+}  // namespace
+#endif
+
+std::string checkTlsFiles(const TlsFiles& tls) {
+    if (!tls.requested()) return "";
+    if (tls.cert_path.empty())
+        return "api.tls_key is set but api.tls_cert is not: HTTPS needs both, and the server "
+               "does not fall back to plain HTTP";
+    if (tls.key_path.empty())
+        return "api.tls_cert is set but api.tls_key is not: HTTPS needs both, and the server "
+               "does not fall back to plain HTTP";
+    std::error_code ec;
+    for (const auto* p : {&tls.cert_path, &tls.key_path}) {
+        if (!std::filesystem::is_regular_file(*p, ec))
+            return "the file " + *p + " (" + (p == &tls.cert_path ? "api.tls_cert" : "api.tls_key") +
+                   ") does not exist or is not a regular file";
+    }
+#ifdef NAAB_API_TLS
+    SSL_CTX* ctx = SSL_CTX_new(TLS_server_method());
+    if (!ctx) return "a TLS context could not be created" + lastOpensslError();
+    std::string why;
+    const bool ok = setupTlsContext(*ctx, tls, why);
+    SSL_CTX_free(ctx);
+    return ok ? "" : why;
+#else
+    return "this build of naab-lang has no HTTPS support (it was built without OpenSSL 3), "
+           "and the server does not fall back to plain HTTP";
+#endif
+}
+
+namespace {
+std::unique_ptr<httplib::Server> makeServer(const TlsFiles& tls) {
+    if (!tls.requested()) return std::make_unique<httplib::Server>();
+#ifdef NAAB_API_TLS
+    auto ssl = std::make_unique<httplib::SSLServer>([tls](SSL_CTX& ctx) {
+        std::string why;
+        return setupTlsContext(ctx, tls, why);
+    });
+    if (!ssl->is_valid()) {
+        std::string why = checkTlsFiles(tls);
+        throw std::runtime_error("HTTPS could not be set up: " +
+                                 (why.empty() ? std::string("the TLS context was refused") : why));
+    }
+    return ssl;
+#else
+    throw std::runtime_error("HTTPS could not be set up: " + checkTlsFiles(tls));
+#endif
+}
+}  // namespace
+
 // Implementation class (PIMPL pattern)
 class RestApiServer::Impl {
 public:
-    httplib::Server server;
+    // A plain server, or an HTTPS one when TLS was asked for (makeServer()
+    // throws rather than return a plain server then). Routes are added to it in
+    // the constructor, so it is chosen before them.
+    std::unique_ptr<httplib::Server> server_owner;
+    httplib::Server& server;
     std::string worker_exe;  // naab-lang, which runs each /execute request
     std::string cwd;         // the server's directory, where workers run
     bool waive_missing_config = false;  // server started with --no-governance
@@ -80,7 +198,7 @@ public:
         return false;
     }
 
-    Impl() {
+    explicit Impl(const TlsFiles& tls) : server_owner(makeServer(tls)), server(*server_owner) {
         std::error_code ec;
         cwd = std::filesystem::current_path(ec).string();
 #ifndef _WIN32
@@ -737,11 +855,19 @@ thread_local std::string RestApiServer::Impl::t_matched_key_id_;
 
 // RestApiServer implementation
 RestApiServer::RestApiServer(int port, const std::string& host)
-    : impl_(std::make_unique<Impl>()),
+    : RestApiServer(port, host, TlsFiles{}) {}
+
+RestApiServer::RestApiServer(int port, const std::string& host, const TlsFiles& tls)
+    : impl_(std::make_unique<Impl>(tls)),
       port_(port),
       host_(host),
+      tls_(tls.requested()),
       running_(false) {
-    spdlog::info("REST API server created on {}:{}", host_, port_);
+    spdlog::info("REST API server created on {}:{} ({})", host_, port_, tls_ ? "HTTPS" : "HTTP");
+}
+
+bool RestApiServer::usesTls() const {
+    return tls_;
 }
 
 void RestApiServer::setApiKey(const std::string& key) {
@@ -788,7 +914,7 @@ bool RestApiServer::start() {
         return false;
     }
 
-    spdlog::info("Starting REST API server on {}:{}", host_, port_);
+    spdlog::info("Starting REST API server on {}://{}:{}", tls_ ? "https" : "http", host_, port_);
     spdlog::info("API endpoints:");
     spdlog::info("  GET  /health                - Health check");
     spdlog::info("  POST /api/v1/execute        - Execute NAAb code");

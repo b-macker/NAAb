@@ -1102,6 +1102,28 @@ static void checkRestrictionTypes(const nlohmann::json& j) {
             }
         };
     walk(j, {std::string()}, "", false);
+
+    // The api section (A233, Bundle 19 PR 6). Its parser drops a value of the
+    // wrong type, and each drop loosens `naab-lang api`: a key that is not a
+    // string is no authentication, a TLS path that is not a string is plain
+    // HTTP, and a scoped key whose "scopes" is not a list loaded with no scopes
+    // -- full access (observed: "scopes": "check" ran code through /execute).
+    if (j.contains("api")) {
+        const auto& api = j["api"];
+        if (!api.is_object()) refuse("api", "an object", api);
+        for (const char* k : {"key", "tls_cert", "tls_key"})
+            if (api.contains(k) && !api[k].is_string())
+                refuse(std::string("api.") + k, "a string", api[k]);
+        if (api.contains("keys")) {
+            const auto& keys = api["keys"];
+            if (!keys.is_array()) refuse("api.keys", "a list of key objects", keys);
+            for (const auto& e : keys) {
+                if (!e.is_object() || !e.contains("key") || !e["key"].is_string())
+                    refuse("api.keys", "a list of objects, each with a \"key\" string", e);
+                strList(e, "api.keys[]", "scopes", /*strict=*/true);
+            }
+        }
+    }
 }
 
 // Settings that look like protection and enforce nothing: each is parsed (the
@@ -1179,14 +1201,11 @@ static const NoEffectSetting kNoEffectSettings[] = {
      " The audit trail records no check results; the telemetry file records each one."},
     {"audit.provenance.record_decisions", ""},
     {"audit.provenance.record_proof_objects", ""},
-    // naab-lang api is a plain HTTP server (rest_api.cpp, httplib::Server):
-    // the dangerous direction, an operator who sets a certificate believes the
-    // API keys travel encrypted.
+    // (api.tls_cert and api.tls_key left this table in Bundle 19 PR 6: naab-lang
+    // api serves HTTPS with them, decision 28.)
     // Bundle 20 PR 5 (A202): parsed since S19 was built and read by nothing.
     {"context_drift.thresholds.claim_accuracy_min",
      " S19 charges each reply that misstates a tool's outcome; no accuracy threshold applies."},
-    {"api.tls_cert", " The REST server has no TLS: requests and API keys travel in plaintext."},
-    {"api.tls_key", " The REST server has no TLS: requests and API keys travel in plaintext."},
 
     // --- never parsed (A175(b)) ---------------------------------------------
     {"audit.log_events.checks_warned",
