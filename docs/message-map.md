@@ -50,7 +50,12 @@ A46 in `docs/open-investigations.md`.
    stderr itself: full detail on the FIRST occurrence of a rule name per run,
    `(occurrence n/m)` afterwards only when escalation is on (decided,
    `aacade58`). Live guidance is appended as a suffix (`shownWithGuidance`);
-   hooks and the refusal attestation receive the message without it.
+   a refusal the program cannot catch (hard, approval denied, soft without
+   override, an escalated advisory) first gets the rule's rationale,
+   `  Why: <text>` (`refusalShown`, Bundle 21 PR 3; filtered by
+   `displayableRationale()`, never on DETECT or an advisory warning); hooks,
+   the refusal attestation, telemetry and the reports receive the message
+   without either.
 3. **The fatal catch sites**, `main.cpp:3011-3083`: every uncaught error --
    governance HARD, runtime, parse, polyglot -- is printed to **stdout** after
    `ErrorSanitizer::sanitize()`; each first calls `flushGroupedAdvisories()` --

@@ -3996,12 +3996,14 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.explicitly_set.insert("codegen");
         if (cg.contains("enabled") && cg["enabled"].is_boolean())
             rules_.codegen.enabled = cg["enabled"].get<bool>();
-        if (cg.contains("level") && cg["level"].is_string()) {
-            std::string lev = normalizeLevelName(cg["level"].get<std::string>());
-            if (lev == "hard") rules_.codegen.level = EnforcementLevel::HARD;
-            else if (lev == "soft") rules_.codegen.level = EnforcementLevel::SOFT;
-            else rules_.codegen.level = EnforcementLevel::ADVISORY;
-        }
+        // A237: the level codegen refusals are enforced at, read like every
+        // other level-only key -- detect and approval_required as written, an
+        // unknown value at hard with the load warning. It mapped everything
+        // but hard and soft to ADVISORY (written when this key was read by
+        // nothing, A88), so a typo lowered the hard default to a refusal the
+        // program catches and runs past, and "detect" was not detect.
+        if (cg.contains("level") && cg["level"].is_string())
+            rules_.codegen.level = parseLevelOnly(cg["level"]);
         if (cg.contains("rationale") && cg["rationale"].is_string())
             rules_.codegen.rationale = cg["rationale"].get<std::string>();
         if (cg.contains("max_code_size_bytes") && cg["max_code_size_bytes"].is_number_integer())

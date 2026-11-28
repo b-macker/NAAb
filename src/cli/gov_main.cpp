@@ -110,6 +110,8 @@ static void printHelp() {
         "  naab-gov claims <file|-> [opts]        What the claim reader makes of a reply:\n"
         "                                         each claim, and with --tools what it says\n"
         "                                         about each tool (report only; --json)\n"
+        "  naab-gov context <target> [opts]       What governs a rule, language, agent role\n"
+        "                                         or file, and why (report only; --json)\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
         "\n"
@@ -764,6 +766,7 @@ int cmdHistory(const std::vector<std::string>& args);
 int cmdEfficacy(const std::vector<std::string>& args);
 // gov_claims.cpp: what the claim reader makes of a reply (Bundle 20 PR 5).
 int cmdClaims(const std::vector<std::string>& args);
+int cmdContext(const std::vector<std::string>& args);
 // gov_diff.cpp (Bundle 13)
 int cmdDiff(const std::vector<std::string>& args);
 // gov_manifest.cpp (Bundle 11 PR 2)
@@ -1003,6 +1006,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "claims") {
             return cmdClaims(rest);
+        }
+
+        if (cmd == "context") {
+            return cmdContext(rest);
         }
     } catch (const naab::governance::GovernanceHardError& e) {
         std::cerr << e.what() << "\n";

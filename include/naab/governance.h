@@ -3563,6 +3563,34 @@ public:
     std::string checkPathAccessImpl(const std::string& filepath, const std::string& mode,
                                     bool decide_only, bool program_access = true);
 
+    // A236: the govern.json section whose checks a rule belongs to (its path,
+    // or "" when none), and that section's rationale into *rationale. One
+    // table, read by lookupRationale() and by naab-gov context.
+    static std::string ruleSection(const GovernanceRules& r, const std::string& rule_name,
+                                   std::string* rationale = nullptr);
+    // The same row, with what it reads from the section's struct: the switch
+    // (enabled: 1/0, -1 when the struct has none), the level and the mode
+    // ("" when it has none). naab-gov context shows these; never a value.
+    struct RuleSectionInfo {
+        std::string section;     // the govern.json path, "" when no row matches
+        std::string rationale;
+        int enabled = -1;
+        std::string level;
+        std::string mode;
+    };
+    static RuleSectionInfo ruleSectionInfo(const GovernanceRules& r, const std::string& rule_name);
+    // Bundle 21 PR 3: a rationale as it may be shown to a person or a coding
+    // agent, or "" with *withheld_reason set ("secret", "pii", "key_variable",
+    // "sanitizer") when the text matches what governance never shows: a secret
+    // or PII shape (whatever the config enables), the name of a variable that
+    // holds a key, a configured sanitizer. Control characters read '?', the
+    // text is cut at 500 bytes. One copy, used by refusals and naab-gov context.
+    std::string displayableRationale(const GovernanceRules& r, const std::string& text,
+                                     std::string* withheld_reason = nullptr) const;
+    // The "  Why: ..." line(s) for a refusal of `rule_name`, or "" when the
+    // rule's section has no rationale. Never throws.
+    std::string refusalRationaleLine(const std::string& rule_name) const;
+
     // --- The signed capability manifest (Bundle 11 PR 2) ---
     // With manifest.required (and not --lint-only), the program at
     // program_path needs <stem>.manifest.json beside it: read once, signed by a
@@ -3603,8 +3631,15 @@ public:
         int turn, const std::unordered_set<std::string>& start_keywords);
     // Pull channel (governance.guidance): entries for a topic, by anchor
     // ("source#slug" / "#slug") or keyword overlap.
+    // `record` false selects without writing GUIDANCE_DELIVERED/WITHHELD:
+    // naab-gov context reports what a pull would return and writes nothing.
     std::vector<GuidanceDelivery> guidancePull(const std::string& topic,
-        const std::string& source_filter, int max_entries);
+        const std::string& source_filter, int max_entries, bool record = true);
+    // What a refusal of `rule_name` would show at the terminal as guidance:
+    // the sections selected and the ones withheld ({trigger, ref, reason}).
+    // Writes no telemetry (naab-gov context).
+    std::vector<GuidanceDelivery> guidanceForRefusal(const std::string& rule_name,
+                                                     size_t* withheld = nullptr);
     // Full chain (docs/plan-live-guidance.md, alignment review): the reply to
     // a request that carried guidance. Emits GUIDANCE_RESPONSE per delivery --
     // which guidance terms the reply used (keyword recall, the computation S13

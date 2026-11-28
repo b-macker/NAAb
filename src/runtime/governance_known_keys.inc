@@ -642,6 +642,8 @@
 "codegen\x1f""blocked_languages",
 "codegen\x1f""enabled",
 "codegen\x1f""level",
+"codegen\x1f""level\x1f""enabled",
+"codegen\x1f""level\x1f""level",
 "codegen\x1f""max_code_lines",
 "codegen\x1f""max_code_size_bytes",
 "codegen\x1f""max_cumulative_calls",

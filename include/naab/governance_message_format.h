@@ -7,6 +7,8 @@
 //
 //     At: <location>
 //     Rule: <rule> = <value>
+//     ...
+//     Why: <the rule's rationale>          (an uncatchable refusal only)
 //
 // and the LSP (tools/naab-lsp) reads it back out of `naab-lang --lint-only`
 // output to build a diagnostic. The two used to spell the labels separately:
@@ -26,6 +28,9 @@ inline constexpr std::string_view kErrorHeader   = "Governance error: ";
 inline constexpr std::string_view kWarningHeader = "Governance warning: ";
 inline constexpr std::string_view kAtLabel       = "  At: ";
 inline constexpr std::string_view kRuleLabel     = "  Rule: ";
+// Bundle 21 PR 3: the rule's rationale from govern.json, after the block, on a
+// refusal a program cannot catch (GovernanceEngine::refusalRationaleLine()).
+inline constexpr std::string_view kWhyLabel      = "  Why: ";
 
 // Where a block's header starts on this output line, or npos. The CLI prints a
 // fatal block behind "Error: ", so the header may follow that prefix.

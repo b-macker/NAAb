@@ -34,7 +34,11 @@
 #               second did not)
 #   RE-08       level advisory: recorded as a warning, still refused, catchable
 #   RE-09/09o   level soft: exit 3; with --governance-override still refused
-#   RE-10       level detect: catchable, still refused
+#   RE-10       level detect: recorded as detect (not a warning), catchable,
+#               still refused (A237: it read as advisory, which RE-10 could not
+#               tell apart until it checked the record)
+#   RE-10m      a misspelled level reads hard, with the load warning (A237)
+#   RE-10a      level approval_required: refused without an approval (A237)
 #   RE-11       mode audit: still refused
 #   agent.create (A168)
 #   RE-20       CONTROL: no limit, the second agent is created
@@ -73,6 +77,8 @@
 #   M13 checkCodeSize() prefers per_block to the language's own .... RE-42
 #   M14 the persistent executor's wait ignores the deadline ........ RE-34
 #   M15 the timer armed in audit mode too .......................... RE-37
+#   M16 codegen.level's old parse (all but hard/soft -> advisory, A237)
+#                                                          ....... RE-10, RE-10m, RE-10a
 # And by setting removal on the test build (docs/settings-liveness.md):
 #   NAAB=build-mut/naab-lang NAAB_DROP_SETTING=<setting> bash <this suite>
 #   limits.timeout.per_block .......................... RE-31
@@ -183,16 +189,28 @@ if [ "$CG_OK" = 1 ]; then
     else bad "RE-09o" "an overridden soft codegen refusal ran the code or stopped the run" "$(show)"; fi
 
     run re10 ",\"codegen\":{$BL,\"level\":\"detect\"}" "$CG"
-    if [ "$RC" = 0 ] && has CAUGHT1 && has DONE && ! mark M1 && ! mark M2; then
-        ok "RE-10" "level detect: catchable, the code did not run"
-    else bad "RE-10" "detect codegen refusal: not (catchable, refused)" "$(show)"; fi
+    if [ "$RC" = 0 ] && has CAUGHT1 && has DONE && ! mark M1 && ! mark M2 \
+       && has "[detect]  REFUSED" && ! has "WARNING codegen.blocked_languages"; then
+        ok "RE-10" "level detect: recorded as a detect refusal, catchable, the code did not run"
+    else bad "RE-10" "detect codegen refusal: not (detect, catchable, refused)" "$(show)"; fi
+
+    # A237: an unknown level reads hard (with the load warning), as for every
+    # other level-only key; approval_required is honoured.
+    run re10m ",\"codegen\":{$BL,\"level\":\"hrad\"}" "$CG"
+    if [ "$RC" = 3 ] && ! has CAUGHT && ! mark M1 && has "check is enforced at hard"; then
+        ok "RE-10m" "a misspelled level reads hard: exit 3, the load warning says so (A237)"
+    else bad "RE-10m" "a misspelled codegen.level did not read hard" "$(show)"; fi
+    run re10a ",\"codegen\":{$BL,\"level\":\"approval_required\"}" "$CG"
+    if [ "$RC" = 3 ] && ! has CAUGHT && ! mark M1 && has "[approval_required]  REFUSED" && has "requires explicit approval"; then
+        ok "RE-10a" "level approval_required: refused without an approval (exit 3) (A237)"
+    else bad "RE-10a" "approval_required codegen.level was not honoured" "$(show)"; fi
 
     run re11 ",\"codegen\":{$BL}" "$CG" "" audit
     if [ "$RC" = 0 ] && has CAUGHT1 && has DONE && ! mark M1 && ! mark M2; then
         ok "RE-11" "mode audit: the run goes on, the code still did not run"
     else bad "RE-11" "audit mode ran refused codegen or stopped the run" "$(show)"; fi
 else
-    for a in RE-08 RE-09 RE-09o RE-10 RE-11; do skip "$a" "no control"; done
+    for a in RE-08 RE-09 RE-09o RE-10 RE-10m RE-10a RE-11; do skip "$a" "no control"; done
 fi
 
 # ------------------------------------------------------------------
