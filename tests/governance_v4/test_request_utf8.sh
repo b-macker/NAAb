@@ -39,6 +39,9 @@
 #   RU-07   agent.propose() with the byte in its prompt: a candidate returns
 #   RU-08   a registered tool whose description holds the byte: the send works
 #           and the declaration carries U+FFFD
+#   RU-10   history holding the byte, written into the handle: refused before
+#           anything is sent, on the send, a tool loop, the final tool-less turn
+#           and propose (A211, test_agent_history_engine.sh)
 #   RU-09   the prompt scan judges the bytes sent: with no_secrets on,
 #           `password = "abcdef<byte>"` is 7 characters raw but 9 bytes sent,
 #           which the 8-or-more Hardcoded Password pattern matches -- refused,
@@ -60,12 +63,18 @@
 #   V6  a query row read raw                                      -> RU-09q
 #   C1  the result cut by byte (substr), not at a boundary        -> RU-03
 #   C2  a structured result dumped strictly                       -> RU-04
-#   D1  the send's messages dumped strictly                       -> RU-10 RU-10t RU-10f
-#   D2  propose's messages dumped strictly                        -> RU-10p
+#   D1  the send's messages dumped strictly                       -> none since A211
+#   D2  propose's messages dumped strictly                        -> none since A211
+#       (re-measured 2026-11-27): those messages now hold only the engine's
+#       history -- prompts made valid at entry, replies parsed from JSON --
+#       the new prompt and engine text, so no invalid byte reaches the dump;
+#       RU-10's arms, which reached it through history the program wrote, now
+#       read that history refused. dumpRequest() stays as the backstop.
 #   D3  the tool loop's messages dumped strictly                  -> none alone:
 #       dumpRequest() repairs the object in place, so after D1's dump only
 #       text appended later can be invalid. With V3 as well (a raw result
-#       appended after it)                                        -> RU-02 RU-09t RU-10f
+#       appended after it)                                        -> RU-02 RU-09t, and RU-10f
+#       before A211 (since then RU-10f is refused before any call; not re-run)
 #   D4  the final tool-less turn dumped strictly                  -> none, also
 #       with V3: the loop's dump repairs the messages before the final turn
 #       copies them, and what is appended after it is the model's calls
@@ -422,10 +431,13 @@ done
 # ------------------------------------------------------------------
 # RU-10 -- history the program wrote into the handle (A211's route)
 # ------------------------------------------------------------------
-# No scan reads it (A211, open), so the repair that keeps these requests
-# from ending the run is dumpRequest() at each place the messages are
-# serialised: the send's first call, each tool-loop call, the final
-# tool-less turn, propose.
+# Since A211 (Bundle 21 PR 2) a request carries the history the engine
+# recorded, and a handle whose list was written is refused before anything is
+# sent -- so text the program wrote there, this byte included, reaches no
+# request on any of the four routes that used to carry it: the send's first
+# call, a tool-loop call, the final tool-less turn, propose.
+# test_agent_history_engine.sh measures the refusal itself; these arms keep
+# the byte's route closed.
 hist_prog() {  # $1 the call: send / tool / propose; $2 the tool's result (default "x")
     local reg="" call='let r = agent.send(h, "next")' out='r.content' res="${2:-\"x\"}"
     [ "$1" = tool ] && reg='    agent.register_tool("lookup", lookup, {"description": "d", "parameters": {"path": {"type": "string", "description": "p"}}})\n'
@@ -443,31 +455,20 @@ for arm in ru10 ru10t ru10f ru10p; do
         ru10p) run_arm "$d" "$ONE" "$(hist_prog propose)" ', "propose_candidates_max": 1' ;;
     esac
 done
-d="$TEST_TMP/ru10"
-if [ "$(rc "$d")" = 0 ] && ran "$d" && req_has "$d" 1 "caf${FFFD} hist"; then
-    pass "RU-10" "history holding the byte is sent with U+FFFD on the send's call"
-else
-    fail "RU-10" "the send's call ended the run" "$(why "$d")"
-fi
-d="$TEST_TMP/ru10t"
-if [ "$(rc "$d")" = 0 ] && ran "$d" && req_has "$d" 2 "caf${FFFD} hist"; then
-    pass "RU-10t" "... and on the tool loop's call"
-else
-    fail "RU-10t" "the tool loop's call ended the run" "$(why "$d")"
-fi
-d="$TEST_TMP/ru10f"
-if [ "$(rc "$d")" = 0 ] && ran "$d" && [ "$(nreq "$d")" = 3 ] && req_has "$d" 3 "caf${FFFD} hist" && req_has "$d" 3 "caf${FFFD} tool" \
-   && grep -q '"mode":"NONE"' "$d/stub/req_3.json"; then
-    pass "RU-10f" "... and on the final tool-less turn"
-else
-    fail "RU-10f" "the final tool-less turn ended the run or was not made" "$(why "$d")"
-fi
-d="$TEST_TMP/ru10p"
-if [ "$(rc "$d")" = 0 ] && grep -q 'RUN_DONE 1' "$d/out.txt" && req_has "$d" 1 "caf${FFFD} hist"; then
-    pass "RU-10p" "... and on propose's call"
-else
-    fail "RU-10p" "propose's call ended the run" "$(why "$d")"
-fi
+for arm in ru10 ru10t ru10f ru10p; do
+    d="$TEST_TMP/$arm"
+    case "$arm" in
+        ru10)  id="RU-10";  what="the send's call" ;;
+        ru10t) id="RU-10t"; what="a tool-loop call" ;;
+        ru10f) id="RU-10f"; what="the final tool-less turn" ;;
+        ru10p) id="RU-10p"; what="propose's call" ;;
+    esac
+    if [ "$(rc "$d")" = 1 ] && [ "$(nreq "$d")" = 0 ] && grep -qF "message history differs" "$d/out.txt"; then
+        pass "$id" "written history holding the byte is refused before $what: nothing sent"
+    else
+        fail "$id" "written history reached $what, or the refusal changed" "$(why "$d")"
+    fi
+done
 
 echo ""
 echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed, $SKIP_COUNT skipped"
