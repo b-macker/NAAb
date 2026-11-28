@@ -32,6 +32,7 @@ jobs:
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-sqlite3
             mingw-w64-x86_64-curl
+            mingw-w64-x86_64-openssl
             mingw-w64-x86_64-pkg-config
             mingw-w64-x86_64-dlfcn
             mingw-w64-x86_64-python
@@ -153,6 +154,10 @@ jobs:
       #   NAAb programs   57s observed  -> 15
       #   shell suites  3m37s observed  -> 25 (2026-08-02)
       #   shell suites 23m34s observed  -> 40 (master 69eb5da6, 2026-11-04)
+      #   shell suites 37m07s observed  -> 55 (master d1656e9a, 2026-11-27;
+      #     35m16s on d55ddbf8) -- 37m07s + 10m30s is past 40, and #405's
+      #     run (769c41e0) timed out at 40 on a runner whose build step was
+      #     11% slower than master's that day
       # The shell bound also has to clear one legitimate SHELL_TEST_TIMEOUT
       # (600s + 30s kill grace) firing inside an otherwise healthy run, or a
       # single hung suite would take the whole step down as a timeout and hide
@@ -172,7 +177,7 @@ jobs:
 
       - name: CLI tests — shell suites
         shell: msys2 {0}
-        timeout-minutes: 40
+        timeout-minutes: 55
         run: NAAB_TEST_PHASE=shell NAAB_TIMING_DIR=test-timing/shell NAAB_SKIP_REPORT=test-timing/skips-windows.tsv bash tools/testtiming/run_timed.sh
 
       - name: Upload test timing

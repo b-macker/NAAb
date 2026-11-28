@@ -102,8 +102,6 @@
 #
 # So triage before acting. The keys worth wiring or deleting are category A.
 agent_dispatch.default_timeout_seconds
-api.tls_cert_path
-api.tls_key_path
 audit.log_events.checks_failed
 audit.log_events.checks_passed
 audit.provenance.record_decisions

@@ -11,6 +11,29 @@ namespace naab {
 namespace api {
 
 /**
+ * The certificate chain and private key `naab-lang api` serves HTTPS with:
+ * govern.json's api.tls_cert and api.tls_key, resolved against the project.
+ * Both empty means plain HTTP.
+ */
+struct TlsFiles {
+    std::string cert_path;
+    std::string key_path;
+    bool requested() const { return !cert_path.empty() || !key_path.empty(); }
+};
+
+/** True when this build can serve HTTPS (it was built with OpenSSL 3). */
+bool tlsSupported();
+
+/**
+ * Whether the server can serve HTTPS with these files: "" when it can, or when
+ * neither is set; otherwise why not -- one set without the other, a file that
+ * is missing or is not a PEM certificate or key, an encrypted key (nothing
+ * prompts for a passphrase), a key that does not match the certificate, or a
+ * build without TLS. The server never falls back to plain HTTP.
+ */
+std::string checkTlsFiles(const TlsFiles& tls);
+
+/**
  * REST API Server for NAAb
  * Provides HTTP endpoints for:
  * - Executing NAAb code
@@ -26,6 +49,16 @@ public:
      * @param host Server host (default: "0.0.0.0")
      */
     RestApiServer(int port = 8080, const std::string& host = "0.0.0.0");
+
+    /**
+     * A server that serves HTTPS with these files when either is set. Throws
+     * std::runtime_error with checkTlsFiles()'s reason when it cannot, so a
+     * server that was asked for TLS is never built as plain HTTP.
+     */
+    RestApiServer(int port, const std::string& host, const TlsFiles& tls);
+
+    /** True when this server serves HTTPS. */
+    bool usesTls() const;
 
     /**
      * Destructor
@@ -115,6 +148,7 @@ private:
 
     int port_;
     std::string host_;
+    bool tls_ = false;
     std::atomic<bool> running_;  // H4 fix: atomic for thread safety
     std::string api_key_;
     size_t max_body_bytes_ = 1048576; // 1 MiB default
