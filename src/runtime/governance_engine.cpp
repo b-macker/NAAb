@@ -1541,7 +1541,7 @@ void GovernanceEngine::clearTrace() {
     t_current_decision_trace.clear();
 }
 
-// A233: the govern.json section a rule's checks belong to, and the rationale
+// A236: the govern.json section a rule's checks belong to, and the rationale
 // that section's `rationale` field gave. One table, keyed by the section's
 // path, matched on whole path segments (`scoring` never claims
 // `scoring_calibration`), the longest path winning, so a check inside a

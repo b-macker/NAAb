@@ -1,5 +1,5 @@
 # The govern.json sections whose `rationale` the loader reads, and a rule a
-# check refuses under in each (A233, Bundle 21 PR 3).
+# check refuses under in each (A236, Bundle 21 PR 3).
 #
 #   path|rule
 #

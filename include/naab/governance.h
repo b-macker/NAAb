@@ -3563,7 +3563,7 @@ public:
     std::string checkPathAccessImpl(const std::string& filepath, const std::string& mode,
                                     bool decide_only, bool program_access = true);
 
-    // A233: the govern.json section whose checks a rule belongs to (its path,
+    // A236: the govern.json section whose checks a rule belongs to (its path,
     // or "" when none), and that section's rationale into *rationale. One
     // table, read by lookupRationale() and by naab-gov context.
     static std::string ruleSection(const GovernanceRules& r, const std::string& rule_name,

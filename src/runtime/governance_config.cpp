@@ -3977,7 +3977,7 @@ static void loadFromJsonImpl(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.explicitly_set.insert("codegen");
         if (cg.contains("enabled") && cg["enabled"].is_boolean())
             rules_.codegen.enabled = cg["enabled"].get<bool>();
-        // A234: the level codegen refusals are enforced at, read like every
+        // A237: the level codegen refusals are enforced at, read like every
         // other level-only key -- detect and approval_required as written, an
         // unknown value at hard with the load warning. It mapped everything
         // but hard and soft to ADVISORY (written when this key was read by

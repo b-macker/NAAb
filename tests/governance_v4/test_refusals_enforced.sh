@@ -35,10 +35,10 @@
 #   RE-08       level advisory: recorded as a warning, still refused, catchable
 #   RE-09/09o   level soft: exit 3; with --governance-override still refused
 #   RE-10       level detect: recorded as detect (not a warning), catchable,
-#               still refused (A234: it read as advisory, which RE-10 could not
+#               still refused (A237: it read as advisory, which RE-10 could not
 #               tell apart until it checked the record)
-#   RE-10m      a misspelled level reads hard, with the load warning (A234)
-#   RE-10a      level approval_required: refused without an approval (A234)
+#   RE-10m      a misspelled level reads hard, with the load warning (A237)
+#   RE-10a      level approval_required: refused without an approval (A237)
 #   RE-11       mode audit: still refused
 #   agent.create (A168)
 #   RE-20       CONTROL: no limit, the second agent is created
@@ -77,7 +77,7 @@
 #   M13 checkCodeSize() prefers per_block to the language's own .... RE-42
 #   M14 the persistent executor's wait ignores the deadline ........ RE-34
 #   M15 the timer armed in audit mode too .......................... RE-37
-#   M16 codegen.level's old parse (all but hard/soft -> advisory, A234)
+#   M16 codegen.level's old parse (all but hard/soft -> advisory, A237)
 #                                                          ....... RE-10, RE-10m, RE-10a
 # And by setting removal on the test build (docs/settings-liveness.md):
 #   NAAB=build-mut/naab-lang NAAB_DROP_SETTING=<setting> bash <this suite>
@@ -194,15 +194,15 @@ if [ "$CG_OK" = 1 ]; then
         ok "RE-10" "level detect: recorded as a detect refusal, catchable, the code did not run"
     else bad "RE-10" "detect codegen refusal: not (detect, catchable, refused)" "$(show)"; fi
 
-    # A234: an unknown level reads hard (with the load warning), as for every
+    # A237: an unknown level reads hard (with the load warning), as for every
     # other level-only key; approval_required is honoured.
     run re10m ",\"codegen\":{$BL,\"level\":\"hrad\"}" "$CG"
     if [ "$RC" = 3 ] && ! has CAUGHT && ! mark M1 && has "check is enforced at hard"; then
-        ok "RE-10m" "a misspelled level reads hard: exit 3, the load warning says so (A234)"
+        ok "RE-10m" "a misspelled level reads hard: exit 3, the load warning says so (A237)"
     else bad "RE-10m" "a misspelled codegen.level did not read hard" "$(show)"; fi
     run re10a ",\"codegen\":{$BL,\"level\":\"approval_required\"}" "$CG"
     if [ "$RC" = 3 ] && ! has CAUGHT && ! mark M1 && has "[approval_required]  REFUSED" && has "requires explicit approval"; then
-        ok "RE-10a" "level approval_required: refused without an approval (exit 3) (A234)"
+        ok "RE-10a" "level approval_required: refused without an approval (exit 3) (A237)"
     else bad "RE-10a" "approval_required codegen.level was not honoured" "$(show)"; fi
 
     run re11 ",\"codegen\":{$BL}" "$CG" "" audit

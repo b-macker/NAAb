@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The govern.json sections whose `rationale` the loader reads (A233).
+"""The govern.json sections whose `rationale` the loader reads (A236).
 
 Reads src/runtime/governance_config.cpp and prints one JSON path per line: the
 object every `parseRationale(OBJ, ...)` call reads from, resolved back to the

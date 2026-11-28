@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # test_rationale_sections.sh -- every section that reads a `rationale` gives
-# it to the rules refused under it (A233; Bundle 21 PR 3)
+# it to the rules refused under it (A236; Bundle 21 PR 3)
 #
 # THE DEFECT (observed on master d55ddbf8)
 #
@@ -70,7 +70,7 @@ pass() { PASS_COUNT=$((PASS_COUNT + 1)); echo "  PASS [$1] $2"; }
 # A CR in a FAIL line is shown as \r (a rule name read with its CR, 2026-11-28).
 fail() { local d="${3:-}"; d="${d//$'\r'/\\r}"; FAIL_COUNT=$((FAIL_COUNT + 1)); echo "  FAIL [$1] ${2//$'\r'/\\r}${d:+ -- $d}"; }
 
-echo "=== rationale sections (A233) ==="
+echo "=== rationale sections (A236) ==="
 if [ ! -x "$GOV" ]; then
     echo "  FAIL [RS-00] naab-gov not built at $GOV -- UNMEASURABLE, not a pass"
     exit 1

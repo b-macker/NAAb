@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ============================================================
 # test_refusal_rationale.sh -- a refusal the program cannot catch says why, in
-# the project's own words (Bundle 21 PR 3; A233)
+# the project's own words (Bundle 21 PR 3; A236)
 #
 # BEFORE (observed on master d55ddbf8)
 #
 # A rule's `rationale` reached the reports, the audit trail and the end-of-run
 # dashboard, never the refusal a person or a coding agent reads when the run
 # stops. And for a third of the sections that read one it reached nothing
-# (A233, test_rationale_sections.sh): the report entry of a refusal under
+# (A236, test_rationale_sections.sh): the report entry of a refusal under
 # capabilities.env_vars.blocked_read, contracts.<fn>.must_call or
 # custom_rules.<id> carried no rationale.
 #
@@ -29,13 +29,13 @@
 #   RR-02   a soft refusal (no override) ends with it
 #   RR-03   a DETECT refusal the program catches carries no rationale (taint
 #           tracking; written while codegen.level still read "detect" as
-#           advisory, A234, fixed in the same PR)
+#           advisory, A237, fixed in the same PR)
 #   RR-03c  CONTROL: the same taint section at hard shows it
 #   RR-04   an escalated advisory (hard) ends with it
 #   RR-05   an advisory warning shows none, and the run goes on
-#   RR-06   the JSON report records the rationale (A233) and its message has
+#   RR-06   the JSON report records the rationale (A236) and its message has
 #           no Why line
-#   RR-07   A233 in the report: a contract's and a custom rule's rationale
+#   RR-07   A236 in the report: a contract's and a custom rule's rationale
 #   RR-08   a rationale naming the chain key's variable is not shown, and the
 #           name is nowhere in the output
 #   RR-09   a control character reads '?'
@@ -51,7 +51,7 @@
 #   M5a the line added to the advisory warning     -> RR-05
 #   M5b the line added to the recorded message     -> RR-06
 #   M6  displayableRationale() returns the text unfiltered -> RR-08 RR-09 RR-10
-#   K8  "contract" for "contracts" (A233's old prefix) -> RR-07
+#   K8  "contract" for "contracts" (A236's old prefix) -> RR-07
 # Against master's binary (d55ddbf8): RR-01 RR-02 RR-03c RR-04 RR-06..RR-11 red;
 # RR-00 RR-01c RR-03 RR-05 green (controls, and absences that hold there).
 # ============================================================
@@ -224,7 +224,7 @@ else
 fi
 
 # ------------------------------------------------------------------
-# RR-06 / RR-07 -- the report records the rationale (A233), not the line
+# RR-06 / RR-07 -- the report records the rationale (A236), not the line
 # ------------------------------------------------------------------
 d="$TEST_TMP/rr01"
 rat=$(report_field "$d" "capabilities.env_vars.blocked_read" rationale)
@@ -248,7 +248,7 @@ arm "$d2" '{"version":"3.0","mode":"enforce","custom_rules":[{"id":"no_frob","pa
 r1=$(report_field "$d" "contracts.work.must_call" rationale)
 r2=$(report_field "$d2" "custom_rules.no_frob" rationale)
 if [ "$r1" = "RR_MARK_CT" ] && [ "$r2" = "RR_MARK_CR" ] && [ "$(why_line "$d")" = "  Why: RR_MARK_CT" ]; then
-    pass "RR-07" "a contract's and a custom rule's rationale reach the report and the refusal (A233)"
+    pass "RR-07" "a contract's and a custom rule's rationale reach the report and the refusal (A236)"
 else
     fail "RR-07" "a contract's or a custom rule's rationale is lost" "contract=[$r1] custom=[$r2] refusal=[$(why_line "$d")]"
 fi
