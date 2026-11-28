@@ -1261,6 +1261,13 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidanceForSend(
     return delivered;
 }
 
+std::vector<GuidanceDelivery> GovernanceEngine::guidanceForRefusal(const std::string& rule_name,
+                                                                  size_t* withheld) {
+    GuidanceTerminal g = guidanceForTerminal(rule_name, "");
+    if (withheld) *withheld = g.withheld.size();
+    return g.delivered;
+}
+
 GovernanceEngine::GuidanceTerminal GovernanceEngine::guidanceForTerminal(
     const std::string& rule_name, const std::string& violation_message) {
     GuidanceTerminal g;
@@ -1364,7 +1371,7 @@ void GovernanceEngine::emitGuidanceTerminal(const GuidanceTerminal& g) {
 
 std::vector<GuidanceDelivery> GovernanceEngine::guidancePull(const std::string& topic,
                                                              const std::string& source_filter,
-                                                             int max_entries) {
+                                                             int max_entries, bool record) {
     std::vector<GuidanceDelivery> out;
     if (!guidanceEnabled() || topic.empty()) return out;
     // Hold the rules for the whole call: a mid-run reload swaps rules_ptr_
@@ -1416,6 +1423,7 @@ std::vector<GuidanceDelivery> GovernanceEngine::guidancePull(const std::string& 
             out.push_back(std::move(d));
         }
     }
+    if (!record) return out;
     for (const auto& d : out) {
         writeAgentTelemetry("GUIDANCE_DELIVERED", {
             {"delivery_id", d.id},

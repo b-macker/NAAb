@@ -1,0 +1,93 @@
+# The govern.json sections whose `rationale` the loader reads, and a rule a
+# check refuses under in each (A233, Bundle 21 PR 3).
+#
+#   path|rule
+#
+# path  the section, as tools/rationale_sections.py prints it from the
+#       loader's parse sites; test_rationale_sections.sh requires the two lists
+#       to be the same. In an entry, [] and * stand for the entry the suite
+#       writes: custom_rules[] is id r1, governance_plugins[].rules[] id p1,
+#       behavioral_sequences.patterns[] pattern p1, contracts.functions.* fn f.
+# rule  a rule name the engine enforces under that section -- the name a
+#       refusal records and its rationale is looked up by. More rows for one
+#       path name the other spellings a check uses below it (aliases,
+#       sub-rules), each looked up the same way.
+#
+# A row means: with `rationale` set at PATH, GovernanceEngine::ruleSectionInfo()
+# returns it for RULE (asked through naab-gov context, the read a refusal and
+# every report share).
+advisory_escalation|advisory_escalation
+behavioral_sequences|behavioral_sequences
+behavioral_sequences.patterns[]|behavioral_sequences.p1
+capabilities.env_vars|capabilities.env_vars
+capabilities.filesystem|capabilities.filesystem
+capabilities.network|capabilities.network
+capabilities.process|capabilities.process
+capabilities.shell|capabilities.shell
+circuit_breaker|circuit_breaker
+code_quality.complexity_floor|code_quality.complexity_floor
+code_quality.drift_detection|code_quality.drift_detection
+code_quality.duplicate_calls|code_quality.duplicate_calls
+code_quality.encoding|code_quality.encoding
+code_quality.intent_validation|code_quality.intent_validation
+code_quality.max_complexity|code_quality.max_complexity
+code_quality.no_apologetic_language|code_quality.no_apologetic_language
+code_quality.no_dead_code|code_quality.no_dead_code
+code_quality.no_debug_artifacts|code_quality.no_debug_artifacts
+code_quality.no_hallucinated_apis|code_quality.no_hallucinated_apis
+code_quality.no_hardcoded_ips|code_quality.no_hardcoded_ips
+code_quality.no_hardcoded_results|code_quality.no_hardcoded_results
+code_quality.no_hardcoded_urls|code_quality.no_hardcoded_urls
+code_quality.no_incomplete_logic|code_quality.no_incomplete_logic
+code_quality.no_mock_data|code_quality.no_mock_data
+code_quality.no_oversimplification|code_quality.no_oversimplification
+code_quality.no_path_traversal|code_quality.no_path_traversal
+code_quality.no_pii|code_quality.no_pii
+code_quality.no_placeholders|code_quality.no_placeholders
+code_quality.no_secrets|code_quality.no_secrets
+code_quality.no_simulation_markers|code_quality.no_simulation_markers
+code_quality.no_sql_injection|code_quality.no_sql_injection
+code_quality.no_temporary_code|code_quality.no_temporary_code
+code_quality.no_unsafe_deserialization|code_quality.no_unsafe_deserialization
+code_quality.semantic_checks|code_quality.semantic_checks
+codegen|codegen
+context_drift|context_drift.coherence_loss
+context_drift.reality_checkpoint|context_drift.reality_checkpoint
+contracts.functions.*|contracts.f
+custom_rules[]|custom_rules.r1
+exposure_tracking|exposure_tracking
+governance_health|governance_health
+governance_plugins[].rules[]|governance_plugins.p1
+guidance|guidance.sources
+manifest|manifest
+pipeline_separation|pipeline_separation
+requirements.error_handling|requirements.error_handling
+requirements.main_block|requirements.main_block
+restrictions.code_injection|restrictions.code_injection
+restrictions.crypto|restrictions.crypto
+restrictions.dangerous_calls|restrictions.dangerous_calls
+restrictions.data_exfiltration|restrictions.data_exfiltration
+restrictions.imports|restrictions.imports
+restrictions.information_disclosure|restrictions.information_disclosure
+restrictions.obfuscation|restrictions.obfuscation
+restrictions.privilege_escalation|restrictions.privilege_escalation
+restrictions.resource_abuse|restrictions.resource_abuse
+restrictions.shell_injection|restrictions.shell_injection
+restrictions.vcs_secret_extraction|restrictions.vcs_secret_extraction
+scoring|scoring
+scoring_calibration|scoring_calibration
+taint_tracking|taint_tracking.sink_violation
+temporal_coupling|temporal_coupling
+# other spellings below a section
+capabilities.env_vars|capabilities.env_vars.blocked_read
+capabilities.shell|capabilities.shell.blocked_commands
+capabilities.filesystem|capabilities.filesystem.path
+code_quality.drift_detection|drift_detection.body_hash
+code_quality.intent_validation|code_quality.intent_validation.self_declared
+contracts.functions.*|contracts.f.must_call
+custom_rules[]|custom_rules.r1
+exposure_tracking|admission
+circuit_breaker|output_admissibility
+taint_tracking|pass2.cross_block_taint
+manifest|manifest.required
+codegen|codegen.run

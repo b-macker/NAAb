@@ -8,6 +8,9 @@
 
 #include "naab/governance.h"
 #include "naab/utf8_text.h"
+#include "naab/governance_message_format.h"
+#include <cctype>
+#include <type_traits>
 #include "naab/host_match.h"
 #include "naab/language_descriptors.h"
 #include "naab/path_policy.h"
@@ -1538,96 +1541,284 @@ void GovernanceEngine::clearTrace() {
     t_current_decision_trace.clear();
 }
 
-std::string GovernanceEngine::lookupRationale(const std::string& rule_name) const {
-    // Capabilities
-    if (rule_name == "capabilities.network") return rules().capabilities.network.rationale;
-    if (rule_name == "capabilities.filesystem") return rules().capabilities.filesystem.rationale;
-    if (rule_name == "capabilities.shell") return rules().capabilities.shell.rationale;
-    if (rule_name == "capabilities.env_vars") return rules().capabilities.env_vars.rationale;
-    if (rule_name == "capabilities.process") return rules().capabilities.process.rationale;
-    if (rule_name == "guidance.sources") return rules().guidance.rationale;
-    // Requirements
-    if (rule_name.rfind("requirements.", 0) == 0) {
-        if (rule_name.find("main_block") != std::string::npos) return rules().requirements.main_block.rationale;
-        if (rule_name.find("error_handling") != std::string::npos) return rules().requirements.error_handling.rationale;
-        return "";
+// A233: the govern.json section a rule's checks belong to, and the rationale
+// that section's `rationale` field gave. One table, keyed by the section's
+// path, matched on whole path segments (`scoring` never claims
+// `scoring_calibration`), the longest path winning, so a check inside a
+// section reaches its section's rationale whatever the check calls itself
+// below it (`capabilities.env_vars.blocked_read`). The hand-written lookup it
+// replaces knew 46 exact names and two wrong prefixes (`contract.` for
+// `contracts.`, `custom.` for `custom_rules.`), so a rationale written in a
+// third of the sections that read one reached no report, audit entry, dashboard
+// or refusal. Every section the loader reads a rationale in has a row; a new
+// one needs a row too (tests/governance_v4/rationale_sections.psv checks each
+// against the loader's own parse sites).
+namespace {
+bool ruleUnderPath(const std::string& rule, const std::string& path) {
+    return rule == path ||
+           (rule.size() > path.size() && rule.compare(0, path.size(), path) == 0 &&
+            rule[path.size()] == '.');
+}
+// The part of `rule` after `path.`, up to the next dot ("" when there is none).
+std::string ruleSegmentAfter(const std::string& rule, const std::string& path) {
+    if (rule.size() <= path.size() + 1) return "";
+    std::string rest = rule.substr(path.size() + 1);
+    return rest.substr(0, rest.find('.'));
+}
+}  // namespace
+
+// What a row reads from its section's struct: the rationale always, and the
+// switch, level and mode where the struct has a field of that name and type
+// (detected, not listed, so a row never claims a field its struct lacks).
+template <class T, class = void> struct HasBoolEnabled : std::false_type {};
+template <class T> struct HasBoolEnabled<T, std::void_t<decltype(std::declval<const T&>().enabled)>>
+    : std::is_same<std::decay_t<decltype(std::declval<const T&>().enabled)>, bool> {};
+template <class T, class = void> struct HasLevel : std::false_type {};
+template <class T> struct HasLevel<T, std::void_t<decltype(std::declval<const T&>().level)>>
+    : std::is_same<std::decay_t<decltype(std::declval<const T&>().level)>, EnforcementLevel> {};
+template <class T, class = void> struct HasMode : std::false_type {};
+template <class T> struct HasMode<T, std::void_t<decltype(std::declval<const T&>().mode)>>
+    : std::is_same<std::decay_t<decltype(std::declval<const T&>().mode)>, std::string> {};
+
+const char* sectionLevelName(EnforcementLevel l) {
+    switch (l) {
+        case EnforcementLevel::HARD: return "hard";
+        case EnforcementLevel::SOFT: return "soft";
+        case EnforcementLevel::ADVISORY: return "advisory";
+        case EnforcementLevel::DETECT: return "detect";
+        case EnforcementLevel::APPROVAL_REQUIRED: return "approval_required";
+        case EnforcementLevel::NONE: return "none";
     }
-    // Restrictions
-    if (rule_name.rfind("restrictions.", 0) == 0) {
-        std::string suffix = rule_name.substr(13);
-        if (suffix == "dangerous_calls") return rules().restrictions.dangerous_calls.rationale;
-        if (suffix == "shell_injection") return rules().restrictions.shell_injection.rationale;
-        if (suffix == "privilege_escalation") return rules().restrictions.privilege_escalation.rationale;
-        if (suffix == "code_injection") return rules().restrictions.code_injection.rationale;
-        if (suffix == "crypto") return rules().restrictions.crypto.rationale;
-        if (suffix == "vcs_secret_extraction") return rules().restrictions.vcs_secret_extraction.rationale;
-        if (suffix == "data_exfiltration") return rules().restrictions.data_exfiltration.rationale;
-        if (suffix == "resource_abuse") return rules().restrictions.resource_abuse.rationale;
-        if (suffix == "information_disclosure") return rules().restrictions.information_disclosure.rationale;
-        if (suffix == "imports") return rules().restrictions.imports.rationale;
-        return "";
-    }
-    // Code quality
-    if (rule_name.rfind("code_quality.", 0) == 0) {
-        std::string suffix = rule_name.substr(13);
-        if (suffix == "no_secrets") return rules().code_quality.no_secrets.rationale;
-        if (suffix == "no_placeholders") return rules().code_quality.no_placeholders.rationale;
-        if (suffix == "no_hardcoded_results") return rules().code_quality.no_hardcoded_results.rationale;
-        if (suffix == "no_pii") return rules().code_quality.no_pii.rationale;
-        if (suffix == "no_temporary_code") return rules().code_quality.no_temporary_code.rationale;
-        if (suffix == "no_simulation_markers") return rules().code_quality.no_simulation_markers.rationale;
-        if (suffix == "no_mock_data") return rules().code_quality.no_mock_data.rationale;
-        if (suffix == "no_apologetic_language") return rules().code_quality.no_apologetic_language.rationale;
-        if (suffix == "no_dead_code") return rules().code_quality.no_dead_code.rationale;
-        if (suffix == "no_debug_artifacts") return rules().code_quality.no_debug_artifacts.rationale;
-        if (suffix == "no_unsafe_deserialization") return rules().code_quality.no_unsafe_deserialization.rationale;
-        if (suffix == "no_sql_injection") return rules().code_quality.no_sql_injection.rationale;
-        if (suffix == "no_path_traversal") return rules().code_quality.no_path_traversal.rationale;
-        if (suffix == "no_hardcoded_urls") return rules().code_quality.no_hardcoded_urls.rationale;
-        if (suffix == "no_hardcoded_ips") return rules().code_quality.no_hardcoded_ips.rationale;
-        if (suffix == "max_complexity") return rules().code_quality.max_complexity.rationale;
-        if (suffix == "complexity_floor") return rules().code_quality.complexity_floor.rationale;
-        if (suffix == "encoding") return rules().code_quality.encoding.rationale;
-        if (suffix == "no_oversimplification") return rules().code_quality.no_oversimplification.rationale;
-        if (suffix == "no_incomplete_logic") return rules().code_quality.no_incomplete_logic.rationale;
-        if (suffix == "no_hallucinated_apis") return rules().code_quality.no_hallucinated_apis.rationale;
-        if (suffix == "intent_validation" || suffix.rfind("intent_validation.", 0) == 0) return rules().code_quality.intent_validation.rationale;
-        if (suffix == "duplicate_calls") return rules().code_quality.duplicate_calls.rationale;
-        if (suffix == "drift_detection") return rules().code_quality.drift_detection.rationale;
-        if (suffix == "semantic_checks") return rules().code_quality.semantic_checks.rationale;
-        return "";
-    }
-    // Taint tracking
-    if (rule_name.rfind("taint", 0) == 0) return rules().taint_tracking.rationale;
-    // Context drift
-    if (rule_name == "context_drift.coherence_loss") return rules().context_drift.rationale;
-    if (rule_name == "context_drift.reality_checkpoint") return rules().context_drift.reality_checkpoint.rationale;
-    // Exposure tracking — "admission" is the vocabulary alias for the pre-send
-    // gate (checkAdmission enforces under the exposure_tracking config key)
-    if (rule_name == "exposure_tracking" || rule_name == "admission")
-        return rules().exposure_tracking.rationale;
-    // Scoring
-    if (rule_name.rfind("scoring", 0) == 0) return rules().scoring.rationale;
-    // Contracts — look up per-function rationale
-    if (rule_name.rfind("contract.", 0) == 0) {
-        // rule_name is "contract.<function_name>"
-        std::string fn = rule_name.substr(9);
-        auto it = rules().contracts.functions.find(fn);
-        if (it != rules().contracts.functions.end()) return it->second.rationale;
-    }
-    // Codegen
-    if (rule_name.rfind("codegen", 0) == 0) return rules().codegen.rationale;
-    // Output admissibility
-    if (rule_name == "output_admissibility") return rules().circuit_breaker.rationale;
-    if (rule_name == "pipeline_separation") return rules().pipeline_separation.rationale;
-    // Custom rules
-    if (rule_name.rfind("custom.", 0) == 0) {
-        std::string id = rule_name.substr(7);
-        for (const auto& cr : rules().custom_rules) {
-            if (cr.id == id) return cr.rationale;
+    return "none";
+}
+
+template <class T>
+GovernanceEngine::RuleSectionInfo sectionInfoOf(std::string section, const T& s) {
+    GovernanceEngine::RuleSectionInfo i;
+    i.section = std::move(section);
+    i.rationale = s.rationale;
+    if constexpr (HasBoolEnabled<T>::value) i.enabled = s.enabled ? 1 : 0;
+    if constexpr (HasLevel<T>::value) i.level = sectionLevelName(s.level);
+    if constexpr (HasMode<T>::value) i.mode = s.mode;
+    return i;
+}
+
+GovernanceEngine::RuleSectionInfo GovernanceEngine::ruleSectionInfo(const GovernanceRules& r,
+                                                                    const std::string& rule_name) {
+    RuleSectionInfo none;
+    // Sections that are entries of a list or a map, named by the entry.
+    if (ruleUnderPath(rule_name, "contracts")) {
+        const std::string fn = ruleSegmentAfter(rule_name, "contracts");
+        auto it = r.contracts.functions.find(fn);
+        if (it != r.contracts.functions.end()) {
+            RuleSectionInfo i = sectionInfoOf("contracts.functions." + fn, it->second);
+            // A function's level NONE means the section's (checkContract...:
+            // contract.level, else contracts.level).
+            if (it->second.level == EnforcementLevel::NONE)
+                i.level = sectionLevelName(r.contracts.level);
+            return i;
         }
+        none.section = "contracts";
+        return none;
     }
-    return "";  // No rationale configured
+    if (ruleUnderPath(rule_name, "custom_rules")) {
+        const std::string id = ruleSegmentAfter(rule_name, "custom_rules");
+        for (const auto& cr : r.custom_rules)
+            if (cr.id == id) return sectionInfoOf("custom_rules[" + id + "]", cr);
+        none.section = "custom_rules";
+        return none;
+    }
+    if (ruleUnderPath(rule_name, "behavioral_sequences")) {
+        // A pattern's own rationale, when it gave one; else the section's.
+        const std::string name = rule_name.size() > 21 ? rule_name.substr(21) : std::string();
+        for (const auto& p : r.behavioral_sequences.patterns)
+            if (!name.empty() && p.name == name && !p.rationale.empty())
+                return sectionInfoOf("behavioral_sequences.patterns[" + name + "]", p);
+    }
+    if (ruleUnderPath(rule_name, "governance_plugins")) {
+        const std::string id = ruleSegmentAfter(rule_name, "governance_plugins");
+        for (const auto& gp : r.governance_plugins)
+            for (const auto& pr : gp.rules)
+                if (pr.id == id) return sectionInfoOf("governance_plugins[].rules[" + id + "]", pr);
+        none.section = "governance_plugins";
+        return none;
+    }
+
+    using Get = RuleSectionInfo (*)(const GovernanceRules&);
+    struct Row { const char* rule_path; Get get; };
+#define NAAB_RAT(rule_path, section, member) \
+    Row{rule_path, [](const GovernanceRules& g) { return sectionInfoOf(section, g.member); }}
+    static const Row kRows[] = {
+        NAAB_RAT("capabilities.network", "capabilities.network", capabilities.network),
+        NAAB_RAT("capabilities.filesystem", "capabilities.filesystem", capabilities.filesystem),
+        NAAB_RAT("capabilities.shell", "capabilities.shell", capabilities.shell),
+        NAAB_RAT("capabilities.env_vars", "capabilities.env_vars", capabilities.env_vars),
+        NAAB_RAT("capabilities.process", "capabilities.process", capabilities.process),
+        NAAB_RAT("requirements.main_block", "requirements.main_block", requirements.main_block),
+        NAAB_RAT("requirements.error_handling", "requirements.error_handling", requirements.error_handling),
+        NAAB_RAT("restrictions.dangerous_calls", "restrictions.dangerous_calls", restrictions.dangerous_calls),
+        NAAB_RAT("restrictions.shell_injection", "restrictions.shell_injection", restrictions.shell_injection),
+        NAAB_RAT("restrictions.privilege_escalation", "restrictions.privilege_escalation", restrictions.privilege_escalation),
+        NAAB_RAT("restrictions.code_injection", "restrictions.code_injection", restrictions.code_injection),
+        NAAB_RAT("restrictions.crypto", "restrictions.crypto", restrictions.crypto),
+        NAAB_RAT("restrictions.vcs_secret_extraction", "restrictions.vcs_secret_extraction", restrictions.vcs_secret_extraction),
+        NAAB_RAT("restrictions.obfuscation", "restrictions.obfuscation", restrictions.obfuscation),
+        NAAB_RAT("restrictions.imports", "restrictions.imports", restrictions.imports),
+        NAAB_RAT("restrictions.data_exfiltration", "restrictions.data_exfiltration", restrictions.data_exfiltration),
+        NAAB_RAT("restrictions.resource_abuse", "restrictions.resource_abuse", restrictions.resource_abuse),
+        NAAB_RAT("restrictions.information_disclosure", "restrictions.information_disclosure", restrictions.information_disclosure),
+        NAAB_RAT("code_quality.no_secrets", "code_quality.no_secrets", code_quality.no_secrets),
+        NAAB_RAT("code_quality.no_placeholders", "code_quality.no_placeholders", code_quality.no_placeholders),
+        NAAB_RAT("code_quality.no_temporary_code", "code_quality.no_temporary_code", code_quality.no_temporary_code),
+        NAAB_RAT("code_quality.no_simulation_markers", "code_quality.no_simulation_markers", code_quality.no_simulation_markers),
+        NAAB_RAT("code_quality.no_dead_code", "code_quality.no_dead_code", code_quality.no_dead_code),
+        NAAB_RAT("code_quality.no_debug_artifacts", "code_quality.no_debug_artifacts", code_quality.no_debug_artifacts),
+        NAAB_RAT("code_quality.no_unsafe_deserialization", "code_quality.no_unsafe_deserialization", code_quality.no_unsafe_deserialization),
+        NAAB_RAT("code_quality.no_sql_injection", "code_quality.no_sql_injection", code_quality.no_sql_injection),
+        NAAB_RAT("code_quality.no_path_traversal", "code_quality.no_path_traversal", code_quality.no_path_traversal),
+        NAAB_RAT("code_quality.no_hardcoded_urls", "code_quality.no_hardcoded_urls", code_quality.no_hardcoded_urls),
+        NAAB_RAT("code_quality.no_hardcoded_ips", "code_quality.no_hardcoded_ips", code_quality.no_hardcoded_ips),
+        NAAB_RAT("code_quality.semantic_checks", "code_quality.semantic_checks", code_quality.semantic_checks),
+        NAAB_RAT("code_quality.intent_validation", "code_quality.intent_validation", code_quality.intent_validation),
+        NAAB_RAT("code_quality.no_pii", "code_quality.no_pii", code_quality.no_pii),
+        NAAB_RAT("code_quality.no_mock_data", "code_quality.no_mock_data", code_quality.no_mock_data),
+        NAAB_RAT("code_quality.no_apologetic_language", "code_quality.no_apologetic_language", code_quality.no_apologetic_language),
+        NAAB_RAT("code_quality.max_complexity", "code_quality.max_complexity", code_quality.max_complexity),
+        NAAB_RAT("code_quality.encoding", "code_quality.encoding", code_quality.encoding),
+        NAAB_RAT("code_quality.no_hardcoded_results", "code_quality.no_hardcoded_results", code_quality.no_hardcoded_results),
+        NAAB_RAT("code_quality.no_oversimplification", "code_quality.no_oversimplification", code_quality.no_oversimplification),
+        NAAB_RAT("code_quality.no_incomplete_logic", "code_quality.no_incomplete_logic", code_quality.no_incomplete_logic),
+        NAAB_RAT("code_quality.no_hallucinated_apis", "code_quality.no_hallucinated_apis", code_quality.no_hallucinated_apis),
+        NAAB_RAT("code_quality.complexity_floor", "code_quality.complexity_floor", code_quality.complexity_floor),
+        NAAB_RAT("code_quality.duplicate_calls", "code_quality.duplicate_calls", code_quality.duplicate_calls),
+        NAAB_RAT("code_quality.drift_detection", "code_quality.drift_detection", code_quality.drift_detection),
+        // drift detection's checks are named without the code_quality prefix
+        NAAB_RAT("drift_detection", "code_quality.drift_detection", code_quality.drift_detection),
+        NAAB_RAT("guidance", "guidance", guidance),
+        NAAB_RAT("manifest", "manifest", manifest),
+        NAAB_RAT("taint_tracking", "taint_tracking", taint_tracking),
+        // the after-run audit's cross-block flow is taint_tracking.gate_cross_block
+        NAAB_RAT("pass2.cross_block_taint", "taint_tracking", taint_tracking),
+        NAAB_RAT("scoring", "scoring", scoring),
+        NAAB_RAT("scoring_calibration", "scoring_calibration", scoring_calibration),
+        NAAB_RAT("behavioral_sequences", "behavioral_sequences", behavioral_sequences),
+        NAAB_RAT("context_drift", "context_drift", context_drift),
+        NAAB_RAT("context_drift.reality_checkpoint", "context_drift.reality_checkpoint", context_drift.reality_checkpoint),
+        NAAB_RAT("exposure_tracking", "exposure_tracking", exposure_tracking),
+        // "admission" is the vocabulary alias for the pre-send gate, which
+        // checkAdmission() enforces under the exposure_tracking section
+        NAAB_RAT("admission", "exposure_tracking", exposure_tracking),
+        NAAB_RAT("temporal_coupling", "temporal_coupling", temporal_coupling),
+        NAAB_RAT("circuit_breaker", "circuit_breaker", circuit_breaker),
+        // output admissibility is circuit_breaker.output_admissibility
+        NAAB_RAT("output_admissibility", "circuit_breaker", circuit_breaker),
+        NAAB_RAT("advisory_escalation", "advisory_escalation", advisory_escalation),
+        NAAB_RAT("governance_health", "governance_health", governance_health),
+        NAAB_RAT("pipeline_separation", "pipeline_separation", pipeline_separation),
+        NAAB_RAT("codegen", "codegen", codegen),
+    };
+#undef NAAB_RAT
+    const Row* best = nullptr;
+    size_t best_len = 0;
+    for (const auto& row : kRows) {
+        const size_t n = std::strlen(row.rule_path);
+        if (n > best_len && ruleUnderPath(rule_name, row.rule_path)) { best = &row; best_len = n; }
+    }
+    if (!best) return none;
+    return best->get(r);
+}
+
+std::string GovernanceEngine::ruleSection(const GovernanceRules& r, const std::string& rule_name,
+                                          std::string* rationale) {
+    RuleSectionInfo i = ruleSectionInfo(r, rule_name);
+    if (rationale) *rationale = i.rationale;
+    return i.section;
+}
+
+namespace {
+bool isIdentChar(char c) {
+    return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
+}
+// `name` as a whole identifier in `text`, ignoring case (env names are
+// matched that way by checkEnvVarRead()).
+bool namesIdentifier(const std::string& text, const std::string& name) {
+    if (name.empty() || text.size() < name.size()) return false;
+    for (size_t i = 0; i + name.size() <= text.size(); ++i) {
+        if (i > 0 && isIdentChar(text[i - 1])) continue;
+        const size_t e = i + name.size();
+        if (e < text.size() && isIdentChar(text[e])) continue;
+        bool eq = true;
+        for (size_t k = 0; k < name.size() && eq; ++k)
+            eq = std::tolower(static_cast<unsigned char>(text[i + k])) ==
+                 std::tolower(static_cast<unsigned char>(name[k]));
+        if (eq) return true;
+    }
+    return false;
+}
+}  // namespace
+
+std::string GovernanceEngine::displayableRationale(const GovernanceRules& r, const std::string& text,
+                                                   std::string* withheld_reason) const {
+    auto withhold = [&](const char* why) {
+        if (withheld_reason) *withheld_reason = why;
+        return std::string();
+    };
+    if (withheld_reason) withheld_reason->clear();
+    if (text.empty()) return "";
+    // The ungated matchers: a rationale is shown whatever the config enables.
+    if (!firstSecretPattern(text).empty()) return withhold("secret");
+    if (piiPresentUngated(text)) return withhold("pii");
+    std::vector<std::string> key_vars = r.key_env_names;
+    for (const auto& s : r.guidance.sources)
+        if (!s.auth_env.empty()) key_vars.push_back(s.auth_env);
+    for (const auto& a : r.agents) {
+        if (!a.api_key_env.empty()) key_vars.push_back(a.api_key_env);
+        for (const auto& k : a.api_key_envs) key_vars.push_back(k);
+    }
+    for (const auto& k : key_vars)
+        if (namesIdentifier(text, k)) return withhold("key_variable");
+    for (const auto& san : r.taint_tracking.sanitizers) {
+        if (san.size() >= 3 && text.find(san) != std::string::npos) return withhold("sanitizer");
+    }
+    std::string out = naab::text::validUtf8(text);
+    for (auto& c : out) {
+        const unsigned char u = static_cast<unsigned char>(c);
+        if (u < 0x20 && c != '\n') c = '?';
+        else if (u == 0x7f) c = '?';
+    }
+    const size_t kMax = 500;
+    if (out.size() > kMax) out = naab::text::truncateUtf8(out, kMax) + "...";
+    return out;
+}
+
+std::string GovernanceEngine::refusalRationaleLine(const std::string& rule_name) const {
+    try {
+        const auto rules_hold = rulesPtr();
+        std::string text;
+        ruleSection(*rules_hold, rule_name, &text);
+        if (text.empty()) return "";
+        std::string why;
+        const std::string shown = displayableRationale(*rules_hold, text, &why);
+        namespace msg = naab::governance::message;
+        if (shown.empty()) {
+            return std::string("\n") + std::string(msg::kWhyLabel) +
+                   "(the project's reason for this rule is not shown: it holds a value governance withholds)\n";
+        }
+        std::string line = std::string("\n") + std::string(msg::kWhyLabel);
+        for (char c : shown) {
+            line += c;
+            if (c == '\n') line += "       ";   // continuation under the text
+        }
+        return line + "\n";
+    } catch (...) {
+        return "";
+    }
+}
+
+std::string GovernanceEngine::lookupRationale(const std::string& rule_name) const {
+    std::string text;
+    ruleSection(rules(), rule_name, &text);
+    return text;
 }
 
 void GovernanceEngine::tallyEvictedLocked(const CheckResult& r) {
@@ -1962,6 +2153,16 @@ std::string GovernanceEngine::enforce(
             return shown;
         }
     };
+    // Bundle 21 PR 3: a refusal the program cannot catch also says WHY, in the
+    // project's own words -- the rationale of the rule's govern.json section,
+    // through displayableRationale(). Like guidance it is appended to the
+    // message shown only, never to what the attestation signs, the hook
+    // receives or the telemetry row records. Not on DETECT: that refusal is a
+    // std::runtime_error a NAAb `try` catches and reads, and govern.json is a
+    // file the program may not read.
+    auto refusalShown = [&](const std::string& shown) -> std::string {
+        return shownWithGuidance(shown + refusalRationaleLine(rule_name));
+    };
 
     switch (level) {
         case EnforcementLevel::NONE:
@@ -1976,7 +2177,7 @@ std::string GovernanceEngine::enforce(
                 {"line", std::to_string(checkLine())},
                 {"category", cat}
             });
-            throw GovernanceHardError(shownWithGuidance(violation_message));
+            throw GovernanceHardError(refusalShown(violation_message));
 
         case EnforcementLevel::DETECT:
             // Same detection as HARD, but throws catchable std::runtime_error.
@@ -2008,7 +2209,7 @@ std::string GovernanceEngine::enforce(
                 {"line", std::to_string(checkLine())},
                 {"category", cat}
             });
-            throw GovernanceHardError(shownWithGuidance(violation_message +
+            throw GovernanceHardError(refusalShown(violation_message +
                 "\n\n  This rule requires explicit approval.\n"
                 "  The project owner can provide a signed token.\n"));
         }
@@ -2019,7 +2220,7 @@ std::string GovernanceEngine::enforce(
                 if (rules().require_override_reason && override_reason_.empty()) {
                     g_governance_hard_block = true;
                     emitRefusalAttestation(rule_name, level, "soft_missing_reason", violation_message);
-                    throw GovernanceHardError(shownWithGuidance(violation_message));
+                    throw GovernanceHardError(refusalShown(violation_message));
                 }
                 // Log override with provenance
                 if (!override_reason_.empty()) {
@@ -2065,7 +2266,7 @@ std::string GovernanceEngine::enforce(
                     {"line", std::to_string(checkLine())},
                     {"category", cat}
                 });
-                throw GovernanceHardError(shownWithGuidance(soft_msg));
+                throw GovernanceHardError(refusalShown(soft_msg));
             }
 
         case EnforcementLevel::ADVISORY: {
@@ -2147,7 +2348,7 @@ std::string GovernanceEngine::enforce(
                     {"counted_sites", counted},
                     {"category", cat}
                 });
-                throw GovernanceHardError(shownWithGuidance(escalation_msg));
+                throw GovernanceHardError(refusalShown(escalation_msg));
             }
 
             if (occurrence == 1) {
